@@ -1,5 +1,6 @@
 use rndr_core::{
-    detail_pane, set_parent, shell, spawn_node, tree_column, App, Color, NodeSpec, Schedule, World,
+    detail_pane, set_parent, shell, spawn_node, tree_column, App, Body, Color, NodeSpec, Schedule,
+    World,
 };
 use rndr_render::run;
 
@@ -10,7 +11,18 @@ fn setup(world: &mut World) {
     let tree = world.spawn((tree_layout, tree_scroll, Color::rgb(0.10, 0.11, 0.13)));
     set_parent(world, tree, root);
     for spec in demo_tree() {
+        let label = spec.label.clone();
         let node = spawn_node(world, spec);
+        if label == "Alpha" {
+            if let Some(body) = world.get_mut::<Body>(node) {
+                body.text = "a node you can write in".to_string();
+            }
+        }
+        if label == "Beta" {
+            if let Some(body) = world.get_mut::<Body>(node) {
+                body.text = "another document".to_string();
+            }
+        }
         set_parent(world, node, tree);
     }
 

@@ -16,7 +16,7 @@ mod style;
 mod world;
 
 pub use app::{App, Schedule, System};
-pub use caret::{apply_caret, set_editing, Caret, Editing};
+pub use caret::{apply_caret, set_editing, set_editing_field, Caret, EditField, Editing, Field};
 pub use disclosure::{
     page_layout, scroll_page, spawn_node, toggle_disclosure, toggle_disclosures, Disclosure,
     Focusable, NodeSpec,
@@ -28,6 +28,8 @@ pub use input::{Focus, Input, Key, Viewport};
 pub use layout::{
     ancestor_with, apply_scroll, hit_test, layout_propagate, Axis, Clip, Layout, Rect, Scroll, Size,
 };
-pub use pane::{apply_pane, detail_pane, set_selection, shell, tree_column, Pane, Selection};
-pub use style::{Color, Label};
+pub use pane::{
+    apply_pane, detail_pane, field_height, set_selection, shell, tree_column, Pane, Selection,
+};
+pub use style::{Body, Color, Label};
 pub use world::{Bundle, Component, World};
