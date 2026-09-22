@@ -25,7 +25,11 @@ pub fn run(app: App) {
         pressed: false,
         scroll: [0.0, 0.0],
         key: None,
+        chars: String::new(),
         shift: false,
+        ctrl: false,
+        alt: false,
+        super_key: false,
     };
     event_loop.run_app(&mut handler).expect("run");
 }
@@ -37,7 +41,11 @@ struct Handler {
     pressed: bool,
     scroll: [f32; 2],
     key: Option<Action>,
+    chars: String,
     shift: bool,
+    ctrl: bool,
+    alt: bool,
+    super_key: bool,
 }
 
 impl Handler {
@@ -47,11 +55,13 @@ impl Handler {
             input.pressed = self.pressed;
             input.scroll = self.scroll;
             input.key = self.key;
+            input.chars.clone_from(&self.chars);
             input.shift = self.shift;
         }
         self.pressed = false;
         self.scroll = [0.0, 0.0];
         self.key = None;
+        self.chars.clear();
     }
 }
 
@@ -64,6 +74,7 @@ fn map_key(key: &Key) -> Option<Action> {
         Key::Named(NamedKey::Enter) => Some(Action::Enter),
         Key::Named(NamedKey::Escape) => Some(Action::Escape),
         Key::Named(NamedKey::Tab) => Some(Action::Tab),
+        Key::Named(NamedKey::Backspace) => Some(Action::Backspace),
         _ => None,
     }
 }
@@ -91,11 +102,29 @@ impl ApplicationHandler for Handler {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::ModifiersChanged(modifiers) => {
-                self.shift = modifiers.state().shift_key();
+                let state = modifiers.state();
+                self.shift = state.shift_key();
+                self.ctrl = state.control_key();
+                self.alt = state.alt_key();
+                self.super_key = state.super_key();
             }
             WindowEvent::KeyboardInput { event, .. } if event.state == ElementState::Pressed => {
+                let mut redraw = false;
                 if let Some(key) = map_key(&event.logical_key) {
                     self.key = Some(key);
+                    redraw = true;
+                }
+                if !self.ctrl && !self.alt && !self.super_key {
+                    if let Key::Character(text) = &event.logical_key {
+                        for ch in text.chars() {
+                            if matches!(ch, ' '..='~') {
+                                self.chars.push(ch);
+                                redraw = true;
+                            }
+                        }
+                    }
+                }
+                if redraw {
                     if let Some(gpu) = &self.gpu {
                         gpu.window().request_redraw();
                     }

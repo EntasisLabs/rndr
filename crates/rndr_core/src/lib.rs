@@ -4,6 +4,7 @@
 //! A render plugin reads the flat [`layout::Rect`] list.
 
 mod app;
+mod caret;
 mod disclosure;
 mod entity;
 mod focus;
@@ -15,6 +16,7 @@ mod style;
 mod world;
 
 pub use app::{App, Schedule, System};
+pub use caret::{apply_caret, set_editing, Caret, Editing};
 pub use disclosure::{
     page_layout, scroll_page, spawn_node, toggle_disclosure, toggle_disclosures, Disclosure,
     Focusable, NodeSpec,

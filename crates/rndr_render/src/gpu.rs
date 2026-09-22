@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use rndr_core::{
-    children_of, roots, App, Clip, Color, Focus, Input, Label, Parent, Rect, Viewport,
+    children_of, roots, App, Caret, Clip, Color, Focus, Input, Label, Parent, Rect, Viewport,
 };
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
@@ -404,6 +404,7 @@ impl Gpu {
             input.pressed = false;
             input.scroll = [0.0, 0.0];
             input.key = None;
+            input.chars.clear();
         }
     }
 }
@@ -412,10 +413,13 @@ fn collect_instances(app: &App) -> Vec<f32> {
     let world = app.world();
     let mut out = Vec::new();
     for root in roots::<Rect>(world) {
-        walk(world, root, &mut |rect, color, clip, label| {
+        walk(world, root, &mut |rect, color, clip, label, caret| {
             push_instance(&mut out, rect, color, font::solid_uv(), clip);
             if let Some(label) = label {
                 push_label(&mut out, rect, label, clip);
+            }
+            if let Some(caret) = caret {
+                push_caret(&mut out, rect, caret, clip);
             }
         });
     }
@@ -425,7 +429,7 @@ fn collect_instances(app: &App) -> Vec<f32> {
 fn walk(
     world: &rndr_core::World,
     entity: rndr_core::Entity,
-    visit: &mut impl FnMut(Rect, Color, Clip, Option<&Label>),
+    visit: &mut impl FnMut(Rect, Color, Clip, Option<&Label>, Option<&Caret>),
 ) {
     if !world.is_alive(entity) {
         return;
@@ -439,9 +443,16 @@ fn walk(
         let highlight = focused == Some(entity)
             || world
                 .get::<Parent>(entity)
-                .is_some_and(|parent| focused == Some(parent.entity));
+                .is_some_and(|parent| focused == Some(parent.entity))
+            || world.has::<Caret>(entity);
         let color = if highlight { lighten(*color) } else { *color };
-        visit(*rect, color, clip, world.get::<Label>(entity));
+        visit(
+            *rect,
+            color,
+            clip,
+            world.get::<Label>(entity),
+            world.get::<Caret>(entity),
+        );
     }
     for child in children_of(world, entity) {
         walk(world, child, visit);
@@ -491,4 +502,24 @@ fn push_label(out: &mut Vec<f32>, rect: Rect, label: &Label, clip: Clip) {
         );
         x += glyph_w;
     }
+}
+
+fn push_caret(out: &mut Vec<f32>, rect: Rect, caret: &Caret, clip: Clip) {
+    let scale = 2.0;
+    let glyph_w = font::GLYPH_W as f32 * scale;
+    let glyph_h = font::GLYPH_H as f32 * scale;
+    let x = rect.x + 12.0 + caret.index as f32 * glyph_w;
+    let y = rect.y + ((rect.h - glyph_h) * 0.5).max(4.0);
+    push_instance(
+        out,
+        Rect {
+            x,
+            y,
+            w: 2.0,
+            h: glyph_h,
+        },
+        Color::rgb(0.94, 0.95, 0.97),
+        font::solid_uv(),
+        clip,
+    );
 }
