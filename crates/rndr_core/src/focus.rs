@@ -1,3 +1,4 @@
+use crate::caret::{is_editing, set_editing};
 use crate::disclosure::{toggle_disclosure, Disclosure, Focusable};
 use crate::entity::Entity;
 use crate::hierarchy::{children_of, roots, Parent};
@@ -11,7 +12,7 @@ use crate::world::World;
 pub fn apply_focus(world: &mut World) {
     snap_stale_focus(world);
 
-    let Some(input) = world.resource::<Input>().copied() else {
+    let Some(input) = world.resource::<Input>().cloned() else {
         return;
     };
 
@@ -24,14 +25,32 @@ pub fn apply_focus(world: &mut World) {
                     retarget_focus_after_toggle(world, target);
                 }
                 set_selection(world, Some(target));
+                set_editing(world, None);
             }
         }
     }
 
     if let Some(key) = input.key {
-        handle_key(world, key, input.shift);
-        if let Some(input) = world.resource_mut::<Input>() {
-            input.key = None;
+        if is_editing(world) {
+            match key {
+                Key::Escape => {
+                    set_editing(world, None);
+                    if let Some(input) = world.resource_mut::<Input>() {
+                        input.key = None;
+                    }
+                }
+                Key::Left | Key::Right | Key::Backspace => {}
+                _ => {
+                    if let Some(input) = world.resource_mut::<Input>() {
+                        input.key = None;
+                    }
+                }
+            }
+        } else {
+            handle_key(world, key, input.shift);
+            if let Some(input) = world.resource_mut::<Input>() {
+                input.key = None;
+            }
         }
     }
 
@@ -49,9 +68,11 @@ fn handle_key(world: &mut World, key: Key, shift: bool) {
         Key::Enter => {
             if let Some(target) = current_focus(world) {
                 set_selection(world, Some(target));
+                set_editing(world, Some(target));
             }
         }
         Key::Escape => handle_escape(world),
+        Key::Backspace => {}
     }
 }
 

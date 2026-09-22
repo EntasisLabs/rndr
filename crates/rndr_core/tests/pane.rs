@@ -1,6 +1,7 @@
 use rndr_core::{
-    children_of, detail_pane, set_parent, shell, spawn_node, tree_column, App, Color, Disclosure,
-    Focus, Focusable, Input, Key, Label, NodeSpec, Pane, Parent, Schedule, Selection, World,
+    children_of, detail_pane, set_parent, shell, spawn_node, tree_column, App, Caret, Color,
+    Disclosure, Focus, Focusable, Input, Key, Label, NodeSpec, Pane, Parent, Schedule, Selection,
+    World,
 };
 
 fn tree() -> Vec<NodeSpec> {
@@ -122,6 +123,7 @@ fn enter_on_beta_replaces_the_pane_body() {
     press(&mut app, Key::Enter);
     assert!(pane_labels(app.world()).contains(&"Alpha".to_string()));
 
+    press(&mut app, Key::Escape);
     press(&mut app, Key::Down);
     assert_eq!(focused_label(app.world()), "Beta");
     press(&mut app, Key::Enter);
@@ -151,6 +153,13 @@ fn escape_clears_selection_and_keeps_tree_focus() {
         .entity
         .is_some());
 
+    press(&mut app, Key::Escape);
+    assert!(app
+        .world()
+        .resource::<Selection>()
+        .unwrap()
+        .entity
+        .is_some());
     press(&mut app, Key::Escape);
     assert!(app
         .world()
@@ -188,4 +197,5 @@ fn click_toggles_the_tree_and_fills_the_pane() {
     let labels = pane_labels(app.world());
     assert!(labels.contains(&"Alpha".to_string()));
     assert!(labels.contains(&"Open".to_string()));
+    assert!(app.world().entities_with::<Caret>().is_empty());
 }

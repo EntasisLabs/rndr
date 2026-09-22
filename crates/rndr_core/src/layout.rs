@@ -182,7 +182,7 @@ pub fn hit_test(world: &World, x: f32, y: f32) -> Option<Entity> {
 
 /// Apply `Input.scroll` to the deepest `Scroll` under the pointer.
 pub fn apply_scroll(world: &mut World) {
-    let Some(input) = world.resource::<Input>().copied() else {
+    let Some(input) = world.resource::<Input>().cloned() else {
         return;
     };
     if input.scroll[0] == 0.0 && input.scroll[1] == 0.0 {

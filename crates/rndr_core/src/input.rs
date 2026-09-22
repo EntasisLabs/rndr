@@ -10,10 +10,11 @@ pub enum Key {
     Enter,
     Escape,
     Tab,
+    Backspace,
 }
 
 /// Pointer and key state for the current update. The render crate writes this.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Input {
     pub cursor: [f32; 2],
     /// Press edge for this update only.
@@ -21,6 +22,8 @@ pub struct Input {
     /// Content-offset delta for this update only. Positive Y moves content down.
     pub scroll: [f32; 2],
     pub key: Option<Key>,
+    /// Printable ASCII gathered this frame.
+    pub chars: String,
     pub shift: bool,
     pub quit: bool,
 }
