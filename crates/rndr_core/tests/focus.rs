@@ -65,13 +65,23 @@ fn node_named(world: &World, name: &str) -> rndr_core::Entity {
 }
 
 #[test]
-fn down_then_enter_opens_alpha() {
+fn down_then_right_opens_alpha() {
     let mut app = boot();
     press(&mut app, Key::Down);
     assert_eq!(focused_label(app.world()), "Alpha");
-    press(&mut app, Key::Enter);
+    press(&mut app, Key::Right);
     let alpha = node_named(app.world(), "Alpha");
     assert!(app.world().get::<Disclosure>(alpha).unwrap().open);
+    assert_eq!(focused_label(app.world()), "Alpha");
+}
+
+#[test]
+fn enter_does_not_toggle_the_tree() {
+    let mut app = boot();
+    press(&mut app, Key::Down);
+    press(&mut app, Key::Enter);
+    let alpha = node_named(app.world(), "Alpha");
+    assert!(!app.world().get::<Disclosure>(alpha).unwrap().open);
     assert_eq!(focused_label(app.world()), "Alpha");
 }
 
@@ -79,11 +89,11 @@ fn down_then_enter_opens_alpha() {
 fn tree_walk_and_escape() {
     let mut app = boot();
     press(&mut app, Key::Down);
-    press(&mut app, Key::Enter);
+    press(&mut app, Key::Right);
     press(&mut app, Key::Down);
     assert_eq!(focused_label(app.world()), "Alpha / 1");
 
-    press(&mut app, Key::Enter);
+    press(&mut app, Key::Right);
     assert!(
         app.world()
             .get::<Disclosure>(node_named(app.world(), "Alpha / 1"))

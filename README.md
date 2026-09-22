@@ -10,7 +10,7 @@ Application
 │         rndr_core           │
 │  Entities  Components       │
 │  Hierarchy Layout Expand    │
-│  Clip Scroll Focus          │
+│  Clip Scroll Focus Pane     │
 └──────────────┬──────────────┘
                │
         render plugin
@@ -25,9 +25,9 @@ Application
 
 | Crate | Role |
 | --- | --- |
-| `rndr_core` | ECS, layout, clip, scroll, disclosure, focus |
+| `rndr_core` | ECS, layout, clip, scroll, disclosure, focus, pane |
 | `rndr_render` | winit window, `Input` resource, instanced quads, 8×8 ASCII atlas |
-| `examples/expand` | Expand / scroll / keyboard-focus demo |
+| `examples/expand` | Expand / scroll / keyboard-focus / open-in-place pane demo |
 
 Platform dependencies stop at `wgpu`, `winit`, and `pollster`. No layout engine, no text crate, no third-party ECS.
 
@@ -44,4 +44,4 @@ cargo test -p rndr_core
 cargo run -p expand
 ```
 
-A window-filling page of rows. Click or Enter to expand. Arrows and Tab move focus. Escape collapses, then leaves the window. Wheel scrolls; focus keeps the current row on screen.
+A tree column on the left and a detail pane on the right. Click or Enter opens the selected node in the pane. Right and Left expand and collapse the tree. Arrows and Tab move focus. Escape closes the pane, then collapses, then leaves the window. Wheel scrolls; focus stays on the tree.
