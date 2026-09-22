@@ -8,6 +8,7 @@ mod caret;
 mod disclosure;
 mod entity;
 mod focus;
+mod fs;
 mod hierarchy;
 mod input;
 mod layout;
@@ -23,6 +24,7 @@ pub use disclosure::{
 };
 pub use entity::Entity;
 pub use focus::apply_focus;
+pub use fs::{apply_fs_load, apply_fs_save, spawn_fs_node, Dirty, FsPath};
 pub use hierarchy::{children_of, despawn, roots, set_parent, Children, Parent};
 pub use input::{Focus, Input, Key, Viewport};
 pub use layout::{

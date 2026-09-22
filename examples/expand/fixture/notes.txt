@@ -1,0 +1,4 @@
+a file you can write in
+
+Ctrl+S saves.
+Right expands a folder.

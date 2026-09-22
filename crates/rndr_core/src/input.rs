@@ -11,6 +11,7 @@ pub enum Key {
     Escape,
     Tab,
     Backspace,
+    Save,
 }
 
 /// Pointer and key state for the current update. The render crate writes this.
@@ -25,6 +26,7 @@ pub struct Input {
     /// Printable ASCII gathered this frame.
     pub chars: String,
     pub shift: bool,
+    pub ctrl: bool,
     pub quit: bool,
 }
 

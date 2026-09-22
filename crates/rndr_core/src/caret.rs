@@ -1,4 +1,5 @@
 use crate::entity::Entity;
+use crate::fs::{Dirty, FsPath};
 use crate::hierarchy::children_of;
 use crate::input::{Input, Key};
 use crate::layout::{ancestor_with, Clip, Layout, Rect, Scroll, Size};
@@ -117,6 +118,7 @@ pub fn apply_caret(world: &mut World) {
         .get::<Label>(row)
         .map(|label| label.text.clone())
         .unwrap_or_default();
+    let original = text.clone();
     let mut index = world
         .get::<Caret>(row)
         .map(|caret| caret.index.min(text.len()))
@@ -159,7 +161,7 @@ pub fn apply_caret(world: &mut World) {
         EditField::Title => {
             if let Some(header) = header_label_entity(world, source) {
                 if let Some(label) = world.get_mut::<Label>(header) {
-                    label.text = text;
+                    label.text.clone_from(&text);
                 }
             }
         }
@@ -171,6 +173,9 @@ pub fn apply_caret(world: &mut World) {
                 layout.height = Size::Px(field_height(&text));
             }
         }
+    }
+    if text != original && world.has::<FsPath>(source) {
+        world.insert(source, Dirty);
     }
 
     clear_text_input(world);

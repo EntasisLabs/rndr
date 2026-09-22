@@ -1,6 +1,7 @@
 use crate::caret::{is_editing, set_editing, set_editing_field, Field};
 use crate::disclosure::{toggle_disclosure, Disclosure, Focusable};
 use crate::entity::Entity;
+use crate::fs::FsPath;
 use crate::hierarchy::{children_of, roots, Parent};
 use crate::input::{Focus, Input, Key};
 use crate::layout::{ancestor_with, hit_test, Clip, Rect, Scroll};
@@ -40,7 +41,9 @@ pub fn apply_focus(world: &mut World) {
     }
 
     if let Some(key) = input.key {
-        if is_editing(world) {
+        if key == Key::Save {
+            // Left for apply_fs_save.
+        } else if is_editing(world) {
             match key {
                 Key::Escape => {
                     set_editing(world, None);
@@ -54,7 +57,8 @@ pub fn apply_focus(world: &mut World) {
                 | Key::Enter
                 | Key::Tab
                 | Key::Up
-                | Key::Down => {}
+                | Key::Down
+                | Key::Save => {}
             }
         } else {
             handle_key(world, key, input.shift);
@@ -82,7 +86,7 @@ fn handle_key(world: &mut World, key: Key, shift: bool) {
             }
         }
         Key::Escape => handle_escape(world),
-        Key::Backspace => {}
+        Key::Backspace | Key::Save => {}
     }
 }
 
@@ -102,7 +106,7 @@ fn handle_escape(world: &mut World) {
     };
     if world
         .get::<Disclosure>(target)
-        .is_some_and(|d| d.open && !d.children.is_empty())
+        .is_some_and(|d| d.open && can_expand(world, target, d))
     {
         toggle_disclosure(world, target);
         retarget_focus_after_toggle(world, target);
@@ -115,6 +119,10 @@ fn handle_escape(world: &mut World) {
     if let Some(input) = world.resource_mut::<Input>() {
         input.quit = true;
     }
+}
+
+fn can_expand(world: &World, entity: Entity, disclosure: &Disclosure) -> bool {
+    !disclosure.children.is_empty() || world.get::<FsPath>(entity).is_some_and(|path| path.dir)
 }
 
 fn move_down(world: &mut World) {
@@ -150,7 +158,7 @@ fn move_right(world: &mut World) {
         return;
     };
     if let Some(disclosure) = world.get::<Disclosure>(current).cloned() {
-        if !disclosure.open && !disclosure.children.is_empty() {
+        if !disclosure.open && can_expand(world, current, &disclosure) {
             toggle_disclosure(world, current);
             return;
         }

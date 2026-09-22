@@ -1,5 +1,6 @@
 use crate::caret::{apply_caret, Editing};
 use crate::focus::apply_focus;
+use crate::fs::{apply_fs_load, apply_fs_save};
 use crate::input::{Focus, Input, Viewport};
 use crate::layout::{apply_scroll, layout_propagate};
 use crate::pane::{apply_pane, Selection};
@@ -43,8 +44,10 @@ impl App {
         };
         app.update.push(apply_scroll);
         app.update.push(apply_focus);
+        app.update.push(apply_fs_load);
         app.update.push(apply_pane);
         app.update.push(apply_caret);
+        app.update.push(apply_fs_save);
         app
     }
 
