@@ -1,6 +1,6 @@
 use rndr_core::{
-    despawn, hit_test, layout_propagate, set_parent, spawn_node, toggle_disclosure, Axis, Color,
-    Disclosure, Layout, NodeSpec, Rect, Size, Viewport, World,
+    apply_scroll, despawn, hit_test, layout_propagate, set_parent, spawn_node, toggle_disclosure,
+    Axis, Clip, Color, Disclosure, Input, Layout, NodeSpec, Rect, Scroll, Size, Viewport, World,
 };
 
 fn px(w: f32, h: f32) -> Layout {
@@ -196,4 +196,120 @@ fn expand_then_collapse_rewrites_layout() {
     assert!(!world.get::<Disclosure>(root).unwrap().open);
     layout_propagate(&mut world);
     assert_eq!(world.get::<Rect>(root).unwrap().h, closed);
+}
+
+fn fill_column() -> Layout {
+    Layout {
+        axis: Axis::Column,
+        gap: 0.0,
+        padding: 0.0,
+        width: Size::Fill,
+        height: Size::Fill,
+    }
+}
+
+#[test]
+fn scrollport_offsets_hug_children_and_records_content() {
+    let mut world = World::new();
+    world.insert_resource(Viewport {
+        width: 100.0,
+        height: 50.0,
+    });
+
+    let port = world.spawn((fill_column(), Scroll::default()));
+    let first = world.spawn(px(100.0, 40.0));
+    let second = world.spawn(px(100.0, 40.0));
+    set_parent(&mut world, first, port);
+    set_parent(&mut world, second, port);
+
+    world.get_mut::<Scroll>(port).unwrap().offset = [0.0, -20.0];
+    layout_propagate(&mut world);
+
+    let scroll = *world.get::<Scroll>(port).unwrap();
+    assert_eq!(scroll.content, [100.0, 80.0]);
+    assert_eq!(scroll.offset, [0.0, -20.0]);
+    assert_eq!(world.get::<Rect>(port).unwrap().h, 50.0);
+    assert_eq!(world.get::<Rect>(first).unwrap().y, -20.0);
+    assert_eq!(world.get::<Rect>(second).unwrap().y, 20.0);
+}
+
+#[test]
+fn overflowed_child_clip_is_intersection_with_port() {
+    let mut world = World::new();
+    world.insert_resource(Viewport {
+        width: 80.0,
+        height: 50.0,
+    });
+
+    let port = world.spawn((fill_column(), Scroll::default()));
+    let child = world.spawn(px(80.0, 80.0));
+    set_parent(&mut world, child, port);
+    layout_propagate(&mut world);
+
+    let port_rect = *world.get::<Rect>(port).unwrap();
+    let child_rect = *world.get::<Rect>(child).unwrap();
+    let expected = Clip::from_rect(port_rect).intersect(Clip::from_rect(child_rect));
+    assert_eq!(*world.get::<Clip>(child).unwrap(), expected);
+    assert_eq!(expected.h, 50.0);
+}
+
+#[test]
+fn hit_test_ignores_rect_outside_clip() {
+    let mut world = World::new();
+    world.insert_resource(Viewport {
+        width: 80.0,
+        height: 40.0,
+    });
+
+    let port = world.spawn((fill_column(), Scroll::default()));
+    let child = world.spawn(px(80.0, 80.0));
+    set_parent(&mut world, child, port);
+    world.get_mut::<Scroll>(port).unwrap().offset = [0.0, -50.0];
+    layout_propagate(&mut world);
+
+    let child_rect = *world.get::<Rect>(child).unwrap();
+    assert!(child_rect.contains(10.0, -10.0));
+    assert_eq!(hit_test(&world, 10.0, -10.0), None);
+    assert_eq!(hit_test(&world, 10.0, 10.0), Some(child));
+}
+
+#[test]
+fn wheel_clamps_and_collapse_resets_offset() {
+    let mut world = World::new();
+    world.insert_resource(Viewport {
+        width: 200.0,
+        height: 50.0,
+    });
+    world.insert_resource(Input::default());
+
+    let port = world.spawn((fill_column(), Scroll::default()));
+    let spec = NodeSpec::branch(
+        "Root",
+        Color::rgb(0.2, 0.3, 0.4),
+        vec![
+            NodeSpec::leaf("A", Color::rgb(0.3, 0.4, 0.3)),
+            NodeSpec::leaf("B", Color::rgb(0.3, 0.4, 0.3)),
+            NodeSpec::leaf("C", Color::rgb(0.3, 0.4, 0.3)),
+        ],
+    );
+    let node = spawn_node(&mut world, spec);
+    set_parent(&mut world, node, port);
+    layout_propagate(&mut world);
+    assert_eq!(world.get::<Scroll>(port).unwrap().offset[1], 0.0);
+
+    toggle_disclosure(&mut world, node);
+    layout_propagate(&mut world);
+    let content = world.get::<Scroll>(port).unwrap().content[1];
+    assert!(content > 50.0);
+
+    world.resource_mut::<Input>().unwrap().scroll = [0.0, -400.0];
+    world.resource_mut::<Input>().unwrap().cursor = [20.0, 20.0];
+    apply_scroll(&mut world);
+    layout_propagate(&mut world);
+    let scrolled = world.get::<Scroll>(port).unwrap().offset[1];
+    assert_eq!(scrolled, 50.0 - content);
+
+    toggle_disclosure(&mut world, node);
+    layout_propagate(&mut world);
+    assert_eq!(world.get::<Scroll>(port).unwrap().offset[1], 0.0);
 }

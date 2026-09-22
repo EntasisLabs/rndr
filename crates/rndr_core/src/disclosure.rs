@@ -1,7 +1,7 @@
 use crate::entity::Entity;
 use crate::hierarchy::{despawn, set_parent};
 use crate::input::Input;
-use crate::layout::{ancestor_with, hit_test, Axis, Layout, Size};
+use crate::layout::{ancestor_with, hit_test, Axis, Layout, Scroll, Size};
 use crate::style::{Color, Label};
 use crate::world::{Component, World};
 
@@ -127,4 +127,18 @@ pub fn page_layout() -> Layout {
         width: Size::Fill,
         height: Size::Hug,
     }
+}
+
+/// Window-filling column that offsets overflowing children.
+pub fn scroll_page() -> (Layout, Scroll) {
+    (
+        Layout {
+            axis: Axis::Column,
+            gap: 8.0,
+            padding: 16.0,
+            width: Size::Fill,
+            height: Size::Fill,
+        },
+        Scroll::default(),
+    )
 }

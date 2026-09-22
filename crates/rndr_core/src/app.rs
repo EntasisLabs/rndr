@@ -1,5 +1,5 @@
 use crate::input::{Input, Viewport};
-use crate::layout::layout_propagate;
+use crate::layout::{apply_scroll, layout_propagate};
 use crate::world::World;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -27,14 +27,16 @@ impl App {
         let mut world = World::new();
         world.insert_resource(Input::default());
         world.insert_resource(Viewport::default());
-        Self {
+        let mut app = Self {
             world,
             startup: Vec::new(),
             update: Vec::new(),
             layout: Vec::new(),
             render: Vec::new(),
             started: false,
-        }
+        };
+        app.update.push(apply_scroll);
+        app
     }
 
     pub fn add_system(&mut self, schedule: Schedule, system: System) -> &mut Self {

@@ -14,11 +14,14 @@ mod world;
 
 pub use app::{App, Schedule, System};
 pub use disclosure::{
-    page_layout, spawn_node, toggle_disclosure, toggle_disclosures, Disclosure, NodeSpec,
+    page_layout, scroll_page, spawn_node, toggle_disclosure, toggle_disclosures, Disclosure,
+    NodeSpec,
 };
 pub use entity::Entity;
 pub use hierarchy::{children_of, despawn, roots, set_parent, Children, Parent};
 pub use input::{Input, Viewport};
-pub use layout::{ancestor_with, hit_test, layout_propagate, Axis, Layout, Rect, Size};
+pub use layout::{
+    ancestor_with, apply_scroll, hit_test, layout_propagate, Axis, Clip, Layout, Rect, Scroll, Size,
+};
 pub use style::{Color, Label};
 pub use world::{Bundle, Component, World};
