@@ -2,11 +2,13 @@ use crate::entity::Entity;
 use crate::fs::{Dirty, FsPath};
 use crate::hierarchy::children_of;
 use crate::input::{Input, Key};
-use crate::layout::{ancestor_with, Clip, Layout, Rect, Scroll, Size};
+use crate::layout::{ancestor_with, hit_test, Clip, Layout, Rect, Scroll, Size};
 use crate::pane::{field_height, Pane};
 use crate::style::{Body, Label};
 use crate::world::{Component, World};
-use crate::wrap::{cols_for, index_at_visual, visual_pos, wrap_lines, GLYPH_PX, TEXT_INSET_Y};
+use crate::wrap::{
+    cols_for, index_at_pointer, index_at_visual, visual_pos, wrap_lines, GLYPH_PX, TEXT_INSET_Y,
+};
 
 impl Component for Caret {}
 impl Component for Field {}
@@ -151,6 +153,19 @@ pub fn apply_caret(world: &mut World) {
     if field == EditField::Body && key == Some(Key::Down) {
         index = move_visual_line(world, row, &text, index, 1);
     }
+    if press_hits_field(world, row) {
+        if let Some(rect) = world.get::<Rect>(row).copied() {
+            let (x, y) = world
+                .resource::<Input>()
+                .map(|input| (input.cursor[0], input.cursor[1]))
+                .unwrap_or((0.0, 0.0));
+            let cols = match field {
+                EditField::Body => cols_for(rect.w),
+                EditField::Title => usize::MAX,
+            };
+            index = index_at_pointer(&text, cols, rect, x, y);
+        }
+    }
 
     if let Some(label) = world.get_mut::<Label>(row) {
         label.text.clone_from(&text);
@@ -248,6 +263,18 @@ fn clear_text_input(world: &mut World) {
             input.key = None;
         }
     }
+}
+
+fn press_hits_field(world: &World, row: Entity) -> bool {
+    let Some(input) = world.resource::<Input>() else {
+        return false;
+    };
+    if !input.pressed {
+        return false;
+    }
+    hit_test(world, input.cursor[0], input.cursor[1])
+        .and_then(|hit| ancestor_with::<Field>(world, hit))
+        == Some(row)
 }
 
 fn is_printable_ascii(ch: char) -> bool {

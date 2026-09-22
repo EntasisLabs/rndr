@@ -77,6 +77,18 @@ pub fn index_at_visual(lines: &[VisualLine], line: usize, col: usize) -> usize {
     vis.start + col.min(vis.end.saturating_sub(vis.start))
 }
 
+/// Byte index under a pointer in a field [`Rect`]. Title uses `cols = usize::MAX`.
+pub fn index_at_pointer(text: &str, cols: usize, rect: Rect, x: f32, y: f32) -> usize {
+    let lines = wrap_lines(text, cols);
+    if lines.is_empty() {
+        return 0;
+    }
+    let line = ((y - rect.y - TEXT_INSET_Y) / GLYPH_PX).floor() as isize;
+    let line = line.clamp(0, lines.len() as isize - 1) as usize;
+    let col = ((x - rect.x - TEXT_INSET_X) / GLYPH_PX).round().max(0.0) as usize;
+    index_at_visual(&lines, line, col)
+}
+
 /// Grow every body field so its height matches wrapped lines.
 pub fn apply_wrap(world: &mut World) {
     let panes = world.entities_with::<Pane>();

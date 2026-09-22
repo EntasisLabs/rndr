@@ -40,6 +40,6 @@ pub use split::{apply_split, Drag, Splitter};
 pub use style::{Body, Color, Label};
 pub use world::{Bundle, Component, World};
 pub use wrap::{
-    apply_wrap, cols_for, field_height_lines, index_at_visual, visual_pos, wrap_lines, VisualLine,
-    GLYPH_PX, TEXT_INSET_X, TEXT_INSET_Y,
+    apply_wrap, cols_for, field_height_lines, index_at_pointer, index_at_visual, visual_pos,
+    wrap_lines, VisualLine, GLYPH_PX, TEXT_INSET_X, TEXT_INSET_Y,
 };
