@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
-use rndr_core::{children_of, roots, App, Color, Input, Label, Rect, Viewport};
+use rndr_core::{children_of, roots, App, Clip, Color, Input, Label, Rect, Viewport};
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
 use crate::font::{self, ATLAS_H, ATLAS_W};
 
 const QUAD: [[f32; 2]; 4] = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
-const INSTANCE_FLOATS: usize = 12;
+const INSTANCE_FLOATS: usize = 16;
 const INSTANCE_STRIDE: u64 = (INSTANCE_FLOATS * 4) as u64;
 const INITIAL_INSTANCES: u64 = 2048;
 
@@ -17,12 +17,14 @@ struct VsIn {
     @location(1) rect: vec4<f32>,
     @location(2) color: vec4<f32>,
     @location(3) uv_rect: vec4<f32>,
+    @location(4) clip: vec4<f32>,
 }
 
 struct VsOut {
     @builtin(position) pos: vec4<f32>,
     @location(0) color: vec4<f32>,
     @location(1) uv: vec2<f32>,
+    @location(2) clip: vec4<f32>,
 }
 
 struct ViewportUniform {
@@ -45,11 +47,17 @@ fn vs(in: VsIn) -> VsOut {
     out.pos = vec4<f32>(ndc, 0.0, 1.0);
     out.color = in.color;
     out.uv = mix(in.uv_rect.xy, in.uv_rect.zw, in.quad);
+    out.clip = in.clip;
     return out;
 }
 
 @fragment
 fn fs(in: VsOut) -> @location(0) vec4<f32> {
+    let px = in.pos.xy;
+    let clip = in.clip;
+    if px.x < clip.x || px.y < clip.y || px.x >= clip.x + clip.z || px.y >= clip.y + clip.w {
+        discard;
+    }
     let coverage = textureSample(atlas, atlas_samp, in.uv).r;
     return vec4<f32>(in.color.rgb, in.color.a * coverage);
 }
@@ -208,10 +216,11 @@ impl Gpu {
         });
 
         const QUAD_ATTRS: [wgpu::VertexAttribute; 1] = wgpu::vertex_attr_array![0 => Float32x2];
-        const INSTANCE_ATTRS: [wgpu::VertexAttribute; 3] = wgpu::vertex_attr_array![
+        const INSTANCE_ATTRS: [wgpu::VertexAttribute; 4] = wgpu::vertex_attr_array![
             1 => Float32x4,
             2 => Float32x4,
             3 => Float32x4,
+            4 => Float32x4,
         ];
         let quad_layout = wgpu::VertexBufferLayout {
             array_stride: 8,
@@ -391,6 +400,7 @@ impl Gpu {
 
         if let Some(input) = app.world_mut().resource_mut::<Input>() {
             input.pressed = false;
+            input.scroll = [0.0, 0.0];
         }
     }
 }
@@ -399,10 +409,10 @@ fn collect_instances(app: &App) -> Vec<f32> {
     let world = app.world();
     let mut out = Vec::new();
     for root in roots::<Rect>(world) {
-        walk(world, root, &mut |rect, color, label| {
-            push_instance(&mut out, rect, color, font::solid_uv());
+        walk(world, root, &mut |rect, color, clip, label| {
+            push_instance(&mut out, rect, color, font::solid_uv(), clip);
             if let Some(label) = label {
-                push_label(&mut out, rect, label);
+                push_label(&mut out, rect, label, clip);
             }
         });
     }
@@ -412,27 +422,31 @@ fn collect_instances(app: &App) -> Vec<f32> {
 fn walk(
     world: &rndr_core::World,
     entity: rndr_core::Entity,
-    visit: &mut impl FnMut(Rect, Color, Option<&Label>),
+    visit: &mut impl FnMut(Rect, Color, Clip, Option<&Label>),
 ) {
     if !world.is_alive(entity) {
         return;
     }
     if let (Some(rect), Some(color)) = (world.get::<Rect>(entity), world.get::<Color>(entity)) {
-        visit(*rect, *color, world.get::<Label>(entity));
+        let clip = world
+            .get::<Clip>(entity)
+            .copied()
+            .unwrap_or_else(|| Clip::from_rect(*rect));
+        visit(*rect, *color, clip, world.get::<Label>(entity));
     }
     for child in children_of(world, entity) {
         walk(world, child, visit);
     }
 }
 
-fn push_instance(out: &mut Vec<f32>, rect: Rect, color: Color, uv: [f32; 4]) {
+fn push_instance(out: &mut Vec<f32>, rect: Rect, color: Color, uv: [f32; 4], clip: Clip) {
     out.extend_from_slice(&[
         rect.x, rect.y, rect.w, rect.h, color.r, color.g, color.b, color.a, uv[0], uv[1], uv[2],
-        uv[3],
+        uv[3], clip.x, clip.y, clip.w, clip.h,
     ]);
 }
 
-fn push_label(out: &mut Vec<f32>, rect: Rect, label: &Label) {
+fn push_label(out: &mut Vec<f32>, rect: Rect, label: &Label, clip: Clip) {
     let scale = 2.0;
     let glyph_w = font::GLYPH_W as f32 * scale;
     let glyph_h = font::GLYPH_H as f32 * scale;
@@ -455,6 +469,7 @@ fn push_label(out: &mut Vec<f32>, rect: Rect, label: &Label) {
             },
             color,
             uv,
+            clip,
         );
         x += glyph_w;
     }

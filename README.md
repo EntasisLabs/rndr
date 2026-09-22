@@ -10,6 +10,7 @@ Application
 │         rndr_core           │
 │  Entities  Components       │
 │  Hierarchy Layout Expand    │
+│  Clip Scroll                │
 └──────────────┬──────────────┘
                │
         render plugin
@@ -24,9 +25,9 @@ Application
 
 | Crate | Role |
 | --- | --- |
-| `rndr_core` | ECS, `Parent`/`Children`, row/column layout, hit test, disclosure |
+| `rndr_core` | ECS, `Parent`/`Children`, row/column layout, clip, scroll, disclosure |
 | `rndr_render` | winit window, `Input` resource, instanced quads, 8×8 ASCII atlas |
-| `examples/expand` | Click-to-expand demo |
+| `examples/expand` | Click-to-expand page that scrolls when it overflows |
 
 Platform dependencies stop at `wgpu`, `winit`, and `pollster`. No layout engine, no text crate, no third-party ECS.
 
@@ -43,4 +44,4 @@ cargo test -p rndr_core
 cargo run -p expand
 ```
 
-Three collapsed rows. Click to open. A child of Alpha opens one more row. Click again to collapse.
+A window-filling page of rows. Click to expand. Wheel to scroll when the tree is taller than the window. Collapse shortens the page and the offset clamps back.

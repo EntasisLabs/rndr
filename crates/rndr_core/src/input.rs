@@ -4,6 +4,8 @@ pub struct Input {
     pub cursor: [f32; 2],
     /// Press edge for this update only.
     pub pressed: bool,
+    /// Content-offset delta for this update only. Positive Y moves content down.
+    pub scroll: [f32; 2],
 }
 
 /// Physical pixel size of the window. Fill roots use this.

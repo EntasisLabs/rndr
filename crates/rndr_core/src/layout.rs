@@ -1,10 +1,12 @@
 use crate::entity::Entity;
 use crate::hierarchy::{children_of, roots, Parent};
-use crate::input::Viewport;
+use crate::input::{Input, Viewport};
 use crate::world::{Component, World};
 
 impl Component for Layout {}
 impl Component for Rect {}
+impl Component for Clip {}
+impl Component for Scroll {}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Axis {
@@ -66,6 +68,73 @@ impl Rect {
     }
 }
 
+/// Visible rectangle after ancestor intersection. Origin top-left.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Clip {
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+}
+
+impl Clip {
+    pub fn contains(self, x: f32, y: f32) -> bool {
+        self.w > 0.0
+            && self.h > 0.0
+            && x >= self.x
+            && y >= self.y
+            && x < self.x + self.w
+            && y < self.y + self.h
+    }
+
+    pub fn intersect(self, other: Self) -> Self {
+        let x1 = self.x.max(other.x);
+        let y1 = self.y.max(other.y);
+        let x2 = (self.x + self.w).min(other.x + other.w);
+        let y2 = (self.y + self.h).min(other.y + other.h);
+        Self {
+            x: x1,
+            y: y1,
+            w: (x2 - x1).max(0.0),
+            h: (y2 - y1).max(0.0),
+        }
+    }
+
+    pub fn from_rect(rect: Rect) -> Self {
+        Self {
+            x: rect.x,
+            y: rect.y,
+            w: rect.w,
+            h: rect.h,
+        }
+    }
+}
+
+/// Bounded port whose children may overflow. Offset is how far content has moved.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Scroll {
+    pub offset: [f32; 2],
+    pub content: [f32; 2],
+}
+
+impl Default for Scroll {
+    fn default() -> Self {
+        Self {
+            offset: [0.0, 0.0],
+            content: [0.0, 0.0],
+        }
+    }
+}
+
+impl Scroll {
+    pub fn clamp_to(&mut self, port_w: f32, port_h: f32) {
+        let min_x = (port_w - self.content[0]).min(0.0);
+        let min_y = (port_h - self.content[1]).min(0.0);
+        self.offset[0] = self.offset[0].clamp(min_x, 0.0);
+        self.offset[1] = self.offset[1].clamp(min_y, 0.0);
+    }
+}
+
 /// Parent-before-child placement after a bottom-up hug measure.
 pub fn layout_propagate(world: &mut World) {
     let viewport = world.resource::<Viewport>().copied().unwrap_or_default();
@@ -73,17 +142,35 @@ pub fn layout_propagate(world: &mut World) {
     for root in root_ids {
         measure(world, root);
     }
+    let parent_clip = Clip {
+        x: 0.0,
+        y: 0.0,
+        w: viewport.width,
+        h: viewport.height,
+    };
     for root in roots::<Layout>(world) {
-        place(world, root, 0.0, 0.0, viewport.width, viewport.height);
+        place(
+            world,
+            root,
+            0.0,
+            0.0,
+            viewport.width,
+            viewport.height,
+            parent_clip,
+        );
     }
 }
 
-/// Topmost (deepest, then later sibling) entity whose rect contains the point.
+/// Topmost (deepest, then later sibling) entity whose visible clip contains the point.
 pub fn hit_test(world: &World, x: f32, y: f32) -> Option<Entity> {
     let mut hit = None;
     for root in roots::<Rect>(world) {
         walk_paint_order(world, root, &mut |entity| {
-            if let Some(rect) = world.get::<Rect>(entity) {
+            if let Some(clip) = world.get::<Clip>(entity).copied() {
+                if clip.contains(x, y) {
+                    hit = Some(entity);
+                }
+            } else if let Some(rect) = world.get::<Rect>(entity).copied() {
                 if rect.contains(x, y) {
                     hit = Some(entity);
                 }
@@ -91,6 +178,28 @@ pub fn hit_test(world: &World, x: f32, y: f32) -> Option<Entity> {
         });
     }
     hit
+}
+
+/// Apply `Input.scroll` to the deepest `Scroll` under the pointer.
+pub fn apply_scroll(world: &mut World) {
+    let Some(input) = world.resource::<Input>().copied() else {
+        return;
+    };
+    if input.scroll[0] == 0.0 && input.scroll[1] == 0.0 {
+        return;
+    }
+    let target = hit_test(world, input.cursor[0], input.cursor[1])
+        .and_then(|hit| ancestor_with::<Scroll>(world, hit))
+        .or_else(|| roots::<Scroll>(world).into_iter().next());
+    if let Some(entity) = target {
+        if let Some(scroll) = world.get_mut::<Scroll>(entity) {
+            scroll.offset[0] += input.scroll[0];
+            scroll.offset[1] += input.scroll[1];
+        }
+    }
+    if let Some(input) = world.resource_mut::<Input>() {
+        input.scroll = [0.0, 0.0];
+    }
 }
 
 fn walk_paint_order(world: &World, entity: Entity, visit: &mut impl FnMut(Entity)) {
@@ -113,10 +222,8 @@ fn measure(world: &mut World, entity: Entity) -> Rect {
     let kids = children_of(world, entity);
     let mut content_w = 0.0f32;
     let mut content_h = 0.0f32;
-    let mut child_sizes = Vec::new();
     for child in &kids {
         let size = measure(world, *child);
-        child_sizes.push(size);
         match layout.axis {
             Axis::Column => {
                 content_w = content_w.max(size.w);
@@ -136,6 +243,11 @@ fn measure(world: &mut World, entity: Entity) -> Rect {
         }
     }
     let pad = layout.padding * 2.0;
+    if world.has::<Scroll>(entity) {
+        if let Some(scroll) = world.get_mut::<Scroll>(entity) {
+            scroll.content = [content_w + pad, content_h + pad];
+        }
+    }
     let w = match layout.width {
         Size::Px(px) => px,
         Size::Hug => content_w + pad,
@@ -153,11 +265,18 @@ fn measure(world: &mut World, entity: Entity) -> Rect {
         h,
     };
     world.insert(entity, rect);
-    let _ = child_sizes;
     rect
 }
 
-fn place(world: &mut World, entity: Entity, x: f32, y: f32, avail_w: f32, avail_h: f32) {
+fn place(
+    world: &mut World,
+    entity: Entity,
+    x: f32,
+    y: f32,
+    avail_w: f32,
+    avail_h: f32,
+    parent_clip: Clip,
+) {
     let Some(layout) = world.get::<Layout>(entity).copied() else {
         return;
     };
@@ -172,6 +291,15 @@ fn place(world: &mut World, entity: Entity, x: f32, y: f32, avail_w: f32, avail_
     rect.y = y;
     world.insert(entity, rect);
 
+    if world.has::<Scroll>(entity) {
+        if let Some(scroll) = world.get_mut::<Scroll>(entity) {
+            scroll.clamp_to(rect.w, rect.h);
+        }
+    }
+
+    let clip = parent_clip.intersect(Clip::from_rect(rect));
+    world.insert(entity, clip);
+
     let kids = children_of(world, entity);
     if kids.is_empty() {
         return;
@@ -181,6 +309,10 @@ fn place(world: &mut World, entity: Entity, x: f32, y: f32, avail_w: f32, avail_
     let inner_y = rect.y + layout.padding;
     let inner_w = (rect.w - layout.padding * 2.0).max(0.0);
     let inner_h = (rect.h - layout.padding * 2.0).max(0.0);
+    let offset = world
+        .get::<Scroll>(entity)
+        .map(|s| s.offset)
+        .unwrap_or([0.0, 0.0]);
 
     let mut fixed = 0.0f32;
     let mut fill_count = 0usize;
@@ -211,8 +343,8 @@ fn place(world: &mut World, entity: Entity, x: f32, y: f32, avail_w: f32, avail_
         0.0
     };
 
-    let mut cursor_x = inner_x;
-    let mut cursor_y = inner_y;
+    let mut cursor_x = inner_x + offset[0];
+    let mut cursor_y = inner_y + offset[1];
     for child in kids {
         let child_layout = world.get::<Layout>(child).copied();
         let child_rect = world.get::<Rect>(child).copied().unwrap_or_default();
@@ -240,7 +372,7 @@ fn place(world: &mut World, entity: Entity, x: f32, y: f32, avail_w: f32, avail_
                 (w, h)
             }
         };
-        place(world, child, cursor_x, cursor_y, cw, ch);
+        place(world, child, cursor_x, cursor_y, cw, ch, clip);
         match layout.axis {
             Axis::Column => cursor_y += ch + layout.gap,
             Axis::Row => cursor_x += cw + layout.gap,

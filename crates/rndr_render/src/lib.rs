@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use rndr_core::{App, Input};
 use winit::application::ApplicationHandler;
-use winit::event::{ElementState, MouseButton, WindowEvent};
+use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowId};
@@ -23,6 +23,7 @@ pub fn run(app: App) {
         gpu: None,
         cursor: [0.0, 0.0],
         pressed: false,
+        scroll: [0.0, 0.0],
     };
     event_loop.run_app(&mut handler).expect("run");
 }
@@ -32,6 +33,7 @@ struct Handler {
     gpu: Option<Gpu>,
     cursor: [f32; 2],
     pressed: bool,
+    scroll: [f32; 2],
 }
 
 impl Handler {
@@ -39,8 +41,10 @@ impl Handler {
         if let Some(input) = self.app.world_mut().resource_mut::<Input>() {
             input.cursor = self.cursor;
             input.pressed = self.pressed;
+            input.scroll = self.scroll;
         }
         self.pressed = false;
+        self.scroll = [0.0, 0.0];
     }
 }
 
@@ -87,6 +91,21 @@ impl ApplicationHandler for Handler {
                 ..
             } => {
                 self.pressed = true;
+                if let Some(gpu) = &self.gpu {
+                    gpu.window().request_redraw();
+                }
+            }
+            WindowEvent::MouseWheel { delta, .. } => {
+                match delta {
+                    MouseScrollDelta::LineDelta(x, y) => {
+                        self.scroll[0] += x * 32.0;
+                        self.scroll[1] += y * 32.0;
+                    }
+                    MouseScrollDelta::PixelDelta(pos) => {
+                        self.scroll[0] += pos.x as f32;
+                        self.scroll[1] += pos.y as f32;
+                    }
+                }
                 if let Some(gpu) = &self.gpu {
                     gpu.window().request_redraw();
                 }

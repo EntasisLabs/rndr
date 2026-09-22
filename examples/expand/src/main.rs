@@ -1,50 +1,65 @@
 use rndr_core::{
-    page_layout, set_parent, spawn_node, toggle_disclosures, App, Color, Schedule, World,
+    scroll_page, set_parent, spawn_node, toggle_disclosures, App, Color, NodeSpec, Schedule, World,
 };
 use rndr_render::run;
 
 fn setup(world: &mut World) {
-    let page = world.spawn((page_layout(), Color::rgb(0.10, 0.11, 0.13)));
+    let (layout, scroll) = scroll_page();
+    let page = world.spawn((layout, scroll, Color::rgb(0.10, 0.11, 0.13)));
     for spec in demo_tree() {
         let node = spawn_node(world, spec);
         set_parent(world, node, page);
     }
 }
 
-fn demo_tree() -> Vec<rndr_core::NodeSpec> {
+fn demo_tree() -> Vec<NodeSpec> {
     let root = Color::rgb(0.20, 0.36, 0.52);
     let child = Color::rgb(0.22, 0.44, 0.40);
     let leaf = Color::rgb(0.46, 0.34, 0.24);
-    vec![
-        rndr_core::NodeSpec::branch(
+    let mut tree = vec![
+        NodeSpec::branch(
             "Alpha",
             root,
             vec![
-                rndr_core::NodeSpec::branch(
+                NodeSpec::branch(
                     "Alpha / 1",
                     child,
-                    vec![rndr_core::NodeSpec::leaf("Alpha / 1 / a", leaf)],
+                    vec![NodeSpec::leaf("Alpha / 1 / a", leaf)],
                 ),
-                rndr_core::NodeSpec::leaf("Alpha / 2", child),
+                NodeSpec::leaf("Alpha / 2", child),
             ],
         ),
-        rndr_core::NodeSpec::branch(
+        NodeSpec::branch(
             "Beta",
             root,
             vec![
-                rndr_core::NodeSpec::leaf("Beta / 1", child),
-                rndr_core::NodeSpec::leaf("Beta / 2", child),
+                NodeSpec::leaf("Beta / 1", child),
+                NodeSpec::leaf("Beta / 2", child),
             ],
         ),
-        rndr_core::NodeSpec::branch(
+        NodeSpec::branch(
             "Gamma",
             root,
             vec![
-                rndr_core::NodeSpec::leaf("Gamma / 1", child),
-                rndr_core::NodeSpec::leaf("Gamma / 2", child),
+                NodeSpec::leaf("Gamma / 1", child),
+                NodeSpec::leaf("Gamma / 2", child),
             ],
         ),
-    ]
+    ];
+    for name in [
+        "Delta", "Epsilon", "Zeta", "Eta", "Theta", "Iota", "Kappa", "Lambda", "Mu", "Nu", "Xi",
+        "Omicron",
+    ] {
+        tree.push(NodeSpec::branch(
+            name,
+            root,
+            vec![
+                NodeSpec::leaf(format!("{name} / 1"), child),
+                NodeSpec::leaf(format!("{name} / 2"), child),
+            ],
+        ));
+    }
+    tree
 }
 
 fn main() {
