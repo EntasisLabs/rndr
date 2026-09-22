@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
-use rndr_core::{children_of, roots, App, Clip, Color, Input, Label, Rect, Viewport};
+use rndr_core::{
+    children_of, roots, App, Clip, Color, Focus, Input, Label, Parent, Rect, Viewport,
+};
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
@@ -401,6 +403,7 @@ impl Gpu {
         if let Some(input) = app.world_mut().resource_mut::<Input>() {
             input.pressed = false;
             input.scroll = [0.0, 0.0];
+            input.key = None;
         }
     }
 }
@@ -432,11 +435,26 @@ fn walk(
             .get::<Clip>(entity)
             .copied()
             .unwrap_or_else(|| Clip::from_rect(*rect));
-        visit(*rect, *color, clip, world.get::<Label>(entity));
+        let focused = world.resource::<Focus>().and_then(|f| f.entity);
+        let highlight = focused == Some(entity)
+            || world
+                .get::<Parent>(entity)
+                .is_some_and(|parent| focused == Some(parent.entity));
+        let color = if highlight { lighten(*color) } else { *color };
+        visit(*rect, color, clip, world.get::<Label>(entity));
     }
     for child in children_of(world, entity) {
         walk(world, child, visit);
     }
+}
+
+fn lighten(color: Color) -> Color {
+    Color::rgba(
+        color.r + (1.0 - color.r) * 0.25,
+        color.g + (1.0 - color.g) * 0.25,
+        color.b + (1.0 - color.b) * 0.25,
+        color.a,
+    )
 }
 
 fn push_instance(out: &mut Vec<f32>, rect: Rect, color: Color, uv: [f32; 4], clip: Clip) {

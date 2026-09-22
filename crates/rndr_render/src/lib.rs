@@ -5,7 +5,7 @@ mod gpu;
 
 use std::sync::Arc;
 
-use rndr_core::{App, Input};
+use rndr_core::{App, Input, Key as Action};
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
@@ -24,6 +24,8 @@ pub fn run(app: App) {
         cursor: [0.0, 0.0],
         pressed: false,
         scroll: [0.0, 0.0],
+        key: None,
+        shift: false,
     };
     event_loop.run_app(&mut handler).expect("run");
 }
@@ -34,6 +36,8 @@ struct Handler {
     cursor: [f32; 2],
     pressed: bool,
     scroll: [f32; 2],
+    key: Option<Action>,
+    shift: bool,
 }
 
 impl Handler {
@@ -42,9 +46,25 @@ impl Handler {
             input.cursor = self.cursor;
             input.pressed = self.pressed;
             input.scroll = self.scroll;
+            input.key = self.key;
+            input.shift = self.shift;
         }
         self.pressed = false;
         self.scroll = [0.0, 0.0];
+        self.key = None;
+    }
+}
+
+fn map_key(key: &Key) -> Option<Action> {
+    match key {
+        Key::Named(NamedKey::ArrowUp) => Some(Action::Up),
+        Key::Named(NamedKey::ArrowDown) => Some(Action::Down),
+        Key::Named(NamedKey::ArrowLeft) => Some(Action::Left),
+        Key::Named(NamedKey::ArrowRight) => Some(Action::Right),
+        Key::Named(NamedKey::Enter) => Some(Action::Enter),
+        Key::Named(NamedKey::Escape) => Some(Action::Escape),
+        Key::Named(NamedKey::Tab) => Some(Action::Tab),
+        _ => None,
     }
 }
 
@@ -70,11 +90,16 @@ impl ApplicationHandler for Handler {
     ) {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
-            WindowEvent::KeyboardInput { event, .. }
-                if event.state == ElementState::Pressed
-                    && event.logical_key == Key::Named(NamedKey::Escape) =>
-            {
-                event_loop.exit();
+            WindowEvent::ModifiersChanged(modifiers) => {
+                self.shift = modifiers.state().shift_key();
+            }
+            WindowEvent::KeyboardInput { event, .. } if event.state == ElementState::Pressed => {
+                if let Some(key) = map_key(&event.logical_key) {
+                    self.key = Some(key);
+                    if let Some(gpu) = &self.gpu {
+                        gpu.window().request_redraw();
+                    }
+                }
             }
             WindowEvent::Resized(size) => {
                 if let Some(gpu) = &mut self.gpu {
@@ -114,6 +139,14 @@ impl ApplicationHandler for Handler {
                 self.sync_input();
                 if let Some(gpu) = &mut self.gpu {
                     gpu.draw(&mut self.app);
+                }
+                if self
+                    .app
+                    .world()
+                    .resource::<Input>()
+                    .is_some_and(|input| input.quit)
+                {
+                    event_loop.exit();
                 }
             }
             _ => {}

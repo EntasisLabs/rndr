@@ -1,4 +1,18 @@
-/// Pointer state for the current update. The render crate writes this.
+use crate::entity::Entity;
+
+/// One-frame key edge. The render crate writes this from winit.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Key {
+    Up,
+    Down,
+    Left,
+    Right,
+    Enter,
+    Escape,
+    Tab,
+}
+
+/// Pointer and key state for the current update. The render crate writes this.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Input {
     pub cursor: [f32; 2],
@@ -6,6 +20,15 @@ pub struct Input {
     pub pressed: bool,
     /// Content-offset delta for this update only. Positive Y moves content down.
     pub scroll: [f32; 2],
+    pub key: Option<Key>,
+    pub shift: bool,
+    pub quit: bool,
+}
+
+/// Currently focused [`Focusable`] entity.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Focus {
+    pub entity: Option<Entity>,
 }
 
 /// Physical pixel size of the window. Fill roots use this.

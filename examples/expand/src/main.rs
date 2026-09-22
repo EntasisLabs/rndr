@@ -1,6 +1,4 @@
-use rndr_core::{
-    scroll_page, set_parent, spawn_node, toggle_disclosures, App, Color, NodeSpec, Schedule, World,
-};
+use rndr_core::{scroll_page, set_parent, spawn_node, App, Color, NodeSpec, Schedule, World};
 use rndr_render::run;
 
 fn setup(world: &mut World) {
@@ -64,7 +62,6 @@ fn demo_tree() -> Vec<NodeSpec> {
 
 fn main() {
     let mut app = App::new();
-    app.add_system(Schedule::Startup, setup)
-        .add_system(Schedule::Update, toggle_disclosures);
+    app.add_system(Schedule::Startup, setup);
     run(app);
 }

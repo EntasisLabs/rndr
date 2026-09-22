@@ -1,0 +1,328 @@
+use crate::disclosure::{toggle_disclosure, Disclosure, Focusable};
+use crate::entity::Entity;
+use crate::hierarchy::{children_of, roots, Parent};
+use crate::input::{Focus, Input, Key};
+use crate::layout::{ancestor_with, hit_test, Clip, Rect, Scroll};
+use crate::style::Label;
+use crate::world::World;
+
+/// Click and keys update [`Focus`], toggle disclosures, and keep the row on screen.
+pub fn apply_focus(world: &mut World) {
+    snap_stale_focus(world);
+
+    let Some(input) = world.resource::<Input>().copied() else {
+        return;
+    };
+
+    if input.pressed {
+        if let Some(hit) = hit_test(world, input.cursor[0], input.cursor[1]) {
+            if let Some(target) = ancestor_with::<Focusable>(world, hit) {
+                set_focus(world, Some(target));
+                if world.has::<Disclosure>(target) {
+                    toggle_disclosure(world, target);
+                    retarget_focus_after_toggle(world, target);
+                }
+            }
+        }
+    }
+
+    if let Some(key) = input.key {
+        handle_key(world, key, input.shift);
+        if let Some(input) = world.resource_mut::<Input>() {
+            input.key = None;
+        }
+    }
+
+    ensure_focus_visible(world);
+}
+
+fn handle_key(world: &mut World, key: Key, shift: bool) {
+    match key {
+        Key::Down => move_down(world),
+        Key::Up => move_up(world),
+        Key::Right => move_right(world),
+        Key::Left => move_left(world),
+        Key::Tab if shift => move_tab(world, true),
+        Key::Tab => move_tab(world, false),
+        Key::Enter => {
+            if let Some(target) = current_focus(world) {
+                if world.has::<Disclosure>(target) {
+                    toggle_disclosure(world, target);
+                    retarget_focus_after_toggle(world, target);
+                }
+            }
+        }
+        Key::Escape => handle_escape(world),
+    }
+}
+
+fn handle_escape(world: &mut World) {
+    let Some(target) = current_focus(world) else {
+        if let Some(input) = world.resource_mut::<Input>() {
+            input.quit = true;
+        }
+        return;
+    };
+    if world
+        .get::<Disclosure>(target)
+        .is_some_and(|d| d.open && !d.children.is_empty())
+    {
+        toggle_disclosure(world, target);
+        retarget_focus_after_toggle(world, target);
+        return;
+    }
+    if let Some(parent) = parent_focusable(world, target) {
+        set_focus(world, Some(parent));
+        return;
+    }
+    if let Some(input) = world.resource_mut::<Input>() {
+        input.quit = true;
+    }
+}
+
+fn move_down(world: &mut World) {
+    let Some(current) = current_focus(world) else {
+        set_focus(world, first_focusable(world));
+        return;
+    };
+    if let Some(child) = focusable_children(world, current).into_iter().next() {
+        set_focus(world, Some(child));
+        return;
+    }
+    if let Some(next) = next_after_subtree(world, current) {
+        set_focus(world, Some(next));
+    }
+}
+
+fn move_up(world: &mut World) {
+    let Some(current) = current_focus(world) else {
+        set_focus(world, last_focusable(world));
+        return;
+    };
+    if let Some(prev) = previous_sibling_focusable(world, current) {
+        set_focus(world, Some(last_visible_descendant(world, prev)));
+        return;
+    }
+    if let Some(parent) = parent_focusable(world, current) {
+        set_focus(world, Some(parent));
+    }
+}
+
+fn move_right(world: &mut World) {
+    let Some(current) = current_focus(world) else {
+        return;
+    };
+    if let Some(disclosure) = world.get::<Disclosure>(current).cloned() {
+        if !disclosure.open && !disclosure.children.is_empty() {
+            toggle_disclosure(world, current);
+            return;
+        }
+        if disclosure.open {
+            if let Some(child) = focusable_children(world, current).into_iter().next() {
+                set_focus(world, Some(child));
+            }
+        }
+    }
+}
+
+fn move_left(world: &mut World) {
+    let Some(current) = current_focus(world) else {
+        return;
+    };
+    if world.get::<Disclosure>(current).is_some_and(|d| d.open) {
+        toggle_disclosure(world, current);
+        retarget_focus_after_toggle(world, current);
+        return;
+    }
+    if let Some(parent) = parent_focusable(world, current) {
+        set_focus(world, Some(parent));
+    }
+}
+
+fn move_tab(world: &mut World, reverse: bool) {
+    let order = all_focusable(world);
+    if order.is_empty() {
+        return;
+    }
+    let next = match current_focus(world).and_then(|e| order.iter().position(|x| *x == e)) {
+        Some(i) if reverse && i > 0 => order[i - 1],
+        Some(i) if !reverse && i + 1 < order.len() => order[i + 1],
+        None if reverse => *order.last().unwrap(),
+        None => order[0],
+        _ => return,
+    };
+    set_focus(world, Some(next));
+}
+
+fn snap_stale_focus(world: &mut World) {
+    let Some(entity) = world.resource::<Focus>().and_then(|f| f.entity) else {
+        return;
+    };
+    if world.is_alive(entity) && world.has::<Focusable>(entity) {
+        return;
+    }
+    let snapped = if world.is_alive(entity) {
+        ancestor_with::<Focusable>(world, entity)
+    } else {
+        None
+    };
+    set_focus(world, snapped.or_else(|| first_focusable(world)));
+}
+
+fn retarget_focus_after_toggle(world: &mut World, target: Entity) {
+    let Some(focused) = world.resource::<Focus>().and_then(|f| f.entity) else {
+        return;
+    };
+    if !world.is_alive(focused) || is_in_subtree(world, focused, target) {
+        set_focus(world, Some(target));
+    }
+}
+
+fn ensure_focus_visible(world: &mut World) {
+    let Some(entity) = current_focus(world) else {
+        return;
+    };
+    let Some(rect) = focus_rect(world, entity) else {
+        return;
+    };
+    let Some(scroll_entity) = ancestor_with::<Scroll>(world, entity) else {
+        return;
+    };
+    let Some(port) = world.get::<Clip>(scroll_entity).copied().or_else(|| {
+        world
+            .get::<Rect>(scroll_entity)
+            .copied()
+            .map(Clip::from_rect)
+    }) else {
+        return;
+    };
+    let mut dy = 0.0f32;
+    if rect.y < port.y {
+        dy = port.y - rect.y;
+    } else if rect.y + rect.h > port.y + port.h {
+        dy = (port.y + port.h) - (rect.y + rect.h);
+    }
+    let mut dx = 0.0f32;
+    if rect.x < port.x {
+        dx = port.x - rect.x;
+    } else if rect.x + rect.w > port.x + port.w {
+        dx = (port.x + port.w) - (rect.x + rect.w);
+    }
+    if dx == 0.0 && dy == 0.0 {
+        return;
+    }
+    if let Some(scroll) = world.get_mut::<Scroll>(scroll_entity) {
+        scroll.offset[0] += dx;
+        scroll.offset[1] += dy;
+    }
+}
+
+fn focus_rect(world: &World, entity: Entity) -> Option<Rect> {
+    for child in children_of(world, entity) {
+        if world.has::<Label>(child) {
+            return world.get::<Rect>(child).copied();
+        }
+    }
+    world.get::<Rect>(entity).copied()
+}
+
+fn current_focus(world: &World) -> Option<Entity> {
+    let entity = world.resource::<Focus>()?.entity?;
+    if world.is_alive(entity) && world.has::<Focusable>(entity) {
+        Some(entity)
+    } else {
+        None
+    }
+}
+
+fn set_focus(world: &mut World, entity: Option<Entity>) {
+    if let Some(focus) = world.resource_mut::<Focus>() {
+        focus.entity = entity;
+    }
+}
+
+fn focusable_children(world: &World, entity: Entity) -> Vec<Entity> {
+    children_of(world, entity)
+        .into_iter()
+        .filter(|child| world.has::<Focusable>(*child))
+        .collect()
+}
+
+fn parent_focusable(world: &World, entity: Entity) -> Option<Entity> {
+    let parent = world.get::<Parent>(entity)?.entity;
+    ancestor_with::<Focusable>(world, parent)
+}
+
+fn previous_sibling_focusable(world: &World, entity: Entity) -> Option<Entity> {
+    let parent = world.get::<Parent>(entity)?.entity;
+    let sibs = focusable_children(world, parent);
+    let i = sibs.iter().position(|e| *e == entity)?;
+    if i == 0 {
+        None
+    } else {
+        Some(sibs[i - 1])
+    }
+}
+
+fn next_after_subtree(world: &World, mut entity: Entity) -> Option<Entity> {
+    loop {
+        let parent = world.get::<Parent>(entity)?.entity;
+        let sibs = focusable_children(world, parent);
+        if let Some(i) = sibs.iter().position(|e| *e == entity) {
+            if i + 1 < sibs.len() {
+                return Some(sibs[i + 1]);
+            }
+        }
+        entity = parent;
+        if !world.is_alive(entity) {
+            return None;
+        }
+    }
+}
+
+fn last_visible_descendant(world: &World, entity: Entity) -> Entity {
+    let mut current = entity;
+    loop {
+        match focusable_children(world, current).pop() {
+            Some(last) => current = last,
+            None => return current,
+        }
+    }
+}
+
+fn all_focusable(world: &World) -> Vec<Entity> {
+    let mut out = Vec::new();
+    for root in roots::<crate::layout::Layout>(world) {
+        collect_focusable(world, root, &mut out);
+    }
+    out
+}
+
+fn collect_focusable(world: &World, entity: Entity, out: &mut Vec<Entity>) {
+    if world.has::<Focusable>(entity) {
+        out.push(entity);
+    }
+    for child in children_of(world, entity) {
+        collect_focusable(world, child, out);
+    }
+}
+
+fn first_focusable(world: &World) -> Option<Entity> {
+    all_focusable(world).into_iter().next()
+}
+
+fn last_focusable(world: &World) -> Option<Entity> {
+    all_focusable(world).pop()
+}
+
+fn is_in_subtree(world: &World, mut entity: Entity, ancestor: Entity) -> bool {
+    loop {
+        if entity == ancestor {
+            return true;
+        }
+        match world.get::<Parent>(entity) {
+            Some(parent) if world.is_alive(parent.entity) => entity = parent.entity,
+            _ => return false,
+        }
+    }
+}

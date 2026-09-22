@@ -6,6 +6,11 @@ use crate::style::{Color, Label};
 use crate::world::{Component, World};
 
 impl Component for Disclosure {}
+impl Component for Focusable {}
+
+/// Marks a column that can own the keystream. Headers and the page are not focusable.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Focusable;
 
 /// Expand template: child labels (and optional nested templates) to spawn when opened.
 #[derive(Clone, Debug)]
@@ -60,9 +65,9 @@ pub fn spawn_node(world: &mut World, spec: NodeSpec) -> Entity {
 
     let can_expand = !spec.children.is_empty();
     let root = if can_expand {
-        world.spawn((layout, Disclosure::new(spec.children)))
+        world.spawn((layout, Disclosure::new(spec.children), Focusable))
     } else {
-        world.spawn(layout)
+        world.spawn((layout, Focusable))
     };
 
     let mut header = Layout::row();

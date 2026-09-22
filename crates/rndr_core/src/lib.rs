@@ -6,6 +6,7 @@
 mod app;
 mod disclosure;
 mod entity;
+mod focus;
 mod hierarchy;
 mod input;
 mod layout;
@@ -15,11 +16,12 @@ mod world;
 pub use app::{App, Schedule, System};
 pub use disclosure::{
     page_layout, scroll_page, spawn_node, toggle_disclosure, toggle_disclosures, Disclosure,
-    NodeSpec,
+    Focusable, NodeSpec,
 };
 pub use entity::Entity;
+pub use focus::apply_focus;
 pub use hierarchy::{children_of, despawn, roots, set_parent, Children, Parent};
-pub use input::{Input, Viewport};
+pub use input::{Focus, Input, Key, Viewport};
 pub use layout::{
     ancestor_with, apply_scroll, hit_test, layout_propagate, Axis, Clip, Layout, Rect, Scroll, Size,
 };
