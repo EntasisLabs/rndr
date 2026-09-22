@@ -136,10 +136,9 @@ fn clear_pane(world: &mut World, pane: Entity) {
     }
 }
 
-/// One line is 36px: 16 padding plus 20 per line.
+/// One line is 36px: 16 padding plus 20 per line. Newline-based; body wrap uses [`crate::field_height_lines`].
 pub fn field_height(text: &str) -> f32 {
-    let lines = text.split('\n').count().max(1) as f32;
-    16.0 + lines * 20.0
+    crate::wrap::field_height_lines(text.split('\n').count())
 }
 
 fn spawn_body(world: &mut World, pane: Entity, selected: Entity) -> Vec<Entity> {
