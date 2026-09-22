@@ -117,10 +117,17 @@ pub fn toggle_disclosure(world: &mut World, target: Entity) {
     }
 
     let mut spawned = Vec::new();
-    for spec in current.children {
-        let child = spawn_node(world, spec);
-        set_parent(world, child, target);
-        spawned.push(child);
+    if world
+        .get::<crate::fs::FsPath>(target)
+        .is_some_and(|fs| fs.dir)
+    {
+        spawned = crate::fs::spawn_fs_children(world, target);
+    } else {
+        for spec in current.children {
+            let child = spawn_node(world, spec);
+            set_parent(world, child, target);
+            spawned.push(child);
+        }
     }
     if let Some(disclosure) = world.get_mut::<Disclosure>(target) {
         disclosure.open = true;

@@ -57,6 +57,7 @@ impl Handler {
             input.key = self.key;
             input.chars.clone_from(&self.chars);
             input.shift = self.shift;
+            input.ctrl = self.ctrl;
         }
         self.pressed = false;
         self.scroll = [0.0, 0.0];
@@ -113,6 +114,14 @@ impl ApplicationHandler for Handler {
                 if let Some(key) = map_key(&event.logical_key) {
                     self.key = Some(key);
                     redraw = true;
+                }
+                if self.ctrl {
+                    if let Key::Character(text) = &event.logical_key {
+                        if text.eq_ignore_ascii_case("s") {
+                            self.key = Some(Action::Save);
+                            redraw = true;
+                        }
+                    }
                 }
                 if !self.ctrl && !self.alt && !self.super_key {
                     if let Key::Character(text) = &event.logical_key {

@@ -11,7 +11,7 @@ Application
 │  Entities  Components       │
 │  Hierarchy Layout Expand    │
 │  Clip Scroll Focus Pane     │
-│  Caret Body                 │
+│  Caret Body FsPath          │
 └──────────────┬──────────────┘
                │
         render plugin
@@ -26,9 +26,9 @@ Application
 
 | Crate | Role |
 | --- | --- |
-| `rndr_core` | ECS, layout, clip, scroll, disclosure, focus, pane, caret, body |
+| `rndr_core` | ECS, layout, clip, scroll, disclosure, focus, pane, caret, body, files |
 | `rndr_render` | winit window, `Input` resource, instanced quads, 8×8 ASCII atlas |
-| `examples/expand` | Expand / scroll / keyboard-focus / pane / caret / document-body demo |
+| `examples/expand` | File-backed expand demo: folder tree, pane, caret, Ctrl+S |
 
 Platform dependencies stop at `wgpu`, `winit`, and `pollster`. No layout engine, no text crate, no third-party ECS.
 
@@ -45,4 +45,4 @@ cargo test -p rndr_core
 cargo run -p expand
 ```
 
-A tree column on the left and a detail pane on the right. Enter opens the pane and puts a caret on the title; type to rename the tree row. Tab or click the body to write a document; Enter in the body is a new line. Click a tree row opens the pane without editing. Right and Left expand and collapse the tree unless a caret is active. Escape leaves the caret, then the pane, then collapses, then leaves the window. Wheel scrolls; focus stays on the tree.
+A tree column on the left and a detail pane on the right. The demo opens `examples/expand/fixture`. Right lists a directory; Enter opens a file into the pane. Type in the title to rename, Tab into the body to edit, Ctrl+S writes the file. Hidden names and binary files are skipped for the body. Escape leaves the caret, then the pane. Unsaved edits die if you collapse the parent.
