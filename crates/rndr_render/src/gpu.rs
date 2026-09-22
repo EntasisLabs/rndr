@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use rndr_core::{
-    children_of, roots, App, Caret, Clip, Color, Focus, Input, Label, Parent, Rect, Viewport,
+    caret_line_col, children_of, roots, selection_spans, App, Caret, Clip, Color, DirtyMark, Focus,
+    Input, Label, Parent, Rect, Viewport, CELL_H, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
@@ -413,8 +414,19 @@ fn collect_instances(app: &App) -> Vec<f32> {
     let world = app.world();
     let mut out = Vec::new();
     for root in roots::<Rect>(world) {
-        walk(world, root, &mut |rect, color, clip, label, caret| {
+        walk(world, root, &mut |rect,
+                                color,
+                                clip,
+                                label,
+                                caret,
+                                dirty| {
             push_instance(&mut out, rect, color, font::solid_uv(), clip);
+            if dirty {
+                push_dirty_mark(&mut out, rect, clip);
+            }
+            if let (Some(label), Some(caret)) = (label, caret) {
+                push_selection(&mut out, rect, label, caret, clip);
+            }
             if let Some(label) = label {
                 push_label(&mut out, rect, label, clip);
             }
@@ -429,7 +441,7 @@ fn collect_instances(app: &App) -> Vec<f32> {
 fn walk(
     world: &rndr_core::World,
     entity: rndr_core::Entity,
-    visit: &mut impl FnMut(Rect, Color, Clip, Option<&Label>, Option<&Caret>),
+    visit: &mut impl FnMut(Rect, Color, Clip, Option<&Label>, Option<&Caret>, bool),
 ) {
     if !world.is_alive(entity) {
         return;
@@ -446,12 +458,14 @@ fn walk(
                 .is_some_and(|parent| focused == Some(parent.entity))
             || world.has::<Caret>(entity);
         let color = if highlight { lighten(*color) } else { *color };
+        let dirty = world.has::<DirtyMark>(entity);
         visit(
             *rect,
             color,
             clip,
             world.get::<Label>(entity),
             world.get::<Caret>(entity),
+            dirty,
         );
     }
     for child in children_of(world, entity) {
@@ -475,21 +489,54 @@ fn push_instance(out: &mut Vec<f32>, rect: Rect, color: Color, uv: [f32; 4], cli
     ]);
 }
 
+fn push_dirty_mark(out: &mut Vec<f32>, rect: Rect, clip: Clip) {
+    let size = 6.0;
+    push_instance(
+        out,
+        Rect {
+            x: rect.x + 3.0,
+            y: rect.y + TEXT_ORIGIN_Y + (CELL_H - size) * 0.5,
+            w: size,
+            h: size,
+        },
+        Color::rgb(0.86, 0.62, 0.20),
+        font::solid_uv(),
+        clip,
+    );
+}
+
+fn push_selection(out: &mut Vec<f32>, rect: Rect, label: &Label, caret: &Caret, clip: Clip) {
+    let color = Color::rgba(0.35, 0.55, 0.85, 0.55);
+    for (line, start_col, end_col) in selection_spans(&label.text, caret.anchor, caret.index) {
+        let cols = end_col.saturating_sub(start_col);
+        let w = if cols == 0 { 2.0 } else { cols as f32 * CELL_W };
+        push_instance(
+            out,
+            Rect {
+                x: rect.x + TEXT_ORIGIN_X + start_col as f32 * CELL_W,
+                y: rect.y + TEXT_ORIGIN_Y + line as f32 * CELL_H,
+                w,
+                h: CELL_H,
+            },
+            color,
+            font::solid_uv(),
+            clip,
+        );
+    }
+}
+
 fn push_label(out: &mut Vec<f32>, rect: Rect, label: &Label, clip: Clip) {
-    let scale = 2.0;
-    let glyph_w = font::GLYPH_W as f32 * scale;
-    let glyph_h = font::GLYPH_H as f32 * scale;
-    let mut x = rect.x + 12.0;
-    let mut y = rect.y + 8.0;
+    let mut x = rect.x + TEXT_ORIGIN_X;
+    let mut y = rect.y + TEXT_ORIGIN_Y;
     let color = Color::rgb(0.94, 0.95, 0.97);
     for ch in label.text.bytes() {
         if ch == b'\n' {
-            x = rect.x + 12.0;
-            y += glyph_h;
+            x = rect.x + TEXT_ORIGIN_X;
+            y += CELL_H;
             continue;
         }
         if ch == b' ' {
-            x += glyph_w;
+            x += CELL_W;
             continue;
         }
         let uv = font::glyph_uv(ch);
@@ -498,53 +545,32 @@ fn push_label(out: &mut Vec<f32>, rect: Rect, label: &Label, clip: Clip) {
             Rect {
                 x,
                 y,
-                w: glyph_w,
-                h: glyph_h,
+                w: CELL_W,
+                h: CELL_H,
             },
             color,
             uv,
             clip,
         );
-        x += glyph_w;
+        x += CELL_W;
     }
 }
 
 fn push_caret(out: &mut Vec<f32>, rect: Rect, label: Option<&Label>, caret: &Caret, clip: Clip) {
-    let scale = 2.0;
-    let glyph_w = font::GLYPH_W as f32 * scale;
-    let glyph_h = font::GLYPH_H as f32 * scale;
     let text = label.map(|label| label.text.as_str()).unwrap_or("");
-    let (col, line) = caret_col_line(text, caret.index);
-    let x = rect.x + 12.0 + col as f32 * glyph_w;
-    let y = rect.y + 8.0 + line as f32 * glyph_h;
+    let (line, col) = caret_line_col(text, caret.index);
+    let x = rect.x + TEXT_ORIGIN_X + col as f32 * CELL_W;
+    let y = rect.y + TEXT_ORIGIN_Y + line as f32 * CELL_H;
     push_instance(
         out,
         Rect {
             x,
             y,
             w: 2.0,
-            h: glyph_h,
+            h: CELL_H,
         },
         Color::rgb(0.94, 0.95, 0.97),
         font::solid_uv(),
         clip,
     );
-}
-
-fn caret_col_line(text: &str, index: usize) -> (usize, usize) {
-    let index = index.min(text.len());
-    let mut line = 0usize;
-    let mut col = 0usize;
-    for (i, ch) in text.bytes().enumerate() {
-        if i == index {
-            break;
-        }
-        if ch == b'\n' {
-            line += 1;
-            col = 0;
-        } else {
-            col += 1;
-        }
-    }
-    (col, line)
 }

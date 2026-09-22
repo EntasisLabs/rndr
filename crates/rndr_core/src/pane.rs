@@ -4,7 +4,7 @@ use crate::entity::Entity;
 use crate::hierarchy::{children_of, despawn, set_parent};
 use crate::layout::{Axis, Layout, Scroll, Size};
 use crate::split::Splitter;
-use crate::style::{Body, Color, Label};
+use crate::style::{Body, Color, Label, CELL_H, TEXT_ORIGIN_Y};
 use crate::world::{Component, World};
 
 impl Component for Pane {}
@@ -136,10 +136,11 @@ fn clear_pane(world: &mut World, pane: Entity) {
     }
 }
 
-/// One line is 36px: 16 padding plus 20 per line.
+/// Height that fits every line of `text`, and at least one tree row.
 pub fn field_height(text: &str) -> f32 {
     let lines = text.split('\n').count().max(1) as f32;
-    16.0 + lines * 20.0
+    let h = TEXT_ORIGIN_Y + lines * CELL_H + TEXT_ORIGIN_Y;
+    h.max(36.0)
 }
 
 fn spawn_body(world: &mut World, pane: Entity, selected: Entity) -> Vec<Entity> {

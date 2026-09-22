@@ -125,7 +125,7 @@ fn tree_walk_and_escape() {
 }
 
 #[test]
-fn click_sets_focus_and_toggles() {
+fn click_sets_focus_without_opening() {
     let mut app = boot();
     let alpha = node_named(app.world(), "Alpha");
     let header = rndr_core::children_of(app.world(), alpha)
@@ -140,7 +140,7 @@ fn click_sets_focus_and_toggles() {
     }
     app.update();
     assert_eq!(app.world().resource::<Focus>().unwrap().entity, Some(alpha));
-    assert!(app.world().get::<Disclosure>(alpha).unwrap().open);
+    assert!(!app.world().get::<Disclosure>(alpha).unwrap().open);
 }
 
 #[test]

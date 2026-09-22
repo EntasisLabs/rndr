@@ -4,8 +4,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use rndr_core::{
     children_of, detail_pane, set_parent, shell, spawn_fs_node, spawn_node, tree_column, App, Body,
-    Color, Dirty, Disclosure, EditField, Editing, Field, Focus, Focusable, FsPath, Input, Key,
-    Label, NodeSpec, Pane, Parent, Schedule, World,
+    Color, Dirty, DirtyMark, Disclosure, EditField, Editing, Field, Focus, Focusable, FsPath,
+    Input, Key, Label, NodeSpec, Pane, Parent, Schedule, World,
 };
 
 struct TempTree {
@@ -210,6 +210,34 @@ fn save_writes_disk_and_clears_dirty() {
         fs::read_to_string(temp.path.join("hello.txt")).unwrap(),
         "hix"
     );
+}
+
+#[test]
+fn edit_marks_the_tree_row_until_save() {
+    let temp = TempTree::new("mark");
+    temp.write("hello.txt", "hi");
+    temp.write("sub/n.txt", "n");
+
+    let mut app = boot_fs(temp.path.clone());
+    press(&mut app, Key::Down);
+    press(&mut app, Key::Right);
+    press(&mut app, Key::Down);
+    press(&mut app, Key::Down);
+    press(&mut app, Key::Enter);
+    press(&mut app, Key::Tab);
+    type_char(&mut app, 'x');
+
+    let hello = node_named(app.world(), "hello.txt");
+    let header = children_of(app.world(), hello)
+        .into_iter()
+        .find(|child| app.world().has::<Label>(*child))
+        .unwrap();
+    assert!(app.world().has::<Dirty>(hello));
+    assert!(app.world().has::<DirtyMark>(header));
+
+    press(&mut app, Key::Save);
+    assert!(!app.world().has::<Dirty>(hello));
+    assert!(!app.world().has::<DirtyMark>(header));
 }
 
 #[test]

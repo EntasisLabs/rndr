@@ -46,3 +46,11 @@ impl Body {
         Self { text: text.into() }
     }
 }
+
+/// Glyph cell. The render plugin draws the 8×8 atlas at this size.
+pub const CELL_W: f32 = 16.0;
+pub const CELL_H: f32 = 16.0;
+/// Left inset of the first glyph inside a row rectangle.
+pub const TEXT_ORIGIN_X: f32 = 12.0;
+/// Top inset of the first line inside a row rectangle.
+pub const TEXT_ORIGIN_Y: f32 = 8.0;

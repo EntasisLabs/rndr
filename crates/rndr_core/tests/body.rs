@@ -1,7 +1,7 @@
 use rndr_core::{
     children_of, detail_pane, field_height, set_parent, shell, spawn_node, tree_column, App, Body,
     Caret, Color, Disclosure, EditField, Editing, Field, Focus, Focusable, Input, Key, Label,
-    NodeSpec, Pane, Parent, Schedule, Selection, World,
+    NodeSpec, Pane, Parent, Schedule, Selection, World, CELL_H, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
 
 fn tree() -> Vec<NodeSpec> {
@@ -206,6 +206,40 @@ fn down_then_type_starts_the_next_line() {
         .get::<Caret>(pane_field(app.world(), EditField::Body))
         .unwrap();
     assert_eq!(caret.index, 1);
+}
+
+#[test]
+fn click_second_line_places_the_caret_there() {
+    let mut app = boot();
+    press(&mut app, Key::Down);
+    press(&mut app, Key::Enter);
+    press(&mut app, Key::Tab);
+    type_char(&mut app, 'x');
+    press(&mut app, Key::Enter);
+    type_char(&mut app, 'y');
+
+    let body = pane_field(app.world(), EditField::Body);
+    let rect = *app.world().get::<rndr_core::Rect>(body).unwrap();
+    {
+        let input = app.world_mut().resource_mut::<Input>().unwrap();
+        input.cursor = [
+            rect.x + TEXT_ORIGIN_X + 1.0,
+            rect.y + TEXT_ORIGIN_Y + CELL_H + 1.0,
+        ];
+        input.pressed = true;
+    }
+    app.update();
+
+    let caret = *app.world().get::<Caret>(body).unwrap();
+    assert_eq!(caret.index, 2);
+    assert_eq!(caret.anchor, 2);
+    assert_eq!(
+        app.world()
+            .get::<Body>(node_named(app.world(), "Alpha"))
+            .unwrap()
+            .text,
+        "x\ny"
+    );
 }
 
 #[test]

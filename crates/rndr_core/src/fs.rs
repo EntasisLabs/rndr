@@ -13,6 +13,7 @@ use crate::world::{Component, World};
 
 impl Component for FsPath {}
 impl Component for Dirty {}
+impl Component for DirtyMark {}
 
 const MAX_FILE_BYTES: u64 = 256 * 1024;
 
@@ -41,6 +42,28 @@ pub struct FsPath {
 /// Title or body changed on a node that has [`FsPath`].
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Dirty;
+
+/// Painted on the tree header while its node has [`Dirty`].
+#[derive(Clone, Copy, Debug, Default)]
+pub struct DirtyMark;
+
+/// Keep [`DirtyMark`] on the header of each [`Dirty`] node.
+pub fn apply_dirty_marks(world: &mut World) {
+    let mut headers = Vec::new();
+    for entity in world.entities_with::<Dirty>() {
+        if let Some(header) = header_entity(world, entity) {
+            headers.push(header);
+        }
+    }
+    for header in world.entities_with::<DirtyMark>() {
+        if !headers.contains(&header) {
+            world.remove::<DirtyMark>(header);
+        }
+    }
+    for header in headers {
+        world.insert(header, DirtyMark);
+    }
+}
 
 /// Spawn a file or directory node. Directories always get an empty [`Disclosure`].
 pub fn spawn_fs_node(world: &mut World, path: impl Into<PathBuf>) -> Entity {
@@ -447,13 +470,18 @@ fn rebase_paths(world: &mut World, entity: Entity, old: &Path, new: &Path) {
     }
 }
 
-fn header_text(world: &World, entity: Entity) -> Option<String> {
+fn header_entity(world: &World, entity: Entity) -> Option<Entity> {
     for child in children_of(world, entity) {
-        if let Some(label) = world.get::<Label>(child) {
-            return Some(label.text.clone());
+        if world.has::<Label>(child) {
+            return Some(child);
         }
     }
-    world.get::<Label>(entity).map(|label| label.text.clone())
+    world.has::<Label>(entity).then_some(entity)
+}
+
+fn header_text(world: &World, entity: Entity) -> Option<String> {
+    let header = header_entity(world, entity)?;
+    world.get::<Label>(header).map(|label| label.text.clone())
 }
 
 fn set_header_text(world: &mut World, entity: Entity, text: String) {
