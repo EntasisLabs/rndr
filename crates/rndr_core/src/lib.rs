@@ -16,6 +16,7 @@ mod pane;
 mod split;
 mod style;
 mod world;
+mod wrap;
 
 pub use app::{App, Schedule, System};
 pub use caret::{apply_caret, set_editing, set_editing_field, Caret, EditField, Editing, Field};
@@ -38,3 +39,7 @@ pub use pane::{
 pub use split::{apply_split, Drag, Splitter};
 pub use style::{Body, Color, Label};
 pub use world::{Bundle, Component, World};
+pub use wrap::{
+    apply_wrap, cols_for, field_height_lines, index_at_visual, visual_pos, wrap_lines, VisualLine,
+    GLYPH_PX, TEXT_INSET_X, TEXT_INSET_Y,
+};

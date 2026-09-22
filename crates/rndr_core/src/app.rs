@@ -6,6 +6,7 @@ use crate::layout::{apply_scroll, layout_propagate};
 use crate::pane::{apply_pane, Selection};
 use crate::split::{apply_split, Drag};
 use crate::world::World;
+use crate::wrap::apply_wrap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Schedule {
@@ -50,6 +51,7 @@ impl App {
         app.update.push(apply_fs_load);
         app.update.push(apply_pane);
         app.update.push(apply_caret);
+        app.update.push(apply_wrap);
         app.update.push(apply_fs_save);
         app.update.push(apply_fs_edit);
         app
