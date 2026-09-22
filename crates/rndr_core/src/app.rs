@@ -1,4 +1,5 @@
-use crate::input::{Input, Viewport};
+use crate::focus::apply_focus;
+use crate::input::{Focus, Input, Viewport};
 use crate::layout::{apply_scroll, layout_propagate};
 use crate::world::World;
 
@@ -27,6 +28,7 @@ impl App {
         let mut world = World::new();
         world.insert_resource(Input::default());
         world.insert_resource(Viewport::default());
+        world.insert_resource(Focus::default());
         let mut app = Self {
             world,
             startup: Vec::new(),
@@ -36,6 +38,7 @@ impl App {
             started: false,
         };
         app.update.push(apply_scroll);
+        app.update.push(apply_focus);
         app
     }
 
