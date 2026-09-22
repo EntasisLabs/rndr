@@ -106,6 +106,7 @@ pub fn toggle_disclosure(world: &mut World, target: Entity) {
         return;
     };
     if current.open {
+        crate::fs::flush_dirty_subtree(world, target);
         for child in current.spawned {
             despawn(world, child);
         }

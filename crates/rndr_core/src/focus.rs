@@ -41,12 +41,19 @@ pub fn apply_focus(world: &mut World) {
     }
 
     if let Some(key) = input.key {
-        if key == Key::Save {
-            // Left for apply_fs_save.
+        let leave_for_fs =
+            key == Key::Save || (matches!(key, Key::New | Key::Delete) && !is_editing(world));
+        if leave_for_fs {
+            // Left for apply_fs_save / apply_fs_edit.
         } else if is_editing(world) {
             match key {
                 Key::Escape => {
                     set_editing(world, None);
+                    if let Some(input) = world.resource_mut::<Input>() {
+                        input.key = None;
+                    }
+                }
+                Key::New | Key::Delete => {
                     if let Some(input) = world.resource_mut::<Input>() {
                         input.key = None;
                     }
@@ -86,7 +93,7 @@ fn handle_key(world: &mut World, key: Key, shift: bool) {
             }
         }
         Key::Escape => handle_escape(world),
-        Key::Backspace | Key::Save => {}
+        Key::Backspace | Key::Save | Key::New | Key::Delete => {}
     }
 }
 

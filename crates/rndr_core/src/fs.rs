@@ -1,12 +1,13 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::disclosure::{Disclosure, Focusable};
+use crate::caret::set_editing;
+use crate::disclosure::{toggle_disclosure, Disclosure, Focusable};
 use crate::entity::Entity;
-use crate::hierarchy::{children_of, set_parent};
-use crate::input::{Input, Key};
+use crate::hierarchy::{children_of, despawn, set_parent, Parent};
+use crate::input::{Focus, Input, Key};
 use crate::layout::{Layout, Size};
-use crate::pane::Selection;
+use crate::pane::{set_selection, Selection};
 use crate::style::{Body, Color, Label};
 use crate::world::{Component, World};
 
@@ -142,27 +143,210 @@ pub fn apply_fs_save(world: &mut World) {
     else {
         return;
     };
-    if !world.has::<FsPath>(selected) {
-        return;
-    }
+    let _ = save_entity(world, selected);
+}
 
-    if !rename_if_needed(world, selected) {
-        return;
+/// Create or unlink on [`Key::New`] / [`Key::Delete`]. Shift + New makes a directory.
+pub fn apply_fs_edit(world: &mut World) {
+    let (key, shift) = match world.resource::<Input>() {
+        Some(input) => (input.key, input.shift),
+        None => return,
+    };
+    match key {
+        Some(Key::New) => {
+            if let Some(input) = world.resource_mut::<Input>() {
+                input.key = None;
+            }
+            create_untitled(world, shift);
+        }
+        Some(Key::Delete) => {
+            if let Some(input) = world.resource_mut::<Input>() {
+                input.key = None;
+            }
+            delete_focused(world);
+        }
+        _ => {}
     }
+}
 
-    let Some(fs) = world.get::<FsPath>(selected).cloned() else {
-        return;
+pub(crate) fn save_entity(world: &mut World, entity: Entity) -> bool {
+    if !world.has::<FsPath>(entity) {
+        return false;
+    }
+    if !rename_if_needed(world, entity) {
+        return false;
+    }
+    let Some(fs) = world.get::<FsPath>(entity).cloned() else {
+        return false;
     };
     if !fs.dir && fs.readable {
         let text = world
-            .get::<Body>(selected)
+            .get::<Body>(entity)
             .map(|body| body.text.clone())
             .unwrap_or_default();
         if fs::write(&fs.path, text).is_err() {
-            return;
+            return false;
         }
     }
-    world.remove::<Dirty>(selected);
+    world.remove::<Dirty>(entity);
+    true
+}
+
+pub(crate) fn flush_dirty_subtree(world: &mut World, entity: Entity) {
+    let mut stack = children_of(world, entity);
+    while let Some(child) = stack.pop() {
+        stack.extend(children_of(world, child));
+        if world.has::<Dirty>(child) && world.has::<FsPath>(child) {
+            let _ = save_entity(world, child);
+        }
+    }
+}
+
+fn parent_dir(world: &World, entity: Entity) -> Option<Entity> {
+    if world.get::<FsPath>(entity).is_some_and(|fs| fs.dir) {
+        return Some(entity);
+    }
+    let mut current = entity;
+    loop {
+        let parent = world.get::<Parent>(current)?.entity;
+        if !world.is_alive(parent) {
+            return None;
+        }
+        if world.get::<FsPath>(parent).is_some_and(|fs| fs.dir) {
+            return Some(parent);
+        }
+        current = parent;
+    }
+}
+
+fn unique_untitled(parent: &Path, dir: bool) -> String {
+    let first = if dir {
+        "untitled".to_string()
+    } else {
+        "untitled.txt".to_string()
+    };
+    if !parent.join(&first).exists() {
+        return first;
+    }
+    for n in 2usize.. {
+        let name = if dir {
+            format!("untitled-{n}")
+        } else {
+            format!("untitled-{n}.txt")
+        };
+        if !parent.join(&name).exists() {
+            return name;
+        }
+    }
+    unreachable!()
+}
+
+fn create_untitled(world: &mut World, dir: bool) {
+    let Some(focused) = world
+        .resource::<Focus>()
+        .and_then(|focus| focus.entity)
+        .filter(|entity| world.is_alive(*entity))
+    else {
+        return;
+    };
+    let Some(parent) = parent_dir(world, focused) else {
+        return;
+    };
+    let Some(parent_path) = world.get::<FsPath>(parent).map(|fs| fs.path.clone()) else {
+        return;
+    };
+    let dest = parent_path.join(unique_untitled(&parent_path, dir));
+    if dir {
+        if fs::create_dir(&dest).is_err() {
+            return;
+        }
+    } else if fs::write(&dest, "").is_err() {
+        return;
+    }
+
+    let open = world
+        .get::<Disclosure>(parent)
+        .is_some_and(|disclosure| disclosure.open);
+    let child = if open {
+        let child = spawn_fs_node(world, dest);
+        set_parent(world, child, parent);
+        if let Some(disclosure) = world.get_mut::<Disclosure>(parent) {
+            disclosure.spawned.push(child);
+        }
+        child
+    } else {
+        toggle_disclosure(world, parent);
+        let spawned = world
+            .get::<Disclosure>(parent)
+            .map(|disclosure| disclosure.spawned.clone())
+            .unwrap_or_default();
+        let Some(child) = spawned.into_iter().find(|entity| {
+            world
+                .get::<FsPath>(*entity)
+                .is_some_and(|fs| fs.path == dest)
+        }) else {
+            return;
+        };
+        child
+    };
+
+    if let Some(fs) = world.get_mut::<FsPath>(child) {
+        fs.loaded = true;
+        fs.readable = true;
+    }
+    if let Some(focus) = world.resource_mut::<Focus>() {
+        focus.entity = Some(child);
+    }
+    set_selection(world, Some(child));
+    set_editing(world, Some(child));
+}
+
+fn delete_focused(world: &mut World) {
+    let Some(entity) = world
+        .resource::<Focus>()
+        .and_then(|focus| focus.entity)
+        .filter(|entity| world.is_alive(*entity))
+    else {
+        return;
+    };
+    if !world.has::<FsPath>(entity) {
+        return;
+    }
+    let Some(parent) = world.get::<Parent>(entity).map(|parent| parent.entity) else {
+        return;
+    };
+    if !world.is_alive(parent) || !world.has::<FsPath>(parent) {
+        return;
+    }
+    if world.has::<Dirty>(entity) && !save_entity(world, entity) {
+        return;
+    }
+    let Some(fs) = world.get::<FsPath>(entity).cloned() else {
+        return;
+    };
+    if fs.dir {
+        let Ok(mut entries) = fs::read_dir(&fs.path) else {
+            return;
+        };
+        if entries.next().is_some() {
+            return;
+        }
+        if fs::remove_dir(&fs.path).is_err() {
+            return;
+        }
+    } else if fs::remove_file(&fs.path).is_err() {
+        return;
+    }
+
+    if let Some(disclosure) = world.get_mut::<Disclosure>(parent) {
+        disclosure.spawned.retain(|spawned| *spawned != entity);
+    }
+    despawn(world, entity);
+    if let Some(focus) = world.resource_mut::<Focus>() {
+        focus.entity = Some(parent);
+    }
+    set_selection(world, Some(parent));
+    set_editing(world, None);
 }
 
 fn list_dir(path: &Path) -> Vec<PathBuf> {
