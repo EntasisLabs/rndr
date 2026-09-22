@@ -1,0 +1,15 @@
+[workspace]
+resolver = "2"
+members = ["crates/rndr_core", "crates/rndr_render", "examples/expand"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/EntasisLabs/rndr"
+
+[workspace.dependencies]
+rndr_core = { path = "crates/rndr_core" }
+wgpu = "30"
+winit = "0.30"
+pollster = "0.4"

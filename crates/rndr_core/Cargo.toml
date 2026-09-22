@@ -1,0 +1,6 @@
+[package]
+name = "rndr_core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Application ECS for rndr: entities, hierarchy, layout, expand"
