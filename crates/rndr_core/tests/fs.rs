@@ -4,8 +4,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use rndr_core::{
     children_of, detail_pane, set_parent, shell, spawn_fs_node, spawn_node, tree_column, App, Body,
-    Color, Dirty, Disclosure, EditField, Field, Focusable, FsPath, Input, Key, Label, NodeSpec,
-    Pane, Parent, Schedule, World,
+    Color, Dirty, Disclosure, EditField, Editing, Field, Focus, Focusable, FsPath, Input, Key,
+    Label, NodeSpec, Pane, Parent, Schedule, World,
 };
 
 struct TempTree {
@@ -58,8 +58,21 @@ fn boot_fs(path: PathBuf) -> App {
 }
 
 fn press(app: &mut App, key: Key) {
-    app.world_mut().resource_mut::<Input>().unwrap().key = Some(key);
+    press_mods(app, key, false);
+}
+
+fn press_mods(app: &mut App, key: Key, shift: bool) {
+    let input = app.world_mut().resource_mut::<Input>().unwrap();
+    input.key = Some(key);
+    input.shift = shift;
     app.update();
+}
+
+fn focused(world: &World) -> rndr_core::Entity {
+    world
+        .resource::<Focus>()
+        .and_then(|focus| focus.entity)
+        .expect("focus")
 }
 
 fn type_char(app: &mut App, ch: char) {
@@ -310,4 +323,185 @@ fn nodespec_tree_ignores_save() {
     assert!(app.world().get::<Disclosure>(alpha).unwrap().open);
     assert!(!app.world().has::<FsPath>(alpha));
     assert!(!app.world().has::<Dirty>(alpha));
+}
+
+#[test]
+fn new_creates_untitled_file() {
+    let temp = TempTree::new("new-file");
+    temp.write("hello.txt", "hi");
+
+    let mut app = boot_fs(temp.path.clone());
+    press(&mut app, Key::Down);
+    press(&mut app, Key::Right);
+    press(&mut app, Key::New);
+
+    assert!(temp.path.join("untitled.txt").exists());
+    assert_eq!(
+        fs::read_to_string(temp.path.join("untitled.txt")).unwrap(),
+        ""
+    );
+    let untitled = node_named(app.world(), "untitled.txt");
+    assert_eq!(focused(app.world()), untitled);
+    let editing = app.world().resource::<Editing>().unwrap();
+    assert_eq!(editing.source, Some(untitled));
+    assert_eq!(editing.field, EditField::Title);
+    assert!(app.world().get::<FsPath>(untitled).unwrap().loaded);
+    assert!(app.world().get::<FsPath>(untitled).unwrap().readable);
+    assert!(!app.world().get::<FsPath>(untitled).unwrap().dir);
+}
+
+#[test]
+fn shift_new_creates_untitled_dir() {
+    let temp = TempTree::new("new-dir");
+    temp.write("hello.txt", "hi");
+
+    let mut app = boot_fs(temp.path.clone());
+    press(&mut app, Key::Down);
+    press(&mut app, Key::Right);
+    press_mods(&mut app, Key::New, true);
+
+    assert!(temp.path.join("untitled").is_dir());
+    let untitled = node_named(app.world(), "untitled");
+    assert_eq!(focused(app.world()), untitled);
+    assert!(app.world().get::<FsPath>(untitled).unwrap().dir);
+    let editing = app.world().resource::<Editing>().unwrap();
+    assert_eq!(editing.source, Some(untitled));
+    assert_eq!(editing.field, EditField::Title);
+}
+
+#[test]
+fn delete_clean_file() {
+    let temp = TempTree::new("delete-file");
+    temp.write("hello.txt", "hi");
+    temp.write("sub/n.txt", "n");
+
+    let mut app = boot_fs(temp.path.clone());
+    press(&mut app, Key::Down);
+    press(&mut app, Key::Right);
+    press(&mut app, Key::Down);
+    press(&mut app, Key::Down);
+    press(&mut app, Key::Delete);
+
+    assert!(!temp.path.join("hello.txt").exists());
+    let root = fs_root(app.world());
+    assert!(!child_names(app.world(), root).contains(&"hello.txt".to_string()));
+    assert_eq!(focused(app.world()), root);
+}
+
+#[test]
+fn delete_saves_dirty_then_unlinks() {
+    let temp = TempTree::new("delete-dirty");
+    temp.write("hello.txt", "hi");
+    temp.write("sub/n.txt", "n");
+
+    let mut app = boot_fs(temp.path.clone());
+    press(&mut app, Key::Down);
+    press(&mut app, Key::Right);
+    press(&mut app, Key::Down);
+    press(&mut app, Key::Down);
+    press(&mut app, Key::Enter);
+    press(&mut app, Key::Tab);
+    type_char(&mut app, 'x');
+
+    let hello = node_named(app.world(), "hello.txt");
+    assert!(app.world().has::<Dirty>(hello));
+    press(&mut app, Key::Escape);
+    press(&mut app, Key::Delete);
+
+    assert!(!temp.path.join("hello.txt").exists());
+    let root = fs_root(app.world());
+    assert!(!child_names(app.world(), root).contains(&"hello.txt".to_string()));
+    assert_eq!(focused(app.world()), root);
+}
+
+#[test]
+fn delete_nonempty_dir_is_noop() {
+    let temp = TempTree::new("delete-dir");
+    temp.write("hello.txt", "hi");
+    temp.write("sub/n.txt", "n");
+
+    let mut app = boot_fs(temp.path.clone());
+    press(&mut app, Key::Down);
+    press(&mut app, Key::Right);
+    press(&mut app, Key::Down);
+    press(&mut app, Key::Delete);
+
+    assert!(temp.path.join("sub").is_dir());
+    assert!(temp.path.join("sub/n.txt").exists());
+    let sub = node_named(app.world(), "sub");
+    assert!(app.world().is_alive(sub));
+    assert_eq!(focused(app.world()), sub);
+}
+
+#[test]
+fn delete_fs_root_is_noop() {
+    let temp = TempTree::new("delete-root");
+    temp.write("hello.txt", "hi");
+
+    let mut app = boot_fs(temp.path.clone());
+    press(&mut app, Key::Down);
+    press(&mut app, Key::Delete);
+
+    assert!(temp.path.is_dir());
+    let root = fs_root(app.world());
+    assert!(app.world().is_alive(root));
+    assert_eq!(focused(app.world()), root);
+    assert_eq!(app.world().get::<FsPath>(root).unwrap().path, temp.path);
+}
+
+#[test]
+fn collapse_flushes_dirty_child() {
+    let temp = TempTree::new("collapse-flush");
+    temp.write("hello.txt", "hi");
+    temp.write("sub/n.txt", "n");
+
+    let mut app = boot_fs(temp.path.clone());
+    press(&mut app, Key::Down);
+    press(&mut app, Key::Right);
+    press(&mut app, Key::Down);
+    press(&mut app, Key::Down);
+    press(&mut app, Key::Enter);
+    press(&mut app, Key::Tab);
+    type_char(&mut app, 'x');
+    press(&mut app, Key::Escape);
+    press(&mut app, Key::Left);
+    press(&mut app, Key::Left);
+
+    assert_eq!(
+        fs::read_to_string(temp.path.join("hello.txt")).unwrap(),
+        "hix"
+    );
+    let root = fs_root(app.world());
+    assert!(!app.world().get::<Disclosure>(root).unwrap().open);
+}
+
+#[test]
+fn nodespec_tree_ignores_new_and_delete() {
+    let mut app = App::new();
+    app.add_system(Schedule::Startup, |world: &mut World| {
+        let (layout, scroll) = rndr_core::scroll_page();
+        let page = world.spawn((layout, scroll, Color::rgb(0.1, 0.1, 0.1)));
+        let node = spawn_node(
+            world,
+            NodeSpec::branch(
+                "Alpha",
+                Color::rgb(0.2, 0.3, 0.4),
+                vec![NodeSpec::leaf("Alpha / 1", Color::rgb(0.3, 0.4, 0.3))],
+            ),
+        );
+        set_parent(world, node, page);
+    });
+    app.update();
+
+    press(&mut app, Key::Down);
+    press(&mut app, Key::New);
+    press(&mut app, Key::Delete);
+    press(&mut app, Key::Right);
+    let alpha = node_named(app.world(), "Alpha");
+    assert!(app.world().get::<Disclosure>(alpha).unwrap().open);
+    assert!(!app.world().has::<FsPath>(alpha));
+    assert_eq!(
+        child_names(app.world(), alpha),
+        vec!["Alpha / 1".to_string()]
+    );
 }

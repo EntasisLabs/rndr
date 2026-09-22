@@ -76,6 +76,7 @@ fn map_key(key: &Key) -> Option<Action> {
         Key::Named(NamedKey::Escape) => Some(Action::Escape),
         Key::Named(NamedKey::Tab) => Some(Action::Tab),
         Key::Named(NamedKey::Backspace) => Some(Action::Backspace),
+        Key::Named(NamedKey::Delete) => Some(Action::Delete),
         _ => None,
     }
 }
@@ -119,6 +120,10 @@ impl ApplicationHandler for Handler {
                     if let Key::Character(text) = &event.logical_key {
                         if text.eq_ignore_ascii_case("s") {
                             self.key = Some(Action::Save);
+                            redraw = true;
+                        }
+                        if text.eq_ignore_ascii_case("n") {
+                            self.key = Some(Action::New);
                             redraw = true;
                         }
                     }

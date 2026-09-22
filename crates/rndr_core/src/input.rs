@@ -12,6 +12,8 @@ pub enum Key {
     Tab,
     Backspace,
     Save,
+    New,
+    Delete,
 }
 
 /// Pointer and key state for the current update. The render crate writes this.
