@@ -3,6 +3,7 @@ use crate::disclosure::Disclosure;
 use crate::entity::Entity;
 use crate::hierarchy::{children_of, despawn, set_parent};
 use crate::layout::{Axis, Layout, Scroll, Size};
+use crate::split::Splitter;
 use crate::style::{Body, Color, Label};
 use crate::world::{Component, World};
 
@@ -30,6 +31,20 @@ pub fn shell() -> Layout {
         width: Size::Fill,
         height: Size::Fill,
     }
+}
+
+/// Vertical drag bar between a [`tree_column`] and a [`detail_pane`].
+pub fn splitter() -> (Layout, Splitter) {
+    (
+        Layout {
+            axis: Axis::Column,
+            gap: 0.0,
+            padding: 0.0,
+            width: Size::Px(8.0),
+            height: Size::Fill,
+        },
+        Splitter::default(),
+    )
 }
 
 /// Scrollable tree column on the left of a [`shell`].

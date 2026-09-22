@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 
 use rndr_core::{
-    detail_pane, set_parent, shell, spawn_fs_node, tree_column, App, Color, Schedule, World,
+    detail_pane, set_parent, shell, spawn_fs_node, splitter, tree_column, App, Color, Schedule,
+    World,
 };
 use rndr_render::run;
 
@@ -14,6 +15,10 @@ fn setup(world: &mut World) {
 
     let node = spawn_fs_node(world, demo_root());
     set_parent(world, node, tree);
+
+    let (split_layout, split) = splitter();
+    let seam = world.spawn((split_layout, split, Color::rgb(0.06, 0.07, 0.08)));
+    set_parent(world, seam, root);
 
     let (pane_layout, pane_scroll, pane) = detail_pane();
     let detail = world.spawn((pane_layout, pane_scroll, pane, Color::rgb(0.12, 0.13, 0.15)));

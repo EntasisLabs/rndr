@@ -23,6 +23,7 @@ pub fn run(app: App) {
         gpu: None,
         cursor: [0.0, 0.0],
         pressed: false,
+        down: false,
         scroll: [0.0, 0.0],
         key: None,
         chars: String::new(),
@@ -39,6 +40,7 @@ struct Handler {
     gpu: Option<Gpu>,
     cursor: [f32; 2],
     pressed: bool,
+    down: bool,
     scroll: [f32; 2],
     key: Option<Action>,
     chars: String,
@@ -53,6 +55,7 @@ impl Handler {
         if let Some(input) = self.app.world_mut().resource_mut::<Input>() {
             input.cursor = self.cursor;
             input.pressed = self.pressed;
+            input.down = self.down;
             input.scroll = self.scroll;
             input.key = self.key;
             input.chars.clone_from(&self.chars);
@@ -152,13 +155,26 @@ impl ApplicationHandler for Handler {
             }
             WindowEvent::CursorMoved { position, .. } => {
                 self.cursor = [position.x as f32, position.y as f32];
+                if self.down {
+                    if let Some(gpu) = &self.gpu {
+                        gpu.window().request_redraw();
+                    }
+                }
             }
             WindowEvent::MouseInput {
-                state: ElementState::Pressed,
+                state,
                 button: MouseButton::Left,
                 ..
             } => {
-                self.pressed = true;
+                match state {
+                    ElementState::Pressed => {
+                        self.pressed = true;
+                        self.down = true;
+                    }
+                    ElementState::Released => {
+                        self.down = false;
+                    }
+                }
                 if let Some(gpu) = &self.gpu {
                     gpu.window().request_redraw();
                 }
