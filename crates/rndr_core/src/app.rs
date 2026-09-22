@@ -1,6 +1,7 @@
 use crate::focus::apply_focus;
 use crate::input::{Focus, Input, Viewport};
 use crate::layout::{apply_scroll, layout_propagate};
+use crate::pane::{apply_pane, Selection};
 use crate::world::World;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -29,6 +30,7 @@ impl App {
         world.insert_resource(Input::default());
         world.insert_resource(Viewport::default());
         world.insert_resource(Focus::default());
+        world.insert_resource(Selection::default());
         let mut app = Self {
             world,
             startup: Vec::new(),
@@ -39,6 +41,7 @@ impl App {
         };
         app.update.push(apply_scroll);
         app.update.push(apply_focus);
+        app.update.push(apply_pane);
         app
     }
 

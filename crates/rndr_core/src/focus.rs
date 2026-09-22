@@ -3,6 +3,7 @@ use crate::entity::Entity;
 use crate::hierarchy::{children_of, roots, Parent};
 use crate::input::{Focus, Input, Key};
 use crate::layout::{ancestor_with, hit_test, Clip, Rect, Scroll};
+use crate::pane::{set_selection, Selection};
 use crate::style::Label;
 use crate::world::World;
 
@@ -22,6 +23,7 @@ pub fn apply_focus(world: &mut World) {
                     toggle_disclosure(world, target);
                     retarget_focus_after_toggle(world, target);
                 }
+                set_selection(world, Some(target));
             }
         }
     }
@@ -46,10 +48,7 @@ fn handle_key(world: &mut World, key: Key, shift: bool) {
         Key::Tab => move_tab(world, false),
         Key::Enter => {
             if let Some(target) = current_focus(world) {
-                if world.has::<Disclosure>(target) {
-                    toggle_disclosure(world, target);
-                    retarget_focus_after_toggle(world, target);
-                }
+                set_selection(world, Some(target));
             }
         }
         Key::Escape => handle_escape(world),
@@ -57,6 +56,13 @@ fn handle_key(world: &mut World, key: Key, shift: bool) {
 }
 
 fn handle_escape(world: &mut World) {
+    if world
+        .resource::<Selection>()
+        .is_some_and(|selection| selection.entity.is_some())
+    {
+        set_selection(world, None);
+        return;
+    }
     let Some(target) = current_focus(world) else {
         if let Some(input) = world.resource_mut::<Input>() {
             input.quit = true;

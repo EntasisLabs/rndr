@@ -10,6 +10,7 @@ mod focus;
 mod hierarchy;
 mod input;
 mod layout;
+mod pane;
 mod style;
 mod world;
 
@@ -25,5 +26,6 @@ pub use input::{Focus, Input, Key, Viewport};
 pub use layout::{
     ancestor_with, apply_scroll, hit_test, layout_propagate, Axis, Clip, Layout, Rect, Scroll, Size,
 };
+pub use pane::{apply_pane, detail_pane, set_selection, shell, tree_column, Pane, Selection};
 pub use style::{Color, Label};
 pub use world::{Bundle, Component, World};
