@@ -2,7 +2,7 @@ use crate::entity::Entity;
 use crate::hierarchy::{despawn, set_parent};
 use crate::input::Input;
 use crate::layout::{ancestor_with, hit_test, Axis, Layout, Scroll, Size};
-use crate::style::{Color, Label};
+use crate::style::{Body, Color, Label};
 use crate::world::{Component, World};
 
 impl Component for Disclosure {}
@@ -65,9 +65,14 @@ pub fn spawn_node(world: &mut World, spec: NodeSpec) -> Entity {
 
     let can_expand = !spec.children.is_empty();
     let root = if can_expand {
-        world.spawn((layout, Disclosure::new(spec.children), Focusable))
+        world.spawn((
+            layout,
+            Disclosure::new(spec.children),
+            Focusable,
+            Body::default(),
+        ))
     } else {
-        world.spawn((layout, Focusable))
+        world.spawn((layout, Focusable, Body::default()))
     };
 
     let mut header = Layout::row();

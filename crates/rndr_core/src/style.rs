@@ -2,6 +2,7 @@ use crate::world::Component;
 
 impl Component for Color {}
 impl Component for Label {}
+impl Component for Body {}
 
 /// Solid fill drawn by the render plugin.
 #[derive(Clone, Copy, Debug)]
@@ -29,6 +30,18 @@ pub struct Label {
 }
 
 impl Label {
+    pub fn new(text: impl Into<String>) -> Self {
+        Self { text: text.into() }
+    }
+}
+
+/// Document text on a tree node, shown in the pane body field.
+#[derive(Clone, Debug, Default)]
+pub struct Body {
+    pub text: String,
+}
+
+impl Body {
     pub fn new(text: impl Into<String>) -> Self {
         Self { text: text.into() }
     }

@@ -1,4 +1,4 @@
-use crate::caret::{is_editing, set_editing};
+use crate::caret::{is_editing, set_editing, set_editing_field, Field};
 use crate::disclosure::{toggle_disclosure, Disclosure, Focusable};
 use crate::entity::Entity;
 use crate::hierarchy::{children_of, roots, Parent};
@@ -26,6 +26,15 @@ pub fn apply_focus(world: &mut World) {
                 }
                 set_selection(world, Some(target));
                 set_editing(world, None);
+            } else if let Some(field_entity) = ancestor_with::<Field>(world, hit) {
+                if let Some(source) = world
+                    .resource::<Selection>()
+                    .and_then(|selection| selection.entity)
+                    .filter(|entity| world.is_alive(*entity))
+                {
+                    let kind = world.get::<Field>(field_entity).unwrap().kind;
+                    set_editing_field(world, source, kind);
+                }
             }
         }
     }
@@ -39,12 +48,13 @@ pub fn apply_focus(world: &mut World) {
                         input.key = None;
                     }
                 }
-                Key::Left | Key::Right | Key::Backspace => {}
-                _ => {
-                    if let Some(input) = world.resource_mut::<Input>() {
-                        input.key = None;
-                    }
-                }
+                Key::Left
+                | Key::Right
+                | Key::Backspace
+                | Key::Enter
+                | Key::Tab
+                | Key::Up
+                | Key::Down => {}
             }
         } else {
             handle_key(world, key, input.shift);

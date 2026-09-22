@@ -419,7 +419,7 @@ fn collect_instances(app: &App) -> Vec<f32> {
                 push_label(&mut out, rect, label, clip);
             }
             if let Some(caret) = caret {
-                push_caret(&mut out, rect, caret, clip);
+                push_caret(&mut out, rect, label, caret, clip);
             }
         });
     }
@@ -480,9 +480,14 @@ fn push_label(out: &mut Vec<f32>, rect: Rect, label: &Label, clip: Clip) {
     let glyph_w = font::GLYPH_W as f32 * scale;
     let glyph_h = font::GLYPH_H as f32 * scale;
     let mut x = rect.x + 12.0;
-    let y = rect.y + ((rect.h - glyph_h) * 0.5).max(4.0);
+    let mut y = rect.y + 8.0;
     let color = Color::rgb(0.94, 0.95, 0.97);
     for ch in label.text.bytes() {
+        if ch == b'\n' {
+            x = rect.x + 12.0;
+            y += glyph_h;
+            continue;
+        }
         if ch == b' ' {
             x += glyph_w;
             continue;
@@ -504,12 +509,14 @@ fn push_label(out: &mut Vec<f32>, rect: Rect, label: &Label, clip: Clip) {
     }
 }
 
-fn push_caret(out: &mut Vec<f32>, rect: Rect, caret: &Caret, clip: Clip) {
+fn push_caret(out: &mut Vec<f32>, rect: Rect, label: Option<&Label>, caret: &Caret, clip: Clip) {
     let scale = 2.0;
     let glyph_w = font::GLYPH_W as f32 * scale;
     let glyph_h = font::GLYPH_H as f32 * scale;
-    let x = rect.x + 12.0 + caret.index as f32 * glyph_w;
-    let y = rect.y + ((rect.h - glyph_h) * 0.5).max(4.0);
+    let text = label.map(|label| label.text.as_str()).unwrap_or("");
+    let (col, line) = caret_col_line(text, caret.index);
+    let x = rect.x + 12.0 + col as f32 * glyph_w;
+    let y = rect.y + 8.0 + line as f32 * glyph_h;
     push_instance(
         out,
         Rect {
@@ -522,4 +529,22 @@ fn push_caret(out: &mut Vec<f32>, rect: Rect, caret: &Caret, clip: Clip) {
         font::solid_uv(),
         clip,
     );
+}
+
+fn caret_col_line(text: &str, index: usize) -> (usize, usize) {
+    let index = index.min(text.len());
+    let mut line = 0usize;
+    let mut col = 0usize;
+    for (i, ch) in text.bytes().enumerate() {
+        if i == index {
+            break;
+        }
+        if ch == b'\n' {
+            line += 1;
+            col = 0;
+        } else {
+            col += 1;
+        }
+    }
+    (col, line)
 }

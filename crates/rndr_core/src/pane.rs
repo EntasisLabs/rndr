@@ -1,8 +1,9 @@
+use crate::caret::{EditField, Field};
 use crate::disclosure::Disclosure;
 use crate::entity::Entity;
 use crate::hierarchy::{children_of, despawn, set_parent};
 use crate::layout::{Axis, Layout, Scroll, Size};
-use crate::style::{Color, Label};
+use crate::style::{Body, Color, Label};
 use crate::world::{Component, World};
 
 impl Component for Pane {}
@@ -120,8 +121,18 @@ fn clear_pane(world: &mut World, pane: Entity) {
     }
 }
 
+/// One line is 36px: 16 padding plus 20 per line.
+pub fn field_height(text: &str) -> f32 {
+    let lines = text.split('\n').count().max(1) as f32;
+    16.0 + lines * 20.0
+}
+
 fn spawn_body(world: &mut World, pane: Entity, selected: Entity) -> Vec<Entity> {
     let title = node_label(world, selected).unwrap_or_else(|| "Untitled".to_string());
+    let body = world
+        .get::<Body>(selected)
+        .map(|body| body.text.clone())
+        .unwrap_or_default();
     let status = if let Some(disclosure) = world.get::<Disclosure>(selected) {
         if disclosure.open {
             "Open"
@@ -137,22 +148,67 @@ fn spawn_body(world: &mut World, pane: Entity, selected: Entity) -> Vec<Entity> 
         .unwrap_or_default();
 
     let mut spawned = Vec::new();
-    spawned.push(body_row(world, pane, title, Color::rgb(0.22, 0.34, 0.48)));
-    spawned.push(body_row(world, pane, status, Color::rgb(0.18, 0.22, 0.26)));
+    spawned.push(field_row(
+        world,
+        pane,
+        title,
+        Color::rgb(0.22, 0.34, 0.48),
+        Some(EditField::Title),
+        36.0,
+    ));
+    spawned.push(field_row(
+        world,
+        pane,
+        body.clone(),
+        Color::rgb(0.14, 0.16, 0.20),
+        Some(EditField::Body),
+        field_height(&body),
+    ));
+    spawned.push(field_row(
+        world,
+        pane,
+        status,
+        Color::rgb(0.18, 0.22, 0.26),
+        None,
+        36.0,
+    ));
     for label in child_labels {
-        spawned.push(body_row(world, pane, label, Color::rgb(0.20, 0.28, 0.30)));
+        spawned.push(field_row(
+            world,
+            pane,
+            label,
+            Color::rgb(0.20, 0.28, 0.30),
+            None,
+            36.0,
+        ));
     }
     spawned
 }
 
-fn body_row(world: &mut World, pane: Entity, text: impl Into<String>, color: Color) -> Entity {
+fn field_row(
+    world: &mut World,
+    pane: Entity,
+    text: impl Into<String>,
+    color: Color,
+    field: Option<EditField>,
+    height: f32,
+) -> Entity {
     let mut layout = Layout::row();
     layout.padding = 8.0;
     layout.width = Size::Fill;
-    layout.height = Size::Px(36.0);
-    let row = world.spawn((layout, color, Label::new(text)));
+    layout.height = Size::Px(height);
+    let text = text.into();
+    let row = if let Some(kind) = field {
+        world.spawn((layout, color, Label::new(text), Field { kind }))
+    } else {
+        world.spawn((layout, color, Label::new(text)))
+    };
     set_parent(world, row, pane);
     row
+}
+
+fn body_row(world: &mut World, pane: Entity, text: impl Into<String>, color: Color) -> Entity {
+    field_row(world, pane, text, color, None, 36.0)
 }
 
 fn node_label(world: &World, entity: Entity) -> Option<String> {
