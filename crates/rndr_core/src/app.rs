@@ -4,6 +4,7 @@ use crate::fs::{apply_fs_edit, apply_fs_load, apply_fs_save};
 use crate::input::{Focus, Input, Viewport};
 use crate::layout::{apply_scroll, layout_propagate};
 use crate::pane::{apply_pane, Selection};
+use crate::split::{apply_split, Drag};
 use crate::world::World;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -34,6 +35,7 @@ impl App {
         world.insert_resource(Focus::default());
         world.insert_resource(Selection::default());
         world.insert_resource(Editing::default());
+        world.insert_resource(Drag::default());
         let mut app = Self {
             world,
             startup: Vec::new(),
@@ -43,6 +45,7 @@ impl App {
             started: false,
         };
         app.update.push(apply_scroll);
+        app.update.push(apply_split);
         app.update.push(apply_focus);
         app.update.push(apply_fs_load);
         app.update.push(apply_pane);

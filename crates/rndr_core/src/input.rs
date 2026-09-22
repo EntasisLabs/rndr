@@ -22,6 +22,8 @@ pub struct Input {
     pub cursor: [f32; 2],
     /// Press edge for this update only.
     pub pressed: bool,
+    /// Left button held this frame. The render crate writes this; core does not clear it.
+    pub down: bool,
     /// Content-offset delta for this update only. Positive Y moves content down.
     pub scroll: [f32; 2],
     pub key: Option<Key>,

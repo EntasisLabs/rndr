@@ -13,6 +13,7 @@ mod hierarchy;
 mod input;
 mod layout;
 mod pane;
+mod split;
 mod style;
 mod world;
 
@@ -31,7 +32,9 @@ pub use layout::{
     ancestor_with, apply_scroll, hit_test, layout_propagate, Axis, Clip, Layout, Rect, Scroll, Size,
 };
 pub use pane::{
-    apply_pane, detail_pane, field_height, set_selection, shell, tree_column, Pane, Selection,
+    apply_pane, detail_pane, field_height, set_selection, shell, splitter, tree_column, Pane,
+    Selection,
 };
+pub use split::{apply_split, Drag, Splitter};
 pub use style::{Body, Color, Label};
 pub use world::{Bundle, Component, World};
