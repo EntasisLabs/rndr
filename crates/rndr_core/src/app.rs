@@ -84,7 +84,7 @@ impl App {
         layout_propagate(&mut self.world);
     }
 
-    /// Extra render-schedule systems. The wgpu plugin draws after `update`, then calls this.
+    /// Extra render-schedule systems. The surface runs these after paint and before present.
     pub fn render(&mut self) {
         for system in self.render.clone() {
             system(&mut self.world);

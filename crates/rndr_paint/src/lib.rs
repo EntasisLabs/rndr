@@ -9,7 +9,7 @@ mod font;
 pub use font::{atlas_r8, glyph_uv, solid_uv, ATLAS_H, ATLAS_W};
 
 use rndr_core::{
-    children_of, cols_for, roots, visual_pos, visual_selection_spans, wrap_lines, Caret, Clip,
+    children_of, cols_for, roots, visual_pos, visual_selection_spans, wrap_lines, App, Caret, Clip,
     Color, DirtyMark, EditField, Field, Focus, Label, Parent, Rect, World, CELL_H, CELL_W,
     TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
@@ -21,6 +21,18 @@ pub struct Quad {
     pub color: Color,
     pub uv: [f32; 4],
     pub clip: Clip,
+}
+
+/// One world frame, then the quads in points.
+///
+/// Runs Startup once, then Update, Layout, and the render schedule. The
+/// surface multiplies the returned quads by [`rndr_core::Viewport::scale`]
+/// when it presents. This does not open a window.
+pub fn frame(app: &mut App) -> Vec<Quad> {
+    app.update();
+    let quads = paint(app.world());
+    app.render();
+    quads
 }
 
 /// Paint every colored rect in the world, parents before children.

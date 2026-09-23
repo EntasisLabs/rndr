@@ -33,20 +33,23 @@ Application
 | Crate | Role |
 | --- | --- |
 | `rndr_core` | ECS, layout, clip, scroll, disclosure, focus, pane, split, caret, body, wrap, `Files` |
-| `rndr_paint` | World to quads in points, 8×8 ASCII atlas |
+| `rndr_paint` | `frame`: update, then quads in points. 8×8 ASCII atlas |
 | `rndr_std` | `std::fs` plugin |
-| `rndr_render` | winit window, `Input` resource, scales quads and draws them |
+| `rndr_render` | winit window writes `Input` and `Viewport`, then presents quads |
 | `examples/expand` | File-backed expand demo: folder tree, pane, splitter, caret, create, delete |
 
-A blank `App` holds the world, `Input`, and `Viewport`. `Shell` registers the interaction systems. `StdFsPlugin` inserts the disk backend. `MemoryFs` is the headless backend. `rndr_paint` turns the world into quads in points. `rndr_render` multiplies those quads by `scale` and draws them. Platform dependencies stop at `wgpu`, `winit`, and `pollster`. No layout engine, no text crate, no third-party ECS.
+A blank `App` holds the world, `Input`, and `Viewport`. `Shell` registers the interaction systems. `StdFsPlugin` inserts the disk backend. `MemoryFs` is the headless backend. `rndr_paint::frame` steps the world and returns quads in points. `rndr_render` writes the window into `Input` and `Viewport`, then multiplies those quads by `scale` and presents them. Platform dependencies stop at `wgpu`, `winit`, and `pollster`. No layout engine, no text crate, no third-party ECS.
 
 Layout, hit-testing, and scroll are in logical points. `Viewport.scale` is physical pixels per point. The desktop plugin divides window size, the cursor, and pixel-wheel deltas by that scale, then multiplies rects by it when uploading instances. `Viewport.insets` shrinks root placement for a status bar or home indicator. `Input.pointer` is one contact: the mouse writes id `0`. A drag inside a scrollport follows that contact after 4 points. A drag that starts on the seam still resizes the split.
 
 ## Frame
 
-`Startup` → `Update` → `Layout` (then the built-in propagate) → draw
+1. The platform writes `Viewport` (size, scale, insets) and `Input`.
+2. `rndr_paint::frame` runs Startup once, then Update and Layout.
+3. `frame` returns quads in points.
+4. The surface multiplies by `scale` and presents.
 
-Headless `App::update()` runs everything except the window. The desktop runner is the only thing that calls winit.
+Headless tests call `frame` and never open a window. The desktop runner is the only thing that calls winit.
 
 ## Demo
 
