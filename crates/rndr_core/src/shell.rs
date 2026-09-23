@@ -3,7 +3,7 @@ use crate::caret::{apply_caret, Editing};
 use crate::focus::apply_focus;
 use crate::fs::{apply_dirty_marks, apply_fs_edit, apply_fs_load, apply_fs_save};
 use crate::input::Focus;
-use crate::layout::apply_scroll;
+use crate::layout::{apply_scroll, ScrollDrag};
 use crate::pane::{apply_pane, Selection};
 use crate::split::{apply_split, Drag};
 use crate::wrap::apply_wrap;
@@ -18,6 +18,7 @@ impl Plugin for Shell {
         app.world_mut().insert_resource(Selection::default());
         app.world_mut().insert_resource(Editing::default());
         app.world_mut().insert_resource(Drag::default());
+        app.world_mut().insert_resource(ScrollDrag::default());
         app.add_system(Schedule::Update, apply_scroll);
         app.add_system(Schedule::Update, apply_split);
         app.add_system(Schedule::Update, apply_focus);

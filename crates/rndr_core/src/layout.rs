@@ -1,6 +1,7 @@
 use crate::entity::Entity;
 use crate::hierarchy::{children_of, roots, Parent};
 use crate::input::{Input, Viewport};
+use crate::split::Splitter;
 use crate::world::{Component, World};
 
 impl Component for Layout {}
@@ -126,6 +127,19 @@ impl Default for Scroll {
     }
 }
 
+/// Movement, in points, before a held contact starts scrolling.
+pub const SCROLL_DRAG_SLOP: f32 = 4.0;
+
+/// One captured scroll drag. Cleared when the pointer is released.
+/// A press that starts on a [`Splitter`] does not capture.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ScrollDrag {
+    pub entity: Option<Entity>,
+    pub origin: [f32; 2],
+    pub last: [f32; 2],
+    pub active: bool,
+}
+
 impl Scroll {
     pub fn clamp_to(&mut self, port_w: f32, port_h: f32) {
         let min_x = (port_w - self.content[0]).min(0.0);
@@ -180,11 +194,21 @@ pub fn hit_test(world: &World, x: f32, y: f32) -> Option<Entity> {
     hit
 }
 
-/// Apply `Input.scroll` to the deepest `Scroll` under the pointer.
+/// Apply the wheel, then a held contact.
+/// The wheel goes to the deepest [`Scroll`] under the pointer.
+/// A press that is not on a [`Splitter`] captures that scrollport. Once the
+/// contact moves [`SCROLL_DRAG_SLOP`] points, further movement is added to its
+/// offset. The press itself is left for focus.
 pub fn apply_scroll(world: &mut World) {
     let Some(input) = world.resource::<Input>().cloned() else {
+        clear_scroll_drag(world);
         return;
     };
+    apply_wheel(world, &input);
+    apply_pointer_drag(world, &input);
+}
+
+fn apply_wheel(world: &mut World, input: &Input) {
     if input.scroll[0] == 0.0 && input.scroll[1] == 0.0 {
         return;
     }
@@ -199,6 +223,61 @@ pub fn apply_scroll(world: &mut World) {
     }
     if let Some(input) = world.resource_mut::<Input>() {
         input.scroll = [0.0, 0.0];
+    }
+}
+
+fn apply_pointer_drag(world: &mut World, input: &Input) {
+    if !input.pointer.down {
+        clear_scroll_drag(world);
+        return;
+    }
+    let position = input.pointer.position;
+    if input.pointer.pressed {
+        let entity = hit_test(world, position[0], position[1]).and_then(|hit| {
+            if ancestor_with::<Splitter>(world, hit).is_some() {
+                None
+            } else {
+                ancestor_with::<Scroll>(world, hit)
+            }
+        });
+        world.insert_resource(ScrollDrag {
+            entity,
+            origin: position,
+            last: position,
+            active: false,
+        });
+        return;
+    }
+    let Some(mut drag) = world.resource::<ScrollDrag>().copied() else {
+        return;
+    };
+    let Some(entity) = drag
+        .entity
+        .filter(|entity| world.is_alive(*entity) && world.has::<Scroll>(*entity))
+    else {
+        return;
+    };
+    if !drag.active {
+        let dx = position[0] - drag.origin[0];
+        let dy = position[1] - drag.origin[1];
+        if dx * dx + dy * dy < SCROLL_DRAG_SLOP * SCROLL_DRAG_SLOP {
+            drag.last = position;
+            world.insert_resource(drag);
+            return;
+        }
+        drag.active = true;
+    }
+    if let Some(scroll) = world.get_mut::<Scroll>(entity) {
+        scroll.offset[0] += position[0] - drag.last[0];
+        scroll.offset[1] += position[1] - drag.last[1];
+    }
+    drag.last = position;
+    world.insert_resource(drag);
+}
+
+fn clear_scroll_drag(world: &mut World) {
+    if let Some(drag) = world.resource_mut::<ScrollDrag>() {
+        *drag = ScrollDrag::default();
     }
 }
 

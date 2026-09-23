@@ -1,7 +1,7 @@
 use rndr_core::{
     detail_pane, set_parent, shell, spawn_node, splitter, tree_column, App, Axis, Color,
     Disclosure, Drag, Focus, Focusable, Input, Insets, Key, Label, Layout, NodeSpec, Parent, Rect,
-    Shell, Size, Splitter, Viewport, World,
+    Scroll, Shell, Size, Splitter, Viewport, World,
 };
 
 fn px_fill(w: f32) -> Layout {
@@ -217,6 +217,72 @@ fn column_splitter_changes_leading_height() {
     press_at(&mut app, x, y);
     drag_to(&mut app, x, y + 30.0);
     assert_eq!(app.world().get::<Rect>(leading).unwrap().h, start + 30.0);
+}
+
+#[test]
+fn seam_drag_inside_a_scrollport_does_not_scroll() {
+    let mut app = App::new();
+    app.add_plugin(Shell);
+    app.world_mut().insert_resource(Viewport::new(200.0, 200.0));
+    let (port, leading, seam) = {
+        let world = app.world_mut();
+        let port = world.spawn((
+            Layout {
+                axis: Axis::Column,
+                gap: 0.0,
+                padding: 0.0,
+                width: Size::Fill,
+                height: Size::Fill,
+            },
+            Scroll::default(),
+            Color::rgb(0.1, 0.1, 0.1),
+        ));
+        let leading = world.spawn((
+            Layout {
+                axis: Axis::Column,
+                gap: 0.0,
+                padding: 0.0,
+                width: Size::Fill,
+                height: Size::Px(80.0),
+            },
+            Color::rgb(0.2, 0.2, 0.2),
+        ));
+        set_parent(world, leading, port);
+        let seam = world.spawn((
+            Layout {
+                axis: Axis::Row,
+                gap: 0.0,
+                padding: 0.0,
+                width: Size::Fill,
+                height: Size::Px(8.0),
+            },
+            Splitter {
+                min_leading: 40.0,
+                min_trailing: 40.0,
+            },
+            Color::rgb(0.3, 0.3, 0.3),
+        ));
+        set_parent(world, seam, port);
+        let trailing = world.spawn((
+            Layout {
+                axis: Axis::Column,
+                gap: 0.0,
+                padding: 0.0,
+                width: Size::Fill,
+                height: Size::Px(400.0),
+            },
+            Color::rgb(0.4, 0.4, 0.4),
+        ));
+        set_parent(world, trailing, port);
+        (port, leading, seam)
+    };
+    app.update();
+
+    let [x, y] = seam_center(app.world(), seam);
+    press_at(&mut app, x, y);
+    drag_to(&mut app, x, y - 30.0);
+    assert_eq!(app.world().get::<Rect>(leading).unwrap().h, 50.0);
+    assert_eq!(app.world().get::<Scroll>(port).unwrap().offset[1], 0.0);
 }
 
 #[test]

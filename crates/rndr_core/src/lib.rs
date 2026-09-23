@@ -38,7 +38,8 @@ pub use fs::{
 pub use hierarchy::{children_of, despawn, roots, set_parent, Children, Parent};
 pub use input::{Focus, Input, Insets, Key, Pointer, Viewport, MOUSE_ID};
 pub use layout::{
-    ancestor_with, apply_scroll, hit_test, layout_propagate, Axis, Clip, Layout, Rect, Scroll, Size,
+    ancestor_with, apply_scroll, hit_test, layout_propagate, Axis, Clip, Layout, Rect, Scroll,
+    ScrollDrag, Size, SCROLL_DRAG_SLOP,
 };
 pub use memory_fs::{MemoryFs, MemoryFsPlugin};
 pub use pane::{
