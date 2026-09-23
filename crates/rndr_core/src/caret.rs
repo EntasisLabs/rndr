@@ -4,8 +4,12 @@ use crate::hierarchy::children_of;
 use crate::input::{Input, Key};
 use crate::layout::{ancestor_with, hit_test, Clip, Layout, Rect, Scroll, Size};
 use crate::pane::{field_height, Pane};
-use crate::style::{Body, Label, CELL_H, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
+use crate::style::{Body, Label};
 use crate::world::{Component, World};
+use crate::wrap::{
+    cols_for, index_at_pointer, index_at_visual, visual_pos, visual_selection_spans, wrap_lines,
+    GLYPH_PX, TEXT_INSET_Y,
+};
 
 impl Component for Caret {}
 impl Component for Field {}
@@ -129,12 +133,24 @@ pub fn apply_caret(world: &mut World) {
         .map(|caret| (caret.index.min(text.len()), caret.anchor.min(text.len())))
         .unwrap_or((text.len(), text.len()));
 
-    let movement = match (key, field) {
-        (Some(Key::Left | Key::Right), _) => true,
-        (Some(Key::Up | Key::Down), EditField::Body) => true,
-        _ => false,
-    };
-    if movement {
+    if matches!(key, Some(Key::Up | Key::Down)) && field == EditField::Body {
+        let delta = if key == Some(Key::Up) { -1 } else { 1 };
+        let next = move_visual_line(world, row, &text, index, delta);
+        if shift {
+            index = next;
+        } else if anchor != index {
+            let edge = if delta < 0 {
+                anchor.min(index)
+            } else {
+                anchor.max(index)
+            };
+            index = edge;
+            anchor = edge;
+        } else {
+            index = next;
+            anchor = next;
+        }
+    } else if matches!(key, Some(Key::Left | Key::Right)) {
         (index, anchor) = move_caret(&text, index, anchor, key, shift);
     } else {
         let editing = !chars.is_empty()
@@ -238,7 +254,7 @@ fn place_caret_from_pointer(world: &mut World, row: Entity, existed: bool) {
     let Some(hit) = hit_test(world, x, y) else {
         return;
     };
-    if hit != row {
+    if ancestor_with::<Field>(world, hit) != Some(row) {
         return;
     }
     let Some(rect) = world.get::<Rect>(row).copied() else {
@@ -248,7 +264,15 @@ fn place_caret_from_pointer(world: &mut World, row: Entity, existed: bool) {
         .get::<Label>(row)
         .map(|label| label.text.clone())
         .unwrap_or_default();
-    let index = index_at_point(&text, rect, x, y);
+    let cols = if world
+        .get::<Field>(row)
+        .is_some_and(|field| field.kind == EditField::Body)
+    {
+        cols_for(rect.w)
+    } else {
+        usize::MAX
+    };
+    let index = index_at_pointer(&text, cols, rect, x, y);
     if let Some(caret) = world.get_mut::<Caret>(row) {
         caret.index = index;
         if !(shift && existed) {
@@ -270,16 +294,14 @@ fn move_caret(
     let next = match key {
         Some(Key::Left) => index.saturating_sub(1),
         Some(Key::Right) => (index + 1).min(len),
-        Some(Key::Up) => move_line(text, index, -1),
-        Some(Key::Down) => move_line(text, index, 1),
         _ => index,
     };
     if shift {
         (next, anchor)
     } else if anchor != index {
         let edge = match key {
-            Some(Key::Left | Key::Up) => anchor.min(index),
-            Some(Key::Right | Key::Down) => anchor.max(index),
+            Some(Key::Left) => anchor.min(index),
+            Some(Key::Right) => anchor.max(index),
             _ => next,
         };
         (edge, edge)
@@ -290,47 +312,12 @@ fn move_caret(
 
 /// Line and column of a byte `index`. Column is a byte offset on that line.
 pub fn caret_line_col(text: &str, index: usize) -> (usize, usize) {
-    line_col(text, index)
+    visual_pos(&wrap_lines(text, usize::MAX), index)
 }
 
-/// Selected runs as `(line, start_col, end_col)` in paint order.
+/// Selected runs as `(line, start_col, end_col)` in paint order. No soft wrap.
 pub fn selection_spans(text: &str, anchor: usize, index: usize) -> Vec<(usize, usize, usize)> {
-    let start = anchor.min(index).min(text.len());
-    let end = anchor.max(index).min(text.len());
-    if start == end {
-        return Vec::new();
-    }
-    let (start_line, start_col) = line_col(text, start);
-    let (end_line, end_col) = line_col(text, end);
-    let lines: Vec<&str> = text.split('\n').collect();
-    if start_line == end_line {
-        return vec![(start_line, start_col, end_col)];
-    }
-    let mut spans = Vec::new();
-    let first_len = lines.get(start_line).map(|line| line.len()).unwrap_or(0);
-    spans.push((start_line, start_col, first_len));
-    for line in start_line + 1..end_line {
-        let len = lines.get(line).map(|part| part.len()).unwrap_or(0);
-        spans.push((line, 0, len));
-    }
-    spans.push((end_line, 0, end_col));
-    spans
-}
-
-fn index_at_point(text: &str, rect: Rect, x: f32, y: f32) -> usize {
-    let local_y = y - (rect.y + TEXT_ORIGIN_Y);
-    let line = if local_y < 0.0 {
-        0
-    } else {
-        (local_y / CELL_H).floor() as usize
-    };
-    let local_x = x - (rect.x + TEXT_ORIGIN_X);
-    let col = if local_x < 0.0 {
-        0
-    } else {
-        (local_x / CELL_W).floor() as usize
-    };
-    index_at(text, line, col)
+    visual_selection_spans(&wrap_lines(text, usize::MAX), anchor, index)
 }
 
 fn field_row(world: &World, kind: EditField) -> Option<Entity> {
@@ -385,32 +372,15 @@ fn is_printable_ascii(ch: char) -> bool {
     matches!(ch, ' '..='~')
 }
 
-fn move_line(text: &str, index: usize, delta: isize) -> usize {
-    let (line, col) = line_col(text, index);
-    let next = line.saturating_add_signed(delta);
-    index_at(text, next, col)
-}
-
-fn line_col(text: &str, index: usize) -> (usize, usize) {
-    let index = index.min(text.len());
-    let before = &text[..index];
-    let line = before.bytes().filter(|b| *b == b'\n').count();
-    let col = match before.rfind('\n') {
-        Some(i) => index - i - 1,
-        None => index,
-    };
-    (line, col)
-}
-
-fn index_at(text: &str, line: usize, col: usize) -> usize {
-    let mut start = 0usize;
-    for (i, part) in text.split('\n').enumerate() {
-        if i == line {
-            return start + col.min(part.len());
-        }
-        start += part.len() + 1;
-    }
-    text.len()
+fn move_visual_line(world: &World, row: Entity, text: &str, index: usize, delta: isize) -> usize {
+    let cols = world
+        .get::<Rect>(row)
+        .map(|rect| cols_for(rect.w))
+        .unwrap_or(usize::MAX);
+    let lines = wrap_lines(text, cols);
+    let (line, col) = visual_pos(&lines, index);
+    let next = (line as isize + delta).clamp(0, lines.len().saturating_sub(1) as isize) as usize;
+    index_at_visual(&lines, next, col)
 }
 
 fn ensure_caret_visible(world: &mut World) {
@@ -431,11 +401,12 @@ fn ensure_caret_visible(world: &mut World) {
     }) else {
         return;
     };
+    let (caret_y, caret_h) = caret_line_rect(world, entity, rect);
     let mut dy = 0.0f32;
-    if rect.y < port.y {
-        dy = port.y - rect.y;
-    } else if rect.y + rect.h > port.y + port.h {
-        dy = (port.y + port.h) - (rect.y + rect.h);
+    if caret_y < port.y {
+        dy = port.y - caret_y;
+    } else if caret_y + caret_h > port.y + port.h {
+        dy = (port.y + port.h) - (caret_y + caret_h);
     }
     let mut dx = 0.0f32;
     if rect.x < port.x {
@@ -450,4 +421,25 @@ fn ensure_caret_visible(world: &mut World) {
         scroll.offset[0] += dx;
         scroll.offset[1] += dy;
     }
+}
+
+fn caret_line_rect(world: &World, entity: Entity, rect: Rect) -> (f32, f32) {
+    let wrap = world
+        .get::<Field>(entity)
+        .is_some_and(|field| field.kind == EditField::Body);
+    let line = if wrap {
+        let text = world
+            .get::<Label>(entity)
+            .map(|label| label.text.as_str())
+            .unwrap_or("");
+        let index = world
+            .get::<Caret>(entity)
+            .map(|caret| caret.index)
+            .unwrap_or(0);
+        let (line, _) = visual_pos(&wrap_lines(text, cols_for(rect.w)), index);
+        line
+    } else {
+        0
+    };
+    (rect.y + TEXT_INSET_Y + line as f32 * GLYPH_PX, GLYPH_PX)
 }
