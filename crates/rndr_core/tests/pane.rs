@@ -184,8 +184,8 @@ fn click_selects_without_opening_and_fills_the_pane() {
     let rect = *app.world().get::<rndr_core::Rect>(header).unwrap();
     {
         let input = app.world_mut().resource_mut::<Input>().unwrap();
-        input.cursor = [rect.x + 8.0, rect.y + 8.0];
-        input.pressed = true;
+        input.pointer.position = [rect.x + 8.0, rect.y + 8.0];
+        input.pointer.pressed = true;
     }
     app.update();
 

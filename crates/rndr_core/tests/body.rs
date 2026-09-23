@@ -105,8 +105,8 @@ fn click_rect(app: &mut App, entity: rndr_core::Entity) {
     let rect = *app.world().get::<rndr_core::Rect>(entity).unwrap();
     {
         let input = app.world_mut().resource_mut::<Input>().unwrap();
-        input.cursor = [rect.x + 8.0, rect.y + 8.0];
-        input.pressed = true;
+        input.pointer.position = [rect.x + 8.0, rect.y + 8.0];
+        input.pointer.pressed = true;
     }
     app.update();
 }
@@ -224,11 +224,11 @@ fn click_second_line_places_the_caret_there() {
     let rect = *app.world().get::<rndr_core::Rect>(body).unwrap();
     {
         let input = app.world_mut().resource_mut::<Input>().unwrap();
-        input.cursor = [
+        input.pointer.position = [
             rect.x + TEXT_ORIGIN_X + 1.0,
             rect.y + TEXT_ORIGIN_Y + CELL_H + 1.0,
         ];
-        input.pressed = true;
+        input.pointer.pressed = true;
     }
     app.update();
 

@@ -85,18 +85,15 @@ fn pane_field(world: &World, kind: EditField) -> rndr_core::Entity {
 fn click_at(app: &mut App, entity: rndr_core::Entity, dx: f32, dy: f32) {
     let rect = *app.world().get::<Rect>(entity).unwrap();
     let input = app.world_mut().resource_mut::<Input>().unwrap();
-    input.cursor = [rect.x + dx, rect.y + dy];
-    input.pressed = true;
+    input.pointer.position = [rect.x + dx, rect.y + dy];
+    input.pointer.pressed = true;
     app.update();
 }
 
 fn boot_narrow() -> App {
     let mut app = App::new();
     app.add_plugin(Shell);
-    app.world_mut().insert_resource(Viewport {
-        width: 200.0,
-        height: 400.0,
-    });
+    app.world_mut().insert_resource(Viewport::new(200.0, 400.0));
     {
         let world = app.world_mut();
         let (layout, scroll, pane) = detail_pane();

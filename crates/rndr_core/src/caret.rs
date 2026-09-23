@@ -245,12 +245,12 @@ fn place_caret_from_pointer(world: &mut World, row: Entity, existed: bool) {
     let Some(input) = world.resource::<Input>() else {
         return;
     };
-    if !input.pressed {
+    if !input.pointer.pressed {
         return;
     }
     let shift = input.shift;
-    let x = input.cursor[0];
-    let y = input.cursor[1];
+    let x = input.pointer.position[0];
+    let y = input.pointer.position[1];
     let Some(hit) = hit_test(world, x, y) else {
         return;
     };

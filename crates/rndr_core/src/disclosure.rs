@@ -89,10 +89,10 @@ pub fn toggle_disclosures(world: &mut World) {
     let Some(input) = world.resource::<Input>().cloned() else {
         return;
     };
-    if !input.pressed {
+    if !input.pointer.pressed {
         return;
     }
-    let Some(hit) = hit_test(world, input.cursor[0], input.cursor[1]) else {
+    let Some(hit) = hit_test(world, input.pointer.position[0], input.pointer.position[1]) else {
         return;
     };
     let Some(target) = ancestor_with::<Disclosure>(world, hit) else {

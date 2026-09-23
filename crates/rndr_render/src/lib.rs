@@ -1,11 +1,11 @@
-//! winit + wgpu plugin. Writes [`rndr_core::Input`] and draws the flat rect list.
+//! winit + wgpu plugin. Writes [`rndr_core::Input`] in logical points and draws the flat rect list.
 
 mod font;
 mod gpu;
 
 use std::sync::Arc;
 
-use rndr_core::{App, Input, Key as Action};
+use rndr_core::{App, Input, Key as Action, Pointer, MOUSE_ID};
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
@@ -21,9 +21,8 @@ pub fn run(app: App) {
     let mut handler = Handler {
         app,
         gpu: None,
-        cursor: [0.0, 0.0],
-        pressed: false,
-        down: false,
+        cursor_px: [0.0, 0.0],
+        pointer: Pointer::default(),
         scroll: [0.0, 0.0],
         key: None,
         chars: String::new(),
@@ -38,9 +37,9 @@ pub fn run(app: App) {
 struct Handler {
     app: App,
     gpu: Option<Gpu>,
-    cursor: [f32; 2],
-    pressed: bool,
-    down: bool,
+    /// Last cursor in physical pixels. Converted to points in [`Handler::sync_input`].
+    cursor_px: [f32; 2],
+    pointer: Pointer,
     scroll: [f32; 2],
     key: Option<Action>,
     chars: String,
@@ -50,19 +49,37 @@ struct Handler {
     super_key: bool,
 }
 
+/// Physical pixels per point. A missing or non-positive factor reads as 1.
+pub(crate) fn positive_scale(factor: f64) -> f32 {
+    let scale = factor as f32;
+    if scale.is_finite() && scale > 0.0 {
+        scale
+    } else {
+        1.0
+    }
+}
+
 impl Handler {
+    fn scale(&self) -> f32 {
+        self.gpu
+            .as_ref()
+            .map(|gpu| positive_scale(gpu.window().scale_factor()))
+            .unwrap_or(1.0)
+    }
+
     fn sync_input(&mut self) {
+        let scale = self.scale();
+        self.pointer.id = MOUSE_ID;
+        self.pointer.position = [self.cursor_px[0] / scale, self.cursor_px[1] / scale];
         if let Some(input) = self.app.world_mut().resource_mut::<Input>() {
-            input.cursor = self.cursor;
-            input.pressed = self.pressed;
-            input.down = self.down;
+            input.pointer = self.pointer;
             input.scroll = self.scroll;
             input.key = self.key;
             input.chars.clone_from(&self.chars);
             input.shift = self.shift;
             input.ctrl = self.ctrl;
         }
-        self.pressed = false;
+        self.pointer.pressed = false;
         self.scroll = [0.0, 0.0];
         self.key = None;
         self.chars.clear();
@@ -154,8 +171,8 @@ impl ApplicationHandler for Handler {
                 }
             }
             WindowEvent::CursorMoved { position, .. } => {
-                self.cursor = [position.x as f32, position.y as f32];
-                if self.down {
+                self.cursor_px = [position.x as f32, position.y as f32];
+                if self.pointer.down {
                     if let Some(gpu) = &self.gpu {
                         gpu.window().request_redraw();
                     }
@@ -168,11 +185,12 @@ impl ApplicationHandler for Handler {
             } => {
                 match state {
                     ElementState::Pressed => {
-                        self.pressed = true;
-                        self.down = true;
+                        self.pointer.id = MOUSE_ID;
+                        self.pointer.pressed = true;
+                        self.pointer.down = true;
                     }
                     ElementState::Released => {
-                        self.down = false;
+                        self.pointer.down = false;
                     }
                 }
                 if let Some(gpu) = &self.gpu {
@@ -186,8 +204,9 @@ impl ApplicationHandler for Handler {
                         self.scroll[1] += y * 32.0;
                     }
                     MouseScrollDelta::PixelDelta(pos) => {
-                        self.scroll[0] += pos.x as f32;
-                        self.scroll[1] += pos.y as f32;
+                        let scale = self.scale();
+                        self.scroll[0] += pos.x as f32 / scale;
+                        self.scroll[1] += pos.y as f32 / scale;
                     }
                 }
                 if let Some(gpu) = &self.gpu {

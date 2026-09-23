@@ -53,7 +53,7 @@ impl Layout {
     }
 }
 
-/// Placed rectangle in physical pixels, origin top-left.
+/// Placed rectangle in logical points, origin top-left.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Rect {
     pub x: f32,
@@ -152,10 +152,10 @@ pub fn layout_propagate(world: &mut World) {
         place(
             world,
             root,
-            0.0,
-            0.0,
-            viewport.width,
-            viewport.height,
+            viewport.insets.left,
+            viewport.insets.top,
+            viewport.content_width(),
+            viewport.content_height(),
             parent_clip,
         );
     }
@@ -188,7 +188,7 @@ pub fn apply_scroll(world: &mut World) {
     if input.scroll[0] == 0.0 && input.scroll[1] == 0.0 {
         return;
     }
-    let target = hit_test(world, input.cursor[0], input.cursor[1])
+    let target = hit_test(world, input.pointer.position[0], input.pointer.position[1])
         .and_then(|hit| ancestor_with::<Scroll>(world, hit))
         .or_else(|| roots::<Scroll>(world).into_iter().next());
     if let Some(entity) = target {

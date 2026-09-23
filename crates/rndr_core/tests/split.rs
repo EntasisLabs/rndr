@@ -1,7 +1,7 @@
 use rndr_core::{
     detail_pane, set_parent, shell, spawn_node, splitter, tree_column, App, Axis, Color,
-    Disclosure, Drag, Focus, Focusable, Input, Key, Label, Layout, NodeSpec, Parent, Rect, Shell,
-    Size, Splitter, Viewport, World,
+    Disclosure, Drag, Focus, Focusable, Input, Insets, Key, Label, Layout, NodeSpec, Parent, Rect,
+    Shell, Size, Splitter, Viewport, World,
 };
 
 fn px_fill(w: f32) -> Layout {
@@ -27,10 +27,7 @@ fn fill_fill() -> Layout {
 fn boot_row() -> (App, rndr_core::Entity, rndr_core::Entity, rndr_core::Entity) {
     let mut app = App::new();
     app.add_plugin(Shell);
-    app.world_mut().insert_resource(Viewport {
-        width: 800.0,
-        height: 400.0,
-    });
+    app.world_mut().insert_resource(Viewport::new(800.0, 400.0));
     let (leading, seam, trailing) = {
         let world = app.world_mut();
         let parent = world.spawn((shell(), Color::rgb(0.1, 0.1, 0.1)));
@@ -49,25 +46,25 @@ fn boot_row() -> (App, rndr_core::Entity, rndr_core::Entity, rndr_core::Entity) 
 
 fn press_at(app: &mut App, x: f32, y: f32) {
     let input = app.world_mut().resource_mut::<Input>().unwrap();
-    input.cursor = [x, y];
-    input.pressed = true;
-    input.down = true;
+    input.pointer.position = [x, y];
+    input.pointer.pressed = true;
+    input.pointer.down = true;
     app.update();
 }
 
 fn drag_to(app: &mut App, x: f32, y: f32) {
     let input = app.world_mut().resource_mut::<Input>().unwrap();
-    input.cursor = [x, y];
-    input.pressed = false;
-    input.down = true;
+    input.pointer.position = [x, y];
+    input.pointer.pressed = false;
+    input.pointer.down = true;
     app.update();
 }
 
 fn release_at(app: &mut App, x: f32, y: f32) {
     let input = app.world_mut().resource_mut::<Input>().unwrap();
-    input.cursor = [x, y];
-    input.pressed = false;
-    input.down = false;
+    input.pointer.position = [x, y];
+    input.pointer.pressed = false;
+    input.pointer.down = false;
     app.update();
 }
 
@@ -117,8 +114,8 @@ fn release_stops_the_drag() {
     release_at(&mut app, x + 40.0, y);
     assert!(app.world().resource::<Drag>().unwrap().entity.is_none());
     let input = app.world_mut().resource_mut::<Input>().unwrap();
-    input.cursor = [x + 80.0, y];
-    input.down = false;
+    input.pointer.position = [x + 80.0, y];
+    input.pointer.down = false;
     app.update();
     assert_eq!(app.world().get::<Rect>(leading).unwrap().w, held);
 }
@@ -173,10 +170,7 @@ fn press_on_seam_does_not_focus_or_toggle() {
 fn column_splitter_changes_leading_height() {
     let mut app = App::new();
     app.add_plugin(Shell);
-    app.world_mut().insert_resource(Viewport {
-        width: 400.0,
-        height: 600.0,
-    });
+    app.world_mut().insert_resource(Viewport::new(400.0, 600.0));
     let (leading, seam) = {
         let world = app.world_mut();
         let parent = world.spawn((
@@ -223,6 +217,39 @@ fn column_splitter_changes_leading_height() {
     press_at(&mut app, x, y);
     drag_to(&mut app, x, y + 30.0);
     assert_eq!(app.world().get::<Rect>(leading).unwrap().h, start + 30.0);
+}
+
+#[test]
+fn insets_shrink_the_drag_clamp() {
+    let mut app = App::new();
+    app.add_plugin(Shell);
+    let mut viewport = Viewport::new(800.0, 400.0);
+    viewport.insets = Insets {
+        top: 0.0,
+        right: 20.0,
+        bottom: 0.0,
+        left: 40.0,
+    };
+    app.world_mut().insert_resource(viewport);
+    let (leading, seam, _trailing) = {
+        let world = app.world_mut();
+        let parent = world.spawn((shell(), Color::rgb(0.1, 0.1, 0.1)));
+        let leading = world.spawn((px_fill(280.0), Color::rgb(0.2, 0.2, 0.2)));
+        set_parent(world, leading, parent);
+        let (split_layout, split) = splitter();
+        let seam = world.spawn((split_layout, split, Color::rgb(0.3, 0.3, 0.3)));
+        set_parent(world, seam, parent);
+        let trailing = world.spawn((fill_fill(), Color::rgb(0.4, 0.4, 0.4)));
+        set_parent(world, trailing, parent);
+        (leading, seam, trailing)
+    };
+    app.update();
+
+    let [x, y] = seam_center(app.world(), seam);
+    press_at(&mut app, x, y);
+    drag_to(&mut app, 2000.0, y);
+    // 800 - 40 - 20 content, minus the 8px seam and the 160px trailing minimum.
+    assert_eq!(app.world().get::<Rect>(leading).unwrap().w, 572.0);
 }
 
 fn node_named(world: &World, name: &str) -> rndr_core::Entity {

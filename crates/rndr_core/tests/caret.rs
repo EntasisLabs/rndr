@@ -213,8 +213,8 @@ fn click_fills_the_pane_without_a_caret() {
     let rect = *app.world().get::<rndr_core::Rect>(header).unwrap();
     {
         let input = app.world_mut().resource_mut::<Input>().unwrap();
-        input.cursor = [rect.x + 8.0, rect.y + 8.0];
-        input.pressed = true;
+        input.pointer.position = [rect.x + 8.0, rect.y + 8.0];
+        input.pointer.pressed = true;
     }
     app.update();
 
@@ -247,11 +247,11 @@ fn click_title_cell(app: &mut App, col: usize, shift: bool) {
     let rect = *app.world().get::<rndr_core::Rect>(title).unwrap();
     {
         let input = app.world_mut().resource_mut::<Input>().unwrap();
-        input.cursor = [
+        input.pointer.position = [
             rect.x + TEXT_ORIGIN_X + col as f32 * CELL_W + 1.0,
             rect.y + TEXT_ORIGIN_Y + 1.0,
         ];
-        input.pressed = true;
+        input.pointer.pressed = true;
         input.shift = shift;
     }
     app.update();

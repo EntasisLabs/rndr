@@ -49,10 +49,7 @@ fn press(app: &mut App, key: Key) {
 fn boot_narrow() -> (App, rndr_core::Entity) {
     let mut app = App::new();
     app.add_plugin(Shell);
-    app.world_mut().insert_resource(Viewport {
-        width: 200.0,
-        height: 400.0,
-    });
+    app.world_mut().insert_resource(Viewport::new(200.0, 400.0));
     let node = {
         let world = app.world_mut();
         let (layout, scroll, pane) = detail_pane();

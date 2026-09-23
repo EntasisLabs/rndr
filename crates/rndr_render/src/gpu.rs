@@ -316,13 +316,21 @@ impl Gpu {
 
     pub fn draw(&mut self, app: &mut App) {
         let size = self.window.inner_size();
+        let scale = crate::positive_scale(self.window.scale_factor());
         if let Some(viewport) = app.world_mut().resource_mut::<Viewport>() {
-            viewport.width = size.width.max(1) as f32;
-            viewport.height = size.height.max(1) as f32;
+            viewport.width = size.width.max(1) as f32 / scale;
+            viewport.height = size.height.max(1) as f32 / scale;
+            viewport.scale = scale;
         }
         app.update();
 
-        let instances = collect_instances(app);
+        let mut instances = collect_instances(app);
+        let scale = app
+            .world()
+            .resource::<Viewport>()
+            .map(|viewport| viewport.pixels_per_point())
+            .unwrap_or(1.0);
+        scale_instances(&mut instances, scale);
         app.render();
 
         let needed = instances.len() as u64 / INSTANCE_FLOATS as u64;
@@ -403,10 +411,25 @@ impl Gpu {
         self.queue.present(texture);
 
         if let Some(input) = app.world_mut().resource_mut::<Input>() {
-            input.pressed = false;
+            input.pointer.pressed = false;
             input.scroll = [0.0, 0.0];
             input.key = None;
             input.chars.clear();
+        }
+    }
+}
+
+/// Layout rects are points. The uniform and the fragment clip are physical pixels.
+fn scale_instances(instances: &mut [f32], scale: f32) {
+    if scale == 1.0 {
+        return;
+    }
+    for chunk in instances.chunks_exact_mut(INSTANCE_FLOATS) {
+        for value in &mut chunk[0..4] {
+            *value *= scale;
+        }
+        for value in &mut chunk[12..16] {
+            *value *= scale;
         }
     }
 }
