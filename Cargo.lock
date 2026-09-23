@@ -1405,11 +1405,19 @@ name = "rndr_core"
 version = "0.1.0"
 
 [[package]]
+name = "rndr_paint"
+version = "0.1.0"
+dependencies = [
+ "rndr_core",
+]
+
+[[package]]
 name = "rndr_render"
 version = "0.1.0"
 dependencies = [
  "pollster",
  "rndr_core",
+ "rndr_paint",
  "wgpu",
  "winit",
 ]

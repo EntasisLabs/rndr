@@ -1,6 +1,12 @@
 [workspace]
 resolver = "2"
-members = ["crates/rndr_core", "crates/rndr_render", "crates/rndr_std", "examples/expand"]
+members = [
+    "crates/rndr_core",
+    "crates/rndr_paint",
+    "crates/rndr_render",
+    "crates/rndr_std",
+    "examples/expand",
+]
 
 [workspace.package]
 version = "0.1.0"
@@ -10,6 +16,7 @@ repository = "https://github.com/EntasisLabs/rndr"
 
 [workspace.dependencies]
 rndr_core = { path = "crates/rndr_core" }
+rndr_paint = { path = "crates/rndr_paint" }
 wgpu = "30"
 winit = "0.30"
 pollster = "0.4"

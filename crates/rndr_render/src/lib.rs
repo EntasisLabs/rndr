@@ -1,6 +1,5 @@
 //! winit + wgpu plugin. Writes [`rndr_core::Input`] in logical points and draws the flat rect list.
 
-mod font;
 mod gpu;
 
 use std::sync::Arc;
