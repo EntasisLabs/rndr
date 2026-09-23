@@ -1,7 +1,7 @@
 use rndr_core::{
     apply_scroll, despawn, hit_test, layout_propagate, set_parent, spawn_node, toggle_disclosure,
-    Axis, Clip, Color, Disclosure, Input, Insets, Layout, NodeSpec, Rect, Scroll, Size, Viewport,
-    World,
+    App, Axis, Clip, Color, Disclosure, Focus, Focusable, Input, Insets, Layout, NodeSpec, Rect,
+    Scroll, ScrollDrag, Shell, Size, Viewport, World, SCROLL_DRAG_SLOP,
 };
 
 fn px(w: f32, h: f32) -> Layout {
@@ -346,4 +346,87 @@ fn scale_does_not_change_point_layout() {
     viewport.scale = 0.0;
     assert_eq!(viewport.pixels_per_point(), 1.0);
     assert_eq!(viewport.to_points(16.0), 16.0);
+}
+
+fn press_drag(world: &mut World, x: f32, y: f32, pressed: bool, down: bool) {
+    let input = world.resource_mut::<Input>().unwrap();
+    input.pointer.position = [x, y];
+    input.pointer.pressed = pressed;
+    input.pointer.down = down;
+    apply_scroll(world);
+    layout_propagate(world);
+}
+
+#[test]
+fn pointer_drag_scrolls_after_slop_and_stops_on_release() {
+    let mut world = World::new();
+    world.insert_resource(Viewport::new(100.0, 50.0));
+    world.insert_resource(Input::default());
+
+    let port = world.spawn((fill_column(), Scroll::default()));
+    let first = world.spawn(px(100.0, 40.0));
+    let second = world.spawn(px(100.0, 40.0));
+    set_parent(&mut world, first, port);
+    set_parent(&mut world, second, port);
+    layout_propagate(&mut world);
+
+    press_drag(&mut world, 10.0, 10.0, true, true);
+    assert_eq!(world.get::<Scroll>(port).unwrap().offset[1], 0.0);
+    assert_eq!(world.resource::<ScrollDrag>().unwrap().entity, Some(port));
+
+    press_drag(&mut world, 10.0, 10.0 + SCROLL_DRAG_SLOP - 1.0, false, true);
+    assert_eq!(world.get::<Scroll>(port).unwrap().offset[1], 0.0);
+    assert!(!world.resource::<ScrollDrag>().unwrap().active);
+
+    // Last sample sat 3 points below the press. This sample is 4 points above it,
+    // so the first scrolling frame moves by 7.
+    press_drag(&mut world, 10.0, 10.0 - SCROLL_DRAG_SLOP, false, true);
+    assert_eq!(world.get::<Scroll>(port).unwrap().offset[1], -7.0);
+
+    let held = world.get::<Scroll>(port).unwrap().offset[1];
+    press_drag(&mut world, 10.0, 0.0, false, false);
+    assert_eq!(world.get::<Scroll>(port).unwrap().offset[1], held);
+    assert!(world.resource::<ScrollDrag>().unwrap().entity.is_none());
+    press_drag(&mut world, 10.0, 40.0, false, false);
+    assert_eq!(world.get::<Scroll>(port).unwrap().offset[1], held);
+}
+
+#[test]
+fn pointer_drag_selects_the_pressed_row() {
+    let mut app = App::new();
+    app.add_plugin(Shell);
+    app.world_mut().insert_resource(Viewport::new(100.0, 50.0));
+    let (port, row) = {
+        let world = app.world_mut();
+        let port = world.spawn((fill_column(), Scroll::default()));
+        let row = world.spawn((px(100.0, 40.0), Focusable));
+        let rest = world.spawn(px(100.0, 40.0));
+        set_parent(world, row, port);
+        set_parent(world, rest, port);
+        (port, row)
+    };
+    app.update();
+
+    {
+        let input = app.world_mut().resource_mut::<Input>().unwrap();
+        input.pointer.position = [10.0, 10.0];
+        input.pointer.pressed = true;
+        input.pointer.down = true;
+    }
+    app.update();
+    assert_eq!(app.world().resource::<Focus>().unwrap().entity, Some(row));
+    assert_eq!(app.world().get::<Scroll>(port).unwrap().offset[1], 0.0);
+
+    {
+        let input = app.world_mut().resource_mut::<Input>().unwrap();
+        input.pointer.position = [10.0, 10.0 - SCROLL_DRAG_SLOP - 6.0];
+        input.pointer.pressed = false;
+        input.pointer.down = true;
+    }
+    app.update();
+    assert_eq!(app.world().resource::<Focus>().unwrap().entity, Some(row));
+    assert_eq!(
+        app.world().get::<Scroll>(port).unwrap().offset[1],
+        -(SCROLL_DRAG_SLOP + 6.0)
+    );
 }
