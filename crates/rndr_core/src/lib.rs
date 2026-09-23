@@ -12,13 +12,15 @@ mod fs;
 mod hierarchy;
 mod input;
 mod layout;
+mod memory_fs;
 mod pane;
+mod shell;
 mod split;
 mod style;
 mod world;
 mod wrap;
 
-pub use app::{App, Schedule, System};
+pub use app::{App, Plugin, Schedule, System};
 pub use caret::{
     apply_caret, caret_line_col, selection_spans, set_editing, set_editing_field, Caret, EditField,
     Editing, Field,
@@ -30,18 +32,20 @@ pub use disclosure::{
 pub use entity::Entity;
 pub use focus::apply_focus;
 pub use fs::{
-    apply_dirty_marks, apply_fs_edit, apply_fs_load, apply_fs_save, spawn_fs_node, Dirty,
-    DirtyMark, FsPath,
+    apply_dirty_marks, apply_fs_edit, apply_fs_load, apply_fs_save, spawn_fs_node, DirEntry, Dirty,
+    DirtyMark, Files, Fs, FsPath,
 };
 pub use hierarchy::{children_of, despawn, roots, set_parent, Children, Parent};
 pub use input::{Focus, Input, Key, Viewport};
 pub use layout::{
     ancestor_with, apply_scroll, hit_test, layout_propagate, Axis, Clip, Layout, Rect, Scroll, Size,
 };
+pub use memory_fs::{MemoryFs, MemoryFsPlugin};
 pub use pane::{
     apply_pane, detail_pane, field_height, set_selection, shell, splitter, tree_column, Pane,
     Selection,
 };
+pub use shell::Shell;
 pub use split::{apply_split, Drag, Splitter};
 pub use style::{Body, Color, Label, CELL_H, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
 pub use world::{Bundle, Component, World};

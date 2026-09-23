@@ -393,6 +393,7 @@ version = "0.1.0"
 dependencies = [
  "rndr_core",
  "rndr_render",
+ "rndr_std",
 ]
 
 [[package]]
@@ -1411,6 +1412,13 @@ dependencies = [
  "rndr_core",
  "wgpu",
  "winit",
+]
+
+[[package]]
+name = "rndr_std"
+version = "0.1.0"
+dependencies = [
+ "rndr_core",
 ]
 
 [[package]]

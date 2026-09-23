@@ -9,3 +9,4 @@ publish = false
 [dependencies]
 rndr_core = { workspace = true }
 rndr_render = { path = "../../crates/rndr_render" }
+rndr_std = { path = "../../crates/rndr_std" }

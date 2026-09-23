@@ -1,7 +1,7 @@
 use rndr_core::{
     detail_pane, set_parent, shell, spawn_node, splitter, tree_column, App, Axis, Color,
-    Disclosure, Drag, Focus, Focusable, Input, Key, Label, Layout, NodeSpec, Parent, Rect, Size,
-    Splitter, Viewport, World,
+    Disclosure, Drag, Focus, Focusable, Input, Key, Label, Layout, NodeSpec, Parent, Rect, Shell,
+    Size, Splitter, Viewport, World,
 };
 
 fn px_fill(w: f32) -> Layout {
@@ -26,6 +26,7 @@ fn fill_fill() -> Layout {
 
 fn boot_row() -> (App, rndr_core::Entity, rndr_core::Entity, rndr_core::Entity) {
     let mut app = App::new();
+    app.add_plugin(Shell);
     app.world_mut().insert_resource(Viewport {
         width: 800.0,
         height: 400.0,
@@ -125,6 +126,7 @@ fn release_stops_the_drag() {
 #[test]
 fn press_on_seam_does_not_focus_or_toggle() {
     let mut app = App::new();
+    app.add_plugin(Shell);
     app.add_system(rndr_core::Schedule::Startup, |world: &mut World| {
         let root = world.spawn((shell(), Color::rgb(0.08, 0.09, 0.10)));
         let (tree_layout, tree_scroll) = tree_column();
@@ -170,6 +172,7 @@ fn press_on_seam_does_not_focus_or_toggle() {
 #[test]
 fn column_splitter_changes_leading_height() {
     let mut app = App::new();
+    app.add_plugin(Shell);
     app.world_mut().insert_resource(Viewport {
         width: 400.0,
         height: 600.0,

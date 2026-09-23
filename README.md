@@ -12,13 +12,17 @@ Application
 │  Hierarchy Layout Expand    │
 │  Clip Scroll Focus Pane     │
 │  Split Caret Body Wrap      │
-│  FsPath                     │
+│  FsPath   Files             │
 └──────────────┬──────────────┘
                │
-        render plugin
-               │
-               ▼
-     winit + wgpu (rndr_render)
+     ┌─────────┴──────────┐
+     │                    │
+ Shell plugin      Files plugin
+     │                    │
+     │              std::fs (rndr_std)
+     │
+     ▼
+ winit + wgpu (rndr_render)
 ```
 
 `mob3` is the prototype of this cut: application structure in the core, the renderer as a plugin that never owns parenting. Expand is a hierarchy walk. Opening a node spawns children; collapse cascade-despawns them. The next layout pass rewrites rectangles. The GPU never hears about expand.
@@ -27,11 +31,12 @@ Application
 
 | Crate | Role |
 | --- | --- |
-| `rndr_core` | ECS, layout, clip, scroll, disclosure, focus, pane, split, caret, body, wrap, files |
+| `rndr_core` | ECS, layout, clip, scroll, disclosure, focus, pane, split, caret, body, wrap, `Files` |
+| `rndr_std` | `std::fs` plugin |
 | `rndr_render` | winit window, `Input` resource, instanced quads, 8×8 ASCII atlas |
 | `examples/expand` | File-backed expand demo: folder tree, pane, splitter, caret, create, delete |
 
-Platform dependencies stop at `wgpu`, `winit`, and `pollster`. No layout engine, no text crate, no third-party ECS.
+A blank `App` holds the world, `Input`, and `Viewport`. `Shell` registers the interaction systems. `StdFsPlugin` inserts the disk backend. `MemoryFs` is the headless backend. Platform dependencies stop at `wgpu`, `winit`, and `pollster`. No layout engine, no text crate, no third-party ECS.
 
 ## Frame
 

@@ -1,7 +1,8 @@
 use rndr_core::{
     children_of, cols_for, detail_pane, set_editing_field, set_parent, set_selection, shell,
     spawn_node, tree_column, App, Caret, Color, EditField, Field, Focusable, Input, Key, Label,
-    NodeSpec, Pane, Parent, Rect, Schedule, Viewport, World, GLYPH_PX, TEXT_INSET_X, TEXT_INSET_Y,
+    NodeSpec, Pane, Parent, Rect, Schedule, Shell, Viewport, World, GLYPH_PX, TEXT_INSET_X,
+    TEXT_INSET_Y,
 };
 
 fn tree() -> Vec<NodeSpec> {
@@ -29,6 +30,7 @@ fn setup_shell(world: &mut World) {
 
 fn boot() -> App {
     let mut app = App::new();
+    app.add_plugin(Shell);
     app.add_system(Schedule::Startup, setup_shell);
     app.update();
     app
@@ -90,6 +92,7 @@ fn click_at(app: &mut App, entity: rndr_core::Entity, dx: f32, dy: f32) {
 
 fn boot_narrow() -> App {
     let mut app = App::new();
+    app.add_plugin(Shell);
     app.world_mut().insert_resource(Viewport {
         width: 200.0,
         height: 400.0,

@@ -1,40 +1,27 @@
-use std::fs;
-use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::path::{Path, PathBuf};
 
 use rndr_core::{
     children_of, detail_pane, set_parent, shell, spawn_fs_node, spawn_node, tree_column, App, Body,
-    Color, Dirty, DirtyMark, Disclosure, EditField, Editing, Field, Focus, Focusable, FsPath,
-    Input, Key, Label, NodeSpec, Pane, Parent, Schedule, World,
+    Color, Dirty, DirtyMark, Disclosure, EditField, Editing, Field, Files, Focus, Focusable,
+    FsPath, Input, Key, Label, MemoryFs, MemoryFsPlugin, NodeSpec, Pane, Parent, Schedule, Shell,
+    World,
 };
 
-struct TempTree {
+struct MemTree {
     path: PathBuf,
+    fs: MemoryFs,
 }
 
-impl TempTree {
+impl MemTree {
     fn new(name: &str) -> Self {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!("rndr-fs-{name}-{nanos}"));
-        fs::create_dir_all(&path).unwrap();
-        Self { path }
+        let path = PathBuf::from("/mem").join(name);
+        let mut fs = MemoryFs::new();
+        fs.insert_dir_all(&path);
+        Self { path, fs }
     }
 
-    fn write(&self, rel: &str, contents: impl AsRef<[u8]>) {
-        let dest = self.path.join(rel);
-        if let Some(parent) = dest.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        fs::write(dest, contents).unwrap();
-    }
-}
-
-impl Drop for TempTree {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.path);
+    fn write(&mut self, rel: &str, contents: impl AsRef<[u8]>) {
+        self.fs.insert_file(&self.path.join(rel), contents);
     }
 }
 
@@ -50,11 +37,31 @@ fn setup_into(world: &mut World, root: PathBuf) {
     set_parent(world, detail, shell_root);
 }
 
-fn boot_fs(path: PathBuf) -> App {
+fn boot_fs(tree: &MemTree) -> App {
     let mut app = App::new();
-    setup_into(app.world_mut(), path);
+    app.add_plugin(MemoryFsPlugin {
+        fs: tree.fs.clone(),
+    });
+    app.add_plugin(Shell);
+    setup_into(app.world_mut(), tree.path.clone());
     app.update();
     app
+}
+
+fn stored(app: &App, path: &Path) -> Option<Vec<u8>> {
+    app.world().resource::<Files>().unwrap().read(path)
+}
+
+fn stored_text(app: &App, path: &Path) -> String {
+    String::from_utf8(stored(app, path).expect("file")).unwrap()
+}
+
+fn stored_exists(app: &App, path: &Path) -> bool {
+    app.world().resource::<Files>().unwrap().exists(path)
+}
+
+fn stored_dir(app: &App, path: &Path) -> bool {
+    app.world().resource::<Files>().unwrap().is_dir(path)
 }
 
 fn press(app: &mut App, key: Key) {
@@ -143,12 +150,12 @@ fn child_names(world: &World, parent: rndr_core::Entity) -> Vec<String> {
 
 #[test]
 fn expand_lists_dir_and_skips_hidden() {
-    let temp = TempTree::new("list");
+    let mut temp = MemTree::new("list");
     temp.write("hello.txt", "hi");
     temp.write("sub/n.txt", "n");
     temp.write(".hidden", "nope");
 
-    let mut app = boot_fs(temp.path.clone());
+    let mut app = boot_fs(&temp);
     press(&mut app, Key::Down);
     press(&mut app, Key::Right);
 
@@ -162,11 +169,11 @@ fn expand_lists_dir_and_skips_hidden() {
 
 #[test]
 fn enter_file_loads_body() {
-    let temp = TempTree::new("load");
+    let mut temp = MemTree::new("load");
     temp.write("hello.txt", "hi");
     temp.write("sub/n.txt", "n");
 
-    let mut app = boot_fs(temp.path.clone());
+    let mut app = boot_fs(&temp);
     press(&mut app, Key::Down);
     press(&mut app, Key::Right);
     press(&mut app, Key::Down);
@@ -188,11 +195,11 @@ fn enter_file_loads_body() {
 
 #[test]
 fn save_writes_disk_and_clears_dirty() {
-    let temp = TempTree::new("save");
+    let mut temp = MemTree::new("save");
     temp.write("hello.txt", "hi");
     temp.write("sub/n.txt", "n");
 
-    let mut app = boot_fs(temp.path.clone());
+    let mut app = boot_fs(&temp);
     press(&mut app, Key::Down);
     press(&mut app, Key::Right);
     press(&mut app, Key::Down);
@@ -206,19 +213,16 @@ fn save_writes_disk_and_clears_dirty() {
     press(&mut app, Key::Save);
 
     assert!(!app.world().has::<Dirty>(hello));
-    assert_eq!(
-        fs::read_to_string(temp.path.join("hello.txt")).unwrap(),
-        "hix"
-    );
+    assert_eq!(stored_text(&app, &temp.path.join("hello.txt")), "hix");
 }
 
 #[test]
 fn edit_marks_the_tree_row_until_save() {
-    let temp = TempTree::new("mark");
+    let mut temp = MemTree::new("mark");
     temp.write("hello.txt", "hi");
     temp.write("sub/n.txt", "n");
 
-    let mut app = boot_fs(temp.path.clone());
+    let mut app = boot_fs(&temp);
     press(&mut app, Key::Down);
     press(&mut app, Key::Right);
     press(&mut app, Key::Down);
@@ -242,11 +246,11 @@ fn edit_marks_the_tree_row_until_save() {
 
 #[test]
 fn collapse_and_reopen_reads_saved_text() {
-    let temp = TempTree::new("reload");
+    let mut temp = MemTree::new("reload");
     temp.write("hello.txt", "hi");
     temp.write("sub/n.txt", "n");
 
-    let mut app = boot_fs(temp.path.clone());
+    let mut app = boot_fs(&temp);
     press(&mut app, Key::Down);
     press(&mut app, Key::Right);
     press(&mut app, Key::Down);
@@ -266,19 +270,16 @@ fn collapse_and_reopen_reads_saved_text() {
 
     let hello = node_named(app.world(), "hello.txt");
     assert_eq!(app.world().get::<Body>(hello).unwrap().text, "hix");
-    assert_eq!(
-        fs::read_to_string(temp.path.join("hello.txt")).unwrap(),
-        "hix"
-    );
+    assert_eq!(stored_text(&app, &temp.path.join("hello.txt")), "hix");
 }
 
 #[test]
 fn save_renames_the_file() {
-    let temp = TempTree::new("rename");
+    let mut temp = MemTree::new("rename");
     temp.write("hello.txt", "hi");
     temp.write("sub/n.txt", "n");
 
-    let mut app = boot_fs(temp.path.clone());
+    let mut app = boot_fs(&temp);
     press(&mut app, Key::Down);
     press(&mut app, Key::Right);
     press(&mut app, Key::Down);
@@ -292,11 +293,8 @@ fn save_renames_the_file() {
     }
     press(&mut app, Key::Save);
 
-    assert!(!temp.path.join("hello.txt").exists());
-    assert_eq!(
-        fs::read_to_string(temp.path.join("hello2.txt")).unwrap(),
-        "hi"
-    );
+    assert!(!stored_exists(&app, &temp.path.join("hello.txt")));
+    assert_eq!(stored_text(&app, &temp.path.join("hello2.txt")), "hi");
     let hello = node_named(app.world(), "hello2.txt");
     assert_eq!(
         app.world().get::<FsPath>(hello).unwrap().path,
@@ -307,10 +305,10 @@ fn save_renames_the_file() {
 
 #[test]
 fn binary_file_does_not_save() {
-    let temp = TempTree::new("binary");
+    let mut temp = MemTree::new("binary");
     temp.write("bin.dat", [0u8]);
 
-    let mut app = boot_fs(temp.path.clone());
+    let mut app = boot_fs(&temp);
     press(&mut app, Key::Down);
     press(&mut app, Key::Right);
     press(&mut app, Key::Down);
@@ -323,12 +321,13 @@ fn binary_file_does_not_save() {
         body.text = "nope".to_string();
     }
     press(&mut app, Key::Save);
-    assert_eq!(fs::read(temp.path.join("bin.dat")).unwrap(), vec![0]);
+    assert_eq!(stored(&app, &temp.path.join("bin.dat")).unwrap(), vec![0]);
 }
 
 #[test]
 fn nodespec_tree_ignores_save() {
     let mut app = App::new();
+    app.add_plugin(Shell);
     app.add_system(Schedule::Startup, |world: &mut World| {
         let (layout, scroll) = rndr_core::scroll_page();
         let page = world.spawn((layout, scroll, Color::rgb(0.1, 0.1, 0.1)));
@@ -355,19 +354,16 @@ fn nodespec_tree_ignores_save() {
 
 #[test]
 fn new_creates_untitled_file() {
-    let temp = TempTree::new("new-file");
+    let mut temp = MemTree::new("new-file");
     temp.write("hello.txt", "hi");
 
-    let mut app = boot_fs(temp.path.clone());
+    let mut app = boot_fs(&temp);
     press(&mut app, Key::Down);
     press(&mut app, Key::Right);
     press(&mut app, Key::New);
 
-    assert!(temp.path.join("untitled.txt").exists());
-    assert_eq!(
-        fs::read_to_string(temp.path.join("untitled.txt")).unwrap(),
-        ""
-    );
+    assert!(stored_exists(&app, &temp.path.join("untitled.txt")));
+    assert_eq!(stored_text(&app, &temp.path.join("untitled.txt")), "");
     let untitled = node_named(app.world(), "untitled.txt");
     assert_eq!(focused(app.world()), untitled);
     let editing = app.world().resource::<Editing>().unwrap();
@@ -380,15 +376,15 @@ fn new_creates_untitled_file() {
 
 #[test]
 fn shift_new_creates_untitled_dir() {
-    let temp = TempTree::new("new-dir");
+    let mut temp = MemTree::new("new-dir");
     temp.write("hello.txt", "hi");
 
-    let mut app = boot_fs(temp.path.clone());
+    let mut app = boot_fs(&temp);
     press(&mut app, Key::Down);
     press(&mut app, Key::Right);
     press_mods(&mut app, Key::New, true);
 
-    assert!(temp.path.join("untitled").is_dir());
+    assert!(stored_dir(&app, &temp.path.join("untitled")));
     let untitled = node_named(app.world(), "untitled");
     assert_eq!(focused(app.world()), untitled);
     assert!(app.world().get::<FsPath>(untitled).unwrap().dir);
@@ -399,18 +395,18 @@ fn shift_new_creates_untitled_dir() {
 
 #[test]
 fn delete_clean_file() {
-    let temp = TempTree::new("delete-file");
+    let mut temp = MemTree::new("delete-file");
     temp.write("hello.txt", "hi");
     temp.write("sub/n.txt", "n");
 
-    let mut app = boot_fs(temp.path.clone());
+    let mut app = boot_fs(&temp);
     press(&mut app, Key::Down);
     press(&mut app, Key::Right);
     press(&mut app, Key::Down);
     press(&mut app, Key::Down);
     press(&mut app, Key::Delete);
 
-    assert!(!temp.path.join("hello.txt").exists());
+    assert!(!stored_exists(&app, &temp.path.join("hello.txt")));
     let root = fs_root(app.world());
     assert!(!child_names(app.world(), root).contains(&"hello.txt".to_string()));
     assert_eq!(focused(app.world()), root);
@@ -418,11 +414,11 @@ fn delete_clean_file() {
 
 #[test]
 fn delete_saves_dirty_then_unlinks() {
-    let temp = TempTree::new("delete-dirty");
+    let mut temp = MemTree::new("delete-dirty");
     temp.write("hello.txt", "hi");
     temp.write("sub/n.txt", "n");
 
-    let mut app = boot_fs(temp.path.clone());
+    let mut app = boot_fs(&temp);
     press(&mut app, Key::Down);
     press(&mut app, Key::Right);
     press(&mut app, Key::Down);
@@ -436,7 +432,7 @@ fn delete_saves_dirty_then_unlinks() {
     press(&mut app, Key::Escape);
     press(&mut app, Key::Delete);
 
-    assert!(!temp.path.join("hello.txt").exists());
+    assert!(!stored_exists(&app, &temp.path.join("hello.txt")));
     let root = fs_root(app.world());
     assert!(!child_names(app.world(), root).contains(&"hello.txt".to_string()));
     assert_eq!(focused(app.world()), root);
@@ -444,18 +440,18 @@ fn delete_saves_dirty_then_unlinks() {
 
 #[test]
 fn delete_nonempty_dir_is_noop() {
-    let temp = TempTree::new("delete-dir");
+    let mut temp = MemTree::new("delete-dir");
     temp.write("hello.txt", "hi");
     temp.write("sub/n.txt", "n");
 
-    let mut app = boot_fs(temp.path.clone());
+    let mut app = boot_fs(&temp);
     press(&mut app, Key::Down);
     press(&mut app, Key::Right);
     press(&mut app, Key::Down);
     press(&mut app, Key::Delete);
 
-    assert!(temp.path.join("sub").is_dir());
-    assert!(temp.path.join("sub/n.txt").exists());
+    assert!(stored_dir(&app, &temp.path.join("sub")));
+    assert!(stored_exists(&app, &temp.path.join("sub/n.txt")));
     let sub = node_named(app.world(), "sub");
     assert!(app.world().is_alive(sub));
     assert_eq!(focused(app.world()), sub);
@@ -463,14 +459,14 @@ fn delete_nonempty_dir_is_noop() {
 
 #[test]
 fn delete_fs_root_is_noop() {
-    let temp = TempTree::new("delete-root");
+    let mut temp = MemTree::new("delete-root");
     temp.write("hello.txt", "hi");
 
-    let mut app = boot_fs(temp.path.clone());
+    let mut app = boot_fs(&temp);
     press(&mut app, Key::Down);
     press(&mut app, Key::Delete);
 
-    assert!(temp.path.is_dir());
+    assert!(stored_dir(&app, &temp.path));
     let root = fs_root(app.world());
     assert!(app.world().is_alive(root));
     assert_eq!(focused(app.world()), root);
@@ -479,11 +475,11 @@ fn delete_fs_root_is_noop() {
 
 #[test]
 fn collapse_flushes_dirty_child() {
-    let temp = TempTree::new("collapse-flush");
+    let mut temp = MemTree::new("collapse-flush");
     temp.write("hello.txt", "hi");
     temp.write("sub/n.txt", "n");
 
-    let mut app = boot_fs(temp.path.clone());
+    let mut app = boot_fs(&temp);
     press(&mut app, Key::Down);
     press(&mut app, Key::Right);
     press(&mut app, Key::Down);
@@ -495,10 +491,7 @@ fn collapse_flushes_dirty_child() {
     press(&mut app, Key::Left);
     press(&mut app, Key::Left);
 
-    assert_eq!(
-        fs::read_to_string(temp.path.join("hello.txt")).unwrap(),
-        "hix"
-    );
+    assert_eq!(stored_text(&app, &temp.path.join("hello.txt")), "hix");
     let root = fs_root(app.world());
     assert!(!app.world().get::<Disclosure>(root).unwrap().open);
 }
@@ -506,6 +499,7 @@ fn collapse_flushes_dirty_child() {
 #[test]
 fn nodespec_tree_ignores_new_and_delete() {
     let mut app = App::new();
+    app.add_plugin(Shell);
     app.add_system(Schedule::Startup, |world: &mut World| {
         let (layout, scroll) = rndr_core::scroll_page();
         let page = world.spawn((layout, scroll, Color::rgb(0.1, 0.1, 0.1)));

@@ -2,9 +2,10 @@ use std::path::PathBuf;
 
 use rndr_core::{
     detail_pane, set_parent, shell, spawn_fs_node, splitter, tree_column, App, Color, Schedule,
-    World,
+    Shell, World,
 };
 use rndr_render::run;
+use rndr_std::StdFsPlugin;
 
 fn setup(world: &mut World) {
     let root = world.spawn((shell(), Color::rgb(0.08, 0.09, 0.10)));
@@ -37,6 +38,8 @@ fn demo_root() -> PathBuf {
 
 fn main() {
     let mut app = App::new();
+    app.add_plugin(StdFsPlugin);
+    app.add_plugin(Shell);
     app.add_system(Schedule::Startup, setup);
     run(app);
 }
