@@ -1,0 +1,9 @@
+[package]
+name = "rndr_paint"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "World-to-quad paint step for rndr"
+
+[dependencies]
+rndr_core = { workspace = true }
