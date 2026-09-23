@@ -1,6 +1,6 @@
 use rndr_core::{
     scroll_page, set_parent, spawn_node, App, Color, Disclosure, Focus, Input, Key, Label,
-    NodeSpec, Parent, Schedule, Scroll, Viewport, World,
+    NodeSpec, Parent, Schedule, Scroll, Shell, Viewport, World,
 };
 
 fn tree() -> Vec<NodeSpec> {
@@ -35,6 +35,7 @@ fn setup_page(world: &mut World) {
 
 fn boot() -> App {
     let mut app = App::new();
+    app.add_plugin(Shell);
     app.add_system(Schedule::Startup, setup_page);
     app.update();
     app
@@ -167,6 +168,7 @@ fn tab_walks_without_opening() {
 #[test]
 fn focus_below_port_adjusts_scroll() {
     let mut app = App::new();
+    app.add_plugin(Shell);
     app.world_mut().insert_resource(Viewport {
         width: 200.0,
         height: 80.0,

@@ -1,7 +1,7 @@
 use rndr_core::{
     children_of, detail_pane, set_parent, shell, spawn_node, tree_column, App, Caret, Color,
     Disclosure, Focus, Focusable, Input, Key, Label, NodeSpec, Pane, Parent, Schedule, Selection,
-    World,
+    Shell, World,
 };
 
 fn tree() -> Vec<NodeSpec> {
@@ -38,6 +38,7 @@ fn setup_shell(world: &mut World) {
 
 fn boot() -> App {
     let mut app = App::new();
+    app.add_plugin(Shell);
     app.add_system(Schedule::Startup, setup_shell);
     app.update();
     app

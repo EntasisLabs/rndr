@@ -1,0 +1,9 @@
+[package]
+name = "rndr_std"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "std::fs plugin for rndr"
+
+[dependencies]
+rndr_core = { workspace = true }

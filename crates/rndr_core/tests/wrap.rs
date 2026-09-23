@@ -1,7 +1,7 @@
 use rndr_core::{
     detail_pane, field_height, field_height_lines, set_editing_field, set_selection, spawn_node,
     wrap_lines, App, Body, Caret, Color, EditField, Field, Input, Key, Layout, NodeSpec, Pane,
-    Size, Viewport, VisualLine, World,
+    Shell, Size, Viewport, VisualLine, World,
 };
 
 fn ranges(text: &str, cols: usize) -> Vec<(usize, usize)> {
@@ -48,6 +48,7 @@ fn press(app: &mut App, key: Key) {
 
 fn boot_narrow() -> (App, rndr_core::Entity) {
     let mut app = App::new();
+    app.add_plugin(Shell);
     app.world_mut().insert_resource(Viewport {
         width: 200.0,
         height: 400.0,

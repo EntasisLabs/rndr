@@ -1,4 +1,4 @@
-use std::fs;
+use std::any::Any;
 use std::path::{Path, PathBuf};
 
 use crate::caret::set_editing;
@@ -14,6 +14,90 @@ use crate::world::{Component, World};
 impl Component for FsPath {}
 impl Component for Dirty {}
 impl Component for DirtyMark {}
+
+/// One child returned by [`Fs::list`]. Core skips hidden names and symlinks.
+#[derive(Clone, Debug)]
+pub struct DirEntry {
+    pub path: PathBuf,
+    pub dir: bool,
+    pub symlink: bool,
+}
+
+/// Byte store behind [`FsPath`]. A plugin inserts this as [`Files`].
+pub trait Fs: Any + Send + Sync {
+    fn is_dir(&self, path: &Path) -> bool;
+    fn exists(&self, path: &Path) -> bool;
+    fn len(&self, path: &Path) -> Option<u64>;
+    fn list(&self, path: &Path) -> Vec<DirEntry>;
+    fn read(&self, path: &Path) -> Option<Vec<u8>>;
+    fn write(&mut self, path: &Path, bytes: &[u8]) -> bool;
+    fn create_dir(&mut self, path: &Path) -> bool;
+    fn rename(&mut self, from: &Path, to: &Path) -> bool;
+    fn remove_file(&mut self, path: &Path) -> bool;
+    fn remove_dir(&mut self, path: &Path) -> bool;
+    fn is_empty_dir(&self, path: &Path) -> bool;
+}
+
+/// The [`Fs`] for this app. Missing means file commands no-op.
+pub struct Files {
+    inner: Box<dyn Fs>,
+}
+
+impl Files {
+    pub fn new(fs: impl Fs + 'static) -> Self {
+        Self {
+            inner: Box::new(fs),
+        }
+    }
+
+    pub fn is_dir(&self, path: &Path) -> bool {
+        self.inner.is_dir(path)
+    }
+
+    pub fn exists(&self, path: &Path) -> bool {
+        self.inner.exists(path)
+    }
+
+    pub fn len(&self, path: &Path) -> Option<u64> {
+        self.inner.len(path)
+    }
+
+    pub fn list(&self, path: &Path) -> Vec<DirEntry> {
+        self.inner.list(path)
+    }
+
+    pub fn read(&self, path: &Path) -> Option<Vec<u8>> {
+        self.inner.read(path)
+    }
+
+    pub fn write(&mut self, path: &Path, bytes: &[u8]) -> bool {
+        self.inner.write(path, bytes)
+    }
+
+    pub fn create_dir(&mut self, path: &Path) -> bool {
+        self.inner.create_dir(path)
+    }
+
+    pub fn rename(&mut self, from: &Path, to: &Path) -> bool {
+        self.inner.rename(from, to)
+    }
+
+    pub fn remove_file(&mut self, path: &Path) -> bool {
+        self.inner.remove_file(path)
+    }
+
+    pub fn remove_dir(&mut self, path: &Path) -> bool {
+        self.inner.remove_dir(path)
+    }
+
+    pub fn is_empty_dir(&self, path: &Path) -> bool {
+        self.inner.is_empty_dir(path)
+    }
+
+    pub fn downcast_ref<T: Fs + 'static>(&self) -> Option<&T> {
+        (self.inner.as_ref() as &dyn Any).downcast_ref()
+    }
+}
 
 const MAX_FILE_BYTES: u64 = 256 * 1024;
 
@@ -68,7 +152,9 @@ pub fn apply_dirty_marks(world: &mut World) {
 /// Spawn a file or directory node. Directories always get an empty [`Disclosure`].
 pub fn spawn_fs_node(world: &mut World, path: impl Into<PathBuf>) -> Entity {
     let path = path.into();
-    let dir = path.is_dir();
+    let dir = world
+        .resource::<Files>()
+        .is_some_and(|files| files.is_dir(&path));
     let name = path
         .file_name()
         .map(|name| name.to_string_lossy().into_owned())
@@ -111,8 +197,9 @@ pub(crate) fn spawn_fs_children(world: &mut World, parent: Entity) -> Vec<Entity
     let Some(path) = world.get::<FsPath>(parent).map(|fs| fs.path.clone()) else {
         return Vec::new();
     };
+    let paths = list_dir(world, &path);
     let mut spawned = Vec::new();
-    for child_path in list_dir(&path) {
+    for child_path in paths {
         let child = spawn_fs_node(world, child_path);
         set_parent(world, child, parent);
         spawned.push(child);
@@ -136,7 +223,7 @@ pub fn apply_fs_load(world: &mut World) {
         return;
     }
 
-    let (text, readable) = read_text(&fs.path);
+    let (text, readable) = read_text(world, &fs.path);
     if let Some(body) = world.get_mut::<Body>(selected) {
         body.text = text;
     }
@@ -207,7 +294,11 @@ pub(crate) fn save_entity(world: &mut World, entity: Entity) -> bool {
             .get::<Body>(entity)
             .map(|body| body.text.clone())
             .unwrap_or_default();
-        if fs::write(&fs.path, text).is_err() {
+        let path = fs.path.clone();
+        let wrote = world
+            .resource_mut::<Files>()
+            .is_some_and(|files| files.write(&path, text.as_bytes()));
+        if !wrote {
             return false;
         }
     }
@@ -242,13 +333,13 @@ fn parent_dir(world: &World, entity: Entity) -> Option<Entity> {
     }
 }
 
-fn unique_untitled(parent: &Path, dir: bool) -> String {
+fn unique_untitled(files: &Files, parent: &Path, dir: bool) -> String {
     let first = if dir {
         "untitled".to_string()
     } else {
         "untitled.txt".to_string()
     };
-    if !parent.join(&first).exists() {
+    if !files.exists(&parent.join(&first)) {
         return first;
     }
     for n in 2usize.. {
@@ -257,7 +348,7 @@ fn unique_untitled(parent: &Path, dir: bool) -> String {
         } else {
             format!("untitled-{n}.txt")
         };
-        if !parent.join(&name).exists() {
+        if !files.exists(&parent.join(&name)) {
             return name;
         }
     }
@@ -278,12 +369,23 @@ fn create_untitled(world: &mut World, dir: bool) {
     let Some(parent_path) = world.get::<FsPath>(parent).map(|fs| fs.path.clone()) else {
         return;
     };
-    let dest = parent_path.join(unique_untitled(&parent_path, dir));
-    if dir {
-        if fs::create_dir(&dest).is_err() {
-            return;
-        }
-    } else if fs::write(&dest, "").is_err() {
+    let Some(name) = world
+        .resource::<Files>()
+        .map(|files| unique_untitled(files, &parent_path, dir))
+    else {
+        return;
+    };
+    let dest = parent_path.join(name);
+    let created = if dir {
+        world
+            .resource_mut::<Files>()
+            .is_some_and(|files| files.create_dir(&dest))
+    } else {
+        world
+            .resource_mut::<Files>()
+            .is_some_and(|files| files.write(&dest, b""))
+    };
+    if !created {
         return;
     }
 
@@ -347,17 +449,23 @@ fn delete_focused(world: &mut World) {
     let Some(fs) = world.get::<FsPath>(entity).cloned() else {
         return;
     };
-    if fs.dir {
-        let Ok(mut entries) = fs::read_dir(&fs.path) else {
-            return;
-        };
-        if entries.next().is_some() {
-            return;
-        }
-        if fs::remove_dir(&fs.path).is_err() {
+    let path = fs.path.clone();
+    let removed = if fs.dir {
+        let empty = world
+            .resource::<Files>()
+            .is_some_and(|files| files.is_empty_dir(&path));
+        if !empty {
             return;
         }
-    } else if fs::remove_file(&fs.path).is_err() {
+        world
+            .resource_mut::<Files>()
+            .is_some_and(|files| files.remove_dir(&path))
+    } else {
+        world
+            .resource_mut::<Files>()
+            .is_some_and(|files| files.remove_file(&path))
+    };
+    if !removed {
         return;
     }
 
@@ -372,40 +480,39 @@ fn delete_focused(world: &mut World) {
     set_editing(world, None);
 }
 
-fn list_dir(path: &Path) -> Vec<PathBuf> {
-    let Ok(read) = fs::read_dir(path) else {
+fn list_dir(world: &World, path: &Path) -> Vec<PathBuf> {
+    let Some(files) = world.resource::<Files>() else {
         return Vec::new();
     };
     let mut entries: Vec<(bool, String, PathBuf)> = Vec::new();
-    for entry in read.flatten() {
-        let name = entry.file_name();
-        if name.to_string_lossy().starts_with('.') {
+    for entry in files.list(path) {
+        if entry.symlink {
             continue;
         }
-        let Ok(file_type) = entry.file_type() else {
+        let Some(name) = entry.path.file_name() else {
             continue;
         };
-        if file_type.is_symlink() {
+        let name = name.to_string_lossy();
+        if name.starts_with('.') {
             continue;
         }
-        entries.push((
-            file_type.is_dir(),
-            name.to_string_lossy().into_owned(),
-            entry.path(),
-        ));
+        entries.push((entry.dir, name.into_owned(), entry.path));
     }
     entries.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
     entries.into_iter().map(|(_, _, path)| path).collect()
 }
 
-fn read_text(path: &Path) -> (String, bool) {
-    let Ok(meta) = fs::metadata(path) else {
+fn read_text(world: &World, path: &Path) -> (String, bool) {
+    let Some(files) = world.resource::<Files>() else {
         return (String::new(), false);
     };
-    if meta.len() > MAX_FILE_BYTES {
+    let Some(len) = files.len(path) else {
+        return (String::new(), false);
+    };
+    if len > MAX_FILE_BYTES {
         return (String::new(), false);
     }
-    let Ok(bytes) = fs::read(path) else {
+    let Some(bytes) = files.read(path) else {
         return (String::new(), false);
     };
     if bytes.contains(&0) {
@@ -441,11 +548,14 @@ fn rename_if_needed(world: &mut World, entity: Entity) -> bool {
         return false;
     };
     let dest = parent.join(&title);
-    if dest.exists() {
-        set_header_text(world, entity, current);
-        return false;
-    }
-    if fs::rename(&fs.path, &dest).is_err() {
+    let from = fs.path.clone();
+    let renamed = world.resource_mut::<Files>().is_some_and(|files| {
+        if files.exists(&dest) {
+            return false;
+        }
+        files.rename(&from, &dest)
+    });
+    if !renamed {
         set_header_text(world, entity, current);
         return false;
     }

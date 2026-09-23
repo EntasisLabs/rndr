@@ -1,12 +1,6 @@
-use crate::caret::{apply_caret, Editing};
-use crate::focus::apply_focus;
-use crate::fs::{apply_dirty_marks, apply_fs_edit, apply_fs_load, apply_fs_save};
-use crate::input::{Focus, Input, Viewport};
-use crate::layout::{apply_scroll, layout_propagate};
-use crate::pane::{apply_pane, Selection};
-use crate::split::{apply_split, Drag};
+use crate::input::{Input, Viewport};
+use crate::layout::layout_propagate;
 use crate::world::World;
-use crate::wrap::apply_wrap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Schedule {
@@ -18,7 +12,13 @@ pub enum Schedule {
 
 pub type System = fn(&mut World);
 
+/// Registers systems and resources on a blank [`App`].
+pub trait Plugin {
+    fn build(self, app: &mut App);
+}
+
 /// Headless runner: Startup once, then Update, then Layout. Render is the platform's job.
+/// A new app owns [`Input`] and [`Viewport`] only. [`crate::Shell`] installs the desktop systems.
 pub struct App {
     world: World,
     startup: Vec<System>,
@@ -33,11 +33,7 @@ impl App {
         let mut world = World::new();
         world.insert_resource(Input::default());
         world.insert_resource(Viewport::default());
-        world.insert_resource(Focus::default());
-        world.insert_resource(Selection::default());
-        world.insert_resource(Editing::default());
-        world.insert_resource(Drag::default());
-        let mut app = Self {
+        let app = Self {
             world,
             startup: Vec::new(),
             update: Vec::new(),
@@ -45,17 +41,12 @@ impl App {
             render: Vec::new(),
             started: false,
         };
-        app.update.push(apply_scroll);
-        app.update.push(apply_split);
-        app.update.push(apply_focus);
-        app.update.push(apply_fs_load);
-        app.update.push(apply_pane);
-        app.update.push(apply_caret);
-        app.update.push(apply_wrap);
-        app.update.push(apply_fs_save);
-        app.update.push(apply_fs_edit);
-        app.update.push(apply_dirty_marks);
         app
+    }
+
+    pub fn add_plugin(&mut self, plugin: impl Plugin) -> &mut Self {
+        plugin.build(self);
+        self
     }
 
     pub fn add_system(&mut self, schedule: Schedule, system: System) -> &mut Self {

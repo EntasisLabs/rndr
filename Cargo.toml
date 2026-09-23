@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/rndr_core", "crates/rndr_render", "examples/expand"]
+members = ["crates/rndr_core", "crates/rndr_render", "crates/rndr_std", "examples/expand"]
 
 [workspace.package]
 version = "0.1.0"
