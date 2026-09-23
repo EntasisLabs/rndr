@@ -136,8 +136,8 @@ fn click_sets_focus_without_opening() {
     let rect = *app.world().get::<rndr_core::Rect>(header).unwrap();
     {
         let input = app.world_mut().resource_mut::<Input>().unwrap();
-        input.cursor = [rect.x + 8.0, rect.y + 8.0];
-        input.pressed = true;
+        input.pointer.position = [rect.x + 8.0, rect.y + 8.0];
+        input.pointer.pressed = true;
     }
     app.update();
     assert_eq!(app.world().resource::<Focus>().unwrap().entity, Some(alpha));
@@ -169,10 +169,7 @@ fn tab_walks_without_opening() {
 fn focus_below_port_adjusts_scroll() {
     let mut app = App::new();
     app.add_plugin(Shell);
-    app.world_mut().insert_resource(Viewport {
-        width: 200.0,
-        height: 80.0,
-    });
+    app.world_mut().insert_resource(Viewport::new(200.0, 80.0));
     app.add_system(Schedule::Startup, setup_page);
     app.update();
 

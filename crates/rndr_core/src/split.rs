@@ -36,7 +36,7 @@ pub fn apply_split(world: &mut World) {
         return;
     };
 
-    if !input.down {
+    if !input.pointer.down {
         if let Some(drag) = world.resource_mut::<Drag>() {
             drag.entity = None;
         }
@@ -44,15 +44,15 @@ pub fn apply_split(world: &mut World) {
         return;
     }
 
-    if input.pressed {
-        if let Some(hit) = hit_test(world, input.cursor[0], input.cursor[1]) {
+    if input.pointer.pressed {
+        if let Some(hit) = hit_test(world, input.pointer.position[0], input.pointer.position[1]) {
             if let Some(splitter) = ancestor_with::<Splitter>(world, hit) {
                 if let Some(drag) = world.resource_mut::<Drag>() {
                     drag.entity = Some(splitter);
-                    drag.last = input.cursor;
+                    drag.last = input.pointer.position;
                 }
                 if let Some(input) = world.resource_mut::<Input>() {
-                    input.pressed = false;
+                    input.pointer.pressed = false;
                 }
             }
         }
@@ -61,9 +61,9 @@ pub fn apply_split(world: &mut World) {
     let drag = world.resource::<Drag>().copied();
     if let Some(drag) = drag {
         if let Some(entity) = drag.entity.filter(|entity| world.is_alive(*entity)) {
-            apply_drag(world, entity, input.cursor, drag.last);
+            apply_drag(world, entity, input.pointer.position, drag.last);
             if let Some(current) = world.resource_mut::<Drag>() {
-                current.last = input.cursor;
+                current.last = input.pointer.position;
             }
         }
     }
@@ -163,8 +163,8 @@ fn parent_span(world: &World, parent: Entity, axis: Axis) -> Option<f32> {
             .copied()
             .unwrap_or_default();
         return Some(match axis {
-            Axis::Row => viewport.width,
-            Axis::Column => viewport.height,
+            Axis::Row => viewport.content_width(),
+            Axis::Column => viewport.content_height(),
         });
     }
     world.get::<Rect>(parent).map(|rect| match axis {

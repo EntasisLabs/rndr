@@ -1,6 +1,7 @@
 use rndr_core::{
     apply_scroll, despawn, hit_test, layout_propagate, set_parent, spawn_node, toggle_disclosure,
-    Axis, Clip, Color, Disclosure, Input, Layout, NodeSpec, Rect, Scroll, Size, Viewport, World,
+    Axis, Clip, Color, Disclosure, Input, Insets, Layout, NodeSpec, Rect, Scroll, Size, Viewport,
+    World,
 };
 
 fn px(w: f32, h: f32) -> Layout {
@@ -16,10 +17,7 @@ fn px(w: f32, h: f32) -> Layout {
 #[test]
 fn column_with_padding_and_nested_row() {
     let mut world = World::new();
-    world.insert_resource(Viewport {
-        width: 400.0,
-        height: 300.0,
-    });
+    world.insert_resource(Viewport::new(400.0, 300.0));
 
     let column = world.spawn(Layout {
         axis: Axis::Column,
@@ -167,10 +165,7 @@ fn later_sibling_wins_hit_test() {
 #[test]
 fn expand_then_collapse_rewrites_layout() {
     let mut world = World::new();
-    world.insert_resource(Viewport {
-        width: 400.0,
-        height: 400.0,
-    });
+    world.insert_resource(Viewport::new(400.0, 400.0));
 
     let spec = NodeSpec::branch(
         "Root",
@@ -211,10 +206,7 @@ fn fill_column() -> Layout {
 #[test]
 fn scrollport_offsets_hug_children_and_records_content() {
     let mut world = World::new();
-    world.insert_resource(Viewport {
-        width: 100.0,
-        height: 50.0,
-    });
+    world.insert_resource(Viewport::new(100.0, 50.0));
 
     let port = world.spawn((fill_column(), Scroll::default()));
     let first = world.spawn(px(100.0, 40.0));
@@ -236,10 +228,7 @@ fn scrollport_offsets_hug_children_and_records_content() {
 #[test]
 fn overflowed_child_clip_is_intersection_with_port() {
     let mut world = World::new();
-    world.insert_resource(Viewport {
-        width: 80.0,
-        height: 50.0,
-    });
+    world.insert_resource(Viewport::new(80.0, 50.0));
 
     let port = world.spawn((fill_column(), Scroll::default()));
     let child = world.spawn(px(80.0, 80.0));
@@ -256,10 +245,7 @@ fn overflowed_child_clip_is_intersection_with_port() {
 #[test]
 fn hit_test_ignores_rect_outside_clip() {
     let mut world = World::new();
-    world.insert_resource(Viewport {
-        width: 80.0,
-        height: 40.0,
-    });
+    world.insert_resource(Viewport::new(80.0, 40.0));
 
     let port = world.spawn((fill_column(), Scroll::default()));
     let child = world.spawn(px(80.0, 80.0));
@@ -276,10 +262,7 @@ fn hit_test_ignores_rect_outside_clip() {
 #[test]
 fn wheel_clamps_and_collapse_resets_offset() {
     let mut world = World::new();
-    world.insert_resource(Viewport {
-        width: 200.0,
-        height: 50.0,
-    });
+    world.insert_resource(Viewport::new(200.0, 50.0));
     world.insert_resource(Input::default());
 
     let port = world.spawn((fill_column(), Scroll::default()));
@@ -303,7 +286,7 @@ fn wheel_clamps_and_collapse_resets_offset() {
     assert!(content > 50.0);
 
     world.resource_mut::<Input>().unwrap().scroll = [0.0, -400.0];
-    world.resource_mut::<Input>().unwrap().cursor = [20.0, 20.0];
+    world.resource_mut::<Input>().unwrap().pointer.position = [20.0, 20.0];
     apply_scroll(&mut world);
     layout_propagate(&mut world);
     let scrolled = world.get::<Scroll>(port).unwrap().offset[1];
@@ -312,4 +295,55 @@ fn wheel_clamps_and_collapse_resets_offset() {
     toggle_disclosure(&mut world, node);
     layout_propagate(&mut world);
     assert_eq!(world.get::<Scroll>(port).unwrap().offset[1], 0.0);
+}
+
+#[test]
+fn insets_place_the_root_inside_the_safe_rect() {
+    let mut world = World::new();
+    let mut viewport = Viewport::new(200.0, 100.0);
+    viewport.insets = Insets {
+        top: 10.0,
+        right: 4.0,
+        bottom: 6.0,
+        left: 8.0,
+    };
+    world.insert_resource(viewport);
+
+    let root = world.spawn(fill_column());
+    layout_propagate(&mut world);
+
+    assert_eq!(
+        *world.get::<Rect>(root).unwrap(),
+        Rect {
+            x: 8.0,
+            y: 10.0,
+            w: 188.0,
+            h: 84.0,
+        }
+    );
+    assert_eq!(hit_test(&world, 4.0, 4.0), None);
+    assert_eq!(hit_test(&world, 8.0, 10.0), Some(root));
+}
+
+#[test]
+fn scale_does_not_change_point_layout() {
+    let mut world = World::new();
+    let mut viewport = Viewport::new(100.0, 50.0);
+    viewport.scale = 2.0;
+    world.insert_resource(viewport);
+
+    let root = world.spawn(fill_column());
+    layout_propagate(&mut world);
+
+    let rect = *world.get::<Rect>(root).unwrap();
+    assert_eq!(rect.x, 0.0);
+    assert_eq!(rect.y, 0.0);
+    assert_eq!(rect.w, 100.0);
+    assert_eq!(rect.h, 50.0);
+    assert_eq!(viewport.to_physical(16.0), 32.0);
+    assert_eq!(viewport.to_points(32.0), 16.0);
+
+    viewport.scale = 0.0;
+    assert_eq!(viewport.pixels_per_point(), 1.0);
+    assert_eq!(viewport.to_points(16.0), 16.0);
 }

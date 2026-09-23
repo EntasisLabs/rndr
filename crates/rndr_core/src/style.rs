@@ -47,7 +47,7 @@ impl Body {
     }
 }
 
-/// Glyph cell. The render plugin draws the 8×8 atlas at this size.
+/// Glyph cell in logical points. The render plugin draws the 8×8 atlas at this size.
 pub const CELL_W: f32 = 16.0;
 pub const CELL_H: f32 = 16.0;
 /// Left inset of the first glyph inside a row rectangle.

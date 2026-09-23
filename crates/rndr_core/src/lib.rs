@@ -36,7 +36,7 @@ pub use fs::{
     DirtyMark, Files, Fs, FsPath,
 };
 pub use hierarchy::{children_of, despawn, roots, set_parent, Children, Parent};
-pub use input::{Focus, Input, Key, Viewport};
+pub use input::{Focus, Input, Insets, Key, Pointer, Viewport, MOUSE_ID};
 pub use layout::{
     ancestor_with, apply_scroll, hit_test, layout_propagate, Axis, Clip, Layout, Rect, Scroll, Size,
 };
