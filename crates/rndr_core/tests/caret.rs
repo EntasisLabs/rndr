@@ -1,7 +1,7 @@
 use rndr_core::{
-    children_of, detail_pane, set_parent, shell, spawn_node, tree_column, App, Caret, Color,
-    Disclosure, Editing, Focus, Focusable, Input, Key, Label, NodeSpec, Pane, Parent, Schedule,
-    Selection, World,
+    children_of, detail_pane, selection_spans, set_parent, shell, spawn_node, tree_column, App,
+    Caret, Color, Disclosure, Editing, Focus, Focusable, Input, Key, Label, NodeSpec, Pane, Parent,
+    Schedule, Selection, World, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
 
 fn tree() -> Vec<NodeSpec> {
@@ -224,4 +224,115 @@ fn click_fills_the_pane_without_a_caret() {
     assert_eq!(pane_title(app.world()), "Alpha");
     assert!(app.world().entities_with::<Caret>().is_empty());
     assert!(app.world().resource::<Editing>().unwrap().source.is_none());
+}
+
+fn title_field(world: &World) -> rndr_core::Entity {
+    let pane = world
+        .entities_with::<Pane>()
+        .into_iter()
+        .next()
+        .expect("pane");
+    world
+        .get::<Pane>(pane)
+        .unwrap()
+        .spawned
+        .first()
+        .copied()
+        .expect("title")
+}
+
+fn click_title_cell(app: &mut App, col: usize, shift: bool) {
+    let title = title_field(app.world());
+    let rect = *app.world().get::<rndr_core::Rect>(title).unwrap();
+    {
+        let input = app.world_mut().resource_mut::<Input>().unwrap();
+        input.cursor = [
+            rect.x + TEXT_ORIGIN_X + col as f32 * CELL_W + 1.0,
+            rect.y + TEXT_ORIGIN_Y + 1.0,
+        ];
+        input.pressed = true;
+        input.shift = shift;
+    }
+    app.update();
+}
+
+#[test]
+fn click_places_the_caret_on_that_cell() {
+    let mut app = boot();
+    press(&mut app, Key::Down);
+    press(&mut app, Key::Enter);
+    click_title_cell(&mut app, 2, false);
+
+    let caret = title_caret(app.world());
+    assert_eq!(caret.index, 2);
+    assert_eq!(caret.anchor, 2);
+    assert_eq!(pane_title(app.world()), "Alpha");
+}
+
+#[test]
+fn shift_click_extends_the_selection() {
+    let mut app = boot();
+    press(&mut app, Key::Down);
+    press(&mut app, Key::Enter);
+    click_title_cell(&mut app, 1, false);
+    click_title_cell(&mut app, 4, true);
+
+    let caret = title_caret(app.world());
+    assert_eq!(caret.anchor, 1);
+    assert_eq!(caret.index, 4);
+    assert_eq!(pane_title(app.world()), "Alpha");
+}
+
+#[test]
+fn shift_left_then_type_replaces_the_selection() {
+    let mut app = boot();
+    press(&mut app, Key::Down);
+    press(&mut app, Key::Enter);
+    {
+        let input = app.world_mut().resource_mut::<Input>().unwrap();
+        input.key = Some(Key::Left);
+        input.shift = true;
+    }
+    app.update();
+
+    let caret = title_caret(app.world());
+    assert_eq!(caret.anchor, 5);
+    assert_eq!(caret.index, 4);
+    type_char(&mut app, 'x');
+    assert_eq!(pane_title(app.world()), "Alphx");
+    assert_eq!(tree_header_text(app.world(), "Alphx"), "Alphx");
+    let caret = title_caret(app.world());
+    assert_eq!(caret.index, 5);
+    assert_eq!(caret.anchor, 5);
+}
+
+#[test]
+fn backspace_deletes_the_selection() {
+    let mut app = boot();
+    press(&mut app, Key::Down);
+    press(&mut app, Key::Enter);
+    {
+        let input = app.world_mut().resource_mut::<Input>().unwrap();
+        input.key = Some(Key::Left);
+        input.shift = true;
+    }
+    app.update();
+    {
+        let input = app.world_mut().resource_mut::<Input>().unwrap();
+        input.key = Some(Key::Left);
+        input.shift = true;
+    }
+    app.update();
+    press(&mut app, Key::Backspace);
+
+    assert_eq!(pane_title(app.world()), "Alp");
+    let caret = title_caret(app.world());
+    assert_eq!(caret.index, 3);
+    assert_eq!(caret.anchor, 3);
+}
+
+#[test]
+fn selection_spans_cover_each_line() {
+    assert_eq!(selection_spans("ab\ncd", 1, 4), vec![(0, 1, 2), (1, 0, 1)]);
+    assert!(selection_spans("hello", 2, 2).is_empty());
 }

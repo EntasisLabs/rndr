@@ -114,6 +114,7 @@ fn down_then_up_walks_visual_lines() {
     let body = pane_field(app.world(), EditField::Body);
     if let Some(caret) = app.world_mut().get_mut::<Caret>(body) {
         caret.index = 0;
+        caret.anchor = 0;
     }
     press(&mut app, Key::Down);
     assert_eq!(app.world().get::<Caret>(body).unwrap().index, 9);

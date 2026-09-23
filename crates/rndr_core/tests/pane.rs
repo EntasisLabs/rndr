@@ -173,7 +173,7 @@ fn escape_clears_selection_and_keeps_tree_focus() {
 }
 
 #[test]
-fn click_toggles_the_tree_and_fills_the_pane() {
+fn click_selects_without_opening_and_fills_the_pane() {
     let mut app = boot();
     let alpha = node_named(app.world(), "Alpha");
     let header = children_of(app.world(), alpha)
@@ -189,13 +189,13 @@ fn click_toggles_the_tree_and_fills_the_pane() {
     app.update();
 
     assert_eq!(app.world().resource::<Focus>().unwrap().entity, Some(alpha));
-    assert!(app.world().get::<Disclosure>(alpha).unwrap().open);
+    assert!(!app.world().get::<Disclosure>(alpha).unwrap().open);
     assert_eq!(
         app.world().resource::<Selection>().unwrap().entity,
         Some(alpha)
     );
     let labels = pane_labels(app.world());
     assert!(labels.contains(&"Alpha".to_string()));
-    assert!(labels.contains(&"Open".to_string()));
+    assert!(labels.contains(&"Closed".to_string()));
     assert!(app.world().entities_with::<Caret>().is_empty());
 }

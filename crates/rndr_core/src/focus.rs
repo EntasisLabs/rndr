@@ -21,10 +21,6 @@ pub fn apply_focus(world: &mut World) {
         if let Some(hit) = hit_test(world, input.cursor[0], input.cursor[1]) {
             if let Some(target) = ancestor_with::<Focusable>(world, hit) {
                 set_focus(world, Some(target));
-                if world.has::<Disclosure>(target) {
-                    toggle_disclosure(world, target);
-                    retarget_focus_after_toggle(world, target);
-                }
                 set_selection(world, Some(target));
                 set_editing(world, None);
             } else if let Some(field_entity) = ancestor_with::<Field>(world, hit) {

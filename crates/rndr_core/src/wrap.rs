@@ -2,15 +2,15 @@ use crate::caret::{EditField, Field};
 use crate::entity::Entity;
 use crate::layout::{Layout, Rect, Size};
 use crate::pane::Pane;
-use crate::style::Label;
+use crate::style::{Label, CELL_H, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
 use crate::world::World;
 
 /// Atlas glyph size after the render crate's 2x draw scale.
-pub const GLYPH_PX: f32 = 16.0;
+pub const GLYPH_PX: f32 = CELL_W;
 /// Left/right inset used when drawing a field label.
-pub const TEXT_INSET_X: f32 = 12.0;
+pub const TEXT_INSET_X: f32 = TEXT_ORIGIN_X;
 /// Top inset of the first glyph row. Matches the render crate.
-pub const TEXT_INSET_Y: f32 = 8.0;
+pub const TEXT_INSET_Y: f32 = TEXT_ORIGIN_Y;
 
 /// A visual row after wrap. Byte range in the source; never includes a trailing `\n`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -25,9 +25,11 @@ pub fn cols_for(width: f32) -> usize {
     (inner / GLYPH_PX).floor().max(1.0) as usize
 }
 
-/// `16 + n.max(1) * 20`, same as today's one-line field.
+/// Height that fits `n` glyph rows, and at least one tree row.
 pub fn field_height_lines(n: usize) -> f32 {
-    16.0 + n.max(1) as f32 * 20.0
+    let lines = n.max(1) as f32;
+    let h = TEXT_ORIGIN_Y + lines * CELL_H + TEXT_ORIGIN_Y;
+    h.max(36.0)
 }
 
 /// Greedy wrap. `\n` always starts a new row. A word longer than `cols` hard-breaks.
@@ -67,6 +69,37 @@ pub fn visual_pos(lines: &[VisualLine], index: usize) -> (usize, usize) {
     }
     let last = lines.len() - 1;
     (last, lines[last].end.saturating_sub(lines[last].start))
+}
+
+/// Selected runs as `(visual_line, start_col, end_col)` in paint order.
+pub fn visual_selection_spans(
+    lines: &[VisualLine],
+    anchor: usize,
+    index: usize,
+) -> Vec<(usize, usize, usize)> {
+    let start = anchor.min(index);
+    let end = anchor.max(index);
+    if start == end {
+        return Vec::new();
+    }
+    let mut spans = Vec::new();
+    for (i, line) in lines.iter().enumerate() {
+        if line.start == line.end {
+            if line.start >= start && line.start < end {
+                spans.push((i, 0, 0));
+            }
+            continue;
+        }
+        if line.end <= start || line.start >= end {
+            continue;
+        }
+        let from = start.max(line.start);
+        let to = end.min(line.end);
+        if from < to {
+            spans.push((i, from - line.start, to - line.start));
+        }
+    }
+    spans
 }
 
 /// Byte index at `col` on visual `line`.

@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 use rndr_core::{
-    children_of, cols_for, roots, visual_pos, wrap_lines, App, Caret, Clip, Color, EditField,
-    Field, Focus, Input, Label, Parent, Rect, Viewport, GLYPH_PX, TEXT_INSET_X, TEXT_INSET_Y,
+    children_of, cols_for, roots, visual_pos, visual_selection_spans, wrap_lines, App, Caret, Clip,
+    Color, DirtyMark, EditField, Field, Focus, Input, Label, Parent, Rect, Viewport, CELL_H,
+    CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
@@ -414,8 +415,20 @@ fn collect_instances(app: &App) -> Vec<f32> {
     let world = app.world();
     let mut out = Vec::new();
     for root in roots::<Rect>(world) {
-        walk(world, root, &mut |rect, color, clip, label, caret, wrap| {
+        walk(world, root, &mut |rect,
+                                color,
+                                clip,
+                                label,
+                                caret,
+                                dirty,
+                                wrap| {
             push_instance(&mut out, rect, color, font::solid_uv(), clip);
+            if dirty {
+                push_dirty_mark(&mut out, rect, clip);
+            }
+            if let (Some(label), Some(caret)) = (label, caret) {
+                push_selection(&mut out, rect, label, caret, clip, wrap);
+            }
             if let Some(label) = label {
                 push_label(&mut out, rect, label, clip, wrap);
             }
@@ -430,7 +443,7 @@ fn collect_instances(app: &App) -> Vec<f32> {
 fn walk(
     world: &rndr_core::World,
     entity: rndr_core::Entity,
-    visit: &mut impl FnMut(Rect, Color, Clip, Option<&Label>, Option<&Caret>, bool),
+    visit: &mut impl FnMut(Rect, Color, Clip, Option<&Label>, Option<&Caret>, bool, bool),
 ) {
     if !world.is_alive(entity) {
         return;
@@ -447,6 +460,7 @@ fn walk(
                 .is_some_and(|parent| focused == Some(parent.entity))
             || world.has::<Caret>(entity);
         let color = if highlight { lighten(*color) } else { *color };
+        let dirty = world.has::<DirtyMark>(entity);
         let wrap = world
             .get::<Field>(entity)
             .is_some_and(|field| field.kind == EditField::Body);
@@ -456,6 +470,7 @@ fn walk(
             clip,
             world.get::<Label>(entity),
             world.get::<Caret>(entity),
+            dirty,
             wrap,
         );
     }
@@ -480,63 +495,83 @@ fn push_instance(out: &mut Vec<f32>, rect: Rect, color: Color, uv: [f32; 4], cli
     ]);
 }
 
-fn push_label(out: &mut Vec<f32>, rect: Rect, label: &Label, clip: Clip, wrap: bool) {
-    let glyph_w = GLYPH_PX;
-    let glyph_h = GLYPH_PX;
-    let color = Color::rgb(0.94, 0.95, 0.97);
+fn push_dirty_mark(out: &mut Vec<f32>, rect: Rect, clip: Clip) {
+    let size = 6.0;
+    push_instance(
+        out,
+        Rect {
+            x: rect.x + 3.0,
+            y: rect.y + TEXT_ORIGIN_Y + (CELL_H - size) * 0.5,
+            w: size,
+            h: size,
+        },
+        Color::rgb(0.86, 0.62, 0.20),
+        font::solid_uv(),
+        clip,
+    );
+}
+
+fn text_cols(rect: Rect, wrap: bool) -> usize {
     if wrap {
-        let lines = wrap_lines(&label.text, cols_for(rect.w));
-        let mut y = rect.y + TEXT_INSET_Y;
-        for line in lines {
-            let mut x = rect.x + TEXT_INSET_X;
-            for ch in label.text[line.start..line.end].bytes() {
-                if ch == b' ' {
-                    x += glyph_w;
-                    continue;
-                }
-                push_instance(
-                    out,
-                    Rect {
-                        x,
-                        y,
-                        w: glyph_w,
-                        h: glyph_h,
-                    },
-                    color,
-                    font::glyph_uv(ch),
-                    clip,
-                );
-                x += glyph_w;
-            }
-            y += glyph_h;
-        }
-        return;
+        cols_for(rect.w)
+    } else {
+        usize::MAX
     }
-    let mut x = rect.x + TEXT_INSET_X;
-    let mut y = rect.y + TEXT_INSET_Y;
-    for ch in label.text.bytes() {
-        if ch == b'\n' {
-            x = rect.x + TEXT_INSET_X;
-            y += glyph_h;
-            continue;
-        }
-        if ch == b' ' {
-            x += glyph_w;
-            continue;
-        }
+}
+
+fn push_selection(
+    out: &mut Vec<f32>,
+    rect: Rect,
+    label: &Label,
+    caret: &Caret,
+    clip: Clip,
+    wrap: bool,
+) {
+    let color = Color::rgba(0.35, 0.55, 0.85, 0.55);
+    let lines = wrap_lines(&label.text, text_cols(rect, wrap));
+    for (line, start_col, end_col) in visual_selection_spans(&lines, caret.anchor, caret.index) {
+        let cols = end_col.saturating_sub(start_col);
+        let w = if cols == 0 { 2.0 } else { cols as f32 * CELL_W };
         push_instance(
             out,
             Rect {
-                x,
-                y,
-                w: glyph_w,
-                h: glyph_h,
+                x: rect.x + TEXT_ORIGIN_X + start_col as f32 * CELL_W,
+                y: rect.y + TEXT_ORIGIN_Y + line as f32 * CELL_H,
+                w,
+                h: CELL_H,
             },
             color,
-            font::glyph_uv(ch),
+            font::solid_uv(),
             clip,
         );
-        x += glyph_w;
+    }
+}
+
+fn push_label(out: &mut Vec<f32>, rect: Rect, label: &Label, clip: Clip, wrap: bool) {
+    let mut y = rect.y + TEXT_ORIGIN_Y;
+    let color = Color::rgb(0.94, 0.95, 0.97);
+    for line in wrap_lines(&label.text, text_cols(rect, wrap)) {
+        let mut x = rect.x + TEXT_ORIGIN_X;
+        for ch in label.text[line.start..line.end].bytes() {
+            if ch == b' ' {
+                x += CELL_W;
+                continue;
+            }
+            push_instance(
+                out,
+                Rect {
+                    x,
+                    y,
+                    w: CELL_W,
+                    h: CELL_H,
+                },
+                color,
+                font::glyph_uv(ch),
+                clip,
+            );
+            x += CELL_W;
+        }
+        y += CELL_H;
     }
 }
 
@@ -548,45 +583,18 @@ fn push_caret(
     clip: Clip,
     wrap: bool,
 ) {
-    let glyph_w = GLYPH_PX;
-    let glyph_h = GLYPH_PX;
     let text = label.map(|label| label.text.as_str()).unwrap_or("");
-    let (col, line) = if wrap {
-        let (line, col) = visual_pos(&wrap_lines(text, cols_for(rect.w)), caret.index);
-        (col, line)
-    } else {
-        caret_col_line(text, caret.index)
-    };
-    let x = rect.x + TEXT_INSET_X + col as f32 * glyph_w;
-    let y = rect.y + TEXT_INSET_Y + line as f32 * glyph_h;
+    let (line, col) = visual_pos(&wrap_lines(text, text_cols(rect, wrap)), caret.index);
     push_instance(
         out,
         Rect {
-            x,
-            y,
+            x: rect.x + TEXT_ORIGIN_X + col as f32 * CELL_W,
+            y: rect.y + TEXT_ORIGIN_Y + line as f32 * CELL_H,
             w: 2.0,
-            h: glyph_h,
+            h: CELL_H,
         },
         Color::rgb(0.94, 0.95, 0.97),
         font::solid_uv(),
         clip,
     );
-}
-
-fn caret_col_line(text: &str, index: usize) -> (usize, usize) {
-    let index = index.min(text.len());
-    let mut line = 0usize;
-    let mut col = 0usize;
-    for (i, ch) in text.bytes().enumerate() {
-        if i == index {
-            break;
-        }
-        if ch == b'\n' {
-            line += 1;
-            col = 0;
-        } else {
-            col += 1;
-        }
-    }
-    (col, line)
 }

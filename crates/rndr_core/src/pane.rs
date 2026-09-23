@@ -136,7 +136,7 @@ fn clear_pane(world: &mut World, pane: Entity) {
     }
 }
 
-/// One line is 36px: 16 padding plus 20 per line. Newline-based; body wrap uses [`crate::field_height_lines`].
+/// Newline-based row height. Wrapped bodies are resized by [`crate::apply_wrap`].
 pub fn field_height(text: &str) -> f32 {
     crate::wrap::field_height_lines(text.split('\n').count())
 }

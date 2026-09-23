@@ -84,7 +84,7 @@ pub fn spawn_node(world: &mut World, spec: NodeSpec) -> Entity {
     root
 }
 
-/// Click the topmost disclosure under the pointer: open spawns children, close cascade-despawns them.
+/// Toggle the disclosure under the pointer. The shell does not run this: click selects, Right expands.
 pub fn toggle_disclosures(world: &mut World) {
     let Some(input) = world.resource::<Input>().cloned() else {
         return;

@@ -19,14 +19,20 @@ mod world;
 mod wrap;
 
 pub use app::{App, Schedule, System};
-pub use caret::{apply_caret, set_editing, set_editing_field, Caret, EditField, Editing, Field};
+pub use caret::{
+    apply_caret, caret_line_col, selection_spans, set_editing, set_editing_field, Caret, EditField,
+    Editing, Field,
+};
 pub use disclosure::{
     page_layout, scroll_page, spawn_node, toggle_disclosure, toggle_disclosures, Disclosure,
     Focusable, NodeSpec,
 };
 pub use entity::Entity;
 pub use focus::apply_focus;
-pub use fs::{apply_fs_edit, apply_fs_load, apply_fs_save, spawn_fs_node, Dirty, FsPath};
+pub use fs::{
+    apply_dirty_marks, apply_fs_edit, apply_fs_load, apply_fs_save, spawn_fs_node, Dirty,
+    DirtyMark, FsPath,
+};
 pub use hierarchy::{children_of, despawn, roots, set_parent, Children, Parent};
 pub use input::{Focus, Input, Key, Viewport};
 pub use layout::{
@@ -37,9 +43,9 @@ pub use pane::{
     Selection,
 };
 pub use split::{apply_split, Drag, Splitter};
-pub use style::{Body, Color, Label};
+pub use style::{Body, Color, Label, CELL_H, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
 pub use world::{Bundle, Component, World};
 pub use wrap::{
     apply_wrap, cols_for, field_height_lines, index_at_pointer, index_at_visual, visual_pos,
-    wrap_lines, VisualLine, GLYPH_PX, TEXT_INSET_X, TEXT_INSET_Y,
+    visual_selection_spans, wrap_lines, VisualLine, GLYPH_PX, TEXT_INSET_X, TEXT_INSET_Y,
 };

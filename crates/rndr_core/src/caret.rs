@@ -7,7 +7,8 @@ use crate::pane::{field_height, Pane};
 use crate::style::{Body, Label};
 use crate::world::{Component, World};
 use crate::wrap::{
-    cols_for, index_at_pointer, index_at_visual, visual_pos, wrap_lines, GLYPH_PX, TEXT_INSET_Y,
+    cols_for, index_at_pointer, index_at_visual, visual_pos, visual_selection_spans, wrap_lines,
+    GLYPH_PX, TEXT_INSET_Y,
 };
 
 impl Component for Caret {}
@@ -34,10 +35,12 @@ pub struct Editing {
     pub field: EditField,
 }
 
-/// Insertion point on a pane field [`Label`]. Index is a byte offset.
+/// Insertion point on a pane field [`Label`]. Indices are byte offsets.
+/// `anchor` equals `index` when the range is empty.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Caret {
     pub index: usize,
+    pub anchor: usize,
 }
 
 pub fn set_editing(world: &mut World, source: Option<Entity>) {
@@ -105,65 +108,79 @@ pub fn apply_caret(world: &mut World) {
     let Some(row) = field_row(world, field) else {
         return;
     };
-    if !world.has::<Caret>(row) {
+    let existed = world.has::<Caret>(row);
+    if !existed {
         bind_caret(world, field);
     }
     let Some(row) = field_row(world, field) else {
         return;
     };
+    place_caret_from_pointer(world, row, existed);
 
     let chars = world
         .resource::<Input>()
         .map(|input| input.chars.clone())
         .unwrap_or_default();
+    let shift = world.resource::<Input>().is_some_and(|input| input.shift);
 
     let mut text = world
         .get::<Label>(row)
         .map(|label| label.text.clone())
         .unwrap_or_default();
     let original = text.clone();
-    let mut index = world
+    let (mut index, mut anchor) = world
         .get::<Caret>(row)
-        .map(|caret| caret.index.min(text.len()))
-        .unwrap_or(text.len());
+        .map(|caret| (caret.index.min(text.len()), caret.anchor.min(text.len())))
+        .unwrap_or((text.len(), text.len()));
 
-    for ch in chars.chars() {
-        if is_printable_ascii(ch) {
-            text.insert(index, ch);
-            index += ch.len_utf8();
-        }
-    }
-    if key == Some(Key::Backspace) && index > 0 {
-        index -= 1;
-        text.remove(index);
-    }
-    if key == Some(Key::Enter) && field == EditField::Body {
-        text.insert(index, '\n');
-        index += 1;
-    }
-    if key == Some(Key::Left) {
-        index = index.saturating_sub(1);
-    }
-    if key == Some(Key::Right) {
-        index = (index + 1).min(text.len());
-    }
-    if field == EditField::Body && key == Some(Key::Up) {
-        index = move_visual_line(world, row, &text, index, -1);
-    }
-    if field == EditField::Body && key == Some(Key::Down) {
-        index = move_visual_line(world, row, &text, index, 1);
-    }
-    if press_hits_field(world, row) {
-        if let Some(rect) = world.get::<Rect>(row).copied() {
-            let (x, y) = world
-                .resource::<Input>()
-                .map(|input| (input.cursor[0], input.cursor[1]))
-                .unwrap_or((0.0, 0.0));
-            let cols = match field {
-                EditField::Body => cols_for(rect.w),
-                EditField::Title => usize::MAX,
+    if matches!(key, Some(Key::Up | Key::Down)) && field == EditField::Body {
+        let delta = if key == Some(Key::Up) { -1 } else { 1 };
+        let next = move_visual_line(world, row, &text, index, delta);
+        if shift {
+            index = next;
+        } else if anchor != index {
+            let edge = if delta < 0 {
+                anchor.min(index)
+            } else {
+                anchor.max(index)
             };
-            index = index_at_pointer(&text, cols, rect, x, y);
+            index = edge;
+            anchor = edge;
+        } else {
+            index = next;
+            anchor = next;
+        }
+    } else if matches!(key, Some(Key::Left | Key::Right)) {
+        (index, anchor) = move_caret(&text, index, anchor, key, shift);
+    } else {
+        let editing = !chars.is_empty()
+            || key == Some(Key::Backspace)
+            || (key == Some(Key::Enter) && field == EditField::Body);
+        let mut replaced = false;
+        if editing && anchor != index {
+            let start = anchor.min(index);
+            let end = anchor.max(index).min(text.len());
+            text.replace_range(start..end, "");
+            index = start;
+            anchor = start;
+            replaced = true;
+        }
+        if key == Some(Key::Backspace) && !replaced && index > 0 {
+            index -= 1;
+            text.remove(index);
+            anchor = index;
+        }
+        for ch in chars.chars() {
+            if is_printable_ascii(ch) {
+                text.insert(index, ch);
+                index += ch.len_utf8();
+                anchor = index;
+            }
+        }
+        if key == Some(Key::Enter) && field == EditField::Body {
+            text.insert(index, '\n');
+            index += 1;
+            anchor = index;
         }
     }
 
@@ -172,6 +189,7 @@ pub fn apply_caret(world: &mut World) {
     }
     if let Some(caret) = world.get_mut::<Caret>(row) {
         caret.index = index;
+        caret.anchor = anchor;
     }
     match field {
         EditField::Title => {
@@ -214,7 +232,92 @@ fn bind_caret(world: &mut World, field: EditField) {
         .map(|label| label.text.len())
         .unwrap_or(0);
     clear_carets(world);
-    world.insert(row, Caret { index: len });
+    world.insert(
+        row,
+        Caret {
+            index: len,
+            anchor: len,
+        },
+    );
+}
+
+fn place_caret_from_pointer(world: &mut World, row: Entity, existed: bool) {
+    let Some(input) = world.resource::<Input>() else {
+        return;
+    };
+    if !input.pressed {
+        return;
+    }
+    let shift = input.shift;
+    let x = input.cursor[0];
+    let y = input.cursor[1];
+    let Some(hit) = hit_test(world, x, y) else {
+        return;
+    };
+    if ancestor_with::<Field>(world, hit) != Some(row) {
+        return;
+    }
+    let Some(rect) = world.get::<Rect>(row).copied() else {
+        return;
+    };
+    let text = world
+        .get::<Label>(row)
+        .map(|label| label.text.clone())
+        .unwrap_or_default();
+    let cols = if world
+        .get::<Field>(row)
+        .is_some_and(|field| field.kind == EditField::Body)
+    {
+        cols_for(rect.w)
+    } else {
+        usize::MAX
+    };
+    let index = index_at_pointer(&text, cols, rect, x, y);
+    if let Some(caret) = world.get_mut::<Caret>(row) {
+        caret.index = index;
+        if !(shift && existed) {
+            caret.anchor = index;
+        }
+    }
+}
+
+fn move_caret(
+    text: &str,
+    index: usize,
+    anchor: usize,
+    key: Option<Key>,
+    shift: bool,
+) -> (usize, usize) {
+    let len = text.len();
+    let index = index.min(len);
+    let anchor = anchor.min(len);
+    let next = match key {
+        Some(Key::Left) => index.saturating_sub(1),
+        Some(Key::Right) => (index + 1).min(len),
+        _ => index,
+    };
+    if shift {
+        (next, anchor)
+    } else if anchor != index {
+        let edge = match key {
+            Some(Key::Left) => anchor.min(index),
+            Some(Key::Right) => anchor.max(index),
+            _ => next,
+        };
+        (edge, edge)
+    } else {
+        (next, next)
+    }
+}
+
+/// Line and column of a byte `index`. Column is a byte offset on that line.
+pub fn caret_line_col(text: &str, index: usize) -> (usize, usize) {
+    visual_pos(&wrap_lines(text, usize::MAX), index)
+}
+
+/// Selected runs as `(line, start_col, end_col)` in paint order. No soft wrap.
+pub fn selection_spans(text: &str, anchor: usize, index: usize) -> Vec<(usize, usize, usize)> {
+    visual_selection_spans(&wrap_lines(text, usize::MAX), anchor, index)
 }
 
 fn field_row(world: &World, kind: EditField) -> Option<Entity> {
@@ -263,18 +366,6 @@ fn clear_text_input(world: &mut World) {
             input.key = None;
         }
     }
-}
-
-fn press_hits_field(world: &World, row: Entity) -> bool {
-    let Some(input) = world.resource::<Input>() else {
-        return false;
-    };
-    if !input.pressed {
-        return false;
-    }
-    hit_test(world, input.cursor[0], input.cursor[1])
-        .and_then(|hit| ancestor_with::<Field>(world, hit))
-        == Some(row)
 }
 
 fn is_printable_ascii(ch: char) -> bool {
