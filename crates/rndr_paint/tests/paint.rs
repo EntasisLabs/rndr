@@ -1,7 +1,8 @@
 use rndr_core::{
-    Caret, Clip, Color, Label, Rect, World, CELL_H, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
+    App, Caret, Clip, Color, Label, Rect, Schedule, World, CELL_H, CELL_W, TEXT_ORIGIN_X,
+    TEXT_ORIGIN_Y,
 };
-use rndr_paint::{glyph_uv, paint, solid_uv};
+use rndr_paint::{frame, glyph_uv, paint, solid_uv};
 
 fn rect() -> Rect {
     Rect {
@@ -80,4 +81,30 @@ fn caret_sits_on_the_glyph_column() {
         }
     );
     assert_eq!(caret.uv, solid_uv());
+}
+
+fn spawn_swatch(world: &mut World) {
+    world.spawn((
+        Rect {
+            x: 4.0,
+            y: 8.0,
+            w: 16.0,
+            h: 16.0,
+        },
+        Color::rgb(0.1, 0.2, 0.3),
+    ));
+}
+
+#[test]
+fn frame_runs_startup_once_then_paints() {
+    let mut app = App::new();
+    app.add_system(Schedule::Startup, spawn_swatch);
+
+    let first = frame(&mut app);
+    assert_eq!(first.len(), 1);
+    assert_eq!(first[0].rect.x, 4.0);
+    assert_eq!(first[0].rect.y, 8.0);
+
+    let second = frame(&mut app);
+    assert_eq!(second.len(), 1);
 }

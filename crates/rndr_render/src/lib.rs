@@ -1,10 +1,11 @@
-//! winit + wgpu plugin. Writes [`rndr_core::Input`] in logical points and draws the flat rect list.
+//! winit + wgpu plugin. Writes [`rndr_core::Input`] in logical points and presents the quad list.
 
 mod gpu;
 
 use std::sync::Arc;
 
-use rndr_core::{App, Input, Key as Action, Pointer, MOUSE_ID};
+use rndr_core::{App, Input, Key as Action, Pointer, Viewport, MOUSE_ID};
+use rndr_paint::frame;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
@@ -82,6 +83,37 @@ impl Handler {
         self.scroll = [0.0, 0.0];
         self.key = None;
         self.chars.clear();
+    }
+
+    /// Write the window into [`Viewport`], step the world, paint, and present.
+    /// Returns whether the surface presented, so input edges survive a lost frame.
+    fn redraw_frame(&mut self) -> bool {
+        let Some((width, height, scale)) = self.gpu.as_ref().map(|gpu| {
+            let size = gpu.window().inner_size();
+            (
+                size.width.max(1),
+                size.height.max(1),
+                positive_scale(gpu.window().scale_factor()),
+            )
+        }) else {
+            return false;
+        };
+        if let Some(viewport) = self.app.world_mut().resource_mut::<Viewport>() {
+            viewport.width = width as f32 / scale;
+            viewport.height = height as f32 / scale;
+            viewport.scale = scale;
+        }
+        let quads = frame(&mut self.app);
+        let scale = self
+            .app
+            .world()
+            .resource::<Viewport>()
+            .map(|viewport| viewport.pixels_per_point())
+            .unwrap_or(1.0);
+        self.gpu
+            .as_mut()
+            .expect("surface")
+            .present(&quads, width, height, scale)
     }
 }
 
@@ -214,8 +246,13 @@ impl ApplicationHandler for Handler {
             }
             WindowEvent::RedrawRequested => {
                 self.sync_input();
-                if let Some(gpu) = &mut self.gpu {
-                    gpu.draw(&mut self.app);
+                if self.redraw_frame() {
+                    if let Some(input) = self.app.world_mut().resource_mut::<Input>() {
+                        input.pointer.pressed = false;
+                        input.scroll = [0.0, 0.0];
+                        input.key = None;
+                        input.chars.clear();
+                    }
                 }
                 if self
                     .app

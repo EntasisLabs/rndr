@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
-use rndr_core::{App, Input, Viewport};
-use rndr_paint::{atlas_r8, paint, Quad, ATLAS_H, ATLAS_W};
+use rndr_paint::{atlas_r8, Quad, ATLAS_H, ATLAS_W};
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
@@ -309,25 +308,11 @@ impl Gpu {
         self.surface.configure(&self.device, &self.config);
     }
 
-    pub fn draw(&mut self, app: &mut App) {
-        let size = self.window.inner_size();
-        let scale = crate::positive_scale(self.window.scale_factor());
-        if let Some(viewport) = app.world_mut().resource_mut::<Viewport>() {
-            viewport.width = size.width.max(1) as f32 / scale;
-            viewport.height = size.height.max(1) as f32 / scale;
-            viewport.scale = scale;
-        }
-        app.update();
-
-        let quads = paint(app.world());
-        let scale = app
-            .world()
-            .resource::<Viewport>()
-            .map(|viewport| viewport.pixels_per_point())
-            .unwrap_or(1.0);
-        let instances = pack_instances(&quads, scale);
-        app.render();
-
+    /// Upload quads in points and present them at a physical pixel size.
+    /// Returns false when the surface was not presented, so the caller can keep
+    /// this frame's input edges for the next redraw.
+    pub fn present(&mut self, quads: &[Quad], width: u32, height: u32, scale: f32) -> bool {
+        let instances = pack_instances(quads, scale);
         let needed = instances.len() as u64 / INSTANCE_FLOATS as u64;
         if needed > self.instance_capacity {
             self.instance_capacity = needed.max(self.instance_capacity * 2);
@@ -340,8 +325,8 @@ impl Gpu {
         }
 
         let mut uniform = [0u8; 16];
-        uniform[0..4].copy_from_slice(&(size.width.max(1) as f32).to_le_bytes());
-        uniform[4..8].copy_from_slice(&(size.height.max(1) as f32).to_le_bytes());
+        uniform[0..4].copy_from_slice(&(width as f32).to_le_bytes());
+        uniform[4..8].copy_from_slice(&(height as f32).to_le_bytes());
         self.queue.write_buffer(&self.uniform, 0, &uniform);
 
         let mut bytes = Vec::with_capacity(instances.len() * 4);
@@ -357,11 +342,11 @@ impl Gpu {
             | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
             wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
                 self.surface.configure(&self.device, &self.config);
-                return;
+                return false;
             }
             wgpu::CurrentSurfaceTexture::Timeout
             | wgpu::CurrentSurfaceTexture::Occluded
-            | wgpu::CurrentSurfaceTexture::Validation => return,
+            | wgpu::CurrentSurfaceTexture::Validation => return false,
         };
         let view = texture
             .texture
@@ -404,13 +389,7 @@ impl Gpu {
         }
         self.queue.submit(Some(encoder.finish()));
         self.queue.present(texture);
-
-        if let Some(input) = app.world_mut().resource_mut::<Input>() {
-            input.pointer.pressed = false;
-            input.scroll = [0.0, 0.0];
-            input.key = None;
-            input.chars.clear();
-        }
+        true
     }
 }
 
