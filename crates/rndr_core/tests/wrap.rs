@@ -1,7 +1,7 @@
 use rndr_core::{
     detail_pane, field_height, field_height_lines, set_editing_field, set_selection, spawn_node,
-    wrap_lines, App, Body, Caret, Color, EditField, Field, Input, Key, Layout, NodeSpec, Pane,
-    Shell, Size, Viewport, VisualLine, World,
+    wrap_lines, App, Body, Caret, Color, EditField, Field, Input, Key, NodeSpec, Pane, Shell,
+    Viewport, VisualLine, World,
 };
 
 fn ranges(text: &str, cols: usize) -> Vec<(usize, usize)> {
@@ -98,9 +98,9 @@ fn narrow_body_wraps_without_inserting_newlines() {
     assert_eq!(app.world().get::<Body>(alpha).unwrap().text, "a".repeat(20));
     assert!(!app.world().get::<Body>(alpha).unwrap().text.contains('\n'));
     let body = pane_field(app.world(), EditField::Body);
-    let height = app.world().get::<Layout>(body).unwrap().height;
-    assert_ne!(height, Size::Px(field_height("aaaaaaaaaaaaaaaaaaaa")));
-    assert_eq!(height, Size::Px(field_height_lines(3)));
+    let height = app.world().get::<rndr_core::Rect>(body).unwrap().h;
+    assert_ne!(height, field_height("aaaaaaaaaaaaaaaaaaaa"));
+    assert_eq!(height, field_height_lines(3));
 }
 
 #[test]

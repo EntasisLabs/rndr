@@ -11,6 +11,8 @@ fn px_fill(w: f32) -> Layout {
         padding: 0.0,
         width: Size::Px(w),
         height: Size::Fill,
+        min_width: 0.0,
+        min_height: 0.0,
     }
 }
 
@@ -21,6 +23,8 @@ fn fill_fill() -> Layout {
         padding: 0.0,
         width: Size::Fill,
         height: Size::Fill,
+        min_width: 0.0,
+        min_height: 0.0,
     }
 }
 
@@ -180,6 +184,8 @@ fn column_splitter_changes_leading_height() {
                 padding: 0.0,
                 width: Size::Fill,
                 height: Size::Fill,
+                min_width: 0.0,
+                min_height: 0.0,
             },
             Color::rgb(0.1, 0.1, 0.1),
         ));
@@ -190,6 +196,8 @@ fn column_splitter_changes_leading_height() {
                 padding: 0.0,
                 width: Size::Fill,
                 height: Size::Px(200.0),
+                min_width: 0.0,
+                min_height: 0.0,
             },
             Color::rgb(0.2, 0.2, 0.2),
         ));
@@ -201,6 +209,8 @@ fn column_splitter_changes_leading_height() {
                 padding: 0.0,
                 width: Size::Fill,
                 height: Size::Px(8.0),
+                min_width: 0.0,
+                min_height: 0.0,
             },
             Splitter::default(),
             Color::rgb(0.3, 0.3, 0.3),
@@ -233,6 +243,8 @@ fn seam_drag_inside_a_scrollport_does_not_scroll() {
                 padding: 0.0,
                 width: Size::Fill,
                 height: Size::Fill,
+                min_width: 0.0,
+                min_height: 0.0,
             },
             Scroll::default(),
             Color::rgb(0.1, 0.1, 0.1),
@@ -244,6 +256,8 @@ fn seam_drag_inside_a_scrollport_does_not_scroll() {
                 padding: 0.0,
                 width: Size::Fill,
                 height: Size::Px(80.0),
+                min_width: 0.0,
+                min_height: 0.0,
             },
             Color::rgb(0.2, 0.2, 0.2),
         ));
@@ -255,6 +269,8 @@ fn seam_drag_inside_a_scrollport_does_not_scroll() {
                 padding: 0.0,
                 width: Size::Fill,
                 height: Size::Px(8.0),
+                min_width: 0.0,
+                min_height: 0.0,
             },
             Splitter {
                 min_leading: 40.0,
@@ -270,6 +286,8 @@ fn seam_drag_inside_a_scrollport_does_not_scroll() {
                 padding: 0.0,
                 width: Size::Fill,
                 height: Size::Px(400.0),
+                min_width: 0.0,
+                min_height: 0.0,
             },
             Color::rgb(0.4, 0.4, 0.4),
         ));

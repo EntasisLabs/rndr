@@ -11,6 +11,8 @@ fn px(w: f32, h: f32) -> Layout {
         padding: 0.0,
         width: Size::Px(w),
         height: Size::Px(h),
+        min_width: 0.0,
+        min_height: 0.0,
     }
 }
 
@@ -25,6 +27,8 @@ fn column_with_padding_and_nested_row() {
         padding: 8.0,
         width: Size::Hug,
         height: Size::Hug,
+        min_width: 0.0,
+        min_height: 0.0,
     });
     let row = world.spawn(Layout {
         axis: Axis::Row,
@@ -32,6 +36,8 @@ fn column_with_padding_and_nested_row() {
         padding: 0.0,
         width: Size::Hug,
         height: Size::Hug,
+        min_width: 0.0,
+        min_height: 0.0,
     });
     let a = world.spawn(px(10.0, 10.0));
     let b = world.spawn(px(10.0, 10.0));
@@ -95,6 +101,8 @@ fn cascade_despawn_closes_the_gap() {
         padding: 0.0,
         width: Size::Hug,
         height: Size::Hug,
+        min_width: 0.0,
+        min_height: 0.0,
     });
     let first = world.spawn(px(20.0, 20.0));
     let middle = world.spawn(px(20.0, 20.0));
@@ -131,6 +139,8 @@ fn hit_test_prefers_the_deepest_rect() {
         padding: 0.0,
         width: Size::Px(100.0),
         height: Size::Px(100.0),
+        min_width: 0.0,
+        min_height: 0.0,
     });
     let child = world.spawn(px(40.0, 40.0));
     set_parent(&mut world, child, parent);
@@ -151,6 +161,8 @@ fn later_sibling_wins_hit_test() {
         padding: 0.0,
         width: Size::Hug,
         height: Size::Hug,
+        min_width: 0.0,
+        min_height: 0.0,
     });
     let first = world.spawn(px(20.0, 20.0));
     let second = world.spawn(px(20.0, 20.0));
@@ -200,6 +212,8 @@ fn fill_column() -> Layout {
         padding: 0.0,
         width: Size::Fill,
         height: Size::Fill,
+        min_width: 0.0,
+        min_height: 0.0,
     }
 }
 
@@ -323,6 +337,46 @@ fn insets_place_the_root_inside_the_safe_rect() {
     );
     assert_eq!(hit_test(&world, 4.0, 4.0), None);
     assert_eq!(hit_test(&world, 8.0, 10.0), Some(root));
+}
+
+#[test]
+fn fill_respects_min_height() {
+    let mut world = World::new();
+    world.insert_resource(Viewport::new(100.0, 20.0));
+    let parent = world.spawn(fill_column());
+    let mut child = fill_column();
+    child.min_height = 30.0;
+    let child = world.spawn(child);
+    set_parent(&mut world, child, parent);
+    layout_propagate(&mut world);
+    assert_eq!(world.get::<Rect>(child).unwrap().h, 30.0);
+}
+
+#[test]
+fn scale_snaps_edges_to_physical_pixels() {
+    let mut world = World::new();
+    let mut viewport = Viewport::new(100.0, 50.0);
+    viewport.scale = 2.0;
+    world.insert_resource(viewport);
+    let node = world.spawn(px(10.25, 8.2));
+    layout_propagate(&mut world);
+    let rect = *world.get::<Rect>(node).unwrap();
+    assert_eq!(rect.w, 10.5);
+    assert_eq!(rect.h, 8.0);
+}
+
+#[test]
+fn hug_label_uses_the_face_line_height() {
+    let mut world = World::new();
+    world.insert_resource(Viewport::new(200.0, 200.0));
+    let mut layout = Layout::column();
+    layout.height = Size::Hug;
+    layout.width = Size::Px(200.0);
+    let node = world.spawn((layout, rndr_core::Label::new("hello")));
+    layout_propagate(&mut world);
+    let rect = *world.get::<Rect>(node).unwrap();
+    assert_eq!(rect.h, 36.0);
+    assert_eq!(rect.w, 200.0);
 }
 
 #[test]

@@ -51,7 +51,7 @@ Layout, hit-testing, and scroll are in logical points. `Viewport.scale` is physi
 
 Headless tests call `frame` and never open a window. The desktop runner is the only thing that calls winit.
 
-Text measurement is a [`Font`](crates/rndr_core/src/font.rs) in core. `layout_text` wraps on advances and places glyph boxes. After rects are final, the frame writes a `TextLayout` onto each label. Paint reads that run and snaps glyph edges to physical pixels. [`BitmapFont`](crates/rndr_core/src/font.rs) is the face when none is inserted: one cell per scalar, the same 8×8 atlas as before. The expand demo inserts [`LatinFace`](crates/rndr_paint/src/latin.rs), a proportional ASCII atlas rasterized from Inter Regular. A `TextFace` resource swaps the face without touching the caret, the splitter, or the file tree.
+Text measurement is a [`Font`](crates/rndr_core/src/font.rs) in core. `layout_text` wraps on advances and places glyph boxes. A hugging label takes its height from that measurement, and `Layout.min_width` / `min_height` keep a fill from squashing it. Placed edges snap to physical pixels. After rects are final, the frame writes a `TextLayout` onto each label. Paint reads that run and snaps glyph edges to physical pixels. [`BitmapFont`](crates/rndr_core/src/font.rs) is the face when none is inserted: one cell per scalar, the same 8×8 atlas as before. The expand demo inserts [`LatinFace`](crates/rndr_paint/src/latin.rs), a proportional ASCII atlas rasterized from Inter Regular. A `TextFace` resource swaps the face without touching the caret, the splitter, or the file tree.
 
 ## Demo
 

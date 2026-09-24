@@ -144,6 +144,8 @@ pub fn page_layout() -> Layout {
         padding: 16.0,
         width: Size::Fill,
         height: Size::Hug,
+        min_width: 0.0,
+        min_height: 0.0,
     }
 }
 
@@ -156,6 +158,8 @@ pub fn scroll_page() -> (Layout, Scroll) {
             padding: 16.0,
             width: Size::Fill,
             height: Size::Fill,
+            min_width: 0.0,
+            min_height: 0.0,
         },
         Scroll::default(),
     )

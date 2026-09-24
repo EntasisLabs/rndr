@@ -182,8 +182,8 @@ fn enter_in_the_body_inserts_a_newline() {
     assert_eq!(app.world().get::<Body>(alpha).unwrap().text, "x\n");
     let body = pane_field(app.world(), EditField::Body);
     assert_eq!(
-        app.world().get::<rndr_core::Layout>(body).unwrap().height,
-        rndr_core::Size::Px(field_height("x\n"))
+        app.world().get::<rndr_core::Rect>(body).unwrap().h,
+        field_height("x\n")
     );
     assert!(!app.world().get::<Disclosure>(alpha).unwrap().open);
 }
