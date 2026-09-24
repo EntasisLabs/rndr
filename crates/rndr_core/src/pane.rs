@@ -5,6 +5,7 @@ use crate::hierarchy::{children_of, despawn, set_parent};
 use crate::layout::{Axis, Layout, Scroll, Size};
 use crate::split::Splitter;
 use crate::style::{Body, Color, Label};
+use crate::theme::theme_of;
 use crate::world::{Component, World};
 
 impl Component for Pane {}
@@ -111,7 +112,7 @@ fn sync_pane(world: &mut World, pane: Entity, selected: Option<Entity>) {
             return;
         }
         clear_pane(world, pane);
-        let empty = body_row(world, pane, "Nothing open", Color::rgb(0.16, 0.17, 0.19));
+        let empty = body_row(world, pane, "Nothing open", theme_of(world).empty);
         if let Some(p) = world.get_mut::<Pane>(pane) {
             p.spawned = vec![empty];
             p.shown = None;
@@ -170,11 +171,12 @@ fn spawn_body(world: &mut World, pane: Entity, selected: Entity) -> Vec<Entity> 
         .unwrap_or_default();
 
     let mut spawned = Vec::new();
+    let theme = theme_of(world);
     spawned.push(field_row(
         world,
         pane,
         title,
-        Color::rgb(0.22, 0.34, 0.48),
+        theme.title,
         Some(EditField::Title),
         36.0,
     ));
@@ -182,27 +184,13 @@ fn spawn_body(world: &mut World, pane: Entity, selected: Entity) -> Vec<Entity> 
         world,
         pane,
         body.clone(),
-        Color::rgb(0.14, 0.16, 0.20),
+        theme.body,
         Some(EditField::Body),
         field_height(&body),
     ));
-    spawned.push(field_row(
-        world,
-        pane,
-        status,
-        Color::rgb(0.18, 0.22, 0.26),
-        None,
-        36.0,
-    ));
+    spawned.push(field_row(world, pane, status, theme.status, None, 36.0));
     for label in child_labels {
-        spawned.push(field_row(
-            world,
-            pane,
-            label,
-            Color::rgb(0.20, 0.28, 0.30),
-            None,
-            36.0,
-        ));
+        spawned.push(field_row(world, pane, label, theme.child, None, 36.0));
     }
     spawned
 }

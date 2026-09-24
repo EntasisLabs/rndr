@@ -1,7 +1,7 @@
 use rndr_core::{layout_text, Font};
 use rndr_core::{
-    App, Caret, Clip, Color, Label, Rect, Schedule, World, CELL_H, CELL_W, TEXT_ORIGIN_X,
-    TEXT_ORIGIN_Y,
+    App, Caret, Clip, Color, Label, Radius, Rect, Schedule, Theme, World, CELL_H, CELL_W,
+    TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
 use rndr_paint::{frame, glyph_uv, paint, solid_uv, LatinFace};
 
@@ -94,6 +94,21 @@ fn spawn_swatch(world: &mut World) {
         },
         Color::rgb(0.1, 0.2, 0.3),
     ));
+}
+
+#[test]
+fn radius_is_on_the_solid_and_not_the_glyphs() {
+    let mut world = World::new();
+    world.spawn((
+        rect(),
+        Color::rgb(0.2, 0.22, 0.24),
+        Label::new("A"),
+        Radius(6.0),
+    ));
+    let quads = paint(&world);
+    assert_eq!(quads[0].radius, 6.0);
+    assert_eq!(quads[1].radius, 0.0);
+    assert_eq!(quads[1].color.r, Theme::default().text.r);
 }
 
 #[test]

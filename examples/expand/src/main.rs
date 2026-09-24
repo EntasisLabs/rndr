@@ -2,29 +2,36 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use rndr_core::{
-    detail_pane, set_parent, shell, spawn_fs_node, splitter, tree_column, App, Color, Schedule,
-    Shell, TextFace, World,
+    detail_pane, set_parent, shell, spawn_fs_node, splitter, theme_of, tree_column, App, Radius,
+    Schedule, Shell, TextFace, Theme, World,
 };
 use rndr_paint::LatinFace;
 use rndr_render::run;
 use rndr_std::StdFsPlugin;
 
 fn setup(world: &mut World) {
-    let root = world.spawn((shell(), Color::rgb(0.08, 0.09, 0.10)));
+    let theme = theme_of(world);
+    let root = world.spawn((shell(), theme.canvas));
 
     let (tree_layout, tree_scroll) = tree_column();
-    let tree = world.spawn((tree_layout, tree_scroll, Color::rgb(0.10, 0.11, 0.13)));
+    let tree = world.spawn((tree_layout, tree_scroll, theme.tree, Radius(theme.radius)));
     set_parent(world, tree, root);
 
     let node = spawn_fs_node(world, demo_root());
     set_parent(world, node, tree);
 
     let (split_layout, split) = splitter();
-    let seam = world.spawn((split_layout, split, Color::rgb(0.06, 0.07, 0.08)));
+    let seam = world.spawn((split_layout, split, theme.seam));
     set_parent(world, seam, root);
 
     let (pane_layout, pane_scroll, pane) = detail_pane();
-    let detail = world.spawn((pane_layout, pane_scroll, pane, Color::rgb(0.12, 0.13, 0.15)));
+    let detail = world.spawn((
+        pane_layout,
+        pane_scroll,
+        pane,
+        theme.pane,
+        Radius(theme.radius),
+    ));
     set_parent(world, detail, root);
 }
 
@@ -44,6 +51,7 @@ fn main() {
     app.add_plugin(Shell);
     app.world_mut()
         .insert_resource(TextFace(Arc::new(LatinFace)));
+    app.world_mut().insert_resource(Theme::default());
     app.add_system(Schedule::Startup, setup);
     run(app);
 }

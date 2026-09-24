@@ -11,9 +11,9 @@ pub use font::{atlas_r8, glyph_uv, solid_uv, ATLAS_H, ATLAS_W};
 pub use latin::LatinFace;
 
 use rndr_core::{
-    children_of, field_text_width, layout_text, roots, text_face, App, Caret, Clip, Color,
-    DirtyMark, EditField, Field, Focus, Label, Parent, Rect, TextLayout, Viewport, World, CELL_H,
-    TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
+    children_of, field_text_width, layout_text, roots, text_face, theme_of, App, Caret, Clip,
+    Color, DirtyMark, EditField, Field, Focus, Label, Parent, Radius, Rect, TextLayout, Viewport,
+    World, CELL_H, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
 
 /// One instanced quad in logical points.
@@ -23,6 +23,8 @@ pub struct Quad {
     pub color: Color,
     pub uv: [f32; 4],
     pub clip: Clip,
+    /// Corner radius in logical points. Zero keeps a square.
+    pub radius: f32,
 }
 
 /// One world frame, then the quads in points.
@@ -45,6 +47,7 @@ pub fn paint(world: &World) -> Vec<Quad> {
         .map(|viewport| viewport.pixels_per_point())
         .unwrap_or(1.0);
     let solid = text_face(world).solid_uv();
+    let theme = theme_of(world);
     for root in roots::<Rect>(world) {
         walk(world, root, &mut |rect,
                                 color,
@@ -52,19 +55,38 @@ pub fn paint(world: &World) -> Vec<Quad> {
                                 _label,
                                 caret,
                                 dirty,
-                                layout| {
-            push(&mut out, rect, color, solid, clip);
+                                layout,
+                                radius| {
+            push(&mut out, rect, color, solid, clip, radius);
             if dirty {
-                push_dirty_mark(&mut out, rect, clip, solid);
+                push_dirty_mark(&mut out, rect, clip, solid, theme.dirty);
             }
             if let (Some(layout), Some(caret)) = (layout.as_ref(), caret) {
-                push_selection(&mut out, rect, layout, caret, clip, solid, scale);
+                push_selection(
+                    &mut out,
+                    rect,
+                    layout,
+                    caret,
+                    clip,
+                    solid,
+                    scale,
+                    theme.selection,
+                );
             }
             if let Some(layout) = layout.as_ref() {
-                push_label(&mut out, rect, layout, clip, scale);
+                push_label(&mut out, rect, layout, clip, scale, theme.text);
             }
             if let Some(caret) = caret {
-                push_caret(&mut out, rect, layout.as_ref(), caret, clip, solid, scale);
+                push_caret(
+                    &mut out,
+                    rect,
+                    layout.as_ref(),
+                    caret,
+                    clip,
+                    solid,
+                    scale,
+                    theme.caret,
+                );
             }
         });
     }
@@ -74,7 +96,16 @@ pub fn paint(world: &World) -> Vec<Quad> {
 fn walk(
     world: &World,
     entity: rndr_core::Entity,
-    visit: &mut impl FnMut(Rect, Color, Clip, Option<&Label>, Option<&Caret>, bool, Option<TextLayout>),
+    visit: &mut impl FnMut(
+        Rect,
+        Color,
+        Clip,
+        Option<&Label>,
+        Option<&Caret>,
+        bool,
+        Option<TextLayout>,
+        f32,
+    ),
 ) {
     if !world.is_alive(entity) {
         return;
@@ -98,6 +129,10 @@ fn walk(
                 .cloned()
                 .unwrap_or_else(|| measured(world, entity, &label.text, *rect))
         });
+        let radius = world
+            .get::<Radius>(entity)
+            .map(|radius| radius.0)
+            .unwrap_or(0.0);
         visit(
             *rect,
             color,
@@ -106,6 +141,7 @@ fn walk(
             world.get::<Caret>(entity),
             dirty,
             layout,
+            radius,
         );
     }
     for child in children_of(world, entity) {
@@ -122,12 +158,13 @@ fn lighten(color: Color) -> Color {
     )
 }
 
-fn push(out: &mut Vec<Quad>, rect: Rect, color: Color, uv: [f32; 4], clip: Clip) {
+fn push(out: &mut Vec<Quad>, rect: Rect, color: Color, uv: [f32; 4], clip: Clip, radius: f32) {
     out.push(Quad {
         rect,
         color,
         uv,
         clip,
+        radius,
     });
 }
 
@@ -153,7 +190,7 @@ fn snap_box(x: f32, y: f32, w: f32, h: f32, scale: f32) -> Rect {
     }
 }
 
-fn push_dirty_mark(out: &mut Vec<Quad>, rect: Rect, clip: Clip, solid: [f32; 4]) {
+fn push_dirty_mark(out: &mut Vec<Quad>, rect: Rect, clip: Clip, solid: [f32; 4], color: Color) {
     let size = 6.0;
     push(
         out,
@@ -163,9 +200,10 @@ fn push_dirty_mark(out: &mut Vec<Quad>, rect: Rect, clip: Clip, solid: [f32; 4])
             w: size,
             h: size,
         },
-        Color::rgb(0.86, 0.62, 0.20),
+        color,
         solid,
         clip,
+        size * 0.5,
     );
 }
 
@@ -190,8 +228,8 @@ fn push_selection(
     clip: Clip,
     solid: [f32; 4],
     scale: f32,
+    color: Color,
 ) {
-    let color = Color::rgba(0.35, 0.55, 0.85, 0.55);
     for span in layout.selection_boxes(caret.anchor, caret.index) {
         push(
             out,
@@ -205,12 +243,19 @@ fn push_selection(
             color,
             solid,
             clip,
+            0.0,
         );
     }
 }
 
-fn push_label(out: &mut Vec<Quad>, rect: Rect, layout: &TextLayout, clip: Clip, scale: f32) {
-    let color = Color::rgb(0.94, 0.95, 0.97);
+fn push_label(
+    out: &mut Vec<Quad>,
+    rect: Rect,
+    layout: &TextLayout,
+    clip: Clip,
+    scale: f32,
+    color: Color,
+) {
     for glyph in &layout.glyphs {
         push(
             out,
@@ -224,6 +269,7 @@ fn push_label(out: &mut Vec<Quad>, rect: Rect, layout: &TextLayout, clip: Clip, 
             color,
             glyph.uv,
             clip,
+            0.0,
         );
     }
 }
@@ -236,6 +282,7 @@ fn push_caret(
     clip: Clip,
     solid: [f32; 4],
     scale: f32,
+    color: Color,
 ) {
     let (x, y, h) = layout
         .map(|layout| {
@@ -253,8 +300,9 @@ fn push_caret(
             h,
             scale,
         ),
-        Color::rgb(0.94, 0.95, 0.97),
+        color,
         solid,
         clip,
+        0.0,
     );
 }

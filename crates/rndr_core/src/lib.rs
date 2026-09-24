@@ -18,6 +18,7 @@ mod pane;
 mod shell;
 mod split;
 mod style;
+mod theme;
 mod world;
 mod wrap;
 
@@ -54,6 +55,7 @@ pub use pane::{
 pub use shell::Shell;
 pub use split::{apply_split, Drag, Splitter};
 pub use style::{Body, Color, Label, CELL_H, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
+pub use theme::{theme_of, Radius, Theme};
 pub use world::{Bundle, Component, World};
 pub use wrap::{
     apply_wrap, cols_for, field_height_lines, index_at_pointer, index_at_visual, layout_of,
