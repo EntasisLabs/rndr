@@ -392,6 +392,7 @@ name = "expand"
 version = "0.1.0"
 dependencies = [
  "rndr_core",
+ "rndr_paint",
  "rndr_render",
  "rndr_std",
 ]

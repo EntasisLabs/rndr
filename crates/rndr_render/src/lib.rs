@@ -4,8 +4,8 @@ mod gpu;
 
 use std::sync::Arc;
 
-use rndr_core::{App, Input, Key as Action, Pointer, Viewport, MOUSE_ID};
-use rndr_paint::frame;
+use rndr_core::{text_face, App, Input, Key as Action, Pointer, Viewport, MOUSE_ID};
+use rndr_paint::{atlas_r8, frame, ATLAS_H, ATLAS_W};
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
@@ -141,7 +141,19 @@ impl ApplicationHandler for Handler {
             .with_title("rndr")
             .with_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0));
         let window = Arc::new(event_loop.create_window(attrs).expect("window"));
-        let gpu = pollster::block_on(Gpu::new(event_loop.owned_display_handle(), window));
+        let face = text_face(self.app.world());
+        let (atlas_w, atlas_h, atlas_pixels) = if let Some(atlas) = face.atlas() {
+            (atlas.width, atlas.height, atlas.r8.to_vec())
+        } else {
+            (ATLAS_W, ATLAS_H, atlas_r8())
+        };
+        let gpu = pollster::block_on(Gpu::new(
+            event_loop.owned_display_handle(),
+            window,
+            atlas_w,
+            atlas_h,
+            &atlas_pixels,
+        ));
         gpu.window().request_redraw();
         self.gpu = Some(gpu);
     }

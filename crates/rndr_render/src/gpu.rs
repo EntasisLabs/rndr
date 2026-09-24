@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use rndr_paint::{atlas_r8, Quad, ATLAS_H, ATLAS_W};
+use rndr_paint::Quad;
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
@@ -76,7 +76,13 @@ pub struct Gpu {
 }
 
 impl Gpu {
-    pub async fn new(display: winit::event_loop::OwnedDisplayHandle, window: Arc<Window>) -> Self {
+    pub async fn new(
+        display: winit::event_loop::OwnedDisplayHandle,
+        window: Arc<Window>,
+        atlas_w: u32,
+        atlas_h: u32,
+        atlas_pixels: &[u8],
+    ) -> Self {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_with_display_handle(
             Box::new(display),
         ));
@@ -116,12 +122,11 @@ impl Gpu {
             mapped_at_creation: false,
         });
 
-        let atlas_pixels = atlas_r8();
         let atlas = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("atlas"),
             size: wgpu::Extent3d {
-                width: ATLAS_W,
-                height: ATLAS_H,
+                width: atlas_w,
+                height: atlas_h,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
@@ -141,12 +146,12 @@ impl Gpu {
             &atlas_pixels,
             wgpu::TexelCopyBufferLayout {
                 offset: 0,
-                bytes_per_row: Some(ATLAS_W),
-                rows_per_image: Some(ATLAS_H),
+                bytes_per_row: Some(atlas_w),
+                rows_per_image: Some(atlas_h),
             },
             wgpu::Extent3d {
-                width: ATLAS_W,
-                height: ATLAS_H,
+                width: atlas_w,
+                height: atlas_h,
                 depth_or_array_layers: 1,
             },
         );

@@ -1,9 +1,11 @@
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use rndr_core::{
     detail_pane, set_parent, shell, spawn_fs_node, splitter, tree_column, App, Color, Schedule,
-    Shell, World,
+    Shell, TextFace, World,
 };
+use rndr_paint::LatinFace;
 use rndr_render::run;
 use rndr_std::StdFsPlugin;
 
@@ -40,6 +42,8 @@ fn main() {
     let mut app = App::new();
     app.add_plugin(StdFsPlugin);
     app.add_plugin(Shell);
+    app.world_mut()
+        .insert_resource(TextFace(Arc::new(LatinFace)));
     app.add_system(Schedule::Startup, setup);
     run(app);
 }

@@ -26,11 +26,16 @@ pub fn cols_for(width: f32) -> usize {
     (inner / GLYPH_PX).floor().max(1.0) as usize
 }
 
-/// Height that fits `n` glyph rows, and at least one tree row.
-pub fn field_height_lines(n: usize) -> f32 {
+/// Height that fits `n` rows of `line_h`, and at least one tree row.
+pub fn field_height_for(n: usize, line_h: f32) -> f32 {
     let lines = n.max(1) as f32;
-    let h = TEXT_ORIGIN_Y + lines * CELL_H + TEXT_ORIGIN_Y;
+    let h = TEXT_ORIGIN_Y + lines * line_h + TEXT_ORIGIN_Y;
     h.max(36.0)
+}
+
+/// Height that fits `n` bitmap glyph rows, and at least one tree row.
+pub fn field_height_lines(n: usize) -> f32 {
+    field_height_for(n, CELL_H)
 }
 
 /// Greedy wrap on the bitmap face. `\n` always starts a new row.
@@ -148,16 +153,16 @@ pub fn apply_wrap(world: &mut World) {
                 .get::<Rect>(entity)
                 .map(|rect| rect.w)
                 .or_else(|| pane_inner_width(world, pane));
+            let font = text_face(world);
             let n = match width {
                 Some(width) => {
-                    let font = text_face(world);
                     let max = field_text_width(width, font.advance('0'));
                     layout_text(font.as_ref(), &text, max).lines.len()
                 }
                 None => text.split('\n').count().max(1),
             };
             if let Some(layout) = world.get_mut::<Layout>(entity) {
-                layout.height = Size::Px(field_height_lines(n));
+                layout.height = Size::Px(field_height_for(n, font.line_height()));
             }
         }
     }
