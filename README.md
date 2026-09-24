@@ -32,8 +32,8 @@ Application
 
 | Crate | Role |
 | --- | --- |
-| `rndr_core` | ECS, layout, clip, scroll, disclosure, focus, pane, split, caret, body, wrap, `Files` |
-| `rndr_paint` | `frame`: update, then quads in points. 8×8 ASCII atlas |
+| `rndr_core` | ECS, layout, clip, scroll, disclosure, focus, pane, split, caret, body, wrap, `Font`, `Files` |
+| `rndr_paint` | `frame`: update, then quads in points. Reads a `TextLayout`. The bitmap face is an 8×8 ASCII atlas |
 | `rndr_std` | `std::fs` plugin |
 | `rndr_render` | winit window writes `Input` and `Viewport`, then presents quads |
 | `examples/expand` | File-backed expand demo: folder tree, pane, splitter, caret, create, delete |
@@ -50,6 +50,8 @@ Layout, hit-testing, and scroll are in logical points. `Viewport.scale` is physi
 4. The surface multiplies by `scale` and presents.
 
 Headless tests call `frame` and never open a window. The desktop runner is the only thing that calls winit.
+
+Text measurement is a [`Font`](crates/rndr_core/src/font.rs) in core. `layout_text` wraps on advances and places glyph boxes. After rects are final, the frame writes a `TextLayout` onto each label. Paint reads that run. [`BitmapFont`](crates/rndr_core/src/font.rs) is the face when none is inserted: one cell per scalar, the same 8×8 atlas as before. A `TextFace` resource swaps the face without touching the caret, the splitter, or the file tree.
 
 ## Demo
 

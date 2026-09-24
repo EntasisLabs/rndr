@@ -8,6 +8,7 @@ mod caret;
 mod disclosure;
 mod entity;
 mod focus;
+mod font;
 mod fs;
 mod hierarchy;
 mod input;
@@ -31,6 +32,10 @@ pub use disclosure::{
 };
 pub use entity::Entity;
 pub use focus::apply_focus;
+pub use font::{
+    apply_text_layout, field_text_width, layout_text, line_col, text_face, BitmapFont, Font,
+    GlyphBox, PlacedGlyph, SelectionBox, TextFace, TextLayout, TextLine,
+};
 pub use fs::{
     apply_dirty_marks, apply_fs_edit, apply_fs_load, apply_fs_save, spawn_fs_node, DirEntry, Dirty,
     DirtyMark, Files, Fs, FsPath,
@@ -51,6 +56,7 @@ pub use split::{apply_split, Drag, Splitter};
 pub use style::{Body, Color, Label, CELL_H, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
 pub use world::{Bundle, Component, World};
 pub use wrap::{
-    apply_wrap, cols_for, field_height_lines, index_at_pointer, index_at_visual, visual_pos,
-    visual_selection_spans, wrap_lines, VisualLine, GLYPH_PX, TEXT_INSET_X, TEXT_INSET_Y,
+    apply_wrap, cols_for, field_height_lines, index_at_pointer, index_at_visual, layout_of,
+    visual_pos, visual_selection_spans, wrap_lines, VisualLine, GLYPH_PX, TEXT_INSET_X,
+    TEXT_INSET_Y,
 };

@@ -7,8 +7,7 @@ use crate::pane::{field_height, Pane};
 use crate::style::{Body, Label};
 use crate::world::{Component, World};
 use crate::wrap::{
-    cols_for, index_at_pointer, index_at_visual, visual_pos, visual_selection_spans, wrap_lines,
-    GLYPH_PX, TEXT_INSET_Y,
+    layout_of, visual_pos, visual_selection_spans, wrap_lines, GLYPH_PX, TEXT_INSET_X, TEXT_INSET_Y,
 };
 
 impl Component for Caret {}
@@ -264,15 +263,8 @@ fn place_caret_from_pointer(world: &mut World, row: Entity, existed: bool) {
         .get::<Label>(row)
         .map(|label| label.text.clone())
         .unwrap_or_default();
-    let cols = if world
-        .get::<Field>(row)
-        .is_some_and(|field| field.kind == EditField::Body)
-    {
-        cols_for(rect.w)
-    } else {
-        usize::MAX
-    };
-    let index = index_at_pointer(&text, cols, rect, x, y);
+    let layout = layout_of(world, row, &text);
+    let index = layout.index_at(x - rect.x - TEXT_INSET_X, y - rect.y - TEXT_INSET_Y);
     if let Some(caret) = world.get_mut::<Caret>(row) {
         caret.index = index;
         if !(shift && existed) {
@@ -373,14 +365,25 @@ fn is_printable_ascii(ch: char) -> bool {
 }
 
 fn move_visual_line(world: &World, row: Entity, text: &str, index: usize, delta: isize) -> usize {
-    let cols = world
-        .get::<Rect>(row)
-        .map(|rect| cols_for(rect.w))
-        .unwrap_or(usize::MAX);
-    let lines = wrap_lines(text, cols);
-    let (line, col) = visual_pos(&lines, index);
-    let next = (line as isize + delta).clamp(0, lines.len().saturating_sub(1) as isize) as usize;
-    index_at_visual(&lines, next, col)
+    let layout = layout_of(world, row, text);
+    if layout.lines.is_empty() {
+        return index;
+    }
+    let (line, _) = layout_line_col(&layout, index);
+    let (x, _) = layout.caret_xy(index);
+    let next = (line as isize + delta).clamp(0, layout.lines.len().saturating_sub(1) as isize);
+    layout.index_on_line(next as usize, x)
+}
+
+fn layout_line_col(layout: &crate::font::TextLayout, index: usize) -> (usize, usize) {
+    crate::font::line_col(
+        &layout
+            .lines
+            .iter()
+            .map(|line| (line.start, line.end))
+            .collect::<Vec<_>>(),
+        index,
+    )
 }
 
 fn ensure_caret_visible(world: &mut World) {
@@ -424,22 +427,16 @@ fn ensure_caret_visible(world: &mut World) {
 }
 
 fn caret_line_rect(world: &World, entity: Entity, rect: Rect) -> (f32, f32) {
-    let wrap = world
-        .get::<Field>(entity)
-        .is_some_and(|field| field.kind == EditField::Body);
-    let line = if wrap {
-        let text = world
-            .get::<Label>(entity)
-            .map(|label| label.text.as_str())
-            .unwrap_or("");
-        let index = world
-            .get::<Caret>(entity)
-            .map(|caret| caret.index)
-            .unwrap_or(0);
-        let (line, _) = visual_pos(&wrap_lines(text, cols_for(rect.w)), index);
-        line
-    } else {
-        0
-    };
-    (rect.y + TEXT_INSET_Y + line as f32 * GLYPH_PX, GLYPH_PX)
+    let text = world
+        .get::<Label>(entity)
+        .map(|label| label.text.clone())
+        .unwrap_or_default();
+    let index = world
+        .get::<Caret>(entity)
+        .map(|caret| caret.index)
+        .unwrap_or(0);
+    let layout = layout_of(world, entity, &text);
+    let (_x, y) = layout.caret_xy(index);
+    let h = layout.lines.first().map(|line| line.h).unwrap_or(GLYPH_PX);
+    (rect.y + TEXT_INSET_Y + y, h)
 }

@@ -9,8 +9,8 @@ mod font;
 pub use font::{atlas_r8, glyph_uv, solid_uv, ATLAS_H, ATLAS_W};
 
 use rndr_core::{
-    children_of, cols_for, roots, visual_pos, visual_selection_spans, wrap_lines, App, Caret, Clip,
-    Color, DirtyMark, EditField, Field, Focus, Label, Parent, Rect, World, CELL_H, CELL_W,
+    children_of, field_text_width, layout_text, roots, text_face, App, Caret, Clip, Color,
+    DirtyMark, EditField, Field, Focus, Label, Parent, Rect, TextLayout, World, CELL_H,
     TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
 
@@ -42,22 +42,22 @@ pub fn paint(world: &World) -> Vec<Quad> {
         walk(world, root, &mut |rect,
                                 color,
                                 clip,
-                                label,
+                                _label,
                                 caret,
                                 dirty,
-                                wrap| {
+                                layout| {
             push(&mut out, rect, color, solid_uv(), clip);
             if dirty {
                 push_dirty_mark(&mut out, rect, clip);
             }
-            if let (Some(label), Some(caret)) = (label, caret) {
-                push_selection(&mut out, rect, label, caret, clip, wrap);
+            if let (Some(layout), Some(caret)) = (layout.as_ref(), caret) {
+                push_selection(&mut out, rect, layout, caret, clip);
             }
-            if let Some(label) = label {
-                push_label(&mut out, rect, label, clip, wrap);
+            if let Some(layout) = layout.as_ref() {
+                push_label(&mut out, rect, layout, clip);
             }
             if let Some(caret) = caret {
-                push_caret(&mut out, rect, label, caret, clip, wrap);
+                push_caret(&mut out, rect, layout.as_ref(), caret, clip);
             }
         });
     }
@@ -67,7 +67,7 @@ pub fn paint(world: &World) -> Vec<Quad> {
 fn walk(
     world: &World,
     entity: rndr_core::Entity,
-    visit: &mut impl FnMut(Rect, Color, Clip, Option<&Label>, Option<&Caret>, bool, bool),
+    visit: &mut impl FnMut(Rect, Color, Clip, Option<&Label>, Option<&Caret>, bool, Option<TextLayout>),
 ) {
     if !world.is_alive(entity) {
         return;
@@ -85,9 +85,12 @@ fn walk(
             || world.has::<Caret>(entity);
         let color = if highlight { lighten(*color) } else { *color };
         let dirty = world.has::<DirtyMark>(entity);
-        let wrap = world
-            .get::<Field>(entity)
-            .is_some_and(|field| field.kind == EditField::Body);
+        let layout = world.get::<Label>(entity).map(|label| {
+            world
+                .get::<TextLayout>(entity)
+                .cloned()
+                .unwrap_or_else(|| measured(world, entity, &label.text, *rect))
+        });
         visit(
             *rect,
             color,
@@ -95,7 +98,7 @@ fn walk(
             world.get::<Label>(entity),
             world.get::<Caret>(entity),
             dirty,
-            wrap,
+            layout,
         );
     }
     for child in children_of(world, entity) {
@@ -137,34 +140,29 @@ fn push_dirty_mark(out: &mut Vec<Quad>, rect: Rect, clip: Clip) {
     );
 }
 
-fn text_cols(rect: Rect, wrap: bool) -> usize {
-    if wrap {
-        cols_for(rect.w)
+fn measured(world: &World, entity: rndr_core::Entity, text: &str, rect: Rect) -> TextLayout {
+    let font = text_face(world);
+    let wrap = world
+        .get::<Field>(entity)
+        .is_some_and(|field| field.kind == EditField::Body);
+    let max_width = if wrap {
+        field_text_width(rect.w, font.advance('0'))
     } else {
-        usize::MAX
-    }
+        f32::INFINITY
+    };
+    layout_text(font.as_ref(), text, max_width)
 }
 
-fn push_selection(
-    out: &mut Vec<Quad>,
-    rect: Rect,
-    label: &Label,
-    caret: &Caret,
-    clip: Clip,
-    wrap: bool,
-) {
+fn push_selection(out: &mut Vec<Quad>, rect: Rect, layout: &TextLayout, caret: &Caret, clip: Clip) {
     let color = Color::rgba(0.35, 0.55, 0.85, 0.55);
-    let lines = wrap_lines(&label.text, text_cols(rect, wrap));
-    for (line, start_col, end_col) in visual_selection_spans(&lines, caret.anchor, caret.index) {
-        let cols = end_col.saturating_sub(start_col);
-        let w = if cols == 0 { 2.0 } else { cols as f32 * CELL_W };
+    for span in layout.selection_boxes(caret.anchor, caret.index) {
         push(
             out,
             Rect {
-                x: rect.x + TEXT_ORIGIN_X + start_col as f32 * CELL_W,
-                y: rect.y + TEXT_ORIGIN_Y + line as f32 * CELL_H,
-                w,
-                h: CELL_H,
+                x: rect.x + TEXT_ORIGIN_X + span.x,
+                y: rect.y + TEXT_ORIGIN_Y + span.y,
+                w: span.w,
+                h: span.h,
             },
             color,
             solid_uv(),
@@ -173,51 +171,49 @@ fn push_selection(
     }
 }
 
-fn push_label(out: &mut Vec<Quad>, rect: Rect, label: &Label, clip: Clip, wrap: bool) {
-    let mut y = rect.y + TEXT_ORIGIN_Y;
+fn push_label(out: &mut Vec<Quad>, rect: Rect, layout: &TextLayout, clip: Clip) {
     let color = Color::rgb(0.94, 0.95, 0.97);
-    for line in wrap_lines(&label.text, text_cols(rect, wrap)) {
-        let mut x = rect.x + TEXT_ORIGIN_X;
-        for ch in label.text[line.start..line.end].bytes() {
-            if ch == b' ' {
-                x += CELL_W;
-                continue;
-            }
-            push(
-                out,
-                Rect {
-                    x,
-                    y,
-                    w: CELL_W,
-                    h: CELL_H,
-                },
-                color,
-                glyph_uv(ch),
-                clip,
-            );
-            x += CELL_W;
+    for glyph in &layout.glyphs {
+        if !glyph.ch.is_ascii() {
+            continue;
         }
-        y += CELL_H;
+        let code = glyph.ch as u8;
+        push(
+            out,
+            Rect {
+                x: rect.x + TEXT_ORIGIN_X + glyph.x,
+                y: rect.y + TEXT_ORIGIN_Y + glyph.y,
+                w: glyph.w,
+                h: glyph.h,
+            },
+            color,
+            glyph_uv(code),
+            clip,
+        );
     }
 }
 
 fn push_caret(
     out: &mut Vec<Quad>,
     rect: Rect,
-    label: Option<&Label>,
+    layout: Option<&TextLayout>,
     caret: &Caret,
     clip: Clip,
-    wrap: bool,
 ) {
-    let text = label.map(|label| label.text.as_str()).unwrap_or("");
-    let (line, col) = visual_pos(&wrap_lines(text, text_cols(rect, wrap)), caret.index);
+    let (x, y, h) = layout
+        .map(|layout| {
+            let (x, y) = layout.caret_xy(caret.index);
+            let h = layout.lines.first().map(|line| line.h).unwrap_or(CELL_H);
+            (x, y, h)
+        })
+        .unwrap_or((0.0, 0.0, CELL_H));
     push(
         out,
         Rect {
-            x: rect.x + TEXT_ORIGIN_X + col as f32 * CELL_W,
-            y: rect.y + TEXT_ORIGIN_Y + line as f32 * CELL_H,
+            x: rect.x + TEXT_ORIGIN_X + x,
+            y: rect.y + TEXT_ORIGIN_Y + y,
             w: 2.0,
-            h: CELL_H,
+            h,
         },
         Color::rgb(0.94, 0.95, 0.97),
         solid_uv(),
