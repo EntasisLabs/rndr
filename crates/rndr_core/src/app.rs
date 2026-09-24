@@ -1,3 +1,4 @@
+use crate::font::apply_text_layout;
 use crate::input::{Input, Viewport};
 use crate::layout::layout_propagate;
 use crate::world::World;
@@ -82,6 +83,7 @@ impl App {
             system(&mut self.world);
         }
         layout_propagate(&mut self.world);
+        apply_text_layout(&mut self.world);
     }
 
     /// Extra render-schedule systems. The surface runs these after paint and before present.

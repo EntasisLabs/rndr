@@ -1,5 +1,6 @@
 use crate::caret::{EditField, Field};
 use crate::entity::Entity;
+use crate::font::{field_text_width, layout_text, line_col, text_face, BitmapFont, TextLayout};
 use crate::layout::{Layout, Rect, Size};
 use crate::pane::Pane;
 use crate::style::{Label, CELL_H, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
@@ -32,43 +33,28 @@ pub fn field_height_lines(n: usize) -> f32 {
     h.max(36.0)
 }
 
-/// Greedy wrap. `\n` always starts a new row. A word longer than `cols` hard-breaks.
+/// Greedy wrap on the bitmap face. `\n` always starts a new row.
+/// A word longer than `cols` cells hard-breaks. `usize::MAX` does not wrap.
 pub fn wrap_lines(text: &str, cols: usize) -> Vec<VisualLine> {
-    let cols = cols.max(1);
-    if text.is_empty() {
-        return vec![VisualLine { start: 0, end: 0 }];
-    }
-    let mut lines = Vec::new();
-    let mut offset = 0usize;
-    for (i, part) in text.split('\n').enumerate() {
-        if i > 0 {
-            offset += 1;
-        }
-        wrap_paragraph(part, offset, cols, &mut lines);
-        offset += part.len();
-    }
-    if lines.is_empty() {
-        lines.push(VisualLine { start: 0, end: 0 });
-    }
-    lines
+    let max_width = if cols == usize::MAX {
+        f32::INFINITY
+    } else {
+        cols.max(1) as f32 * CELL_W
+    };
+    layout_text(&BitmapFont, text, max_width)
+        .lines
+        .into_iter()
+        .map(|line| VisualLine {
+            start: line.start,
+            end: line.end,
+        })
+        .collect()
 }
 
 /// `(visual_line, column)` for a byte index.
 pub fn visual_pos(lines: &[VisualLine], index: usize) -> (usize, usize) {
-    if lines.is_empty() {
-        return (0, 0);
-    }
-    for (i, line) in lines.iter().enumerate() {
-        let last = i + 1 == lines.len();
-        if index < line.start {
-            return (i, 0);
-        }
-        if index < line.end || (index == line.end && (last || lines[i + 1].start != index)) {
-            return (i, index - line.start);
-        }
-    }
-    let last = lines.len() - 1;
-    (last, lines[last].end.saturating_sub(lines[last].start))
+    let ranges: Vec<(usize, usize)> = lines.iter().map(|line| (line.start, line.end)).collect();
+    line_col(&ranges, index)
 }
 
 /// Selected runs as `(visual_line, start_col, end_col)` in paint order.
@@ -112,14 +98,31 @@ pub fn index_at_visual(lines: &[VisualLine], line: usize, col: usize) -> usize {
 
 /// Byte index under a pointer in a field [`Rect`]. Title uses `cols = usize::MAX`.
 pub fn index_at_pointer(text: &str, cols: usize, rect: Rect, x: f32, y: f32) -> usize {
-    let lines = wrap_lines(text, cols);
-    if lines.is_empty() {
-        return 0;
-    }
-    let line = ((y - rect.y - TEXT_INSET_Y) / GLYPH_PX).floor() as isize;
-    let line = line.clamp(0, lines.len() as isize - 1) as usize;
-    let col = ((x - rect.x - TEXT_INSET_X) / GLYPH_PX).round().max(0.0) as usize;
-    index_at_visual(&lines, line, col)
+    let max_width = if cols == usize::MAX {
+        f32::INFINITY
+    } else {
+        cols.max(1) as f32 * CELL_W
+    };
+    let layout = layout_text(&BitmapFont, text, max_width);
+    layout.index_at(x - rect.x - TEXT_INSET_X, y - rect.y - TEXT_INSET_Y)
+}
+
+/// Fresh layout of `text` on `entity`. Body fields wrap to the row width.
+/// Uses the world's [`crate::TextFace`] when one is set.
+pub fn layout_of(world: &World, entity: Entity, text: &str) -> TextLayout {
+    let font = text_face(world);
+    let wrap = world
+        .get::<Field>(entity)
+        .is_some_and(|field| field.kind == EditField::Body);
+    let max_width = if wrap {
+        world
+            .get::<Rect>(entity)
+            .map(|rect| field_text_width(rect.w, font.advance('0')))
+            .unwrap_or(f32::INFINITY)
+    } else {
+        f32::INFINITY
+    };
+    layout_text(font.as_ref(), text, max_width)
 }
 
 /// Grow every body field so its height matches wrapped lines.
@@ -146,7 +149,11 @@ pub fn apply_wrap(world: &mut World) {
                 .map(|rect| rect.w)
                 .or_else(|| pane_inner_width(world, pane));
             let n = match width {
-                Some(width) => wrap_lines(&text, cols_for(width)).len(),
+                Some(width) => {
+                    let font = text_face(world);
+                    let max = field_text_width(width, font.advance('0'));
+                    layout_text(font.as_ref(), &text, max).lines.len()
+                }
                 None => text.split('\n').count().max(1),
             };
             if let Some(layout) = world.get_mut::<Layout>(entity) {
@@ -160,40 +167,4 @@ fn pane_inner_width(world: &World, pane: Entity) -> Option<f32> {
     let layout = world.get::<Layout>(pane)?;
     let rect = world.get::<Rect>(pane)?;
     Some((rect.w - layout.padding * 2.0).max(0.0))
-}
-
-fn wrap_paragraph(part: &str, origin: usize, cols: usize, lines: &mut Vec<VisualLine>) {
-    if part.is_empty() {
-        lines.push(VisualLine {
-            start: origin,
-            end: origin,
-        });
-        return;
-    }
-    let bytes = part.as_bytes();
-    let mut at = 0usize;
-    while at < bytes.len() {
-        let left = bytes.len() - at;
-        if left <= cols {
-            lines.push(VisualLine {
-                start: origin + at,
-                end: origin + bytes.len(),
-            });
-            return;
-        }
-        let window = &bytes[at..at + cols];
-        if let Some(space) = window.iter().rposition(|b| *b == b' ').filter(|i| *i > 0) {
-            lines.push(VisualLine {
-                start: origin + at,
-                end: origin + at + space,
-            });
-            at += space + 1;
-        } else {
-            lines.push(VisualLine {
-                start: origin + at,
-                end: origin + at + cols,
-            });
-            at += cols;
-        }
-    }
 }
