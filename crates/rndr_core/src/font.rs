@@ -19,6 +19,46 @@ pub trait Font: Send + Sync {
     fn advance(&self, ch: char) -> f32;
     /// Painted quad for `ch`. `None` still consumes [`Font::advance`] (a space).
     fn glyph_box(&self, ch: char) -> Option<GlyphBox>;
+    /// Coverage rect in this face's atlas. The bitmap grid is the default.
+    fn glyph_uv(&self, ch: char) -> [f32; 4] {
+        bitmap_glyph_uv(ch)
+    }
+    /// White texel used by solid quads. Matches the bitmap atlas unless overridden.
+    fn solid_uv(&self) -> [f32; 4] {
+        bitmap_solid_uv()
+    }
+    /// Replacement atlas. `None` keeps the 8×8 bitmap atlas on the GPU.
+    fn atlas(&self) -> Option<Arc<FontAtlas>> {
+        None
+    }
+}
+
+/// R8 coverage atlas owned by a face.
+pub struct FontAtlas {
+    pub width: u32,
+    pub height: u32,
+    pub r8: Arc<[u8]>,
+}
+
+fn bitmap_glyph_uv(ch: char) -> [f32; 4] {
+    let code = if ch.is_ascii() && (32..128).contains(&(ch as u8)) {
+        ch as u32
+    } else {
+        b'?' as u32
+    };
+    let idx = code - 32;
+    let col = idx % 16;
+    let row = idx / 16;
+    let u0 = col as f32 * 8.0 / 128.0;
+    let v0 = row as f32 * 8.0 / 56.0;
+    let u1 = (col + 1) as f32 * 8.0 / 128.0;
+    let v1 = (row + 1) as f32 * 8.0 / 56.0;
+    [u0, v0, u1, v1]
+}
+
+fn bitmap_solid_uv() -> [f32; 4] {
+    let v = (56.0 - 0.5) / 56.0;
+    [0.5 / 128.0, v, 0.5 / 128.0, v]
 }
 
 /// Painted size of one glyph. Offsets are from the pen, in points.
@@ -92,6 +132,7 @@ pub struct PlacedGlyph {
     pub y: f32,
     pub w: f32,
     pub h: f32,
+    pub uv: [f32; 4],
 }
 
 /// One visual line. `edges` is `(byte index, pen x)` from the line start through
@@ -148,6 +189,7 @@ pub fn layout_text(font: &dyn Font, text: &str, max_width: f32) -> TextLayout {
                     y: y + glyph.bearing_y,
                     w: glyph.w,
                     h: glyph.h,
+                    uv: font.glyph_uv(ch),
                 });
             }
             x += adv;

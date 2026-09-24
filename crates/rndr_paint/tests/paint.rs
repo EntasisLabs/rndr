@@ -1,8 +1,9 @@
+use rndr_core::{layout_text, Font};
 use rndr_core::{
     App, Caret, Clip, Color, Label, Rect, Schedule, World, CELL_H, CELL_W, TEXT_ORIGIN_X,
     TEXT_ORIGIN_Y,
 };
-use rndr_paint::{frame, glyph_uv, paint, solid_uv};
+use rndr_paint::{frame, glyph_uv, paint, solid_uv, LatinFace};
 
 fn rect() -> Rect {
     Rect {
@@ -93,6 +94,20 @@ fn spawn_swatch(world: &mut World) {
         },
         Color::rgb(0.1, 0.2, 0.3),
     ));
+}
+
+#[test]
+fn latin_i_is_narrower_than_m() {
+    assert!(LatinFace.advance('i') < LatinFace.advance('M'));
+    let layout = layout_text(&LatinFace, "iM", f32::INFINITY);
+    assert!(layout.glyphs[0].w < layout.glyphs[1].w);
+    assert!(layout.glyphs[0].uv[2] > layout.glyphs[0].uv[0]);
+    let atlas = LatinFace.atlas().expect("atlas");
+    assert_eq!(atlas.r8.len(), (atlas.width * atlas.height) as usize);
+    assert_eq!(
+        atlas.r8[(atlas.height as usize - 1) * atlas.width as usize],
+        255
+    );
 }
 
 #[test]
