@@ -1,7 +1,9 @@
 use crate::entity::Entity;
+use crate::font::{field_text_width, layout_text, text_face};
 use crate::hierarchy::{children_of, roots, Parent};
 use crate::input::{Input, Viewport};
 use crate::split::Splitter;
+use crate::style::{Label, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
 use crate::world::{Component, World};
 
 impl Component for Layout {}
@@ -30,6 +32,10 @@ pub struct Layout {
     pub padding: f32,
     pub width: Size,
     pub height: Size,
+    /// Floor on the measured or filled width, in points.
+    pub min_width: f32,
+    /// Floor on the measured or filled height, in points.
+    pub min_height: f32,
 }
 
 impl Layout {
@@ -40,6 +46,8 @@ impl Layout {
             padding: 0.0,
             width: Size::Hug,
             height: Size::Hug,
+            min_width: 0.0,
+            min_height: 0.0,
         }
     }
 
@@ -50,6 +58,8 @@ impl Layout {
             padding: 0.0,
             width: Size::Hug,
             height: Size::Hug,
+            min_width: 0.0,
+            min_height: 0.0,
         }
     }
 }
@@ -327,16 +337,28 @@ fn measure(world: &mut World, entity: Entity) -> Rect {
             scroll.content = [content_w + pad, content_h + pad];
         }
     }
-    let w = match layout.width {
+    let mut w = match layout.width {
         Size::Px(px) => px,
         Size::Hug => content_w + pad,
         Size::Fill => 0.0,
     };
-    let h = match layout.height {
+    let mut h = match layout.height {
         Size::Px(px) => px,
         Size::Hug => content_h + pad,
         Size::Fill => 0.0,
     };
+    if kids.is_empty() {
+        if let Some((tw, th)) = label_hug(world, entity, &layout) {
+            if matches!(layout.width, Size::Hug) {
+                w = w.max(tw);
+            }
+            if matches!(layout.height, Size::Hug) {
+                h = th;
+            }
+        }
+    }
+    w = w.max(layout.min_width);
+    h = h.max(layout.min_height);
     let rect = Rect {
         x: 0.0,
         y: 0.0,
@@ -366,8 +388,16 @@ fn place(
     if matches!(layout.height, Size::Fill) {
         rect.h = avail_h;
     }
+    rect.w = rect.w.max(layout.min_width);
+    rect.h = rect.h.max(layout.min_height);
     rect.x = x;
     rect.y = y;
+    let scale = world
+        .resource::<Viewport>()
+        .map(|viewport| viewport.pixels_per_point())
+        .unwrap_or(1.0);
+    (rect.x, rect.w) = snap_span(rect.x, rect.w, scale);
+    (rect.y, rect.h) = snap_span(rect.y, rect.h, scale);
     world.insert(entity, rect);
 
     if world.has::<Scroll>(entity) {
@@ -437,7 +467,10 @@ fn place(
                     Some(Size::Fill) => fill_share,
                     _ => child_rect.h,
                 };
-                (w, h)
+                (
+                    w.max(child_layout.map(|l| l.min_width).unwrap_or(0.0)),
+                    h.max(child_layout.map(|l| l.min_height).unwrap_or(0.0)),
+                )
             }
             Axis::Row => {
                 let w = match child_layout.map(|l| l.width) {
@@ -448,7 +481,10 @@ fn place(
                     Some(Size::Fill) => inner_h,
                     _ => child_rect.h,
                 };
-                (w, h)
+                (
+                    w.max(child_layout.map(|l| l.min_width).unwrap_or(0.0)),
+                    h.max(child_layout.map(|l| l.min_height).unwrap_or(0.0)),
+                )
             }
         };
         place(world, child, cursor_x, cursor_y, cw, ch, clip);
@@ -457,6 +493,37 @@ fn place(
             Axis::Row => cursor_x += cw + layout.gap,
         }
     }
+}
+
+fn snap_span(origin: f32, size: f32, scale: f32) -> (f32, f32) {
+    let scale = if scale.is_finite() && scale > 0.0 {
+        scale
+    } else {
+        1.0
+    };
+    let start = (origin * scale).round() / scale;
+    let end = ((origin + size) * scale).round() / scale;
+    (start, (end - start).max(0.0))
+}
+
+/// Hug size of a label leaf: one line wide, or wrapped to the width already placed.
+fn label_hug(world: &World, entity: Entity, layout: &Layout) -> Option<(f32, f32)> {
+    if !matches!(layout.width, Size::Hug) && !matches!(layout.height, Size::Hug) {
+        return None;
+    }
+    let text = world.get::<Label>(entity)?.text.clone();
+    let font = text_face(world);
+    let prev_w = world.get::<Rect>(entity).map(|rect| rect.w).unwrap_or(0.0);
+    let max_width = match layout.width {
+        Size::Px(px) => field_text_width(px, font.advance('0')),
+        Size::Fill if prev_w > 0.0 => field_text_width(prev_w, font.advance('0')),
+        _ => f32::INFINITY,
+    };
+    let laid = layout_text(font.as_ref(), &text, max_width);
+    let lines = laid.lines.len().max(1) as f32;
+    let h = (TEXT_ORIGIN_Y + lines * font.line_height() + TEXT_ORIGIN_Y).max(36.0);
+    let w = laid.width + 2.0 * TEXT_ORIGIN_X;
+    Some((w, h))
 }
 
 /// Walk up [`Parent`] links to the nearest ancestor (or self) that has `T`.

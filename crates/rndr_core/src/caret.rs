@@ -2,8 +2,8 @@ use crate::entity::Entity;
 use crate::fs::{Dirty, FsPath};
 use crate::hierarchy::children_of;
 use crate::input::{Input, Key};
-use crate::layout::{ancestor_with, hit_test, Clip, Layout, Rect, Scroll, Size};
-use crate::pane::{field_height, Pane};
+use crate::layout::{ancestor_with, hit_test, Clip, Rect, Scroll};
+use crate::pane::Pane;
 use crate::style::{Body, Label};
 use crate::world::{Component, World};
 use crate::wrap::{
@@ -201,9 +201,6 @@ pub fn apply_caret(world: &mut World) {
         EditField::Body => {
             if let Some(body) = world.get_mut::<Body>(source) {
                 body.text.clone_from(&text);
-            }
-            if let Some(layout) = world.get_mut::<Layout>(row) {
-                layout.height = Size::Px(field_height(&text));
             }
         }
     }

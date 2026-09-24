@@ -6,7 +6,6 @@ use crate::input::Focus;
 use crate::layout::{apply_scroll, ScrollDrag};
 use crate::pane::{apply_pane, Selection};
 use crate::split::{apply_split, Drag};
-use crate::wrap::apply_wrap;
 
 /// Desktop interaction systems: scroll, split, focus, pane, caret, wrap, and files.
 /// File bytes come from a [`crate::Files`] resource, which this plugin does not insert.
@@ -25,7 +24,6 @@ impl Plugin for Shell {
         app.add_system(Schedule::Update, apply_fs_load);
         app.add_system(Schedule::Update, apply_pane);
         app.add_system(Schedule::Update, apply_caret);
-        app.add_system(Schedule::Update, apply_wrap);
         app.add_system(Schedule::Update, apply_fs_save);
         app.add_system(Schedule::Update, apply_fs_edit);
         app.add_system(Schedule::Update, apply_dirty_marks);

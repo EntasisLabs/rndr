@@ -30,6 +30,8 @@ pub fn shell() -> Layout {
         padding: 0.0,
         width: Size::Fill,
         height: Size::Fill,
+        min_width: 0.0,
+        min_height: 0.0,
     }
 }
 
@@ -42,6 +44,8 @@ pub fn splitter() -> (Layout, Splitter) {
             padding: 0.0,
             width: Size::Px(8.0),
             height: Size::Fill,
+            min_width: 0.0,
+            min_height: 0.0,
         },
         Splitter::default(),
     )
@@ -56,6 +60,8 @@ pub fn tree_column() -> (Layout, Scroll) {
             padding: 16.0,
             width: Size::Px(280.0),
             height: Size::Fill,
+            min_width: 0.0,
+            min_height: 0.0,
         },
         Scroll::default(),
     )
@@ -70,6 +76,8 @@ pub fn detail_pane() -> (Layout, Scroll, Pane) {
             padding: 16.0,
             width: Size::Fill,
             height: Size::Fill,
+            min_width: 0.0,
+            min_height: 0.0,
         },
         Scroll::default(),
         Pane::default(),
@@ -136,7 +144,7 @@ fn clear_pane(world: &mut World, pane: Entity) {
     }
 }
 
-/// Newline-based row height. Wrapped bodies are resized by [`crate::apply_wrap`].
+/// Newline-based row height. A hugging body is sized by layout from the face.
 pub fn field_height(text: &str) -> f32 {
     crate::wrap::field_height_lines(text.split('\n').count())
 }
@@ -210,7 +218,12 @@ fn field_row(
     let mut layout = Layout::row();
     layout.padding = 8.0;
     layout.width = Size::Fill;
-    layout.height = Size::Px(height);
+    if field == Some(crate::caret::EditField::Body) {
+        layout.height = Size::Hug;
+        layout.min_height = 36.0;
+    } else {
+        layout.height = Size::Px(height);
+    }
     let text = text.into();
     let row = if let Some(kind) = field {
         world.spawn((layout, color, Label::new(text), Field { kind }))
