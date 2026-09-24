@@ -5,7 +5,7 @@ use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
 const QUAD: [[f32; 2]; 4] = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
-const INSTANCE_FLOATS: usize = 16;
+const INSTANCE_FLOATS: usize = 20;
 const INSTANCE_STRIDE: u64 = (INSTANCE_FLOATS * 4) as u64;
 const INITIAL_INSTANCES: u64 = 2048;
 
@@ -16,6 +16,7 @@ struct VsIn {
     @location(2) color: vec4<f32>,
     @location(3) uv_rect: vec4<f32>,
     @location(4) clip: vec4<f32>,
+    @location(5) radius: vec4<f32>,
 }
 
 struct VsOut {
@@ -23,6 +24,8 @@ struct VsOut {
     @location(0) color: vec4<f32>,
     @location(1) uv: vec2<f32>,
     @location(2) clip: vec4<f32>,
+    @location(3) rect: vec4<f32>,
+    @location(4) radius: f32,
 }
 
 struct ViewportUniform {
@@ -46,6 +49,8 @@ fn vs(in: VsIn) -> VsOut {
     out.color = in.color;
     out.uv = mix(in.uv_rect.xy, in.uv_rect.zw, in.quad);
     out.clip = in.clip;
+    out.rect = in.rect;
+    out.radius = in.radius.x;
     return out;
 }
 
@@ -57,7 +62,18 @@ fn fs(in: VsOut) -> @location(0) vec4<f32> {
         discard;
     }
     let coverage = textureSample(atlas, atlas_samp, in.uv).r;
-    return vec4<f32>(in.color.rgb, in.color.a * coverage);
+    let corner = round_rect(px, in.rect, in.radius);
+    return vec4<f32>(in.color.rgb, in.color.a * coverage * corner);
+}
+
+fn round_rect(px: vec2<f32>, rect: vec4<f32>, radius: f32) -> f32 {
+    if radius <= 0.0 {
+        return 1.0;
+    }
+    let half = rect.zw * 0.5;
+    let q = abs(px - (rect.xy + half)) - half + vec2<f32>(radius);
+    let dist = length(max(q, vec2<f32>(0.0))) + min(max(q.x, q.y), 0.0) - radius;
+    return clamp(0.5 - dist, 0.0, 1.0);
 }
 "#;
 
@@ -219,11 +235,12 @@ impl Gpu {
         });
 
         const QUAD_ATTRS: [wgpu::VertexAttribute; 1] = wgpu::vertex_attr_array![0 => Float32x2];
-        const INSTANCE_ATTRS: [wgpu::VertexAttribute; 4] = wgpu::vertex_attr_array![
+        const INSTANCE_ATTRS: [wgpu::VertexAttribute; 5] = wgpu::vertex_attr_array![
             1 => Float32x4,
             2 => Float32x4,
             3 => Float32x4,
             4 => Float32x4,
+            5 => Float32x4,
         ];
         let quad_layout = wgpu::VertexBufferLayout {
             array_stride: 8,
@@ -419,6 +436,10 @@ fn pack_instances(quads: &[Quad], scale: f32) -> Vec<f32> {
             quad.clip.y * scale,
             quad.clip.w * scale,
             quad.clip.h * scale,
+            quad.radius * scale,
+            0.0,
+            0.0,
+            0.0,
         ]);
     }
     out
