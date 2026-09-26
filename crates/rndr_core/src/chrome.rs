@@ -2,6 +2,7 @@ use crate::action::{apply_actions, Actions, Fired};
 use crate::app::{App, Plugin, Schedule};
 use crate::button::apply_buttons;
 use crate::field::apply_fields;
+use crate::overlay::apply_overlay;
 use crate::tabs::apply_tabs;
 
 /// Opt-in widget systems. The file-tree [`crate::Shell`] does not register these.
@@ -22,6 +23,7 @@ impl Plugin for Chrome {
 
 fn apply_chrome(world: &mut crate::world::World) {
     apply_actions(world);
+    apply_overlay(world);
     apply_buttons(world);
     apply_tabs(world);
 }

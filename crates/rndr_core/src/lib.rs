@@ -19,6 +19,7 @@ mod hierarchy;
 mod input;
 mod layout;
 mod memory_fs;
+mod overlay;
 mod pane;
 mod shell;
 mod split;
@@ -55,10 +56,11 @@ pub use fs::{
 pub use hierarchy::{children_of, despawn, roots, set_parent, Children, Parent};
 pub use input::{Focus, Input, Insets, Key, Pointer, Viewport, MOUSE_ID};
 pub use layout::{
-    ancestor_with, apply_scroll, hit_test, layout_propagate, Axis, Clip, Layout, Rect, Scroll,
-    ScrollDrag, Size, SCROLL_DRAG_SLOP,
+    ancestor_with, apply_scroll, hit_test, layered_roots, layout_propagate, Axis, Clip, Layout,
+    Rect, Scroll, ScrollDrag, Size, SCROLL_DRAG_SLOP,
 };
 pub use memory_fs::{MemoryFs, MemoryFsPlugin};
+pub use overlay::{Layer, Modal, DISMISS};
 pub use pane::{
     apply_pane, detail_pane, field_height, set_selection, shell, splitter, tree_column, Pane,
     Selection,
