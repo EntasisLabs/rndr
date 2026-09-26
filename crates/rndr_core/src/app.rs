@@ -51,11 +51,25 @@ impl App {
     }
 
     pub fn add_system(&mut self, schedule: Schedule, system: System) -> &mut Self {
-        match schedule {
-            Schedule::Startup => self.startup.push(system),
-            Schedule::Update => self.update.push(system),
-            Schedule::Layout => self.layout.push(system),
-            Schedule::Render => self.render.push(system),
+        self.insert_system(schedule, system, false)
+    }
+
+    /// Insert at the front of a schedule so the system runs before ones already registered.
+    pub fn add_system_front(&mut self, schedule: Schedule, system: System) -> &mut Self {
+        self.insert_system(schedule, system, true)
+    }
+
+    fn insert_system(&mut self, schedule: Schedule, system: System, front: bool) -> &mut Self {
+        let list = match schedule {
+            Schedule::Startup => &mut self.startup,
+            Schedule::Update => &mut self.update,
+            Schedule::Layout => &mut self.layout,
+            Schedule::Render => &mut self.render,
+        };
+        if front {
+            list.insert(0, system);
+        } else {
+            list.push(system);
         }
         self
     }
