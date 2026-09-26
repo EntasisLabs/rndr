@@ -74,6 +74,10 @@ pub struct Fired {
     pub name: Option<String>,
 }
 
+pub const COPY: &str = "copy";
+pub const CUT: &str = "cut";
+pub const PASTE: &str = "paste";
+
 /// Resolve [`Actions`] against [`Input`] and [`Focus`]. A consumed chord clears
 /// the key. An unbound key is left for the caret and the file commands.
 pub fn apply_actions(world: &mut World) {
