@@ -7,10 +7,26 @@
 use std::sync::Arc;
 
 use crate::caret::{EditField, Field};
-use crate::style::{Label, CELL_H, CELL_W};
+use crate::style::{Color, Label, CELL_H, CELL_W};
 use crate::world::{Component, World};
 
 impl Component for TextLayout {}
+impl Component for Spans {}
+
+/// One styled byte range on a [`Label`]. `face` is reserved for a second atlas.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TextSpan {
+    pub start: usize,
+    pub end: usize,
+    pub color: Color,
+    pub face: u8,
+}
+
+/// Styled ranges painted over a label. Absent means one theme-colored run.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Spans {
+    pub runs: Vec<TextSpan>,
+}
 
 /// Horizontal advance and painted box for one scalar, in logical points.
 pub trait Font: Send + Sync {
@@ -133,6 +149,9 @@ pub struct PlacedGlyph {
     pub w: f32,
     pub h: f32,
     pub uv: [f32; 4],
+    /// `None` paints with the theme text color.
+    pub color: Option<Color>,
+    pub face: u8,
 }
 
 /// One visual line. `edges` is `(byte index, pen x)` from the line start through
@@ -168,6 +187,16 @@ pub struct SelectionBox {
 /// Wrap `text` to `max_width` points and place each painted glyph.
 /// `f32::INFINITY` keeps hard breaks only.
 pub fn layout_text(font: &dyn Font, text: &str, max_width: f32) -> TextLayout {
+    layout_text_spans(font, text, max_width, &[])
+}
+
+/// Like [`layout_text`], tinting each glyph from the span that covers its byte.
+pub fn layout_text_spans(
+    font: &dyn Font,
+    text: &str,
+    max_width: f32,
+    spans: &[TextSpan],
+) -> TextLayout {
     let ranges = wrap_ranges(font, text, max_width);
     let mut glyphs = Vec::new();
     let mut lines = Vec::new();
@@ -190,6 +219,8 @@ pub fn layout_text(font: &dyn Font, text: &str, max_width: f32) -> TextLayout {
                     w: glyph.w,
                     h: glyph.h,
                     uv: font.glyph_uv(ch),
+                    color: span_color(spans, abs),
+                    face: span_face(spans, abs),
                 });
             }
             x += adv;
@@ -320,6 +351,21 @@ impl TextLayout {
     }
 }
 
+fn span_color(spans: &[TextSpan], index: usize) -> Option<Color> {
+    spans
+        .iter()
+        .find(|span| index >= span.start && index < span.end)
+        .map(|span| span.color)
+}
+
+fn span_face(spans: &[TextSpan], index: usize) -> u8 {
+    spans
+        .iter()
+        .find(|span| index >= span.start && index < span.end)
+        .map(|span| span.face)
+        .unwrap_or(0)
+}
+
 fn edge_on(line: &TextLine, byte: usize) -> f32 {
     line.edges
         .iter()
@@ -376,7 +422,11 @@ pub fn apply_text_layout(world: &mut World) {
         } else {
             f32::INFINITY
         };
-        let layout = layout_text(font.as_ref(), &text, max_width);
+        let spans = world
+            .get::<Spans>(entity)
+            .map(|spans| spans.runs.clone())
+            .unwrap_or_default();
+        let layout = layout_text_spans(font.as_ref(), &text, max_width, &spans);
         world.insert(entity, layout);
     }
 }
