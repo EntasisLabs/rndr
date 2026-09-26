@@ -407,10 +407,17 @@ pub fn apply_text_layout(world: &mut World) {
     let font = text_face(world);
     let labels = world.entities_with::<Label>();
     for entity in labels {
-        let text = world
+        let mut text = world
             .get::<Label>(entity)
             .map(|label| label.text.clone())
             .unwrap_or_default();
+        if let Some(preview) = world.get::<crate::field::ImePreview>(entity) {
+            let at = world
+                .get::<crate::caret::Caret>(entity)
+                .map(|caret| caret.index.min(text.len()))
+                .unwrap_or(text.len());
+            text.insert_str(at, &preview.text);
+        }
         let wrap = world
             .get::<Field>(entity)
             .is_some_and(|field| field.kind == EditField::Body);

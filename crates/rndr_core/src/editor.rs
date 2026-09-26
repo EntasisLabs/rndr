@@ -168,12 +168,22 @@ pub fn apply_editor(world: &mut World) {
             place_from_pointer(world, entity);
         }
         publish_window(world, entity);
+        if focused {
+            sync_ime_preview(world, entity);
+        } else {
+            world.remove::<crate::field::ImePreview>(entity);
+        }
     }
 }
 
 fn edit_focused(world: &mut World, entity: crate::entity::Entity) {
-    let (key, shift, chars) = match world.resource::<Input>() {
-        Some(input) => (input.key, input.shift, input.chars.clone()),
+    let (key, shift, chars, commit) = match world.resource::<Input>() {
+        Some(input) => (
+            input.key,
+            input.shift,
+            input.chars.clone(),
+            input.ime_commit.clone(),
+        ),
         None => return,
     };
     let Some(buffer) = world.get_mut::<Buffer>(entity) else {
@@ -234,17 +244,35 @@ fn edit_focused(world: &mut World, entity: crate::entity::Entity) {
             index += 1;
             anchor = index;
         }
+        if !commit.is_empty() {
+            buffer.insert_str(index, &commit);
+            index += commit.len();
+            anchor = index;
+        }
         buffer.caret = index;
         buffer.anchor = anchor;
     }
     if let Some(input) = world.resource_mut::<Input>() {
         input.chars.clear();
+        input.ime_commit.clear();
         if matches!(
             input.key,
             Some(Key::Left | Key::Right | Key::Backspace | Key::Enter)
         ) {
             input.key = None;
         }
+    }
+}
+
+fn sync_ime_preview(world: &mut World, entity: crate::entity::Entity) {
+    let preedit = world
+        .resource::<Input>()
+        .map(|input| input.ime_preedit.clone())
+        .unwrap_or_default();
+    if preedit.is_empty() {
+        world.remove::<crate::field::ImePreview>(entity);
+    } else {
+        world.insert(entity, crate::field::ImePreview { text: preedit });
     }
 }
 
