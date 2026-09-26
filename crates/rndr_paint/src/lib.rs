@@ -32,11 +32,40 @@ pub struct Quad {
 /// Runs Startup once, then Update, Layout, and the render schedule. The
 /// surface multiplies the returned quads by [`rndr_core::Viewport::scale`]
 /// when it presents. This does not open a window.
-pub fn frame(app: &mut App) -> Vec<Quad> {
+/// Quads plus foreign-surface rects for one frame.
+#[derive(Clone, Debug)]
+pub struct Frame {
+    pub quads: Vec<Quad>,
+    pub slots: Vec<SurfaceRect>,
+}
+
+/// A [`rndr_core::SurfaceSlot`] after layout, in logical points.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SurfaceRect {
+    pub id: u64,
+    pub rect: Rect,
+}
+
+pub fn frame(app: &mut App) -> Frame {
     app.update();
     let quads = paint(app.world());
+    let slots = surface_slots(app.world());
     app.render();
-    quads
+    Frame { quads, slots }
+}
+
+fn surface_slots(world: &World) -> Vec<SurfaceRect> {
+    let mut slots = Vec::new();
+    for entity in world.entities_with::<rndr_core::SurfaceSlot>() {
+        let Some(slot) = world.get::<rndr_core::SurfaceSlot>(entity).copied() else {
+            continue;
+        };
+        let Some(rect) = world.get::<Rect>(entity).copied() else {
+            continue;
+        };
+        slots.push(SurfaceRect { id: slot.id, rect });
+    }
+    slots
 }
 
 /// Paint every colored rect in the world, parents before children.
@@ -130,6 +159,12 @@ fn walk(
     ),
 ) {
     if !world.is_alive(entity) || world.has::<rndr_core::Hidden>(entity) {
+        return;
+    }
+    if world.has::<rndr_core::SurfaceSlot>(entity) {
+        for child in children_of(world, entity) {
+            walk(world, child, visit);
+        }
         return;
     }
     if let (Some(rect), Some(color)) = (world.get::<Rect>(entity), world.get::<Color>(entity)) {
