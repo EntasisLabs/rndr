@@ -106,6 +106,7 @@ impl App {
         }
         layout_propagate(&mut self.world);
         apply_text_layout(&mut self.world);
+        crate::editor::apply_decorations(&mut self.world);
     }
 
     /// Extra render-schedule systems. The surface runs these after paint and before present.

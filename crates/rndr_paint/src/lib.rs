@@ -56,7 +56,8 @@ pub fn paint(world: &World) -> Vec<Quad> {
                                 caret,
                                 dirty,
                                 layout,
-                                radius| {
+                                radius,
+                                marks| {
             push(&mut out, rect, color, solid, clip, radius);
             if dirty {
                 push_dirty_mark(&mut out, rect, clip, solid, theme.dirty);
@@ -75,6 +76,26 @@ pub fn paint(world: &World) -> Vec<Quad> {
             }
             if let Some(layout) = layout.as_ref() {
                 push_label(&mut out, rect, layout, clip, scale, theme.text);
+            }
+            for mark in marks {
+                let color = match mark.kind {
+                    rndr_core::DecorationKind::Find => theme.selection,
+                    rndr_core::DecorationKind::Diagnostic => Color::rgb(0.86, 0.28, 0.24),
+                };
+                push(
+                    &mut out,
+                    snap_box(
+                        rect.x + TEXT_ORIGIN_X + mark.x,
+                        rect.y + TEXT_ORIGIN_Y + mark.y,
+                        mark.w,
+                        mark.h,
+                        scale,
+                    ),
+                    color,
+                    solid,
+                    clip,
+                    0.0,
+                );
             }
             if let Some(caret) = caret {
                 push_caret(
@@ -105,6 +126,7 @@ fn walk(
         bool,
         Option<TextLayout>,
         f32,
+        &[rndr_core::DecorationMark],
     ),
 ) {
     if !world.is_alive(entity) || world.has::<rndr_core::Hidden>(entity) {
@@ -133,6 +155,10 @@ fn walk(
             .get::<Radius>(entity)
             .map(|radius| radius.0)
             .unwrap_or(0.0);
+        let marks = world
+            .get::<rndr_core::DecorationMarks>(entity)
+            .map(|marks| marks.marks.clone())
+            .unwrap_or_default();
         visit(
             *rect,
             color,
@@ -140,8 +166,9 @@ fn walk(
             world.get::<Label>(entity),
             world.get::<Caret>(entity),
             dirty,
-            layout,
+            layout.clone(),
             radius,
+            &marks,
         );
     }
     for child in children_of(world, entity) {
