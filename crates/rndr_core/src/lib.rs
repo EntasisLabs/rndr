@@ -5,6 +5,7 @@
 
 mod action;
 mod app;
+mod button;
 mod caret;
 mod chrome;
 mod disclosure;
@@ -26,6 +27,7 @@ mod wrap;
 
 pub use action::{apply_actions, Actions, Binding, Chord, Fired};
 pub use app::{App, Plugin, Schedule, System};
+pub use button::Button;
 pub use caret::{
     apply_caret, caret_line_col, selection_spans, set_editing, set_editing_field, Caret, EditField,
     Editing, Field,
