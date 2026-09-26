@@ -107,7 +107,7 @@ fn walk(
         f32,
     ),
 ) {
-    if !world.is_alive(entity) {
+    if !world.is_alive(entity) || world.has::<rndr_core::Hidden>(entity) {
         return;
     }
     if let (Some(rect), Some(color)) = (world.get::<Rect>(entity), world.get::<Color>(entity)) {

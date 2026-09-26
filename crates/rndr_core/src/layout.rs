@@ -292,13 +292,20 @@ fn clear_scroll_drag(world: &mut World) {
 }
 
 fn walk_paint_order(world: &World, entity: Entity, visit: &mut impl FnMut(Entity)) {
-    if !world.is_alive(entity) {
+    if !world.is_alive(entity) || world.has::<crate::tabs::Hidden>(entity) {
         return;
     }
     visit(entity);
     for child in children_of(world, entity) {
         walk_paint_order(world, child, visit);
     }
+}
+
+fn shown_children(world: &World, entity: Entity) -> Vec<Entity> {
+    children_of(world, entity)
+        .into_iter()
+        .filter(|child| !world.has::<crate::tabs::Hidden>(*child))
+        .collect()
 }
 
 fn measure(world: &mut World, entity: Entity) -> Rect {
@@ -308,7 +315,7 @@ fn measure(world: &mut World, entity: Entity) -> Rect {
             return world.get::<Rect>(entity).copied().unwrap_or_default();
         }
     };
-    let kids = children_of(world, entity);
+    let kids = shown_children(world, entity);
     let mut content_w = 0.0f32;
     let mut content_h = 0.0f32;
     for child in &kids {
@@ -409,7 +416,7 @@ fn place(
     let clip = parent_clip.intersect(Clip::from_rect(rect));
     world.insert(entity, clip);
 
-    let kids = children_of(world, entity);
+    let kids = shown_children(world, entity);
     if kids.is_empty() {
         return;
     }
