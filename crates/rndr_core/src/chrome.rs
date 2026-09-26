@@ -2,6 +2,7 @@ use crate::action::{apply_actions, Actions, Fired};
 use crate::app::{App, Plugin, Schedule};
 use crate::button::apply_buttons;
 use crate::field::apply_fields;
+use crate::list::apply_lists;
 use crate::overlay::apply_overlay;
 use crate::tabs::apply_tabs;
 
@@ -18,6 +19,7 @@ impl Plugin for Chrome {
         }
         app.add_system_front(Schedule::Update, apply_chrome);
         app.add_system(Schedule::PostUpdate, apply_fields);
+        app.add_system(Schedule::PostUpdate, apply_lists);
     }
 }
 
