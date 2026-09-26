@@ -103,7 +103,7 @@ impl Handler {
             viewport.height = height as f32 / scale;
             viewport.scale = scale;
         }
-        let quads = frame(&mut self.app);
+        let painted = frame(&mut self.app);
         // winit 0.30 has no OS clipboard. The resource is the value; clear the
         // dirty bit after the frame so a platform can see that core wrote it.
         if let Some(clipboard) = self.app.world_mut().resource_mut::<Clipboard>() {
@@ -118,7 +118,7 @@ impl Handler {
         self.gpu
             .as_mut()
             .expect("surface")
-            .present(&quads, width, height, scale)
+            .present(&painted.quads, width, height, scale)
     }
 }
 

@@ -152,6 +152,7 @@ fn find_on_line_50_paints_only_when_visible() {
     let selection = Theme::default().selection;
     let count = |app: &mut App| {
         frame(app)
+            .quads
             .into_iter()
             .filter(|quad| quad.color == selection)
             .count()
@@ -211,10 +212,11 @@ fn frame_runs_startup_once_then_paints() {
     app.add_system(Schedule::Startup, spawn_swatch);
 
     let first = frame(&mut app);
-    assert_eq!(first.len(), 1);
-    assert_eq!(first[0].rect.x, 4.0);
-    assert_eq!(first[0].rect.y, 8.0);
+    assert_eq!(first.quads.len(), 1);
+    assert!(first.slots.is_empty());
+    assert_eq!(first.quads[0].rect.x, 4.0);
+    assert_eq!(first.quads[0].rect.y, 8.0);
 
     let second = frame(&mut app);
-    assert_eq!(second.len(), 1);
+    assert_eq!(second.quads.len(), 1);
 }
