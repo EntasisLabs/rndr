@@ -11,9 +11,9 @@ pub use font::{atlas_r8, glyph_uv, solid_uv, ATLAS_H, ATLAS_W};
 pub use latin::LatinFace;
 
 use rndr_core::{
-    children_of, field_text_width, layout_text, roots, text_face, theme_of, App, Caret, Clip,
-    Color, DirtyMark, EditField, Field, Focus, Label, Parent, Radius, Rect, TextLayout, Viewport,
-    World, CELL_H, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
+    children_of, field_text_width, layered_roots, layout_text_spans, text_face, theme_of, App,
+    Caret, Clip, Color, DirtyMark, EditField, Field, Focus, Label, Parent, Radius, Rect,
+    TextLayout, Viewport, World, CELL_H, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
 
 /// One instanced quad in logical points.
@@ -32,11 +32,40 @@ pub struct Quad {
 /// Runs Startup once, then Update, Layout, and the render schedule. The
 /// surface multiplies the returned quads by [`rndr_core::Viewport::scale`]
 /// when it presents. This does not open a window.
-pub fn frame(app: &mut App) -> Vec<Quad> {
+/// Quads plus foreign-surface rects for one frame.
+#[derive(Clone, Debug)]
+pub struct Frame {
+    pub quads: Vec<Quad>,
+    pub slots: Vec<SurfaceRect>,
+}
+
+/// A [`rndr_core::SurfaceSlot`] after layout, in logical points.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SurfaceRect {
+    pub id: u64,
+    pub rect: Rect,
+}
+
+pub fn frame(app: &mut App) -> Frame {
     app.update();
     let quads = paint(app.world());
+    let slots = surface_slots(app.world());
     app.render();
-    quads
+    Frame { quads, slots }
+}
+
+fn surface_slots(world: &World) -> Vec<SurfaceRect> {
+    let mut slots = Vec::new();
+    for entity in world.entities_with::<rndr_core::SurfaceSlot>() {
+        let Some(slot) = world.get::<rndr_core::SurfaceSlot>(entity).copied() else {
+            continue;
+        };
+        let Some(rect) = world.get::<Rect>(entity).copied() else {
+            continue;
+        };
+        slots.push(SurfaceRect { id: slot.id, rect });
+    }
+    slots
 }
 
 /// Paint every colored rect in the world, parents before children.
@@ -48,7 +77,7 @@ pub fn paint(world: &World) -> Vec<Quad> {
         .unwrap_or(1.0);
     let solid = text_face(world).solid_uv();
     let theme = theme_of(world);
-    for root in roots::<Rect>(world) {
+    for root in layered_roots(world) {
         walk(world, root, &mut |rect,
                                 color,
                                 clip,
@@ -56,7 +85,8 @@ pub fn paint(world: &World) -> Vec<Quad> {
                                 caret,
                                 dirty,
                                 layout,
-                                radius| {
+                                radius,
+                                marks| {
             push(&mut out, rect, color, solid, clip, radius);
             if dirty {
                 push_dirty_mark(&mut out, rect, clip, solid, theme.dirty);
@@ -75,6 +105,26 @@ pub fn paint(world: &World) -> Vec<Quad> {
             }
             if let Some(layout) = layout.as_ref() {
                 push_label(&mut out, rect, layout, clip, scale, theme.text);
+            }
+            for mark in marks {
+                let color = match mark.kind {
+                    rndr_core::DecorationKind::Find => theme.selection,
+                    rndr_core::DecorationKind::Diagnostic => Color::rgb(0.86, 0.28, 0.24),
+                };
+                push(
+                    &mut out,
+                    snap_box(
+                        rect.x + TEXT_ORIGIN_X + mark.x,
+                        rect.y + TEXT_ORIGIN_Y + mark.y,
+                        mark.w,
+                        mark.h,
+                        scale,
+                    ),
+                    color,
+                    solid,
+                    clip,
+                    0.0,
+                );
             }
             if let Some(caret) = caret {
                 push_caret(
@@ -105,9 +155,16 @@ fn walk(
         bool,
         Option<TextLayout>,
         f32,
+        &[rndr_core::DecorationMark],
     ),
 ) {
-    if !world.is_alive(entity) {
+    if !world.is_alive(entity) || world.has::<rndr_core::Hidden>(entity) {
+        return;
+    }
+    if world.has::<rndr_core::SurfaceSlot>(entity) {
+        for child in children_of(world, entity) {
+            walk(world, child, visit);
+        }
         return;
     }
     if let (Some(rect), Some(color)) = (world.get::<Rect>(entity), world.get::<Color>(entity)) {
@@ -133,6 +190,10 @@ fn walk(
             .get::<Radius>(entity)
             .map(|radius| radius.0)
             .unwrap_or(0.0);
+        let marks = world
+            .get::<rndr_core::DecorationMarks>(entity)
+            .map(|marks| marks.marks.clone())
+            .unwrap_or_default();
         visit(
             *rect,
             color,
@@ -140,8 +201,9 @@ fn walk(
             world.get::<Label>(entity),
             world.get::<Caret>(entity),
             dirty,
-            layout,
+            layout.clone(),
             radius,
+            &marks,
         );
     }
     for child in children_of(world, entity) {
@@ -217,7 +279,11 @@ fn measured(world: &World, entity: rndr_core::Entity, text: &str, rect: Rect) ->
     } else {
         f32::INFINITY
     };
-    layout_text(font.as_ref(), text, max_width)
+    let spans = world
+        .get::<rndr_core::Spans>(entity)
+        .map(|spans| spans.runs.clone())
+        .unwrap_or_default();
+    layout_text_spans(font.as_ref(), text, max_width, &spans)
 }
 
 fn push_selection(
@@ -266,7 +332,7 @@ fn push_label(
                 glyph.h,
                 scale,
             ),
-            color,
+            glyph.color.unwrap_or(color),
             glyph.uv,
             clip,
             0.0,

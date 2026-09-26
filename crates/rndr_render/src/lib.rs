@@ -4,10 +4,10 @@ mod gpu;
 
 use std::sync::Arc;
 
-use rndr_core::{text_face, App, Input, Key as Action, Pointer, Viewport, MOUSE_ID};
+use rndr_core::{text_face, App, Clipboard, Input, Key as Action, Pointer, Viewport, MOUSE_ID};
 use rndr_paint::{atlas_r8, frame, ATLAS_H, ATLAS_W};
 use winit::application::ApplicationHandler;
-use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
+use winit::event::{ElementState, Ime, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowId};
@@ -26,6 +26,8 @@ pub fn run(app: App) {
         scroll: [0.0, 0.0],
         key: None,
         chars: String::new(),
+        ime_preedit: String::new(),
+        ime_commit: String::new(),
         shift: false,
         ctrl: false,
         alt: false,
@@ -43,6 +45,8 @@ struct Handler {
     scroll: [f32; 2],
     key: Option<Action>,
     chars: String,
+    ime_preedit: String,
+    ime_commit: String,
     shift: bool,
     ctrl: bool,
     alt: bool,
@@ -76,6 +80,8 @@ impl Handler {
             input.scroll = self.scroll;
             input.key = self.key;
             input.chars.clone_from(&self.chars);
+            input.ime_preedit.clone_from(&self.ime_preedit);
+            input.ime_commit.clone_from(&self.ime_commit);
             input.shift = self.shift;
             input.ctrl = self.ctrl;
         }
@@ -83,6 +89,7 @@ impl Handler {
         self.scroll = [0.0, 0.0];
         self.key = None;
         self.chars.clear();
+        self.ime_commit.clear();
     }
 
     /// Write the window into [`Viewport`], step the world, paint, and present.
@@ -103,7 +110,12 @@ impl Handler {
             viewport.height = height as f32 / scale;
             viewport.scale = scale;
         }
-        let quads = frame(&mut self.app);
+        let painted = frame(&mut self.app);
+        // winit 0.30 has no OS clipboard. The resource is the value; clear the
+        // dirty bit after the frame so a platform can see that core wrote it.
+        if let Some(clipboard) = self.app.world_mut().resource_mut::<Clipboard>() {
+            clipboard.dirty = false;
+        }
         let scale = self
             .app
             .world()
@@ -113,7 +125,7 @@ impl Handler {
         self.gpu
             .as_mut()
             .expect("surface")
-            .present(&quads, width, height, scale)
+            .present(&painted.quads, width, height, scale)
     }
 }
 
@@ -173,6 +185,20 @@ impl ApplicationHandler for Handler {
                 self.alt = state.alt_key();
                 self.super_key = state.super_key();
             }
+            WindowEvent::Ime(Ime::Preedit(text, _)) => {
+                self.ime_preedit = text;
+                if let Some(gpu) = &self.gpu {
+                    gpu.window().request_redraw();
+                }
+            }
+            WindowEvent::Ime(Ime::Commit(text)) => {
+                self.ime_commit.push_str(&text);
+                self.ime_preedit.clear();
+                if let Some(gpu) = &self.gpu {
+                    gpu.window().request_redraw();
+                }
+            }
+            WindowEvent::Ime(Ime::Enabled | Ime::Disabled) => {}
             WindowEvent::KeyboardInput { event, .. } if event.state == ElementState::Pressed => {
                 let mut redraw = false;
                 if let Some(key) = map_key(&event.logical_key) {
@@ -187,6 +213,18 @@ impl ApplicationHandler for Handler {
                         }
                         if text.eq_ignore_ascii_case("n") {
                             self.key = Some(Action::New);
+                            redraw = true;
+                        }
+                        if text.eq_ignore_ascii_case("c") {
+                            self.key = Some(Action::Copy);
+                            redraw = true;
+                        }
+                        if text.eq_ignore_ascii_case("x") {
+                            self.key = Some(Action::Cut);
+                            redraw = true;
+                        }
+                        if text.eq_ignore_ascii_case("v") {
+                            self.key = Some(Action::Paste);
                             redraw = true;
                         }
                     }
@@ -264,6 +302,7 @@ impl ApplicationHandler for Handler {
                         input.scroll = [0.0, 0.0];
                         input.key = None;
                         input.chars.clear();
+                        input.ime_commit.clear();
                     }
                 }
                 if self

@@ -1,3 +1,4 @@
+use crate::edit::edit_string;
 use crate::entity::Entity;
 use crate::fs::{Dirty, FsPath};
 use crate::hierarchy::children_of;
@@ -76,7 +77,9 @@ pub fn apply_caret(world: &mut World) {
         if let Some(editing) = world.resource_mut::<Editing>() {
             editing.source = None;
         }
-        clear_text_input(world);
+        if !focus_captures_keys(world) {
+            clear_text_input(world);
+        }
         return;
     };
 
@@ -149,38 +152,16 @@ pub fn apply_caret(world: &mut World) {
             index = next;
             anchor = next;
         }
-    } else if matches!(key, Some(Key::Left | Key::Right)) {
-        (index, anchor) = move_caret(&text, index, anchor, key, shift);
     } else {
-        let editing = !chars.is_empty()
-            || key == Some(Key::Backspace)
-            || (key == Some(Key::Enter) && field == EditField::Body);
-        let mut replaced = false;
-        if editing && anchor != index {
-            let start = anchor.min(index);
-            let end = anchor.max(index).min(text.len());
-            text.replace_range(start..end, "");
-            index = start;
-            anchor = start;
-            replaced = true;
-        }
-        if key == Some(Key::Backspace) && !replaced && index > 0 {
-            index -= 1;
-            text.remove(index);
-            anchor = index;
-        }
-        for ch in chars.chars() {
-            if is_printable_ascii(ch) {
-                text.insert(index, ch);
-                index += ch.len_utf8();
-                anchor = index;
-            }
-        }
-        if key == Some(Key::Enter) && field == EditField::Body {
-            text.insert(index, '\n');
-            index += 1;
-            anchor = index;
-        }
+        (index, anchor) = edit_string(
+            &mut text,
+            index,
+            anchor,
+            key,
+            shift,
+            &chars,
+            field == EditField::Body,
+        );
     }
 
     if let Some(label) = world.get_mut::<Label>(row) {
@@ -270,35 +251,6 @@ fn place_caret_from_pointer(world: &mut World, row: Entity, existed: bool) {
     }
 }
 
-fn move_caret(
-    text: &str,
-    index: usize,
-    anchor: usize,
-    key: Option<Key>,
-    shift: bool,
-) -> (usize, usize) {
-    let len = text.len();
-    let index = index.min(len);
-    let anchor = anchor.min(len);
-    let next = match key {
-        Some(Key::Left) => index.saturating_sub(1),
-        Some(Key::Right) => (index + 1).min(len),
-        _ => index,
-    };
-    if shift {
-        (next, anchor)
-    } else if anchor != index {
-        let edge = match key {
-            Some(Key::Left) => anchor.min(index),
-            Some(Key::Right) => anchor.max(index),
-            _ => next,
-        };
-        (edge, edge)
-    } else {
-        (next, next)
-    }
-}
-
 /// Line and column of a byte `index`. Column is a byte offset on that line.
 pub fn caret_line_col(text: &str, index: usize) -> (usize, usize) {
     visual_pos(&wrap_lines(text, usize::MAX), index)
@@ -331,8 +283,18 @@ fn header_label_entity(world: &World, entity: Entity) -> Option<Entity> {
     world.has::<Label>(entity).then_some(entity)
 }
 
+fn focus_captures_keys(world: &World) -> bool {
+    world
+        .resource::<crate::input::Focus>()
+        .and_then(|focus| focus.entity)
+        .is_some_and(|entity| world.has::<crate::field::CapturesKeys>(entity))
+}
+
 fn clear_carets(world: &mut World) {
     for entity in world.entities_with::<Caret>() {
+        if world.has::<crate::field::CapturesKeys>(entity) {
+            continue;
+        }
         world.remove::<Caret>(entity);
     }
 }
@@ -355,10 +317,6 @@ fn clear_text_input(world: &mut World) {
             input.key = None;
         }
     }
-}
-
-fn is_printable_ascii(ch: char) -> bool {
-    matches!(ch, ' '..='~')
 }
 
 fn move_visual_line(world: &World, row: Entity, text: &str, index: usize, delta: isize) -> usize {

@@ -188,7 +188,11 @@ pub fn layout_propagate(world: &mut World) {
 /// Topmost (deepest, then later sibling) entity whose visible clip contains the point.
 pub fn hit_test(world: &World, x: f32, y: f32) -> Option<Entity> {
     let mut hit = None;
-    for root in roots::<Rect>(world) {
+    let floor = crate::overlay::modal_floor(world);
+    for root in layered_roots(world) {
+        if floor.is_some_and(|floor| crate::overlay::layer_of(world, root) < floor) {
+            continue;
+        }
         walk_paint_order(world, root, &mut |entity| {
             if let Some(clip) = world.get::<Clip>(entity).copied() {
                 if clip.contains(x, y) {
@@ -291,14 +295,28 @@ fn clear_scroll_drag(world: &mut World) {
     }
 }
 
+/// Roots in paint order: higher [`crate::overlay::Layer`] values last.
+pub fn layered_roots(world: &World) -> Vec<Entity> {
+    let mut roots = roots::<Rect>(world);
+    roots.sort_by_key(|entity| crate::overlay::layer_of(world, *entity));
+    roots
+}
+
 fn walk_paint_order(world: &World, entity: Entity, visit: &mut impl FnMut(Entity)) {
-    if !world.is_alive(entity) {
+    if !world.is_alive(entity) || world.has::<crate::tabs::Hidden>(entity) {
         return;
     }
     visit(entity);
     for child in children_of(world, entity) {
         walk_paint_order(world, child, visit);
     }
+}
+
+fn shown_children(world: &World, entity: Entity) -> Vec<Entity> {
+    children_of(world, entity)
+        .into_iter()
+        .filter(|child| !world.has::<crate::tabs::Hidden>(*child))
+        .collect()
 }
 
 fn measure(world: &mut World, entity: Entity) -> Rect {
@@ -308,7 +326,7 @@ fn measure(world: &mut World, entity: Entity) -> Rect {
             return world.get::<Rect>(entity).copied().unwrap_or_default();
         }
     };
-    let kids = children_of(world, entity);
+    let kids = shown_children(world, entity);
     let mut content_w = 0.0f32;
     let mut content_h = 0.0f32;
     for child in &kids {
@@ -409,7 +427,7 @@ fn place(
     let clip = parent_clip.intersect(Clip::from_rect(rect));
     world.insert(entity, clip);
 
-    let kids = children_of(world, entity);
+    let kids = shown_children(world, entity);
     if kids.is_empty() {
         return;
     }

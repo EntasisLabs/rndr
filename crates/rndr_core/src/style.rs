@@ -5,7 +5,7 @@ impl Component for Label {}
 impl Component for Body {}
 
 /// Solid fill drawn by the render plugin.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Color {
     pub r: f32,
     pub g: f32,

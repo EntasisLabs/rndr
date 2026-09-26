@@ -7,6 +7,8 @@ use crate::world::World;
 pub enum Schedule {
     Startup,
     Update,
+    /// Runs after every Update system and before layout.
+    PostUpdate,
     Layout,
     Render,
 }
@@ -24,6 +26,7 @@ pub struct App {
     world: World,
     startup: Vec<System>,
     update: Vec<System>,
+    post_update: Vec<System>,
     layout: Vec<System>,
     render: Vec<System>,
     started: bool,
@@ -38,6 +41,7 @@ impl App {
             world,
             startup: Vec::new(),
             update: Vec::new(),
+            post_update: Vec::new(),
             layout: Vec::new(),
             render: Vec::new(),
             started: false,
@@ -63,6 +67,7 @@ impl App {
         let list = match schedule {
             Schedule::Startup => &mut self.startup,
             Schedule::Update => &mut self.update,
+            Schedule::PostUpdate => &mut self.post_update,
             Schedule::Layout => &mut self.layout,
             Schedule::Render => &mut self.render,
         };
@@ -93,11 +98,15 @@ impl App {
         for system in self.update.clone() {
             system(&mut self.world);
         }
+        for system in self.post_update.clone() {
+            system(&mut self.world);
+        }
         for system in self.layout.clone() {
             system(&mut self.world);
         }
         layout_propagate(&mut self.world);
         apply_text_layout(&mut self.world);
+        crate::editor::apply_decorations(&mut self.world);
     }
 
     /// Extra render-schedule systems. The surface runs these after paint and before present.

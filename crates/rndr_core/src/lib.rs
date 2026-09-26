@@ -5,41 +5,59 @@
 
 mod action;
 mod app;
+mod button;
 mod caret;
 mod chrome;
+mod clipboard;
 mod disclosure;
+mod edit;
+mod editor;
 mod entity;
+mod field;
 mod focus;
 mod font;
 mod fs;
 mod hierarchy;
 mod input;
 mod layout;
+mod list;
 mod memory_fs;
+mod overlay;
 mod pane;
 mod shell;
+mod slot;
 mod split;
 mod style;
+mod tabs;
 mod theme;
 mod world;
 mod wrap;
 
-pub use action::{apply_actions, Actions, Binding, Chord, Fired};
+pub use action::{apply_actions, Actions, Binding, Chord, Fired, COPY, CUT, PASTE};
 pub use app::{App, Plugin, Schedule, System};
+pub use button::Button;
 pub use caret::{
     apply_caret, caret_line_col, selection_spans, set_editing, set_editing_field, Caret, EditField,
     Editing, Field,
 };
 pub use chrome::Chrome;
+pub use clipboard::Clipboard;
 pub use disclosure::{
     page_layout, scroll_page, spawn_node, toggle_disclosure, toggle_disclosures, Disclosure,
     Focusable, NodeSpec,
 };
+pub use edit::edit_string;
+pub use editor::{
+    Buffer, Decoration, DecorationKind, DecorationMark, DecorationMarks, Decorations, Editor,
+    Gutter,
+};
 pub use entity::Entity;
+pub use field::{CapturesKeys, ImePreview, TextField};
 pub use focus::apply_focus;
 pub use font::{
-    apply_text_layout, field_text_width, layout_text, line_col, text_face, BitmapFont, Font,
-    FontAtlas, GlyphBox, PlacedGlyph, SelectionBox, TextFace, TextLayout, TextLine,
+    apply_text_layout, field_text_width, layout_text, layout_text_spans, line_col, text_face,
+    BitmapFont, Font, FontAtlas, GlyphBox, PlacedGlyph, SelectionBox, Spans, TextFace, TextLayout,
+    TextLine, TextSpan,
 };
 pub use fs::{
     apply_dirty_marks, apply_fs_edit, apply_fs_load, apply_fs_save, spawn_fs_node, DirEntry, Dirty,
@@ -48,17 +66,21 @@ pub use fs::{
 pub use hierarchy::{children_of, despawn, roots, set_parent, Children, Parent};
 pub use input::{Focus, Input, Insets, Key, Pointer, Viewport, MOUSE_ID};
 pub use layout::{
-    ancestor_with, apply_scroll, hit_test, layout_propagate, Axis, Clip, Layout, Rect, Scroll,
-    ScrollDrag, Size, SCROLL_DRAG_SLOP,
+    ancestor_with, apply_scroll, hit_test, layered_roots, layout_propagate, Axis, Clip, Layout,
+    Rect, Scroll, ScrollDrag, Size, SCROLL_DRAG_SLOP,
 };
+pub use list::{List, ListItem};
 pub use memory_fs::{MemoryFs, MemoryFsPlugin};
+pub use overlay::{Layer, Modal, DISMISS};
 pub use pane::{
     apply_pane, detail_pane, field_height, set_selection, shell, splitter, tree_column, Pane,
     Selection,
 };
 pub use shell::Shell;
+pub use slot::SurfaceSlot;
 pub use split::{apply_split, Drag, Splitter};
 pub use style::{Body, Color, Label, CELL_H, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
+pub use tabs::{Hidden, Tab, TabPanel, Tabs};
 pub use theme::{theme_of, Radius, Theme};
 pub use world::{Bundle, Component, World};
 pub use wrap::{

@@ -39,7 +39,9 @@ pub fn apply_focus(world: &mut World) {
     if let Some(key) = input.key {
         let leave_for_fs =
             key == Key::Save || (matches!(key, Key::New | Key::Delete) && !is_editing(world));
-        if leave_for_fs {
+        if captures_keys(world) {
+            // A text field or editor owns this key.
+        } else if leave_for_fs {
             // Left for apply_fs_save / apply_fs_edit.
         } else if is_editing(world) {
             match key {
@@ -61,7 +63,10 @@ pub fn apply_focus(world: &mut World) {
                 | Key::Tab
                 | Key::Up
                 | Key::Down
-                | Key::Save => {}
+                | Key::Save
+                | Key::Copy
+                | Key::Cut
+                | Key::Paste => {}
             }
         } else {
             handle_key(world, key, input.shift);
@@ -72,6 +77,13 @@ pub fn apply_focus(world: &mut World) {
     }
 
     ensure_focus_visible(world);
+}
+
+fn captures_keys(world: &World) -> bool {
+    world
+        .resource::<Focus>()
+        .and_then(|focus| focus.entity)
+        .is_some_and(|entity| world.has::<crate::field::CapturesKeys>(entity))
 }
 
 fn handle_key(world: &mut World, key: Key, shift: bool) {
@@ -89,7 +101,8 @@ fn handle_key(world: &mut World, key: Key, shift: bool) {
             }
         }
         Key::Escape => handle_escape(world),
-        Key::Backspace | Key::Save | Key::New | Key::Delete => {}
+        Key::Backspace | Key::Save | Key::New | Key::Delete | Key::Copy | Key::Cut | Key::Paste => {
+        }
     }
 }
 
