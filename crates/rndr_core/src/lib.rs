@@ -11,6 +11,7 @@ mod chrome;
 mod clipboard;
 mod disclosure;
 mod edit;
+mod editor;
 mod entity;
 mod field;
 mod focus;
@@ -45,6 +46,7 @@ pub use disclosure::{
     Focusable, NodeSpec,
 };
 pub use edit::edit_string;
+pub use editor::{Buffer, Editor, Gutter};
 pub use entity::Entity;
 pub use field::{CapturesKeys, TextField};
 pub use focus::apply_focus;
