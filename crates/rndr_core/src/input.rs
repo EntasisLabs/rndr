@@ -14,6 +14,9 @@ pub enum Key {
     Save,
     New,
     Delete,
+    Copy,
+    Cut,
+    Paste,
 }
 
 /// Mouse contact id. A later touch plugin writes a different id into the same slot.
