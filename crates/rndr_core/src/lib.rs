@@ -18,6 +18,7 @@ mod fs;
 mod hierarchy;
 mod input;
 mod layout;
+mod list;
 mod memory_fs;
 mod overlay;
 mod pane;
@@ -59,6 +60,7 @@ pub use layout::{
     ancestor_with, apply_scroll, hit_test, layered_roots, layout_propagate, Axis, Clip, Layout,
     Rect, Scroll, ScrollDrag, Size, SCROLL_DRAG_SLOP,
 };
+pub use list::{List, ListItem};
 pub use memory_fs::{MemoryFs, MemoryFsPlugin};
 pub use overlay::{Layer, Modal, DISMISS};
 pub use pane::{
