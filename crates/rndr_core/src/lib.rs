@@ -8,6 +8,7 @@ mod app;
 mod button;
 mod caret;
 mod chrome;
+mod clipboard;
 mod disclosure;
 mod edit;
 mod entity;
@@ -30,7 +31,7 @@ mod theme;
 mod world;
 mod wrap;
 
-pub use action::{apply_actions, Actions, Binding, Chord, Fired};
+pub use action::{apply_actions, Actions, Binding, Chord, Fired, COPY, CUT, PASTE};
 pub use app::{App, Plugin, Schedule, System};
 pub use button::Button;
 pub use caret::{
@@ -38,6 +39,7 @@ pub use caret::{
     Editing, Field,
 };
 pub use chrome::Chrome;
+pub use clipboard::Clipboard;
 pub use disclosure::{
     page_layout, scroll_page, spawn_node, toggle_disclosure, toggle_disclosures, Disclosure,
     Focusable, NodeSpec,

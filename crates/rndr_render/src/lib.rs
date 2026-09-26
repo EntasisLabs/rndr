@@ -4,7 +4,7 @@ mod gpu;
 
 use std::sync::Arc;
 
-use rndr_core::{text_face, App, Input, Key as Action, Pointer, Viewport, MOUSE_ID};
+use rndr_core::{text_face, App, Clipboard, Input, Key as Action, Pointer, Viewport, MOUSE_ID};
 use rndr_paint::{atlas_r8, frame, ATLAS_H, ATLAS_W};
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
@@ -104,6 +104,11 @@ impl Handler {
             viewport.scale = scale;
         }
         let quads = frame(&mut self.app);
+        // winit 0.30 has no OS clipboard. The resource is the value; clear the
+        // dirty bit after the frame so a platform can see that core wrote it.
+        if let Some(clipboard) = self.app.world_mut().resource_mut::<Clipboard>() {
+            clipboard.dirty = false;
+        }
         let scale = self
             .app
             .world()
@@ -187,6 +192,18 @@ impl ApplicationHandler for Handler {
                         }
                         if text.eq_ignore_ascii_case("n") {
                             self.key = Some(Action::New);
+                            redraw = true;
+                        }
+                        if text.eq_ignore_ascii_case("c") {
+                            self.key = Some(Action::Copy);
+                            redraw = true;
+                        }
+                        if text.eq_ignore_ascii_case("x") {
+                            self.key = Some(Action::Cut);
+                            redraw = true;
+                        }
+                        if text.eq_ignore_ascii_case("v") {
+                            self.key = Some(Action::Paste);
                             redraw = true;
                         }
                     }

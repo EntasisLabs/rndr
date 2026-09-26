@@ -63,7 +63,10 @@ pub fn apply_focus(world: &mut World) {
                 | Key::Tab
                 | Key::Up
                 | Key::Down
-                | Key::Save => {}
+                | Key::Save
+                | Key::Copy
+                | Key::Cut
+                | Key::Paste => {}
             }
         } else {
             handle_key(world, key, input.shift);
@@ -98,7 +101,8 @@ fn handle_key(world: &mut World, key: Key, shift: bool) {
             }
         }
         Key::Escape => handle_escape(world),
-        Key::Backspace | Key::Save | Key::New | Key::Delete => {}
+        Key::Backspace | Key::Save | Key::New | Key::Delete | Key::Copy | Key::Cut | Key::Paste => {
+        }
     }
 }
 
