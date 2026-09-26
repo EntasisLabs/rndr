@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use rndr_core::{layout_text, BitmapFont, Font, GlyphBox, TextFace, TextLayout, CELL_W};
+use rndr_core::{
+    layout_text, layout_text_spans, BitmapFont, Color, Font, GlyphBox, TextFace, TextLayout,
+    TextSpan, CELL_W,
+};
 
 struct WideO;
 
@@ -53,6 +56,23 @@ fn proportional_face_wraps_on_advances() {
     assert_eq!(o.x, 0.0);
     assert_eq!(o.y, 10.0);
     assert_eq!(o.w, 10.0);
+}
+
+#[test]
+fn wrap_inside_a_span_keeps_every_glyph() {
+    let spans = [TextSpan {
+        start: 0,
+        end: 4,
+        color: Color::rgb(0.2, 0.4, 0.8),
+        face: 0,
+    }];
+    let layout = layout_text_spans(&BitmapFont, "abcd", 32.0, &spans);
+    assert_eq!(layout.glyphs.len(), 4);
+    assert!(layout
+        .glyphs
+        .iter()
+        .all(|glyph| glyph.color == Some(spans[0].color)));
+    assert!(layout.lines.len() >= 2);
 }
 
 #[test]

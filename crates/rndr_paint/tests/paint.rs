@@ -1,4 +1,4 @@
-use rndr_core::{layout_text, Font};
+use rndr_core::{layout_text, Font, Spans, TextSpan};
 use rndr_core::{
     App, Caret, Clip, Color, Label, Radius, Rect, Schedule, Theme, World, CELL_H, CELL_W,
     TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
@@ -109,6 +109,40 @@ fn radius_is_on_the_solid_and_not_the_glyphs() {
     assert_eq!(quads[0].radius, 6.0);
     assert_eq!(quads[1].radius, 0.0);
     assert_eq!(quads[1].color.r, Theme::default().text.r);
+}
+
+#[test]
+fn two_spans_paint_two_colors() {
+    let mut world = World::new();
+    world.spawn((
+        rect(),
+        Color::rgb(0.2, 0.22, 0.24),
+        Label::new("AB"),
+        Spans {
+            runs: vec![
+                TextSpan {
+                    start: 0,
+                    end: 1,
+                    color: Color::rgb(1.0, 0.0, 0.0),
+                    face: 0,
+                },
+                TextSpan {
+                    start: 1,
+                    end: 2,
+                    color: Color::rgb(0.0, 0.0, 1.0),
+                    face: 1,
+                },
+            ],
+        },
+    ));
+    let quads = paint(&world);
+    let glyphs: Vec<_> = quads
+        .iter()
+        .filter(|quad| quad.radius == 0.0 && quad.uv != solid_uv())
+        .collect();
+    assert_eq!(glyphs.len(), 2);
+    assert_eq!(glyphs[0].color.r, 1.0);
+    assert_eq!(glyphs[1].color.b, 1.0);
 }
 
 #[test]

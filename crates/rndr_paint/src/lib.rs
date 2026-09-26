@@ -11,9 +11,9 @@ pub use font::{atlas_r8, glyph_uv, solid_uv, ATLAS_H, ATLAS_W};
 pub use latin::LatinFace;
 
 use rndr_core::{
-    children_of, field_text_width, layout_text, roots, text_face, theme_of, App, Caret, Clip,
-    Color, DirtyMark, EditField, Field, Focus, Label, Parent, Radius, Rect, TextLayout, Viewport,
-    World, CELL_H, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
+    children_of, field_text_width, layered_roots, layout_text_spans, text_face, theme_of, App,
+    Caret, Clip, Color, DirtyMark, EditField, Field, Focus, Label, Parent, Radius, Rect,
+    TextLayout, Viewport, World, CELL_H, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
 
 /// One instanced quad in logical points.
@@ -48,7 +48,7 @@ pub fn paint(world: &World) -> Vec<Quad> {
         .unwrap_or(1.0);
     let solid = text_face(world).solid_uv();
     let theme = theme_of(world);
-    for root in roots::<Rect>(world) {
+    for root in layered_roots(world) {
         walk(world, root, &mut |rect,
                                 color,
                                 clip,
@@ -107,7 +107,7 @@ fn walk(
         f32,
     ),
 ) {
-    if !world.is_alive(entity) {
+    if !world.is_alive(entity) || world.has::<rndr_core::Hidden>(entity) {
         return;
     }
     if let (Some(rect), Some(color)) = (world.get::<Rect>(entity), world.get::<Color>(entity)) {
@@ -217,7 +217,11 @@ fn measured(world: &World, entity: rndr_core::Entity, text: &str, rect: Rect) ->
     } else {
         f32::INFINITY
     };
-    layout_text(font.as_ref(), text, max_width)
+    let spans = world
+        .get::<rndr_core::Spans>(entity)
+        .map(|spans| spans.runs.clone())
+        .unwrap_or_default();
+    layout_text_spans(font.as_ref(), text, max_width, &spans)
 }
 
 fn push_selection(
@@ -266,7 +270,7 @@ fn push_label(
                 glyph.h,
                 scale,
             ),
-            color,
+            glyph.color.unwrap_or(color),
             glyph.uv,
             clip,
             0.0,
