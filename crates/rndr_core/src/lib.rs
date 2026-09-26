@@ -46,7 +46,10 @@ pub use disclosure::{
     Focusable, NodeSpec,
 };
 pub use edit::edit_string;
-pub use editor::{Buffer, Editor, Gutter};
+pub use editor::{
+    Buffer, Decoration, DecorationKind, DecorationMark, DecorationMarks, Decorations, Editor,
+    Gutter,
+};
 pub use entity::Entity;
 pub use field::{CapturesKeys, TextField};
 pub use focus::apply_focus;

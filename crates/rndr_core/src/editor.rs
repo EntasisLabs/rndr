@@ -340,7 +340,7 @@ fn publish_window(world: &mut World, entity: crate::entity::Entity) {
     }
 }
 
-fn window_base(world: &World, entity: crate::entity::Entity) -> usize {
+pub(crate) fn window_base(world: &World, entity: crate::entity::Entity) -> usize {
     let height = world.get::<Rect>(entity).map(|rect| rect.h).unwrap_or(0.0);
     let offset = world
         .get::<Editor>(entity)
@@ -364,4 +364,87 @@ fn gutter_for(world: &World, entity: crate::entity::Entity) -> Option<crate::ent
     children_of(world, parent)
         .into_iter()
         .find(|child| world.has::<Gutter>(*child))
+}
+
+impl Component for Decorations {}
+impl Component for DecorationMarks {}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DecorationKind {
+    Find,
+    Diagnostic,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct Decoration {
+    pub start: usize,
+    pub end: usize,
+    pub kind: DecorationKind,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct Decorations {
+    pub list: Vec<Decoration>,
+}
+
+/// Quads relative to the text origin. Empty when the range is offscreen.
+#[derive(Clone, Debug, Default)]
+pub struct DecorationMarks {
+    pub marks: Vec<DecorationMark>,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct DecorationMark {
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+    pub kind: DecorationKind,
+}
+
+pub fn apply_decorations(world: &mut World) {
+    let entities = world.entities_with::<Decorations>();
+    for entity in entities {
+        let list = world
+            .get::<Decorations>(entity)
+            .map(|decorations| decorations.list.clone())
+            .unwrap_or_default();
+        let layout = world.get::<crate::font::TextLayout>(entity).cloned();
+        let window_len = world
+            .get::<Label>(entity)
+            .map(|label| label.text.len())
+            .unwrap_or(0);
+        let base = if world.has::<Buffer>(entity) {
+            window_base(world, entity)
+        } else {
+            0
+        };
+        let mut marks = Vec::new();
+        if let Some(layout) = layout {
+            for decoration in list {
+                if decoration.end <= base || decoration.start >= base + window_len {
+                    continue;
+                }
+                let start = decoration.start.saturating_sub(base).min(window_len);
+                let end = decoration.end.saturating_sub(base).min(window_len);
+                if start >= end {
+                    continue;
+                }
+                for span in layout.selection_boxes(start, end) {
+                    let (y, h) = match decoration.kind {
+                        DecorationKind::Find => (span.y, span.h),
+                        DecorationKind::Diagnostic => (span.y + span.h - 2.0, 2.0),
+                    };
+                    marks.push(DecorationMark {
+                        x: span.x,
+                        y,
+                        w: span.w.max(1.0),
+                        h,
+                        kind: decoration.kind,
+                    });
+                }
+            }
+        }
+        world.insert(entity, DecorationMarks { marks });
+    }
 }
