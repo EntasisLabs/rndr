@@ -49,8 +49,9 @@ pub use entity::Entity;
 pub use field::{CapturesKeys, TextField};
 pub use focus::apply_focus;
 pub use font::{
-    apply_text_layout, field_text_width, layout_text, line_col, text_face, BitmapFont, Font,
-    FontAtlas, GlyphBox, PlacedGlyph, SelectionBox, TextFace, TextLayout, TextLine,
+    apply_text_layout, field_text_width, layout_text, layout_text_spans, line_col, text_face,
+    BitmapFont, Font, FontAtlas, GlyphBox, PlacedGlyph, SelectionBox, Spans, TextFace, TextLayout,
+    TextLine, TextSpan,
 };
 pub use fs::{
     apply_dirty_marks, apply_fs_edit, apply_fs_load, apply_fs_save, spawn_fs_node, DirEntry, Dirty,
