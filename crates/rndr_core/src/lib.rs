@@ -9,7 +9,9 @@ mod button;
 mod caret;
 mod chrome;
 mod disclosure;
+mod edit;
 mod entity;
+mod field;
 mod focus;
 mod font;
 mod fs;
@@ -38,7 +40,9 @@ pub use disclosure::{
     page_layout, scroll_page, spawn_node, toggle_disclosure, toggle_disclosures, Disclosure,
     Focusable, NodeSpec,
 };
+pub use edit::edit_string;
 pub use entity::Entity;
+pub use field::{CapturesKeys, TextField};
 pub use focus::apply_focus;
 pub use font::{
     apply_text_layout, field_text_width, layout_text, line_col, text_face, BitmapFont, Font,

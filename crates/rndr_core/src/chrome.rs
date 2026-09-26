@@ -1,6 +1,7 @@
 use crate::action::{apply_actions, Actions, Fired};
 use crate::app::{App, Plugin, Schedule};
 use crate::button::apply_buttons;
+use crate::field::apply_fields;
 use crate::tabs::apply_tabs;
 
 /// Opt-in widget systems. The file-tree [`crate::Shell`] does not register these.
@@ -15,6 +16,7 @@ impl Plugin for Chrome {
             app.world_mut().insert_resource(Fired::default());
         }
         app.add_system_front(Schedule::Update, apply_chrome);
+        app.add_system(Schedule::PostUpdate, apply_fields);
     }
 }
 
