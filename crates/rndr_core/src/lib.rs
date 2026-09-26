@@ -3,8 +3,10 @@
 //! Three.js-shaped cut from mob3: the world owns entities and hierarchy.
 //! A render plugin reads the flat [`layout::Rect`] list.
 
+mod action;
 mod app;
 mod caret;
+mod chrome;
 mod disclosure;
 mod entity;
 mod focus;
@@ -22,11 +24,13 @@ mod theme;
 mod world;
 mod wrap;
 
+pub use action::{apply_actions, Actions, Binding, Chord, Fired};
 pub use app::{App, Plugin, Schedule, System};
 pub use caret::{
     apply_caret, caret_line_col, selection_spans, set_editing, set_editing_field, Caret, EditField,
     Editing, Field,
 };
+pub use chrome::Chrome;
 pub use disclosure::{
     page_layout, scroll_page, spawn_node, toggle_disclosure, toggle_disclosures, Disclosure,
     Focusable, NodeSpec,
