@@ -188,7 +188,11 @@ pub fn layout_propagate(world: &mut World) {
 /// Topmost (deepest, then later sibling) entity whose visible clip contains the point.
 pub fn hit_test(world: &World, x: f32, y: f32) -> Option<Entity> {
     let mut hit = None;
-    for root in roots::<Rect>(world) {
+    let floor = crate::overlay::modal_floor(world);
+    for root in layered_roots(world) {
+        if floor.is_some_and(|floor| crate::overlay::layer_of(world, root) < floor) {
+            continue;
+        }
         walk_paint_order(world, root, &mut |entity| {
             if let Some(clip) = world.get::<Clip>(entity).copied() {
                 if clip.contains(x, y) {
@@ -289,6 +293,13 @@ fn clear_scroll_drag(world: &mut World) {
     if let Some(drag) = world.resource_mut::<ScrollDrag>() {
         *drag = ScrollDrag::default();
     }
+}
+
+/// Roots in paint order: higher [`crate::overlay::Layer`] values last.
+pub fn layered_roots(world: &World) -> Vec<Entity> {
+    let mut roots = roots::<Rect>(world);
+    roots.sort_by_key(|entity| crate::overlay::layer_of(world, *entity));
+    roots
 }
 
 fn walk_paint_order(world: &World, entity: Entity, visit: &mut impl FnMut(Entity)) {
