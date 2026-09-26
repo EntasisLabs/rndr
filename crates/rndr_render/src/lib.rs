@@ -7,7 +7,7 @@ use std::sync::Arc;
 use rndr_core::{text_face, App, Clipboard, Input, Key as Action, Pointer, Viewport, MOUSE_ID};
 use rndr_paint::{atlas_r8, frame, ATLAS_H, ATLAS_W};
 use winit::application::ApplicationHandler;
-use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
+use winit::event::{ElementState, Ime, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowId};
@@ -26,6 +26,8 @@ pub fn run(app: App) {
         scroll: [0.0, 0.0],
         key: None,
         chars: String::new(),
+        ime_preedit: String::new(),
+        ime_commit: String::new(),
         shift: false,
         ctrl: false,
         alt: false,
@@ -43,6 +45,8 @@ struct Handler {
     scroll: [f32; 2],
     key: Option<Action>,
     chars: String,
+    ime_preedit: String,
+    ime_commit: String,
     shift: bool,
     ctrl: bool,
     alt: bool,
@@ -76,6 +80,8 @@ impl Handler {
             input.scroll = self.scroll;
             input.key = self.key;
             input.chars.clone_from(&self.chars);
+            input.ime_preedit.clone_from(&self.ime_preedit);
+            input.ime_commit.clone_from(&self.ime_commit);
             input.shift = self.shift;
             input.ctrl = self.ctrl;
         }
@@ -83,6 +89,7 @@ impl Handler {
         self.scroll = [0.0, 0.0];
         self.key = None;
         self.chars.clear();
+        self.ime_commit.clear();
     }
 
     /// Write the window into [`Viewport`], step the world, paint, and present.
@@ -178,6 +185,20 @@ impl ApplicationHandler for Handler {
                 self.alt = state.alt_key();
                 self.super_key = state.super_key();
             }
+            WindowEvent::Ime(Ime::Preedit(text, _)) => {
+                self.ime_preedit = text;
+                if let Some(gpu) = &self.gpu {
+                    gpu.window().request_redraw();
+                }
+            }
+            WindowEvent::Ime(Ime::Commit(text)) => {
+                self.ime_commit.push_str(&text);
+                self.ime_preedit.clear();
+                if let Some(gpu) = &self.gpu {
+                    gpu.window().request_redraw();
+                }
+            }
+            WindowEvent::Ime(Ime::Enabled | Ime::Disabled) => {}
             WindowEvent::KeyboardInput { event, .. } if event.state == ElementState::Pressed => {
                 let mut redraw = false;
                 if let Some(key) = map_key(&event.logical_key) {
@@ -281,6 +302,7 @@ impl ApplicationHandler for Handler {
                         input.scroll = [0.0, 0.0];
                         input.key = None;
                         input.chars.clear();
+                        input.ime_commit.clear();
                     }
                 }
                 if self

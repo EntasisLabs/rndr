@@ -52,7 +52,7 @@ pub use editor::{
     Gutter,
 };
 pub use entity::Entity;
-pub use field::{CapturesKeys, TextField};
+pub use field::{CapturesKeys, ImePreview, TextField};
 pub use focus::apply_focus;
 pub use font::{
     apply_text_layout, field_text_width, layout_text, layout_text_spans, line_col, text_face,

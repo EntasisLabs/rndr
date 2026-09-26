@@ -8,6 +8,13 @@ use crate::wrap::layout_of;
 
 impl Component for TextField {}
 impl Component for CapturesKeys {}
+impl Component for ImePreview {}
+
+/// Uncommitted composition shown at the caret. The label stays unchanged.
+#[derive(Clone, Debug, Default)]
+pub struct ImePreview {
+    pub text: String,
+}
 
 /// Single-line editor on this entity's [`Label`]. No file binding.
 #[derive(Clone, Copy, Debug, Default)]
@@ -78,10 +85,17 @@ fn place_from_pointer(world: &mut World, entity: crate::entity::Entity, existed:
 }
 
 fn edit_label(world: &mut World, entity: crate::entity::Entity) {
-    let (key, shift, chars) = match world.resource::<Input>() {
-        Some(input) => (input.key, input.shift, input.chars.clone()),
+    let (key, shift, chars, commit) = match world.resource::<Input>() {
+        Some(input) => (
+            input.key,
+            input.shift,
+            input.chars.clone(),
+            input.ime_commit.clone(),
+        ),
         None => return,
     };
+    let mut typed = chars;
+    typed.push_str(&commit);
     let mut text = world
         .get::<Label>(entity)
         .map(|label| label.text.clone())
@@ -90,7 +104,7 @@ fn edit_label(world: &mut World, entity: crate::entity::Entity) {
         .get::<Caret>(entity)
         .map(|caret| (caret.index, caret.anchor))
         .unwrap_or((text.len(), text.len()));
-    let (index, anchor) = edit_string(&mut text, index, anchor, key, shift, &chars, false);
+    let (index, anchor) = edit_string(&mut text, index, anchor, key, shift, &typed, false);
     if let Some(label) = world.get_mut::<Label>(entity) {
         label.text = text;
     }
@@ -100,8 +114,22 @@ fn edit_label(world: &mut World, entity: crate::entity::Entity) {
     }
     if let Some(input) = world.resource_mut::<Input>() {
         input.chars.clear();
+        input.ime_commit.clear();
         if matches!(input.key, Some(Key::Left | Key::Right | Key::Backspace)) {
             input.key = None;
         }
+    }
+    sync_preview(world, entity);
+}
+
+fn sync_preview(world: &mut World, entity: crate::entity::Entity) {
+    let preedit = world
+        .resource::<Input>()
+        .map(|input| input.ime_preedit.clone())
+        .unwrap_or_default();
+    if preedit.is_empty() {
+        world.remove::<ImePreview>(entity);
+    } else {
+        world.insert(entity, ImePreview { text: preedit });
     }
 }

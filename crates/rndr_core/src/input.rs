@@ -56,6 +56,10 @@ pub struct Input {
     pub key: Option<Key>,
     /// Printable ASCII gathered this frame.
     pub chars: String,
+    /// Uncommitted IME composition. Empty when the platform is not composing.
+    pub ime_preedit: String,
+    /// Text the IME committed this frame.
+    pub ime_commit: String,
     pub shift: bool,
     pub ctrl: bool,
     pub quit: bool,
