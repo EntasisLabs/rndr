@@ -25,6 +25,7 @@ mod memory_fs;
 mod overlay;
 mod pane;
 mod shell;
+mod slot;
 mod split;
 mod style;
 mod tabs;
@@ -51,7 +52,7 @@ pub use editor::{
     Gutter,
 };
 pub use entity::Entity;
-pub use field::{CapturesKeys, TextField};
+pub use field::{CapturesKeys, ImePreview, TextField};
 pub use focus::apply_focus;
 pub use font::{
     apply_text_layout, field_text_width, layout_text, layout_text_spans, line_col, text_face,
@@ -76,6 +77,7 @@ pub use pane::{
     Selection,
 };
 pub use shell::Shell;
+pub use slot::SurfaceSlot;
 pub use split::{apply_split, Drag, Splitter};
 pub use style::{Body, Color, Label, CELL_H, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
 pub use tabs::{Hidden, Tab, TabPanel, Tabs};
