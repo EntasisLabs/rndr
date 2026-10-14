@@ -1,6 +1,9 @@
 use crate::caret::{EditField, Field};
 use crate::entity::Entity;
-use crate::font::{field_text_width, layout_text, line_col, text_face, BitmapFont, TextLayout};
+use crate::font::{
+    field_text_width, layout_cache_key, layout_text, layout_text_spans, line_col, measure_text,
+    text_face, BitmapFont, TextLayout,
+};
 use crate::layout::{Layout, Rect, Size};
 use crate::pane::Pane;
 use crate::style::{Label, CELL_H, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
@@ -115,6 +118,16 @@ pub fn index_at_pointer(text: &str, cols: usize, rect: Rect, x: f32, y: f32) -> 
 /// Fresh layout of `text` on `entity`. Body fields wrap to the row width.
 /// Uses the world's [`crate::TextFace`] when one is set.
 pub fn layout_of(world: &World, entity: Entity, text: &str) -> TextLayout {
+    with_text_layout(world, entity, text, TextLayout::clone)
+}
+
+/// Borrow the cached layout when it still matches `text`, otherwise build one.
+pub(crate) fn with_text_layout<R>(
+    world: &World,
+    entity: Entity,
+    text: &str,
+    f: impl FnOnce(&TextLayout) -> R,
+) -> R {
     let font = text_face(world);
     let wrap = world
         .get::<Field>(entity)
@@ -127,7 +140,25 @@ pub fn layout_of(world: &World, entity: Entity, text: &str) -> TextLayout {
     } else {
         f32::INFINITY
     };
-    layout_text(font.as_ref(), text, max_width)
+    let key = {
+        let spans = world
+            .get::<crate::font::Spans>(entity)
+            .map(|spans| spans.runs.as_slice())
+            .unwrap_or(&[]);
+        layout_cache_key(font.as_ref(), text, max_width, spans, "", 0)
+    };
+    if let Some(layout) = world.get::<TextLayout>(entity) {
+        if layout.cache_key == key {
+            return f(layout);
+        }
+    }
+    let spans = world
+        .get::<crate::font::Spans>(entity)
+        .map(|spans| spans.runs.clone())
+        .unwrap_or_default();
+    let mut layout = layout_text_spans(font.as_ref(), text, max_width, &spans);
+    layout.cache_key = key;
+    f(&layout)
 }
 
 /// Grow every body field so its height matches wrapped lines.
@@ -157,7 +188,7 @@ pub fn apply_wrap(world: &mut World) {
             let n = match width {
                 Some(width) => {
                     let max = field_text_width(width, font.advance('0'));
-                    layout_text(font.as_ref(), &text, max).lines.len()
+                    measure_text(font.as_ref(), &text, max).line_count
                 }
                 None => text.split('\n').count().max(1),
             };

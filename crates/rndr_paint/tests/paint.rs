@@ -58,6 +58,23 @@ fn labeled_rect_paints_a_solid_quad_then_glyphs() {
 }
 
 #[test]
+fn glyphs_outside_the_clip_are_dropped() {
+    let mut world = World::new();
+    world.spawn((
+        rect(),
+        Clip {
+            x: 0.0,
+            y: 0.0,
+            w: 400.0,
+            h: 10.0,
+        },
+        Color::rgb(0.2, 0.22, 0.24),
+        Label::new("AB"),
+    ));
+    assert!(paint(&world).is_empty());
+}
+
+#[test]
 fn caret_sits_on_the_glyph_column() {
     let mut world = World::new();
     world.spawn((

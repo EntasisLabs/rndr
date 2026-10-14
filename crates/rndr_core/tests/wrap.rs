@@ -104,6 +104,24 @@ fn narrow_body_wraps_without_inserting_newlines() {
 }
 
 #[test]
+fn narrower_viewport_rewraps_on_that_frame() {
+    let (mut app, _alpha) = boot_narrow();
+    for _ in 0..20 {
+        type_char(&mut app, 'a');
+    }
+    let body = pane_field(app.world(), EditField::Body);
+    let before = app.world().get::<rndr_core::Rect>(body).unwrap().h;
+    assert_eq!(before, field_height_lines(3));
+    app.world_mut().resource_mut::<Viewport>().unwrap().width = 120.0;
+    app.update();
+    let after = app.world().get::<rndr_core::Rect>(body).unwrap().h;
+    assert!(
+        after > before,
+        "width change should rewrap before the next frame, before {before} after {after}"
+    );
+}
+
+#[test]
 fn down_then_up_walks_visual_lines() {
     let (mut app, _alpha) = boot_narrow();
     for _ in 0..20 {

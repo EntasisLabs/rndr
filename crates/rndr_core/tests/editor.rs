@@ -1,5 +1,5 @@
 use rndr_core::{
-    set_parent, App, Axis, Buffer, CapturesKeys, Chrome, Color, Editor, Focus, Gutter, Input,
+    set_parent, App, Axis, Buffer, CapturesKeys, Chrome, Color, Editor, Focus, Gutter, Input, Key,
     Label, Layout, Rect, Size, TextLayout, Viewport, CELL_H, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
 
@@ -123,4 +123,21 @@ fn click_maps_to_a_buffer_offset() {
     input.pointer.down = true;
     app.update();
     assert_eq!(app.world().get::<Buffer>(body).unwrap().caret, 6);
+}
+
+#[test]
+fn backspace_removes_one_scalar() {
+    let (mut app, body, _) = boot("é", 80.0);
+    app.world_mut().resource_mut::<Focus>().unwrap().entity = Some(body);
+    assert_eq!(app.world().get::<Buffer>(body).unwrap().caret, "é".len());
+    app.world_mut().resource_mut::<Input>().unwrap().key = Some(Key::Left);
+    app.update();
+    assert_eq!(app.world().get::<Buffer>(body).unwrap().caret, 0);
+    app.world_mut().resource_mut::<Focus>().unwrap().entity = Some(body);
+    app.world_mut().get_mut::<Buffer>(body).unwrap().caret = "é".len();
+    app.world_mut().get_mut::<Buffer>(body).unwrap().anchor = "é".len();
+    app.world_mut().resource_mut::<Input>().unwrap().key = Some(Key::Backspace);
+    app.update();
+    assert_eq!(app.world().get::<Buffer>(body).unwrap().text(), "");
+    assert_eq!(app.world().get::<Buffer>(body).unwrap().caret, 0);
 }

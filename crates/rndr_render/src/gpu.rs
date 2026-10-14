@@ -89,6 +89,7 @@ pub struct Gpu {
     quad: wgpu::Buffer,
     instances: wgpu::Buffer,
     instance_capacity: u64,
+    staging: Vec<u8>,
 }
 
 impl Gpu {
@@ -314,6 +315,7 @@ impl Gpu {
             quad,
             instances,
             instance_capacity: INITIAL_INSTANCES,
+            staging: Vec::new(),
         }
     }
 
@@ -334,8 +336,8 @@ impl Gpu {
     /// Returns false when the surface was not presented, so the caller can keep
     /// this frame's input edges for the next redraw.
     pub fn present(&mut self, quads: &[Quad], width: u32, height: u32, scale: f32) -> bool {
-        let instances = pack_instances(quads, scale);
-        let needed = instances.len() as u64 / INSTANCE_FLOATS as u64;
+        encode_instances(quads, scale, &mut self.staging);
+        let needed = self.staging.len() as u64 / INSTANCE_STRIDE;
         if needed > self.instance_capacity {
             self.instance_capacity = needed.max(self.instance_capacity * 2);
             self.instances = self.device.create_buffer(&wgpu::BufferDescriptor {
@@ -351,12 +353,8 @@ impl Gpu {
         uniform[4..8].copy_from_slice(&(height as f32).to_le_bytes());
         self.queue.write_buffer(&self.uniform, 0, &uniform);
 
-        let mut bytes = Vec::with_capacity(instances.len() * 4);
-        for value in &instances {
-            bytes.extend_from_slice(&value.to_le_bytes());
-        }
-        if !bytes.is_empty() {
-            self.queue.write_buffer(&self.instances, 0, &bytes);
+        if !self.staging.is_empty() {
+            self.queue.write_buffer(&self.instances, 0, &self.staging);
         }
 
         let texture = match self.surface.get_current_texture() {
@@ -416,10 +414,11 @@ impl Gpu {
 }
 
 /// Layout quads are points. The uniform and the fragment clip are physical pixels.
-fn pack_instances(quads: &[Quad], scale: f32) -> Vec<f32> {
-    let mut out = Vec::with_capacity(quads.len() * INSTANCE_FLOATS);
+fn encode_instances(quads: &[Quad], scale: f32, out: &mut Vec<u8>) {
+    out.clear();
+    out.reserve(quads.len() * INSTANCE_FLOATS * 4);
     for quad in quads {
-        out.extend_from_slice(&[
+        for value in [
             quad.rect.x * scale,
             quad.rect.y * scale,
             quad.rect.w * scale,
@@ -440,7 +439,8 @@ fn pack_instances(quads: &[Quad], scale: f32) -> Vec<f32> {
             0.0,
             0.0,
             0.0,
-        ]);
+        ] {
+            out.extend_from_slice(&value.to_le_bytes());
+        }
     }
-    out
 }

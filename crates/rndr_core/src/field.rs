@@ -4,7 +4,7 @@ use crate::input::{Focus, Input, Key};
 use crate::layout::{ancestor_with, hit_test, Rect};
 use crate::style::{Label, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
 use crate::world::{Component, World};
-use crate::wrap::layout_of;
+use crate::wrap::with_text_layout;
 
 impl Component for TextField {}
 impl Component for CapturesKeys {}
@@ -71,11 +71,12 @@ fn place_from_pointer(world: &mut World, entity: crate::entity::Entity, existed:
         .get::<Label>(entity)
         .map(|label| label.text.clone())
         .unwrap_or_default();
-    let layout = layout_of(world, entity, &text);
-    let index = layout.index_at(
-        input.pointer.position[0] - rect.x - TEXT_ORIGIN_X,
-        input.pointer.position[1] - rect.y - TEXT_ORIGIN_Y,
-    );
+    let index = with_text_layout(world, entity, &text, |layout| {
+        layout.index_at(
+            input.pointer.position[0] - rect.x - TEXT_ORIGIN_X,
+            input.pointer.position[1] - rect.y - TEXT_ORIGIN_Y,
+        )
+    });
     if let Some(caret) = world.get_mut::<Caret>(entity) {
         caret.index = index;
         if !(input.shift && existed) {

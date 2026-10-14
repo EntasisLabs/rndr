@@ -1,5 +1,5 @@
 use crate::entity::Entity;
-use crate::font::{field_text_width, layout_text, text_face};
+use crate::font::{field_text_width, layout_cache_key, measure_text, text_face, TextLayout};
 use crate::hierarchy::{children_of, roots, Parent};
 use crate::input::{Input, Viewport};
 use crate::split::Splitter;
@@ -395,9 +395,9 @@ fn place(
     avail_w: f32,
     avail_h: f32,
     parent_clip: Clip,
-) {
+) -> (f32, f32) {
     let Some(layout) = world.get::<Layout>(entity).copied() else {
-        return;
+        return (avail_w, avail_h);
     };
     let mut rect = world.get::<Rect>(entity).copied().unwrap_or_default();
     if matches!(layout.width, Size::Fill) {
@@ -416,6 +416,29 @@ fn place(
         .unwrap_or(1.0);
     (rect.x, rect.w) = snap_span(rect.x, rect.w, scale);
     (rect.y, rect.h) = snap_span(rect.y, rect.h, scale);
+    let mut stack_w = avail_w;
+    let mut stack_h = avail_h;
+    let kids = shown_children(world, entity);
+    if kids.is_empty() {
+        if let Some((tw, th)) = label_hug_at(world, entity, &layout, rect.w) {
+            if matches!(layout.width, Size::Hug) {
+                let w = tw.max(layout.min_width);
+                if (w - avail_w).abs() > 0.01 {
+                    rect.w = w;
+                    stack_w = w;
+                    (rect.x, rect.w) = snap_span(rect.x, rect.w, scale);
+                }
+            }
+            if matches!(layout.height, Size::Hug) {
+                let h = th.max(layout.min_height);
+                if (h - avail_h).abs() > 0.01 {
+                    rect.h = h;
+                    stack_h = h;
+                    (rect.y, rect.h) = snap_span(rect.y, rect.h, scale);
+                }
+            }
+        }
+    }
     world.insert(entity, rect);
 
     if world.has::<Scroll>(entity) {
@@ -427,9 +450,8 @@ fn place(
     let clip = parent_clip.intersect(Clip::from_rect(rect));
     world.insert(entity, clip);
 
-    let kids = shown_children(world, entity);
     if kids.is_empty() {
-        return;
+        return (stack_w, stack_h);
     }
 
     let inner_x = rect.x + layout.padding;
@@ -472,6 +494,7 @@ fn place(
 
     let mut cursor_x = inner_x + offset[0];
     let mut cursor_y = inner_y + offset[1];
+    let mut main_delta = 0.0f32;
     for child in kids {
         let child_layout = world.get::<Layout>(child).copied();
         let child_rect = world.get::<Rect>(child).copied().unwrap_or_default();
@@ -505,12 +528,28 @@ fn place(
                 )
             }
         };
-        place(world, child, cursor_x, cursor_y, cw, ch, clip);
+        let (used_w, used_h) = place(world, child, cursor_x, cursor_y, cw, ch, clip);
         match layout.axis {
-            Axis::Column => cursor_y += ch + layout.gap,
-            Axis::Row => cursor_x += cw + layout.gap,
+            Axis::Column => {
+                main_delta += used_h - ch;
+                cursor_y += used_h + layout.gap;
+            }
+            Axis::Row => {
+                main_delta += used_w - cw;
+                cursor_x += used_w + layout.gap;
+            }
         }
     }
+    if main_delta.abs() > 0.01 {
+        if let Some(scroll) = world.get_mut::<Scroll>(entity) {
+            match layout.axis {
+                Axis::Column => scroll.content[1] += main_delta,
+                Axis::Row => scroll.content[0] += main_delta,
+            }
+            scroll.clamp_to(rect.w, rect.h);
+        }
+    }
+    (stack_w, stack_h)
 }
 
 fn snap_span(origin: f32, size: f32, scale: f32) -> (f32, f32) {
@@ -526,22 +565,98 @@ fn snap_span(origin: f32, size: f32, scale: f32) -> (f32, f32) {
 
 /// Hug size of a label leaf: one line wide, or wrapped to the width already placed.
 fn label_hug(world: &World, entity: Entity, layout: &Layout) -> Option<(f32, f32)> {
+    let prev_w = world.get::<Rect>(entity).map(|rect| rect.w).unwrap_or(0.0);
+    let field_w = match layout.width {
+        Size::Px(px) => px,
+        Size::Fill if prev_w > 0.0 => prev_w,
+        Size::Fill => return label_hug_width(world, entity, layout, f32::INFINITY),
+        Size::Hug => f32::INFINITY,
+    };
+    label_hug_width(world, entity, layout, field_w)
+}
+
+/// Hug a leaf against `field_w`, the width place is committing.
+fn label_hug_at(
+    world: &World,
+    entity: Entity,
+    layout: &Layout,
+    field_w: f32,
+) -> Option<(f32, f32)> {
+    let wrap_w = match layout.width {
+        Size::Px(px) => px,
+        Size::Hug => f32::INFINITY,
+        Size::Fill => field_w,
+    };
+    label_hug_width(world, entity, layout, wrap_w)
+}
+
+fn label_hug_width(
+    world: &World,
+    entity: Entity,
+    layout: &Layout,
+    field_w: f32,
+) -> Option<(f32, f32)> {
     if !matches!(layout.width, Size::Hug) && !matches!(layout.height, Size::Hug) {
         return None;
     }
-    let text = world.get::<Label>(entity)?.text.clone();
+    if world.get::<Label>(entity).is_none() {
+        return None;
+    }
     let font = text_face(world);
-    let prev_w = world.get::<Rect>(entity).map(|rect| rect.w).unwrap_or(0.0);
-    let max_width = match layout.width {
-        Size::Px(px) => field_text_width(px, font.advance('0')),
-        Size::Fill if prev_w > 0.0 => field_text_width(prev_w, font.advance('0')),
-        _ => f32::INFINITY,
+    let max_width = if field_w.is_finite() {
+        field_text_width(field_w, font.advance('0'))
+    } else {
+        f32::INFINITY
     };
-    let laid = layout_text(font.as_ref(), &text, max_width);
-    let lines = laid.lines.len().max(1) as f32;
-    let h = (TEXT_ORIGIN_Y + lines * font.line_height() + TEXT_ORIGIN_Y).max(36.0);
-    let w = laid.width + 2.0 * TEXT_ORIGIN_X;
+    let (lines, width) = hug_lines(world, entity, font.as_ref(), max_width)?;
+    let line_h = font.line_height();
+    let h = (TEXT_ORIGIN_Y + lines as f32 * line_h + TEXT_ORIGIN_Y).max(36.0);
+    let w = width + 2.0 * TEXT_ORIGIN_X;
     Some((w, h))
+}
+
+fn hug_lines(
+    world: &World,
+    entity: Entity,
+    font: &dyn crate::font::Font,
+    max_width: f32,
+) -> Option<(usize, f32)> {
+    let key = {
+        let label = world.get::<Label>(entity)?;
+        let preview = world
+            .get::<crate::field::ImePreview>(entity)
+            .map(|preview| preview.text.as_str())
+            .unwrap_or("");
+        let at = world
+            .get::<crate::caret::Caret>(entity)
+            .map(|caret| caret.index.min(label.text.len()))
+            .unwrap_or(label.text.len());
+        let spans = world
+            .get::<crate::font::Spans>(entity)
+            .map(|spans| spans.runs.as_slice())
+            .unwrap_or(&[]);
+        layout_cache_key(font, &label.text, max_width, spans, preview, at)
+    };
+    if let Some(layout) = world.get::<TextLayout>(entity) {
+        if layout.cache_key == key {
+            return Some((layout.lines.len().max(1), layout.width));
+        }
+    }
+    let mut text = world.get::<Label>(entity)?.text.clone();
+    if let Some(preview) = world.get::<crate::field::ImePreview>(entity) {
+        if !preview.text.is_empty() {
+            let at = world
+                .get::<crate::caret::Caret>(entity)
+                .map(|caret| caret.index.min(text.len()))
+                .unwrap_or(text.len());
+            let at = at.min(text.len());
+            if text.is_char_boundary(at) {
+                text.insert_str(at, &preview.text);
+            }
+        }
+    }
+    let measured = measure_text(font, &text, max_width);
+    Some((measured.line_count.max(1), measured.width))
 }
 
 /// Walk up [`Parent`] links to the nearest ancestor (or self) that has `T`.
