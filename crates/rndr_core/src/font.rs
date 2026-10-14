@@ -4,7 +4,9 @@
 //! [`layout_text`] turns that into a [`TextLayout`] of positioned glyphs.
 //! A later face implements the same trait. Core still has no GPU types.
 
-use std::sync::Arc;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+use std::sync::{Arc, OnceLock};
 
 use crate::caret::{EditField, Field};
 use crate::style::{Color, Label, CELL_H, CELL_W};
@@ -127,15 +129,20 @@ pub struct TextFace(pub Arc<dyn Font>);
 
 impl TextFace {
     pub fn bitmap() -> Self {
-        Self(Arc::new(BitmapFont))
+        Self(shared_bitmap())
     }
+}
+
+fn shared_bitmap() -> Arc<dyn Font> {
+    static BITMAP: OnceLock<Arc<dyn Font>> = OnceLock::new();
+    Arc::clone(BITMAP.get_or_init(|| Arc::new(BitmapFont)))
 }
 
 pub fn text_face(world: &World) -> Arc<dyn Font> {
     world
         .resource::<TextFace>()
         .map(|face| Arc::clone(&face.0))
-        .unwrap_or_else(|| Arc::new(BitmapFont))
+        .unwrap_or_else(shared_bitmap)
 }
 
 /// One painted glyph. `x` and `y` are relative to the text origin, in points.
@@ -167,12 +174,25 @@ pub struct TextLine {
 }
 
 /// Glyph run for one string wrapped to `max_width` points.
-#[derive(Clone, Debug, PartialEq)]
+///
+/// `cache_key` records the font, text, wrap width, spans, and IME preview
+/// this run was built from. A matching key means the glyphs are still current.
+#[derive(Clone, Debug)]
 pub struct TextLayout {
     pub glyphs: Vec<PlacedGlyph>,
     pub lines: Vec<TextLine>,
     pub width: f32,
     pub height: f32,
+    pub(crate) cache_key: u64,
+}
+
+impl PartialEq for TextLayout {
+    fn eq(&self, other: &Self) -> bool {
+        self.glyphs == other.glyphs
+            && self.lines == other.lines
+            && self.width == other.width
+            && self.height == other.height
+    }
 }
 
 /// Highlight rectangle relative to the text origin.
@@ -253,7 +273,62 @@ pub fn layout_text_spans(
         lines,
         width,
         height: y,
+        cache_key: 0,
     }
+}
+
+/// Width and line count for a wrap, without glyph quads or per-line edge buffers.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TextMeasure {
+    pub width: f32,
+    pub height: f32,
+    pub line_count: usize,
+}
+
+/// Same wrap as [`layout_text`], keeping only the pen width and the line count.
+pub fn measure_text(font: &dyn Font, text: &str, max_width: f32) -> TextMeasure {
+    let ranges = wrap_ranges(font, text, max_width);
+    let mut width = 0.0f32;
+    for (start, end) in &ranges {
+        width = width.max(measure(font, &text[*start..*end]));
+    }
+    let line_count = ranges.len().max(1);
+    let h = font.line_height().max(0.0);
+    TextMeasure {
+        width,
+        height: line_count as f32 * h,
+        line_count,
+    }
+}
+
+pub(crate) fn layout_cache_key(
+    font: &dyn Font,
+    text: &str,
+    max_width: f32,
+    spans: &[TextSpan],
+    preview: &str,
+    preview_at: usize,
+) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    let font_id = font as *const dyn Font as *const () as usize;
+    font_id.hash(&mut hasher);
+    text.hash(&mut hasher);
+    max_width.to_bits().hash(&mut hasher);
+    spans.len().hash(&mut hasher);
+    for span in spans {
+        span.start.hash(&mut hasher);
+        span.end.hash(&mut hasher);
+        span.color.r.to_bits().hash(&mut hasher);
+        span.color.g.to_bits().hash(&mut hasher);
+        span.color.b.to_bits().hash(&mut hasher);
+        span.color.a.to_bits().hash(&mut hasher);
+        span.face.hash(&mut hasher);
+    }
+    if !preview.is_empty() {
+        preview.hash(&mut hasher);
+        preview_at.hash(&mut hasher);
+    }
+    hasher.finish()
 }
 
 impl TextLayout {
@@ -403,12 +478,51 @@ pub fn field_text_width(field_width: f32, unit: f32) -> f32 {
 }
 
 /// Write a [`TextLayout`] onto every [`Label`] after rects are final.
+///
+/// A label whose text, wrap width, spans, face, and IME preview are unchanged
+/// keeps the layout it already has.
 pub fn apply_text_layout(world: &mut World) {
     let font = text_face(world);
     let labels = world.entities_with::<Label>();
     for entity in labels {
+        let unit = font.advance('0');
+        let wrap = world
+            .get::<Field>(entity)
+            .is_some_and(|field| field.kind == EditField::Body);
+        let max_width = if wrap {
+            world
+                .get::<crate::layout::Rect>(entity)
+                .map(|rect| field_text_width(rect.w, unit))
+                .unwrap_or(f32::INFINITY)
+        } else {
+            f32::INFINITY
+        };
+        let key = {
+            let Some(label) = world.get::<crate::style::Label>(entity) else {
+                continue;
+            };
+            let preview = world
+                .get::<crate::field::ImePreview>(entity)
+                .map(|preview| preview.text.as_str())
+                .unwrap_or("");
+            let at = world
+                .get::<crate::caret::Caret>(entity)
+                .map(|caret| caret.index.min(label.text.len()))
+                .unwrap_or(label.text.len());
+            let spans = world
+                .get::<Spans>(entity)
+                .map(|spans| spans.runs.as_slice())
+                .unwrap_or(&[]);
+            layout_cache_key(font.as_ref(), &label.text, max_width, spans, preview, at)
+        };
+        if world
+            .get::<TextLayout>(entity)
+            .is_some_and(|layout| layout.cache_key == key)
+        {
+            continue;
+        }
         let mut text = world
-            .get::<Label>(entity)
+            .get::<crate::style::Label>(entity)
             .map(|label| label.text.clone())
             .unwrap_or_default();
         if let Some(preview) = world.get::<crate::field::ImePreview>(entity) {
@@ -416,26 +530,27 @@ pub fn apply_text_layout(world: &mut World) {
                 .get::<crate::caret::Caret>(entity)
                 .map(|caret| caret.index.min(text.len()))
                 .unwrap_or(text.len());
-            text.insert_str(at, &preview.text);
+            if !preview.text.is_empty() {
+                let at = floor_preview(at, &text);
+                text.insert_str(at, &preview.text);
+            }
         }
-        let wrap = world
-            .get::<Field>(entity)
-            .is_some_and(|field| field.kind == EditField::Body);
-        let max_width = if wrap {
-            world
-                .get::<crate::layout::Rect>(entity)
-                .map(|rect| field_text_width(rect.w, font.advance('0')))
-                .unwrap_or(f32::INFINITY)
-        } else {
-            f32::INFINITY
-        };
         let spans = world
             .get::<Spans>(entity)
             .map(|spans| spans.runs.clone())
             .unwrap_or_default();
-        let layout = layout_text_spans(font.as_ref(), &text, max_width, &spans);
+        let mut layout = layout_text_spans(font.as_ref(), &text, max_width, &spans);
+        layout.cache_key = key;
         world.insert(entity, layout);
     }
+}
+
+fn floor_preview(index: usize, text: &str) -> usize {
+    let mut i = index.min(text.len());
+    while i > 0 && !text.is_char_boundary(i) {
+        i -= 1;
+    }
+    i
 }
 
 fn wrap_ranges(font: &dyn Font, text: &str, max_width: f32) -> Vec<(usize, usize)> {

@@ -1,11 +1,12 @@
 use crate::caret::Caret;
+use crate::edit::{delete_prev_span, floor_boundary, next_boundary, prev_boundary, selection_span};
 use crate::font::text_face;
 use crate::hierarchy::{children_of, Parent};
 use crate::input::{Focus, Input, Key};
 use crate::layout::{ancestor_with, hit_test, Rect};
 use crate::style::{Label, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
 use crate::world::{Component, World};
-use crate::wrap::layout_of;
+use crate::wrap::with_text_layout;
 
 impl Component for Buffer {}
 impl Component for Editor {}
@@ -194,8 +195,8 @@ fn edit_focused(world: &mut World, entity: crate::entity::Entity) {
     let mut anchor = buffer.anchor.min(len);
     if matches!(key, Some(Key::Left | Key::Right)) {
         let next = match key {
-            Some(Key::Left) => index.saturating_sub(1),
-            Some(Key::Right) => (index + 1).min(len),
+            Some(Key::Left) => prev_boundary(len, index, &|i| buffer.byte(i)),
+            Some(Key::Right) => next_boundary(len, index, &|i| buffer.byte(i)),
             _ => index,
         };
         if shift {
@@ -206,6 +207,7 @@ fn edit_focused(world: &mut World, entity: crate::entity::Entity) {
                 Some(Key::Right) => anchor.max(index),
                 _ => next,
             };
+            index = floor_boundary(len, index, &|i| buffer.byte(i));
             anchor = index;
         } else {
             index = next;
@@ -216,16 +218,18 @@ fn edit_focused(world: &mut World, entity: crate::entity::Entity) {
     } else {
         let typing = !chars.is_empty() || key == Some(Key::Backspace) || key == Some(Key::Enter);
         if typing && anchor != index {
-            let start = anchor.min(index);
-            let end = anchor.max(index);
+            let (start, end) = selection_span(len, anchor, index, &|i| buffer.byte(i));
             buffer.delete_range(start, end);
             index = start;
             anchor = start;
-        } else if key == Some(Key::Backspace) && index > 0 {
-            buffer.delete_range(index - 1, index);
-            index -= 1;
-            anchor = index;
+        } else if key == Some(Key::Backspace) {
+            if let Some((start, end)) = delete_prev_span(len, index, &|i| buffer.byte(i)) {
+                buffer.delete_range(start, end);
+                index = start;
+                anchor = start;
+            }
         }
+        index = floor_boundary(buffer.len(), index, &|i| buffer.byte(i));
         if !chars.is_empty() {
             let mut insert = String::new();
             for ch in chars.chars() {
@@ -297,11 +301,12 @@ fn place_from_pointer(world: &mut World, entity: crate::entity::Entity) {
         .map(|label| label.text.clone())
         .unwrap_or_default();
     let base = window_base(world, entity);
-    let layout = layout_of(world, entity, &text);
-    let index = layout.index_at(
-        input.pointer.position[0] - rect.x - TEXT_ORIGIN_X,
-        input.pointer.position[1] - rect.y - TEXT_ORIGIN_Y,
-    ) + base;
+    let index = with_text_layout(world, entity, &text, |layout| {
+        layout.index_at(
+            input.pointer.position[0] - rect.x - TEXT_ORIGIN_X,
+            input.pointer.position[1] - rect.y - TEXT_ORIGIN_Y,
+        )
+    }) + base;
     if let Some(buffer) = world.get_mut::<Buffer>(entity) {
         let index = index.min(buffer.len());
         buffer.caret = index;
@@ -433,46 +438,51 @@ pub struct DecorationMark {
 pub fn apply_decorations(world: &mut World) {
     let entities = world.entities_with::<Decorations>();
     for entity in entities {
-        let list = world
-            .get::<Decorations>(entity)
-            .map(|decorations| decorations.list.clone())
-            .unwrap_or_default();
-        let layout = world.get::<crate::font::TextLayout>(entity).cloned();
-        let window_len = world
-            .get::<Label>(entity)
-            .map(|label| label.text.len())
-            .unwrap_or(0);
-        let base = if world.has::<Buffer>(entity) {
-            window_base(world, entity)
-        } else {
-            0
-        };
-        let mut marks = Vec::new();
-        if let Some(layout) = layout {
-            for decoration in list {
-                if decoration.end <= base || decoration.start >= base + window_len {
-                    continue;
-                }
-                let start = decoration.start.saturating_sub(base).min(window_len);
-                let end = decoration.end.saturating_sub(base).min(window_len);
-                if start >= end {
-                    continue;
-                }
-                for span in layout.selection_boxes(start, end) {
-                    let (y, h) = match decoration.kind {
-                        DecorationKind::Find => (span.y, span.h),
-                        DecorationKind::Diagnostic => (span.y + span.h - 2.0, 2.0),
-                    };
-                    marks.push(DecorationMark {
-                        x: span.x,
-                        y,
-                        w: span.w.max(1.0),
-                        h,
-                        kind: decoration.kind,
-                    });
-                }
-            }
-        }
+        let marks = decoration_marks(world, entity);
         world.insert(entity, DecorationMarks { marks });
     }
+}
+
+fn decoration_marks(world: &World, entity: crate::entity::Entity) -> Vec<DecorationMark> {
+    let Some(layout) = world.get::<crate::font::TextLayout>(entity) else {
+        return Vec::new();
+    };
+    let window_len = world
+        .get::<Label>(entity)
+        .map(|label| label.text.len())
+        .unwrap_or(0);
+    let base = if world.has::<Buffer>(entity) {
+        window_base(world, entity)
+    } else {
+        0
+    };
+    let list = world
+        .get::<Decorations>(entity)
+        .map(|decorations| decorations.list.as_slice())
+        .unwrap_or(&[]);
+    let mut marks = Vec::new();
+    for decoration in list {
+        if decoration.end <= base || decoration.start >= base + window_len {
+            continue;
+        }
+        let start = decoration.start.saturating_sub(base).min(window_len);
+        let end = decoration.end.saturating_sub(base).min(window_len);
+        if start >= end {
+            continue;
+        }
+        for span in layout.selection_boxes(start, end) {
+            let (y, h) = match decoration.kind {
+                DecorationKind::Find => (span.y, span.h),
+                DecorationKind::Diagnostic => (span.y + span.h - 2.0, 2.0),
+            };
+            marks.push(DecorationMark {
+                x: span.x,
+                y,
+                w: span.w.max(1.0),
+                h,
+                kind: decoration.kind,
+            });
+        }
+    }
+    marks
 }

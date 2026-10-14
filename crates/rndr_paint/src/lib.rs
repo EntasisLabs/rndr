@@ -91,7 +91,7 @@ pub fn paint(world: &World) -> Vec<Quad> {
             if dirty {
                 push_dirty_mark(&mut out, rect, clip, solid, theme.dirty);
             }
-            if let (Some(layout), Some(caret)) = (layout.as_ref(), caret) {
+            if let (Some(layout), Some(caret)) = (layout, caret) {
                 push_selection(
                     &mut out,
                     rect,
@@ -103,7 +103,7 @@ pub fn paint(world: &World) -> Vec<Quad> {
                     theme.selection,
                 );
             }
-            if let Some(layout) = layout.as_ref() {
+            if let Some(layout) = layout {
                 push_label(&mut out, rect, layout, clip, scale, theme.text);
             }
             for mark in marks {
@@ -130,7 +130,7 @@ pub fn paint(world: &World) -> Vec<Quad> {
                 push_caret(
                     &mut out,
                     rect,
-                    layout.as_ref(),
+                    layout,
                     caret,
                     clip,
                     solid,
@@ -153,7 +153,7 @@ fn walk(
         Option<&Label>,
         Option<&Caret>,
         bool,
-        Option<TextLayout>,
+        Option<&TextLayout>,
         f32,
         &[rndr_core::DecorationMark],
     ),
@@ -180,35 +180,85 @@ fn walk(
             || world.has::<Caret>(entity);
         let color = if highlight { lighten(*color) } else { *color };
         let dirty = world.has::<DirtyMark>(entity);
-        let layout = world.get::<Label>(entity).map(|label| {
-            world
-                .get::<TextLayout>(entity)
-                .cloned()
-                .unwrap_or_else(|| measured(world, entity, &label.text, *rect))
-        });
         let radius = world
             .get::<Radius>(entity)
             .map(|radius| radius.0)
             .unwrap_or(0.0);
-        let marks = world
-            .get::<rndr_core::DecorationMarks>(entity)
-            .map(|marks| marks.marks.clone())
-            .unwrap_or_default();
-        visit(
-            *rect,
-            color,
-            clip,
-            world.get::<Label>(entity),
-            world.get::<Caret>(entity),
-            dirty,
-            layout.clone(),
-            radius,
-            &marks,
-        );
+        let needs_fallback =
+            world.get::<Label>(entity).is_some() && world.get::<TextLayout>(entity).is_none();
+        if needs_fallback {
+            let text = world
+                .get::<Label>(entity)
+                .map(|label| label.text.clone())
+                .unwrap_or_default();
+            let fallback = measured(world, entity, &text, *rect);
+            emit(
+                world,
+                entity,
+                *rect,
+                color,
+                clip,
+                dirty,
+                Some(&fallback),
+                radius,
+                visit,
+            );
+        } else {
+            emit(
+                world,
+                entity,
+                *rect,
+                color,
+                clip,
+                dirty,
+                world.get::<TextLayout>(entity),
+                radius,
+                visit,
+            );
+        }
     }
     for child in children_of(world, entity) {
         walk(world, child, visit);
     }
+}
+
+fn emit(
+    world: &World,
+    entity: rndr_core::Entity,
+    rect: Rect,
+    color: Color,
+    clip: Clip,
+    dirty: bool,
+    layout: Option<&TextLayout>,
+    radius: f32,
+    visit: &mut impl FnMut(
+        Rect,
+        Color,
+        Clip,
+        Option<&Label>,
+        Option<&Caret>,
+        bool,
+        Option<&TextLayout>,
+        f32,
+        &[rndr_core::DecorationMark],
+    ),
+) {
+    let empty: &[rndr_core::DecorationMark] = &[];
+    let marks = world
+        .get::<rndr_core::DecorationMarks>(entity)
+        .map(|marks| marks.marks.as_slice())
+        .unwrap_or(empty);
+    visit(
+        rect,
+        color,
+        clip,
+        world.get::<Label>(entity),
+        world.get::<Caret>(entity),
+        dirty,
+        layout,
+        radius,
+        marks,
+    );
 }
 
 fn lighten(color: Color) -> Color {
@@ -221,6 +271,9 @@ fn lighten(color: Color) -> Color {
 }
 
 fn push(out: &mut Vec<Quad>, rect: Rect, color: Color, uv: [f32; 4], clip: Clip, radius: f32) {
+    if !rect_hits_clip(rect, clip) {
+        return;
+    }
     out.push(Quad {
         rect,
         color,
@@ -228,6 +281,17 @@ fn push(out: &mut Vec<Quad>, rect: Rect, color: Color, uv: [f32; 4], clip: Clip,
         clip,
         radius,
     });
+}
+
+fn rect_hits_clip(rect: Rect, clip: Clip) -> bool {
+    rect.w > 0.0
+        && rect.h > 0.0
+        && clip.w > 0.0
+        && clip.h > 0.0
+        && rect.x < clip.x + clip.w
+        && rect.y < clip.y + clip.h
+        && rect.x + rect.w > clip.x
+        && rect.y + rect.h > clip.y
 }
 
 fn snap_edge(points: f32, scale: f32) -> f32 {

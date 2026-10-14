@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use rndr_core::{
-    layout_text, layout_text_spans, BitmapFont, Color, Font, GlyphBox, TextFace, TextLayout,
-    TextSpan, CELL_W,
+    layout_text, layout_text_spans, measure_text, BitmapFont, Color, Font, GlyphBox, TextFace,
+    TextLayout, TextSpan, CELL_W,
 };
 
 struct WideO;
@@ -73,6 +73,19 @@ fn wrap_inside_a_span_keeps_every_glyph() {
         .iter()
         .all(|glyph| glyph.color == Some(spans[0].color)));
     assert!(layout.lines.len() >= 2);
+}
+
+#[test]
+fn measure_matches_layout_width_and_line_count() {
+    let layout = layout_text(&WideO, "aao", 12.0);
+    let measured = measure_text(&WideO, "aao", 12.0);
+    assert_eq!(measured.line_count, layout.lines.len());
+    assert_eq!(measured.width, layout.width);
+    assert_eq!(measured.height, layout.height);
+    let empty = measure_text(&BitmapFont, "", f32::INFINITY);
+    let empty_layout = layout_text(&BitmapFont, "", f32::INFINITY);
+    assert_eq!(empty.line_count, empty_layout.lines.len());
+    assert_eq!(empty.width, empty_layout.width);
 }
 
 #[test]

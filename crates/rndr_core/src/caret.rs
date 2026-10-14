@@ -8,7 +8,8 @@ use crate::pane::Pane;
 use crate::style::{Body, Label};
 use crate::world::{Component, World};
 use crate::wrap::{
-    layout_of, visual_pos, visual_selection_spans, wrap_lines, GLYPH_PX, TEXT_INSET_X, TEXT_INSET_Y,
+    visual_pos, visual_selection_spans, with_text_layout, wrap_lines, GLYPH_PX, TEXT_INSET_X,
+    TEXT_INSET_Y,
 };
 
 impl Component for Caret {}
@@ -241,8 +242,9 @@ fn place_caret_from_pointer(world: &mut World, row: Entity, existed: bool) {
         .get::<Label>(row)
         .map(|label| label.text.clone())
         .unwrap_or_default();
-    let layout = layout_of(world, row, &text);
-    let index = layout.index_at(x - rect.x - TEXT_INSET_X, y - rect.y - TEXT_INSET_Y);
+    let index = with_text_layout(world, row, &text, |layout| {
+        layout.index_at(x - rect.x - TEXT_INSET_X, y - rect.y - TEXT_INSET_Y)
+    });
     if let Some(caret) = world.get_mut::<Caret>(row) {
         caret.index = index;
         if !(shift && existed) {
@@ -320,14 +322,15 @@ fn clear_text_input(world: &mut World) {
 }
 
 fn move_visual_line(world: &World, row: Entity, text: &str, index: usize, delta: isize) -> usize {
-    let layout = layout_of(world, row, text);
-    if layout.lines.is_empty() {
-        return index;
-    }
-    let (line, _) = layout_line_col(&layout, index);
-    let (x, _) = layout.caret_xy(index);
-    let next = (line as isize + delta).clamp(0, layout.lines.len().saturating_sub(1) as isize);
-    layout.index_on_line(next as usize, x)
+    with_text_layout(world, row, text, |layout| {
+        if layout.lines.is_empty() {
+            return index;
+        }
+        let (line, _) = layout_line_col(layout, index);
+        let (x, _) = layout.caret_xy(index);
+        let next = (line as isize + delta).clamp(0, layout.lines.len().saturating_sub(1) as isize);
+        layout.index_on_line(next as usize, x)
+    })
 }
 
 fn layout_line_col(layout: &crate::font::TextLayout, index: usize) -> (usize, usize) {
@@ -390,8 +393,10 @@ fn caret_line_rect(world: &World, entity: Entity, rect: Rect) -> (f32, f32) {
         .get::<Caret>(entity)
         .map(|caret| caret.index)
         .unwrap_or(0);
-    let layout = layout_of(world, entity, &text);
-    let (_x, y) = layout.caret_xy(index);
-    let h = layout.lines.first().map(|line| line.h).unwrap_or(GLYPH_PX);
+    let (y, h) = with_text_layout(world, entity, &text, |layout| {
+        let (_x, y) = layout.caret_xy(index);
+        let h = layout.lines.first().map(|line| line.h).unwrap_or(GLYPH_PX);
+        (y, h)
+    });
     (rect.y + TEXT_INSET_Y + y, h)
 }
