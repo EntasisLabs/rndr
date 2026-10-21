@@ -160,7 +160,7 @@ impl Gpu {
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
-            &atlas_pixels,
+            atlas_pixels,
             wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(atlas_w),

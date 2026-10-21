@@ -37,7 +37,7 @@ impl App {
         let mut world = World::new();
         world.insert_resource(Input::default());
         world.insert_resource(Viewport::default());
-        let app = Self {
+        Self {
             world,
             startup: Vec::new(),
             update: Vec::new(),
@@ -45,8 +45,7 @@ impl App {
             layout: Vec::new(),
             render: Vec::new(),
             started: false,
-        };
-        app
+        }
     }
 
     pub fn add_plugin(&mut self, plugin: impl Plugin) -> &mut Self {

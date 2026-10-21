@@ -265,15 +265,12 @@ pub fn selection_spans(text: &str, anchor: usize, index: usize) -> Vec<(usize, u
 
 fn field_row(world: &World, kind: EditField) -> Option<Entity> {
     let pane = world.entities_with::<Pane>().into_iter().next()?;
-    for entity in world.get::<Pane>(pane)?.spawned.iter().copied() {
-        if world
+    let spawned = world.get::<Pane>(pane)?.spawned.clone();
+    spawned.into_iter().find(|&entity| {
+        world
             .get::<Field>(entity)
             .is_some_and(|field| field.kind == kind)
-        {
-            return Some(entity);
-        }
-    }
-    None
+    })
 }
 
 fn header_label_entity(world: &World, entity: Entity) -> Option<Entity> {

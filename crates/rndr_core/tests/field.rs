@@ -64,7 +64,7 @@ fn click_places_the_index() {
     let rect = *app.world().get::<Rect>(entity).unwrap();
     let input = app.world_mut().resource_mut::<Input>().unwrap();
     input.pointer.position = [
-        rect.x + TEXT_ORIGIN_X + CELL_W as f32 + 1.0,
+        rect.x + TEXT_ORIGIN_X + CELL_W + 1.0,
         rect.y + TEXT_ORIGIN_Y + 1.0,
     ];
     input.pointer.pressed = true;

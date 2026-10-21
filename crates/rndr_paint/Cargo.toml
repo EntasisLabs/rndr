@@ -7,3 +7,6 @@ description = "World-to-quad paint step for rndr"
 
 [dependencies]
 rndr_core = { workspace = true }
+
+[dev-dependencies]
+insta = "1"

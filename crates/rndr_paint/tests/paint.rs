@@ -3,7 +3,7 @@ use rndr_core::{
     Decorations, Editor, Font, Label, Layout, Radius, Rect, Schedule, Size, Spans, TextSpan, Theme,
     Viewport, World, CELL_H, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
-use rndr_paint::{frame, glyph_uv, paint, solid_uv, LatinFace};
+use rndr_paint::{frame, paint, quads_snapshot, solid_uv, Frame, LatinFace};
 
 fn rect() -> Rect {
     Rect {
@@ -17,44 +17,12 @@ fn rect() -> Rect {
 #[test]
 fn labeled_rect_paints_a_solid_quad_then_glyphs() {
     let mut world = World::new();
-    let color = Color::rgb(0.2, 0.22, 0.24);
-    world.spawn((rect(), color, Label::new("A B")));
-
-    let quads = paint(&world);
-    assert_eq!(quads.len(), 3);
-
-    let solid = quads[0];
-    assert_eq!(solid.rect, rect());
-    assert_eq!(solid.color.r, color.r);
-    assert_eq!(solid.color.g, color.g);
-    assert_eq!(solid.color.b, color.b);
-    assert_eq!(solid.color.a, color.a);
-    assert_eq!(solid.uv, solid_uv());
-    assert_eq!(solid.clip, Clip::from_rect(rect()));
-
-    let a = quads[1];
-    assert_eq!(
-        a.rect,
-        Rect {
-            x: rect().x + TEXT_ORIGIN_X,
-            y: rect().y + TEXT_ORIGIN_Y,
-            w: CELL_W,
-            h: CELL_H,
-        }
-    );
-    assert_eq!(a.uv, glyph_uv(b'A'));
-
-    let b = quads[2];
-    assert_eq!(
-        b.rect,
-        Rect {
-            x: rect().x + TEXT_ORIGIN_X + 2.0 * CELL_W,
-            y: rect().y + TEXT_ORIGIN_Y,
-            w: CELL_W,
-            h: CELL_H,
-        }
-    );
-    assert_eq!(b.uv, glyph_uv(b'B'));
+    world.spawn((rect(), Color::rgb(0.2, 0.22, 0.24), Label::new("A B")));
+    let painted = Frame {
+        quads: paint(&world),
+        slots: Vec::new(),
+    };
+    insta::assert_snapshot!(quads_snapshot(&painted));
 }
 
 #[test]
