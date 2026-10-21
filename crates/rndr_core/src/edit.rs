@@ -40,7 +40,7 @@ pub fn edit_string(
     }
     index = floor_boundary(text.len(), index, &|i| text.as_bytes()[i]);
     for ch in chars.chars() {
-        if is_printable_ascii(ch) {
+        if is_insertable(ch) {
             text.insert(index, ch);
             index += ch.len_utf8();
             anchor = index;
@@ -87,8 +87,8 @@ fn move_caret(
     }
 }
 
-fn is_printable_ascii(ch: char) -> bool {
-    matches!(ch, ' '..='~')
+fn is_insertable(ch: char) -> bool {
+    !ch.is_control()
 }
 
 fn is_cont(byte: u8) -> bool {

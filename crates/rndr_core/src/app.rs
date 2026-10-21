@@ -1,5 +1,6 @@
 use crate::font::apply_text_layout;
 use crate::input::{Input, Viewport};
+use crate::keys::Platform;
 use crate::layout::layout_propagate;
 use crate::world::World;
 
@@ -37,6 +38,7 @@ impl App {
         let mut world = World::new();
         world.insert_resource(Input::default());
         world.insert_resource(Viewport::default());
+        world.insert_resource(Platform::host());
         Self {
             world,
             startup: Vec::new(),

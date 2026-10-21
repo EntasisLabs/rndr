@@ -4,12 +4,16 @@ mod gpu;
 
 use std::sync::Arc;
 
-use rndr_core::{text_face, App, Clipboard, Input, Key as Action, Pointer, Viewport, MOUSE_ID};
+use rndr_core::{
+    legacy_key, text_face, App, Clipboard, Input, KeyCode as Physical, KeyEvent, LogicalKey,
+    Modifiers, NamedKey as CoreNamed, Platform, Pointer, Viewport, MOUSE_ID,
+};
 use rndr_paint::{atlas_r8, frame, ATLAS_H, ATLAS_W};
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, Ime, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
-use winit::keyboard::{Key, NamedKey};
+use winit::keyboard::{Key, KeyCode, NamedKey, PhysicalKey};
+use winit::platform::modifier_supplement::KeyEventExtModifierSupplement;
 use winit::window::{Window, WindowId};
 
 use gpu::Gpu;
@@ -24,14 +28,14 @@ pub fn run(app: App) {
         cursor_px: [0.0, 0.0],
         pointer: Pointer::default(),
         scroll: [0.0, 0.0],
-        key: None,
-        chars: String::new(),
+        keys: Vec::new(),
         ime_preedit: String::new(),
         ime_commit: String::new(),
         shift: false,
         ctrl: false,
         alt: false,
         super_key: false,
+        platform: host_platform(),
     };
     event_loop.run_app(&mut handler).expect("run");
 }
@@ -43,14 +47,14 @@ struct Handler {
     cursor_px: [f32; 2],
     pointer: Pointer,
     scroll: [f32; 2],
-    key: Option<Action>,
-    chars: String,
+    keys: Vec<KeyEvent>,
     ime_preedit: String,
     ime_commit: String,
     shift: bool,
     ctrl: bool,
     alt: bool,
     super_key: bool,
+    platform: Platform,
 }
 
 /// Physical pixels per point. A missing or non-positive factor reads as 1.
@@ -75,20 +79,32 @@ impl Handler {
         let scale = self.scale();
         self.pointer.id = MOUSE_ID;
         self.pointer.position = [self.cursor_px[0] / scale, self.cursor_px[1] / scale];
+        let platform = self.platform;
+        self.app.world_mut().insert_resource(platform);
         if let Some(input) = self.app.world_mut().resource_mut::<Input>() {
             input.pointer = self.pointer;
             input.scroll = self.scroll;
-            input.key = self.key;
-            input.chars.clone_from(&self.chars);
+            input.keys.clone_from(&self.keys);
+            input.key = self
+                .keys
+                .first()
+                .and_then(|event| legacy_key(event, platform));
+            input.chars.clear();
+            for event in &self.keys {
+                if let Some(text) = event.insertable_text() {
+                    input.chars.push_str(&text);
+                }
+            }
             input.ime_preedit.clone_from(&self.ime_preedit);
             input.ime_commit.clone_from(&self.ime_commit);
             input.shift = self.shift;
             input.ctrl = self.ctrl;
+            input.alt = self.alt;
+            input.super_key = self.super_key;
         }
         self.pointer.pressed = false;
         self.scroll = [0.0, 0.0];
-        self.key = None;
-        self.chars.clear();
+        self.keys.clear();
         self.ime_commit.clear();
     }
 
@@ -129,19 +145,215 @@ impl Handler {
     }
 }
 
-fn map_key(key: &Key) -> Option<Action> {
-    match key {
-        Key::Named(NamedKey::ArrowUp) => Some(Action::Up),
-        Key::Named(NamedKey::ArrowDown) => Some(Action::Down),
-        Key::Named(NamedKey::ArrowLeft) => Some(Action::Left),
-        Key::Named(NamedKey::ArrowRight) => Some(Action::Right),
-        Key::Named(NamedKey::Enter) => Some(Action::Enter),
-        Key::Named(NamedKey::Escape) => Some(Action::Escape),
-        Key::Named(NamedKey::Tab) => Some(Action::Tab),
-        Key::Named(NamedKey::Backspace) => Some(Action::Backspace),
-        Key::Named(NamedKey::Delete) => Some(Action::Delete),
-        _ => None,
+fn host_platform() -> Platform {
+    #[cfg(target_os = "macos")]
+    {
+        return Platform::Mac;
     }
+    #[cfg(target_os = "windows")]
+    {
+        return Platform::Windows;
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        if std::env::var_os("WAYLAND_DISPLAY").is_some() {
+            Platform::Wayland
+        } else {
+            Platform::X11
+        }
+    }
+}
+
+fn modifiers_of(shift: bool, ctrl: bool, alt: bool, super_key: bool) -> Modifiers {
+    Modifiers {
+        shift,
+        ctrl,
+        alt,
+        super_key,
+    }
+}
+
+fn map_key_event(event: &winit::event::KeyEvent, modifiers: Modifiers) -> Option<KeyEvent> {
+    let logical = map_logical(&event.key_without_modifiers());
+    let code = map_physical(&event.physical_key);
+    let text = produced_text(event.text.as_deref(), modifiers);
+    if matches!(logical, LogicalKey::Unidentified) && code.is_none() && text.is_none() {
+        return None;
+    }
+    Some(KeyEvent {
+        logical,
+        text,
+        code,
+        modifiers,
+        repeat: event.repeat,
+    })
+}
+
+fn produced_text(text: Option<&str>, modifiers: Modifiers) -> Option<String> {
+    if modifiers.command() {
+        return None;
+    }
+    let text = text?;
+    let filtered: String = text.chars().filter(|ch| !ch.is_control()).collect();
+    if filtered.is_empty() {
+        None
+    } else {
+        Some(filtered)
+    }
+}
+
+fn map_logical(key: &Key) -> LogicalKey {
+    match key {
+        Key::Named(named) => map_named(named)
+            .map(LogicalKey::Named)
+            .unwrap_or(LogicalKey::Unidentified),
+        Key::Character(text) => text
+            .chars()
+            .next()
+            .map(LogicalKey::Character)
+            .unwrap_or(LogicalKey::Unidentified),
+        Key::Dead(_) | Key::Unidentified(_) => LogicalKey::Unidentified,
+    }
+}
+
+fn map_named(key: &NamedKey) -> Option<CoreNamed> {
+    Some(match key {
+        NamedKey::ArrowUp => CoreNamed::ArrowUp,
+        NamedKey::ArrowDown => CoreNamed::ArrowDown,
+        NamedKey::ArrowLeft => CoreNamed::ArrowLeft,
+        NamedKey::ArrowRight => CoreNamed::ArrowRight,
+        NamedKey::Enter => CoreNamed::Enter,
+        NamedKey::Escape => CoreNamed::Escape,
+        NamedKey::Tab => CoreNamed::Tab,
+        NamedKey::Backspace => CoreNamed::Backspace,
+        NamedKey::Delete => CoreNamed::Delete,
+        NamedKey::Insert => CoreNamed::Insert,
+        NamedKey::Home => CoreNamed::Home,
+        NamedKey::End => CoreNamed::End,
+        NamedKey::PageUp => CoreNamed::PageUp,
+        NamedKey::PageDown => CoreNamed::PageDown,
+        NamedKey::Space => CoreNamed::Space,
+        NamedKey::F1 => CoreNamed::F(1),
+        NamedKey::F2 => CoreNamed::F(2),
+        NamedKey::F3 => CoreNamed::F(3),
+        NamedKey::F4 => CoreNamed::F(4),
+        NamedKey::F5 => CoreNamed::F(5),
+        NamedKey::F6 => CoreNamed::F(6),
+        NamedKey::F7 => CoreNamed::F(7),
+        NamedKey::F8 => CoreNamed::F(8),
+        NamedKey::F9 => CoreNamed::F(9),
+        NamedKey::F10 => CoreNamed::F(10),
+        NamedKey::F11 => CoreNamed::F(11),
+        NamedKey::F12 => CoreNamed::F(12),
+        NamedKey::F13 => CoreNamed::F(13),
+        NamedKey::F14 => CoreNamed::F(14),
+        NamedKey::F15 => CoreNamed::F(15),
+        NamedKey::F16 => CoreNamed::F(16),
+        NamedKey::F17 => CoreNamed::F(17),
+        NamedKey::F18 => CoreNamed::F(18),
+        NamedKey::F19 => CoreNamed::F(19),
+        NamedKey::F20 => CoreNamed::F(20),
+        NamedKey::F21 => CoreNamed::F(21),
+        NamedKey::F22 => CoreNamed::F(22),
+        NamedKey::F23 => CoreNamed::F(23),
+        NamedKey::F24 => CoreNamed::F(24),
+        _ => return None,
+    })
+}
+
+fn map_physical(key: &PhysicalKey) -> Option<Physical> {
+    let PhysicalKey::Code(code) = key else {
+        return None;
+    };
+    Some(match code {
+        KeyCode::KeyA => Physical::Letter('a'),
+        KeyCode::KeyB => Physical::Letter('b'),
+        KeyCode::KeyC => Physical::Letter('c'),
+        KeyCode::KeyD => Physical::Letter('d'),
+        KeyCode::KeyE => Physical::Letter('e'),
+        KeyCode::KeyF => Physical::Letter('f'),
+        KeyCode::KeyG => Physical::Letter('g'),
+        KeyCode::KeyH => Physical::Letter('h'),
+        KeyCode::KeyI => Physical::Letter('i'),
+        KeyCode::KeyJ => Physical::Letter('j'),
+        KeyCode::KeyK => Physical::Letter('k'),
+        KeyCode::KeyL => Physical::Letter('l'),
+        KeyCode::KeyM => Physical::Letter('m'),
+        KeyCode::KeyN => Physical::Letter('n'),
+        KeyCode::KeyO => Physical::Letter('o'),
+        KeyCode::KeyP => Physical::Letter('p'),
+        KeyCode::KeyQ => Physical::Letter('q'),
+        KeyCode::KeyR => Physical::Letter('r'),
+        KeyCode::KeyS => Physical::Letter('s'),
+        KeyCode::KeyT => Physical::Letter('t'),
+        KeyCode::KeyU => Physical::Letter('u'),
+        KeyCode::KeyV => Physical::Letter('v'),
+        KeyCode::KeyW => Physical::Letter('w'),
+        KeyCode::KeyX => Physical::Letter('x'),
+        KeyCode::KeyY => Physical::Letter('y'),
+        KeyCode::KeyZ => Physical::Letter('z'),
+        KeyCode::Digit0 => Physical::Digit(0),
+        KeyCode::Digit1 => Physical::Digit(1),
+        KeyCode::Digit2 => Physical::Digit(2),
+        KeyCode::Digit3 => Physical::Digit(3),
+        KeyCode::Digit4 => Physical::Digit(4),
+        KeyCode::Digit5 => Physical::Digit(5),
+        KeyCode::Digit6 => Physical::Digit(6),
+        KeyCode::Digit7 => Physical::Digit(7),
+        KeyCode::Digit8 => Physical::Digit(8),
+        KeyCode::Digit9 => Physical::Digit(9),
+        KeyCode::F1 => Physical::Function(1),
+        KeyCode::F2 => Physical::Function(2),
+        KeyCode::F3 => Physical::Function(3),
+        KeyCode::F4 => Physical::Function(4),
+        KeyCode::F5 => Physical::Function(5),
+        KeyCode::F6 => Physical::Function(6),
+        KeyCode::F7 => Physical::Function(7),
+        KeyCode::F8 => Physical::Function(8),
+        KeyCode::F9 => Physical::Function(9),
+        KeyCode::F10 => Physical::Function(10),
+        KeyCode::F11 => Physical::Function(11),
+        KeyCode::F12 => Physical::Function(12),
+        KeyCode::F13 => Physical::Function(13),
+        KeyCode::F14 => Physical::Function(14),
+        KeyCode::F15 => Physical::Function(15),
+        KeyCode::F16 => Physical::Function(16),
+        KeyCode::F17 => Physical::Function(17),
+        KeyCode::F18 => Physical::Function(18),
+        KeyCode::F19 => Physical::Function(19),
+        KeyCode::F20 => Physical::Function(20),
+        KeyCode::F21 => Physical::Function(21),
+        KeyCode::F22 => Physical::Function(22),
+        KeyCode::F23 => Physical::Function(23),
+        KeyCode::F24 => Physical::Function(24),
+        KeyCode::ArrowUp => Physical::ArrowUp,
+        KeyCode::ArrowDown => Physical::ArrowDown,
+        KeyCode::ArrowLeft => Physical::ArrowLeft,
+        KeyCode::ArrowRight => Physical::ArrowRight,
+        KeyCode::Enter => Physical::Enter,
+        KeyCode::Escape => Physical::Escape,
+        KeyCode::Tab => Physical::Tab,
+        KeyCode::Backspace => Physical::Backspace,
+        KeyCode::Delete => Physical::Delete,
+        KeyCode::Insert => Physical::Insert,
+        KeyCode::Home => Physical::Home,
+        KeyCode::End => Physical::End,
+        KeyCode::PageUp => Physical::PageUp,
+        KeyCode::PageDown => Physical::PageDown,
+        KeyCode::Space => Physical::Space,
+        KeyCode::Minus => Physical::Minus,
+        KeyCode::Equal => Physical::Equal,
+        KeyCode::BracketLeft => Physical::BracketLeft,
+        KeyCode::BracketRight => Physical::BracketRight,
+        KeyCode::Backslash => Physical::Backslash,
+        KeyCode::Semicolon => Physical::Semicolon,
+        KeyCode::Quote => Physical::Quote,
+        KeyCode::Comma => Physical::Comma,
+        KeyCode::Period => Physical::Period,
+        KeyCode::Slash => Physical::Slash,
+        KeyCode::Backquote => Physical::Backquote,
+        _ => return None,
+    })
 }
 
 impl ApplicationHandler for Handler {
@@ -200,46 +412,9 @@ impl ApplicationHandler for Handler {
             }
             WindowEvent::Ime(Ime::Enabled | Ime::Disabled) => {}
             WindowEvent::KeyboardInput { event, .. } if event.state == ElementState::Pressed => {
-                let mut redraw = false;
-                if let Some(key) = map_key(&event.logical_key) {
-                    self.key = Some(key);
-                    redraw = true;
-                }
-                if self.ctrl {
-                    if let Key::Character(text) = &event.logical_key {
-                        if text.eq_ignore_ascii_case("s") {
-                            self.key = Some(Action::Save);
-                            redraw = true;
-                        }
-                        if text.eq_ignore_ascii_case("n") {
-                            self.key = Some(Action::New);
-                            redraw = true;
-                        }
-                        if text.eq_ignore_ascii_case("c") {
-                            self.key = Some(Action::Copy);
-                            redraw = true;
-                        }
-                        if text.eq_ignore_ascii_case("x") {
-                            self.key = Some(Action::Cut);
-                            redraw = true;
-                        }
-                        if text.eq_ignore_ascii_case("v") {
-                            self.key = Some(Action::Paste);
-                            redraw = true;
-                        }
-                    }
-                }
-                if !self.ctrl && !self.alt && !self.super_key {
-                    if let Key::Character(text) = &event.logical_key {
-                        for ch in text.chars() {
-                            if matches!(ch, ' '..='~') {
-                                self.chars.push(ch);
-                                redraw = true;
-                            }
-                        }
-                    }
-                }
-                if redraw {
+                let modifiers = modifiers_of(self.shift, self.ctrl, self.alt, self.super_key);
+                if let Some(key) = map_key_event(&event, modifiers) {
+                    self.keys.push(key);
                     if let Some(gpu) = &self.gpu {
                         gpu.window().request_redraw();
                     }
@@ -301,6 +476,7 @@ impl ApplicationHandler for Handler {
                         input.pointer.pressed = false;
                         input.scroll = [0.0, 0.0];
                         input.key = None;
+                        input.keys.clear();
                         input.chars.clear();
                         input.ime_commit.clear();
                     }

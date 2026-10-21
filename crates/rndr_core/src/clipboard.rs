@@ -1,4 +1,25 @@
 use crate::action::{Binding, Chord, Fired, COPY, CUT, PASTE};
+
+/// Write `copied` into the clipboard and clear a legacy copy/cut/paste [`Fired`]
+/// so this frame does not apply the same edit twice.
+pub(crate) fn note_clipboard(world: &mut World, copied: Option<&str>) {
+    if let Some(copied) = copied {
+        if let Some(clipboard) = world.resource_mut::<Clipboard>() {
+            clipboard.text = copied.to_string();
+            clipboard.dirty = true;
+        } else {
+            world.insert_resource(Clipboard {
+                text: copied.to_string(),
+                dirty: true,
+            });
+        }
+    }
+    if let Some(fired) = world.resource_mut::<Fired>() {
+        if matches!(fired.name.as_deref(), Some(COPY | CUT | PASTE)) {
+            fired.name = None;
+        }
+    }
+}
 use crate::caret::Caret;
 use crate::field::TextField;
 use crate::input::{Focus, Key};

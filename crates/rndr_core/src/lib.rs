@@ -19,6 +19,8 @@ mod font;
 mod fs;
 mod hierarchy;
 mod input;
+mod keymap;
+mod keys;
 mod layout;
 mod list;
 mod memory_fs;
@@ -30,6 +32,7 @@ mod split;
 mod style;
 mod tabs;
 mod theme;
+mod typing;
 mod world;
 mod wrap;
 
@@ -65,6 +68,14 @@ pub use fs::{
 };
 pub use hierarchy::{children_of, despawn, roots, set_parent, Children, Parent};
 pub use input::{Focus, Input, Insets, Key, Pointer, Viewport, MOUSE_ID};
+pub use keymap::{
+    apply_keymap, context_path, context_stack, Clock, Context, Dispatch, KeyBinding, Keymap,
+    KeymapFired,
+};
+pub use keys::{
+    legacy_key, platform_of, standard_action, EditAction, KeyCode, KeyEvent, Keystroke, LogicalKey,
+    Modifiers, NamedKey, Platform, Trigger,
+};
 pub use layout::{
     ancestor_with, apply_scroll, hit_test, layered_roots, layout_propagate, Axis, Clip, Layout,
     Rect, Scroll, ScrollDrag, Size, SCROLL_DRAG_SLOP,
