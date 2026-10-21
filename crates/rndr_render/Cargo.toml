@@ -6,7 +6,7 @@ license.workspace = true
 description = "winit + wgpu window plugin for rndr"
 
 [dependencies]
-rndr_core = { workspace = true }
+rndr_core = { workspace = true, features = ["pool"] }
 rndr_paint = { workspace = true }
 wgpu = { workspace = true }
 winit = { workspace = true }

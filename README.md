@@ -32,11 +32,12 @@ Application
 
 | Crate | Role |
 | --- | --- |
-| `rndr_core` | ECS, layout, clip, scroll, disclosure, focus, pane, split, caret, body, wrap, `Font`, `Files`, `Chrome` |
+| `rndr_core` | ECS, layout, clip, scroll, disclosure, focus, pane, split, caret, body, wrap, `Font`, `Files`, `Chrome`, events, tasks, timers |
 | `rndr_paint` | `frame`: update, then quads in points. Reads a `TextLayout`. The bitmap face is an 8×8 ASCII atlas |
 | `rndr_std` | `std::fs` plugin |
 | `rndr_render` | winit window writes `Input` and `Viewport`, then presents quads |
 | `examples/expand` | File-backed expand demo: folder tree, pane, splitter, caret, create, delete |
+| `examples/idle` | Empty window. `ControlFlow::Wait` when nothing is scheduled |
 
 A blank `App` holds the world, `Input`, and `Viewport`. `Shell` registers the file-tree systems. `Chrome` is optional and leaves `Shell` alone: named chords, buttons, tabs, a single-line field, overlays, a virtual list, an in-memory clipboard, styled runs, a gap-buffer editor, decorations, and IME preedit. `frame` also reports `SurfaceSlot` rects and leaves those interiors empty. `StdFsPlugin` inserts the disk backend. `MemoryFs` is the headless backend. `rndr_paint::frame` steps the world and returns quads in points. `rndr_render` writes the window into `Input` and `Viewport`, then multiplies those quads by `scale` and presents them. Platform dependencies stop at `wgpu`, `winit`, and `pollster`. No layout engine, no text crate, no third-party ECS.
 
@@ -50,6 +51,16 @@ Layout, hit-testing, and scroll are in logical points. `Viewport.scale` is physi
 4. The surface multiplies by `scale` and presents.
 
 Headless tests call `frame` and never open a window. The desktop runner is the only thing that calls winit.
+
+## Time, events, and tasks
+
+`App::update` ticks a `Time` resource from a [`clock::Clock`](crates/rndr_core/src/clock.rs), flips double-buffered `Events<T>`, pumps tasks and timers, then runs systems. `spawn` runs a `Send` future on the `Executor` the runner installed. `spawn_local` runs on the UI thread, so the future may hold non-`Send` state across `.await`. Dropping a `TaskHandle` cancels the task and drops a result that has not been committed; `detach` lets it finish. Completions are written back on the UI thread as events.
+
+`after` and `every` emit events. `sleep` parks a task. `debounce` resets a per-key timer so a burst of calls becomes one.
+
+The desktop runner enables the `pool` feature (a small thread pool, not tokio) and wakes winit with an `EventLoopProxy` user event. When nothing is runnable the loop uses `ControlFlow::Wait`, or `WaitUntil` the next timer. Pressed keys still land in `Input.keys` for that frame. `cargo run -p idle` is the idle window; it should sit near 0% CPU. `--tick` arms a one-second timer and waits with `WaitUntil`.
+
+Headless tests use `Sim`: an inline executor and a `ManualClock`. `advance` moves time, `run_until_parked` polls until every task is waiting, and `with_seed` shuffles ready background tasks. The same seed repeats the same order. Tests do not sleep.
 
 ## Headless tests
 
@@ -76,6 +87,7 @@ Text measurement is a [`Font`](crates/rndr_core/src/font.rs) in core. `layout_te
 
 ```bash
 cargo test -p rndr_core
+cargo run -p idle
 cargo run -p expand
 cargo run -p expand -- /path/to/dir
 ```

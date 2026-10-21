@@ -3,24 +3,55 @@
 mod gpu;
 
 use std::sync::Arc;
+use std::time::Instant;
 
 use rndr_core::{
     legacy_key, text_face, App, Clipboard, Input, KeyCode as Physical, KeyEvent, LogicalKey,
-    Modifiers, NamedKey as CoreNamed, Platform, Pointer, Viewport, MOUSE_ID,
+    Modifiers, NamedKey as CoreNamed, Platform, Pointer, Viewport, Wake, MOUSE_ID,
 };
 use rndr_paint::{atlas_r8, frame, ATLAS_H, ATLAS_W};
 use winit::application::ApplicationHandler;
-use winit::event::{ElementState, Ime, MouseButton, MouseScrollDelta, WindowEvent};
-use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
+use winit::event::{ElementState, Ime, MouseButton, MouseScrollDelta, StartCause, WindowEvent};
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy};
 use winit::keyboard::{Key, KeyCode, NamedKey, PhysicalKey};
 use winit::platform::modifier_supplement::KeyEventExtModifierSupplement;
 use winit::window::{Window, WindowId};
 
 use gpu::Gpu;
 
+/// User event the runtime posts when a task finishes or a timer is armed.
+#[derive(Debug)]
+enum RunnerEvent {
+    Wake,
+}
+
+struct ProxyWake {
+    proxy: EventLoopProxy<RunnerEvent>,
+}
+
+impl Wake for ProxyWake {
+    fn wake(&self) {
+        let _ = self.proxy.send_event(RunnerEvent::Wake);
+    }
+}
+
+/// `Wait` when nothing is scheduled, `WaitUntil` the next timer otherwise.
+/// A deadline that is already due stays on `Wait`: the caller requests a redraw,
+/// and that queued event wakes the loop without spinning.
+pub(crate) fn idle_control_flow(deadline: Option<Instant>, now: Instant) -> ControlFlow {
+    match deadline {
+        Some(when) if when > now => ControlFlow::WaitUntil(when),
+        _ => ControlFlow::Wait,
+    }
+}
+
 /// Block on the desktop event loop. Core stays headless; this is the only winit caller.
-pub fn run(app: App) {
-    let event_loop = EventLoop::new().expect("event loop");
+pub fn run(mut app: App) {
+    let mut builder = EventLoop::<RunnerEvent>::with_user_event();
+    let event_loop = builder.build().expect("event loop");
+    let proxy = event_loop.create_proxy();
+    app.set_wake(Arc::new(ProxyWake { proxy }));
+    app.set_executor(rndr_core::thread_pool());
     event_loop.set_control_flow(ControlFlow::Wait);
     let mut handler = Handler {
         app,
@@ -356,7 +387,37 @@ fn map_physical(key: &PhysicalKey) -> Option<Physical> {
     })
 }
 
-impl ApplicationHandler for Handler {
+impl Handler {
+    fn request_redraw(&self) {
+        if let Some(gpu) = &self.gpu {
+            gpu.window().request_redraw();
+        }
+    }
+
+    fn sync_flow(&self, event_loop: &ActiveEventLoop) {
+        if self.app.wants_frame() {
+            self.request_redraw();
+        }
+        let now = Instant::now();
+        event_loop.set_control_flow(idle_control_flow(self.app.next_deadline(), now));
+    }
+}
+
+impl ApplicationHandler<RunnerEvent> for Handler {
+    fn new_events(&mut self, _event_loop: &ActiveEventLoop, cause: StartCause) {
+        if matches!(cause, StartCause::ResumeTimeReached { .. }) {
+            self.request_redraw();
+        }
+    }
+
+    fn user_event(&mut self, _event_loop: &ActiveEventLoop, _event: RunnerEvent) {
+        self.request_redraw();
+    }
+
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        self.sync_flow(event_loop);
+    }
+
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.gpu.is_some() {
             return;
@@ -492,5 +553,26 @@ impl ApplicationHandler for Handler {
             }
             _ => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::idle_control_flow;
+    use std::time::{Duration, Instant};
+    use winit::event_loop::ControlFlow;
+
+    #[test]
+    fn idle_flow_waits_until_a_future_deadline() {
+        let now = Instant::now();
+        assert!(matches!(idle_control_flow(None, now), ControlFlow::Wait));
+        assert!(matches!(
+            idle_control_flow(Some(now + Duration::from_millis(20)), now),
+            ControlFlow::WaitUntil(_)
+        ));
+        assert!(matches!(
+            idle_control_flow(Some(now - Duration::from_millis(1)), now),
+            ControlFlow::Wait
+        ));
     }
 }

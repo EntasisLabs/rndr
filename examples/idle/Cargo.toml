@@ -1,0 +1,11 @@
+[package]
+name = "idle"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Idle window: ControlFlow::Wait, about 0% CPU"
+publish = false
+
+[dependencies]
+rndr_core = { workspace = true }
+rndr_render = { path = "../../crates/rndr_render" }

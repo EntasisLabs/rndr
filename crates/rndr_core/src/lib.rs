@@ -9,10 +9,12 @@ mod button;
 mod caret;
 mod chrome;
 mod clipboard;
+pub mod clock;
 mod disclosure;
 mod edit;
 mod editor;
 mod entity;
+mod event;
 mod field;
 mod focus;
 mod font;
@@ -26,7 +28,11 @@ mod list;
 mod memory_fs;
 mod overlay;
 mod pane;
+#[cfg(feature = "pool")]
+mod pool;
+mod runtime;
 mod shell;
+mod sim;
 mod slot;
 mod split;
 mod style;
@@ -45,6 +51,7 @@ pub use caret::{
 };
 pub use chrome::Chrome;
 pub use clipboard::Clipboard;
+pub use clock::{ManualClock, SystemClock, Time};
 pub use disclosure::{
     page_layout, scroll_page, spawn_node, toggle_disclosure, toggle_disclosures, Disclosure,
     Focusable, NodeSpec,
@@ -55,6 +62,7 @@ pub use editor::{
     Gutter,
 };
 pub use entity::Entity;
+pub use event::{events, send, Event, Events};
 pub use field::{CapturesKeys, ImePreview, TextField};
 pub use focus::apply_focus;
 pub use font::{
@@ -87,7 +95,14 @@ pub use pane::{
     apply_pane, detail_pane, field_height, set_selection, shell, splitter, tree_column, Pane,
     Selection,
 };
+#[cfg(feature = "pool")]
+pub use pool::thread_pool;
+pub use runtime::{
+    after, cancel_debounce, debounce, debounce_local, every, run_until_parked, sleep, spawn,
+    spawn_local, Executor, InlineExecutor, Job, NopWake, Sleep, TaskHandle, TimerHandle, Wake,
+};
 pub use shell::Shell;
+pub use sim::Sim;
 pub use slot::SurfaceSlot;
 pub use split::{apply_split, Drag, Splitter};
 pub use style::{Body, Color, Label, CELL_H, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};

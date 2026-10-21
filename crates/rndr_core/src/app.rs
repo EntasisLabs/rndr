@@ -1,7 +1,13 @@
+use std::sync::Arc;
+use std::time::Instant;
+
+use crate::clock::Clock;
+use crate::event;
 use crate::font::apply_text_layout;
 use crate::input::{Input, Viewport};
 use crate::keys::Platform;
 use crate::layout::layout_propagate;
+use crate::runtime::{self, Executor, Wake};
 use crate::world::World;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -39,6 +45,7 @@ impl App {
         world.insert_resource(Input::default());
         world.insert_resource(Viewport::default());
         world.insert_resource(Platform::host());
+        runtime::install(&mut world);
         Self {
             world,
             startup: Vec::new(),
@@ -88,14 +95,49 @@ impl App {
         &mut self.world
     }
 
-    /// Runs Startup (once), Update, user Layout systems, then the hierarchy walk.
+    /// Replace the [`Clock`]. [`crate::Sim`] installs a [`crate::ManualClock`].
+    pub fn set_clock(&mut self, clock: Arc<dyn Clock>) -> &mut Self {
+        runtime::set_clock(self.world(), clock);
+        self
+    }
+
+    /// Wake hook for the window loop. Called when a timer is armed or a task finishes.
+    pub fn set_wake(&mut self, wake: Arc<dyn Wake>) -> &mut Self {
+        runtime::set_wake(self.world(), wake);
+        self
+    }
+
+    /// Background executor. The desktop runner installs the `pool` feature's thread pool.
+    pub fn set_executor(&mut self, executor: Arc<dyn Executor>) -> &mut Self {
+        runtime::set_executor(self.world_mut(), executor);
+        self
+    }
+
+    /// Wall instant of the soonest timer, if any are armed.
+    pub fn next_deadline(&self) -> Option<Instant> {
+        runtime::next_deadline(self.world())
+    }
+
+    /// Inbox, ready task, or due timer. The runner requests a redraw when this is set.
+    pub fn wants_frame(&self) -> bool {
+        runtime::wants_frame(self.world())
+    }
+
+    /// Runs Startup (once), pumps tasks and timers, then Update, user Layout systems,
+    /// and the hierarchy walk.
+    ///
+    /// The pump ticks [`crate::Time`], drops the previous frame's events, and commits
+    /// task and timer output so Update systems can read it.
     pub fn update(&mut self) {
+        runtime::tick_time(&mut self.world);
         if !self.started {
             for system in self.startup.clone() {
                 system(&mut self.world);
             }
             self.started = true;
         }
+        event::flip_events(&mut self.world);
+        runtime::run_until_parked(&mut self.world);
         for system in self.update.clone() {
             system(&mut self.world);
         }

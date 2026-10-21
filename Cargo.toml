@@ -6,6 +6,7 @@ members = [
     "crates/rndr_render",
     "crates/rndr_std",
     "examples/expand",
+    "examples/idle",
 ]
 
 [workspace.package]

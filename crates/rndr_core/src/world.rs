@@ -72,6 +72,8 @@ pub struct World {
     free: Vec<u32>,
     stores: HashMap<TypeId, Box<dyn ErasedStore>>,
     resources: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
+    /// Main-thread values. Foreground task futures live here, so [`World`] is not `Send`.
+    locals: HashMap<TypeId, Box<dyn Any>>,
 }
 
 impl World {
@@ -82,6 +84,7 @@ impl World {
             free: Vec::new(),
             stores: HashMap::new(),
             resources: HashMap::new(),
+            locals: HashMap::new(),
         }
     }
 
@@ -163,6 +166,28 @@ impl World {
 
     pub fn resource_mut<T: 'static + Send + Sync>(&mut self) -> Option<&mut T> {
         self.resources
+            .get_mut(&TypeId::of::<T>())
+            .and_then(|value| value.downcast_mut::<T>())
+    }
+
+    /// Insert a main-thread value. Unlike [`insert_resource`](Self::insert_resource),
+    /// `T` does not have to be `Send`.
+    pub fn insert_local<T: 'static>(&mut self, value: T) {
+        self.locals.insert(TypeId::of::<T>(), Box::new(value));
+    }
+
+    pub fn has_local<T: 'static>(&self) -> bool {
+        self.locals.contains_key(&TypeId::of::<T>())
+    }
+
+    pub fn local<T: 'static>(&self) -> Option<&T> {
+        self.locals
+            .get(&TypeId::of::<T>())
+            .and_then(|value| value.downcast_ref::<T>())
+    }
+
+    pub fn local_mut<T: 'static>(&mut self) -> Option<&mut T> {
+        self.locals
             .get_mut(&TypeId::of::<T>())
             .and_then(|value| value.downcast_mut::<T>())
     }
