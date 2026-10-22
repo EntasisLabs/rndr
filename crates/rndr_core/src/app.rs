@@ -9,6 +9,7 @@ use crate::keys::Platform;
 use crate::layout::layout_propagate;
 use crate::runtime::{self, Executor, Wake};
 use crate::text::ensure_text_engine;
+use crate::window;
 use crate::world::World;
 
 /// Named stages of one frame, in the order [`App::update`] runs them.
@@ -17,9 +18,11 @@ use crate::world::World;
 /// then calls [`App::render`].
 ///
 /// 1. [`Startup`](Schedule::Startup) — once, before the first Input.
-/// 2. [`Input`](Schedule::Input) — keymap, list navigation, text fields.
-///    Events sent here, including `TextChanged` and `Submitted`, are merged
-///    before Update so an application system on this frame can read them.
+/// 2. [`Input`](Schedule::Input) — window dismiss, then keymap, list navigation,
+///    and text fields. Focus and blur from the platform are already readable.
+///    Events sent here, including `TextChanged`, `Submitted`, and a dismiss
+///    blur, are merged before Update so an application system on this frame
+///    can read them.
 /// 3. [`Update`](Schedule::Update) — application systems.
 /// 4. [`PostUpdate`](Schedule::PostUpdate) — widgets that follow application
 ///    writes. The virtual list rebuilds here, after a system has changed `List::count`.
@@ -72,6 +75,7 @@ impl App {
         world.insert_resource(Viewport::default());
         world.insert_resource(Platform::host());
         runtime::install(&mut world);
+        window::install(&mut world);
         Self {
             world,
             startup: Vec::new(),
@@ -154,9 +158,18 @@ impl App {
     /// One frame: Startup once, then Input, Update, PostUpdate, Layout.
     ///
     /// The pump ticks [`crate::Time`], drops the previous frame's events, and commits
-    /// task and timer output. Input then runs (keymap, list navigation, text fields).
-    /// Events those systems send are merged before Update, so a `TextChanged` from
-    /// this frame is readable in Update. Layout systems run, then the hierarchy walk.
+    /// task and timer output. Window commands that arrived from tasks or the
+    /// platform are applied next, and their focus and blur events are merged
+    /// so Input can read them. [`ScaleChanged`](crate::ScaleChanged) and
+    /// [`Resized`](crate::Resized) were published before this frame and are
+    /// already in the readable queues.
+    ///
+    /// Input then runs. Dismiss claims a bare Escape before the keymap and
+    /// text fields. Events this stage sends, including `TextChanged` and a
+    /// dismiss blur, are merged before Update. Layout systems run, then the
+    /// hierarchy walk. Window commands queued by systems are applied after
+    /// that, so the runner can show or hide on this frame; those focus events
+    /// stay queued until the next frame.
     pub fn update(&mut self) {
         ensure_text_engine(&mut self.world);
         if let Some(engine) = self.world.resource::<Arc<dyn crate::TextEngine>>() {
@@ -171,10 +184,13 @@ impl App {
         }
         event::flip_events(&mut self.world);
         runtime::run_until_parked(&mut self.world);
+        window::drive(&mut self.world);
+        event::merge_events(&mut self.world);
+        window::apply_dismiss(&mut self.world);
         for system in self.input.clone() {
             system(&mut self.world);
         }
-        // TextChanged and ListActivated sent during Input are readable below.
+        // TextChanged, ListActivated, and a dismiss blur are readable below.
         event::merge_events(&mut self.world);
         for system in self.update.clone() {
             system(&mut self.world);
@@ -188,6 +204,7 @@ impl App {
         layout_propagate(&mut self.world);
         apply_text_layout(&mut self.world);
         crate::editor::apply_decorations(&mut self.world);
+        window::drive(&mut self.world);
     }
 
     /// Extra render-schedule systems. The surface runs these after paint and before present.

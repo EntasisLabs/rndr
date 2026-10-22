@@ -3,10 +3,12 @@
 //! [`send`] appends to the writer buffer. Readers see the reader buffer via
 //! [`events`]. Each [`crate::App::update`] drops the previous reader buffer
 //! and promotes queued sends, then appends anything emitted while tasks and
-//! timers were pumped. Sends from the Input stage are merged again before
-//! Update, so `TextChanged` and `ListActivated` are visible to Update on the
-//! same frame. Sends from Update, PostUpdate, and Layout stay queued until
-//! the next frame.
+//! timers were pumped. Focus and blur from the platform or a task are merged
+//! before Input. Sends from the Input stage, including a dismiss blur, are
+//! merged again before Update, so `TextChanged` and `ListActivated` are
+//! visible to Update on the same frame. Scale and resize are published before
+//! the frame, so the opening flip makes them readable in Input and Layout.
+//! Sends from Update, PostUpdate, and Layout stay queued until the next frame.
 
 use std::any::TypeId;
 
