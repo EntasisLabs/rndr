@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/rndr",
     "crates/rndr_core",
     "crates/rndr_paint",
     "crates/rndr_render",
@@ -16,10 +17,17 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/EntasisLabs/rndr"
+homepage = "https://github.com/EntasisLabs/rndr"
+# `AtomicU64::try_update` in rndr_core needs 1.95. Dependency floors are lower
+# (tray-icon 1.90, parley 1.88). rust-toolchain.toml stays on stable.
+rust-version = "1.95"
 
 [workspace.dependencies]
-rndr_core = { path = "crates/rndr_core" }
-rndr_paint = { path = "crates/rndr_paint" }
+rndr = { path = "crates/rndr", version = "0.1.0" }
+rndr_core = { path = "crates/rndr_core", version = "0.1.0" }
+rndr_paint = { path = "crates/rndr_paint", version = "0.1.0" }
+rndr_render = { path = "crates/rndr_render", version = "0.1.0" }
+rndr_std = { path = "crates/rndr_std", version = "0.1.0" }
 wgpu = "30"
 winit = "0.30"
 pollster = "0.4"

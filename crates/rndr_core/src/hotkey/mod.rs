@@ -1,6 +1,6 @@
 //! System-wide hotkeys.
 //!
-//! A binding uses the same modifiers and keys as a [`Keystroke`](crate::Keystroke):
+//! A binding uses the same modifiers and keys as a [`Keystroke`]:
 //! `primary+Space`, `Alt+Space`, `Ctrl+Shift+K`, or a [`Keystroke`] built in
 //! code. `primary` is Command on macOS and Ctrl on Windows, X11, and Wayland.
 //!

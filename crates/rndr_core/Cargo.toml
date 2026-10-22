@@ -3,7 +3,15 @@ name = "rndr_core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
 description = "Application ECS for rndr: entities, hierarchy, layout, events, tasks"
+documentation = "https://docs.rs/rndr_core"
+readme = "README.md"
+keywords = ["ecs", "gui", "layout", "desktop", "ui"]
+categories = ["gui"]
+exclude = ["**/*.snap", "**/*.snap.new"]
 
 [dependencies]
 unicode-segmentation = "1.13"
@@ -12,3 +20,7 @@ unicode-segmentation = "1.13"
 default = []
 # Thread-pool executor. The desktop runner enables this. Core stays free of tokio.
 pool = []
+
+[package.metadata.docs.rs]
+# `pool` has no native dependencies.
+all-features = true

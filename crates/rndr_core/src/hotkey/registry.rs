@@ -42,7 +42,7 @@ pub trait HotkeyBackend: Send {
     fn unregister(&mut self, id: HotkeyId);
     /// Presses queued since the last call.
     ///
-    /// Backends that also see a key-up should drain in [`poll_edges`] instead,
+    /// Backends that also see a key-up should drain in [`Self::poll_edges`] instead,
     /// and implement this as the press half of that drain only when nothing
     /// else calls both.
     fn poll(&mut self) -> Vec<HotkeyId>;

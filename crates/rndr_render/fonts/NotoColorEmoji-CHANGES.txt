@@ -1,0 +1,12 @@
+NotoColorEmoji-CBDT.ttf in this directory is a modified build of
+Noto Color Emoji (Copyright 2022 Google Inc.), licensed under the
+SIL Open Font License 1.1. The license is in NotoColorEmoji-OFL.txt.
+
+The upstream CBDT/CBLC face shipped a single 109px bitmap strike.
+This copy keeps every glyph and the family name "Noto Color Emoji",
+and downsamples that strike to 32px per em with nearest-neighbor
+resampling so the crate fits a package size limit. The version string
+in the name table is marked "rndr:32ppem-nearest".
+
+No Reserved Font Name is declared in the upstream license text.
+The font is bundled, not sold by itself.

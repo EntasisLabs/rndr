@@ -3,7 +3,18 @@ name = "rndr_std"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
 description = "std::fs plugin for rndr"
+documentation = "https://docs.rs/rndr_std"
+readme = "README.md"
+keywords = ["filesystem", "gui", "desktop"]
+categories = ["filesystem", "gui"]
+exclude = ["**/*.snap", "**/*.snap.new"]
 
 [dependencies]
 rndr_core = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
