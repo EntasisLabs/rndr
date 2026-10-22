@@ -57,5 +57,17 @@ jobs:
       - name: Package and docs
         if: runner.os == 'Linux'
         run: |
-          cargo package --workspace --no-verify --locked --exclude expand --exclude idle --exclude overlay --exclude palette
+          # Builds each packaged crate from the tarball. Cargo does not execute
+          # tests here, so the archive checks below guard the snapshot suite.
+          cargo package --workspace --locked --exclude expand --exclude idle --exclude overlay --exclude palette
+          paint_crate=(target/package/rndr_paint-*.crate)
+          render_crate=(target/package/rndr_render-*.crate)
+          test "${#paint_crate[@]}" -eq 1
+          test "${#render_crate[@]}" -eq 1
+          paint_files="$(tar -tzf "${paint_crate[0]}")"
+          render_files="$(tar -tzf "${render_crate[0]}")"
+          test "$(printf '%s\n' "$paint_files" | grep -c '\.snap$')" = 5
+          test "$(printf '%s\n' "$render_files" | grep -c '\.snap$')" = 2
+          printf '%s\n' "$paint_files" | grep -q '/Inter-LICENSE.txt$'
+          printf '%s\n' "$paint_files" | grep -q '/latin_atlas.bin$'
           RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features --locked --exclude expand --exclude idle --exclude overlay --exclude palette

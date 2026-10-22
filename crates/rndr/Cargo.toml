@@ -11,7 +11,7 @@ documentation = "https://docs.rs/rndr"
 readme = "README.md"
 keywords = ["gui", "desktop", "ecs", "wgpu", "ui"]
 categories = ["gui", "graphics", "rendering"]
-exclude = ["**/*.snap", "**/*.snap.new"]
+exclude = ["**/*.snap.new"]
 
 [features]
 default = ["hotkey", "tray", "parley"]

@@ -18,4 +18,4 @@ docs.rs builds every feature. Its Linux image includes fontconfig, libxkbcommon,
 
 Font licenses are in `fonts/`.
 
-License: MIT.
+License: MIT AND OFL-1.1.

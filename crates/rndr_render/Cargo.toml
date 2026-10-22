@@ -2,7 +2,9 @@
 name = "rndr_render"
 version.workspace = true
 edition.workspace = true
-license.workspace = true
+# Bundled Inter, Noto Sans Arabic, and Noto Color Emoji are OFL-1.1.
+# Other `[workspace.package]` fields stay inherited.
+license = "MIT AND OFL-1.1"
 repository.workspace = true
 homepage.workspace = true
 rust-version.workspace = true
@@ -11,7 +13,7 @@ documentation = "https://docs.rs/rndr_render"
 readme = "README.md"
 keywords = ["gui", "wgpu", "winit", "window", "desktop"]
 categories = ["gui", "graphics", "rendering"]
-exclude = ["**/*.snap", "**/*.snap.new"]
+exclude = ["**/*.snap.new"]
 
 [features]
 default = ["hotkey", "tray", "parley"]
