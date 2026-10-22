@@ -1,16 +1,22 @@
 //! Proportional Latin face. Rasterized once from Inter Regular at 16px.
 //! Inter is © 2020 The Inter Project Authors, SIL Open Font License 1.1.
-//! Advances are in points. The atlas is one coverage sample per pixel.
+//! Advances and kerning are the font's, in points at that size. The atlas is
+//! one coverage sample per pixel.
 
 use std::sync::{Arc, OnceLock};
 
 use rndr_core::{Font, FontAtlas, GlyphBox};
 
 include!("latin_metrics.rs");
+include!("latin_kern.rs");
 
 const ATLAS: &[u8] = include_bytes!("latin_atlas.bin");
+/// Atlas em size in points. Advances and kerning are already in this size.
+const LATIN_EM: f32 = 16.0;
+const LATIN_UPM: f32 = 2048.0;
 
 /// ASCII proportional face. Insert as a [`rndr_core::TextFace`].
+/// The builtin [`rndr_core::TextEngine`] resolves the family name `"Inter"`.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct LatinFace;
 
@@ -30,6 +36,14 @@ impl Font for LatinFace {
         LATIN_LINE
     }
 
+    fn em_size(&self) -> f32 {
+        LATIN_EM
+    }
+
+    fn family_name(&self) -> &'static str {
+        "Inter"
+    }
+
     fn advance(&self, ch: char) -> f32 {
         if ch == '\n' {
             return 0.0;
@@ -37,6 +51,17 @@ impl Font for LatinFace {
         Self::index(ch)
             .map(|i| LATIN_ADV[i])
             .unwrap_or(LATIN_ADV[0])
+    }
+
+    fn kerning(&self, left: char, right: char) -> f32 {
+        let (Some(a), Some(b)) = (Self::index(left), Self::index(right)) else {
+            return 0.0;
+        };
+        let key = (a as u8, b as u8);
+        match LATIN_KERN.binary_search_by_key(&key, |row| (row.0, row.1)) {
+            Ok(index) => LATIN_KERN[index].2 as f32 * (LATIN_EM / LATIN_UPM),
+            Err(_) => 0.0,
+        }
     }
 
     fn glyph_box(&self, ch: char) -> Option<GlyphBox> {

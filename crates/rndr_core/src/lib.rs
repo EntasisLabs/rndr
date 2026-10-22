@@ -37,6 +37,7 @@ mod slot;
 mod split;
 mod style;
 mod tabs;
+mod text;
 mod theme;
 mod typing;
 mod world;
@@ -67,8 +68,8 @@ pub use field::{CapturesKeys, ImePreview, Submitted, TextChanged, TextField};
 pub use focus::apply_focus;
 pub use font::{
     apply_text_layout, field_text_width, layout_text, layout_text_spans, line_col, measure_text,
-    text_face, BitmapFont, Font, FontAtlas, GlyphBox, PlacedGlyph, SelectionBox, Spans, TextFace,
-    TextLayout, TextLine, TextMeasure, TextSpan,
+    text_face, BitmapFont, ColorAtlas, Font, FontAtlas, GlyphBox, PlacedGlyph, SelectionBox, Spans,
+    TextFace, TextHighlight, TextLayout, TextLine, TextMeasure, TextSpan,
 };
 pub use fs::{
     apply_dirty_marks, apply_fs_edit, apply_fs_load, apply_fs_save, spawn_fs_node, DirEntry, Dirty,
@@ -110,6 +111,10 @@ pub use slot::SurfaceSlot;
 pub use split::{apply_split, Drag, Splitter};
 pub use style::{Body, Color, Label, CELL_H, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
 pub use tabs::{Hidden, Tab, TabPanel, Tabs};
+pub use text::{
+    ensure_text_engine, style_of, text_engine, BuiltinText, FontStyle, TextEngine, TextStyle,
+    FONT_WEIGHT_BOLD, FONT_WEIGHT_REGULAR,
+};
 pub use theme::{theme_of, Radius, Theme};
 pub use world::{Bundle, Component, World};
 pub use wrap::{

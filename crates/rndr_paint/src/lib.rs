@@ -13,9 +13,9 @@ pub use latin::LatinFace;
 pub use snapshot::quads_snapshot;
 
 use rndr_core::{
-    children_of, field_text_width, layered_roots, layout_text_spans, text_face, theme_of, App,
-    Caret, Clip, Color, DirtyMark, EditField, Field, Focus, Label, Parent, Radius, Rect,
-    TextLayout, Viewport, World, CELL_H, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
+    children_of, field_text_width, layered_roots, style_of, text_engine, theme_of, App, Caret,
+    Clip, Color, DirtyMark, EditField, Field, Focus, Label, Parent, Radius, Rect, TextLayout,
+    Viewport, World, CELL_H, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
 
 /// One instanced quad in logical points.
@@ -77,7 +77,8 @@ pub fn paint(world: &World) -> Vec<Quad> {
         .resource::<Viewport>()
         .map(|viewport| viewport.pixels_per_point())
         .unwrap_or(1.0);
-    let solid = text_face(world).solid_uv();
+    let style = style_of(world);
+    let solid = text_engine(world).solid_uv(&style);
     let theme = theme_of(world);
     for root in layered_roots(world) {
         walk(world, root, &mut |rect,
@@ -106,7 +107,24 @@ pub fn paint(world: &World) -> Vec<Quad> {
                 );
             }
             if let Some(layout) = layout {
-                push_label(&mut out, rect, layout, clip, scale, theme.text);
+                let text_color = _label.and_then(|label| label.color).unwrap_or(theme.text);
+                for highlight in &layout.highlights {
+                    push(
+                        &mut out,
+                        snap_box(
+                            rect.x + TEXT_ORIGIN_X + highlight.x,
+                            rect.y + TEXT_ORIGIN_Y + highlight.y,
+                            highlight.w,
+                            highlight.h,
+                            scale,
+                        ),
+                        highlight.color,
+                        solid,
+                        clip,
+                        0.0,
+                    );
+                }
+                push_label(&mut out, rect, layout, clip, scale, text_color);
             }
             for mark in marks {
                 let color = match mark.kind {
@@ -338,12 +356,13 @@ fn push_dirty_mark(out: &mut Vec<Quad>, rect: Rect, clip: Clip, solid: [f32; 4],
 }
 
 fn measured(world: &World, entity: rndr_core::Entity, text: &str, rect: Rect) -> TextLayout {
-    let font = text_face(world);
+    let style = style_of(world);
+    let engine = text_engine(world);
     let wrap = world
         .get::<Field>(entity)
         .is_some_and(|field| field.kind == EditField::Body);
     let max_width = if wrap {
-        field_text_width(rect.w, font.advance('0'))
+        field_text_width(rect.w, engine.unit_advance(&style))
     } else {
         f32::INFINITY
     };
@@ -351,7 +370,7 @@ fn measured(world: &World, entity: rndr_core::Entity, text: &str, rect: Rect) ->
         .get::<rndr_core::Spans>(entity)
         .map(|spans| spans.runs.clone())
         .unwrap_or_default();
-    layout_text_spans(font.as_ref(), text, max_width, &spans)
+    engine.layout(text, &style, &spans, max_width)
 }
 
 // Selection quads need the label rect, layout, caret, clip, and scale together.

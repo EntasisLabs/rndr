@@ -1,8 +1,6 @@
-//! Text measurement. The bitmap face is the first backend.
-//!
-//! Caret, wrap, and paint ask a [`Font`] for advances and glyph boxes.
-//! [`layout_text`] turns that into a [`TextLayout`] of positioned glyphs.
-//! A later face implements the same trait. Core still has no GPU types.
+//! Glyph metrics for one face. Shaping goes through [`crate::text::TextEngine`];
+//! this trait is the atlas the builtin engine asks for advances, kerning, and
+//! coverage. A later face implements the same trait. Core still has no GPU types.
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -15,13 +13,44 @@ use crate::world::{Component, World};
 impl Component for TextLayout {}
 impl Component for Spans {}
 
-/// One styled byte range on a [`Label`]. `face` is reserved for a second atlas.
+/// One styled byte range on a [`Label`].
+///
+/// `color` tints the glyphs. `weight` overrides the run's font weight when set
+/// (`None` keeps the style weight). `highlight` paints a bar behind the range.
+/// `face` is reserved for a second atlas.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextSpan {
     pub start: usize,
     pub end: usize,
     pub color: Color,
     pub face: u8,
+    /// `None` inherits the style weight.
+    pub weight: Option<u16>,
+    /// Background behind this range. `None` draws no bar.
+    pub highlight: Option<Color>,
+}
+
+impl TextSpan {
+    pub fn new(start: usize, end: usize, color: Color) -> Self {
+        Self {
+            start,
+            end,
+            color,
+            face: 0,
+            weight: None,
+            highlight: None,
+        }
+    }
+
+    pub fn weight(mut self, weight: u16) -> Self {
+        self.weight = Some(weight);
+        self
+    }
+
+    pub fn highlight(mut self, color: Color) -> Self {
+        self.highlight = Some(color);
+        self
+    }
 }
 
 /// Styled ranges painted over a label. Absent means one theme-colored run.
@@ -35,8 +64,25 @@ pub trait Font: Send + Sync {
     fn line_height(&self) -> f32;
     /// Width the pen moves after `ch`. A newline advances 0.
     fn advance(&self, ch: char) -> f32;
+    /// Extra pen movement between `left` and `right`, in points. Zero when the
+    /// face has no pair for those scalars.
+    fn kerning(&self, _left: char, _right: char) -> f32 {
+        0.0
+    }
     /// Painted quad for `ch`. `None` still consumes [`Font::advance`] (a space).
     fn glyph_box(&self, ch: char) -> Option<GlyphBox>;
+    /// This face can draw `ch` (including space and newline).
+    fn covers(&self, ch: char) -> bool {
+        ch == '\n' || ch == ' ' || self.glyph_box(ch).is_some()
+    }
+    /// Family name used by [`crate::text::TextEngine`] fallback lists.
+    fn family_name(&self) -> &'static str {
+        "bitmap"
+    }
+    /// Design size in points. A style size other than this scales advances.
+    fn em_size(&self) -> f32 {
+        16.0
+    }
     /// Coverage rect in this face's atlas. The bitmap grid is the default.
     fn glyph_uv(&self, ch: char) -> [f32; 4] {
         bitmap_glyph_uv(ch)
@@ -45,8 +91,13 @@ pub trait Font: Send + Sync {
     fn solid_uv(&self) -> [f32; 4] {
         bitmap_solid_uv()
     }
-    /// Replacement atlas. `None` keeps the 8×8 bitmap atlas on the GPU.
+    /// Coverage atlas (one byte per pixel). `None` keeps the 8×8 bitmap atlas.
     fn atlas(&self) -> Option<Arc<FontAtlas>> {
+        None
+    }
+    /// Color atlas (RGBA) for emoji and other color glyphs. The bitmap and Latin
+    /// faces have none.
+    fn color_atlas(&self) -> Option<Arc<ColorAtlas>> {
         None
     }
 }
@@ -56,6 +107,13 @@ pub struct FontAtlas {
     pub width: u32,
     pub height: u32,
     pub r8: Arc<[u8]>,
+}
+
+/// RGBA atlas for emoji and other color glyphs. Empty until a face provides one.
+pub struct ColorAtlas {
+    pub width: u32,
+    pub height: u32,
+    pub rgba: Arc<[u8]>,
 }
 
 fn bitmap_glyph_uv(ch: char) -> [f32; 4] {
@@ -98,6 +156,14 @@ impl Font for BitmapFont {
         CELL_H
     }
 
+    fn family_name(&self) -> &'static str {
+        "bitmap"
+    }
+
+    fn em_size(&self) -> f32 {
+        CELL_H
+    }
+
     fn advance(&self, ch: char) -> f32 {
         if ch == '\n' {
             0.0
@@ -133,7 +199,7 @@ impl TextFace {
     }
 }
 
-fn shared_bitmap() -> Arc<dyn Font> {
+pub(crate) fn shared_bitmap() -> Arc<dyn Font> {
     static BITMAP: OnceLock<Arc<dyn Font>> = OnceLock::new();
     Arc::clone(BITMAP.get_or_init(|| Arc::new(BitmapFont)))
 }
@@ -156,9 +222,24 @@ pub struct PlacedGlyph {
     pub w: f32,
     pub h: f32,
     pub uv: [f32; 4],
-    /// `None` paints with the theme text color.
+    /// `None` paints with the label color, or the theme text color when the label
+    /// has none.
     pub color: Option<Color>,
     pub face: u8,
+    /// Resolved weight. A future engine picks a master from this.
+    pub weight: u16,
+    /// `0` samples the coverage atlas. `1` samples the color atlas.
+    pub atlas: u8,
+}
+
+/// Background behind a styled range, relative to the text origin.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TextHighlight {
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+    pub color: Color,
 }
 
 /// One visual line. `edges` is `(byte index, pen x)` from the line start through
@@ -181,6 +262,7 @@ pub struct TextLine {
 pub struct TextLayout {
     pub glyphs: Vec<PlacedGlyph>,
     pub lines: Vec<TextLine>,
+    pub highlights: Vec<TextHighlight>,
     pub width: f32,
     pub height: f32,
     pub(crate) cache_key: u64,
@@ -190,6 +272,7 @@ impl PartialEq for TextLayout {
     fn eq(&self, other: &Self) -> bool {
         self.glyphs == other.glyphs
             && self.lines == other.lines
+            && self.highlights == other.highlights
             && self.width == other.width
             && self.height == other.height
     }
@@ -217,6 +300,17 @@ pub fn layout_text_spans(
     max_width: f32,
     spans: &[TextSpan],
 ) -> TextLayout {
+    layout_text_weighted(font, text, max_width, spans, 400)
+}
+
+/// [`layout_text_spans`] with `default_weight` on bytes no span overrides.
+pub(crate) fn layout_text_weighted(
+    font: &dyn Font,
+    text: &str,
+    max_width: f32,
+    spans: &[TextSpan],
+    default_weight: u16,
+) -> TextLayout {
     let ranges = wrap_ranges(font, text, max_width);
     let mut glyphs = Vec::new();
     let mut lines = Vec::new();
@@ -226,8 +320,12 @@ pub fn layout_text_spans(
     for (start, end) in ranges {
         let mut edges = vec![(start, 0.0)];
         let mut x = 0.0f32;
+        let mut prev = None;
         for (i, ch) in text[start..end].char_indices() {
             let abs = start + i;
+            if let Some(prev) = prev {
+                x += font.kerning(prev, ch);
+            }
             let adv = font.advance(ch);
             if let Some(glyph) = font.glyph_box(ch) {
                 glyphs.push(PlacedGlyph {
@@ -241,10 +339,13 @@ pub fn layout_text_spans(
                     uv: font.glyph_uv(ch),
                     color: span_color(spans, abs),
                     face: span_face(spans, abs),
+                    weight: span_weight(spans, abs).unwrap_or(default_weight),
+                    atlas: 0,
                 });
             }
             x += adv;
             edges.push((abs + ch.len_utf8(), x));
+            prev = Some(ch);
         }
         width = width.max(x);
         lines.push(TextLine {
@@ -268,13 +369,29 @@ pub fn layout_text_spans(
         });
         y = h;
     }
-    TextLayout {
+    let mut layout = TextLayout {
         glyphs,
         lines,
+        highlights: Vec::new(),
         width,
         height: y,
         cache_key: 0,
+    };
+    for span in spans {
+        let Some(color) = span.highlight else {
+            continue;
+        };
+        for selection in layout.selection_boxes(span.start, span.end) {
+            layout.highlights.push(TextHighlight {
+                x: selection.x,
+                y: selection.y,
+                w: selection.w,
+                h: selection.h,
+                color,
+            });
+        }
     }
+    layout
 }
 
 /// Width and line count for a wrap, without glyph quads or per-line edge buffers.
@@ -323,6 +440,17 @@ pub(crate) fn layout_cache_key(
         span.color.b.to_bits().hash(&mut hasher);
         span.color.a.to_bits().hash(&mut hasher);
         span.face.hash(&mut hasher);
+        span.weight.hash(&mut hasher);
+        match span.highlight {
+            Some(color) => {
+                1u8.hash(&mut hasher);
+                color.r.to_bits().hash(&mut hasher);
+                color.g.to_bits().hash(&mut hasher);
+                color.b.to_bits().hash(&mut hasher);
+                color.a.to_bits().hash(&mut hasher);
+            }
+            None => 0u8.hash(&mut hasher),
+        }
     }
     if !preview.is_empty() {
         preview.hash(&mut hasher);
@@ -441,6 +569,13 @@ fn span_face(spans: &[TextSpan], index: usize) -> u8 {
         .unwrap_or(0)
 }
 
+fn span_weight(spans: &[TextSpan], index: usize) -> Option<u16> {
+    spans
+        .iter()
+        .find(|span| index >= span.start && index < span.end)
+        .and_then(|span| span.weight)
+}
+
 fn edge_on(line: &TextLine, byte: usize) -> f32 {
     line.edges
         .iter()
@@ -482,10 +617,12 @@ pub fn field_text_width(field_width: f32, unit: f32) -> f32 {
 /// A label whose text, wrap width, spans, face, and IME preview are unchanged
 /// keeps the layout it already has.
 pub fn apply_text_layout(world: &mut World) {
+    let style = crate::text::style_of(world);
+    let engine = crate::text::text_engine(world);
     let font = text_face(world);
+    let unit = engine.unit_advance(&style);
     let labels = world.entities_with::<Label>();
     for entity in labels {
-        let unit = font.advance('0');
         let wrap = world
             .get::<Field>(entity)
             .is_some_and(|field| field.kind == EditField::Body);
@@ -497,49 +634,36 @@ pub fn apply_text_layout(world: &mut World) {
         } else {
             f32::INFINITY
         };
-        let key = {
-            let Some(label) = world.get::<crate::style::Label>(entity) else {
-                continue;
-            };
-            let preview = world
-                .get::<crate::field::ImePreview>(entity)
-                .map(|preview| preview.text.as_str())
-                .unwrap_or("");
-            let at = world
-                .get::<crate::caret::Caret>(entity)
-                .map(|caret| caret.index.min(label.text.len()))
-                .unwrap_or(label.text.len());
-            let spans = world
-                .get::<Spans>(entity)
-                .map(|spans| spans.runs.as_slice())
-                .unwrap_or(&[]);
-            layout_cache_key(font.as_ref(), &label.text, max_width, spans, preview, at)
-        };
-        if world
-            .get::<TextLayout>(entity)
-            .is_some_and(|layout| layout.cache_key == key)
-        {
+        let Some(label) = world.get::<crate::style::Label>(entity) else {
             continue;
-        }
-        let mut text = world
-            .get::<crate::style::Label>(entity)
-            .map(|label| label.text.clone())
+        };
+        let preview = world
+            .get::<crate::field::ImePreview>(entity)
+            .map(|preview| preview.text.clone())
             .unwrap_or_default();
-        if let Some(preview) = world.get::<crate::field::ImePreview>(entity) {
-            let at = world
-                .get::<crate::caret::Caret>(entity)
-                .map(|caret| caret.index.min(text.len()))
-                .unwrap_or(text.len());
-            if !preview.text.is_empty() {
-                let at = floor_preview(at, &text);
-                text.insert_str(at, &preview.text);
-            }
-        }
+        let at = world
+            .get::<crate::caret::Caret>(entity)
+            .map(|caret| caret.index.min(label.text.len()))
+            .unwrap_or(label.text.len());
         let spans = world
             .get::<Spans>(entity)
             .map(|spans| spans.runs.clone())
             .unwrap_or_default();
-        let mut layout = layout_text_spans(font.as_ref(), &text, max_width, &spans);
+        let source = label.text.clone();
+        let key = layout_cache_key(font.as_ref(), &source, max_width, &spans, &preview, at);
+        let mut text = source;
+        if !preview.is_empty() {
+            let at = floor_preview(at, &text);
+            text.insert_str(at, &preview);
+        }
+        // Always shape through the engine so the line cache records this frame.
+        let mut layout = engine.layout(&text, &style, &spans, max_width);
+        if world
+            .get::<TextLayout>(entity)
+            .is_some_and(|stored| stored.cache_key == key)
+        {
+            continue;
+        }
         layout.cache_key = key;
         world.insert(entity, layout);
     }
@@ -553,7 +677,7 @@ fn floor_preview(index: usize, text: &str) -> usize {
     i
 }
 
-fn wrap_ranges(font: &dyn Font, text: &str, max_width: f32) -> Vec<(usize, usize)> {
+pub(crate) fn wrap_ranges(font: &dyn Font, text: &str, max_width: f32) -> Vec<(usize, usize)> {
     if text.is_empty() {
         return vec![(0, 0)];
     }
@@ -593,8 +717,9 @@ fn wrap_part(
         let mut pen = 0.0f32;
         let mut accepted = 0usize;
         let mut last_space: Option<usize> = None;
+        let mut prev = None;
         for (i, ch) in rest.char_indices() {
-            let adv = font.advance(ch);
+            let adv = step(font, prev, ch);
             if accepted > 0 && pen + adv > max_width {
                 break;
             }
@@ -603,6 +728,7 @@ fn wrap_part(
                 last_space = Some(i);
             }
             accepted = i + ch.len_utf8();
+            prev = Some(ch);
             if pen > max_width {
                 break;
             }
@@ -621,5 +747,16 @@ fn wrap_part(
 }
 
 fn measure(font: &dyn Font, text: &str) -> f32 {
-    text.chars().map(|ch| font.advance(ch)).sum()
+    let mut width = 0.0f32;
+    let mut prev = None;
+    for ch in text.chars() {
+        width += step(font, prev, ch);
+        prev = Some(ch);
+    }
+    width
+}
+
+fn step(font: &dyn Font, prev: Option<char>, ch: char) -> f32 {
+    let kern = prev.map(|prev| font.kerning(prev, ch)).unwrap_or(0.0);
+    kern + font.advance(ch)
 }

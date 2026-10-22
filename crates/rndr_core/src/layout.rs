@@ -1,9 +1,10 @@
 use crate::entity::Entity;
-use crate::font::{field_text_width, layout_cache_key, measure_text, text_face, TextLayout};
+use crate::font::{field_text_width, layout_cache_key, text_face, TextLayout};
 use crate::hierarchy::{children_of, roots, Parent};
 use crate::input::{Input, Viewport};
 use crate::split::Splitter;
 use crate::style::{Label, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
+use crate::text::{style_of, text_engine};
 use crate::world::{Component, World};
 
 impl Component for Layout {}
@@ -600,25 +601,22 @@ fn label_hug_width(
         return None;
     }
     world.get::<Label>(entity)?;
-    let font = text_face(world);
+    let style = style_of(world);
+    let engine = text_engine(world);
     let max_width = if field_w.is_finite() {
-        field_text_width(field_w, font.advance('0'))
+        field_text_width(field_w, engine.unit_advance(&style))
     } else {
         f32::INFINITY
     };
-    let (lines, width) = hug_lines(world, entity, font.as_ref(), max_width)?;
-    let line_h = font.line_height();
+    let (lines, width) = hug_lines(world, entity, max_width)?;
+    let line_h = engine.line_height(&style);
     let h = (TEXT_ORIGIN_Y + lines as f32 * line_h + TEXT_ORIGIN_Y).max(36.0);
     let w = width + 2.0 * TEXT_ORIGIN_X;
     Some((w, h))
 }
 
-fn hug_lines(
-    world: &World,
-    entity: Entity,
-    font: &dyn crate::font::Font,
-    max_width: f32,
-) -> Option<(usize, f32)> {
+fn hug_lines(world: &World, entity: Entity, max_width: f32) -> Option<(usize, f32)> {
+    let font = text_face(world);
     let key = {
         let label = world.get::<Label>(entity)?;
         let preview = world
@@ -633,7 +631,7 @@ fn hug_lines(
             .get::<crate::font::Spans>(entity)
             .map(|spans| spans.runs.as_slice())
             .unwrap_or(&[]);
-        layout_cache_key(font, &label.text, max_width, spans, preview, at)
+        layout_cache_key(font.as_ref(), &label.text, max_width, spans, preview, at)
     };
     if let Some(layout) = world.get::<TextLayout>(entity) {
         if layout.cache_key == key {
@@ -653,7 +651,12 @@ fn hug_lines(
             }
         }
     }
-    let measured = measure_text(font, &text, max_width);
+    let spans = world
+        .get::<crate::font::Spans>(entity)
+        .map(|spans| spans.runs.clone())
+        .unwrap_or_default();
+    let style = style_of(world);
+    let measured = text_engine(world).measure(&text, &style, &spans, max_width);
     Some((measured.line_count.max(1), measured.width))
 }
 

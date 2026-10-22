@@ -8,6 +8,7 @@ use crate::input::{Input, Viewport};
 use crate::keys::Platform;
 use crate::layout::layout_propagate;
 use crate::runtime::{self, Executor, Wake};
+use crate::text::ensure_text_engine;
 use crate::world::World;
 
 /// Named stages of one frame, in the order [`App::update`] runs them.
@@ -157,6 +158,10 @@ impl App {
     /// Events those systems send are merged before Update, so a `TextChanged` from
     /// this frame is readable in Update. Layout systems run, then the hierarchy walk.
     pub fn update(&mut self) {
+        ensure_text_engine(&mut self.world);
+        if let Some(engine) = self.world.resource::<Arc<dyn crate::TextEngine>>() {
+            engine.begin_frame();
+        }
         runtime::tick_time(&mut self.world);
         if !self.started {
             for system in self.startup.clone() {
