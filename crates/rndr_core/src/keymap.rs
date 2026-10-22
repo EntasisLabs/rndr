@@ -84,6 +84,19 @@ impl KeyBinding {
         self.context = context_path(path);
         self
     }
+
+    /// Display text for these strokes. See [`Keymap::shortcut`].
+    pub fn shortcut(&self, platform: Platform) -> String {
+        display_strokes(&self.strokes, platform)
+    }
+}
+
+fn display_strokes(strokes: &[Keystroke], platform: Platform) -> String {
+    strokes
+        .iter()
+        .map(|stroke| stroke.display(platform))
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 #[derive(Clone, Debug)]
@@ -208,6 +221,18 @@ impl Keymap {
         found
     }
 
+    /// Display text for the binding that fires `action` on `stack`.
+    ///
+    /// macOS uses symbols (`⌘K`). Other platforms use words (`Ctrl+K`).
+    /// A two-stroke chord joins with a space (`Ctrl+G M`). Empty when `action`
+    /// is not bound on `stack`. When several sequences win, this is the first.
+    pub fn shortcut(&self, action: &str, stack: &[String], platform: Platform) -> String {
+        self.lookup(action, stack)
+            .first()
+            .map(|strokes| display_strokes(strokes, platform))
+            .unwrap_or_default()
+    }
+
     fn expire(&mut self, now_ms: u64) -> Option<String> {
         if self.pending.is_empty() {
             return None;
@@ -290,7 +315,7 @@ impl Keymap {
     }
 }
 
-fn context_matches(pattern: &[String], stack: &[String]) -> bool {
+pub(crate) fn context_matches(pattern: &[String], stack: &[String]) -> bool {
     if pattern.is_empty() {
         return true;
     }

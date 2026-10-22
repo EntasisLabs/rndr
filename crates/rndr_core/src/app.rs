@@ -10,13 +10,36 @@ use crate::layout::layout_propagate;
 use crate::runtime::{self, Executor, Wake};
 use crate::world::World;
 
+/// Named stages of one frame, in the order [`App::update`] runs them.
+///
+/// Paint is not a schedule. The paint step calls [`App::update`], draws the quads,
+/// then calls [`App::render`].
+///
+/// 1. [`Startup`](Schedule::Startup) — once, before the first Input.
+/// 2. [`Input`](Schedule::Input) — keymap, list navigation, text fields.
+///    Events sent here, including `TextChanged` and `Submitted`, are merged
+///    before Update so an application system on this frame can read them.
+/// 3. [`Update`](Schedule::Update) — application systems.
+/// 4. [`PostUpdate`](Schedule::PostUpdate) — widgets that follow application
+///    writes. The virtual list rebuilds here, after a system has changed `List::count`.
+/// 5. [`Layout`](Schedule::Layout) — user layout systems, then the hierarchy walk
+///    and text measurement.
+/// 6. Paint — the quad walk. Not a system list.
+/// 7. [`Render`](Schedule::Render) — after paint, before present.
+///
+/// An Input system does not see events sent earlier in that same Input pass.
+/// Read them from Update. A system that writes `List::count` belongs on Update,
+/// not after the list has already rebuilt.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Schedule {
     Startup,
+    /// Keymap, list keys, and text fields. Runs before [`Schedule::Update`].
+    Input,
     Update,
-    /// Runs after every Update system and before layout.
+    /// After [`Schedule::Update`] and before layout.
     PostUpdate,
     Layout,
+    /// After paint, before present.
     Render,
 }
 
@@ -27,11 +50,13 @@ pub trait Plugin {
     fn build(self, app: &mut App);
 }
 
-/// Headless runner: Startup once, then Update, then Layout. Render is the platform's job.
-/// A new app owns [`Input`] and [`Viewport`] only. [`crate::Shell`] installs the desktop systems.
+/// Headless runner. One frame is Startup (once), Input, Update, PostUpdate, then Layout.
+/// Render is the platform's job, after paint. A new app owns [`Input`] and [`Viewport`]
+/// only. [`crate::Shell`] installs the desktop systems.
 pub struct App {
     world: World,
     startup: Vec<System>,
+    input: Vec<System>,
     update: Vec<System>,
     post_update: Vec<System>,
     layout: Vec<System>,
@@ -49,6 +74,7 @@ impl App {
         Self {
             world,
             startup: Vec::new(),
+            input: Vec::new(),
             update: Vec::new(),
             post_update: Vec::new(),
             layout: Vec::new(),
@@ -74,6 +100,7 @@ impl App {
     fn insert_system(&mut self, schedule: Schedule, system: System, front: bool) -> &mut Self {
         let list = match schedule {
             Schedule::Startup => &mut self.startup,
+            Schedule::Input => &mut self.input,
             Schedule::Update => &mut self.update,
             Schedule::PostUpdate => &mut self.post_update,
             Schedule::Layout => &mut self.layout,
@@ -123,11 +150,12 @@ impl App {
         runtime::wants_frame(self.world())
     }
 
-    /// Runs Startup (once), pumps tasks and timers, then Update, user Layout systems,
-    /// and the hierarchy walk.
+    /// One frame: Startup once, then Input, Update, PostUpdate, Layout.
     ///
     /// The pump ticks [`crate::Time`], drops the previous frame's events, and commits
-    /// task and timer output so Update systems can read it.
+    /// task and timer output. Input then runs (keymap, list navigation, text fields).
+    /// Events those systems send are merged before Update, so a `TextChanged` from
+    /// this frame is readable in Update. Layout systems run, then the hierarchy walk.
     pub fn update(&mut self) {
         runtime::tick_time(&mut self.world);
         if !self.started {
@@ -138,6 +166,11 @@ impl App {
         }
         event::flip_events(&mut self.world);
         runtime::run_until_parked(&mut self.world);
+        for system in self.input.clone() {
+            system(&mut self.world);
+        }
+        // TextChanged and ListActivated sent during Input are readable below.
+        event::merge_events(&mut self.world);
         for system in self.update.clone() {
             system(&mut self.world);
         }

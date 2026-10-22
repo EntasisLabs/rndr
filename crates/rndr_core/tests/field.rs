@@ -1,6 +1,7 @@
 use rndr_core::{
-    App, Axis, CapturesKeys, Caret, Chrome, Color, Focus, Focusable, Input, Key, Label, Layout,
-    Rect, Shell, Size, TextField, Viewport, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
+    events, App, Axis, CapturesKeys, Caret, Chrome, Color, Focus, Focusable, Input, Key, KeyEvent,
+    Label, Layout, Modifiers, NamedKey, Rect, Schedule, Shell, Size, Submitted, TextChanged,
+    TextField, Viewport, World, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
 
 fn field_layout() -> Layout {
@@ -78,4 +79,98 @@ fn click_places_the_index() {
         app.world().resource::<Focus>().unwrap().entity,
         Some(entity)
     );
+}
+
+struct Seen {
+    text: String,
+    changed: Vec<String>,
+    submitted: Vec<String>,
+}
+
+fn watch_field(world: &mut World) {
+    let entity = world.entities_with::<TextField>()[0];
+    let text = world
+        .get::<Label>(entity)
+        .map(|label| label.text.clone())
+        .unwrap_or_default();
+    let changed = events::<TextChanged>(world)
+        .iter()
+        .map(|event| event.text.clone())
+        .collect();
+    let submitted = events::<Submitted>(world)
+        .iter()
+        .map(|event| event.text.clone())
+        .collect();
+    world.insert_resource(Seen {
+        text,
+        changed,
+        submitted,
+    });
+}
+
+#[test]
+fn text_changed_is_visible_to_update_on_the_same_frame() {
+    let mut app = App::new();
+    app.add_plugin(Shell);
+    app.add_plugin(Chrome);
+    app.add_system(Schedule::Update, watch_field);
+    app.world_mut().insert_resource(Viewport::new(240.0, 80.0));
+    let entity = app.world_mut().spawn((
+        field_layout(),
+        Color::rgb(0.15, 0.16, 0.18),
+        Label::new("hello"),
+        TextField,
+        Focusable,
+        CapturesKeys,
+    ));
+    app.world_mut().insert_resource(Focus {
+        entity: Some(entity),
+    });
+    app.update();
+    assert_eq!(app.world().resource::<Seen>().unwrap().text, "hello");
+    assert!(app.world().resource::<Seen>().unwrap().changed.is_empty());
+
+    app.world_mut()
+        .resource_mut::<Input>()
+        .unwrap()
+        .chars
+        .push('x');
+    app.update();
+    let seen = app.world().resource::<Seen>().unwrap();
+    assert_eq!(seen.text, "hellox");
+    assert_eq!(seen.changed, vec!["hellox".to_string()]);
+    assert!(seen.submitted.is_empty());
+    assert_eq!(app.world().get::<Label>(entity).unwrap().text, "hellox");
+}
+
+#[test]
+fn enter_submits_without_inserting_a_newline() {
+    let mut app = App::new();
+    app.add_plugin(Shell);
+    app.add_plugin(Chrome);
+    app.add_system(Schedule::Update, watch_field);
+    app.world_mut().insert_resource(Viewport::new(240.0, 80.0));
+    let entity = app.world_mut().spawn((
+        field_layout(),
+        Color::rgb(0.15, 0.16, 0.18),
+        Label::new("hello"),
+        TextField,
+        Focusable,
+        CapturesKeys,
+    ));
+    app.world_mut().insert_resource(Focus {
+        entity: Some(entity),
+    });
+    app.update();
+    app.world_mut()
+        .resource_mut::<Input>()
+        .unwrap()
+        .keys
+        .push(KeyEvent::named(NamedKey::Enter, Modifiers::new()));
+    app.update();
+    let seen = app.world().resource::<Seen>().unwrap();
+    assert_eq!(seen.text, "hello");
+    assert!(seen.changed.is_empty());
+    assert_eq!(seen.submitted, vec!["hello".to_string()]);
+    assert_eq!(app.world().get::<Label>(entity).unwrap().text, "hello");
 }

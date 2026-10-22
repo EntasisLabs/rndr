@@ -38,6 +38,7 @@ Application
 | `rndr_render` | winit window writes `Input` and `Viewport`, then presents quads |
 | `examples/expand` | File-backed expand demo: folder tree, pane, splitter, caret, create, delete |
 | `examples/idle` | Empty window. `ControlFlow::Wait` when nothing is scheduled |
+| `examples/palette` | Command palette: debounced filter, virtual list, shortcuts |
 
 A blank `App` holds the world, `Input`, and `Viewport`. `Shell` registers the file-tree systems. `Chrome` is optional and leaves `Shell` alone: named chords, buttons, tabs, a single-line field, overlays, a virtual list, an in-memory clipboard, styled runs, a gap-buffer editor, decorations, and IME preedit. `frame` also reports `SurfaceSlot` rects and leaves those interiors empty. `StdFsPlugin` inserts the disk backend. `MemoryFs` is the headless backend. `rndr_paint::frame` steps the world and returns quads in points. `rndr_render` writes the window into `Input` and `Viewport`, then multiplies those quads by `scale` and presents them. Platform dependencies stop at `wgpu`, `winit`, and `pollster`. No layout engine, no text crate, no third-party ECS.
 
@@ -45,10 +46,14 @@ Layout, hit-testing, and scroll are in logical points. `Viewport.scale` is physi
 
 ## Frame
 
+Stages run in this order. Input finishes, and the events it sent are merged, before Update reads them.
+
 1. The platform writes `Viewport` (size, scale, insets) and `Input`.
-2. `rndr_paint::frame` runs Startup once, then Update and Layout.
-3. `frame` returns quads in points.
-4. The surface multiplies by `scale` and presents.
+2. `rndr_paint::frame` runs Startup once, then Input, Update, PostUpdate, and Layout.
+3. Paint walks the rects and returns quads in points.
+4. Render systems run. The surface multiplies by `scale` and presents.
+
+Input is the keymap, list navigation, and the text field. A field emits `TextChanged` and `Submitted` there, so an Update system sees the new query on that same frame. PostUpdate rebuilds the virtual list after Update has changed its count. Layout then places rows at the list width, which is why a resize stretches them.
 
 `Color` values are sRGB with straight alpha. The upload decodes red, green, and blue when the surface format is sRGB, and writes them unchanged when it is not, so a theme color lands on screen as authored on either format. Alpha stays coverage. An sRGB surface blends in linear light.
 
@@ -56,7 +61,7 @@ Headless tests call `frame` and never open a window. The desktop runner is the o
 
 ## Time, events, and tasks
 
-`App::update` ticks a `Time` resource from a [`clock::Clock`](crates/rndr_core/src/clock.rs), flips double-buffered `Events<T>`, pumps tasks and timers, then runs systems. `spawn` runs a `Send` future on the `Executor` the runner installed. `spawn_local` runs on the UI thread, so the future may hold non-`Send` state across `.await`. Dropping a `TaskHandle` cancels the task and drops a result that has not been committed; `detach` lets it finish. Completions are written back on the UI thread as events.
+`App::update` ticks a `Time` resource from a [`clock::Clock`](crates/rndr_core/src/clock.rs), flips double-buffered `Events<T>`, pumps tasks and timers, runs Input, merges those events, then runs Update. `spawn` runs a `Send` future on the `Executor` the runner installed. `spawn_local` runs on the UI thread, so the future may hold non-`Send` state across `.await`. The `TaskHandle` from either call is `Send + Sync` and lives in a normal resource; dropping it cancels the task, and `detach` lets it finish. State that cannot be `Send` goes in `World::insert_local` instead. Completions are written back on the UI thread as events.
 
 `after` and `every` emit events. `sleep` parks a task. `debounce` resets a per-key timer so a burst of calls becomes one.
 
@@ -66,7 +71,7 @@ Headless tests use `Sim`: an inline executor and a `ManualClock`. `advance` move
 
 ## Headless tests
 
-CI on macOS, Windows, and Ubuntu runs `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`, then `cargo build -p expand -p rndr_render`. The Ubuntu job installs the X11, Wayland, and Vulkan packages winit and wgpu need to compile.
+CI on macOS, Windows, and Ubuntu runs `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`, then `cargo build -p expand -p idle -p palette -p rndr_render`. The Ubuntu job installs the X11, Wayland, and Vulkan packages winit and wgpu need to compile.
 
 A headless test drives one frame without a window:
 
@@ -90,8 +95,11 @@ Text measurement is a [`Font`](crates/rndr_core/src/font.rs) in core. `layout_te
 ```bash
 cargo test -p rndr_core
 cargo run -p idle
+cargo run -p palette
 cargo run -p expand
 cargo run -p expand -- /path/to/dir
 ```
+
+`palette` is a command list. The search field emits `TextChanged`, a debounced task filters thirty commands, and a virtual list shows the matches with shortcuts from `Keymap::shortcut` (`⌘K` on macOS, `Ctrl+K` elsewhere, `Ctrl+G M` for a two-stroke chord). Up and Down move the selection, Enter runs it, and the run is a task whose handle sits in ordinary app state.
 
 A tree column on the left and a detail pane on the right. Drag the seam to resize. The body wraps to the pane width; drag the splitter and the next frame reflows. The demo opens the first argument if it is an existing directory, otherwise `examples/expand/fixture`. Click a row to select it. Right lists a directory; Enter opens a file into the pane. Click a title or body cell to place the caret; Shift extends the selection. Type in the title to rename, Tab into the body to edit, Ctrl+S writes the file. A mark on the tree row means the file is dirty. Ctrl+N creates `untitled.txt` (Ctrl+Shift+N a folder) and starts a title edit. Delete removes a file or an empty folder. Collapse writes dirty children first. Hidden names and binary files are skipped for the body. Escape leaves the caret, then the pane.

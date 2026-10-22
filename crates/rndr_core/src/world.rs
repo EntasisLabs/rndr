@@ -170,8 +170,12 @@ impl World {
             .and_then(|value| value.downcast_mut::<T>())
     }
 
-    /// Insert a main-thread value. Unlike [`insert_resource`](Self::insert_resource),
+    /// Insert a UI-thread value. Unlike [`insert_resource`](Self::insert_resource),
     /// `T` does not have to be `Send`.
+    ///
+    /// Use this for `Rc`, a raw window pointer, or other `!Send` state. A
+    /// [`crate::TaskHandle`] is `Send + Sync` and belongs in a resource; the
+    /// local slot is only for state that cannot cross a thread.
     pub fn insert_local<T: 'static>(&mut self, value: T) {
         self.locals.insert(TypeId::of::<T>(), Box::new(value));
     }

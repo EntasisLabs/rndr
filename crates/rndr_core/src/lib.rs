@@ -63,7 +63,7 @@ pub use editor::{
 };
 pub use entity::Entity;
 pub use event::{events, send, Event, Events};
-pub use field::{CapturesKeys, ImePreview, TextField};
+pub use field::{CapturesKeys, ImePreview, Submitted, TextChanged, TextField};
 pub use focus::apply_focus;
 pub use font::{
     apply_text_layout, field_text_width, layout_text, layout_text_spans, line_col, measure_text,
@@ -88,7 +88,10 @@ pub use layout::{
     ancestor_with, apply_scroll, hit_test, layered_roots, layout_propagate, Axis, Clip, Layout,
     Rect, Scroll, ScrollDrag, Size, SCROLL_DRAG_SLOP,
 };
-pub use list::{List, ListItem};
+pub use list::{
+    List, ListActivated, ListItem, ListKeys, ListRows, LIST_ACTIVATE, LIST_DOWN, LIST_END,
+    LIST_HOME, LIST_PAGE_DOWN, LIST_PAGE_UP, LIST_UP,
+};
 pub use memory_fs::{MemoryFs, MemoryFsPlugin};
 pub use overlay::{Layer, Modal, DISMISS};
 pub use pane::{

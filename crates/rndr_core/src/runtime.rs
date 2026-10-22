@@ -199,6 +199,17 @@ impl TaskShared {
 }
 
 /// Cancels the task when dropped. [`detach`](Self::detach) keeps it running.
+///
+/// The handle is [`Send`] and [`Sync`], including a handle from [`spawn_local`].
+/// Store it in a normal resource or in app state. Replacing the resource drops
+/// the previous handle and cancels that task. The future from `spawn_local`
+/// may itself be `!Send`; that future stays in the UI-thread task table, and
+/// only the handle is shared.
+///
+/// App state that cannot be `Send` (an `Rc`, a window handle, anything held
+/// across a local `.await`) does not go in a resource. Put it in
+/// [`World::insert_local`](crate::World::insert_local). Locals are the
+/// UI-thread slot and are not required for a `TaskHandle`.
 #[must_use = "dropping a TaskHandle cancels the task; call detach() to keep it"]
 pub struct TaskHandle {
     shared: Arc<TaskShared>,

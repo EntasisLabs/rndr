@@ -7,7 +7,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use rndr_core::{
-    after, debounce, events, every, sleep, spawn, spawn_local, Event, Schedule, Sim, Time, World,
+    after, debounce, events, every, sleep, spawn, spawn_local, Event, Schedule, Sim, TaskHandle,
+    Time, World,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -306,4 +307,36 @@ fn idle_sim_has_no_deadline_until_a_timer_is_armed() {
     assert!(!sim.app.wants_frame());
     assert!(sim.app.next_deadline().is_none());
     drop(handle);
+}
+
+struct Running(Option<TaskHandle>);
+
+fn assert_send_sync<T: Send + Sync>() {}
+
+#[test]
+fn task_handle_lives_in_a_resource() {
+    assert_send_sync::<TaskHandle>();
+    let mut sim = Sim::new();
+    let handle = spawn(sim.world(), async { QueryResult("kept".into()) });
+    sim.world().insert_resource(Running(Some(handle)));
+    assert!(sim.world().resource::<Running>().unwrap().0.is_some());
+    sim.update();
+    assert_eq!(events::<QueryResult>(sim.world())[0].0, "kept");
+
+    let handle = spawn(sim.world(), async {
+        sleep(Duration::from_millis(20)).await;
+        QueryResult("cancelled".into())
+    });
+    sim.world().insert_resource(Running(Some(handle)));
+    sim.update();
+    sim.world().insert_resource(Running(None));
+    assert!(sim.world().resource::<Running>().unwrap().0.is_none());
+    sim.advance(Duration::from_millis(20));
+    sim.update();
+    assert!(
+        events::<QueryResult>(sim.world())
+            .iter()
+            .all(|event| event.0 != "cancelled"),
+        "dropping the resource drops the handle and cancels the task"
+    );
 }
