@@ -1,10 +1,13 @@
 use crate::caret::Caret;
+use crate::clipboard::{note_clipboard, Clipboard};
 use crate::edit::{delete_prev_span, floor_boundary, next_boundary, prev_boundary, selection_span};
 use crate::font::text_face;
 use crate::hierarchy::{children_of, Parent};
 use crate::input::{Focus, Input, Key};
+use crate::keys::{platform_of, KeyEvent, LogicalKey, Modifiers};
 use crate::layout::{ancestor_with, hit_test, Rect};
 use crate::style::{Label, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
+use crate::typing::{apply_text_event, EditHistory, EditSurface};
 use crate::world::{Component, World};
 use crate::wrap::with_text_layout;
 
@@ -181,6 +184,13 @@ pub fn apply_editor(world: &mut World) {
 }
 
 fn edit_focused(world: &mut World, entity: crate::entity::Entity) {
+    let queued = world
+        .resource::<Input>()
+        .is_some_and(|input| !input.keys.is_empty());
+    if queued {
+        edit_queue(world, entity);
+        return;
+    }
     let (key, shift, chars, commit) = match world.resource::<Input>() {
         Some(input) => (
             input.key,
@@ -236,7 +246,7 @@ fn edit_focused(world: &mut World, entity: crate::entity::Entity) {
         if !chars.is_empty() {
             let mut insert = String::new();
             for ch in chars.chars() {
-                if matches!(ch, ' '..='~') {
+                if !ch.is_control() {
                     insert.push(ch);
                 }
             }
@@ -252,9 +262,12 @@ fn edit_focused(world: &mut World, entity: crate::entity::Entity) {
             anchor = index;
         }
         if !commit.is_empty() {
-            buffer.insert_str(index, &commit);
-            index += commit.len();
-            anchor = index;
+            let commit: String = commit.chars().filter(|ch| !ch.is_control()).collect();
+            if !commit.is_empty() {
+                buffer.insert_str(index, &commit);
+                index += commit.len();
+                anchor = index;
+            }
         }
         buffer.caret = index;
         buffer.anchor = anchor;
@@ -269,6 +282,91 @@ fn edit_focused(world: &mut World, entity: crate::entity::Entity) {
             input.key = None;
         }
     }
+}
+
+fn edit_queue(world: &mut World, entity: crate::entity::Entity) {
+    let platform = platform_of(world);
+    let (keys, commit) = match world.resource::<Input>() {
+        Some(input) => (input.keys.clone(), input.ime_commit.clone()),
+        None => return,
+    };
+    let Some(buffer) = world.get::<Buffer>(entity) else {
+        return;
+    };
+    let mut text = buffer.text();
+    let mut index = buffer.caret.min(text.len());
+    let mut anchor = buffer.anchor.min(text.len());
+    let mut history = world.remove::<EditHistory>(entity).unwrap_or_default();
+    let mut clip = world
+        .resource::<Clipboard>()
+        .map(|clipboard| clipboard.text.clone())
+        .unwrap_or_default();
+    let mut copied = None;
+    let mut clipboard_action = false;
+    for event in &keys {
+        let step = apply_text_event(
+            &mut EditSurface {
+                text: &mut text,
+                index: &mut index,
+                anchor: &mut anchor,
+            },
+            event,
+            platform,
+            true,
+            &mut history,
+            &clip,
+        );
+        if let Some(text) = step.copied.clone() {
+            clip = text.clone();
+            copied = Some(text);
+        }
+        clipboard_action |= step.clipboard_action;
+    }
+    if !commit.is_empty() {
+        let commit_event = KeyEvent {
+            logical: LogicalKey::Unidentified,
+            text: Some(commit),
+            code: None,
+            modifiers: Modifiers::new(),
+            repeat: false,
+        };
+        let _ = apply_text_event(
+            &mut EditSurface {
+                text: &mut text,
+                index: &mut index,
+                anchor: &mut anchor,
+            },
+            &commit_event,
+            platform,
+            true,
+            &mut history,
+            &clip,
+        );
+    }
+    if let Some(buffer) = world.get_mut::<Buffer>(entity) {
+        replace_buffer(buffer, &text, index, anchor);
+    }
+    world.insert(entity, history);
+    if clipboard_action {
+        note_clipboard(world, copied.as_deref());
+    }
+    if let Some(input) = world.resource_mut::<Input>() {
+        input.keys.clear();
+        input.chars.clear();
+        input.ime_commit.clear();
+        input.key = None;
+    }
+}
+
+fn replace_buffer(buffer: &mut Buffer, text: &str, caret: usize, anchor: usize) {
+    if buffer.text() != text {
+        let len = buffer.len();
+        buffer.delete_range(0, len);
+        buffer.insert_str(0, text);
+    }
+    let len = buffer.len();
+    buffer.caret = caret.min(len);
+    buffer.anchor = anchor.min(len);
 }
 
 fn sync_ime_preview(world: &mut World, entity: crate::entity::Entity) {

@@ -1,23 +1,7 @@
 use crate::entity::Entity;
+use crate::keys::{legacy_key, KeyEvent, Platform};
 
-/// One-frame key edge. The render crate writes this from the platform.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Key {
-    Up,
-    Down,
-    Left,
-    Right,
-    Enter,
-    Escape,
-    Tab,
-    Backspace,
-    Save,
-    New,
-    Delete,
-    Copy,
-    Cut,
-    Paste,
-}
+pub use crate::keys::Key;
 
 /// Mouse contact id. A later touch plugin writes a different id into the same slot.
 pub const MOUSE_ID: u64 = 0;
@@ -53,8 +37,18 @@ pub struct Input {
     pub pointer: Pointer,
     /// Content-offset delta for this update only, in points. Positive Y moves content down.
     pub scroll: [f32; 2],
+    /// Deprecated: legacy form of the first [`KeyEvent`] this frame.
+    ///
+    /// A frame can contain more than one press. [`Input::keys`] is the queue.
+    /// This field stays for one release so existing callers still compile. It is
+    /// the first event mapped onto [`Key`] (arrows, Enter, Escape, Tab,
+    /// Backspace, Delete, and the primary chords Save/New/Copy/Cut/Paste), or
+    /// `None` when that event has no legacy form.
     pub key: Option<Key>,
-    /// Printable ASCII gathered this frame.
+    /// Key events in arrival order. The runner clears this after a presented frame.
+    pub keys: Vec<KeyEvent>,
+    /// Insertable text gathered this frame, control characters excluded.
+    /// Widgets that read [`Input::keys`] ignore this when the queue is non-empty.
     pub chars: String,
     /// Uncommitted IME composition. Empty when the platform is not composing.
     pub ime_preedit: String,
@@ -62,7 +56,27 @@ pub struct Input {
     pub ime_commit: String,
     pub shift: bool,
     pub ctrl: bool,
+    pub alt: bool,
+    /// Super / Command / Windows key, held this frame.
+    pub super_key: bool,
     pub quit: bool,
+}
+
+impl Input {
+    /// Append one event. The deprecated [`Input::key`] shim is the first event only.
+    pub fn push_key(&mut self, event: KeyEvent, platform: Platform) {
+        let first = self.keys.is_empty();
+        if let Some(text) = event.insertable_text() {
+            self.chars.push_str(&text);
+        }
+        self.keys.push(event);
+        if first {
+            self.key = self
+                .keys
+                .first()
+                .and_then(|event| legacy_key(event, platform));
+        }
+    }
 }
 
 /// Currently focused [`Focusable`] entity.

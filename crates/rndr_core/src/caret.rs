@@ -1,11 +1,14 @@
+use crate::clipboard::{note_clipboard, Clipboard};
 use crate::edit::edit_string;
 use crate::entity::Entity;
 use crate::fs::{Dirty, FsPath};
 use crate::hierarchy::children_of;
 use crate::input::{Input, Key};
+use crate::keys::{platform_of, KeyEvent};
 use crate::layout::{ancestor_with, hit_test, Clip, Rect, Scroll};
 use crate::pane::Pane;
 use crate::style::{Body, Label};
+use crate::typing::{apply_text_event, steer, EditHistory, EditSurface, Steer};
 use crate::world::{Component, World};
 use crate::wrap::{
     visual_pos, visual_selection_spans, with_text_layout, wrap_lines, GLYPH_PX, TEXT_INSET_X,
@@ -83,6 +86,14 @@ pub fn apply_caret(world: &mut World) {
         }
         return;
     };
+
+    let uses_queue = world
+        .resource::<Input>()
+        .is_some_and(|input| !input.keys.is_empty());
+    if uses_queue {
+        apply_queue(world, source, field);
+        return;
+    }
 
     let key = world.resource::<Input>().and_then(|input| input.key);
 
@@ -194,6 +205,192 @@ pub fn apply_caret(world: &mut World) {
     ensure_caret_visible(world);
 }
 
+fn apply_queue(world: &mut World, source: Entity, mut field: EditField) {
+    let platform = platform_of(world);
+    let events = world
+        .resource::<Input>()
+        .map(|input| input.keys.clone())
+        .unwrap_or_default();
+    let existed = field_row(world, field).is_some_and(|row| world.has::<Caret>(row));
+    if !existed {
+        bind_caret(world, field);
+    }
+    if let Some(row) = field_row(world, field) {
+        place_caret_from_pointer(world, row, existed);
+    }
+    let mut clip = world
+        .resource::<Clipboard>()
+        .map(|clipboard| clipboard.text.clone())
+        .unwrap_or_default();
+    let mut copied = None;
+    let mut clipboard_action = false;
+    for event in &events {
+        match steer(event, platform) {
+            Steer::Tab => {
+                field = toggle_field(field);
+                if let Some(editing) = world.resource_mut::<Editing>() {
+                    editing.field = field;
+                }
+                bind_caret(world, field);
+            }
+            Steer::Enter if field == EditField::Title => {
+                field = EditField::Body;
+                if let Some(editing) = world.resource_mut::<Editing>() {
+                    editing.field = field;
+                }
+                bind_caret(world, field);
+            }
+            Steer::Up if field == EditField::Body => {
+                nudge(world, source, field, -1, event.modifiers.shift)
+            }
+            Steer::Down if field == EditField::Body => {
+                nudge(world, source, field, 1, event.modifiers.shift)
+            }
+            _ => {
+                let step = edit_row(world, source, field, event, platform, &clip);
+                if let Some(text) = step.copied.clone() {
+                    clip = text.clone();
+                    copied = Some(text);
+                }
+                clipboard_action |= step.clipboard_action;
+            }
+        }
+    }
+    if clipboard_action {
+        note_clipboard(world, copied.as_deref());
+    }
+    clear_text_input(world);
+    ensure_caret_visible(world);
+}
+
+fn edit_row(
+    world: &mut World,
+    source: Entity,
+    field: EditField,
+    event: &KeyEvent,
+    platform: crate::keys::Platform,
+    clip: &str,
+) -> crate::typing::StepResult {
+    let Some(row) = field_row(world, field) else {
+        return crate::typing::StepResult::default();
+    };
+    let mut text = world
+        .get::<Label>(row)
+        .map(|label| label.text.clone())
+        .unwrap_or_default();
+    let (mut index, mut anchor) = world
+        .get::<Caret>(row)
+        .map(|caret| (caret.index.min(text.len()), caret.anchor.min(text.len())))
+        .unwrap_or((text.len(), text.len()));
+    let original = text.clone();
+    let mut history = world.remove::<EditHistory>(row).unwrap_or_default();
+    let step = apply_text_event(
+        &mut EditSurface {
+            text: &mut text,
+            index: &mut index,
+            anchor: &mut anchor,
+        },
+        event,
+        platform,
+        field == EditField::Body,
+        &mut history,
+        clip,
+    );
+    world.insert(row, history);
+    store_row(
+        world,
+        source,
+        field,
+        row,
+        Written {
+            text: &text,
+            index,
+            anchor,
+            original: &original,
+        },
+    );
+    step
+}
+
+fn nudge(world: &mut World, source: Entity, field: EditField, delta: isize, shift: bool) {
+    let Some(row) = field_row(world, field) else {
+        return;
+    };
+    let text = world
+        .get::<Label>(row)
+        .map(|label| label.text.clone())
+        .unwrap_or_default();
+    let (index, anchor) = world
+        .get::<Caret>(row)
+        .map(|caret| (caret.index.min(text.len()), caret.anchor.min(text.len())))
+        .unwrap_or((text.len(), text.len()));
+    let next = move_visual_line(world, row, &text, index, delta);
+    let (index, anchor) = if shift {
+        (next, anchor)
+    } else if anchor != index {
+        let edge = if delta < 0 {
+            anchor.min(index)
+        } else {
+            anchor.max(index)
+        };
+        (edge, edge)
+    } else {
+        (next, next)
+    };
+    store_row(
+        world,
+        source,
+        field,
+        row,
+        Written {
+            text: &text,
+            index,
+            anchor,
+            original: &text,
+        },
+    );
+}
+
+struct Written<'a> {
+    text: &'a str,
+    index: usize,
+    anchor: usize,
+    original: &'a str,
+}
+
+fn store_row(
+    world: &mut World,
+    source: Entity,
+    field: EditField,
+    row: Entity,
+    written: Written<'_>,
+) {
+    if let Some(label) = world.get_mut::<Label>(row) {
+        label.text = written.text.to_string();
+    }
+    if let Some(caret) = world.get_mut::<Caret>(row) {
+        caret.index = written.index;
+        caret.anchor = written.anchor;
+    }
+    match field {
+        EditField::Title => {
+            if let Some(header) = header_label_entity(world, source) {
+                if let Some(label) = world.get_mut::<Label>(header) {
+                    label.text = written.text.to_string();
+                }
+            }
+        }
+        EditField::Body => {
+            if let Some(body) = world.get_mut::<Body>(source) {
+                body.text = written.text.to_string();
+            }
+        }
+    }
+    if written.text != written.original && world.has::<FsPath>(source) {
+        world.insert(source, Dirty);
+    }
+}
+
 fn toggle_field(field: EditField) -> EditField {
     match field {
         EditField::Title => EditField::Body,
@@ -301,6 +498,7 @@ fn clear_carets(world: &mut World) {
 fn clear_text_input(world: &mut World) {
     if let Some(input) = world.resource_mut::<Input>() {
         input.chars.clear();
+        input.keys.clear();
         if matches!(
             input.key,
             Some(

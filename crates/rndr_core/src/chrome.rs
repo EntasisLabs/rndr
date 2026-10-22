@@ -4,6 +4,7 @@ use crate::button::apply_buttons;
 use crate::clipboard::{apply_clipboard, copy_binding, cut_binding, paste_binding, Clipboard};
 use crate::editor::apply_editor;
 use crate::field::apply_fields;
+use crate::keymap::{apply_keymap, Keymap, KeymapFired};
 use crate::list::apply_lists;
 use crate::overlay::apply_overlay;
 use crate::tabs::apply_tabs;
@@ -22,6 +23,12 @@ impl Plugin for Chrome {
         if !app.world().has_resource::<Clipboard>() {
             app.world_mut().insert_resource(Clipboard::default());
         }
+        if !app.world().has_resource::<Keymap>() {
+            app.world_mut().insert_resource(Keymap::default());
+        }
+        if !app.world().has_resource::<KeymapFired>() {
+            app.world_mut().insert_resource(KeymapFired::default());
+        }
         {
             let actions = app.world_mut().resource_mut::<Actions>().unwrap();
             actions.bindings.push(copy_binding());
@@ -37,6 +44,7 @@ impl Plugin for Chrome {
 }
 
 fn apply_chrome(world: &mut crate::world::World) {
+    apply_keymap(world);
     apply_actions(world);
     apply_overlay(world);
     apply_buttons(world);
