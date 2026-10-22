@@ -139,6 +139,8 @@ fn copy_matches_the_physical_c_key_on_a_cyrillic_layout() {
         modifiers: mods(false, false, false, true),
         repeat: false,
         released: false,
+        synthetic: false,
+        order: KeyEvent::UNORDERED,
     };
     assert_eq!(
         standard_action(Platform::Mac, &event),
@@ -153,6 +155,8 @@ fn copy_matches_the_physical_c_key_on_a_cyrillic_layout() {
         modifiers: mods(false, true, false, false),
         repeat: false,
         released: false,
+        synthetic: false,
+        order: KeyEvent::UNORDERED,
     };
     assert_eq!(
         standard_action(Platform::Windows, &ctrl),
@@ -247,6 +251,8 @@ fn typed(text: &str) -> KeyEvent {
         modifiers: Modifiers::new(),
         repeat: false,
         released: false,
+        synthetic: false,
+        order: KeyEvent::UNORDERED,
     }
 }
 

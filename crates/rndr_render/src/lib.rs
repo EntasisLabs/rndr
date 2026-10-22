@@ -177,6 +177,7 @@ pub fn run(mut app: App) {
         alt: false,
         super_key: false,
         platform: host_platform(),
+        key_order: 0,
         #[cfg(feature = "tray")]
         tray: tray::Session::new(),
     };
@@ -232,6 +233,9 @@ struct Handler {
     alt: bool,
     super_key: bool,
     platform: Platform,
+    /// Receive-order stamped onto each [`KeyEvent`]. Starts at 0; the first
+    /// key is 1. [`KeyEvent::UNORDERED`] is reserved and never assigned.
+    key_order: u64,
     #[cfg(feature = "tray")]
     tray: tray::Session,
 }
@@ -450,10 +454,12 @@ fn map_key_event(
     event: &winit::event::KeyEvent,
     modifiers: Modifiers,
     released: bool,
+    synthetic: bool,
+    order: u64,
 ) -> Option<KeyEvent> {
     let logical = map_logical(&event.key_without_modifiers());
     let code = map_physical(&event.physical_key);
-    let text = if released {
+    let text = if released || synthetic {
         None
     } else {
         produced_text(event.text.as_deref(), modifiers)
@@ -468,6 +474,8 @@ fn map_key_event(
         modifiers,
         repeat: event.repeat,
         released,
+        synthetic,
+        order,
     })
 }
 
@@ -869,10 +877,22 @@ impl ApplicationHandler<RunnerEvent> for Handler {
                 }
             }
             WindowEvent::Ime(Ime::Enabled | Ime::Disabled) => {}
-            WindowEvent::KeyboardInput { event, .. } => {
+            WindowEvent::KeyboardInput {
+                event,
+                is_synthetic,
+                ..
+            } => {
+                // X11 and Windows set `is_synthetic` for focus changes. macOS
+                // and Wayland always pass false. The order is recorded before
+                // the event is copied into Input, including while hidden.
+                if self.key_order < u64::MAX - 1 {
+                    self.key_order += 1;
+                }
+                let order = self.key_order;
+                rndr_core::hotkey::note_key_order(self.app.world_mut(), order);
                 let released = event.state == ElementState::Released;
                 let modifiers = modifiers_of(self.shift, self.ctrl, self.alt, self.super_key);
-                if let Some(key) = map_key_event(&event, modifiers, released) {
+                if let Some(key) = map_key_event(&event, modifiers, released, is_synthetic, order) {
                     self.keys.push(key);
                     if let Some(gpu) = &self.gpu {
                         gpu.window().request_redraw();

@@ -450,6 +450,10 @@ fn space_text() -> KeyEvent {
     KeyEvent::named(NamedKey::Space, Modifiers::default()).with_text(" ")
 }
 
+fn space_up() -> KeyEvent {
+    KeyEvent::named(NamedKey::Space, Modifiers::default()).released()
+}
+
 #[test]
 fn a_fired_hotkey_suppresses_its_base_key_until_release() {
     let mut sim = Sim::new();
@@ -474,6 +478,8 @@ fn a_fired_hotkey_suppresses_its_base_key_until_release() {
             modifiers: Modifiers::default(),
             repeat: false,
             released: false,
+            synthetic: false,
+            order: KeyEvent::UNORDERED,
         },
         Platform::X11,
     );
@@ -583,6 +589,152 @@ fn a_letter_hotkey_suppresses_that_letter_until_release() {
     );
     sim.update();
     assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "k");
+}
+
+#[test]
+fn a_stale_synthetic_space_up_does_not_type_on_show() {
+    let mut sim = Sim::new();
+    sim.world().insert_resource(Platform::X11);
+    let inner = install(&mut sim);
+    let entity = spawn_field(&mut sim, "");
+    let _handle = hotkey::toggle_window(sim.world(), "Ctrl+Alt+Space").unwrap();
+
+    // First press hides. The base key is armed, and the field stays empty.
+    inner.lock().unwrap().presses.push(_handle.id());
+    sim.update();
+    assert!(!window::is_visible(sim.world()));
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "");
+
+    // While the window is hidden, winit queues a synthetic Space key-up.
+    // The runner records that receive order before the next show pumps.
+    hotkey::note_key_order(sim.world(), 4);
+    inner.lock().unwrap().presses.push(_handle.id());
+    sim.update();
+    assert!(window::is_visible(sim.world()));
+    assert!(window::is_focused(sim.world()));
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "");
+
+    // The redraw delivers the stale key-up first, then the synthetic Space
+    // key-down winit emits for keys held on focus-in.
+    let input = sim.world().resource_mut::<Input>().unwrap();
+    input.push_key(space_up().synthetic().with_order(4), Platform::X11);
+    input.push_key(space_text().synthetic().with_order(5), Platform::X11);
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "");
+
+    // A synthetic key-up ordered after the hotkey is still not a physical
+    // release, so a real Space stays out of the field.
+    let input = sim.world().resource_mut::<Input>().unwrap();
+    input.push_key(space_up().synthetic().with_order(10), Platform::X11);
+    input.push_key(space_text().with_order(11), Platform::X11);
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "");
+}
+
+#[test]
+fn a_real_space_after_the_guard_releases_is_inserted() {
+    let mut sim = Sim::new();
+    sim.world().insert_resource(Platform::X11);
+    let inner = install(&mut sim);
+    let entity = spawn_field(&mut sim, "");
+    let _handle = hotkey::register(sim.world(), "Ctrl+Alt+Space").unwrap();
+
+    // The queued key-up was received at order 2, before this press. macOS
+    // and Wayland never mark events synthetic; the order is what keeps a
+    // stale real key-up from releasing the guard there too.
+    hotkey::note_key_order(sim.world(), 2);
+    inner.lock().unwrap().presses.push(_handle.id());
+    sim.update();
+
+    let input = sim.world().resource_mut::<Input>().unwrap();
+    input.push_key(space_up().with_order(2), Platform::X11);
+    input.push_key(space_text().with_order(3), Platform::X11);
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "");
+
+    // Physical release after the hotkey. A synthetic Space on that frame
+    // is not typed, and the next real Space is.
+    let input = sim.world().resource_mut::<Input>().unwrap();
+    input.push_key(space_up().with_order(8), Platform::X11);
+    input.push_key(space_text().synthetic().with_order(9), Platform::X11);
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "");
+
+    sim.world()
+        .resource_mut::<Input>()
+        .unwrap()
+        .push_key(space_text().with_order(10), Platform::X11);
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, " ");
+}
+
+#[test]
+fn a_key_up_queued_with_the_hotkey_releases_the_guard() {
+    let mut sim = Sim::new();
+    sim.world().insert_resource(Platform::Mac);
+    let inner = install(&mut sim);
+    let entity = spawn_field(&mut sim, "");
+    let _handle = hotkey::register(sim.world(), "Alt+Space").unwrap();
+
+    // The runner stamps the release before the frame that also delivers the
+    // hotkey, so its order equals the clock. It still has to release.
+    hotkey::note_key_order(sim.world(), 6);
+    let input = sim.world().resource_mut::<Input>().unwrap();
+    input.push_key(space_up().with_order(6), Platform::Mac);
+    input.push_key(
+        KeyEvent::character('m', Modifiers::default()).with_order(7),
+        Platform::Mac,
+    );
+    // The letter is newer, so the clock moves past the Space key-up.
+    hotkey::note_key_order(sim.world(), 7);
+    inner.lock().unwrap().presses.push(_handle.id());
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "m");
+
+    sim.world()
+        .resource_mut::<Input>()
+        .unwrap()
+        .push_key(space_text().with_order(8), Platform::Mac);
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "m ");
+}
+
+#[test]
+fn an_older_queued_key_up_does_not_release_when_the_clock_has_moved_on() {
+    let mut sim = Sim::new();
+    sim.world().insert_resource(Platform::Wayland);
+    let inner = install(&mut sim);
+    let entity = spawn_field(&mut sim, "");
+    let _handle = hotkey::register(sim.world(), "Alt+Space").unwrap();
+
+    // Order 2 is in this frame, but the runner has already stamped 9 for a
+    // key-up still waiting outside Input. The guard arms at 9.
+    hotkey::note_key_order(sim.world(), 9);
+    sim.world()
+        .resource_mut::<Input>()
+        .unwrap()
+        .push_key(space_up().with_order(2), Platform::Wayland);
+    inner.lock().unwrap().presses.push(_handle.id());
+    sim.update();
+
+    sim.world()
+        .resource_mut::<Input>()
+        .unwrap()
+        .push_key(space_text().with_order(4), Platform::Wayland);
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "");
+
+    sim.world()
+        .resource_mut::<Input>()
+        .unwrap()
+        .push_key(space_up().with_order(10), Platform::Wayland);
+    sim.update();
+    sim.world()
+        .resource_mut::<Input>()
+        .unwrap()
+        .push_key(space_text().with_order(11), Platform::Wayland);
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, " ");
 }
 
 #[test]
