@@ -266,10 +266,11 @@ impl Handler {
             input.keys.clone_from(&self.keys);
             input.key = self
                 .keys
-                .first()
+                .iter()
+                .find(|event| !event.released)
                 .and_then(|event| legacy_key(event, platform));
             input.chars.clear();
-            for event in &self.keys {
+            for event in self.keys.iter().filter(|event| !event.released) {
                 if let Some(text) = event.insertable_text() {
                     input.chars.push_str(&text);
                 }
@@ -445,10 +446,18 @@ fn modifiers_of(shift: bool, ctrl: bool, alt: bool, super_key: bool) -> Modifier
     }
 }
 
-fn map_key_event(event: &winit::event::KeyEvent, modifiers: Modifiers) -> Option<KeyEvent> {
+fn map_key_event(
+    event: &winit::event::KeyEvent,
+    modifiers: Modifiers,
+    released: bool,
+) -> Option<KeyEvent> {
     let logical = map_logical(&event.key_without_modifiers());
     let code = map_physical(&event.physical_key);
-    let text = produced_text(event.text.as_deref(), modifiers);
+    let text = if released {
+        None
+    } else {
+        produced_text(event.text.as_deref(), modifiers)
+    };
     if matches!(logical, LogicalKey::Unidentified) && code.is_none() && text.is_none() {
         return None;
     }
@@ -458,6 +467,7 @@ fn map_key_event(event: &winit::event::KeyEvent, modifiers: Modifiers) -> Option
         code,
         modifiers,
         repeat: event.repeat,
+        released,
     })
 }
 
@@ -859,9 +869,10 @@ impl ApplicationHandler<RunnerEvent> for Handler {
                 }
             }
             WindowEvent::Ime(Ime::Enabled | Ime::Disabled) => {}
-            WindowEvent::KeyboardInput { event, .. } if event.state == ElementState::Pressed => {
+            WindowEvent::KeyboardInput { event, .. } => {
+                let released = event.state == ElementState::Released;
                 let modifiers = modifiers_of(self.shift, self.ctrl, self.alt, self.super_key);
-                if let Some(key) = map_key_event(&event, modifiers) {
+                if let Some(key) = map_key_event(&event, modifiers, released) {
                     self.keys.push(key);
                     if let Some(gpu) = &self.gpu {
                         gpu.window().request_redraw();

@@ -241,9 +241,11 @@ fn host_linux() -> bool {
 /// Menu text and the accelerator passed to the native item.
 ///
 /// A parsed chord is the accelerator and is not also embedded in the label.
-/// On Linux the shortcut is never written into the label, because some trays
-/// draw that string as-is, tab included. A shortcut that does not parse
-/// (a macOS symbol label, for example) stays in the label on other platforms.
+/// On Linux the shortcut is never written into the visible label, because some
+/// trays draw that string as-is, tab included. The dbusmenu keys are appended
+/// after U+001E so a backend that understands them can show the accelerator.
+/// A shortcut that does not parse stays in the label on other platforms and
+/// is left out on Linux.
 pub(crate) fn row_presentation(
     label: &str,
     shortcut: &str,
@@ -252,8 +254,86 @@ pub(crate) fn row_presentation(
     let accelerator = shortcut.parse().ok();
     let platform = if linux { Platform::X11 } else { Platform::Mac };
     let shown = if accelerator.is_some() { "" } else { shortcut };
-    let text = menu_label(label, shown, platform).replace('&', "&&");
+    let mut text = menu_label(label, shown, platform).replace('&', "&&");
+    if linux {
+        if let Some(keys) = dbusmenu_keys(shortcut) {
+            text.push('\u{1e}');
+            text.push_str(&keys.join("\u{1f}"));
+        }
+    }
     (text, accelerator)
+}
+
+/// dbusmenu accelerator: modifiers then the key. `None` when `shortcut` is
+/// not a single chord the menu accelerator parser accepts.
+pub(crate) fn dbusmenu_keys(shortcut: &str) -> Option<Vec<String>> {
+    if shortcut
+        .parse::<tray_icon::menu::accelerator::Accelerator>()
+        .is_err()
+    {
+        return None;
+    }
+    let parts: Vec<&str> = shortcut
+        .split('+')
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .collect();
+    let (key, modifiers) = parts.split_last()?;
+    let mut keys = Vec::with_capacity(parts.len());
+    for modifier in modifiers {
+        keys.push(dbus_modifier(modifier)?.to_string());
+    }
+    keys.push(dbus_key(key)?.to_string());
+    Some(keys)
+}
+
+fn dbus_modifier(token: &str) -> Option<&'static str> {
+    Some(match token.to_ascii_lowercase().as_str() {
+        "ctrl" | "control" => "Control",
+        "alt" | "option" | "opt" => "Alt",
+        "shift" => "Shift",
+        "cmd" | "command" | "super" | "meta" | "win" | "windows" => "Super",
+        _ => return None,
+    })
+}
+
+fn dbus_key(token: &str) -> Option<String> {
+    let lower = token.to_ascii_lowercase();
+    Some(match lower.as_str() {
+        "space" | "spacebar" => "Space".to_string(),
+        "enter" | "return" => "Return".to_string(),
+        "esc" | "escape" => "Escape".to_string(),
+        "tab" => "Tab".to_string(),
+        "backspace" | "bksp" => "BackSpace".to_string(),
+        "delete" | "del" => "Delete".to_string(),
+        "up" | "arrowup" => "Up".to_string(),
+        "down" | "arrowdown" => "Down".to_string(),
+        "left" | "arrowleft" => "Left".to_string(),
+        "right" | "arrowright" => "Right".to_string(),
+        "pageup" | "page_up" => "Page_Up".to_string(),
+        "pagedown" | "page_down" => "Page_Down".to_string(),
+        other => {
+            let mut chars = other.chars();
+            let ch = chars.next()?;
+            if chars.next().is_some() {
+                if let Some(rest) = other.strip_prefix('f') {
+                    if rest
+                        .parse::<u8>()
+                        .ok()
+                        .is_some_and(|n| (1..=24).contains(&n))
+                    {
+                        return Some(format!("F{rest}"));
+                    }
+                }
+                return Some(token.to_string());
+            }
+            if ch.is_ascii_alphabetic() {
+                ch.to_ascii_uppercase().to_string()
+            } else {
+                ch.to_string()
+            }
+        }
+    })
 }
 
 trait Append {
@@ -385,7 +465,14 @@ mod tests {
     #[test]
     fn menu_rows_keep_the_accelerator_out_of_the_linux_label() {
         let (text, accel) = super::row_presentation("Show Palette", "Alt+Space", true);
-        assert_eq!(text, "Show Palette");
+        assert_eq!(text, "Show Palette\u{1e}Alt\u{1f}Space");
+        assert_eq!(text.split('\u{1e}').next(), Some("Show Palette"));
+        assert!(accel.is_some());
+        let (text, accel) = super::row_presentation("Show Palette", "Ctrl+Alt+Space", true);
+        assert_eq!(text, "Show Palette\u{1e}Control\u{1f}Alt\u{1f}Space");
+        assert!(accel.is_some());
+        let (text, accel) = super::row_presentation("Show Palette", "Cmd+Space", true);
+        assert_eq!(text, "Show Palette\u{1e}Super\u{1f}Space");
         assert!(accel.is_some());
         let (text, accel) = super::row_presentation("Show Palette", "⌥Space", true);
         assert_eq!(text, "Show Palette");
@@ -393,12 +480,24 @@ mod tests {
         let (text, accel) = super::row_presentation("Show & Palette", "Alt+Space", false);
         assert_eq!(text, "Show && Palette");
         assert!(accel.is_some());
+        let (text, accel) = super::row_presentation("Show Palette", "Cmd+K", false);
+        assert_eq!(text, "Show Palette");
+        assert!(accel.is_some());
         let (text, accel) = super::row_presentation("Show Palette", "⌥Space", false);
         assert_eq!(text, "Show Palette\t⌥Space");
         assert!(accel.is_none());
         let (text, accel) = super::row_presentation("Quit", "", false);
         assert_eq!(text, "Quit");
         assert!(accel.is_none());
+        assert_eq!(
+            super::dbusmenu_keys("Ctrl+Alt+Space"),
+            Some(vec![
+                "Control".to_string(),
+                "Alt".to_string(),
+                "Space".to_string()
+            ])
+        );
+        assert!(super::dbusmenu_keys("⌥Space").is_none());
     }
 
     #[test]

@@ -9,9 +9,9 @@
 //! [`TrayMenu`] before Input, so an Update system reads them on that frame,
 //! including while the window is hidden.
 //!
-//! Shortcut text is display only. Pass [`crate::Keymap::shortcut`] or
-//! [`crate::Keystroke::display`]. A chord can be more than one key, so it is
-//! not registered as a menu accelerator.
+//! Shortcut text on an item is the chord shown as a menu accelerator when the
+//! tray can parse it (`Ctrl+K`, `Alt+Space`, `Cmd+Space`). A symbol string such
+//! as `⌘K` stays in the label on macOS and Windows and is omitted on Linux.
 
 use std::sync::{Mutex, MutexGuard};
 
@@ -134,7 +134,9 @@ impl Item {
         }
     }
 
-    /// Display text from [`crate::Keymap::shortcut`] or [`crate::Keystroke::display`].
+    /// Chord for the menu accelerator. [`crate::Keystroke::label`] parses
+    /// (`Alt+Space`, `Cmd+K`). A symbol string is shown in the label where the
+    /// tray has no accelerator column.
     pub fn shortcut(mut self, text: impl Into<String>) -> Self {
         self.shortcut = text.into();
         self
@@ -378,9 +380,9 @@ pub fn displayed_label(label: &str, shortcut: &str) -> String {
 /// Label for a native menu row.
 ///
 /// X11 and Wayland draw the whole label as one string, so a tab would show
-/// up literally. Those platforms leave the shortcut out of the label; the
-/// menu accelerator carries the chord when the backend honors one. Other
-/// platforms keep a tab before the shortcut.
+/// up literally. Those platforms leave the shortcut out of the label; a
+/// parseable chord is passed separately as the item accelerator. Other
+/// platforms keep a tab before a shortcut the accelerator parser rejects.
 pub fn menu_label(label: &str, shortcut: &str, platform: Platform) -> String {
     if shortcut.is_empty() || matches!(platform, Platform::X11 | Platform::Wayland) {
         label.to_string()

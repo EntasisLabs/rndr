@@ -33,14 +33,28 @@ impl Color {
     }
 }
 
+/// How a [`Label`] fits the width it was given.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum TextOverflow {
+    /// One line, drawn at its natural width.
+    #[default]
+    Visible,
+    /// Break onto more lines inside the label's width.
+    Wrap,
+    /// One line, cut with `…` so the text stays inside the label's width.
+    Ellipsis,
+}
+
 /// ASCII label drawn from the embedded bitmap font.
 ///
 /// `color` overrides [`crate::Theme::text`] for this label. Styled runs on
-/// [`crate::Spans`] still win for the bytes they cover.
+/// [`crate::Spans`] still win for the bytes they cover. [`TextOverflow`]
+/// chooses whether a long line stays whole, wraps, or ends in an ellipsis.
 #[derive(Clone, Debug)]
 pub struct Label {
     pub text: String,
     pub color: Option<Color>,
+    pub overflow: TextOverflow,
 }
 
 impl Label {
@@ -48,11 +62,17 @@ impl Label {
         Self {
             text: text.into(),
             color: None,
+            overflow: TextOverflow::Visible,
         }
     }
 
     pub fn with_color(mut self, color: Color) -> Self {
         self.color = Some(color);
+        self
+    }
+
+    pub fn overflow(mut self, overflow: TextOverflow) -> Self {
+        self.overflow = overflow;
         self
     }
 }

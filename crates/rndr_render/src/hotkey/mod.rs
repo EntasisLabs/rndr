@@ -11,6 +11,8 @@
 //! [`HotkeyFailure::Unsupported`] without falling back to an X11 grab.
 
 mod press;
+#[cfg(any(test, all(unix, not(target_os = "macos"))))]
+mod repeat;
 
 #[cfg(target_os = "macos")]
 mod macos;

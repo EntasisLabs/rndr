@@ -30,8 +30,8 @@ use rndr_core::{
     toggle_on_click, App, Axis, CapturesKeys, Caret, Chrome, Color, Context, Dismiss, Entity,
     Event, Focus, HotkeyBinding, HotkeyRejected, Item, KeyBinding, Keymap, KeymapFired, Keystroke,
     Label, Layout, List, ListActivated, ListKeys, ListRows, LogicalSize, Menu, NamedKey, Position,
-    Radius, Schedule, Size, Spans, TaskHandle, TextChanged, TextFace, TextField, TextSpan, Theme,
-    TrayConfig, TrayIcon, TrayItemId, TrayMenu, World,
+    Radius, Schedule, Size, Spans, TaskHandle, TextChanged, TextFace, TextField, TextOverflow,
+    TextSpan, Theme, TrayConfig, TrayIcon, TrayItemId, TrayMenu, World,
 };
 use rndr_paint::LatinFace;
 use rndr_render::{configured_hotkey, run, toggle_window};
@@ -194,12 +194,12 @@ fn setup(world: &mut World) {
 
     let status = world.spawn((
         Layout {
-            min_height: 32.0,
-            ..text_layout(Size::Fill, Size::Hug)
+            min_height: 36.0,
+            ..text_layout(Size::Fill, Size::Px(36.0))
         },
         theme.status,
         Radius(theme.radius),
-        Label::new(""),
+        Label::new("").overflow(TextOverflow::Ellipsis),
     ));
     set_parent(world, status, root);
 
@@ -223,9 +223,21 @@ fn setup(world: &mut World) {
 fn status_hint(world: &World) -> String {
     let hint = "Type to filter. Up and Down move, Enter runs, Esc hides.";
     match world.resource::<HotkeyRejected>() {
-        Some(rejected) => format!("Hotkey {}: {}. {hint}", rejected.binding, rejected.error),
+        Some(rejected) => format!(
+            "{}. {hint}",
+            rejection_status(&rejected.binding, rejected.error)
+        ),
         None => hint.to_string(),
     }
+}
+
+fn rejection_status(binding: &str, error: rndr_core::HotkeyError) -> String {
+    let why = match error {
+        rndr_core::HotkeyError::AlreadyTaken => "taken",
+        rndr_core::HotkeyError::Unsupported => "unavailable",
+        rndr_core::HotkeyError::InvalidBinding => "invalid",
+    };
+    format!("{binding} {why}")
 }
 
 fn palette_icon(platform: rndr_core::Platform) -> TrayIcon {
@@ -266,9 +278,17 @@ fn palette_icon(platform: rndr_core::Platform) -> TrayIcon {
         .template(mac)
 }
 
+#[cfg(test)]
 fn summon_shortcut(binding: &str, platform: rndr_core::Platform) -> String {
     match HotkeyBinding::parse(binding) {
         Ok(binding) => binding.keystroke().display(platform),
+        Err(_) => binding.to_string(),
+    }
+}
+
+fn menu_chord(binding: &str, platform: rndr_core::Platform) -> String {
+    match HotkeyBinding::parse(binding) {
+        Ok(binding) => binding.keystroke().label(platform),
         Err(_) => binding.to_string(),
     }
 }
@@ -277,7 +297,7 @@ fn install_tray(world: &mut World) -> TrayItemId {
     let platform = platform_of(world);
     let shortcut = world
         .resource::<Summon>()
-        .map(|summon| summon_shortcut(&summon.0, platform))
+        .map(|summon| menu_chord(&summon.0, platform))
         .unwrap_or_default();
     let mut menu = Menu::new();
     let show = menu.add(Item::new("Show Palette").shortcut(shortcut));
@@ -632,6 +652,56 @@ mod tests {
             super::summon_shortcut("primary+Space", rndr_core::Platform::Windows),
             "Ctrl+Space"
         );
+    }
+
+    #[test]
+    fn menu_chord_is_a_parseable_accelerator() {
+        use rndr_core::Platform;
+        assert_eq!(super::menu_chord("Alt+Space", Platform::Mac), "Alt+Space");
+        assert_eq!(
+            super::menu_chord("Alt+Space", Platform::Windows),
+            "Alt+Space"
+        );
+        assert_eq!(
+            super::menu_chord("primary+Space", Platform::Mac),
+            "Cmd+Space"
+        );
+        assert_eq!(
+            super::menu_chord("Ctrl+Alt+Space", Platform::X11),
+            "Ctrl+Alt+Space"
+        );
+    }
+
+    #[test]
+    fn a_rejected_hotkey_uses_a_short_status_line() {
+        use rndr_core::{HotkeyError, HotkeyRejected, World};
+        let mut world = World::new();
+        world.insert_resource(HotkeyRejected {
+            binding: "Alt+Space".to_string(),
+            error: HotkeyError::AlreadyTaken,
+        });
+        assert_eq!(
+            super::status_hint(&world),
+            "Alt+Space taken. Type to filter. Up and Down move, Enter runs, Esc hides."
+        );
+        world.insert_resource(HotkeyRejected {
+            binding: "Ctrl+Alt+Space".to_string(),
+            error: HotkeyError::Unsupported,
+        });
+        assert_eq!(
+            super::rejection_status("Ctrl+Alt+Space", HotkeyError::Unsupported),
+            "Ctrl+Alt+Space unavailable"
+        );
+        assert_eq!(
+            super::rejection_status("nope", HotkeyError::InvalidBinding),
+            "nope invalid"
+        );
+        let hint = super::status_hint(&world);
+        assert_eq!(
+            hint,
+            "Ctrl+Alt+Space unavailable. Type to filter. Up and Down move, Enter runs, Esc hides."
+        );
+        assert!(!hint.contains('\n'));
     }
 
     #[test]

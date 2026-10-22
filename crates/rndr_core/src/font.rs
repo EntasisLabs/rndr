@@ -7,7 +7,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::{Arc, OnceLock};
 
 use crate::caret::{EditField, Field};
-use crate::style::{Color, Label, CELL_H, CELL_W};
+use crate::style::{Color, Label, TextOverflow, CELL_H, CELL_W};
 use crate::world::{Component, World};
 
 impl Component for TextLayout {}
@@ -675,16 +675,32 @@ pub fn apply_text_layout(world: &mut World) {
         let wrap = world
             .get::<Field>(entity)
             .is_some_and(|field| field.kind == EditField::Body);
-        let max_width = if wrap {
-            world
-                .get::<crate::layout::Rect>(entity)
-                .map(|rect| field_text_width(rect.w, unit))
-                .unwrap_or(f32::INFINITY)
-        } else {
-            f32::INFINITY
-        };
         let Some(label) = world.get::<crate::style::Label>(entity) else {
             continue;
+        };
+        let overflow = label.overflow;
+        let rect_w = world
+            .get::<crate::layout::Rect>(entity)
+            .map(|rect| rect.w)
+            .unwrap_or(0.0);
+        let max_width = match overflow {
+            TextOverflow::Visible => {
+                if wrap {
+                    world
+                        .get::<crate::layout::Rect>(entity)
+                        .map(|rect| field_text_width(rect.w, unit))
+                        .unwrap_or(f32::INFINITY)
+                } else {
+                    f32::INFINITY
+                }
+            }
+            TextOverflow::Wrap | TextOverflow::Ellipsis => {
+                if rect_w > 0.0 {
+                    field_text_width(rect_w, unit)
+                } else {
+                    f32::INFINITY
+                }
+            }
         };
         let preview = world
             .get::<crate::field::ImePreview>(entity)
@@ -703,6 +719,7 @@ pub fn apply_text_layout(world: &mut World) {
             .get::<crate::field::ImePreview>(entity)
             .and_then(|preview| preview.cursor);
         let mut key = layout_cache_key(font.as_ref(), &source, max_width, &spans, &preview, at);
+        key ^= overflow_bits(overflow);
         if !preview.is_empty() {
             if let Some((start, end)) = cursor {
                 key ^= (start as u64)
@@ -715,18 +732,29 @@ pub fn apply_text_layout(world: &mut World) {
         if !preview.is_empty() {
             text.insert_str(insert_at, &preview);
         }
+        let shape_width = if overflow == TextOverflow::Ellipsis {
+            if max_width.is_finite() {
+                text = ellipsis_line(engine.as_ref(), &style, &spans, &text, max_width);
+            } else if text.contains('\n') {
+                text = text.replace('\n', " ");
+            }
+            f32::INFINITY
+        } else {
+            max_width
+        };
         // Always shape through the engine so the line cache records this frame.
-        let mut layout = engine.layout(&text, &style, &spans, max_width);
+        let mut layout = engine.layout(&text, &style, &spans, shape_width);
         let epoch = engine.cache_epoch();
         if epoch != 0 {
             key ^= epoch.wrapping_mul(0x9E37_79B9_7F4A_7C15);
         }
-        if !preview.is_empty() {
+        if !preview.is_empty() && insert_at <= text.len() {
             let end = cursor
                 .map(|(_, end)| end.min(preview.len()))
                 .unwrap_or(preview.len());
-            layout.ime_range = Some((insert_at, insert_at + preview.len()));
-            layout.ime_cursor = Some(insert_at + end);
+            let range_end = (insert_at + preview.len()).min(text.len());
+            layout.ime_range = Some((insert_at, range_end));
+            layout.ime_cursor = Some((insert_at + end).min(text.len()));
         }
         if world
             .get::<TextLayout>(entity)
@@ -736,6 +764,58 @@ pub fn apply_text_layout(world: &mut World) {
         }
         layout.cache_key = key;
         world.insert(entity, layout);
+    }
+}
+
+fn overflow_bits(overflow: TextOverflow) -> u64 {
+    match overflow {
+        TextOverflow::Visible => 0,
+        TextOverflow::Wrap => 0xA5A5_A5A5_A5A5_A5A5,
+        TextOverflow::Ellipsis => 0x5A5A_5A5A_5A5A_5A5A,
+    }
+}
+
+/// One line that fits `max_width`, ending in `…` when the source does not.
+fn ellipsis_line(
+    engine: &dyn crate::text::TextEngine,
+    style: &crate::text::TextStyle,
+    spans: &[TextSpan],
+    text: &str,
+    max_width: f32,
+) -> String {
+    let flat = if text.contains('\n') {
+        text.replace('\n', " ")
+    } else {
+        text.to_string()
+    };
+    if !max_width.is_finite() {
+        return flat;
+    }
+    let width = |sample: &str| engine.measure(sample, style, spans, f32::INFINITY).width;
+    if width(&flat) <= max_width {
+        return flat;
+    }
+    const ELLIPSIS: char = '\u{2026}';
+    let mark = ELLIPSIS.to_string();
+    if width(&mark) > max_width {
+        return String::new();
+    }
+    let mut kept = String::new();
+    let mut accepted = String::new();
+    for ch in flat.chars() {
+        kept.push(ch);
+        let mut candidate = kept.clone();
+        candidate.push(ELLIPSIS);
+        if width(&candidate) <= max_width {
+            accepted = candidate;
+        } else {
+            break;
+        }
+    }
+    if accepted.is_empty() {
+        mark
+    } else {
+        accepted
     }
 }
 

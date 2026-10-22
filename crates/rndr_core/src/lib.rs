@@ -116,7 +116,7 @@ pub use shell::Shell;
 pub use sim::Sim;
 pub use slot::SurfaceSlot;
 pub use split::{apply_split, Drag, Splitter};
-pub use style::{Body, Color, Label, CELL_H, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
+pub use style::{Body, Color, Label, TextOverflow, CELL_H, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
 pub use tabs::{Hidden, Tab, TabPanel, Tabs};
 pub use text::{
     ensure_text_engine, style_of, text_engine, BuiltinText, FontStyle, TextEngine, TextStyle,

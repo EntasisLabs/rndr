@@ -138,6 +138,7 @@ fn copy_matches_the_physical_c_key_on_a_cyrillic_layout() {
         code: Some(KeyCode::Letter('c')),
         modifiers: mods(false, false, false, true),
         repeat: false,
+        released: false,
     };
     assert_eq!(
         standard_action(Platform::Mac, &event),
@@ -151,6 +152,7 @@ fn copy_matches_the_physical_c_key_on_a_cyrillic_layout() {
         code: Some(KeyCode::Letter('c')),
         modifiers: mods(false, true, false, false),
         repeat: false,
+        released: false,
     };
     assert_eq!(
         standard_action(Platform::Windows, &ctrl),
@@ -244,6 +246,7 @@ fn typed(text: &str) -> KeyEvent {
         code: None,
         modifiers: Modifiers::new(),
         repeat: false,
+        released: false,
     }
 }
 

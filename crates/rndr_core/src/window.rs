@@ -804,12 +804,7 @@ fn bare_escape(world: &World) -> bool {
     if input.keys.is_empty() {
         return input.key == Some(Key::Escape);
     }
-    input.keys.iter().any(|event| {
-        matches!(event.logical, LogicalKey::Named(NamedKey::Escape))
-            && !event.modifiers.ctrl
-            && !event.modifiers.alt
-            && !event.modifiers.super_key
-    })
+    input.keys.iter().any(is_bare_escape_event)
 }
 
 fn consume_escape(world: &mut World) {
@@ -823,7 +818,8 @@ fn consume_escape(world: &mut World) {
 }
 
 fn is_bare_escape_event(event: &crate::keys::KeyEvent) -> bool {
-    matches!(event.logical, LogicalKey::Named(NamedKey::Escape))
+    !event.released
+        && matches!(event.logical, LogicalKey::Named(NamedKey::Escape))
         && !event.modifiers.ctrl
         && !event.modifiers.alt
         && !event.modifiers.super_key

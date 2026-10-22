@@ -3,7 +3,10 @@
 //! A session bus without that interface is [`HotkeyFailure::Unsupported`].
 //! There is no X11 fallback: an X grab does not see keys delivered to Wayland
 //! clients. `BindShortcuts` may show a system dialog, and the user may change
-//! the trigger. The shortcut id we asked for is what [`Activated`] reports.
+//! the trigger. The shortcut id we asked for is what `Activated` reports.
+//! `Deactivated` is the matching release. A second `Activated` while that
+//! shortcut is still active is a repeat, as is a `Deactivated` and
+//! `Activated` pair that share a timestamp.
 //!
 //! Each registration is its own session. The portal only accepts one
 //! `BindShortcuts` call per session.
@@ -21,6 +24,7 @@ use zbus::zvariant::{ObjectPath, OwnedObjectPath, OwnedValue, Value};
 use zbus::{Connection, MatchRule, MessageStream, Proxy};
 
 use super::press::PressQueue;
+use super::repeat::RepeatFilter;
 
 const DEST: &str = "org.freedesktop.portal.Desktop";
 const PATH: &str = "/org/freedesktop/portal/desktop";
@@ -146,9 +150,12 @@ async fn portal_available(conn: &Connection) -> bool {
 }
 
 async fn run(conn: Connection, mut rx: UnboundedReceiver<Cmd>, presses: Arc<PressQueue>) {
-    let Ok(mut activated) = activated_stream(&conn).await else {
+    let Ok(mut activated) = shortcut_stream(&conn, "Activated").await else {
         return;
     };
+    let mut deactivated = shortcut_stream(&conn, "Deactivated").await.ok();
+    let mut track_repeat = deactivated.is_some();
+    let mut repeats = RepeatFilter::default();
     let mut sessions: HashMap<u32, OwnedObjectPath> = HashMap::new();
     loop {
         tokio::select! {
@@ -182,15 +189,37 @@ async fn run(conn: Connection, mut rx: UnboundedReceiver<Cmd>, presses: Arc<Pres
             msg = activated.next() => {
                 match msg {
                     Some(Ok(message)) => {
-                        if let Some(id) = activated_id(&message) {
-                            presses.push(HotkeyId::from_raw(id));
+                        if let Some((id, time)) = shortcut_signal(&message) {
+                            if !track_repeat || repeats.press(id, time) {
+                                presses.push(HotkeyId::from_raw(id));
+                            }
                         }
                     }
                     Some(Err(_)) => break,
                     None => break,
                 }
             }
+            msg = next_signal(deactivated.as_mut()) => {
+                match msg {
+                    Some(Ok(message)) => {
+                        if let Some((id, time)) = shortcut_signal(&message) {
+                            repeats.release(id, time);
+                        }
+                    }
+                    _ => {
+                        track_repeat = false;
+                        deactivated = None;
+                    }
+                }
+            }
         }
+    }
+}
+
+async fn next_signal(stream: Option<&mut MessageStream>) -> Option<zbus::Result<zbus::Message>> {
+    match stream {
+        Some(stream) => stream.next().await,
+        None => std::future::pending().await,
     }
 }
 
@@ -318,12 +347,12 @@ async fn response_stream(conn: &Connection, path: &str) -> Result<MessageStream,
         .map_err(|_| HotkeyFailure::Unsupported)
 }
 
-async fn activated_stream(conn: &Connection) -> Result<MessageStream, HotkeyFailure> {
+async fn shortcut_stream(conn: &Connection, member: &str) -> Result<MessageStream, HotkeyFailure> {
     let rule = MatchRule::builder()
         .msg_type(zbus::message::Type::Signal)
         .interface(IFACE)
         .map_err(|_| HotkeyFailure::Unsupported)?
-        .member("Activated")
+        .member(member)
         .map_err(|_| HotkeyFailure::Unsupported)?
         .path(PATH)
         .map_err(|_| HotkeyFailure::Unsupported)?
@@ -333,14 +362,15 @@ async fn activated_stream(conn: &Connection) -> Result<MessageStream, HotkeyFail
         .map_err(|_| HotkeyFailure::Unsupported)
 }
 
-fn activated_id(message: &zbus::Message) -> Option<u32> {
-    let (_session, shortcut, _timestamp, _options): (
+fn shortcut_signal(message: &zbus::Message) -> Option<(u32, u64)> {
+    let (_session, shortcut, timestamp, _options): (
         OwnedObjectPath,
         String,
         u64,
         HashMap<String, OwnedValue>,
     ) = message.body().deserialize().ok()?;
-    shortcut.strip_prefix("hk")?.parse().ok()
+    let id = shortcut.strip_prefix("hk")?.parse().ok()?;
+    Some((id, timestamp))
 }
 
 async fn close_session(conn: &Connection, path: &OwnedObjectPath) {

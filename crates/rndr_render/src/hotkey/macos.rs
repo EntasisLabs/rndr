@@ -2,7 +2,9 @@
 //!
 //! Presses are delivered to the application event target, which winit's Cocoa
 //! run loop already pumps. The handler posts into the press queue and wakes
-//! winit; it does not take the backend lock.
+//! winit; it does not take the backend lock. Carbon emits one
+//! `kEventHotKeyPressed` per press and does not auto-repeat a held hotkey, so
+//! this backend does not wait for a release before accepting the next press.
 
 use std::collections::HashMap;
 use std::ffi::c_void;
@@ -170,7 +172,7 @@ fn install_handler() {
     unsafe {
         let spec = EventTypeSpec {
             event_class: 0x6b65_7962, // 'keyb'
-            event_kind: 5,            // kEventHotKeyPressed
+            event_kind: 5,            // kEventHotKeyPressed. A held hotkey does not repeat.
         };
         let mut handler: EventHandlerRef = std::ptr::null_mut();
         let status = InstallEventHandler(
