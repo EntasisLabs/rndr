@@ -5,12 +5,20 @@ edition.workspace = true
 license.workspace = true
 description = "winit + wgpu window plugin for rndr"
 
+[features]
+default = ["tray"]
+# Menu bar, notification area, and StatusNotifierItem icon.
+# Linux uses tray-icon's ksni backend (D-Bus on a worker thread), not GTK.
+tray = ["dep:tray-icon", "dep:png"]
+
 [dependencies]
 rndr_core = { workspace = true, features = ["pool"] }
 rndr_paint = { workspace = true }
 wgpu = { workspace = true }
 winit = { workspace = true }
 pollster = { workspace = true }
+tray-icon = { version = "0.26.1", optional = true, default-features = false, features = ["ksni"] }
+png = { version = "0.18", optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.5.2"

@@ -9,6 +9,7 @@ use crate::keys::Platform;
 use crate::layout::layout_propagate;
 use crate::runtime::{self, Executor, Wake};
 use crate::text::ensure_text_engine;
+use crate::tray;
 use crate::window;
 use crate::world::World;
 
@@ -76,6 +77,7 @@ impl App {
         world.insert_resource(Platform::host());
         runtime::install(&mut world);
         window::install(&mut world);
+        tray::install(&mut world);
         Self {
             world,
             startup: Vec::new(),
@@ -159,8 +161,9 @@ impl App {
     ///
     /// The pump ticks [`crate::Time`], drops the previous frame's events, and commits
     /// task and timer output. Window commands that arrived from tasks or the
-    /// platform are applied next, and their focus and blur events are merged
-    /// so Input can read them. [`ScaleChanged`](crate::ScaleChanged) and
+    /// platform are applied next, tray clicks and menu activations are mapped
+    /// into their event queues, and those events are merged so Input can read
+    /// them. [`ScaleChanged`](crate::ScaleChanged) and
     /// [`Resized`](crate::Resized) were published before this frame and are
     /// already in the readable queues.
     ///
@@ -180,11 +183,13 @@ impl App {
             for system in self.startup.clone() {
                 system(&mut self.world);
             }
+            tray::startup(&mut self.world);
             self.started = true;
         }
         event::flip_events(&mut self.world);
         runtime::run_until_parked(&mut self.world);
         window::drive(&mut self.world);
+        tray::drive(&mut self.world);
         event::merge_events(&mut self.world);
         window::apply_dismiss(&mut self.world);
         for system in self.input.clone() {
