@@ -84,12 +84,17 @@ extern "C" {
 
 #[link(name = "System")]
 extern "C" {
-    fn dispatch_get_main_queue() -> *mut c_void;
+    // `dispatch_get_main_queue()` is a macro for the address of this object.
+    static _dispatch_main_q: u8;
     fn dispatch_sync_f(
         queue: *mut c_void,
         context: *mut c_void,
         work: Option<unsafe extern "C" fn(*mut c_void)>,
     );
+}
+
+fn main_queue() -> *mut c_void {
+    std::ptr::addr_of!(_dispatch_main_q) as *mut c_void
 }
 
 static PRESSES: Mutex<Option<Arc<PressQueue>>> = Mutex::new(None);
@@ -259,7 +264,7 @@ fn on_main<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> T {
     });
     unsafe {
         dispatch_sync_f(
-            dispatch_get_main_queue(),
+            main_queue(),
             Box::into_raw(job) as *mut c_void,
             Some(trampoline),
         );
