@@ -1,5 +1,6 @@
 //! Proportional Latin face. Rasterized once from Inter Regular at 16px.
-//! Inter is © 2020 The Inter Project Authors, SIL Open Font License 1.1.
+//! Inter is © 2016 The Inter Project Authors, SIL Open Font License 1.1.
+//! The license text is `Inter-LICENSE.txt` at the crate root.
 //! Advances and kerning are the font's, in points at that size. The atlas is
 //! one coverage sample per pixel.
 

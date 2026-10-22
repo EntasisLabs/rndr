@@ -11,7 +11,7 @@ documentation = "https://docs.rs/rndr_core"
 readme = "README.md"
 keywords = ["ecs", "gui", "layout", "desktop", "ui"]
 categories = ["gui"]
-exclude = ["**/*.snap", "**/*.snap.new"]
+exclude = ["**/*.snap.new"]
 
 [dependencies]
 unicode-segmentation = "1.13"

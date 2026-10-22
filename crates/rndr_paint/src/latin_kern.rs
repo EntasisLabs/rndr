@@ -1,6 +1,6 @@
 // ASCII pair kerning for the Inter Regular atlas.
 // Values are font units at 2048 units per em. At the atlas size (16px) multiply by 16/2048.
-// Inter is © 2020 The Inter Project Authors, SIL Open Font License 1.1.
+// Inter is © 2016 The Inter Project Authors, SIL Open Font License 1.1.
 // ASCII kerning from Inter Regular GPOS, font units (2048). Scale by 16/2048 at 16px.
 pub static LATIN_KERN: &[(u8, u8, i16)] = &[
     (0, 18, -69),

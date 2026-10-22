@@ -2,7 +2,8 @@
 name = "rndr_paint"
 version.workspace = true
 edition.workspace = true
-license.workspace = true
+# Inter atlas bytes are OFL-1.1. Other `[workspace.package]` fields stay inherited.
+license = "MIT AND OFL-1.1"
 repository.workspace = true
 homepage.workspace = true
 rust-version.workspace = true
@@ -11,7 +12,7 @@ documentation = "https://docs.rs/rndr_paint"
 readme = "README.md"
 keywords = ["gui", "graphics", "paint", "ui", "2d"]
 categories = ["gui", "graphics", "rendering"]
-exclude = ["**/*.snap", "**/*.snap.new"]
+exclude = ["**/*.snap.new"]
 
 [dependencies]
 rndr_core = { workspace = true }
