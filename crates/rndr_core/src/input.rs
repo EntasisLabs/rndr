@@ -66,17 +66,21 @@ pub struct Input {
 }
 
 impl Input {
-    /// Append one event. The deprecated [`Input::key`] shim is the first event only.
+    /// Append one event. The deprecated [`Input::key`] shim is the first press only.
     pub fn push_key(&mut self, event: KeyEvent, platform: Platform) {
-        let first = self.keys.is_empty();
-        if let Some(text) = event.insertable_text() {
-            self.chars.push_str(&text);
+        let first_press = self.keys.iter().all(|event| event.released);
+        if !event.released {
+            if let Some(text) = event.insertable_text() {
+                self.chars.push_str(&text);
+            }
         }
+        let released = event.released;
         self.keys.push(event);
-        if first {
+        if first_press && !released {
             self.key = self
                 .keys
-                .first()
+                .iter()
+                .find(|event| !event.released)
                 .and_then(|event| legacy_key(event, platform));
         }
     }

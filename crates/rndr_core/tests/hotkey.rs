@@ -9,7 +9,7 @@ use rndr_core::hotkey::{
 use rndr_core::{
     events, window, Axis, CapturesKeys, Chrome, Color, Focus, Focusable, GlobalHotkey,
     HotkeyBinding, HotkeyError, HotkeyRejected, Input, KeyCode, KeyEvent, Keystroke, Label, Layout,
-    Modifiers, NamedKey, Platform, Sim, Size, TextField, Viewport, WindowEffect,
+    LogicalKey, Modifiers, NamedKey, Platform, Sim, Size, TextField, Viewport, WindowEffect,
 };
 
 struct FakeInner {
@@ -419,6 +419,170 @@ fn a_registered_hotkey_and_its_repeats_do_not_type() {
     );
     sim.update();
     assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "abz ");
+}
+
+fn spawn_field(sim: &mut Sim, text: &str) -> rndr_core::Entity {
+    sim.app.add_plugin(Chrome);
+    sim.world().insert_resource(Viewport::new(240.0, 80.0));
+    sim.world().insert_resource(Focus::default());
+    let entity = sim.world().spawn((
+        Layout {
+            axis: Axis::Column,
+            gap: 0.0,
+            padding: 0.0,
+            width: Size::Px(200.0),
+            height: Size::Px(36.0),
+            min_width: 0.0,
+            min_height: 0.0,
+        },
+        Color::rgb(0.15, 0.16, 0.18),
+        Label::new(text),
+        TextField,
+        Focusable,
+        CapturesKeys,
+    ));
+    sim.world().resource_mut::<Focus>().unwrap().entity = Some(entity);
+    sim.update();
+    entity
+}
+
+fn space_text() -> KeyEvent {
+    KeyEvent::named(NamedKey::Space, Modifiers::default()).with_text(" ")
+}
+
+#[test]
+fn a_fired_hotkey_suppresses_its_base_key_until_release() {
+    let mut sim = Sim::new();
+    sim.world().insert_resource(Platform::X11);
+    let inner = install(&mut sim);
+    let entity = spawn_field(&mut sim, "");
+    let handle = hotkey::register(sim.world(), "Ctrl+Alt+Space").unwrap();
+
+    inner.lock().unwrap().presses.push(handle.id());
+    sim.world()
+        .resource_mut::<Input>()
+        .unwrap()
+        .push_key(space_text(), Platform::X11);
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "");
+
+    sim.world().resource_mut::<Input>().unwrap().push_key(
+        KeyEvent {
+            logical: LogicalKey::Unidentified,
+            text: Some(" ".to_string()),
+            code: None,
+            modifiers: Modifiers::default(),
+            repeat: false,
+            released: false,
+        },
+        Platform::X11,
+    );
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "");
+
+    sim.world().resource_mut::<Input>().unwrap().push_key(
+        KeyEvent::character('z', Modifiers::default()),
+        Platform::X11,
+    );
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "z");
+
+    let input = sim.world().resource_mut::<Input>().unwrap();
+    input.push_key(
+        KeyEvent::named(NamedKey::Escape, Modifiers::default()).released(),
+        Platform::X11,
+    );
+    input.push_key(space_text(), Platform::X11);
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "z");
+
+    sim.world().resource_mut::<Input>().unwrap().push_key(
+        KeyEvent::named(NamedKey::Space, Modifiers::default()).released(),
+        Platform::X11,
+    );
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "z");
+
+    sim.world()
+        .resource_mut::<Input>()
+        .unwrap()
+        .push_key(space_text(), Platform::X11);
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "z ");
+}
+
+#[test]
+fn release_then_press_in_one_frame_types_after_the_hotkey_was_armed() {
+    let mut sim = Sim::new();
+    sim.world().insert_resource(Platform::X11);
+    let inner = install(&mut sim);
+    let entity = spawn_field(&mut sim, "");
+    let handle = hotkey::register(sim.world(), "Alt+Space").unwrap();
+    inner.lock().unwrap().presses.push(handle.id());
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "");
+
+    let input = sim.world().resource_mut::<Input>().unwrap();
+    input.push_key(
+        KeyEvent::named(NamedKey::Space, Modifiers::default()).released(),
+        Platform::X11,
+    );
+    input.push_key(space_text(), Platform::X11);
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, " ");
+}
+
+#[test]
+fn press_then_release_on_the_fire_frame_types_nothing() {
+    let mut sim = Sim::new();
+    sim.world().insert_resource(Platform::X11);
+    let inner = install(&mut sim);
+    let entity = spawn_field(&mut sim, "");
+    let handle = hotkey::register(sim.world(), "Alt+Space").unwrap();
+    let input = sim.world().resource_mut::<Input>().unwrap();
+    input.push_key(space_text(), Platform::X11);
+    input.push_key(
+        KeyEvent::named(NamedKey::Space, Modifiers::default()).released(),
+        Platform::X11,
+    );
+    inner.lock().unwrap().presses.push(handle.id());
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "");
+
+    sim.world()
+        .resource_mut::<Input>()
+        .unwrap()
+        .push_key(space_text(), Platform::X11);
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, " ");
+}
+
+#[test]
+fn a_letter_hotkey_suppresses_that_letter_until_release() {
+    let mut sim = Sim::new();
+    sim.world().insert_resource(Platform::X11);
+    let inner = install(&mut sim);
+    let entity = spawn_field(&mut sim, "");
+    let handle = hotkey::register(sim.world(), "Ctrl+K").unwrap();
+    inner.lock().unwrap().presses.push(handle.id());
+    sim.world().resource_mut::<Input>().unwrap().push_key(
+        KeyEvent::character('k', Modifiers::default()),
+        Platform::X11,
+    );
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "");
+
+    let input = sim.world().resource_mut::<Input>().unwrap();
+    input.push_key(
+        KeyEvent::character('k', Modifiers::default()).released(),
+        Platform::X11,
+    );
+    input.push_key(
+        KeyEvent::character('k', Modifiers::default()),
+        Platform::X11,
+    );
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "k");
 }
 
 #[test]

@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 use rndr_core::{
-    layout_text, layout_text_spans, measure_text, BitmapFont, Color, Font, GlyphBox, TextFace,
-    TextLayout, TextSpan, CELL_W,
+    apply_text_layout, ensure_text_engine, field_text_width, layout_propagate, layout_text,
+    layout_text_spans, measure_text, Axis, BitmapFont, Color, Font, GlyphBox, Label, Layout, Rect,
+    Size, TextFace, TextLayout, TextOverflow, TextSpan, Viewport, World, CELL_W,
 };
 
 struct WideO;
@@ -96,4 +97,93 @@ fn text_face_is_what_layout_measures() {
     let layout = layout_text(face.0.as_ref(), "a", f32::INFINITY);
     assert_eq!(layout.glyphs[0].w, 4.0);
     let _stored: TextLayout = layout;
+}
+
+fn px(w: f32, h: f32) -> Layout {
+    Layout {
+        axis: Axis::Column,
+        gap: 0.0,
+        padding: 0.0,
+        width: Size::Px(w),
+        height: Size::Px(h),
+        min_width: 0.0,
+        min_height: 0.0,
+    }
+}
+
+#[test]
+fn ellipsis_stays_on_one_line_inside_the_label() {
+    let mut world = World::new();
+    world.insert_resource(Viewport::new(200.0, 80.0));
+    ensure_text_engine(&mut world);
+    let entity = world.spawn((
+        px(80.0, 36.0),
+        Label::new("Hello, world").overflow(TextOverflow::Ellipsis),
+    ));
+    layout_propagate(&mut world);
+    apply_text_layout(&mut world);
+    let rect = *world.get::<Rect>(entity).unwrap();
+    assert_eq!(rect.w, 80.0);
+    let layout = world.get::<TextLayout>(entity).unwrap();
+    assert_eq!(layout.lines.len(), 1);
+    let inner = field_text_width(rect.w, CELL_W);
+    assert!(layout.width <= inner);
+    let edges = &layout.lines[0].edges;
+    let jump = edges[edges.len() - 1].0 - edges[edges.len() - 2].0;
+    assert_eq!(jump, '…'.len_utf8());
+
+    world.get_mut::<Label>(entity).unwrap().text = "Hi".to_string();
+    apply_text_layout(&mut world);
+    let layout = world.get::<TextLayout>(entity).unwrap();
+    assert_eq!(layout.lines[0].end, 2);
+    assert!(layout.glyphs.iter().all(|glyph| glyph.ch != '…'));
+
+    world.get_mut::<Label>(entity).unwrap().text = "Hello\nworld".to_string();
+    apply_text_layout(&mut world);
+    let layout = world.get::<TextLayout>(entity).unwrap();
+    assert_eq!(layout.lines.len(), 1);
+    assert!(layout.width <= inner);
+}
+
+#[test]
+fn wrap_keeps_every_line_inside_the_label() {
+    let mut world = World::new();
+    world.insert_resource(Viewport::new(200.0, 200.0));
+    ensure_text_engine(&mut world);
+    let entity = world.spawn((
+        px(80.0, 80.0),
+        Label::new("Hello, world").overflow(TextOverflow::Wrap),
+    ));
+    layout_propagate(&mut world);
+    apply_text_layout(&mut world);
+    let layout = world.get::<TextLayout>(entity).unwrap();
+    let inner = field_text_width(80.0, CELL_W);
+    assert!(layout.lines.len() > 1);
+    assert!(layout.lines.iter().all(|line| line.width <= inner));
+}
+
+#[test]
+fn an_ellipsis_label_hugs_a_single_line() {
+    let mut world = World::new();
+    world.insert_resource(Viewport::new(200.0, 200.0));
+    ensure_text_engine(&mut world);
+    let parent = world.spawn(px(80.0, 120.0));
+    let child = world.spawn((
+        Layout {
+            axis: Axis::Column,
+            gap: 0.0,
+            padding: 0.0,
+            width: Size::Fill,
+            height: Size::Hug,
+            min_width: 0.0,
+            min_height: 0.0,
+        },
+        Label::new("Hello, world again").overflow(TextOverflow::Ellipsis),
+    ));
+    rndr_core::set_parent(&mut world, child, parent);
+    layout_propagate(&mut world);
+    layout_propagate(&mut world);
+    let rect = *world.get::<Rect>(child).unwrap();
+    assert_eq!(rect.h, 36.0);
+    assert!(rect.w <= 80.0);
 }

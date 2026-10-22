@@ -3,7 +3,7 @@ use crate::font::{field_text_width, layout_cache_key, text_face, TextLayout};
 use crate::hierarchy::{children_of, roots, Parent};
 use crate::input::{Input, Viewport};
 use crate::split::Splitter;
-use crate::style::{Label, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
+use crate::style::{Label, TextOverflow, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
 use crate::text::{style_of, text_engine};
 use crate::world::{Component, World};
 
@@ -616,6 +616,25 @@ fn label_hug_width(
 }
 
 fn hug_lines(world: &World, entity: Entity, max_width: f32) -> Option<(usize, f32)> {
+    if world.get::<Label>(entity)?.overflow == TextOverflow::Ellipsis {
+        let style = style_of(world);
+        let engine = text_engine(world);
+        let mut text = world.get::<Label>(entity)?.text.clone();
+        if text.contains('\n') {
+            text = text.replace('\n', " ");
+        }
+        let spans = world
+            .get::<crate::font::Spans>(entity)
+            .map(|spans| spans.runs.clone())
+            .unwrap_or_default();
+        let measured = engine.measure(&text, &style, &spans, f32::INFINITY);
+        let width = if max_width.is_finite() {
+            measured.width.min(max_width)
+        } else {
+            measured.width
+        };
+        return Some((1, width));
+    }
     let font = text_face(world);
     let key = {
         let label = world.get::<Label>(entity)?;

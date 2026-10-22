@@ -5,7 +5,7 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 
 use crate::event::{self, Event};
 use crate::input::Input;
-use crate::keys::{legacy_key, platform_of};
+use crate::keys::{legacy_key, platform_of, KeyCode, KeyEvent, Keystroke, LogicalKey, Trigger};
 use crate::window;
 use crate::world::World;
 
@@ -306,73 +306,197 @@ fn map_failure(failure: HotkeyFailure) -> HotkeyError {
     }
 }
 
+/// Physical keys held because a global hotkey just fired.
+///
+/// The base key stays armed until its own release, tracked by [`KeyCode`]
+/// rather than the modifiers on the event that arrives later.
+#[derive(Default)]
+struct ArmedKeys {
+    codes: HashSet<KeyCode>,
+}
+
 pub(crate) fn drive(world: &mut World) {
+    let fired = deliver_presses(world);
+    suppress_hotkey_keys(world, &fired);
+}
+
+fn deliver_presses(world: &mut World) -> Vec<HotkeyBinding> {
     let Some(installed) = world.resource::<HotkeyHub>() else {
-        return;
+        return Vec::new();
     };
     let hub = Arc::clone(&installed.hub);
     let presses = lock(&hub.backend).poll();
-    if !presses.is_empty() {
-        let planned: Vec<(HotkeyId, HotkeyBinding, bool)> = {
-            let state = lock(&hub.state);
-            presses
-                .into_iter()
-                .filter_map(|id| {
-                    if !state.refs.contains_key(&id) {
-                        return None;
-                    }
-                    let binding = *state.bindings.get(&id)?;
-                    let toggle = state.toggles.contains(&id);
-                    Some((id, binding, toggle))
-                })
-                .collect()
-        };
-        for (id, binding, toggle) in planned {
-            event::send(world, GlobalHotkey { id, binding });
-            if toggle {
-                window::toggle(world);
-            }
-        }
+    if presses.is_empty() {
+        return Vec::new();
     }
-    suppress_hotkey_keys(world, &hub);
-}
-
-/// Drop key events that match a registered chord, including auto-repeat.
-/// The field must not see them, and a chord with no platform text must not
-/// synthesize a character either.
-fn suppress_hotkey_keys(world: &mut World, hub: &Hub) {
-    let strokes: Vec<_> = {
+    let planned: Vec<(HotkeyId, HotkeyBinding, bool)> = {
         let state = lock(&hub.state);
-        state
-            .bindings
-            .values()
-            .map(|binding| binding.keystroke())
+        presses
+            .into_iter()
+            .filter_map(|id| {
+                if !state.refs.contains_key(&id) {
+                    return None;
+                }
+                let binding = *state.bindings.get(&id)?;
+                let toggle = state.toggles.contains(&id);
+                Some((id, binding, toggle))
+            })
             .collect()
     };
-    if strokes.is_empty() {
-        return;
+    let mut fired = Vec::with_capacity(planned.len());
+    for (id, binding, toggle) in planned {
+        event::send(world, GlobalHotkey { id, binding });
+        if toggle {
+            window::toggle(world);
+        }
+        fired.push(binding);
     }
+    fired
+}
+
+/// Drop chord matches, the armed base key, and every key release.
+///
+/// A release is not text. Leaving it in the queue would let a Space key-up
+/// insert a space once the modifiers are gone. The base key of a hotkey that
+/// fired this frame, or that is still held from an earlier frame, is dropped
+/// even when the event no longer carries those modifiers. A text event whose
+/// source key is one of those keys is dropped with it.
+fn suppress_hotkey_keys(world: &mut World, fired: &[HotkeyBinding]) {
+    let strokes = registered_strokes(world);
     let platform = platform_of(world);
+    let mut armed = world
+        .resource_mut::<ArmedKeys>()
+        .map(|armed| std::mem::take(&mut armed.codes))
+        .unwrap_or_default();
+    for binding in fired {
+        if let Some(code) = trigger_code(binding.keystroke()) {
+            armed.insert(code);
+        }
+    }
+    let live: HashSet<KeyCode> = strokes
+        .iter()
+        .filter_map(|stroke| trigger_code(*stroke))
+        .collect();
+    armed.retain(|code| live.contains(code));
+
     let Some(input) = world.resource_mut::<Input>() else {
+        store_armed(world, armed);
         return;
     };
     let before = input.keys.len();
-    input
-        .keys
-        .retain(|event| !strokes.iter().any(|stroke| stroke.matches(event, platform)));
-    if input.keys.len() == before {
+    let mut kept = Vec::with_capacity(before);
+    for event in input.keys.drain(..) {
+        if event.released {
+            if let Some(code) = source_code(&event) {
+                armed.remove(&code);
+            }
+            continue;
+        }
+        if strokes
+            .iter()
+            .any(|stroke| stroke.matches(&event, platform))
+        {
+            continue;
+        }
+        if held_hotkey(&event, &armed) {
+            continue;
+        }
+        kept.push(event);
+    }
+    let changed = kept.len() != before;
+    input.keys = kept;
+    if changed {
+        input.chars.clear();
+        for event in &input.keys {
+            if let Some(text) = event.insertable_text() {
+                input.chars.push_str(&text);
+            }
+        }
+        input.key = input
+            .keys
+            .first()
+            .and_then(|event| legacy_key(event, platform));
+    }
+    store_armed(world, armed);
+}
+
+fn store_armed(world: &mut World, codes: HashSet<KeyCode>) {
+    if codes.is_empty() {
+        if let Some(armed) = world.resource_mut::<ArmedKeys>() {
+            armed.codes.clear();
+        }
         return;
     }
-    input.chars.clear();
-    for event in &input.keys {
-        if let Some(text) = event.insertable_text() {
-            input.chars.push_str(&text);
+    world.insert_resource(ArmedKeys { codes });
+}
+
+fn registered_strokes(world: &World) -> Vec<Keystroke> {
+    let Some(installed) = world.resource::<HotkeyHub>() else {
+        return Vec::new();
+    };
+    let state = lock(&installed.hub.state);
+    state
+        .bindings
+        .values()
+        .map(|binding| binding.keystroke())
+        .collect()
+}
+
+fn trigger_code(stroke: Keystroke) -> Option<KeyCode> {
+    match stroke.trigger {
+        Trigger::Code(code) => Some(normalize_code(code)),
+        Trigger::Logical(LogicalKey::Named(named)) => named.code(),
+        Trigger::Logical(LogicalKey::Character(ch)) => KeyCode::letter(ch),
+        Trigger::Logical(LogicalKey::Unidentified) => None,
+    }
+}
+
+fn source_code(event: &KeyEvent) -> Option<KeyCode> {
+    if let Some(code) = event.code {
+        return Some(normalize_code(code));
+    }
+    match event.logical {
+        LogicalKey::Named(named) => named.code(),
+        LogicalKey::Character(ch) => KeyCode::letter(ch),
+        LogicalKey::Unidentified => None,
+    }
+}
+
+fn normalize_code(code: KeyCode) -> KeyCode {
+    match code {
+        KeyCode::Letter(ch) => KeyCode::Letter(ch.to_ascii_lowercase()),
+        other => other,
+    }
+}
+
+fn held_hotkey(event: &KeyEvent, armed: &HashSet<KeyCode>) -> bool {
+    if armed.is_empty() {
+        return false;
+    }
+    if let Some(code) = source_code(event) {
+        if armed.contains(&code) {
+            return true;
         }
     }
-    input.key = input
-        .keys
-        .first()
-        .and_then(|event| legacy_key(event, platform));
+    if event.code.is_none() {
+        if let Some(code) = event.text.as_deref().and_then(text_source) {
+            return armed.contains(&code);
+        }
+    }
+    false
+}
+
+fn text_source(text: &str) -> Option<KeyCode> {
+    let mut chars = text.chars();
+    let ch = chars.next()?;
+    if chars.next().is_some() {
+        return None;
+    }
+    if ch == ' ' {
+        Some(KeyCode::Space)
+    } else {
+        KeyCode::letter(ch)
+    }
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {

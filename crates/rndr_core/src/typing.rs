@@ -81,6 +81,9 @@ pub(crate) fn apply_text_event(
     history: &mut EditHistory,
     clip: &str,
 ) -> StepResult {
+    if event.released {
+        return StepResult::default();
+    }
     let text = &mut *surface.text;
     let index = &mut *surface.index;
     let anchor = &mut *surface.anchor;

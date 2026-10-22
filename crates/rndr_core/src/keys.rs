@@ -124,7 +124,7 @@ impl NamedKey {
         (1..=24).contains(&n).then_some(Self::F(n))
     }
 
-    fn code(self) -> Option<KeyCode> {
+    pub(crate) fn code(self) -> Option<KeyCode> {
         Some(match self {
             Self::ArrowUp => KeyCode::ArrowUp,
             Self::ArrowDown => KeyCode::ArrowDown,
@@ -207,7 +207,7 @@ impl KeyCode {
     }
 }
 
-/// One press or repeat. Several of these can land in a single frame.
+/// One press, repeat, or release. Several of these can land in a single frame.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct KeyEvent {
     pub logical: LogicalKey,
@@ -216,6 +216,8 @@ pub struct KeyEvent {
     pub code: Option<KeyCode>,
     pub modifiers: Modifiers,
     pub repeat: bool,
+    /// The key went up. Releases carry no text.
+    pub released: bool,
 }
 
 impl KeyEvent {
@@ -226,6 +228,7 @@ impl KeyEvent {
             code: key.code(),
             modifiers,
             repeat: false,
+            released: false,
         }
     }
 
@@ -237,6 +240,7 @@ impl KeyEvent {
             code,
             modifiers,
             repeat: false,
+            released: false,
         }
     }
 
@@ -252,6 +256,13 @@ impl KeyEvent {
 
     pub fn repeating(mut self) -> Self {
         self.repeat = true;
+        self
+    }
+
+    /// Mark this event as a key-up and drop any text it was carrying.
+    pub fn released(mut self) -> Self {
+        self.released = true;
+        self.text = None;
         self
     }
 

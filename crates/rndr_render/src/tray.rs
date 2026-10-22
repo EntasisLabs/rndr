@@ -240,10 +240,10 @@ fn host_linux() -> bool {
 
 /// Menu text and the accelerator passed to the native item.
 ///
-/// A parsed chord is the accelerator and is not also embedded in the label.
-/// On Linux the shortcut is never written into the label, because some trays
-/// draw that string as-is, tab included. A shortcut that does not parse
-/// (a macOS symbol label, for example) stays in the label on other platforms.
+/// A parsed chord is the accelerator and is not also written into the label.
+/// The ksni backend does not display that accelerator, so on Linux the
+/// shortcut stays out of the label as well. A shortcut that does not parse
+/// stays in the label on other platforms and is left out on Linux.
 pub(crate) fn row_presentation(
     label: &str,
     shortcut: &str,
@@ -383,8 +383,14 @@ mod tests {
     }
 
     #[test]
-    fn menu_rows_keep_the_accelerator_out_of_the_linux_label() {
+    fn menu_rows_pass_a_parsed_accelerator_and_leave_linux_labels_plain() {
         let (text, accel) = super::row_presentation("Show Palette", "Alt+Space", true);
+        assert_eq!(text, "Show Palette");
+        assert!(accel.is_some());
+        let (text, accel) = super::row_presentation("Show Palette", "Ctrl+Alt+Space", true);
+        assert_eq!(text, "Show Palette");
+        assert!(accel.is_some());
+        let (text, accel) = super::row_presentation("Show Palette", "Cmd+Space", true);
         assert_eq!(text, "Show Palette");
         assert!(accel.is_some());
         let (text, accel) = super::row_presentation("Show Palette", "⌥Space", true);
@@ -392,6 +398,9 @@ mod tests {
         assert!(accel.is_none());
         let (text, accel) = super::row_presentation("Show & Palette", "Alt+Space", false);
         assert_eq!(text, "Show && Palette");
+        assert!(accel.is_some());
+        let (text, accel) = super::row_presentation("Show Palette", "Cmd+K", false);
+        assert_eq!(text, "Show Palette");
         assert!(accel.is_some());
         let (text, accel) = super::row_presentation("Show Palette", "⌥Space", false);
         assert_eq!(text, "Show Palette\t⌥Space");

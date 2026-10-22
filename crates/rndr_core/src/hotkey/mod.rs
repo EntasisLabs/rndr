@@ -14,7 +14,9 @@
 //! of the time. [`toggle_window`] is the launcher case: the chord shows and
 //! focuses a hidden window, or hides a visible one. A key event that matches a
 //! registered chord, including its repeats, is removed from that frame's text
-//! input.
+//! input. Once the chord fires, its base key is ignored until that key is
+//! released, including a later press or text event that no longer carries the
+//! modifiers. Key releases are removed as well, so a key-up cannot insert text.
 //!
 //! Re-registering a chord that this process already owns returns another
 //! handle for the same id and does not grab twice. Dropping a handle, or
@@ -31,7 +33,7 @@
 //! | Chord already owned | `AlreadyTaken` | `AlreadyTaken` | `AlreadyTaken` (`BadAccess`) | portal declines the grant (`AlreadyTaken`) |
 //! | Unavailable session | — | — | no X server (`Unsupported`) | no portal (`Unsupported`); X11 is not used as a fallback |
 //! | Lock keys | ignored by Carbon | ignored by `RegisterHotKey` | grabbed again with Caps Lock, Num Lock, and Mod5 | portal / compositor |
-//! | Key repeat | one event per press | `MOD_NOREPEAT` | auto-repeat releases are skipped | one `Activated` per press |
+//! | Key repeat | one event per press | `MOD_NOREPEAT` | first press only; a held key is a repeat | one `Activated` until `Deactivated` |
 //! | Idle | the Cocoa run loop is already waiting | the hotkey thread blocks in `GetMessage` | the hotkey thread blocks in `poll` | the portal thread blocks on D-Bus |
 //!
 //! F21–F24 have no Carbon virtual key, so they are [`HotkeyError::InvalidBinding`]

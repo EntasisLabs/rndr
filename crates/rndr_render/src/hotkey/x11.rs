@@ -2,8 +2,9 @@
 //!
 //! The worker blocks in `poll` on the X socket and a wake pipe. Num Lock,
 //! Caps Lock, and Mod5 are grabbed as extra masks so a lock state still
-//! matches. Detectable auto-repeat is requested, and a press that shares the
-//! release timestamp is not delivered.
+//! matches. Detectable auto-repeat is requested on this connection. Further
+//! presses while the key is held are repeats, and so is a release followed by
+//! a press that shares its timestamp when detectable auto-repeat is absent.
 
 use std::collections::HashMap;
 use std::os::fd::AsRawFd;
@@ -19,6 +20,7 @@ use x11rb::protocol::{xkb, ErrorKind, Event};
 use x11rb::rust_connection::RustConnection;
 
 use super::press::PressQueue;
+use super::repeat::RepeatFilter;
 
 const SHIFT: u32 = 1 << 0;
 const CONTROL: u32 = 1 << 2;
@@ -158,7 +160,7 @@ fn worker(rx: Receiver<Cmd>, presses: Arc<PressQueue>, ready: Sender<i32>) {
     let _ = ready.send(pipes[1]);
 
     let mut grabbed: HashMap<u32, Grabbed> = HashMap::new();
-    let mut release_at: HashMap<Keycode, u32> = HashMap::new();
+    let mut repeats = RepeatFilter::default();
     loop {
         let mut fds = [
             libc::pollfd {
@@ -220,7 +222,7 @@ fn worker(rx: Receiver<Cmd>, presses: Arc<PressQueue>, ready: Sender<i32>) {
         if fds[0].revents & (libc::POLLIN | libc::POLLERR | libc::POLLHUP) != 0 {
             loop {
                 match connection.poll_for_event() {
-                    Ok(Some(event)) => handle_event(event, &grabbed, &mut release_at, &presses),
+                    Ok(Some(event)) => handle_event(event, &grabbed, &mut repeats, &presses),
                     Ok(None) => break,
                     Err(_) => return,
                 }
@@ -233,6 +235,8 @@ fn worker(rx: Receiver<Cmd>, presses: Arc<PressQueue>, ready: Sender<i32>) {
     }
 }
 
+/// Ask the server to send real holds: extra presses, no synthetic release.
+/// A server that declines still produces the same-timestamp pair [`RepeatFilter`] drops.
 fn request_detectable_repeat(conn: &RustConnection) {
     let Ok(cookie) = xkb::ConnectionExt::xkb_use_extension(conn, 1, 0) else {
         return;
@@ -345,15 +349,15 @@ fn keycode_for(conn: &RustConnection, keysym: u32) -> Result<Option<Keycode>, Ho
 fn handle_event(
     event: Event,
     grabbed: &HashMap<u32, Grabbed>,
-    release_at: &mut HashMap<Keycode, u32>,
+    repeats: &mut RepeatFilter,
     presses: &PressQueue,
 ) {
     match event {
         Event::KeyRelease(event) => {
-            release_at.insert(event.detail, event.time);
+            repeats.release(u32::from(event.detail), u64::from(event.time));
         }
         Event::KeyPress(event) => {
-            if release_at.get(&event.detail).copied() == Some(event.time) {
+            if !repeats.press(u32::from(event.detail), u64::from(event.time)) {
                 return;
             }
             let state = key_but_mask_bits(event.state) & CARE;
