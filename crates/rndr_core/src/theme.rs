@@ -8,6 +8,8 @@ impl Component for Radius {}
 pub struct Radius(pub f32);
 
 /// Chrome colors and the corner radius for surfaces.
+///
+/// Every [`Color`] is sRGB. See [`Color`] for how the renderer uploads it.
 /// Absent from the world means [`Theme::default`].
 #[derive(Clone, Copy, Debug)]
 pub struct Theme {

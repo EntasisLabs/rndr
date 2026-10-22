@@ -50,6 +50,8 @@ Layout, hit-testing, and scroll are in logical points. `Viewport.scale` is physi
 3. `frame` returns quads in points.
 4. The surface multiplies by `scale` and presents.
 
+`Color` values are sRGB with straight alpha. The upload decodes red, green, and blue when the surface format is sRGB, and writes them unchanged when it is not, so a theme color lands on screen as authored on either format. Alpha stays coverage. An sRGB surface blends in linear light.
+
 Headless tests call `frame` and never open a window. The desktop runner is the only thing that calls winit.
 
 ## Time, events, and tasks

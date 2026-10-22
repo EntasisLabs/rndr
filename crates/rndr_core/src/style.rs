@@ -4,7 +4,17 @@ impl Component for Color {}
 impl Component for Label {}
 impl Component for Body {}
 
-/// Solid fill drawn by the render plugin.
+/// sRGB color with straight alpha, drawn as a solid fill.
+///
+/// `r`, `g`, and `b` are IEC 61966-2-1 channel values in `0.0..=1.0`: the
+/// encoding of CSS `rgb()` and of an 8-bit framebuffer. `a` is linear coverage
+/// in `0.0..=1.0` and is not premultiplied.
+///
+/// Paint copies these channels onto quads. The render plugin decodes `r`, `g`,
+/// and `b` to linear light before upload when the surface format is sRGB,
+/// because that format encodes on store and blends in linear light. A non-sRGB
+/// surface stores the channels as given. On either format the pixels match
+/// these values. Alpha is left alone on both paths.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Color {
     pub r: f32,

@@ -1,5 +1,6 @@
 //! winit + wgpu plugin. Writes [`rndr_core::Input`] in logical points and presents the quad list.
 
+mod color;
 mod gpu;
 
 use std::sync::Arc;

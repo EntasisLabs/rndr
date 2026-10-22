@@ -4,6 +4,8 @@ use rndr_paint::Quad;
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
+use crate::color::{clear_color, color_for_surface};
+
 const QUAD: [[f32; 2]; 4] = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
 const INSTANCE_FLOATS: usize = 20;
 const INSTANCE_STRIDE: u64 = (INSTANCE_FLOATS * 4) as u64;
@@ -61,6 +63,8 @@ fn fs(in: VsOut) -> @location(0) vec4<f32> {
     if px.x < clip.x || px.y < clip.y || px.x >= clip.x + clip.z || px.y >= clip.y + clip.w {
         discard;
     }
+    // RGB is already in the surface working space: linear on an sRGB target,
+    // authored sRGB on an 8-bit Unorm target. Alpha is coverage.
     let coverage = textureSample(atlas, atlas_samp, in.uv).r;
     let corner = round_rect(px, in.rect, in.radius);
     return vec4<f32>(in.color.rgb, in.color.a * coverage * corner);
@@ -121,6 +125,8 @@ impl Gpu {
         let size = window.inner_size();
         let width = size.width.max(1);
         let height = size.height.max(1);
+        // Keep the adapter's format. `color_for_surface` decodes authored sRGB
+        // when this format encodes on store, so the theme matches either way.
         let mut config = surface
             .get_default_config(&adapter, width, height)
             .expect("surface config");
@@ -149,6 +155,7 @@ impl Gpu {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
+            // Coverage mask. R8Unorm samples as linear 0..1, which alpha wants.
             format: wgpu::TextureFormat::R8Unorm,
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
@@ -275,6 +282,8 @@ impl Gpu {
                 compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: config.format,
+                    // Straight alpha over. An sRGB target blends in linear light
+                    // after `color_for_surface` decodes the authored channels.
                     blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
@@ -336,7 +345,7 @@ impl Gpu {
     /// Returns false when the surface was not presented, so the caller can keep
     /// this frame's input edges for the next redraw.
     pub fn present(&mut self, quads: &[Quad], width: u32, height: u32, scale: f32) -> bool {
-        encode_instances(quads, scale, &mut self.staging);
+        encode_instances(quads, scale, self.config.format, &mut self.staging);
         let needed = self.staging.len() as u64 / INSTANCE_STRIDE;
         if needed > self.instance_capacity {
             self.instance_capacity = needed.max(self.instance_capacity * 2);
@@ -385,12 +394,7 @@ impl Gpu {
                     depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.06,
-                            g: 0.07,
-                            b: 0.09,
-                            a: 1.0,
-                        }),
+                        load: wgpu::LoadOp::Clear(clear_color(self.config.format)),
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -414,19 +418,22 @@ impl Gpu {
 }
 
 /// Layout quads are points. The uniform and the fragment clip are physical pixels.
-fn encode_instances(quads: &[Quad], scale: f32, out: &mut Vec<u8>) {
+/// Every quad color — solid fills, borders, glyph tints, carets, selections, and
+/// marks — is authored sRGB and is decoded here when `format` is sRGB.
+fn encode_instances(quads: &[Quad], scale: f32, format: wgpu::TextureFormat, out: &mut Vec<u8>) {
     out.clear();
     out.reserve(quads.len() * INSTANCE_FLOATS * 4);
     for quad in quads {
+        let [r, g, b, a] = color_for_surface(quad.color, format);
         for value in [
             quad.rect.x * scale,
             quad.rect.y * scale,
             quad.rect.w * scale,
             quad.rect.h * scale,
-            quad.color.r,
-            quad.color.g,
-            quad.color.b,
-            quad.color.a,
+            r,
+            g,
+            b,
+            a,
             quad.uv[0],
             quad.uv[1],
             quad.uv[2],
@@ -441,6 +448,83 @@ fn encode_instances(quads: &[Quad], scale: f32, out: &mut Vec<u8>) {
             0.0,
         ] {
             out.extend_from_slice(&value.to_le_bytes());
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rndr_core::{Clip, Color, Rect, Theme};
+    use rndr_paint::Quad;
+
+    use super::encode_instances;
+    use crate::color::color_for_surface;
+
+    fn quad(color: Color, w: f32) -> Quad {
+        Quad {
+            rect: Rect {
+                x: 1.0,
+                y: 2.0,
+                w,
+                h: 4.0,
+            },
+            color,
+            uv: [0.1, 0.2, 0.3, 0.4],
+            clip: Clip {
+                x: 0.0,
+                y: 0.0,
+                w: 100.0,
+                h: 80.0,
+            },
+            radius: 0.0,
+        }
+    }
+
+    fn read_f32(bytes: &[u8], float_index: usize) -> f32 {
+        let start = float_index * 4;
+        f32::from_le_bytes(bytes[start..start + 4].try_into().unwrap())
+    }
+
+    #[test]
+    fn upload_encodes_fill_border_and_glyph_tint_for_both_formats() {
+        let theme = Theme::default();
+        let formats = [
+            wgpu::TextureFormat::Bgra8UnormSrgb,
+            wgpu::TextureFormat::Rgba8UnormSrgb,
+            wgpu::TextureFormat::Bgra8Unorm,
+            wgpu::TextureFormat::Rgba8Unorm,
+        ];
+        for format in formats {
+            let mut bytes = Vec::new();
+            // Canvas fill, a one-point strip (a border), and the glyph tint.
+            encode_instances(
+                &[
+                    quad(theme.canvas, 40.0),
+                    quad(theme.seam, 1.0),
+                    quad(theme.text, 8.0),
+                ],
+                2.0,
+                format,
+                &mut bytes,
+            );
+            for (index, color) in [theme.canvas, theme.seam, theme.text]
+                .into_iter()
+                .enumerate()
+            {
+                let base = index * super::INSTANCE_FLOATS;
+                let expected = color_for_surface(color, format);
+                assert_eq!(read_f32(&bytes, base), 2.0, "scale applies to x");
+                assert_eq!(
+                    [
+                        read_f32(&bytes, base + 4),
+                        read_f32(&bytes, base + 5),
+                        read_f32(&bytes, base + 6),
+                        read_f32(&bytes, base + 7),
+                    ],
+                    expected,
+                    "quad {index} on {format:?}"
+                );
+            }
         }
     }
 }
