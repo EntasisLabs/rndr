@@ -1,8 +1,10 @@
 //! Shelf-packed glyph atlases. Coverage is R8; emoji is straight RGBA.
 //!
-//! Slots the current frame and the previous frame still reference stay. Anything
-//! else is eligible for LRU eviction once the atlas cannot grow. A grow throws
-//! the shelf away, so callers retry a line whose pixels moved.
+//! A glyph stays packed after the shaped-line cache forgets it. A slot is freed
+//! only when a new glyph does not fit and the shelf is already at its maximum:
+//! the least recently used glyph that no cached line still references, other
+//! than the one being drawn and the pinned white pixel. A grow throws the shelf
+//! away, so callers retry a line whose pixels moved.
 
 use std::collections::HashMap;
 
@@ -27,6 +29,9 @@ struct Slot {
     ink_y: u32,
     ink_w: u32,
     ink_h: u32,
+    /// Swash bearings, so a later line can reuse the slot without rasterizing.
+    left: i32,
+    top: i32,
     refs: u32,
     stamp: u64,
     /// Shapes in progress stamp this so a full atlas does not evict their glyphs.
@@ -60,6 +65,10 @@ pub(super) struct Atlas {
 pub(super) struct Ink {
     pub uv: [f32; 4],
     pub key: GlyphKey,
+    pub left: i32,
+    pub top: i32,
+    pub width: u32,
+    pub height: u32,
 }
 
 impl Atlas {
@@ -144,6 +153,26 @@ impl Atlas {
         }
     }
 
+    /// Placement for a glyph already packed. `None` means the slot was evicted.
+    pub(super) fn resident(&mut self, key: GlyphKey) -> Option<Ink> {
+        let (ink_x, ink_y, ink_w, ink_h, left, top) = {
+            let slot = self.glyphs.get_mut(&key)?;
+            slot.stamp = self.stamp;
+            self.stamp = self.stamp.wrapping_add(1);
+            (
+                slot.ink_x, slot.ink_y, slot.ink_w, slot.ink_h, slot.left, slot.top,
+            )
+        };
+        Some(Ink {
+            uv: self.uv_of(ink_x, ink_y, ink_w, ink_h),
+            key,
+            left,
+            top,
+            width: ink_w,
+            height: ink_h,
+        })
+    }
+
     pub(super) fn touch(&mut self, keys: &[GlyphKey]) {
         let stamp = self.stamp;
         self.stamp = self.stamp.wrapping_add(1);
@@ -180,11 +209,12 @@ impl Atlas {
         key: GlyphKey,
         width: u32,
         height: u32,
+        left: i32,
+        top: i32,
         pixels: &[u8],
     ) -> Inserted {
-        if let Some(slot) = self.glyphs.get(&key) {
-            let uv = self.uv_of(slot.ink_x, slot.ink_y, slot.ink_w, slot.ink_h);
-            return Inserted::Ready(Ink { uv, key });
+        if let Some(ink) = self.resident(key) {
+            return Inserted::Ready(ink);
         }
         if width == 0 || height == 0 {
             return Inserted::Skip;
@@ -224,13 +254,22 @@ impl Atlas {
                 ink_y,
                 ink_w: width,
                 ink_h: height,
+                left,
+                top,
                 refs: 0,
                 stamp,
                 build: self.build,
             },
         );
         let uv = self.uv_of(ink_x, ink_y, width, height);
-        Inserted::Ready(Ink { uv, key })
+        Inserted::Ready(Ink {
+            uv,
+            key,
+            left,
+            top,
+            width,
+            height,
+        })
     }
 
     fn allocate(&mut self, w: u32, h: u32) -> Option<(AllocId, u32, u32)> {
@@ -317,6 +356,8 @@ impl Atlas {
                 ink_y: y,
                 ink_w: 1,
                 ink_h: 1,
+                left: 0,
+                top: 0,
                 refs: u32::MAX,
                 stamp: 0,
                 build: 0,

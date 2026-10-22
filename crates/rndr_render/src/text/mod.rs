@@ -1,8 +1,9 @@
 //! Parley shaping and swash rasterization behind [`TextEngine`].
 //!
 //! Lines are cached for this frame and the previous one. A cache hit does not
-//! shape again. Glyphs live in a coverage atlas or a color atlas; slots nobody
-//! referenced for two frames can be evicted, and only the dirty rectangles are
+//! shape again. Glyphs live in a coverage atlas or a color atlas until a new
+//! glyph does not fit. Forgetting a line does not free its pixels, and a later
+//! shape reuses them instead of rasterizing again. Only dirty rectangles are
 //! uploaded.
 
 mod atlas;
@@ -35,7 +36,8 @@ pub struct TextEngineConfig {
     pub system_fonts: bool,
     /// Starting shelf size, in pixels. Grows by doubling.
     pub atlas_size: u32,
-    /// Largest shelf. Past this, unused glyphs are evicted.
+    /// Largest shelf. Past this, a glyph that does not fit evicts the least
+    /// recently used one that no cached line still needs.
     pub max_atlas: u32,
 }
 
@@ -91,6 +93,7 @@ pub(super) struct State {
     fallbacks: HashMap<String, Vec<String>>,
     scale: f32,
     epoch: u64,
+    rasters: u64,
 }
 
 struct FrameCache {
@@ -165,6 +168,7 @@ impl ParleyText {
                 fallbacks: HashMap::new(),
                 scale: 1.0,
                 epoch: 0,
+                rasters: 0,
             }),
             shapes: AtomicU64::new(0),
         }
@@ -176,6 +180,11 @@ impl ParleyText {
         let blob = fontique::Blob::new(Arc::new(bytes.to_vec()));
         state.font_cx.collection.register_fonts(blob, None);
         state.invalidate_lines();
+    }
+
+    /// Swash rasters. An atlas hit does not increment this.
+    pub fn raster_count(&self) -> u64 {
+        self.lock().rasters
     }
 
     /// Glyphs dropped because the shelf was full.

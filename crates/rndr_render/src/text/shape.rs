@@ -239,12 +239,48 @@ fn raster_glyph(
         weight,
         face,
     } = paint;
+    let paint_at = PlacedInk {
+        x_px,
+        baseline_px,
+        scale,
+        start,
+        end,
+        ch,
+        color,
+        weight,
+        face,
+    };
     let Ok(id) = u16::try_from(glyph_id) else {
         return None;
     };
     let bytes = font.data.as_ref();
     let frac = x_px - x_px.floor();
     let bin = ((frac * f32::from(SUBPIXEL_BINS)) as u8).min(SUBPIXEL_BINS - 1);
+    let font_key = font_id(font);
+    let size_bits = px_size.to_bits();
+    // The line cache only keeps two frames. The pixels stay, so a hide/show or
+    // a scroll back reuses the slot instead of running swash again.
+    if let Some(hit) = state.coverage.resident(GlyphKey {
+        font: font_key,
+        glyph: glyph_id,
+        size_bits,
+        bin,
+        color: false,
+    }) {
+        keys.push(hit.key);
+        return Some(place_glyph(hit, &paint_at, false));
+    }
+    if let Some(hit) = state.color.resident(GlyphKey {
+        font: font_key,
+        glyph: glyph_id,
+        size_bits,
+        bin: 0,
+        color: true,
+    }) {
+        keys.push(hit.key);
+        return Some(place_glyph(hit, &paint_at, true));
+    }
+    state.rasters = state.rasters.wrapping_add(1);
     let sources = [
         Source::ColorBitmap(StrikeWith::BestFit),
         Source::ColorOutline(0),
@@ -283,9 +319,9 @@ fn raster_glyph(
         return None;
     }
     let key = GlyphKey {
-        font: font_id(font),
+        font: font_key,
         glyph: glyph_id,
-        size_bits: px_size.to_bits(),
+        size_bits,
         bin,
         color: color_glyph,
     };
@@ -294,32 +330,55 @@ fn raster_glyph(
     } else {
         &mut state.coverage
     };
-    let ink = match atlas.insert(key, width, height, &image.data) {
+    let ink = match atlas.insert(
+        key,
+        width,
+        height,
+        image.placement.left,
+        image.placement.top,
+        &image.data,
+    ) {
         Inserted::Ready(ink) => ink,
         Inserted::Grew | Inserted::Skip => return None,
     };
     keys.push(ink.key);
-    let pen_x = x_px.floor() + image.placement.left as f32;
-    let pen_y = baseline_px.round() - image.placement.top as f32;
-    let scale = if scale.is_finite() && scale > 0.0 {
-        scale
+    Some(place_glyph(ink, &paint_at, color_glyph))
+}
+
+struct PlacedInk {
+    x_px: f32,
+    baseline_px: f32,
+    scale: f32,
+    start: usize,
+    end: usize,
+    ch: char,
+    color: Option<Color>,
+    weight: u16,
+    face: u8,
+}
+
+fn place_glyph(ink: super::atlas::Ink, at: &PlacedInk, color_glyph: bool) -> PlacedGlyph {
+    let scale = if at.scale.is_finite() && at.scale > 0.0 {
+        at.scale
     } else {
         1.0
     };
-    Some(PlacedGlyph {
-        start,
-        end,
-        ch,
+    let pen_x = at.x_px.floor() + ink.left as f32;
+    let pen_y = at.baseline_px.round() - ink.top as f32;
+    PlacedGlyph {
+        start: at.start,
+        end: at.end,
+        ch: at.ch,
         x: pen_x / scale,
         y: pen_y / scale,
-        w: width as f32 / scale,
-        h: height as f32 / scale,
+        w: ink.width as f32 / scale,
+        h: ink.height as f32 / scale,
         uv: ink.uv,
-        color,
-        face,
-        weight,
+        color: at.color,
+        face: at.face,
+        weight: at.weight,
         atlas: u8::from(color_glyph),
-    })
+    }
 }
 
 fn scaler_for<'a>(

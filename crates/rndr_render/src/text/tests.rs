@@ -103,6 +103,28 @@ fn scale_change_reshapes() {
 }
 
 #[test]
+fn idle_frames_keep_packed_glyphs() {
+    let engine = bundled();
+    let style = inter(16.0);
+    let first = engine.layout("A", &style, &[], f32::INFINITY);
+    assert!(!first.glyphs.is_empty());
+    let rasters = engine.raster_count();
+    let evicted = engine.eviction_count();
+    assert!(rasters > 0);
+    for _ in 0..8 {
+        engine.begin_frame();
+    }
+    let again = engine.layout("A", &style, &[], f32::INFINITY);
+    assert_eq!(again.glyphs.len(), first.glyphs.len());
+    assert_eq!(
+        engine.raster_count(),
+        rasters,
+        "leaving the line cache re-rasterized a glyph that was still packed"
+    );
+    assert_eq!(engine.eviction_count(), evicted);
+}
+
+#[test]
 fn unused_glyphs_are_evicted_when_the_shelf_is_full() {
     let engine = ParleyText::with_config(TextEngineConfig {
         system_fonts: false,
