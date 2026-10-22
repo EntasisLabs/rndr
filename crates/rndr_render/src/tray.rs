@@ -15,9 +15,10 @@
 use std::io::Cursor;
 
 use rndr_core::tray::{
-    displayed_label, menu_id, parse_menu_id, Entry, Image, Menu, MenuItem, Submenu, TrayCommand,
+    menu_id, menu_label, parse_menu_id, Entry, Image, Menu, MenuItem, Submenu, TrayCommand,
     TrayConfig, TrayIcon as CoreIcon, TrayReport,
 };
+use rndr_core::Platform;
 use tray_icon::menu::{
     CheckMenuItem, IsMenuItem, MenuItem as NativeItem, PredefinedMenuItem, Submenu as NativeSub,
 };
@@ -111,12 +112,20 @@ impl Session {
             return;
         };
         let menu = native_menu(&config.menu);
-        let builder = TrayIconBuilder::new()
-            .with_id("rndr")
-            .with_autosave_name("rndr")
+        let id = if config.id.is_empty() {
+            "rndr".to_string()
+        } else {
+            config.id.clone()
+        };
+        let mut builder = TrayIconBuilder::new()
+            .with_id(id.clone())
+            .with_autosave_name(id)
             .with_menu(Box::new(menu))
             .with_menu_on_left_click(false)
             .with_tooltip(config.tooltip.clone());
+        if !config.title.is_empty() {
+            builder = builder.with_title(config.title.clone());
+        }
         let builder = install_icon(builder, icon, config.icon.template);
         match builder.build() {
             Ok(icon) => self.icon = Some(icon),
@@ -197,7 +206,7 @@ fn append_all(parent: &dyn Append, menu: &Menu) {
 }
 
 fn push_item(parent: &dyn Append, item: &MenuItem) {
-    let text = row_text(&item.label, &item.shortcut);
+    let (text, accelerator) = row_presentation(&item.label, &item.shortcut, host_linux());
     let id = menu_id(item.id);
     if item.checkable {
         parent.push(&CheckMenuItem::with_id(
@@ -205,22 +214,46 @@ fn push_item(parent: &dyn Append, item: &MenuItem) {
             text,
             item.enabled,
             item.checked,
-            None,
+            accelerator,
         ));
     } else {
-        parent.push(&NativeItem::with_id(id, text, item.enabled, None));
+        parent.push(&NativeItem::with_id(id, text, item.enabled, accelerator));
     }
 }
 
 fn push_submenu(parent: &dyn Append, sub: &Submenu) {
-    let child = NativeSub::with_id(menu_id(sub.id), row_text(&sub.label, ""), sub.enabled);
+    let (text, _) = row_presentation(&sub.label, "", host_linux());
+    let child = NativeSub::with_id(menu_id(sub.id), text, sub.enabled);
     append_all(&child, &sub.menu);
     parent.push(&child);
 }
 
-fn row_text(label: &str, shortcut: &str) -> String {
-    // `&` is a mnemonic marker in the native menu. Show it as itself.
-    displayed_label(label, shortcut).replace('&', "&&")
+fn host_linux() -> bool {
+    cfg!(any(
+        target_os = "linux",
+        target_os = "dragonfly",
+        target_os = "freebsd",
+        target_os = "netbsd",
+        target_os = "openbsd"
+    ))
+}
+
+/// Menu text and the accelerator passed to the native item.
+///
+/// A parsed chord is the accelerator and is not also embedded in the label.
+/// On Linux the shortcut is never written into the label, because some trays
+/// draw that string as-is, tab included. A shortcut that does not parse
+/// (a macOS symbol label, for example) stays in the label on other platforms.
+pub(crate) fn row_presentation(
+    label: &str,
+    shortcut: &str,
+    linux: bool,
+) -> (String, Option<tray_icon::menu::accelerator::Accelerator>) {
+    let accelerator = shortcut.parse().ok();
+    let platform = if linux { Platform::X11 } else { Platform::Mac };
+    let shown = if accelerator.is_some() { "" } else { shortcut };
+    let text = menu_label(label, shown, platform).replace('&', "&&");
+    (text, accelerator)
 }
 
 trait Append {
@@ -347,6 +380,25 @@ mod tests {
         let (width, height, rgba) = decode_png(&encoded).unwrap();
         assert_eq!((width, height), (1, 1));
         assert_eq!(rgba, vec![8, 16, 32, 64]);
+    }
+
+    #[test]
+    fn menu_rows_keep_the_accelerator_out_of_the_linux_label() {
+        let (text, accel) = super::row_presentation("Show Palette", "Alt+Space", true);
+        assert_eq!(text, "Show Palette");
+        assert!(accel.is_some());
+        let (text, accel) = super::row_presentation("Show Palette", "⌥Space", true);
+        assert_eq!(text, "Show Palette");
+        assert!(accel.is_none());
+        let (text, accel) = super::row_presentation("Show & Palette", "Alt+Space", false);
+        assert_eq!(text, "Show && Palette");
+        assert!(accel.is_some());
+        let (text, accel) = super::row_presentation("Show Palette", "⌥Space", false);
+        assert_eq!(text, "Show Palette\t⌥Space");
+        assert!(accel.is_none());
+        let (text, accel) = super::row_presentation("Quit", "", false);
+        assert_eq!(text, "Quit");
+        assert!(accel.is_none());
     }
 
     #[test]

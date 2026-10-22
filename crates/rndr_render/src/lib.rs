@@ -462,7 +462,8 @@ fn map_key_event(event: &winit::event::KeyEvent, modifiers: Modifiers) -> Option
 }
 
 fn produced_text(text: Option<&str>, modifiers: Modifiers) -> Option<String> {
-    if modifiers.command() {
+    // Super never inserts. Ctrl and Alt keep reported text so AltGr still types.
+    if modifiers.super_key {
         return None;
     }
     let text = text?;
@@ -964,6 +965,20 @@ mod tests {
             super::select_hotkey(std::iter::empty::<&str>(), None),
             super::DEFAULT_HOTKEY
         );
+    }
+
+    #[test]
+    fn reported_text_survives_ctrl_and_alt_but_not_super() {
+        let altgr = super::modifiers_of(false, true, true, false);
+        assert_eq!(super::produced_text(Some("é"), altgr).as_deref(), Some("é"));
+        let alt = super::modifiers_of(false, false, true, false);
+        assert_eq!(super::produced_text(Some("€"), alt).as_deref(), Some("€"));
+        let ctrl = super::modifiers_of(false, true, false, false);
+        assert_eq!(super::produced_text(Some("c"), ctrl).as_deref(), Some("c"));
+        assert_eq!(super::produced_text(Some("\u{1}"), ctrl), None);
+        let super_key = super::modifiers_of(false, false, false, true);
+        assert_eq!(super::produced_text(Some("a"), super_key), None);
+        assert_eq!(super::produced_text(None, alt), None);
     }
 
     #[test]

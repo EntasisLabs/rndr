@@ -51,10 +51,10 @@ fn main() {
     // Held across `run`. Dropping it releases the grab.
     let binding = configured_hotkey(std::env::args().skip(1));
     let _hotkey = match toggle_window(app.world_mut(), binding.as_str()) {
-        Ok(handle) => handle,
+        Ok(handle) => Some(handle),
         Err(err) => {
-            eprintln!("hotkey {binding}: {err}");
-            std::process::exit(1);
+            rndr_core::note_unregistered(app.world_mut(), binding.as_str(), err);
+            None
         }
     };
     run(app);

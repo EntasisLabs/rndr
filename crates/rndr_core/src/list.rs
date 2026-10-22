@@ -14,8 +14,10 @@
 //! Input, so Update on the same frame can run the command.
 //!
 //! Changing [`List::count`] clamps [`List::selected`] into range and resets
-//! [`List::offset`]. The selection is then scrolled back into view. Set `count`
-//! from Update; the pool rebuilds in PostUpdate, before layout.
+//! [`List::offset`]. The selection is then scrolled back into view, aligned to
+//! a row so the selected row is fully inside the viewport. Set `count` from
+//! Update; the pool rebuilds in PostUpdate, before layout, and again after
+//! layout on the same frame when the height was still unknown.
 //!
 //! The list layout should use a gap of 0. Row height is the stride, and
 //! [`Size::Fill`] on each row is what makes a resize follow the list width.
@@ -81,6 +83,8 @@ pub struct List {
     press_frame: u64,
     pointer: [f32; 2],
     pointer_ready: bool,
+    /// Viewport height the pool was last built for. `-1` until the first build.
+    built_for: f32,
 }
 
 impl List {
@@ -98,6 +102,7 @@ impl List {
             press_frame: 0,
             pointer: [0.0, 0.0],
             pointer_ready: false,
+            built_for: -1.0,
         }
     }
 }
@@ -249,10 +254,11 @@ pub(crate) fn apply_lists(world: &mut World) {
             }
         }
         reveal_if_moved(&mut list, height);
-        let max_offset = (list.count as f32 * list.row_height - height).max(0.0);
+        let max_offset = max_scroll(list.count, list.row_height, height);
         if list.row_height > 0.0 {
             list.offset = list.offset.clamp(0.0, max_offset);
         }
+        list.built_for = height;
         let (first, len) = window(list.offset, height, list.row_height, list.count);
         let selected = list.selected;
         world.insert(entity, list);
@@ -406,6 +412,28 @@ fn reveal_if_moved(list: &mut List, height: f32) {
     list.anchored = list.selected;
 }
 
+/// Rows that fit entirely. Half a point of slack keeps an exact multiple
+/// (a 200px view of 20px rows) from dropping the last row to float noise.
+fn full_rows(height: f32, row_height: f32) -> u32 {
+    if row_height <= 0.0 || height <= 0.0 {
+        return 1;
+    }
+    let rows = ((height + 0.5) / row_height).floor() as u32;
+    rows.max(1)
+}
+
+fn max_scroll(count: u32, row_height: f32, height: f32) -> f32 {
+    if height <= 0.0 || row_height <= 0.0 || count == 0 {
+        return 0.0;
+    }
+    let visible = full_rows(height, row_height);
+    count.saturating_sub(visible) as f32 * row_height
+}
+
+/// Scroll so the selection lies on a fully visible row.
+///
+/// Rows are placed from `floor(offset / row_height)`, so a fractional offset
+/// never brings the next row fully in. The offset is therefore row-aligned.
 fn reveal(list: &mut List, height: f32) {
     let Some(selected) = list.selected else {
         return;
@@ -413,14 +441,32 @@ fn reveal(list: &mut List, height: f32) {
     if list.row_height <= 0.0 || height <= 0.0 {
         return;
     }
-    let top = selected as f32 * list.row_height;
-    let bottom = top + list.row_height;
-    let view = height.max(0.0);
-    if top < list.offset {
-        list.offset = top;
-    } else if bottom > list.offset + view {
-        list.offset = (bottom - view).max(0.0);
+    let visible = full_rows(height, list.row_height);
+    let first = (list.offset.max(0.0) / list.row_height).floor() as u32;
+    let last = first.saturating_add(visible.saturating_sub(1));
+    if selected < first {
+        list.offset = selected as f32 * list.row_height;
+    } else if selected > last {
+        let start = selected.saturating_add(1).saturating_sub(visible);
+        list.offset = start as f32 * list.row_height;
     }
+}
+
+/// Rebuild any list whose viewport height changed after layout.
+pub(crate) fn sync_viewport(world: &mut World) -> bool {
+    let dirty = world.entities_with::<List>().into_iter().any(|entity| {
+        let Some(list) = world.get::<List>(entity) else {
+            return false;
+        };
+        let Some(rect) = world.get::<Rect>(entity) else {
+            return false;
+        };
+        rect.h > 0.0 && (rect.h - list.built_for).abs() > 0.5
+    });
+    if dirty {
+        apply_lists(world);
+    }
+    dirty
 }
 
 fn page_len(height: f32, row_height: f32) -> u32 {

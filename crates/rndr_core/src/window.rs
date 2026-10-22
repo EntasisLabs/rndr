@@ -19,12 +19,24 @@
 //! in that same call, so Input and Layout read the new size and scale.
 
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use crate::event::{self, Event};
 use crate::input::{Input, Key, Viewport};
 use crate::keys::{LogicalKey, NamedKey, Platform};
-use crate::runtime::{self, WakeSlot};
+use crate::runtime::{self, TimerHandle, WakeSlot};
 use crate::world::World;
+
+/// How long a blur must remain before `hide_on_blur` hides the window.
+///
+/// Releasing a grabbed hotkey can deliver focus-out and focus-in a fraction
+/// of a millisecond apart. Those are applied together at the end of the
+/// batch, and a blur that does not stay for this long does not hide.
+const BLUR_SETTLE: Duration = Duration::from_millis(40);
+
+/// After a programmatic show or focus, a blur waits at least this long.
+/// The grab that showed the window can release well after the show itself.
+const SHOW_GRACE: Duration = Duration::from_millis(200);
 
 /// Physical pixels per point. Non-positive or non-finite values read as 1.
 pub fn finite_scale(scale: f32) -> f32 {
@@ -128,9 +140,13 @@ pub struct WindowConfig {
     /// On macOS there is no taskbar; set [`Self::accessory`] to leave the Dock.
     pub skip_taskbar: bool,
     pub kind: WindowKind,
-    /// After the window has been focused once, a blur hides it.
-    /// A blur that arrives before the first focus is ignored, so a panel
-    /// does not dismiss itself while it is opening.
+    /// After the window has been focused once, a blur that stays hides it.
+    /// The blur is recorded immediately. The hide waits until the blur
+    /// settles, so a focus that returns in the same batch, or within that
+    /// settle, keeps the window up. A blur inside the grace period after a
+    /// programmatic show waits until the grace ends. A blur that arrives
+    /// before the first focus is ignored, so a panel does not dismiss itself
+    /// while it is opening. The hide does not emit a second blur.
     pub hide_on_blur: bool,
     pub dismiss: Dismiss,
     /// macOS only: run as an accessory app (no Dock icon) and do not activate
@@ -320,11 +336,12 @@ pub struct WindowTransition {
 ///
 /// `Show` and `Focus` are separate. `Focus` while hidden does nothing.
 /// `Toggle` hides a visible window, or shows and focuses a hidden one.
-/// `LostFocus` emits [`WindowFocus::Blurred`] before `hide_on_blur` adds a
-/// [`WindowEffect::Hide`], and it does not emit a second blur for that hide.
+/// `LostFocus` emits [`WindowFocus::Blurred`] and leaves the window visible.
+/// When [`WindowConfig::hide_on_blur`] is set, the hide is decided after the
+/// queued signals for the frame have all been applied.
 pub fn transition(
     mut phase: WindowPhase,
-    config: &WindowConfig,
+    _config: &WindowConfig,
     signal: WindowSignal,
 ) -> WindowTransition {
     let mut events = Vec::new();
@@ -355,15 +372,9 @@ pub fn transition(
             }
         }
         WindowSignal::LostFocus => {
-            if phase.armed {
-                if phase.focused {
-                    phase.focused = false;
-                    events.push(WindowFocus::Blurred);
-                }
-                if config.hide_on_blur && phase.visible {
-                    phase.visible = false;
-                    effects.push(WindowEffect::Hide);
-                }
+            if phase.armed && phase.focused {
+                phase.focused = false;
+                events.push(WindowFocus::Blurred);
             }
         }
     }
@@ -526,11 +537,19 @@ struct WindowEffects {
     pending: Vec<WindowEffect>,
 }
 
+#[derive(Default)]
+struct BlurWatch {
+    blur_since: Option<Duration>,
+    grace_until: Option<Duration>,
+    timer: Option<TimerHandle>,
+}
+
 pub(crate) fn install(world: &mut World) {
     world.insert_resource(WindowInbox::default());
     world.insert_resource(WindowPhase::default());
     world.insert_resource(WindowMetrics::default());
     world.insert_resource(WindowEffects::default());
+    world.insert_resource(BlurWatch::default());
 }
 
 /// Cloneable command sender. Safe to move into a `Send` task.
@@ -628,12 +647,14 @@ pub fn drain_effects(world: &mut World) -> Vec<WindowEffect> {
         .unwrap_or_default()
 }
 
-/// Apply queued show / hide / focus signals. Does not honor [`Dismiss`] and
-/// does not merge events. The frame merges before Input, and again after it.
+/// Apply queued show / hide / focus signals, then decide whether a blur has
+/// settled. Does not honor [`Dismiss`] and does not merge events. The frame
+/// merges before Input, and again after it.
 pub(crate) fn drive(world: &mut World) {
     for signal in drain_inbox(world) {
         apply_signal(world, signal);
     }
+    settle_blur(world);
 }
 
 /// Input stage. A bare Escape hides or quits when [`WindowConfig::dismiss`]
@@ -655,13 +676,103 @@ fn drain_inbox(world: &World) -> Vec<WindowSignal> {
 fn apply_signal(world: &mut World, signal: WindowSignal) {
     let config = WindowConfig::get(world);
     let phase = world.resource::<WindowPhase>().copied().unwrap_or_default();
-    let transition = transition(phase, &config, signal);
-    world.insert_resource(transition.phase);
-    for event in transition.events {
+    let step = transition(phase, &config, signal);
+    world.insert_resource(step.phase);
+    for event in step.events {
         event::send(world, event);
     }
     if let Some(effects) = world.resource_mut::<WindowEffects>() {
-        effects.pending.extend(transition.effects);
+        effects.pending.extend(step.effects.iter().copied());
+    }
+    note_watch(world, signal, phase, step.phase, &step.effects);
+}
+
+fn note_watch(
+    world: &mut World,
+    signal: WindowSignal,
+    before: WindowPhase,
+    after: WindowPhase,
+    effects: &[WindowEffect],
+) {
+    if !world.has_resource::<BlurWatch>() {
+        world.insert_resource(BlurWatch::default());
+    }
+    let now = runtime::clock_elapsed(world);
+    let hide_on_blur = WindowConfig::get(world).hide_on_blur;
+    let watch = world.resource_mut::<BlurWatch>().expect("blur watch");
+    if effects
+        .iter()
+        .any(|effect| matches!(effect, WindowEffect::Show | WindowEffect::Focus))
+    {
+        watch.grace_until = Some(now.saturating_add(SHOW_GRACE));
+    }
+    if signal == WindowSignal::LostFocus
+        && hide_on_blur
+        && before.focused
+        && !after.focused
+        && watch.blur_since.is_none()
+    {
+        watch.blur_since = Some(now);
+    }
+    if after.focused || !after.visible {
+        watch.blur_since = None;
+        watch.timer.take();
+    }
+}
+
+fn settle_blur(world: &mut World) {
+    if !WindowConfig::get(world).hide_on_blur {
+        if let Some(watch) = world.resource_mut::<BlurWatch>() {
+            watch.blur_since = None;
+            watch.timer.take();
+        }
+        return;
+    }
+    let phase = world.resource::<WindowPhase>().copied().unwrap_or_default();
+    let now = runtime::clock_elapsed(world);
+    enum Plan {
+        Hide,
+        Arm(Duration),
+        Wait,
+    }
+    let plan = {
+        let Some(watch) = world.resource_mut::<BlurWatch>() else {
+            return;
+        };
+        if phase.focused || !phase.visible || watch.blur_since.is_none() {
+            watch.blur_since = None;
+            watch.timer.take();
+            return;
+        }
+        let since = watch.blur_since.expect("blur start");
+        let settle_at = since.saturating_add(BLUR_SETTLE);
+        let deadline = match watch.grace_until {
+            Some(grace) if grace > settle_at => grace,
+            _ => settle_at,
+        };
+        if now >= deadline {
+            watch.blur_since = None;
+            watch.timer.take();
+            Plan::Hide
+        } else if watch.timer.is_none() {
+            Plan::Arm(deadline.saturating_sub(now))
+        } else {
+            Plan::Wait
+        }
+    };
+    match plan {
+        Plan::Hide => apply_signal(world, WindowSignal::Hide),
+        Plan::Arm(delay) => {
+            let handle = runtime::call_after(world, delay, |world| {
+                if let Some(watch) = world.resource_mut::<BlurWatch>() {
+                    watch.timer = None;
+                }
+            });
+            if let Some(watch) = world.resource_mut::<BlurWatch>() {
+                watch.timer = Some(handle);
+            }
+        }
+        Plan::Wait => {}
     }
 }
 

@@ -287,3 +287,92 @@ fn row_builder_supplies_text_and_rows_follow_width() {
     let width = app.world().get::<Rect>(rows[0]).unwrap().w;
     assert!((width - 220.0).abs() < 0.5, "resized row width {width}");
 }
+
+#[test]
+fn rows_exist_on_the_first_frame() {
+    let mut app = App::new();
+    app.add_plugin(Chrome);
+    app.world_mut().insert_resource(Viewport::new(160.0, 240.0));
+    let list = app.world_mut().spawn((
+        list_layout(),
+        Color::rgb(0.1, 0.1, 0.12),
+        List::new(30, 20.0),
+    ));
+    app.update();
+    let rows = pool(&app, list);
+    assert_eq!(rows.len(), 10);
+    assert!(app.world().get::<Rect>(rows[0]).unwrap().h > 0.0);
+
+    let mut app = App::new();
+    app.add_plugin(Chrome);
+    app.world_mut().insert_resource(Viewport::new(200.0, 300.0));
+    let parent = app.world_mut().spawn(list_layout());
+    let list = app.world_mut().spawn((
+        Layout {
+            axis: Axis::Column,
+            gap: 0.0,
+            padding: 0.0,
+            width: Size::Fill,
+            height: Size::Fill,
+            min_width: 0.0,
+            min_height: 0.0,
+        },
+        List::new(30, 20.0),
+    ));
+    set_parent(app.world_mut(), list, parent);
+    app.update();
+    let rows = pool(&app, list);
+    assert_eq!(rows.len(), 10);
+    assert!(app.world().get::<Rect>(rows[0]).unwrap().h > 0.0);
+}
+
+fn selection_fully_inside(app: &App, list: rndr_core::Entity, height: f32) {
+    let state = app.world().get::<List>(list).unwrap();
+    let selected = state.selected.expect("selection");
+    let top = selected as f32 * state.row_height;
+    let bottom = top + state.row_height;
+    assert!(
+        top + 0.01 >= state.offset,
+        "row {selected} starts at {top}, offset {}",
+        state.offset
+    );
+    assert!(
+        bottom <= state.offset + height + 0.01,
+        "row {selected} ends at {bottom}, view {}",
+        state.offset + height
+    );
+    let row = pool(app, list)
+        .into_iter()
+        .find(|row| app.world().get::<ListItem>(*row).unwrap().index == selected)
+        .expect("selected row is pooled");
+    let rect = app.world().get::<Rect>(row).unwrap();
+    let list_rect = app.world().get::<Rect>(list).unwrap();
+    assert!(rect.y + 0.5 >= list_rect.y);
+    assert!(rect.y + rect.h <= list_rect.y + list_rect.h + 0.5);
+}
+
+#[test]
+fn selection_stays_fully_visible_past_a_partial_row() {
+    let (mut app, list) = navigable(100, 190.0);
+    for _ in 0..9 {
+        press(&mut app, NamedKey::ArrowDown);
+    }
+    assert_eq!(selected(&app, list), Some(9));
+    selection_fully_inside(&app, list, 190.0);
+    press(&mut app, NamedKey::ArrowDown);
+    assert_eq!(selected(&app, list), Some(10));
+    selection_fully_inside(&app, list, 190.0);
+
+    press(&mut app, NamedKey::End);
+    assert_eq!(selected(&app, list), Some(99));
+    selection_fully_inside(&app, list, 190.0);
+    press(&mut app, NamedKey::PageUp);
+    assert_eq!(selected(&app, list), Some(90));
+    selection_fully_inside(&app, list, 190.0);
+    press(&mut app, NamedKey::Home);
+    assert_eq!(selected(&app, list), Some(0));
+    selection_fully_inside(&app, list, 190.0);
+    press(&mut app, NamedKey::PageDown);
+    assert_eq!(selected(&app, list), Some(9));
+    selection_fully_inside(&app, list, 190.0);
+}

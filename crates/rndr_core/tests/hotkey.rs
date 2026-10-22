@@ -7,8 +7,9 @@ use rndr_core::hotkey::{
     self, platform_accel, HotkeyBackend, HotkeyFailure, HotkeyId, PlatformAccel,
 };
 use rndr_core::{
-    events, window, GlobalHotkey, HotkeyBinding, HotkeyError, KeyCode, Keystroke, NamedKey,
-    Platform, Sim, WindowEffect,
+    events, window, Axis, CapturesKeys, Chrome, Color, Focus, Focusable, GlobalHotkey,
+    HotkeyBinding, HotkeyError, HotkeyRejected, Input, KeyCode, KeyEvent, Keystroke, Label, Layout,
+    Modifiers, NamedKey, Platform, Sim, Size, TextField, Viewport, WindowEffect,
 };
 
 struct FakeInner {
@@ -357,6 +358,82 @@ fn toggle_window_hides_then_shows_and_focuses() {
     );
     drop(handle);
     assert_eq!(inner.lock().unwrap().live.len(), 0);
+}
+
+#[test]
+fn a_registered_hotkey_and_its_repeats_do_not_type() {
+    let mut sim = Sim::new();
+    sim.world().insert_resource(Platform::X11);
+    install(&mut sim);
+    sim.app.add_plugin(Chrome);
+    sim.world().insert_resource(Viewport::new(240.0, 80.0));
+    sim.world().insert_resource(Focus::default());
+    let entity = sim.world().spawn((
+        Layout {
+            axis: Axis::Column,
+            gap: 0.0,
+            padding: 0.0,
+            width: Size::Px(200.0),
+            height: Size::Px(36.0),
+            min_width: 0.0,
+            min_height: 0.0,
+        },
+        Color::rgb(0.15, 0.16, 0.18),
+        Label::new("ab"),
+        TextField,
+        Focusable,
+        CapturesKeys,
+    ));
+    sim.world().resource_mut::<Focus>().unwrap().entity = Some(entity);
+    let _hotkey = hotkey::register(sim.world(), "Ctrl+Alt+Space").unwrap();
+    sim.update();
+
+    let chord = Modifiers {
+        shift: false,
+        ctrl: true,
+        alt: true,
+        super_key: false,
+    };
+    let input = sim.world().resource_mut::<Input>().unwrap();
+    input.push_key(
+        KeyEvent::named(NamedKey::Space, chord).with_text(" "),
+        Platform::X11,
+    );
+    input.push_key(
+        KeyEvent::named(NamedKey::Space, chord)
+            .with_text(" ")
+            .repeating(),
+        Platform::X11,
+    );
+    input.push_key(
+        KeyEvent::character('z', Modifiers::default()),
+        Platform::X11,
+    );
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "abz");
+
+    let input = sim.world().resource_mut::<Input>().unwrap();
+    input.push_key(
+        KeyEvent::named(NamedKey::Space, Modifiers::default()),
+        Platform::X11,
+    );
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "abz ");
+}
+
+#[test]
+fn note_unregistered_keeps_the_error_for_the_app() {
+    let mut sim = Sim::new();
+    hotkey::note_unregistered(sim.world(), "Alt+Space", HotkeyError::AlreadyTaken);
+    let notice = sim.world().resource::<HotkeyRejected>().unwrap();
+    assert_eq!(notice.binding, "Alt+Space");
+    assert_eq!(notice.error, HotkeyError::AlreadyTaken);
+    assert!(events::<HotkeyRejected>(sim.world()).is_empty());
+    sim.update();
+    let got = events::<HotkeyRejected>(sim.world());
+    assert_eq!(got.len(), 1);
+    assert_eq!(got[0].binding, "Alt+Space");
+    assert_eq!(got[0].error, HotkeyError::AlreadyTaken);
 }
 
 #[test]
