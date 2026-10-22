@@ -1,12 +1,12 @@
 use crate::caret::Caret;
 use crate::clipboard::{note_clipboard, Clipboard};
 use crate::edit::{delete_prev_span, floor_boundary, next_boundary, prev_boundary, selection_span};
-use crate::font::text_face;
 use crate::hierarchy::{children_of, Parent};
 use crate::input::{Focus, Input, Key};
 use crate::keys::{platform_of, KeyEvent, LogicalKey, Modifiers};
 use crate::layout::{ancestor_with, hit_test, Rect};
 use crate::style::{Label, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
+use crate::text::{style_of, text_engine};
 use crate::typing::{apply_text_event, EditHistory, EditSurface};
 use crate::world::{Component, World};
 use crate::wrap::with_text_layout;
@@ -423,8 +423,7 @@ fn publish_window(world: &mut World, entity: crate::entity::Entity) {
         .get::<Editor>(entity)
         .map(|editor| editor.offset)
         .unwrap_or(0.0);
-    let font = text_face(world);
-    let line_h = font.line_height().max(1.0);
+    let line_h = text_engine(world).line_height(&style_of(world)).max(1.0);
     let Some(buffer) = world.get::<Buffer>(entity) else {
         return;
     };
@@ -480,8 +479,7 @@ pub(crate) fn window_base(world: &World, entity: crate::entity::Entity) -> usize
         .get::<Editor>(entity)
         .map(|editor| editor.offset)
         .unwrap_or(0.0);
-    let font = text_face(world);
-    let line_h = font.line_height().max(1.0);
+    let line_h = text_engine(world).line_height(&style_of(world)).max(1.0);
     let Some(buffer) = world.get::<Buffer>(entity) else {
         return 0;
     };

@@ -1,12 +1,10 @@
 use crate::caret::{EditField, Field};
 use crate::entity::Entity;
-use crate::font::{
-    field_text_width, layout_cache_key, layout_text, layout_text_spans, line_col, measure_text,
-    text_face, BitmapFont, TextLayout,
-};
+use crate::font::{field_text_width, layout_text, line_col, BitmapFont, TextLayout};
 use crate::layout::{Layout, Rect, Size};
 use crate::pane::Pane;
 use crate::style::{Label, CELL_H, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
+use crate::text::{style_of, text_engine};
 use crate::world::World;
 
 /// Atlas glyph size after the render crate's 2x draw scale.
@@ -128,36 +126,24 @@ pub(crate) fn with_text_layout<R>(
     text: &str,
     f: impl FnOnce(&TextLayout) -> R,
 ) -> R {
-    let font = text_face(world);
+    let style = style_of(world);
+    let engine = text_engine(world);
     let wrap = world
         .get::<Field>(entity)
         .is_some_and(|field| field.kind == EditField::Body);
     let max_width = if wrap {
         world
             .get::<Rect>(entity)
-            .map(|rect| field_text_width(rect.w, font.advance('0')))
+            .map(|rect| field_text_width(rect.w, engine.unit_advance(&style)))
             .unwrap_or(f32::INFINITY)
     } else {
         f32::INFINITY
     };
-    let key = {
-        let spans = world
-            .get::<crate::font::Spans>(entity)
-            .map(|spans| spans.runs.as_slice())
-            .unwrap_or(&[]);
-        layout_cache_key(font.as_ref(), text, max_width, spans, "", 0)
-    };
-    if let Some(layout) = world.get::<TextLayout>(entity) {
-        if layout.cache_key == key {
-            return f(layout);
-        }
-    }
     let spans = world
         .get::<crate::font::Spans>(entity)
         .map(|spans| spans.runs.clone())
         .unwrap_or_default();
-    let mut layout = layout_text_spans(font.as_ref(), text, max_width, &spans);
-    layout.cache_key = key;
+    let layout = engine.layout(text, &style, &spans, max_width);
     f(&layout)
 }
 
@@ -184,16 +170,17 @@ pub fn apply_wrap(world: &mut World) {
                 .get::<Rect>(entity)
                 .map(|rect| rect.w)
                 .or_else(|| pane_inner_width(world, pane));
-            let font = text_face(world);
+            let style = style_of(world);
+            let engine = text_engine(world);
             let n = match width {
                 Some(width) => {
-                    let max = field_text_width(width, font.advance('0'));
-                    measure_text(font.as_ref(), &text, max).line_count
+                    let max = field_text_width(width, engine.unit_advance(&style));
+                    engine.measure(&text, &style, &[], max).line_count
                 }
                 None => text.split('\n').count().max(1),
             };
             if let Some(layout) = world.get_mut::<Layout>(entity) {
-                layout.height = Size::Px(field_height_for(n, font.line_height()));
+                layout.height = Size::Px(field_height_for(n, engine.line_height(&style)));
             }
         }
     }

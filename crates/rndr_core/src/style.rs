@@ -34,14 +34,26 @@ impl Color {
 }
 
 /// ASCII label drawn from the embedded bitmap font.
+///
+/// `color` overrides [`crate::Theme::text`] for this label. Styled runs on
+/// [`crate::Spans`] still win for the bytes they cover.
 #[derive(Clone, Debug)]
 pub struct Label {
     pub text: String,
+    pub color: Option<Color>,
 }
 
 impl Label {
     pub fn new(text: impl Into<String>) -> Self {
-        Self { text: text.into() }
+        Self {
+            text: text.into(),
+            color: None,
+        }
+    }
+
+    pub fn with_color(mut self, color: Color) -> Self {
+        self.color = Some(color);
+        self
     }
 }
 

@@ -65,6 +65,8 @@ fn wrap_inside_a_span_keeps_every_glyph() {
         end: 4,
         color: Color::rgb(0.2, 0.4, 0.8),
         face: 0,
+        weight: None,
+        highlight: None,
     }];
     let layout = layout_text_spans(&BitmapFont, "abcd", 32.0, &spans);
     assert_eq!(layout.glyphs.len(), 4);

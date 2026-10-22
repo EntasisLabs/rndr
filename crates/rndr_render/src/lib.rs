@@ -7,8 +7,9 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use rndr_core::{
-    legacy_key, text_face, App, Clipboard, Input, KeyCode as Physical, KeyEvent, LogicalKey,
-    Modifiers, NamedKey as CoreNamed, Platform, Pointer, Viewport, Wake, MOUSE_ID,
+    ensure_text_engine, legacy_key, text_engine, App, Clipboard, Input, KeyCode as Physical,
+    KeyEvent, LogicalKey, Modifiers, NamedKey as CoreNamed, Platform, Pointer, Viewport, Wake,
+    MOUSE_ID,
 };
 use rndr_paint::{atlas_r8, frame, ATLAS_H, ATLAS_W};
 use winit::application::ApplicationHandler;
@@ -427,8 +428,20 @@ impl ApplicationHandler<RunnerEvent> for Handler {
             .with_title("rndr")
             .with_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0));
         let window = Arc::new(event_loop.create_window(attrs).expect("window"));
-        let face = text_face(self.app.world());
-        let (atlas_w, atlas_h, atlas_pixels) = if let Some(atlas) = face.atlas() {
+        ensure_text_engine(self.app.world_mut());
+        let engine = text_engine(self.app.world());
+        let coverage = engine.coverage_atlas();
+        // Emoji and other color glyphs live in a second atlas. The builtin
+        // engine leaves it empty; a parley/swash engine fills it. The shader
+        // still samples the coverage atlas until that bind exists.
+        let color_atlas = engine.color_atlas();
+        if let Some(atlas) = &color_atlas {
+            debug_assert!(
+                atlas.width == 0
+                    || atlas.rgba.len() == (atlas.width as usize) * (atlas.height as usize) * 4
+            );
+        }
+        let (atlas_w, atlas_h, atlas_pixels) = if let Some(atlas) = coverage {
             (atlas.width, atlas.height, atlas.r8.to_vec())
         } else {
             (ATLAS_W, ATLAS_H, atlas_r8())

@@ -3,7 +3,8 @@
 //! A search field over a virtual list of commands. Typing emits `TextChanged`
 //! during Input; Update debounces a subsequence filter on the background
 //! executor. The list's standard keymap actions move the selection and Enter
-//! activates the row. Each row's shortcut comes from `Keymap::shortcut`.
+//! activates the row. Each row's shortcut comes from `Keymap::shortcut` and is
+//! drawn in its own dim label color. Letters the filter matched are highlighted.
 //! Running a command spawns a task whose handle lives in ordinary app state.
 //!
 //! ```text
@@ -230,17 +231,32 @@ fn build_row(world: &mut World, row: Entity, index: u32) {
     set_text(world, name, title);
     set_text(world, keys, &shortcut);
     let dim = Color::rgb(0.62, 0.66, 0.74);
-    world.insert(
-        keys,
-        Spans {
-            runs: vec![TextSpan {
-                start: 0,
-                end: shortcut.len(),
-                color: dim,
-                face: 0,
-            }],
-        },
-    );
+    if let Some(label) = world.get_mut::<Label>(keys) {
+        label.color = Some(dim);
+    }
+    world.remove::<Spans>(keys);
+    let query = world
+        .resource::<Palette>()
+        .map(|palette| palette.query.clone())
+        .unwrap_or_default();
+    let ranges = fuzzy(&query, title)
+        .map(|(_, ranges)| ranges)
+        .unwrap_or_default();
+    if ranges.is_empty() {
+        world.remove::<Spans>(name);
+    } else {
+        let text = theme.text;
+        let mark = Color::rgba(0.95, 0.78, 0.25, 0.70);
+        world.insert(
+            name,
+            Spans {
+                runs: ranges
+                    .into_iter()
+                    .map(|(start, end)| TextSpan::new(start, end, text).highlight(mark))
+                    .collect(),
+            },
+        );
+    }
 }
 
 fn command_at(world: &World, index: u32) -> Option<(&'static str, &'static str)> {
@@ -285,31 +301,43 @@ fn row_parts(world: &mut World, row: Entity) -> (Entity, Entity) {
 }
 
 /// Subsequence match. Lower score is better: tight, early matches win.
-fn fuzzy(query: &str, title: &str) -> Option<i32> {
+/// Ranges are byte spans in `title` for the letters that hit, merged when
+/// they sit next to each other.
+fn fuzzy(query: &str, title: &str) -> Option<(i32, Vec<(usize, usize)>)> {
     let query = query.trim().to_lowercase();
     if query.is_empty() {
-        return Some(0);
+        return Some((0, Vec::new()));
     }
-    let title = title.to_lowercase();
     let mut score = 0i32;
     let mut last: Option<usize> = None;
+    let mut ranges = Vec::new();
     let mut chars = title.char_indices();
     for q in query.chars().filter(|c| !c.is_whitespace()) {
-        let (at, _) = chars.by_ref().find(|(_, c)| *c == q)?;
+        let (at, ch) = chars
+            .by_ref()
+            .find(|(_, ch)| ch.to_ascii_lowercase() == q)?;
         score += match last {
             Some(prev) => (at - prev - 1) as i32,
             None => at as i32,
         };
         last = Some(at);
+        let end = at + ch.len_utf8();
+        if let Some((_, prev_end)) = ranges.last_mut() {
+            if *prev_end == at {
+                *prev_end = end;
+                continue;
+            }
+        }
+        ranges.push((at, end));
     }
-    Some(score)
+    Some((score, ranges))
 }
 
 fn filter(query: &str) -> Vec<usize> {
     let mut hits: Vec<(i32, usize)> = COMMANDS
         .iter()
         .enumerate()
-        .filter_map(|(index, (_, title))| fuzzy(query, title).map(|score| (score, index)))
+        .filter_map(|(index, (_, title))| fuzzy(query, title).map(|(score, _)| (score, index)))
         .collect();
     hits.sort_by_key(|(score, index)| (*score, *index));
     hits.into_iter().map(|(_, index)| index).collect()
@@ -450,4 +478,20 @@ fn main() {
     app.add_system(Schedule::Startup, setup);
     app.add_system(Schedule::Update, palette_update);
     run(app);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::fuzzy;
+
+    #[test]
+    fn fuzzy_records_the_matched_letters() {
+        let (score, ranges) = fuzzy("sm", "Search memory").unwrap();
+        assert_eq!(ranges, vec![(0, 1), (7, 8)]);
+        assert_eq!(score, 6);
+        let (_, tight) = fuzzy("se", "Search memory").unwrap();
+        assert_eq!(tight, vec![(0, 2)]);
+        assert!(fuzzy("zzz", "Search memory").is_none());
+        assert!(fuzzy("  ", "Search memory").unwrap().1.is_empty());
+    }
 }
