@@ -148,11 +148,11 @@ impl Handler {
 fn host_platform() -> Platform {
     #[cfg(target_os = "macos")]
     {
-        return Platform::Mac;
+        Platform::Mac
     }
     #[cfg(target_os = "windows")]
     {
-        return Platform::Windows;
+        Platform::Windows
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {

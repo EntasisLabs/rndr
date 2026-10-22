@@ -65,16 +65,24 @@ pub(crate) fn steer(event: &KeyEvent, platform: Platform) -> Steer {
     }
 }
 
+/// Document text and the caret, borrowed together so one edit stays in sync.
+pub(crate) struct EditSurface<'a> {
+    pub text: &'a mut String,
+    pub index: &'a mut usize,
+    pub anchor: &'a mut usize,
+}
+
 pub(crate) fn apply_text_event(
-    text: &mut String,
-    index: &mut usize,
-    anchor: &mut usize,
+    surface: &mut EditSurface<'_>,
     event: &KeyEvent,
     platform: Platform,
     newline: bool,
     history: &mut EditHistory,
     clip: &str,
 ) -> StepResult {
+    let text = &mut *surface.text;
+    let index = &mut *surface.index;
+    let anchor = &mut *surface.anchor;
     let shift = event.modifiers.shift;
     if let Some(action) = standard_action(platform, event) {
         return apply_action(text, index, anchor, action, shift, history, clip);

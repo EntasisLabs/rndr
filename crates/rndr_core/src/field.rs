@@ -5,7 +5,7 @@ use crate::input::{Focus, Input, Key};
 use crate::keys::{platform_of, KeyEvent, LogicalKey, Modifiers};
 use crate::layout::{ancestor_with, hit_test, Rect};
 use crate::style::{Label, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
-use crate::typing::{apply_text_event, EditHistory};
+use crate::typing::{apply_text_event, EditHistory, EditSurface};
 use crate::world::{Component, World};
 use crate::wrap::with_text_layout;
 
@@ -166,9 +166,11 @@ fn edit_label_queue(
     let mut clipboard_action = false;
     for event in keys {
         let step = apply_text_event(
-            &mut text,
-            &mut index,
-            &mut anchor,
+            &mut EditSurface {
+                text: &mut text,
+                index: &mut index,
+                anchor: &mut anchor,
+            },
             event,
             platform,
             false,
@@ -190,9 +192,11 @@ fn edit_label_queue(
             repeat: false,
         };
         let _ = apply_text_event(
-            &mut text,
-            &mut index,
-            &mut anchor,
+            &mut EditSurface {
+                text: &mut text,
+                index: &mut index,
+                anchor: &mut anchor,
+            },
             &commit_event,
             platform,
             false,

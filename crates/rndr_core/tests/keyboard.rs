@@ -463,24 +463,22 @@ fn multi_stroke_waits_and_times_out() {
     let k = KeyEvent::character('k', ctrl);
     let s = KeyEvent::character('s', ctrl);
 
-    let first = map.dispatch(&[], &[k.clone()], Platform::Windows, 0);
+    let first = map.dispatch(&[], std::slice::from_ref(&k), Platform::Windows, 0);
     assert!(first.actions.is_empty());
     assert_eq!(map.pending_len(), 1);
     assert_eq!(first.consumed, vec![0]);
 
-    let done = map.dispatch(&[], &[s.clone()], Platform::Windows, 500);
+    let done = map.dispatch(&[], std::slice::from_ref(&s), Platform::Windows, 500);
     assert_eq!(done.actions, vec!["save-all".to_string()]);
     assert_eq!(map.pending_len(), 0);
 
-    let armed = map.dispatch(&[], &[k.clone()], Platform::Windows, 0);
+    let armed = map.dispatch(&[], std::slice::from_ref(&k), Platform::Windows, 0);
     assert!(armed.actions.is_empty());
     let expired = map.dispatch(&[], &[], Platform::Windows, 1001);
     assert_eq!(expired.actions, vec!["open".to_string()]);
     assert_eq!(map.pending_len(), 0);
-    let late = map.dispatch(&[], &[s], Platform::Windows, 1002);
+    let late = map.dispatch(&[], std::slice::from_ref(&s), Platform::Windows, 1002);
     assert!(late.actions.is_empty());
-
-    let _ = k;
 }
 
 #[test]

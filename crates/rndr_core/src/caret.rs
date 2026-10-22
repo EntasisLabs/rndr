@@ -8,7 +8,7 @@ use crate::keys::{platform_of, KeyEvent};
 use crate::layout::{ancestor_with, hit_test, Clip, Rect, Scroll};
 use crate::pane::Pane;
 use crate::style::{Body, Label};
-use crate::typing::{apply_text_event, steer, EditHistory, Steer};
+use crate::typing::{apply_text_event, steer, EditHistory, EditSurface, Steer};
 use crate::world::{Component, World};
 use crate::wrap::{
     visual_pos, visual_selection_spans, with_text_layout, wrap_lines, GLYPH_PX, TEXT_INSET_X,
@@ -285,9 +285,11 @@ fn edit_row(
     let original = text.clone();
     let mut history = world.remove::<EditHistory>(row).unwrap_or_default();
     let step = apply_text_event(
-        &mut text,
-        &mut index,
-        &mut anchor,
+        &mut EditSurface {
+            text: &mut text,
+            index: &mut index,
+            anchor: &mut anchor,
+        },
         event,
         platform,
         field == EditField::Body,
@@ -295,7 +297,18 @@ fn edit_row(
         clip,
     );
     world.insert(row, history);
-    store_row(world, source, field, row, &text, index, anchor, &original);
+    store_row(
+        world,
+        source,
+        field,
+        row,
+        Written {
+            text: &text,
+            index,
+            anchor,
+            original: &original,
+        },
+    );
     step
 }
 
@@ -324,7 +337,25 @@ fn nudge(world: &mut World, source: Entity, field: EditField, delta: isize, shif
     } else {
         (next, next)
     };
-    store_row(world, source, field, row, &text, index, anchor, &text);
+    store_row(
+        world,
+        source,
+        field,
+        row,
+        Written {
+            text: &text,
+            index,
+            anchor,
+            original: &text,
+        },
+    );
+}
+
+struct Written<'a> {
+    text: &'a str,
+    index: usize,
+    anchor: usize,
+    original: &'a str,
 }
 
 fn store_row(
@@ -332,33 +363,30 @@ fn store_row(
     source: Entity,
     field: EditField,
     row: Entity,
-    text: &str,
-    index: usize,
-    anchor: usize,
-    original: &str,
+    written: Written<'_>,
 ) {
     if let Some(label) = world.get_mut::<Label>(row) {
-        label.text = text.to_string();
+        label.text = written.text.to_string();
     }
     if let Some(caret) = world.get_mut::<Caret>(row) {
-        caret.index = index;
-        caret.anchor = anchor;
+        caret.index = written.index;
+        caret.anchor = written.anchor;
     }
     match field {
         EditField::Title => {
             if let Some(header) = header_label_entity(world, source) {
                 if let Some(label) = world.get_mut::<Label>(header) {
-                    label.text = text.to_string();
+                    label.text = written.text.to_string();
                 }
             }
         }
         EditField::Body => {
             if let Some(body) = world.get_mut::<Body>(source) {
-                body.text = text.to_string();
+                body.text = written.text.to_string();
             }
         }
     }
-    if text != original && world.has::<FsPath>(source) {
+    if written.text != written.original && world.has::<FsPath>(source) {
         world.insert(source, Dirty);
     }
 }
