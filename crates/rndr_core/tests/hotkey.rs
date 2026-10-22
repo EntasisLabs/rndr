@@ -4,12 +4,13 @@ use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
 use rndr_core::hotkey::{
-    self, platform_accel, HotkeyBackend, HotkeyFailure, HotkeyId, PlatformAccel,
+    self, platform_accel, HotkeyBackend, HotkeyEdge, HotkeyFailure, HotkeyId, PlatformAccel,
 };
 use rndr_core::{
-    events, window, Axis, CapturesKeys, Chrome, Color, Focus, Focusable, GlobalHotkey,
-    HotkeyBinding, HotkeyError, HotkeyRejected, Input, KeyCode, KeyEvent, Keystroke, Label, Layout,
-    LogicalKey, Modifiers, NamedKey, Platform, Sim, Size, TextField, Viewport, WindowEffect,
+    events, push_report, toggle_on_click, window, Axis, CapturesKeys, Chrome, Color, Dismiss,
+    Focus, Focusable, GlobalHotkey, HotkeyBinding, HotkeyError, HotkeyRejected, Input, KeyCode,
+    KeyEvent, Keystroke, Label, Layout, LogicalKey, Modifiers, NamedKey, Platform, Schedule, Sim,
+    Size, TextField, TrayReport, Viewport, WindowConfig, WindowEffect,
 };
 
 struct FakeInner {
@@ -18,6 +19,7 @@ struct FakeInner {
     unregisters: u32,
     fail_next: Option<HotkeyFailure>,
     presses: Vec<HotkeyId>,
+    releases: Vec<HotkeyId>,
 }
 
 struct Fake {
@@ -32,6 +34,7 @@ impl Fake {
             unregisters: 0,
             fail_next: None,
             presses: Vec::new(),
+            releases: Vec::new(),
         }));
         (
             Self {
@@ -64,6 +67,13 @@ impl HotkeyBackend for Fake {
 
     fn poll(&mut self) -> Vec<HotkeyId> {
         std::mem::take(&mut self.inner.lock().expect("fake").presses)
+    }
+
+    fn poll_edges(&mut self) -> Vec<HotkeyEdge> {
+        let mut inner = self.inner.lock().expect("fake");
+        let mut edges: Vec<_> = inner.presses.drain(..).map(HotkeyEdge::Press).collect();
+        edges.extend(inner.releases.drain(..).map(HotkeyEdge::Release));
+        edges
     }
 }
 
@@ -455,66 +465,61 @@ fn space_up() -> KeyEvent {
 }
 
 #[test]
-fn a_fired_hotkey_suppresses_its_base_key_until_release() {
+fn a_fired_hotkey_suppresses_its_own_key_and_repeats() {
     let mut sim = Sim::new();
     sim.world().insert_resource(Platform::X11);
     let inner = install(&mut sim);
     let entity = spawn_field(&mut sim, "");
     let handle = hotkey::register(sim.world(), "Ctrl+Alt+Space").unwrap();
 
+    // The frame the chord fires still owns the base key, including a text-only
+    // space that no longer carries the modifiers.
     inner.lock().unwrap().presses.push(handle.id());
+    let input = sim.world().resource_mut::<Input>().unwrap();
+    input.push_key(space_text(), Platform::X11);
+    input.push_key(text_only_space(), Platform::X11);
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "");
+
     sim.world()
         .resource_mut::<Input>()
         .unwrap()
-        .push_key(space_text(), Platform::X11);
+        .push_key(space_text().repeating(), Platform::X11);
     sim.update();
     assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "");
 
-    sim.world().resource_mut::<Input>().unwrap().push_key(
-        KeyEvent {
-            logical: LogicalKey::Unidentified,
-            text: Some(" ".to_string()),
-            code: None,
-            modifiers: Modifiers::default(),
-            repeat: false,
-            released: false,
-            synthetic: false,
-            order: KeyEvent::UNORDERED,
-        },
-        Platform::X11,
-    );
+    // A fresh press is not the held chord. It clears the guard and is text.
+    sim.world()
+        .resource_mut::<Input>()
+        .unwrap()
+        .push_key(text_only_space(), Platform::X11);
     sim.update();
-    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "");
-
-    sim.world().resource_mut::<Input>().unwrap().push_key(
-        KeyEvent::character('z', Modifiers::default()),
-        Platform::X11,
-    );
-    sim.update();
-    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "z");
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, " ");
 
     let input = sim.world().resource_mut::<Input>().unwrap();
     input.push_key(
         KeyEvent::named(NamedKey::Escape, Modifiers::default()).released(),
         Platform::X11,
     );
-    input.push_key(space_text(), Platform::X11);
-    sim.update();
-    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "z");
-
-    sim.world().resource_mut::<Input>().unwrap().push_key(
-        KeyEvent::named(NamedKey::Space, Modifiers::default()).released(),
+    input.push_key(
+        KeyEvent::character('z', Modifiers::default()),
         Platform::X11,
     );
     sim.update();
-    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "z");
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, " z");
+}
 
-    sim.world()
-        .resource_mut::<Input>()
-        .unwrap()
-        .push_key(space_text(), Platform::X11);
-    sim.update();
-    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "z ");
+fn text_only_space() -> KeyEvent {
+    KeyEvent {
+        logical: LogicalKey::Unidentified,
+        text: Some(" ".to_string()),
+        code: None,
+        modifiers: Modifiers::default(),
+        repeat: false,
+        released: false,
+        synthetic: false,
+        order: KeyEvent::UNORDERED,
+    }
 }
 
 #[test]
@@ -733,6 +738,177 @@ fn an_older_queued_key_up_does_not_release_when_the_clock_has_moved_on() {
         .resource_mut::<Input>()
         .unwrap()
         .push_key(space_text().with_order(11), Platform::Wayland);
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, " ");
+}
+
+#[test]
+fn hotkey_show_inserts_a_later_space_without_a_window_key_up() {
+    let mut sim = Sim::new();
+    sim.world().insert_resource(Platform::X11);
+    let inner = install(&mut sim);
+    let entity = spawn_field(&mut sim, "");
+    let handle = hotkey::toggle_window(sim.world(), "Ctrl+Alt+Space").unwrap();
+
+    // Hide, then show. The window is never given a Space key-up: on X11 that
+    // event belongs to the grab.
+    inner.lock().unwrap().presses.push(handle.id());
+    sim.update();
+    assert!(!window::is_visible(sim.world()));
+    inner.lock().unwrap().presses.push(handle.id());
+    sim.update();
+    assert!(window::is_visible(sim.world()));
+
+    let input = sim.world().resource_mut::<Input>().unwrap();
+    input.push_key(
+        KeyEvent::character('a', Modifiers::default()),
+        Platform::X11,
+    );
+    input.push_key(space_text(), Platform::X11);
+    input.push_key(
+        KeyEvent::character('b', Modifiers::default()),
+        Platform::X11,
+    );
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "a b");
+}
+
+#[test]
+fn a_backend_release_clears_the_guard_without_a_window_key_up() {
+    let mut sim = Sim::new();
+    sim.world().insert_resource(Platform::X11);
+    let inner = install(&mut sim);
+    let entity = spawn_field(&mut sim, "");
+    let handle = hotkey::register(sim.world(), "Ctrl+Alt+Space").unwrap();
+
+    hotkey::note_key_order(sim.world(), 4);
+    inner.lock().unwrap().presses.push(handle.id());
+    sim.update();
+
+    // The grab's KeyRelease and a synthetic focus key-up land together.
+    // The synthetic event is still not text. The real Space is, because the
+    // chord has already gone up.
+    inner.lock().unwrap().releases.push(handle.id());
+    let input = sim.world().resource_mut::<Input>().unwrap();
+    input.push_key(space_up().synthetic().with_order(6), Platform::X11);
+    input.push_key(space_text().synthetic().with_order(7), Platform::X11);
+    input.push_key(space_text().with_order(8), Platform::X11);
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, " ");
+
+    // A key-down queued before the guard is still not that fresh press.
+    hotkey::note_key_order(sim.world(), 20);
+    inner.lock().unwrap().presses.push(handle.id());
+    inner.lock().unwrap().releases.push(handle.id());
+    sim.update();
+    sim.world()
+        .resource_mut::<Input>()
+        .unwrap()
+        .push_key(space_text().with_order(12), Platform::X11);
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, " ");
+
+    sim.world()
+        .resource_mut::<Input>()
+        .unwrap()
+        .push_key(space_text().with_order(21), Platform::X11);
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "  ");
+}
+
+#[test]
+fn esc_hide_after_a_hotkey_show_lets_the_tray_show_insert_space() {
+    let mut sim = Sim::new();
+    sim.world().insert_resource(Platform::X11);
+    sim.world().insert_resource(WindowConfig {
+        dismiss: Dismiss::Hide,
+        ..WindowConfig::default()
+    });
+    sim.app.add_system(Schedule::Update, toggle_on_click);
+    let inner = install(&mut sim);
+    let entity = spawn_field(&mut sim, "");
+    let handle = hotkey::toggle_window(sim.world(), "Ctrl+Alt+Space").unwrap();
+
+    window::hide(sim.world());
+    sim.update();
+    assert!(!window::is_visible(sim.world()));
+
+    // Arm against a clock the following Space does not pass. Hide has to drop
+    // the guard; a surviving guard would still treat this press as in-flight.
+    hotkey::note_key_order(sim.world(), 50);
+    inner.lock().unwrap().presses.push(handle.id());
+    sim.update();
+    assert!(window::is_visible(sim.world()));
+
+    sim.world().resource_mut::<Input>().unwrap().push_key(
+        KeyEvent::named(NamedKey::Escape, Modifiers::default()),
+        Platform::X11,
+    );
+    sim.update();
+    assert!(!window::is_visible(sim.world()));
+
+    push_report(sim.world(), TrayReport::Click);
+    sim.update();
+    assert!(window::is_visible(sim.world()));
+
+    sim.world()
+        .resource_mut::<Input>()
+        .unwrap()
+        .push_key(space_text().with_order(10), Platform::X11);
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, " ");
+}
+
+#[test]
+fn hotkey_toggle_off_drops_the_guard_before_the_next_show() {
+    let mut sim = Sim::new();
+    sim.world().insert_resource(Platform::X11);
+    let inner = install(&mut sim);
+    let entity = spawn_field(&mut sim, "");
+    let handle = hotkey::toggle_window(sim.world(), "Alt+Space").unwrap();
+
+    window::hide(sim.world());
+    sim.update();
+    hotkey::note_key_order(sim.world(), 40);
+    inner.lock().unwrap().presses.push(handle.id());
+    sim.update();
+    assert!(window::is_visible(sim.world()));
+
+    inner.lock().unwrap().presses.push(handle.id());
+    sim.update();
+    assert!(!window::is_visible(sim.world()));
+
+    window::show(sim.world());
+    sim.update();
+    sim.world()
+        .resource_mut::<Input>()
+        .unwrap()
+        .push_key(space_text().with_order(5), Platform::X11);
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, " ");
+}
+
+#[test]
+fn a_held_hotkey_repeat_stays_suppressed() {
+    let mut sim = Sim::new();
+    sim.world().insert_resource(Platform::X11);
+    let inner = install(&mut sim);
+    let entity = spawn_field(&mut sim, "");
+    let handle = hotkey::register(sim.world(), "Alt+Space").unwrap();
+
+    inner.lock().unwrap().presses.push(handle.id());
+    sim.update();
+
+    let input = sim.world().resource_mut::<Input>().unwrap();
+    input.push_key(space_text().repeating().with_order(3), Platform::X11);
+    input.push_key(space_text().repeating().with_order(4), Platform::X11);
+    sim.update();
+    assert_eq!(sim.world().get::<Label>(entity).unwrap().text, "");
+
+    sim.world()
+        .resource_mut::<Input>()
+        .unwrap()
+        .push_key(space_text().with_order(8), Platform::X11);
     sim.update();
     assert_eq!(sim.world().get::<Label>(entity).unwrap().text, " ");
 }

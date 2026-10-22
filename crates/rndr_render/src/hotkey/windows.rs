@@ -7,7 +7,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 
-use rndr_core::hotkey::{HotkeyBackend, HotkeyFailure, HotkeyId, PlatformAccel};
+use rndr_core::hotkey::{HotkeyBackend, HotkeyEdge, HotkeyFailure, HotkeyId, PlatformAccel};
 use windows_sys::Win32::Foundation::{
     GetLastError, ERROR_HOTKEY_ALREADY_REGISTERED, LPARAM, WPARAM,
 };
@@ -108,7 +108,16 @@ impl HotkeyBackend for WinHotkeys {
     }
 
     fn poll(&mut self) -> Vec<HotkeyId> {
-        self.presses.drain()
+        // `RegisterHotKey` has no key-up. A later non-repeat of the base key
+        // clears the text guard when this queue never reports a release.
+        self.presses
+            .drain()
+            .into_iter()
+            .filter_map(|edge| match edge {
+                HotkeyEdge::Press(id) => Some(id),
+                HotkeyEdge::Release(_) => None,
+            })
+            .collect()
     }
 }
 

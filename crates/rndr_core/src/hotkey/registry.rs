@@ -23,14 +23,36 @@ pub enum HotkeyFailure {
     Invalid,
 }
 
+/// One edge from a global hotkey grab. Repeats are not edges.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HotkeyEdge {
+    /// The chord went down.
+    Press(HotkeyId),
+    /// The chord went up. Clears the text guard for that chord's base key.
+    Release(HotkeyId),
+}
+
 /// OS or test double that owns the grabs.
 ///
-/// `poll` returns presses queued since the last call. A real backend pushes
-/// those from the thread the OS woke and does not touch the world.
+/// [`HotkeyBackend::poll_edges`] returns edges queued since the last call. A
+/// real backend pushes those from the thread the OS woke and does not touch
+/// the world.
 pub trait HotkeyBackend: Send {
     fn register(&mut self, id: HotkeyId, accel: &PlatformAccel) -> Result<(), HotkeyFailure>;
     fn unregister(&mut self, id: HotkeyId);
+    /// Presses queued since the last call.
+    ///
+    /// Backends that also see a key-up should drain in [`poll_edges`] instead,
+    /// and implement this as the press half of that drain only when nothing
+    /// else calls both.
     fn poll(&mut self) -> Vec<HotkeyId>;
+    /// Presses and releases in the order they happened.
+    ///
+    /// The default treats every [`poll`](Self::poll) id as a press. A backend
+    /// with a release path overrides this and does its draining here.
+    fn poll_edges(&mut self) -> Vec<HotkeyEdge> {
+        self.poll().into_iter().map(HotkeyEdge::Press).collect()
+    }
 }
 
 impl HotkeyBackend for Box<dyn HotkeyBackend> {
@@ -44,6 +66,10 @@ impl HotkeyBackend for Box<dyn HotkeyBackend> {
 
     fn poll(&mut self) -> Vec<HotkeyId> {
         (**self).poll()
+    }
+
+    fn poll_edges(&mut self) -> Vec<HotkeyEdge> {
+        (**self).poll_edges()
     }
 }
 
@@ -331,56 +357,85 @@ pub fn note_key_order(world: &mut World, seq: u64) {
     world.insert_resource(KeyOrder { seq });
 }
 
+/// One armed base key.
+///
+/// `at` is the receive-order a key-up must pass. `released` is set when the
+/// grab reports the chord up, which a window key-up on X11 never does.
+#[derive(Clone, Copy)]
+struct Guard {
+    at: u64,
+    released: bool,
+}
+
 /// Physical keys held because a global hotkey just fired.
 ///
-/// The value is the receive-order just before the key-up that is allowed to
-/// release the guard. Tracked by [`KeyCode`] rather than the modifiers on the
-/// event that arrives later.
+/// Tracked by [`KeyCode`] rather than the modifiers on the event that arrives
+/// later. Hiding the window drops the map.
 #[derive(Default)]
 struct ArmedKeys {
-    codes: HashMap<KeyCode, u64>,
+    codes: HashMap<KeyCode, Guard>,
+}
+
+/// The window hid. A guard must not still be armed on the next show.
+pub(crate) fn disarm_guard(world: &mut World) {
+    if let Some(armed) = world.resource_mut::<ArmedKeys>() {
+        armed.codes.clear();
+    }
 }
 
 pub(crate) fn drive(world: &mut World) {
-    let fired = deliver_presses(world);
-    suppress_hotkey_keys(world, &fired);
+    let updates = deliver_edges(world);
+    suppress_hotkey_keys(world, &updates);
 }
 
-fn deliver_presses(world: &mut World) -> Vec<HotkeyBinding> {
+enum ChordUpdate {
+    Fire(HotkeyBinding),
+    Release(HotkeyBinding),
+}
+
+fn deliver_edges(world: &mut World) -> Vec<ChordUpdate> {
     let Some(installed) = world.resource::<HotkeyHub>() else {
         return Vec::new();
     };
     let hub = Arc::clone(&installed.hub);
-    let presses = lock(&hub.backend).poll();
-    if presses.is_empty() {
+    let edges = lock(&hub.backend).poll_edges();
+    if edges.is_empty() {
         return Vec::new();
     }
-    let planned: Vec<(HotkeyId, HotkeyBinding, bool)> = {
+    let planned: Vec<(HotkeyEdge, HotkeyBinding, bool)> = {
         let state = lock(&hub.state);
-        presses
+        edges
             .into_iter()
-            .filter_map(|id| {
+            .filter_map(|edge| {
+                let id = match edge {
+                    HotkeyEdge::Press(id) | HotkeyEdge::Release(id) => id,
+                };
                 if !state.refs.contains_key(&id) {
                     return None;
                 }
                 let binding = *state.bindings.get(&id)?;
                 let toggle = state.toggles.contains(&id);
-                Some((id, binding, toggle))
+                Some((edge, binding, toggle))
             })
             .collect()
     };
-    let mut fired = Vec::with_capacity(planned.len());
-    for (id, binding, toggle) in planned {
-        event::send(world, GlobalHotkey { id, binding });
-        if toggle {
-            window::toggle(world);
+    let mut updates = Vec::with_capacity(planned.len());
+    for (edge, binding, toggle) in planned {
+        match edge {
+            HotkeyEdge::Press(id) => {
+                event::send(world, GlobalHotkey { id, binding });
+                if toggle {
+                    window::toggle(world);
+                }
+                updates.push(ChordUpdate::Fire(binding));
+            }
+            HotkeyEdge::Release(_) => updates.push(ChordUpdate::Release(binding)),
         }
-        fired.push(binding);
     }
-    fired
+    updates
 }
 
-/// Drop chord matches, synthetic focus events, the armed base key, and releases.
+/// Drop chord matches, synthetic focus events, held repeats, and releases.
 ///
 /// A release is not text. Synthetic key-ups and key-downs (winit focus changes
 /// on X11 and Windows) are not text either, and a synthetic key-up does not
@@ -389,8 +444,13 @@ fn deliver_presses(world: &mut World) -> Vec<HotkeyBinding> {
 /// A key-up releases the guard only when it was received after the hotkey.
 /// Events already in this frame's queue count: the runner may have stamped
 /// them before this call. A key-up stamped earlier, and delivered only once
-/// the hidden window catches up, does not.
-fn suppress_hotkey_keys(world: &mut World, fired: &[HotkeyBinding]) {
+/// the hidden window catches up, does not. On X11 that physical key-up is
+/// delivered to the grab instead of the window, so a backend [`HotkeyEdge::Release`]
+/// marks the guard released. A fresh non-repeat of the base key is the press
+/// after that, and is inserted. Auto-repeat of the held chord stays out, as
+/// does the base key on the frame the chord fired and any key-down queued
+/// before the guard.
+fn suppress_hotkey_keys(world: &mut World, updates: &[ChordUpdate]) {
     let strokes = registered_strokes(world);
     let platform = platform_of(world);
     let clock = key_order(world);
@@ -402,9 +462,28 @@ fn suppress_hotkey_keys(world: &mut World, fired: &[HotkeyBinding]) {
         .resource_mut::<ArmedKeys>()
         .map(|armed| std::mem::take(&mut armed.codes))
         .unwrap_or_default();
-    for binding in fired {
-        if let Some(code) = trigger_code(binding.keystroke()) {
-            armed.insert(code, armed_at);
+    let mut fired_now = HashSet::new();
+    for update in updates {
+        match update {
+            ChordUpdate::Fire(binding) => {
+                if let Some(code) = trigger_code(binding.keystroke()) {
+                    armed.insert(
+                        code,
+                        Guard {
+                            at: armed_at,
+                            released: false,
+                        },
+                    );
+                    fired_now.insert(code);
+                }
+            }
+            ChordUpdate::Release(binding) => {
+                if let Some(code) = trigger_code(binding.keystroke()) {
+                    if let Some(guard) = armed.get_mut(&code) {
+                        guard.released = true;
+                    }
+                }
+            }
         }
     }
     let live: HashSet<KeyCode> = strokes
@@ -419,14 +498,23 @@ fn suppress_hotkey_keys(world: &mut World, fired: &[HotkeyBinding]) {
     };
     let before = input.keys.len();
     let mut kept = Vec::with_capacity(before);
+    // Key-ups in this frame that did not clear the guard. A key-down beside
+    // one of those is the focus-in pair, not a new press.
+    let mut blocked = HashSet::new();
     for event in input.keys.drain(..) {
         if event.synthetic {
+            if event.released {
+                note_failed_release(&event, &armed, &mut blocked);
+            }
             continue;
         }
         if event.released {
             if let Some(code) = source_code(&event) {
-                if release_clears(event.order, armed.get(&code).copied()) {
+                if release_clears(event.order, armed.get(&code).map(|guard| guard.at)) {
                     armed.remove(&code);
+                    blocked.remove(&code);
+                } else {
+                    note_failed_release(&event, &armed, &mut blocked);
                 }
             }
             continue;
@@ -437,8 +525,18 @@ fn suppress_hotkey_keys(world: &mut World, fired: &[HotkeyBinding]) {
         {
             continue;
         }
-        if held_hotkey(&event, &armed) {
-            continue;
+        if let Some(code) = armed_code(&event, &armed) {
+            let guard = armed[&code];
+            if suppress_armed_down(
+                &event,
+                guard,
+                fired_now.contains(&code),
+                blocked.contains(&code),
+            ) {
+                continue;
+            }
+            armed.remove(&code);
+            blocked.remove(&code);
         }
         kept.push(event);
     }
@@ -500,7 +598,36 @@ fn release_clears(order: u64, armed_at: Option<u64>) -> bool {
     order == KeyEvent::UNORDERED || order > armed_at
 }
 
-fn store_armed(world: &mut World, codes: HashMap<KeyCode, u64>) {
+fn note_failed_release(
+    event: &KeyEvent,
+    armed: &HashMap<KeyCode, Guard>,
+    blocked: &mut HashSet<KeyCode>,
+) {
+    if let Some(code) = source_code(event) {
+        if armed.contains_key(&code) {
+            blocked.insert(code);
+        }
+    }
+}
+
+/// `true` when this key-down is still the held hotkey.
+///
+/// Auto-repeat, the key on the frame the chord fired, and a key-down queued
+/// before the guard are not text. A key-down sitting next to a key-up that
+/// failed to clear the guard is the focus-in pair. Anything else is a new
+/// press. A backend release means a failed key-up in this frame is not that
+/// pair: the grab already saw the chord go up.
+fn suppress_armed_down(event: &KeyEvent, guard: Guard, fired_now: bool, blocked: bool) -> bool {
+    if event.repeat || fired_now {
+        return true;
+    }
+    if event.order != KeyEvent::UNORDERED && event.order <= guard.at {
+        return true;
+    }
+    blocked && !guard.released
+}
+
+fn store_armed(world: &mut World, codes: HashMap<KeyCode, Guard>) {
     if codes.is_empty() {
         if let Some(armed) = world.resource_mut::<ArmedKeys>() {
             armed.codes.clear();
@@ -549,21 +676,23 @@ fn normalize_code(code: KeyCode) -> KeyCode {
     }
 }
 
-fn held_hotkey(event: &KeyEvent, armed: &HashMap<KeyCode, u64>) -> bool {
+fn armed_code(event: &KeyEvent, armed: &HashMap<KeyCode, Guard>) -> Option<KeyCode> {
     if armed.is_empty() {
-        return false;
+        return None;
     }
     if let Some(code) = source_code(event) {
         if armed.contains_key(&code) {
-            return true;
+            return Some(code);
         }
     }
     if event.code.is_none() {
         if let Some(code) = event.text.as_deref().and_then(text_source) {
-            return armed.contains_key(&code);
+            if armed.contains_key(&code) {
+                return Some(code);
+            }
         }
     }
-    false
+    None
 }
 
 fn text_source(text: &str) -> Option<KeyCode> {

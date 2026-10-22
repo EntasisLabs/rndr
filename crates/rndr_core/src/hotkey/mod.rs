@@ -14,13 +14,16 @@
 //! of the time. [`toggle_window`] is the launcher case: the chord shows and
 //! focuses a hidden window, or hides a visible one. A key event that matches a
 //! registered chord, including its repeats, is removed from that frame's text
-//! input. Once the chord fires, its base key is ignored until a physical
-//! key-up received after that press. A synthetic focus event (`is_synthetic`
-//! on X11 and Windows; macOS and Wayland never set it) is not text and does
-//! not release the guard. A key-up the runner had already received before the
-//! hotkey cannot release it either, so a Space queued while the window was
-//! hidden does not let the focus-in Space into the field. Key releases are
-//! removed as well, so a key-up cannot insert text.
+//! input. Once the chord fires, its base key is ignored while that press is
+//! still held. The guard clears when the backend reports the chord released,
+//! when a physical key-up arrives after the hotkey, or when the window hides.
+//! A later non-repeat of the base key is a new press: it clears the guard and
+//! is inserted. Only auto-repeat of the held chord stays out. A synthetic
+//! focus event (`is_synthetic` on X11 and Windows; macOS and Wayland never set
+//! it) is not text and does not release the guard. A key-up the runner had
+//! already received before the hotkey cannot release it either, so a Space
+//! queued while the window was hidden does not let the focus-in Space into
+//! the field. Key releases are removed as well, so a key-up cannot insert text.
 //!
 //! Re-registering a chord that this process already owns returns another
 //! handle for the same id and does not grab twice. Dropping a handle, or
@@ -60,8 +63,10 @@ use crate::world::World;
 
 pub use accel::{platform_accel, AccelKey, MacAccel, PlatformAccel, Punct, WinAccel, X11Accel};
 pub use registry::{
-    note_key_order, GlobalHotkey, HotkeyBackend, HotkeyFailure, HotkeyHandle, HotkeyId,
+    note_key_order, GlobalHotkey, HotkeyBackend, HotkeyEdge, HotkeyFailure, HotkeyHandle, HotkeyId,
 };
+
+pub(crate) use registry::disarm_guard;
 
 pub(crate) use registry::drive;
 

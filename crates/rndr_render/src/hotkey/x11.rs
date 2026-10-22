@@ -12,7 +12,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 
-use rndr_core::hotkey::{HotkeyBackend, HotkeyFailure, HotkeyId, PlatformAccel};
+use rndr_core::hotkey::{HotkeyBackend, HotkeyEdge, HotkeyFailure, HotkeyId, PlatformAccel};
 use x11rb::connection::Connection;
 use x11rb::errors::ReplyError;
 use x11rb::protocol::xproto::{ConnectionExt as _, GrabMode, KeyButMask, Keycode, ModMask, Window};
@@ -119,8 +119,22 @@ impl HotkeyBackend for X11Hotkeys {
     }
 
     fn poll(&mut self) -> Vec<HotkeyId> {
+        presses_of(self.poll_edges())
+    }
+
+    fn poll_edges(&mut self) -> Vec<HotkeyEdge> {
         self.presses.drain()
     }
+}
+
+fn presses_of(edges: Vec<HotkeyEdge>) -> Vec<HotkeyId> {
+    edges
+        .into_iter()
+        .filter_map(|edge| match edge {
+            HotkeyEdge::Press(id) => Some(id),
+            HotkeyEdge::Release(_) => None,
+        })
+        .collect()
 }
 
 impl Drop for X11Hotkeys {
@@ -220,13 +234,23 @@ fn worker(rx: Receiver<Cmd>, presses: Arc<PressQueue>, ready: Sender<i32>) {
             }
         }
         if fds[0].revents & (libc::POLLIN | libc::POLLERR | libc::POLLHUP) != 0 {
+            let mut pending = None;
             loop {
                 match connection.poll_for_event() {
-                    Ok(Some(event)) => handle_event(event, &grabbed, &mut repeats, &presses),
+                    Ok(Some(event)) => {
+                        handle_event(event, &grabbed, &mut repeats, &mut pending, &presses);
+                    }
                     Ok(None) => break,
-                    Err(_) => return,
+                    Err(_) => {
+                        flush_release(&mut pending, &presses);
+                        return;
+                    }
                 }
             }
+            // A KeyRelease with no same-timestamp KeyPress behind it is the
+            // real chord going up. The window never sees that event: the grab
+            // owns it.
+            flush_release(&mut pending, &presses);
         }
     }
     unsafe {
@@ -346,29 +370,60 @@ fn keycode_for(conn: &RustConnection, keysym: u32) -> Result<Option<Keycode>, Ho
     Ok(None)
 }
 
+struct PendingRelease {
+    id: u32,
+    keycode: u32,
+}
+
 fn handle_event(
     event: Event,
     grabbed: &HashMap<u32, Grabbed>,
     repeats: &mut RepeatFilter,
+    pending: &mut Option<PendingRelease>,
     presses: &PressQueue,
 ) {
     match event {
         Event::KeyRelease(event) => {
-            repeats.release(u32::from(event.detail), u64::from(event.time));
+            let keycode = u32::from(event.detail);
+            let time = u64::from(event.time);
+            // The previous release was not paired, so it was real.
+            flush_release(pending, presses);
+            repeats.release(keycode, time);
+            if let Some(id) = matching_id(grabbed, event.detail, event.state) {
+                *pending = Some(PendingRelease { id, keycode });
+            }
         }
         Event::KeyPress(event) => {
-            if !repeats.press(u32::from(event.detail), u64::from(event.time)) {
+            let keycode = u32::from(event.detail);
+            let time = u64::from(event.time);
+            let fresh = repeats.press(keycode, time);
+            if !fresh {
+                // Release+press with one timestamp is auto-repeat, not a chord edge.
+                if pending.as_ref().is_some_and(|held| held.keycode == keycode) {
+                    *pending = None;
+                }
                 return;
             }
-            let state = key_but_mask_bits(event.state) & CARE;
-            for (id, grab) in grabbed {
-                if grab.keycode == event.detail && grab.modifiers == state {
-                    presses.push(HotkeyId::from_raw(*id));
-                }
+            flush_release(pending, presses);
+            if let Some(id) = matching_id(grabbed, event.detail, event.state) {
+                presses.push(HotkeyId::from_raw(id));
             }
         }
         _ => {}
     }
+}
+
+fn flush_release(pending: &mut Option<PendingRelease>, presses: &PressQueue) {
+    if let Some(release) = pending.take() {
+        presses.push_release(HotkeyId::from_raw(release.id));
+    }
+}
+
+fn matching_id(grabbed: &HashMap<u32, Grabbed>, detail: Keycode, state: KeyButMask) -> Option<u32> {
+    let bits = key_but_mask_bits(state) & CARE;
+    grabbed
+        .iter()
+        .find_map(|(id, grab)| (grab.keycode == detail && grab.modifiers == bits).then_some(*id))
 }
 
 fn mod_mask(bits: u32) -> ModMask {

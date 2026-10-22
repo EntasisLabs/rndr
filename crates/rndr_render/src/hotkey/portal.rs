@@ -18,7 +18,7 @@ use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 use futures_util::StreamExt;
-use rndr_core::hotkey::{HotkeyBackend, HotkeyFailure, HotkeyId, PlatformAccel};
+use rndr_core::hotkey::{HotkeyBackend, HotkeyEdge, HotkeyFailure, HotkeyId, PlatformAccel};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use zbus::zvariant::{ObjectPath, OwnedObjectPath, OwnedValue, Value};
 use zbus::{Connection, MatchRule, MessageStream, Proxy};
@@ -126,6 +126,16 @@ impl HotkeyBackend for PortalHotkeys {
     }
 
     fn poll(&mut self) -> Vec<HotkeyId> {
+        self.poll_edges()
+            .into_iter()
+            .filter_map(|edge| match edge {
+                HotkeyEdge::Press(id) => Some(id),
+                HotkeyEdge::Release(_) => None,
+            })
+            .collect()
+    }
+
+    fn poll_edges(&mut self) -> Vec<HotkeyEdge> {
         self.presses.drain()
     }
 }
@@ -157,9 +167,13 @@ async fn run(conn: Connection, mut rx: UnboundedReceiver<Cmd>, presses: Arc<Pres
     let mut track_repeat = deactivated.is_some();
     let mut repeats = RepeatFilter::default();
     let mut sessions: HashMap<u32, OwnedObjectPath> = HashMap::new();
+    // Held until the next signal shows it was not the release half of a repeat.
+    let mut pending_release: Option<(u32, u64)> = None;
     loop {
         tokio::select! {
+            biased;
             cmd = rx.recv() => {
+                flush_pending(&mut pending_release, &presses);
                 match cmd {
                     Some(Cmd::Bind { id, trigger, reply }) => {
                         match bind_one(&conn, id, &trigger).await {
@@ -190,8 +204,20 @@ async fn run(conn: Connection, mut rx: UnboundedReceiver<Cmd>, presses: Arc<Pres
                 match msg {
                     Some(Ok(message)) => {
                         if let Some((id, time)) = shortcut_signal(&message) {
-                            if !track_repeat || repeats.press(id, time) {
-                                presses.push(HotkeyId::from_raw(id));
+                            let fresh = !track_repeat || repeats.press(id, time);
+                            if !fresh
+                                && pending_release
+                                    .is_some_and(|(pending_id, pending_time)| {
+                                        pending_id == id && pending_time == time
+                                    })
+                            {
+                                // Deactivated+Activated with one timestamp is a repeat.
+                                pending_release = None;
+                            } else {
+                                flush_pending(&mut pending_release, &presses);
+                                if fresh {
+                                    presses.push(HotkeyId::from_raw(id));
+                                }
                             }
                         }
                     }
@@ -203,16 +229,29 @@ async fn run(conn: Connection, mut rx: UnboundedReceiver<Cmd>, presses: Arc<Pres
                 match msg {
                     Some(Ok(message)) => {
                         if let Some((id, time)) = shortcut_signal(&message) {
+                            flush_pending(&mut pending_release, &presses);
                             repeats.release(id, time);
+                            pending_release = Some((id, time));
                         }
                     }
                     _ => {
+                        flush_pending(&mut pending_release, &presses);
                         track_repeat = false;
                         deactivated = None;
                     }
                 }
             }
+            // No paired Activated is waiting. The Deactivated is a real release.
+            _ = tokio::task::yield_now(), if pending_release.is_some() => {
+                flush_pending(&mut pending_release, &presses);
+            }
         }
+    }
+}
+
+fn flush_pending(pending: &mut Option<(u32, u64)>, presses: &PressQueue) {
+    if let Some((id, _)) = pending.take() {
+        presses.push_release(HotkeyId::from_raw(id));
     }
 }
 
