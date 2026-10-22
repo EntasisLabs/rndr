@@ -6,9 +6,11 @@
 
 mod font;
 mod latin;
+mod snapshot;
 
 pub use font::{atlas_r8, glyph_uv, solid_uv, ATLAS_H, ATLAS_W};
 pub use latin::LatinFace;
+pub use snapshot::quads_snapshot;
 
 use rndr_core::{
     children_of, field_text_width, layered_roots, layout_text_spans, text_face, theme_of, App,
@@ -222,6 +224,8 @@ fn walk(
     }
 }
 
+// The walk hands the visitor rect, clip, text, and marks together.
+#[allow(clippy::too_many_arguments)]
 fn emit(
     world: &World,
     entity: rndr_core::Entity,
@@ -350,6 +354,8 @@ fn measured(world: &World, entity: rndr_core::Entity, text: &str, rect: Rect) ->
     layout_text_spans(font.as_ref(), text, max_width, &spans)
 }
 
+// Selection quads need the label rect, layout, caret, clip, and scale together.
+#[allow(clippy::too_many_arguments)]
 fn push_selection(
     out: &mut Vec<Quad>,
     rect: Rect,
@@ -404,6 +410,8 @@ fn push_label(
     }
 }
 
+// The caret quad needs the label rect, layout, caret, clip, and scale together.
+#[allow(clippy::too_many_arguments)]
 fn push_caret(
     out: &mut Vec<Quad>,
     rect: Rect,

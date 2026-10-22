@@ -123,10 +123,9 @@ pub fn atlas_r8() -> Vec<u8> {
         let col = idx % ATLAS_COLS;
         let row = idx / ATLAS_COLS;
         let bits = glyph(code);
-        for y in 0..8 {
-            let line = bits[y];
+        for (y, line) in bits.iter().enumerate() {
             for x in 0..8 {
-                if (line >> x) & 1 == 1 {
+                if (*line >> x) & 1 == 1 {
                     let px = col * GLYPH_W + x;
                     let py = row * GLYPH_H + y as u32;
                     pixels[(py * ATLAS_W + px) as usize] = 255;
@@ -136,9 +135,8 @@ pub fn atlas_r8() -> Vec<u8> {
     }
     // Last row is a solid white strip for color quads.
     let white_row = ATLAS_H - 1;
-    for x in 0..ATLAS_W {
-        pixels[(white_row * ATLAS_W + x) as usize] = 255;
-    }
+    let start = (white_row * ATLAS_W) as usize;
+    pixels[start..start + ATLAS_W as usize].fill(255);
     pixels
 }
 

@@ -24,6 +24,9 @@ pub struct Buffer {
 }
 
 impl Buffer {
+    /// Infallible document constructor. This is not `FromStr`: a gap buffer
+    /// accepts any `&str`, and a `Result` would only change every call site.
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(text: &str) -> Self {
         let mut data = text.as_bytes().to_vec();
         let gap_start = data.len();
@@ -109,7 +112,7 @@ impl Buffer {
         }
         let extra = needed + 32 - gap;
         self.data
-            .splice(self.gap_end..self.gap_end, std::iter::repeat(0).take(extra));
+            .splice(self.gap_end..self.gap_end, std::iter::repeat_n(0, extra));
         self.gap_end += extra;
     }
 

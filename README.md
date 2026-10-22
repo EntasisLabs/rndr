@@ -51,6 +51,25 @@ Layout, hit-testing, and scroll are in logical points. `Viewport.scale` is physi
 
 Headless tests call `frame` and never open a window. The desktop runner is the only thing that calls winit.
 
+## Headless tests
+
+CI on macOS, Windows, and Ubuntu runs `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`, then `cargo build -p expand -p rndr_render`. The Ubuntu job installs the X11, Wayland, and Vulkan packages winit and wgpu need to compile.
+
+A headless test drives one frame without a window:
+
+1. Build an `App`, insert a `Viewport`, and spawn the scene.
+2. Write one frame of `Input` (pointer edge, key, or chars).
+3. Call `rndr_paint::frame`.
+4. Assert on the world, or snapshot [`quads_snapshot`](crates/rndr_paint/src/snapshot.rs). That dump rounds rects, clips, and radii to the nearest 0.5 point so float noise does not churn the file. Colors print to three decimals and UVs to four. Quad order is paint order.
+
+[`crates/rndr_paint/tests/pattern.rs`](crates/rndr_paint/tests/pattern.rs) is the copyable version: click a button, assert `Fired`, snapshot the quads. One-frame edges are cleared after `frame`, the same way the winit runner drops them after present.
+
+After an intentional paint change, rewrite the snapshots and commit the `.snap` diff:
+
+```bash
+INSTA_UPDATE=1 cargo test -p rndr_paint
+```
+
 Text measurement is a [`Font`](crates/rndr_core/src/font.rs) in core. `layout_text` wraps on advances and places glyph boxes. A hugging label takes its height from that measurement, and `Layout.min_width` / `min_height` keep a fill from squashing it. Placed edges snap to physical pixels. After rects are final, the frame writes a `TextLayout` onto each label. Paint reads that run and snaps glyph edges to physical pixels. [`BitmapFont`](crates/rndr_core/src/font.rs) is the face when none is inserted: one cell per scalar, the same 8×8 atlas as before. The expand demo inserts [`LatinFace`](crates/rndr_paint/src/latin.rs), a proportional ASCII atlas rasterized from Inter Regular, and a [`Theme`](crates/rndr_core/src/theme.rs). A `Radius` on a surface rounds that quad in the same shader. A `TextFace` resource swaps the face without touching the caret, the splitter, or the file tree.
 
 ## Demo

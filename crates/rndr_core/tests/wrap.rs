@@ -11,7 +11,7 @@ fn ranges(text: &str, cols: usize) -> Vec<(usize, usize)> {
         .collect()
 }
 
-fn slice<'a>(text: &'a str, line: VisualLine) -> &'a str {
+fn slice(text: &str, line: VisualLine) -> &str {
     &text[line.start..line.end]
 }
 

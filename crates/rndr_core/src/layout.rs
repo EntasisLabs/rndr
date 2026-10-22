@@ -599,9 +599,7 @@ fn label_hug_width(
     if !matches!(layout.width, Size::Hug) && !matches!(layout.height, Size::Hug) {
         return None;
     }
-    if world.get::<Label>(entity).is_none() {
-        return None;
-    }
+    world.get::<Label>(entity)?;
     let font = text_face(world);
     let max_width = if field_w.is_finite() {
         field_text_width(field_w, font.advance('0'))
@@ -671,9 +669,6 @@ pub fn ancestor_with<T: crate::world::Component>(
         if world.has::<T>(entity) {
             return Some(entity);
         }
-        match world.get::<Parent>(entity) {
-            Some(parent) => entity = parent.entity,
-            None => return None,
-        }
+        entity = world.get::<Parent>(entity)?.entity;
     }
 }
