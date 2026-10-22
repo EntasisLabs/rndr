@@ -35,13 +35,13 @@ Application
 | `rndr_core` | ECS, layout, clip, scroll, disclosure, focus, pane, split, caret, body, wrap, `Font`, `Files`, `Chrome`, events, tasks, timers |
 | `rndr_paint` | `frame`: update, then quads in points. Reads a `TextLayout`. The bitmap face is an 8×8 ASCII atlas |
 | `rndr_std` | `std::fs` plugin |
-| `rndr_render` | winit window writes `Input` and `Viewport`, then presents quads. `WindowConfig` chooses title, size, and panel behavior. The `tray` feature (on by default) adds a menu-bar icon |
+| `rndr_render` | winit window writes `Input` and `Viewport`, then presents quads. `WindowConfig` chooses title, size, and panel behavior. The default `hotkey` and `tray` features add system-wide chords and a menu-bar icon |
 | `examples/expand` | File-backed expand demo: folder tree, pane, splitter, caret, create, delete |
 | `examples/idle` | Empty window. `ControlFlow::Wait` when nothing is scheduled |
-| `examples/overlay` | Frameless centered panel. Hides on blur and Escape, returns on a timer |
+| `examples/overlay` | Frameless centered panel. Hides on blur and Escape, returns on Alt+Space |
 | `examples/palette` | Command palette: debounced filter, virtual list, shortcuts |
 
-A blank `App` holds the world, `Input`, and `Viewport`. `Shell` registers the file-tree systems. `Chrome` is optional and leaves `Shell` alone: named chords, buttons, tabs, a single-line field, overlays, a virtual list, an in-memory clipboard, styled runs, a gap-buffer editor, decorations, and IME preedit. `frame` also reports `SurfaceSlot` rects and leaves those interiors empty. `StdFsPlugin` inserts the disk backend. `MemoryFs` is the headless backend. `rndr_paint::frame` steps the world and returns quads in points. `rndr_render` writes the window into `Input` and `Viewport`, then multiplies those quads by `scale` and presents them. Headless crates stop at the standard library. The desktop crate depends on `wgpu`, `winit`, and `pollster`, and on `tray-icon` when the `tray` feature is on. No layout engine, no text crate, no third-party ECS.
+A blank `App` holds the world, `Input`, and `Viewport`. `Shell` registers the file-tree systems. `Chrome` is optional and leaves `Shell` alone: named chords, buttons, tabs, a single-line field, overlays, a virtual list, an in-memory clipboard, styled runs, a gap-buffer editor, decorations, and IME preedit. `frame` also reports `SurfaceSlot` rects and leaves those interiors empty. `StdFsPlugin` inserts the disk backend. `MemoryFs` is the headless backend. `rndr_paint::frame` steps the world and returns quads in points. `rndr_render` writes the window into `Input` and `Viewport`, then multiplies those quads by `scale` and presents them. Headless crates stop at the standard library. The desktop crate depends on `wgpu`, `winit`, and `pollster`, and, when the default features are on, on `tray-icon` and the hotkey backends. `rndr_core` stays headless either way. No layout engine, no text crate, no third-party ECS.
 
 Layout, hit-testing, and scroll are in logical points. `Viewport.scale` is physical pixels per point. The desktop plugin divides window size, the cursor, and pixel-wheel deltas by that scale, then multiplies rects by it when uploading instances. `Viewport.insets` shrinks root placement for a status bar or home indicator. `Input.pointer` is one contact: the mouse writes id `0`. A drag inside a scrollport follows that contact after 4 points. A drag that starts on the seam still resizes the split.
 
@@ -112,9 +112,37 @@ At runtime on Linux the icon appears when a StatusNotifierItem watcher is on the
 | Double click | not emitted | yes | not emitted | not emitted |
 | Hidden window keeps running | yes | yes | yes | yes |
 
+## Global hotkeys
+
+`register` and `toggle_window` grab a chord that fires while another application is focused. The binding uses the same words as a keymap chord: `primary+Space`, `Alt+Space`, `Ctrl+Shift+K`. `primary` is Command on macOS and Ctrl elsewhere. Each call returns a handle. Dropping the last handle, or calling `unregister`, releases the grab. Pressing the chord wakes the event loop and delivers a `GlobalHotkey` on that frame, including while the window is hidden. The loop stays on `Wait` otherwise. `toggle_window` is the launcher case: a hidden window is shown and focused, a visible window is hidden.
+
+```rust
+let _hotkey = rndr_render::toggle_window(app.world_mut(), "Alt+Space")?;
+rndr_render::run(app);
+```
+
+Registering a chord this process already holds returns another handle for the same id and does not grab twice. `primary+Space` and `Ctrl+Space` are the same grab on Windows and different grabs on macOS. A second application that already owns the chord gets `AlreadyTaken`. A binding this platform cannot encode gets `InvalidBinding`. No backend, or a session that cannot bind hotkeys, gets `Unsupported`.
+
+The parser, the registry, and the per-platform key codes live in `rndr_core` and have no OS dependencies. `rndr_render`'s `hotkey` feature (on by default) installs the backend. Turn it off and headless builds do not compile Carbon, Win32, X11, or a D-Bus client.
+
+The backends are small and written against this event loop, rather than the `global-hotkey` crate. That crate's Linux path is X11 only and polls every 50ms, it has no Wayland portal, and its chord type is not rndr's `Keystroke`. Carbon and Win32 are thin FFI. X11 uses `x11rb` (MIT or Apache-2.0, no libX11): a grab that loses comes back as `BadAccess` instead of a process-wide X error handler, and the worker blocks in `poll`. Wayland uses the XDG GlobalShortcuts portal through `zbus`.
+
+| | macOS | Windows | X11 | Wayland |
+| --- | --- | --- | --- | --- |
+| Mechanism | Carbon `RegisterEventHotKey` | `RegisterHotKey` | `XGrabKey` on the root window | XDG GlobalShortcuts portal |
+| Works while another app is focused | yes | yes | yes | yes, after the portal grants it |
+| Permission | none (no Accessibility prompt) | none | none | a portal dialog the user can edit |
+| Chord already owned | `AlreadyTaken` | `AlreadyTaken` | `AlreadyTaken` (`BadAccess`) | portal declines the grant (`AlreadyTaken`) |
+| Unavailable session | — | — | no X server (`Unsupported`) | no portal (`Unsupported`); X11 is not used as a fallback |
+| Lock keys | ignored by Carbon | ignored by `RegisterHotKey` | grabbed again with Caps Lock, Num Lock, and Mod5 | portal / compositor |
+| Key repeat | one event per press | `MOD_NOREPEAT` | auto-repeat releases are skipped | one `Activated` per press |
+| Idle | the Cocoa run loop is already waiting | the hotkey thread blocks in `GetMessage` | the hotkey thread blocks in `poll` | the portal thread blocks on D-Bus |
+
+F21–F24 have no Carbon virtual key, so they are `InvalidBinding` on macOS and valid elsewhere. On Wayland, `BindShortcuts` may show a system dialog and the user may change the trigger; the id still fires when that trigger is pressed. Each registration is its own portal session, because a session can only be bound once. A Wayland session (`WAYLAND_DISPLAY`) never falls back to an X11 grab. Menu shortcut text stays display-only; a tray row can show this chord beside its label, as the palette's Show Palette item does.
+
 ## Headless tests
 
-CI on macOS, Windows, and Ubuntu runs `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo clippy -p rndr_render --no-default-features --all-targets -- -D warnings`, `cargo test --workspace`, then `cargo build -p expand -p idle -p overlay -p palette -p rndr_render`. The Ubuntu job installs the X11, Wayland, and Vulkan packages winit and wgpu need to compile. The tray feature adds no further packages.
+CI on macOS, Windows, and Ubuntu runs `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo clippy -p rndr_render --no-default-features --all-targets -- -D warnings`, `cargo test --workspace`, then `cargo build -p expand -p idle -p overlay -p palette -p rndr_render`. The Ubuntu job installs the X11, Wayland, and Vulkan packages winit and wgpu need to compile. The tray and hotkey features add no further packages.
 
 A headless test drives one frame without a window:
 
@@ -144,8 +172,8 @@ cargo run -p expand
 cargo run -p expand -- /path/to/dir
 ```
 
-`overlay` opens a frameless, always-on-top panel in the center of the screen. Escape or a click away hides it. Two seconds later the timer shows it again.
+`overlay` opens a frameless, always-on-top panel in the center of the screen. Escape or a click away hides it. Alt+Space shows it again, from any application, and hides it if it is already visible. `RNDR_HOTKEY` or `--hotkey` replaces Alt+Space (`cargo run -p overlay -- --hotkey Ctrl+Space`).
 
-`palette` is a command list in that same kind of window: frameless, centered, always on top, hidden on blur and on Escape. On macOS it runs as an accessory app, so the Dock stays out of it. A tray icon remains: Show Palette (the `⌘P` / `Ctrl+P` shortcut from the keymap), Settings (disabled), and Quit. Left click toggles the window. The search field emits `TextChanged`, a debounced task filters thirty commands, and a virtual list shows the matches with shortcuts from `Keymap::shortcut` (`⌘K` on macOS, `Ctrl+K` elsewhere, `Ctrl+G M` for a two-stroke chord). The shortcut is a label with its own dim color. Letters the filter hit are painted with a highlight. Up and Down move the selection, Enter runs it, and the run is a task whose handle sits in ordinary app state. The field and the row labels measure through `TextEngine`.
+`palette` is a command list in that same kind of window: frameless, centered, always on top, hidden on blur and on Escape, and summoned by the same hotkey. On macOS it runs as an accessory app, so the Dock stays out of it. A tray icon remains: Show Palette (the global hotkey, `⌥Space` on macOS and `Alt+Space` elsewhere, unless `--hotkey` or `RNDR_HOTKEY` changed it), Settings (disabled), and Quit. Left click toggles the window. The search field emits `TextChanged`, a debounced task filters thirty commands, and a virtual list shows the matches with shortcuts from `Keymap::shortcut` (`⌘K` on macOS, `Ctrl+K` elsewhere, `Ctrl+G M` for a two-stroke chord). The shortcut is a label with its own dim color. Letters the filter hit are painted with a highlight. Up and Down move the selection, Enter runs it, and the run is a task whose handle sits in ordinary app state. The field and the row labels measure through `TextEngine`.
 
 A tree column on the left and a detail pane on the right. Drag the seam to resize. The body wraps to the pane width; drag the splitter and the next frame reflows. The demo opens the first argument if it is an existing directory, otherwise `examples/expand/fixture`. Click a row to select it. Right lists a directory; Enter opens a file into the pane. Click a title or body cell to place the caret; Shift extends the selection. Type in the title to rename, Tab into the body to edit, Ctrl+S writes the file. A mark on the tree row means the file is dirty. Ctrl+N creates `untitled.txt` (Ctrl+Shift+N a folder) and starts a title edit. Delete removes a file or an empty folder. Collapse writes dirty children first. Hidden names and binary files are skipped for the body. Escape leaves the caret, then the pane.

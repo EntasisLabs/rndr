@@ -8,15 +8,17 @@
 //! Running a command spawns a task whose handle lives in ordinary app state.
 //!
 //! The window is frameless, centered, and always on top. Escape and blur hide
-//! it and leave the process running. The clear chord is still registered;
-//! window dismiss claims bare Escape first.
+//! it and leave the process running. Alt+Space shows or hides it from any
+//! application (`RNDR_HOTKEY` or `--hotkey` overrides the chord). The clear
+//! chord is still registered; window dismiss claims bare Escape first.
 //!
 //! A tray icon stays up while the window is hidden. Left click toggles the
-//! window. The menu is Show Palette (its shortcut from the keymap), Settings
+//! window. The menu is Show Palette (the same global hotkey), Settings
 //! (disabled), a separator, and Quit.
 //!
 //! ```text
 //! cargo run -p palette
+//! cargo run -p palette -- --hotkey Ctrl+Space
 //! ```
 
 use std::sync::Arc;
@@ -26,20 +28,22 @@ use rndr_core::window::{self, WindowConfig, WindowKind};
 use rndr_core::{
     context_stack, debounce, events, platform_of, set_parent, sleep, spawn, theme_of,
     toggle_on_click, App, Axis, CapturesKeys, Caret, Chrome, Color, Context, Dismiss, Entity,
-    Event, Focus, Item, KeyBinding, Keymap, KeymapFired, Keystroke, Label, Layout, List,
-    ListActivated, ListKeys, ListRows, LogicalSize, Menu, NamedKey, Position, Radius, Schedule,
-    Size, Spans, TaskHandle, TextChanged, TextFace, TextField, TextSpan, Theme, TrayConfig,
-    TrayIcon, TrayItemId, TrayMenu, World,
+    Event, Focus, HotkeyBinding, Item, KeyBinding, Keymap, KeymapFired, Keystroke, Label, Layout,
+    List, ListActivated, ListKeys, ListRows, LogicalSize, Menu, NamedKey, Position, Radius,
+    Schedule, Size, Spans, TaskHandle, TextChanged, TextFace, TextField, TextSpan, Theme,
+    TrayConfig, TrayIcon, TrayItemId, TrayMenu, World,
 };
 use rndr_paint::LatinFace;
-use rndr_render::run;
+use rndr_render::{configured_hotkey, run, toggle_window};
 
 const CONTEXT: &str = "Palette";
 const ROW_H: f32 = 32.0;
 const DEBOUNCE: Duration = Duration::from_millis(40);
 const RUN_DELAY: Duration = Duration::from_millis(350);
 const CLEAR: &str = "palette.clear";
-const SHOW: &str = "palette.show";
+
+/// Chord chosen in `main` and shown on the tray's Show Palette item.
+struct Summon(String);
 
 /// (action id, title)
 const COMMANDS: &[(&str, &str)] = &[
@@ -106,7 +110,6 @@ fn bindings() -> Vec<KeyBinding> {
     let p = |ch| Keystroke::character(ch).primary();
     vec![
         KeyBinding::new(CLEAR, [Keystroke::named(NamedKey::Escape)]).context(CONTEXT),
-        KeyBinding::new(SHOW, [p('p')]),
         KeyBinding::new("ask", [Keystroke::named(NamedKey::Enter).primary()]),
         KeyBinding::new("new_session", [p('n')]),
         KeyBinding::new("search_memory", [p('k')]),
@@ -246,11 +249,18 @@ fn palette_icon() -> TrayIcon {
         .template(true)
 }
 
+fn summon_shortcut(binding: &str, platform: rndr_core::Platform) -> String {
+    match HotkeyBinding::parse(binding) {
+        Ok(binding) => binding.keystroke().display(platform),
+        Err(_) => binding.to_string(),
+    }
+}
+
 fn install_tray(world: &mut World) -> TrayItemId {
     let platform = platform_of(world);
     let shortcut = world
-        .resource::<Keymap>()
-        .map(|keymap| keymap.shortcut(SHOW, &[], platform))
+        .resource::<Summon>()
+        .map(|summon| summon_shortcut(&summon.0, platform))
         .unwrap_or_default();
     let mut menu = Menu::new();
     let show = menu.add(Item::new("Show Palette").shortcut(shortcut));
@@ -558,12 +568,42 @@ fn main() {
     app.add_plugin(Chrome);
     app.add_system(Schedule::Startup, setup);
     app.add_system(Schedule::Update, palette_update);
+    // Held across `run`. Dropping it releases the grab.
+    let binding = configured_hotkey(std::env::args().skip(1));
+    app.world_mut().insert_resource(Summon(binding.clone()));
+    let _hotkey = match toggle_window(app.world_mut(), binding.as_str()) {
+        Ok(handle) => handle,
+        Err(err) => {
+            eprintln!("hotkey {binding}: {err}");
+            std::process::exit(1);
+        }
+    };
     run(app);
 }
 
 #[cfg(test)]
 mod tests {
     use super::fuzzy;
+
+    #[test]
+    fn show_palette_label_is_the_global_hotkey() {
+        assert_eq!(
+            super::summon_shortcut("Alt+Space", rndr_core::Platform::Windows),
+            "Alt+Space"
+        );
+        assert_eq!(
+            super::summon_shortcut("Alt+Space", rndr_core::Platform::X11),
+            "Alt+Space"
+        );
+        assert_eq!(
+            super::summon_shortcut("Alt+Space", rndr_core::Platform::Mac),
+            "⌥Space"
+        );
+        assert_eq!(
+            super::summon_shortcut("primary+Space", rndr_core::Platform::Windows),
+            "Ctrl+Space"
+        );
+    }
 
     #[test]
     fn fuzzy_records_the_matched_letters() {

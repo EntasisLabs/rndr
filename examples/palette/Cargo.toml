@@ -3,7 +3,7 @@ name = "palette"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Command palette: search field, virtual list, shortcuts"
+description = "Command palette with a tray menu and a global hotkey"
 publish = false
 
 [dependencies]

@@ -6,7 +6,16 @@ license.workspace = true
 description = "winit + wgpu window plugin for rndr"
 
 [features]
-default = ["tray"]
+default = ["hotkey", "tray"]
+# System-wide hotkeys. Off skips Carbon, Win32, X11, and the portal client.
+hotkey = [
+    "dep:futures-util",
+    "dep:libc",
+    "dep:tokio",
+    "dep:windows-sys",
+    "dep:x11rb",
+    "dep:zbus",
+]
 # Menu bar, notification area, and StatusNotifierItem icon.
 # Linux uses tray-icon's ksni backend (D-Bus on a worker thread), not GTK.
 tray = ["dep:tray-icon", "dep:png"]
@@ -17,6 +26,17 @@ rndr_paint = { workspace = true }
 wgpu = { workspace = true }
 winit = { workspace = true }
 pollster = { workspace = true }
+futures-util = { version = "0.3", optional = true, default-features = false, features = ["std"] }
+libc = { version = "0.2", optional = true }
+tokio = { version = "1", optional = true, default-features = false, features = ["macros", "net", "rt", "sync", "time"] }
+windows-sys = { version = "0.59", optional = true, features = [
+    "Win32_Foundation",
+    "Win32_System_Threading",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_WindowsAndMessaging",
+] }
+x11rb = { version = "0.13.1", optional = true, default-features = false, features = ["allow-unsafe-code", "xkb"] }
+zbus = { version = "5", optional = true, default-features = false, features = ["tokio"] }
 tray-icon = { version = "0.26.1", optional = true, default-features = false, features = ["ksni"] }
 png = { version = "0.18", optional = true }
 

@@ -1,24 +1,19 @@
 //! Frameless launcher panel.
 //!
 //! The window is centered, always on top, and hidden on blur and on Escape.
-//! A two-second timer shows it again. That timer stands in for a global hotkey.
+//! Alt+Space toggles it from any application. `RNDR_HOTKEY` or `--hotkey`
+//! overrides that chord.
 //!
 //! ```text
 //! cargo run -p overlay
+//! cargo run -p overlay -- --hotkey Ctrl+Space
 //! ```
 
-use std::time::Duration;
-
 use rndr_core::{
-    events, every, Axis, Color, Dismiss, Event, Label, Layout, LogicalSize, Position, Schedule,
-    Size, WindowConfig, WindowKind, World,
+    Axis, Color, Dismiss, Label, Layout, LogicalSize, Position, Schedule, Size, WindowConfig,
+    WindowKind, World,
 };
-use rndr_render::run;
-
-#[derive(Clone, Copy, Debug)]
-struct Reveal;
-
-impl Event for Reveal {}
+use rndr_render::{configured_hotkey, run, toggle_window};
 
 fn setup(world: &mut World) {
     world.spawn((
@@ -34,14 +29,6 @@ fn setup(world: &mut World) {
         Color::rgb(0.12, 0.13, 0.16),
         Label::new("overlay"),
     ));
-}
-
-fn reveal(world: &mut World) {
-    if events::<Reveal>(world).is_empty() || rndr_core::window::is_visible(world) {
-        return;
-    }
-    rndr_core::window::show(world);
-    rndr_core::window::focus(world);
 }
 
 fn main() {
@@ -61,8 +48,14 @@ fn main() {
         ..WindowConfig::default()
     });
     app.add_system(Schedule::Startup, setup);
-    app.add_system(Schedule::Update, reveal);
-    // Held across `run` so dropping it does not cancel the timer.
-    let _reveal = every(app.world_mut(), Duration::from_secs(2), Reveal);
+    // Held across `run`. Dropping it releases the grab.
+    let binding = configured_hotkey(std::env::args().skip(1));
+    let _hotkey = match toggle_window(app.world_mut(), binding.as_str()) {
+        Ok(handle) => handle,
+        Err(err) => {
+            eprintln!("hotkey {binding}: {err}");
+            std::process::exit(1);
+        }
+    };
     run(app);
 }
