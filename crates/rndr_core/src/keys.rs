@@ -461,6 +461,36 @@ impl Keystroke {
         parts.push(trigger_label(self.trigger));
         parts.join("+")
     }
+
+    /// Platform shortcut text. macOS uses symbols (`⌘K`, `⇧⌘K`).
+    /// Windows, X11, and Wayland use [`Keystroke::label`] (`Ctrl+K`).
+    pub fn display(&self, platform: Platform) -> String {
+        if platform.primary_is_super() {
+            mac_display(self)
+        } else {
+            self.label(platform)
+        }
+    }
+}
+
+/// Control, Option, Shift, Command, then the key. Matches the macOS order,
+/// so a lone command chord is `⌘K` and command-shift is `⇧⌘K`.
+fn mac_display(stroke: &Keystroke) -> String {
+    let mut out = String::new();
+    if stroke.ctrl {
+        out.push('\u{2303}');
+    }
+    if stroke.alt {
+        out.push('\u{2325}');
+    }
+    if stroke.shift {
+        out.push('\u{21E7}');
+    }
+    if stroke.primary || stroke.super_key {
+        out.push('\u{2318}');
+    }
+    out.push_str(&trigger_label(stroke.trigger));
+    out
 }
 
 fn trigger_label(trigger: Trigger) -> String {

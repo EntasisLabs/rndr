@@ -35,16 +35,25 @@ impl Plugin for Chrome {
             actions.bindings.push(cut_binding());
             actions.bindings.push(paste_binding());
         }
+        app.add_system(Schedule::Input, apply_input);
         app.add_system_front(Schedule::Update, apply_chrome);
-        app.add_system(Schedule::PostUpdate, apply_fields);
         app.add_system(Schedule::PostUpdate, apply_lists);
         app.add_system(Schedule::PostUpdate, apply_editor);
         app.add_system(Schedule::PostUpdate, apply_clipboard);
     }
 }
 
-fn apply_chrome(world: &mut crate::world::World) {
+/// Input, in order: install list navigation bindings, resolve the keymap,
+/// move the list selection, then edit the focused text field. Update reads
+/// the events this pass sends.
+fn apply_input(world: &mut crate::world::World) {
+    crate::list::prepare_list_keys(world);
     apply_keymap(world);
+    crate::list::apply_list_input(world);
+    apply_fields(world);
+}
+
+fn apply_chrome(world: &mut crate::world::World) {
     apply_actions(world);
     apply_overlay(world);
     apply_buttons(world);

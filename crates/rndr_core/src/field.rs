@@ -1,8 +1,10 @@
 use crate::caret::Caret;
 use crate::clipboard::{note_clipboard, Clipboard};
 use crate::edit::edit_string;
+use crate::entity::Entity;
+use crate::event::{send, Event};
 use crate::input::{Focus, Input, Key};
-use crate::keys::{platform_of, KeyEvent, LogicalKey, Modifiers};
+use crate::keys::{platform_of, KeyEvent, LogicalKey, Modifiers, NamedKey};
 use crate::layout::{ancestor_with, hit_test, Rect};
 use crate::style::{Label, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
 use crate::typing::{apply_text_event, EditHistory, EditSurface};
@@ -20,14 +22,39 @@ pub struct ImePreview {
 }
 
 /// Single-line editor on this entity's [`Label`]. No file binding.
+///
+/// A focused field applies the key queue during Input, then clears it. Update
+/// on that same frame reads [`TextChanged`] and [`Submitted`]. Watching the
+/// label from PostUpdate is not required.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct TextField;
+
+/// The focused field's label changed while it applied this frame's keys.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TextChanged {
+    pub entity: Entity,
+    pub text: String,
+}
+
+impl Event for TextChanged {}
+
+/// Plain Enter on a focused field. The label is unchanged by the key itself.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Submitted {
+    pub entity: Entity,
+    pub text: String,
+}
+
+impl Event for Submitted {}
 
 /// Focused entity keeps key edges for itself. Tree navigation does not take them.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct CapturesKeys;
 
 pub fn apply_fields(world: &mut World) {
+    // A click focuses the field before the caret is placed, so this does not
+    // depend on Shell's focus system running earlier in the frame.
+    focus_pressed_field(world);
     let focus = world.resource::<Focus>().and_then(|focus| focus.entity);
     let fields = world.entities_with::<TextField>();
     for entity in fields {
@@ -88,6 +115,25 @@ fn place_from_pointer(world: &mut World, entity: crate::entity::Entity, existed:
     }
 }
 
+fn focus_pressed_field(world: &mut World) {
+    let Some(input) = world.resource::<Input>() else {
+        return;
+    };
+    if !input.pointer.pressed || world.resource::<Focus>().is_none() {
+        return;
+    }
+    let position = input.pointer.position;
+    let Some(hit) = hit_test(world, position[0], position[1]) else {
+        return;
+    };
+    let Some(field) = ancestor_with::<TextField>(world, hit) else {
+        return;
+    };
+    if let Some(focus) = world.resource_mut::<Focus>() {
+        focus.entity = Some(field);
+    }
+}
+
 fn edit_label(world: &mut World, entity: crate::entity::Entity) {
     let (key, shift, chars, commit, keys) = match world.resource::<Input>() {
         Some(input) => (
@@ -99,12 +145,48 @@ fn edit_label(world: &mut World, entity: crate::entity::Entity) {
         ),
         None => return,
     };
+    let before = world
+        .get::<Label>(entity)
+        .map(|label| label.text.clone())
+        .unwrap_or_default();
+    let submitted = wants_submit(key, &keys);
     if keys.is_empty() {
         edit_label_legacy(world, entity, key, shift, &chars, &commit);
     } else {
         edit_label_queue(world, entity, &keys, &commit);
     }
+    let after = world
+        .get::<Label>(entity)
+        .map(|label| label.text.clone())
+        .unwrap_or_default();
+    if before != after {
+        send(
+            world,
+            TextChanged {
+                entity,
+                text: after.clone(),
+            },
+        );
+    }
+    if submitted {
+        send(
+            world,
+            Submitted {
+                entity,
+                text: after,
+            },
+        );
+    }
     sync_preview(world, entity);
+}
+
+fn wants_submit(key: Option<Key>, keys: &[KeyEvent]) -> bool {
+    if keys.is_empty() {
+        return key == Some(Key::Enter);
+    }
+    keys.iter().any(|event| {
+        event.logical == LogicalKey::Named(NamedKey::Enter) && !event.modifiers.command()
+    })
 }
 
 fn edit_label_legacy(

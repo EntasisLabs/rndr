@@ -503,3 +503,28 @@ fn reverse_lookup_returns_the_winning_strokes() {
         "Cmd+C"
     );
 }
+
+#[test]
+fn shortcut_text_uses_symbols_on_mac_and_words_elsewhere() {
+    let open = KeyBinding::new("open", [Keystroke::character('k').primary()]);
+    assert_eq!(open.shortcut(Platform::Mac), "⌘K");
+    assert_eq!(open.shortcut(Platform::Windows), "Ctrl+K");
+
+    let go = KeyBinding::new(
+        "go",
+        [
+            Keystroke::character('g').primary(),
+            Keystroke::character('m'),
+        ],
+    );
+    assert_eq!(go.shortcut(Platform::Mac), "⌘G M");
+    assert_eq!(go.shortcut(Platform::Windows), "Ctrl+G M");
+    assert_eq!(go.shortcut(Platform::X11), "Ctrl+G M");
+
+    let mut map = Keymap::default();
+    map.bind(open);
+    map.bind(go);
+    assert_eq!(map.shortcut("open", &[], Platform::Mac), "⌘K");
+    assert_eq!(map.shortcut("go", &[], Platform::Windows), "Ctrl+G M");
+    assert_eq!(map.shortcut("missing", &[], Platform::Windows), "");
+}

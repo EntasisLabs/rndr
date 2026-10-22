@@ -3,8 +3,10 @@
 //! [`send`] appends to the writer buffer. Readers see the reader buffer via
 //! [`events`]. Each [`crate::App::update`] drops the previous reader buffer
 //! and promotes queued sends, then appends anything emitted while tasks and
-//! timers were pumped so systems on that frame can read them. Sends from
-//! systems stay queued until the next frame.
+//! timers were pumped. Sends from the Input stage are merged again before
+//! Update, so `TextChanged` and `ListActivated` are visible to Update on the
+//! same frame. Sends from Update, PostUpdate, and Layout stay queued until
+//! the next frame.
 
 use std::any::TypeId;
 

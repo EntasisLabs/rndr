@@ -44,5 +44,5 @@ jobs:
       - name: Test
         run: cargo test --workspace
 
-      - name: Build expand and rndr_render
-        run: cargo build -p expand -p rndr_render
+      - name: Build examples and rndr_render
+        run: cargo build -p expand -p idle -p palette -p rndr_render
