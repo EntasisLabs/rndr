@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use rndr_core::{
-    App, Axis, BuiltinText, Caret, Chrome, Color, Focusable, Font, GlyphBox, Input, Label, Layout,
-    Shell, Size, TextEngine, TextField, TextSpan, TextStyle, Viewport, FONT_WEIGHT_BOLD,
-    FONT_WEIGHT_REGULAR, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
+    App, Axis, BuiltinText, CapturesKeys, Caret, Chrome, Color, Focusable, Font, GlyphBox, Input,
+    Label, Layout, Shell, Size, TextEngine, TextField, TextSpan, TextStyle, Viewport,
+    FONT_WEIGHT_BOLD, FONT_WEIGHT_REGULAR, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
 
 fn style() -> TextStyle {
@@ -218,9 +218,20 @@ fn a_field_click_hit_tests_through_the_engine() {
         Color::rgb(0.15, 0.16, 0.18),
         Label::new("rn"),
         TextField,
+        CapturesKeys,
         Focusable,
     ));
     app.update();
+
+    let width = app
+        .world()
+        .get::<rndr_core::TextLayout>(entity)
+        .unwrap()
+        .width;
+    let style = rndr_core::style_of(app.world());
+    let measured = rndr_core::text_engine(app.world()).measure("rn", &style, &[], f32::INFINITY);
+    assert_eq!(width, measured.width);
+    assert!(width > 16.0, "kerned pair is wider than one cell");
 
     let rect = *app.world().get::<rndr_core::Rect>(entity).unwrap();
     let input = app.world_mut().resource_mut::<Input>().unwrap();
