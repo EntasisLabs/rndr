@@ -7,6 +7,8 @@
 mod color;
 mod gpu;
 mod platform;
+#[cfg(feature = "tray")]
+mod tray;
 
 use std::sync::Arc;
 use std::time::Instant;
@@ -26,10 +28,14 @@ use winit::window::WindowId;
 
 use gpu::Gpu;
 
-/// User event the runtime posts when a task finishes or a timer is armed.
+/// User event the runtime posts when a task finishes, a timer is armed, or the
+/// tray icon is clicked. The tray variant is what wakes `Wait` while the
+/// window is hidden.
 #[derive(Debug)]
 enum RunnerEvent {
     Wake,
+    #[cfg(feature = "tray")]
+    Tray(rndr_core::TrayReport),
 }
 
 struct ProxyWake {
@@ -55,10 +61,14 @@ pub(crate) fn idle_control_flow(deadline: Option<Instant>, now: Instant) -> Cont
 /// Block on the desktop event loop. Core stays headless; this is the only winit caller.
 pub fn run(mut app: App) {
     let config = WindowConfig::get(app.world());
+    if rndr_core::tray::starts_hidden(app.world()) {
+        rndr_core::tray::mark_hidden(app.world_mut());
+    }
     let mut builder = EventLoop::<RunnerEvent>::with_user_event();
     platform::configure_event_loop(&mut builder, &config);
     let event_loop = builder.build().expect("event loop");
     let proxy = event_loop.create_proxy();
+    install_tray_handlers(&proxy);
     app.set_wake(Arc::new(ProxyWake { proxy }));
     app.set_executor(rndr_core::thread_pool());
     event_loop.set_control_flow(ControlFlow::Wait);
@@ -77,8 +87,32 @@ pub fn run(mut app: App) {
         alt: false,
         super_key: false,
         platform: host_platform(),
+        #[cfg(feature = "tray")]
+        tray: tray::Session::new(),
     };
     event_loop.run_app(&mut handler).expect("run");
+}
+
+fn install_tray_handlers(proxy: &EventLoopProxy<RunnerEvent>) {
+    #[cfg(feature = "tray")]
+    {
+        let icon_proxy = proxy.clone();
+        tray_icon::TrayIconEvent::set_event_handler(Some(move |event| {
+            if let Some(report) = tray::map_icon_event(&event) {
+                let _ = icon_proxy.send_event(RunnerEvent::Tray(report));
+            }
+        }));
+        let menu_proxy = proxy.clone();
+        tray_icon::menu::MenuEvent::set_event_handler(Some(move |event| {
+            if let Some(report) = tray::map_menu_event(&event) {
+                let _ = menu_proxy.send_event(RunnerEvent::Tray(report));
+            }
+        }));
+    }
+    #[cfg(not(feature = "tray"))]
+    {
+        let _ = proxy;
+    }
 }
 
 struct Handler {
@@ -97,6 +131,8 @@ struct Handler {
     alt: bool,
     super_key: bool,
     platform: Platform,
+    #[cfg(feature = "tray")]
+    tray: tray::Session,
 }
 
 /// Physical pixels per point. A missing or non-positive factor reads as 1.
@@ -407,11 +443,60 @@ impl Handler {
     }
 
     fn sync_flow(&self, event_loop: &ActiveEventLoop) {
+        let hidden = !rndr_core::window::is_visible(self.app.world());
+        // A hidden window does not deliver redraws. Poll only while a tray
+        // report or a task is still queued after the hidden pump; idle goes
+        // back to Wait.
+        if hidden && (self.app.wants_frame() || rndr_core::tray::pending(self.app.world())) {
+            event_loop.set_control_flow(ControlFlow::Poll);
+            return;
+        }
         if self.app.wants_frame() {
             self.request_redraw();
         }
         let now = Instant::now();
         event_loop.set_control_flow(idle_control_flow(self.app.next_deadline(), now));
+    }
+
+    fn should_exit(&self) -> bool {
+        self.app
+            .world()
+            .resource::<Input>()
+            .is_some_and(|input| input.quit)
+    }
+
+    /// Step the world without presenting. Tray clicks and timers still run,
+    /// and a quit item exits, while the window is hidden.
+    fn run_hidden_frame(&mut self, event_loop: &ActiveEventLoop) {
+        for _ in 0..8 {
+            self.app.update();
+            self.apply_effects();
+            self.apply_tray();
+            if self.should_exit() {
+                event_loop.exit();
+                return;
+            }
+            if !self.app.wants_frame() && !rndr_core::tray::pending(self.app.world()) {
+                break;
+            }
+        }
+    }
+
+    fn apply_tray(&mut self) {
+        let commands = rndr_core::tray::drain_commands(self.app.world_mut());
+        #[cfg(feature = "tray")]
+        if !commands.is_empty() {
+            if let Some(config) = self
+                .app
+                .world()
+                .resource::<rndr_core::TrayConfig>()
+                .cloned()
+            {
+                self.tray.apply(&config, &commands);
+            }
+        }
+        #[cfg(not(feature = "tray"))]
+        let _ = commands;
     }
 
     /// Apply show / hide / focus to the existing window. The surface stays.
@@ -445,11 +530,27 @@ impl ApplicationHandler<RunnerEvent> for Handler {
         }
     }
 
-    fn user_event(&mut self, _event_loop: &ActiveEventLoop, _event: RunnerEvent) {
-        self.request_redraw();
+    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: RunnerEvent) {
+        #[cfg(feature = "tray")]
+        if let RunnerEvent::Tray(report) = event {
+            rndr_core::tray::push_report(self.app.world_mut(), report);
+        }
+        #[cfg(not(feature = "tray"))]
+        let _ = event;
+        if rndr_core::window::is_visible(self.app.world()) {
+            self.request_redraw();
+        }
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        let hidden = !rndr_core::window::is_visible(self.app.world());
+        if hidden && (self.app.wants_frame() || rndr_core::tray::pending(self.app.world())) {
+            self.run_hidden_frame(event_loop);
+        }
+        if self.should_exit() {
+            event_loop.exit();
+            return;
+        }
         self.sync_flow(event_loop);
     }
 
@@ -459,7 +560,10 @@ impl ApplicationHandler<RunnerEvent> for Handler {
             // must keep the surface. Show/hide never drops `Gpu`.
             return;
         }
-        let attrs = platform::attributes(&self.config);
+        let mut attrs = platform::attributes(&self.config);
+        if !rndr_core::window::is_visible(self.app.world()) {
+            attrs = attrs.with_visible(false);
+        }
         let window = Arc::new(event_loop.create_window(attrs).expect("window"));
         platform::finish_create(&window, event_loop, &self.config);
         ensure_text_engine(self.app.world_mut());
@@ -488,8 +592,14 @@ impl ApplicationHandler<RunnerEvent> for Handler {
             &atlas_pixels,
             self.config.transparent,
         ));
-        gpu.window().request_redraw();
         self.gpu = Some(gpu);
+        if rndr_core::window::is_visible(self.app.world()) {
+            self.request_redraw();
+        } else {
+            // The loop is already running. Build the tray here so a tray-only
+            // app does not wait for a redraw the hidden window will not send.
+            self.run_hidden_frame(event_loop);
+        }
     }
 
     fn window_event(
@@ -605,12 +715,8 @@ impl ApplicationHandler<RunnerEvent> for Handler {
                     }
                 }
                 self.apply_effects();
-                if self
-                    .app
-                    .world()
-                    .resource::<Input>()
-                    .is_some_and(|input| input.quit)
-                {
+                self.apply_tray();
+                if self.should_exit() {
                     event_loop.exit();
                 }
             }

@@ -39,6 +39,7 @@ mod style;
 mod tabs;
 mod text;
 mod theme;
+pub mod tray;
 mod typing;
 pub mod window;
 mod world;
@@ -117,6 +118,12 @@ pub use text::{
     FONT_WEIGHT_BOLD, FONT_WEIGHT_REGULAR,
 };
 pub use theme::{theme_of, Radius, Theme};
+pub use tray::{
+    displayed_label, map_report, parse_menu_id, phase, push_report, set_checked, set_enabled,
+    set_icon, set_label, set_menu, set_tooltip, starts_hidden, toggle_on_click, FakeTray,
+    IconError, Image, Item, Menu, MenuItem, Submenu, TrayCommand, TrayConfig, TrayEvent, TrayIcon,
+    TrayItemId, TrayMapped, TrayMenu, TrayPhase, TrayReport, TraySupport,
+};
 pub use window::{
     platform_support, Availability, Dismiss, LogicalSize, Position, Resized, ScaleChanged,
     WindowConfig, WindowEffect, WindowFocus, WindowHandle, WindowKind, WindowMetrics, WindowPhase,

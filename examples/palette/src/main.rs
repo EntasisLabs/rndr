@@ -11,6 +11,10 @@
 //! it and leave the process running. The clear chord is still registered;
 //! window dismiss claims bare Escape first.
 //!
+//! A tray icon stays up while the window is hidden. Left click toggles the
+//! window. The menu is Show Palette (its shortcut from the keymap), Settings
+//! (disabled), a separator, and Quit.
+//!
 //! ```text
 //! cargo run -p palette
 //! ```
@@ -18,12 +22,14 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use rndr_core::window::{self, WindowConfig, WindowKind};
 use rndr_core::{
-    context_stack, debounce, events, platform_of, set_parent, sleep, spawn, theme_of, App, Axis,
-    CapturesKeys, Caret, Chrome, Color, Context, Dismiss, Entity, Event, Focus, KeyBinding, Keymap,
-    KeymapFired, Keystroke, Label, Layout, List, ListActivated, ListKeys, ListRows, LogicalSize,
-    NamedKey, Position, Radius, Schedule, Size, Spans, TaskHandle, TextChanged, TextFace,
-    TextField, TextSpan, Theme, WindowConfig, WindowKind, World,
+    context_stack, debounce, events, platform_of, set_parent, sleep, spawn, theme_of,
+    toggle_on_click, App, Axis, CapturesKeys, Caret, Chrome, Color, Context, Dismiss, Entity,
+    Event, Focus, Item, KeyBinding, Keymap, KeymapFired, Keystroke, Label, Layout, List,
+    ListActivated, ListKeys, ListRows, LogicalSize, Menu, NamedKey, Position, Radius, Schedule,
+    Size, Spans, TaskHandle, TextChanged, TextFace, TextField, TextSpan, Theme, TrayConfig,
+    TrayIcon, TrayItemId, TrayMenu, World,
 };
 use rndr_paint::LatinFace;
 use rndr_render::run;
@@ -33,6 +39,7 @@ const ROW_H: f32 = 32.0;
 const DEBOUNCE: Duration = Duration::from_millis(40);
 const RUN_DELAY: Duration = Duration::from_millis(350);
 const CLEAR: &str = "palette.clear";
+const SHOW: &str = "palette.show";
 
 /// (action id, title)
 const COMMANDS: &[(&str, &str)] = &[
@@ -87,6 +94,7 @@ struct Palette {
     field: Entity,
     list: Entity,
     status: Entity,
+    show_item: TrayItemId,
     query: String,
     hits: Vec<usize>,
     message: String,
@@ -98,6 +106,7 @@ fn bindings() -> Vec<KeyBinding> {
     let p = |ch| Keystroke::character(ch).primary();
     vec![
         KeyBinding::new(CLEAR, [Keystroke::named(NamedKey::Escape)]).context(CONTEXT),
+        KeyBinding::new(SHOW, [p('p')]),
         KeyBinding::new("ask", [Keystroke::named(NamedKey::Enter).primary()]),
         KeyBinding::new("new_session", [p('n')]),
         KeyBinding::new("search_memory", [p('k')]),
@@ -194,16 +203,62 @@ fn setup(world: &mut World) {
     world.insert_resource(Focus {
         entity: Some(field),
     });
+    let show_item = install_tray(world);
     world.insert_resource(Palette {
         field,
         list,
         status,
+        show_item,
         query: String::new(),
         hits: (0..COMMANDS.len()).collect(),
         message: "Type to filter. Up and Down move, Enter runs, Esc clears.".into(),
         running: None,
     });
     paint_status(world);
+}
+
+fn palette_icon() -> TrayIcon {
+    // Black ring on a clear square. macOS treats it as a template image.
+    const N: u32 = 22;
+    let mut rgba = vec![0u8; (N * N * 4) as usize];
+    let center = (N as f32) / 2.0;
+    let radius = 7.5;
+    let inner = 3.4;
+    for y in 0..N {
+        for x in 0..N {
+            let dx = x as f32 + 0.5 - center;
+            let dy = y as f32 + 0.5 - center;
+            let distance = (dx * dx + dy * dy).sqrt();
+            let alpha = if distance >= radius || distance <= inner {
+                0
+            } else if distance >= radius - 1.0 {
+                ((radius - distance) * 255.0).round().clamp(0.0, 255.0) as u8
+            } else if distance <= inner + 1.0 {
+                ((distance - inner) * 255.0).round().clamp(0.0, 255.0) as u8
+            } else {
+                255
+            };
+            rgba[((y * N + x) * 4 + 3) as usize] = alpha;
+        }
+    }
+    TrayIcon::rgba(N, N, rgba)
+        .expect("palette icon")
+        .template(true)
+}
+
+fn install_tray(world: &mut World) -> TrayItemId {
+    let platform = platform_of(world);
+    let shortcut = world
+        .resource::<Keymap>()
+        .map(|keymap| keymap.shortcut(SHOW, &[], platform))
+        .unwrap_or_default();
+    let mut menu = Menu::new();
+    let show = menu.add(Item::new("Show Palette").shortcut(shortcut));
+    menu.add(Item::new("Settings").enabled(false));
+    menu.separator();
+    menu.add(Item::new("Quit").quits());
+    world.insert_resource(TrayConfig::new(palette_icon(), menu).tooltip("Palette"));
+    show
 }
 
 fn build_row(world: &mut World, row: Entity, index: u32) {
@@ -362,6 +417,15 @@ fn palette_update(world: &mut World) {
     if !world.has_resource::<Palette>() {
         return;
     }
+    toggle_on_click(world);
+    let show_item = world.resource::<Palette>().map(|palette| palette.show_item);
+    let tray_show = events::<TrayMenu>(world).iter().any(|event| match event {
+        TrayMenu::Activated(id) => Some(*id) == show_item,
+    });
+    if tray_show {
+        window::show(world);
+        window::focus(world);
+    }
     let changed: Vec<(Entity, String)> = events::<TextChanged>(world)
         .iter()
         .map(|event| (event.entity, event.text.clone()))
@@ -484,6 +548,8 @@ fn main() {
         kind: WindowKind::Panel,
         hide_on_blur: true,
         dismiss: Dismiss::Hide,
+        // Menu-bar app: no Dock icon on macOS. Other platforms ignore this.
+        accessory: true,
         ..WindowConfig::default()
     });
     app.world_mut()

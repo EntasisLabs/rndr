@@ -35,13 +35,13 @@ Application
 | `rndr_core` | ECS, layout, clip, scroll, disclosure, focus, pane, split, caret, body, wrap, `Font`, `Files`, `Chrome`, events, tasks, timers |
 | `rndr_paint` | `frame`: update, then quads in points. Reads a `TextLayout`. The bitmap face is an 8×8 ASCII atlas |
 | `rndr_std` | `std::fs` plugin |
-| `rndr_render` | winit window writes `Input` and `Viewport`, then presents quads. `WindowConfig` chooses title, size, and panel behavior |
+| `rndr_render` | winit window writes `Input` and `Viewport`, then presents quads. `WindowConfig` chooses title, size, and panel behavior. The `tray` feature (on by default) adds a menu-bar icon |
 | `examples/expand` | File-backed expand demo: folder tree, pane, splitter, caret, create, delete |
 | `examples/idle` | Empty window. `ControlFlow::Wait` when nothing is scheduled |
 | `examples/overlay` | Frameless centered panel. Hides on blur and Escape, returns on a timer |
 | `examples/palette` | Command palette: debounced filter, virtual list, shortcuts |
 
-A blank `App` holds the world, `Input`, and `Viewport`. `Shell` registers the file-tree systems. `Chrome` is optional and leaves `Shell` alone: named chords, buttons, tabs, a single-line field, overlays, a virtual list, an in-memory clipboard, styled runs, a gap-buffer editor, decorations, and IME preedit. `frame` also reports `SurfaceSlot` rects and leaves those interiors empty. `StdFsPlugin` inserts the disk backend. `MemoryFs` is the headless backend. `rndr_paint::frame` steps the world and returns quads in points. `rndr_render` writes the window into `Input` and `Viewport`, then multiplies those quads by `scale` and presents them. Platform dependencies stop at `wgpu`, `winit`, and `pollster`. No layout engine, no text crate, no third-party ECS.
+A blank `App` holds the world, `Input`, and `Viewport`. `Shell` registers the file-tree systems. `Chrome` is optional and leaves `Shell` alone: named chords, buttons, tabs, a single-line field, overlays, a virtual list, an in-memory clipboard, styled runs, a gap-buffer editor, decorations, and IME preedit. `frame` also reports `SurfaceSlot` rects and leaves those interiors empty. `StdFsPlugin` inserts the disk backend. `MemoryFs` is the headless backend. `rndr_paint::frame` steps the world and returns quads in points. `rndr_render` writes the window into `Input` and `Viewport`, then multiplies those quads by `scale` and presents them. Headless crates stop at the standard library. The desktop crate depends on `wgpu`, `winit`, and `pollster`, and on `tray-icon` when the `tray` feature is on. No layout engine, no text crate, no third-party ECS.
 
 Layout, hit-testing, and scroll are in logical points. `Viewport.scale` is physical pixels per point. The desktop plugin divides window size, the cursor, and pixel-wheel deltas by that scale, then multiplies rects by it when uploading instances. `Viewport.insets` shrinks root placement for a status bar or home indicator. `Input.pointer` is one contact: the mouse writes id `0`. A drag inside a scrollport follows that contact after 4 points. A drag that starts on the seam still resizes the split.
 
@@ -91,9 +91,30 @@ Insert a `WindowConfig` before `run`. Omit it and the window stays what it was: 
 
 A macOS panel is an `NSWindow` (winit 0.30 does not build an `NSPanel`) with the non-activating style bit, pop-up window level, and collection behavior for every Space including full-screen. Focusing it does not call `activateIgnoringOtherApps`. `accessory` sets the accessory activation policy and skips launch-time activation. On Wayland, winit 0.30 ignores position, `set_visible`, `focus_window`, and window levels; the logical phase still updates.
 
+## Tray
+
+Insert a `TrayConfig` before `run`, or from a Startup system. The icon is RGBA pixels or PNG bytes, plus a `template` flag. On macOS a template image follows the menu bar's light or dark tint. The menu is labels, optional shortcut display text from `Keymap::shortcut` or `Keystroke::display`, enabled and checked state, separators, and submenus. `set_label`, `set_enabled`, `set_checked`, and `set_icon` update a live icon. Shortcut text is shown beside the label. It is not a hotkey: a keymap chord can be more than one key.
+
+Clicks arrive as `TrayEvent::Click` and `TrayEvent::DoubleClick`. Choosing a row arrives as `TrayMenu::Activated(id)`. Both are readable in Update, and the callback wakes the loop while the window is hidden. `toggle_on_click` is the one-line helper that toggles the window on a left click. Right click opens the menu and is not a `TrayEvent`. An item built with `Item::quits` sets `Input::quit`, and the runner exits even if the window is hidden.
+
+`hide_window` starts the app with no visible window. Put the config in the world before `run` so the window is created hidden. The process stays on `ControlFlow::Wait` until a click, a timer, or quit.
+
+The desktop crate uses [`tray-icon`](https://docs.rs/tray-icon) 0.26 (MIT OR Apache-2.0) behind the `tray` feature, which is on by default. Linux uses that crate's `ksni` backend: a StatusNotifierItem on the session bus, on a worker thread, with no GTK loop on the winit thread. The default AppIndicator backend is off because it needs GTK on this thread and would either spin or miss clicks during `Wait`. `rndr_core`, `rndr_paint`, and `rndr_std` do not depend on it. Building `rndr_render` with `--no-default-features` leaves the tray out.
+
+At runtime on Linux the icon appears when a StatusNotifierItem watcher is on the session bus (Ubuntu's Ayatana/AppIndicator host, or KDE). No extra `-dev` packages are required to compile. If no watcher is running, the process still runs and the icon is not shown.
+
+| | macOS | Windows | X11 | Wayland |
+| --- | --- | --- | --- | --- |
+| Icon | menu bar status item | notification area | StatusNotifierItem | StatusNotifierItem |
+| Template image | yes | ignored | ignored | ignored |
+| Tooltip, menu, separators, submenus | yes | yes | yes, when a watcher is running | same |
+| Left click | yes | yes | yes | yes |
+| Double click | not emitted | yes | not emitted | not emitted |
+| Hidden window keeps running | yes | yes | yes | yes |
+
 ## Headless tests
 
-CI on macOS, Windows, and Ubuntu runs `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`, then `cargo build -p expand -p idle -p overlay -p palette -p rndr_render`. The Ubuntu job installs the X11, Wayland, and Vulkan packages winit and wgpu need to compile.
+CI on macOS, Windows, and Ubuntu runs `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo clippy -p rndr_render --no-default-features --all-targets -- -D warnings`, `cargo test --workspace`, then `cargo build -p expand -p idle -p overlay -p palette -p rndr_render`. The Ubuntu job installs the X11, Wayland, and Vulkan packages winit and wgpu need to compile. The tray feature adds no further packages.
 
 A headless test drives one frame without a window:
 
@@ -125,6 +146,6 @@ cargo run -p expand -- /path/to/dir
 
 `overlay` opens a frameless, always-on-top panel in the center of the screen. Escape or a click away hides it. Two seconds later the timer shows it again.
 
-`palette` is a command list in that same kind of window: frameless, centered, always on top, hidden on blur and on Escape. The search field emits `TextChanged`, a debounced task filters thirty commands, and a virtual list shows the matches with shortcuts from `Keymap::shortcut` (`⌘K` on macOS, `Ctrl+K` elsewhere, `Ctrl+G M` for a two-stroke chord). The shortcut is a label with its own dim color. Letters the filter hit are painted with a highlight. Up and Down move the selection, Enter runs it, and the run is a task whose handle sits in ordinary app state. The field and the row labels measure through `TextEngine`.
+`palette` is a command list in that same kind of window: frameless, centered, always on top, hidden on blur and on Escape. On macOS it runs as an accessory app, so the Dock stays out of it. A tray icon remains: Show Palette (the `⌘P` / `Ctrl+P` shortcut from the keymap), Settings (disabled), and Quit. Left click toggles the window. The search field emits `TextChanged`, a debounced task filters thirty commands, and a virtual list shows the matches with shortcuts from `Keymap::shortcut` (`⌘K` on macOS, `Ctrl+K` elsewhere, `Ctrl+G M` for a two-stroke chord). The shortcut is a label with its own dim color. Letters the filter hit are painted with a highlight. Up and Down move the selection, Enter runs it, and the run is a task whose handle sits in ordinary app state. The field and the row labels measure through `TextEngine`.
 
 A tree column on the left and a detail pane on the right. Drag the seam to resize. The body wraps to the pane width; drag the splitter and the next frame reflows. The demo opens the first argument if it is an existing directory, otherwise `examples/expand/fixture`. Click a row to select it. Right lists a directory; Enter opens a file into the pane. Click a title or body cell to place the caret; Shift extends the selection. Type in the title to rename, Tab into the body to edit, Ctrl+S writes the file. A mark on the tree row means the file is dirty. Ctrl+N creates `untitled.txt` (Ctrl+Shift+N a folder) and starts a title edit. Delete removes a file or an empty folder. Collapse writes dirty children first. Hidden names and binary files are skipped for the body. Escape leaves the caret, then the pane.
