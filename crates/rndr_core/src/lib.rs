@@ -79,7 +79,10 @@ pub use fs::{
     DirtyMark, Files, Fs, FsPath,
 };
 pub use hierarchy::{children_of, despawn, roots, set_parent, Children, Parent};
-pub use hotkey::{GlobalHotkey, HotkeyBinding, HotkeyError, HotkeyHandle, HotkeyId};
+pub use hotkey::{
+    note_unregistered, GlobalHotkey, HotkeyBinding, HotkeyError, HotkeyHandle, HotkeyId,
+    HotkeyRejected,
+};
 pub use input::{Focus, Input, Insets, Key, Pointer, Viewport, MOUSE_ID};
 pub use keymap::{
     apply_keymap, context_path, context_stack, Clock, Context, Dispatch, KeyBinding, Keymap,
@@ -121,10 +124,10 @@ pub use text::{
 };
 pub use theme::{theme_of, Radius, Theme};
 pub use tray::{
-    displayed_label, map_report, parse_menu_id, phase, push_report, set_checked, set_enabled,
-    set_icon, set_label, set_menu, set_tooltip, starts_hidden, toggle_on_click, FakeTray,
-    IconError, Image, Item, Menu, MenuItem, Submenu, TrayCommand, TrayConfig, TrayEvent, TrayIcon,
-    TrayItemId, TrayMapped, TrayMenu, TrayPhase, TrayReport, TraySupport,
+    displayed_label, map_report, menu_label, parse_menu_id, phase, push_report, set_checked,
+    set_enabled, set_icon, set_label, set_menu, set_tooltip, starts_hidden, toggle_on_click,
+    FakeTray, IconError, Image, Item, Menu, MenuItem, Submenu, TrayCommand, TrayConfig, TrayEvent,
+    TrayIcon, TrayItemId, TrayMapped, TrayMenu, TrayPhase, TrayReport, TraySupport,
 };
 pub use window::{
     platform_support, Availability, Dismiss, LogicalSize, Position, Resized, ScaleChanged,

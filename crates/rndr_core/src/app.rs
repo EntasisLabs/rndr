@@ -26,7 +26,8 @@ use crate::world::World;
 ///    can read them.
 /// 3. [`Update`](Schedule::Update) — application systems.
 /// 4. [`PostUpdate`](Schedule::PostUpdate) — widgets that follow application
-///    writes. The virtual list rebuilds here, after a system has changed `List::count`.
+///    writes. The virtual list rebuilds here, after a system has changed `List::count`,
+///    and once more after layout when that height was not known yet.
 /// 5. [`Layout`](Schedule::Layout) — user layout systems, then the hierarchy walk
 ///    and text measurement.
 /// 6. Paint — the quad walk. Not a system list.
@@ -219,6 +220,15 @@ impl App {
             system(&mut self.world);
         }
         layout_propagate(&mut self.world);
+        // PostUpdate measured the list before layout assigned a height, so the
+        // first pass builds no rows. Rebuild once the rect is known, then lay
+        // the new rows out. Two passes cover a fill child of a fixed parent.
+        for _ in 0..2 {
+            if !crate::list::sync_viewport(&mut self.world) {
+                break;
+            }
+            layout_propagate(&mut self.world);
+        }
         apply_text_layout(&mut self.world);
         crate::editor::apply_decorations(&mut self.world);
         window::drive(&mut self.world);

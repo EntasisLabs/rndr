@@ -12,7 +12,9 @@
 //! A press is queued by the backend and delivered as [`GlobalHotkey`] on the
 //! next frame. The runner wakes the winit loop, which stays on `Wait` the rest
 //! of the time. [`toggle_window`] is the launcher case: the chord shows and
-//! focuses a hidden window, or hides a visible one.
+//! focuses a hidden window, or hides a visible one. A key event that matches a
+//! registered chord, including its repeats, is removed from that frame's text
+//! input.
 //!
 //! Re-registering a chord that this process already owns returns another
 //! handle for the same id and does not grab twice. Dropping a handle, or
@@ -46,6 +48,7 @@ mod registry;
 
 use std::sync::Arc;
 
+use crate::event::{self, Event};
 use crate::keys::{KeyCode, Keystroke, NamedKey};
 use crate::world::World;
 
@@ -77,6 +80,29 @@ impl std::fmt::Display for HotkeyError {
 }
 
 impl std::error::Error for HotkeyError {}
+
+/// A chord the app asked for that the platform did not grab.
+///
+/// Stored as a resource as soon as [`note_unregistered`] runs, and delivered
+/// as an event on the next frame, so startup and Update can both show it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HotkeyRejected {
+    pub binding: String,
+    pub error: HotkeyError,
+}
+
+impl Event for HotkeyRejected {}
+
+/// Log `error` and keep running. The process does not exit.
+pub fn note_unregistered(world: &mut World, binding: &str, error: HotkeyError) {
+    eprintln!("warning: hotkey {binding}: {error}; continuing without it");
+    let notice = HotkeyRejected {
+        binding: binding.to_string(),
+        error,
+    };
+    world.insert_resource(notice.clone());
+    event::send(world, notice);
+}
 
 /// One chord in keymap vocabulary. Global hotkeys are a single keystroke.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

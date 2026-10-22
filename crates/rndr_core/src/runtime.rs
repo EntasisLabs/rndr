@@ -755,6 +755,31 @@ fn arm_timer(
     }
 }
 
+pub(crate) fn clock_elapsed(world: &World) -> Duration {
+    runtime(world).elapsed()
+}
+
+/// Run `callback` once `delay` has passed. Dropping the handle cancels it.
+pub(crate) fn call_after(
+    world: &mut World,
+    delay: Duration,
+    callback: impl FnOnce(&mut World) + Send + 'static,
+) -> TimerHandle {
+    let cancel = Arc::new(AtomicBool::new(false));
+    let flag = Arc::clone(&cancel);
+    arm_timer(
+        world,
+        delay,
+        None,
+        cancel,
+        TimerKind::Once(Some(Box::new(move |world| {
+            if !flag.load(Ordering::Acquire) {
+                callback(world);
+            }
+        }))),
+    )
+}
+
 /// Emit `event` once `delay` has passed on the clock.
 pub fn after<T: Event>(world: &mut World, delay: Duration, event: T) -> TimerHandle {
     let cancel = Arc::new(AtomicBool::new(false));

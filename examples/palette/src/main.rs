@@ -28,9 +28,9 @@ use rndr_core::window::{self, WindowConfig, WindowKind};
 use rndr_core::{
     context_stack, debounce, events, platform_of, set_parent, sleep, spawn, theme_of,
     toggle_on_click, App, Axis, CapturesKeys, Caret, Chrome, Color, Context, Dismiss, Entity,
-    Event, Focus, HotkeyBinding, Item, KeyBinding, Keymap, KeymapFired, Keystroke, Label, Layout,
-    List, ListActivated, ListKeys, ListRows, LogicalSize, Menu, NamedKey, Position, Radius,
-    Schedule, Size, Spans, TaskHandle, TextChanged, TextFace, TextField, TextSpan, Theme,
+    Event, Focus, HotkeyBinding, HotkeyRejected, Item, KeyBinding, Keymap, KeymapFired, Keystroke,
+    Label, Layout, List, ListActivated, ListKeys, ListRows, LogicalSize, Menu, NamedKey, Position,
+    Radius, Schedule, Size, Spans, TaskHandle, TextChanged, TextFace, TextField, TextSpan, Theme,
     TrayConfig, TrayIcon, TrayItemId, TrayMenu, World,
 };
 use rndr_paint::LatinFace;
@@ -214,19 +214,30 @@ fn setup(world: &mut World) {
         show_item,
         query: String::new(),
         hits: (0..COMMANDS.len()).collect(),
-        message: "Type to filter. Up and Down move, Enter runs, Esc clears.".into(),
+        message: status_hint(world),
         running: None,
     });
     paint_status(world);
 }
 
-fn palette_icon() -> TrayIcon {
-    // Black ring on a clear square. macOS treats it as a template image.
+fn status_hint(world: &World) -> String {
+    let hint = "Type to filter. Up and Down move, Enter runs, Esc hides.";
+    match world.resource::<HotkeyRejected>() {
+        Some(rejected) => format!("Hotkey {}: {}. {hint}", rejected.binding, rejected.error),
+        None => hint.to_string(),
+    }
+}
+
+fn palette_icon(platform: rndr_core::Platform) -> TrayIcon {
+    // Ring on a clear square. macOS uses black pixels as a template image.
+    // Elsewhere the same shape is white, so it stays visible on a dark panel.
     const N: u32 = 22;
     let mut rgba = vec![0u8; (N * N * 4) as usize];
     let center = (N as f32) / 2.0;
     let radius = 7.5;
     let inner = 3.4;
+    let mac = platform == rndr_core::Platform::Mac;
+    let ink = if mac { 0 } else { 255 };
     for y in 0..N {
         for x in 0..N {
             let dx = x as f32 + 0.5 - center;
@@ -241,12 +252,18 @@ fn palette_icon() -> TrayIcon {
             } else {
                 255
             };
-            rgba[((y * N + x) * 4 + 3) as usize] = alpha;
+            let i = ((y * N + x) * 4) as usize;
+            if alpha > 0 {
+                rgba[i] = ink;
+                rgba[i + 1] = ink;
+                rgba[i + 2] = ink;
+            }
+            rgba[i + 3] = alpha;
         }
     }
     TrayIcon::rgba(N, N, rgba)
         .expect("palette icon")
-        .template(true)
+        .template(mac)
 }
 
 fn summon_shortcut(binding: &str, platform: rndr_core::Platform) -> String {
@@ -267,7 +284,12 @@ fn install_tray(world: &mut World) -> TrayItemId {
     menu.add(Item::new("Settings").enabled(false));
     menu.separator();
     menu.add(Item::new("Quit").quits());
-    world.insert_resource(TrayConfig::new(palette_icon(), menu).tooltip("Palette"));
+    world.insert_resource(
+        TrayConfig::new(palette_icon(platform), menu)
+            .tooltip("Palette")
+            .id("palette")
+            .title("Palette"),
+    );
     show
 }
 
@@ -372,8 +394,17 @@ fn row_parts(world: &mut World, row: Entity) -> (Entity, Entity) {
 /// Subsequence match. Lower score is better: tight, early matches win.
 /// Ranges are byte spans in `title` for the letters that hit, merged when
 /// they sit next to each other.
+fn chars_match(query: char, title: char) -> bool {
+    if query.is_ascii() && title.is_ascii() {
+        query.eq_ignore_ascii_case(&title)
+    } else {
+        // Per code point, so a fold that grows (İ) cannot shift later ranges.
+        query.to_lowercase().eq(title.to_lowercase())
+    }
+}
+
 fn fuzzy(query: &str, title: &str) -> Option<(i32, Vec<(usize, usize)>)> {
-    let query = query.trim().to_lowercase();
+    let query = query.trim();
     if query.is_empty() {
         return Some((0, Vec::new()));
     }
@@ -382,9 +413,7 @@ fn fuzzy(query: &str, title: &str) -> Option<(i32, Vec<(usize, usize)>)> {
     let mut ranges = Vec::new();
     let mut chars = title.char_indices();
     for q in query.chars().filter(|c| !c.is_whitespace()) {
-        let (at, ch) = chars
-            .by_ref()
-            .find(|(_, ch)| ch.to_ascii_lowercase() == q)?;
+        let (at, ch) = chars.by_ref().find(|(_, ch)| chars_match(q, *ch))?;
         score += match last {
             Some(prev) => (at - prev - 1) as i32,
             None => at as i32,
@@ -572,10 +601,10 @@ fn main() {
     let binding = configured_hotkey(std::env::args().skip(1));
     app.world_mut().insert_resource(Summon(binding.clone()));
     let _hotkey = match toggle_window(app.world_mut(), binding.as_str()) {
-        Ok(handle) => handle,
+        Ok(handle) => Some(handle),
         Err(err) => {
-            eprintln!("hotkey {binding}: {err}");
-            std::process::exit(1);
+            rndr_core::note_unregistered(app.world_mut(), binding.as_str(), err);
+            None
         }
     };
     run(app);
@@ -614,5 +643,36 @@ mod tests {
         assert_eq!(tight, vec![(0, 2)]);
         assert!(fuzzy("zzz", "Search memory").is_none());
         assert!(fuzzy("  ", "Search memory").unwrap().1.is_empty());
+        let (score, ranges) = fuzzy("é", "Résumé builder").unwrap();
+        assert_eq!(ranges, vec![(1, 3)]);
+        assert_eq!(score, 1);
+        let (score, ranges) = fuzzy("É", "Résumé builder").unwrap();
+        assert_eq!(ranges, vec![(1, 3)]);
+        assert_eq!(score, 1);
+        let (_, ranges) = fuzzy("rés", "Résumé builder").unwrap();
+        assert_eq!(ranges, vec![(0, 4)]);
+    }
+
+    #[test]
+    fn palette_icon_is_a_template_only_on_macos() {
+        use rndr_core::Platform;
+        let mac = super::palette_icon(Platform::Mac);
+        assert!(mac.template);
+        let x11 = super::palette_icon(Platform::X11);
+        assert!(!x11.template);
+        let windows = super::palette_icon(Platform::Windows);
+        assert!(!windows.template);
+        assert_eq!(opaque_rgb(&mac), Some([0, 0, 0]));
+        assert_eq!(opaque_rgb(&x11), Some([255, 255, 255]));
+        assert_eq!(opaque_rgb(&windows), Some([255, 255, 255]));
+    }
+
+    fn opaque_rgb(icon: &rndr_core::TrayIcon) -> Option<[u8; 3]> {
+        let rndr_core::Image::Rgba { rgba, .. } = &icon.image else {
+            return None;
+        };
+        rgba.chunks(4)
+            .find(|pixel| pixel[3] == 255)
+            .map(|pixel| [pixel[0], pixel[1], pixel[2]])
     }
 }

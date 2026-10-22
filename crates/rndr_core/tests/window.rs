@@ -136,7 +136,7 @@ fn blur_before_the_first_focus_is_ignored() {
 }
 
 #[test]
-fn hide_on_blur_emits_blur_then_hides() {
+fn hide_on_blur_records_the_blur_without_hiding_immediately() {
     let config = WindowConfig {
         hide_on_blur: true,
         ..WindowConfig::default()
@@ -145,8 +145,8 @@ fn hide_on_blur_emits_blur_then_hides() {
     assert_eq!(gained.events, vec![WindowFocus::Focused]);
     let lost = window::transition(gained.phase, &config, WindowSignal::LostFocus);
     assert_eq!(lost.events, vec![WindowFocus::Blurred]);
-    assert_eq!(lost.effects, vec![WindowEffect::Hide]);
-    assert!(!lost.phase.visible);
+    assert!(lost.effects.is_empty());
+    assert!(lost.phase.visible);
     assert!(!lost.phase.focused);
 }
 
@@ -206,7 +206,8 @@ fn hide_on_blur_reaches_app_code_as_one_blur() {
         hide_on_blur: true,
         ..WindowConfig::default()
     });
-    window::focus(sim.world());
+    // Platform focus does not start the post-show grace, so the settle is 40ms.
+    window::platform_focused(sim.world());
     sim.update();
     assert_eq!(events::<WindowFocus>(sim.world()), &[WindowFocus::Focused]);
     let _ = window::drain_effects(sim.world());
@@ -214,9 +215,105 @@ fn hide_on_blur_reaches_app_code_as_one_blur() {
     window::platform_blurred(sim.world());
     sim.update();
     assert_eq!(events::<WindowFocus>(sim.world()), &[WindowFocus::Blurred]);
+    assert!(window::is_visible(sim.world()));
+    assert!(!window::is_focused(sim.world()));
+    assert!(window::drain_effects(sim.world()).is_empty());
+
+    sim.advance(Duration::from_millis(39));
+    sim.update();
+    assert!(window::is_visible(sim.world()));
+    assert!(events::<WindowFocus>(sim.world()).is_empty());
+
+    sim.advance(Duration::from_millis(1));
+    sim.update();
     assert!(!window::is_visible(sim.world()));
     assert!(!window::is_focused(sim.world()));
+    assert!(events::<WindowFocus>(sim.world()).is_empty());
     assert_eq!(window::drain_effects(sim.world()), vec![WindowEffect::Hide]);
+}
+
+#[test]
+fn a_focus_return_in_the_same_batch_does_not_hide() {
+    let mut sim = Sim::new();
+    sim.world().insert_resource(WindowConfig {
+        hide_on_blur: true,
+        ..WindowConfig::default()
+    });
+    window::platform_focused(sim.world());
+    sim.update();
+    let _ = window::drain_effects(sim.world());
+
+    window::platform_blurred(sim.world());
+    window::platform_focused(sim.world());
+    sim.update();
+    assert!(window::is_visible(sim.world()));
+    assert!(window::is_focused(sim.world()));
+    assert_eq!(
+        events::<WindowFocus>(sim.world()),
+        &[WindowFocus::Blurred, WindowFocus::Focused]
+    );
+    assert!(window::drain_effects(sim.world()).is_empty());
+
+    sim.advance(Duration::from_millis(250));
+    sim.update();
+    assert!(window::is_visible(sim.world()));
+    assert!(window::is_focused(sim.world()));
+}
+
+#[test]
+fn blur_during_the_show_grace_waits_until_the_grace_ends() {
+    let mut sim = Sim::new();
+    sim.world().insert_resource(WindowConfig {
+        hide_on_blur: true,
+        ..WindowConfig::default()
+    });
+    window::focus(sim.world());
+    sim.update();
+    assert!(window::is_focused(sim.world()));
+    let _ = window::drain_effects(sim.world());
+
+    window::platform_blurred(sim.world());
+    sim.update();
+    assert_eq!(events::<WindowFocus>(sim.world()), &[WindowFocus::Blurred]);
+    assert!(window::is_visible(sim.world()));
+
+    sim.advance(Duration::from_millis(40));
+    sim.update();
+    assert!(window::is_visible(sim.world()));
+
+    sim.advance(Duration::from_millis(160));
+    sim.update();
+    assert!(!window::is_visible(sim.world()));
+    assert!(events::<WindowFocus>(sim.world()).is_empty());
+    assert_eq!(window::drain_effects(sim.world()), vec![WindowEffect::Hide]);
+}
+
+#[test]
+fn focus_returning_before_the_settle_cancels_the_hide() {
+    let mut sim = Sim::new();
+    sim.world().insert_resource(WindowConfig {
+        hide_on_blur: true,
+        ..WindowConfig::default()
+    });
+    window::platform_focused(sim.world());
+    sim.update();
+    let _ = window::drain_effects(sim.world());
+
+    window::platform_blurred(sim.world());
+    sim.update();
+    assert!(window::is_visible(sim.world()));
+
+    sim.advance(Duration::from_millis(20));
+    window::platform_focused(sim.world());
+    sim.update();
+    assert!(window::is_visible(sim.world()));
+    assert!(window::is_focused(sim.world()));
+
+    sim.advance(Duration::from_millis(200));
+    sim.update();
+    assert!(window::is_visible(sim.world()));
+    assert!(window::is_focused(sim.world()));
+    assert!(window::drain_effects(sim.world()).is_empty());
 }
 
 #[test]

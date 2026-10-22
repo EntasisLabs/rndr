@@ -119,7 +119,10 @@ pub(crate) fn apply_text_event(
             place(index, anchor, dest, shift);
         }
         LogicalKey::Named(NamedKey::Space)
-            if event.text.is_none() && !event.modifiers.command() =>
+            if event.text.is_none()
+                && !event.modifiers.ctrl
+                && !event.modifiers.alt
+                && !event.modifiers.super_key =>
         {
             change(text, index, anchor, history, |text, index, anchor| {
                 step_key(text, index, anchor, None, false, " ", false);

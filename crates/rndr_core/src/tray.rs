@@ -375,6 +375,20 @@ pub fn displayed_label(label: &str, shortcut: &str) -> String {
     }
 }
 
+/// Label for a native menu row.
+///
+/// X11 and Wayland draw the whole label as one string, so a tab would show
+/// up literally. Those platforms leave the shortcut out of the label; the
+/// menu accelerator carries the chord when the backend honors one. Other
+/// platforms keep a tab before the shortcut.
+pub fn menu_label(label: &str, shortcut: &str, platform: Platform) -> String {
+    if shortcut.is_empty() || matches!(platform, Platform::X11 | Platform::Wayland) {
+        label.to_string()
+    } else {
+        displayed_label(label, shortcut)
+    }
+}
+
 /// What the app asks the runner to show.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TrayConfig {
@@ -383,6 +397,10 @@ pub struct TrayConfig {
     pub menu: Menu,
     /// The window starts hidden and the process keeps running. Quit still exits.
     pub hide_window: bool,
+    /// Status-item id. Empty uses `rndr` when the icon is created.
+    pub id: String,
+    /// Title for trays that show one. Empty leaves the title unset.
+    pub title: String,
 }
 
 impl TrayConfig {
@@ -392,6 +410,8 @@ impl TrayConfig {
             tooltip: String::new(),
             menu,
             hide_window: false,
+            id: "rndr".to_string(),
+            title: String::new(),
         }
     }
 
@@ -402,6 +422,16 @@ impl TrayConfig {
 
     pub fn hide_window(mut self, hide: bool) -> Self {
         self.hide_window = hide;
+        self
+    }
+
+    pub fn id(mut self, id: impl Into<String>) -> Self {
+        self.id = id.into();
+        self
+    }
+
+    pub fn title(mut self, title: impl Into<String>) -> Self {
+        self.title = title.into();
         self
     }
 }

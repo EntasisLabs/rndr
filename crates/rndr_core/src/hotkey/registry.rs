@@ -4,7 +4,8 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 
 use crate::event::{self, Event};
-use crate::keys::platform_of;
+use crate::input::Input;
+use crate::keys::{legacy_key, platform_of};
 use crate::window;
 use crate::world::World;
 
@@ -306,36 +307,72 @@ fn map_failure(failure: HotkeyFailure) -> HotkeyError {
 }
 
 pub(crate) fn drive(world: &mut World) {
-    let hub = {
-        let Some(installed) = world.resource::<HotkeyHub>() else {
-            return;
-        };
-        Arc::clone(&installed.hub)
-    };
-    let presses = lock(&hub.backend).poll();
-    if presses.is_empty() {
+    let Some(installed) = world.resource::<HotkeyHub>() else {
         return;
-    }
-    let planned: Vec<(HotkeyId, HotkeyBinding, bool)> = {
-        let state = lock(&hub.state);
-        presses
-            .into_iter()
-            .filter_map(|id| {
-                if !state.refs.contains_key(&id) {
-                    return None;
-                }
-                let binding = *state.bindings.get(&id)?;
-                let toggle = state.toggles.contains(&id);
-                Some((id, binding, toggle))
-            })
-            .collect()
     };
-    for (id, binding, toggle) in planned {
-        event::send(world, GlobalHotkey { id, binding });
-        if toggle {
-            window::toggle(world);
+    let hub = Arc::clone(&installed.hub);
+    let presses = lock(&hub.backend).poll();
+    if !presses.is_empty() {
+        let planned: Vec<(HotkeyId, HotkeyBinding, bool)> = {
+            let state = lock(&hub.state);
+            presses
+                .into_iter()
+                .filter_map(|id| {
+                    if !state.refs.contains_key(&id) {
+                        return None;
+                    }
+                    let binding = *state.bindings.get(&id)?;
+                    let toggle = state.toggles.contains(&id);
+                    Some((id, binding, toggle))
+                })
+                .collect()
+        };
+        for (id, binding, toggle) in planned {
+            event::send(world, GlobalHotkey { id, binding });
+            if toggle {
+                window::toggle(world);
+            }
         }
     }
+    suppress_hotkey_keys(world, &hub);
+}
+
+/// Drop key events that match a registered chord, including auto-repeat.
+/// The field must not see them, and a chord with no platform text must not
+/// synthesize a character either.
+fn suppress_hotkey_keys(world: &mut World, hub: &Hub) {
+    let strokes: Vec<_> = {
+        let state = lock(&hub.state);
+        state
+            .bindings
+            .values()
+            .map(|binding| binding.keystroke())
+            .collect()
+    };
+    if strokes.is_empty() {
+        return;
+    }
+    let platform = platform_of(world);
+    let Some(input) = world.resource_mut::<Input>() else {
+        return;
+    };
+    let before = input.keys.len();
+    input
+        .keys
+        .retain(|event| !strokes.iter().any(|stroke| stroke.matches(event, platform)));
+    if input.keys.len() == before {
+        return;
+    }
+    input.chars.clear();
+    for event in &input.keys {
+        if let Some(text) = event.insertable_text() {
+            input.chars.push_str(&text);
+        }
+    }
+    input.key = input
+        .keys
+        .first()
+        .and_then(|event| legacy_key(event, platform));
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {

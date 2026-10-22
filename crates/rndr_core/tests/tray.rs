@@ -5,11 +5,11 @@ use std::sync::Arc;
 
 use rndr_core::tray::Entry;
 use rndr_core::{
-    displayed_label, events, map_report, phase, push_report, set_checked, set_enabled, set_icon,
-    set_label, starts_hidden, toggle_on_click, App, Availability, FakeTray, IconError, Image,
-    Input, Item, KeyBinding, Keymap, Keystroke, Menu, NamedKey, Platform, Schedule, TrayCommand,
-    TrayConfig, TrayEvent, TrayIcon, TrayItemId, TrayMapped, TrayMenu, TrayPhase, TrayReport,
-    TraySupport, Wake,
+    displayed_label, events, map_report, menu_label, phase, push_report, set_checked, set_enabled,
+    set_icon, set_label, starts_hidden, toggle_on_click, App, Availability, FakeTray, IconError,
+    Image, Input, Item, KeyBinding, Keymap, Keystroke, Menu, NamedKey, Platform, Schedule,
+    TrayCommand, TrayConfig, TrayEvent, TrayIcon, TrayItemId, TrayMapped, TrayMenu, TrayPhase,
+    TrayReport, TraySupport, Wake,
 };
 
 struct FlagWake(AtomicBool);
@@ -98,6 +98,29 @@ fn menu_ids_updates_and_nested_submenus() {
     let from_map = map.shortcut("palette.show", &[], Platform::Windows);
     assert_eq!(from_map, "F6");
     assert_eq!(displayed_label("Show", &from_map), "Show\tF6");
+    assert_eq!(
+        menu_label("Show Palette", "Alt+Space", Platform::X11),
+        "Show Palette"
+    );
+    assert_eq!(
+        menu_label("Show Palette", "Alt+Space", Platform::Wayland),
+        "Show Palette"
+    );
+    assert_eq!(
+        menu_label("Show Palette", "Alt+Space", Platform::Windows),
+        "Show Palette\tAlt+Space"
+    );
+    assert_eq!(
+        menu_label("Show Palette", "", Platform::Mac),
+        "Show Palette"
+    );
+    let config = TrayConfig::new(icon(), Menu::new())
+        .id("palette")
+        .title("Palette");
+    assert_eq!(config.id, "palette");
+    assert_eq!(config.title, "Palette");
+    assert_eq!(TrayConfig::new(icon(), Menu::new()).id, "rndr");
+    assert!(TrayConfig::new(icon(), Menu::new()).title.is_empty());
 }
 
 #[test]

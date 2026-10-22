@@ -302,6 +302,7 @@ fn unicode_text_is_inserted() {
 #[test]
 fn shortcut_modifier_does_not_insert_text() {
     let (mut app, entity) = field();
+    app.world_mut().insert_resource(Platform::Windows);
     let mut event = KeyEvent::character('c', mods(false, true, false, false));
     event.text = Some("c".to_string());
     app.world_mut()
@@ -332,6 +333,72 @@ fn shortcut_modifier_does_not_insert_text() {
     app.update();
     assert_eq!(app.world().get::<Label>(entity).unwrap().text, "ab");
     assert_eq!(app.world().resource::<Clipboard>().unwrap().text, "ab");
+}
+
+#[test]
+fn modifier_chords_insert_only_platform_text() {
+    let (mut app, entity) = field();
+    app.world_mut()
+        .resource_mut::<Input>()
+        .unwrap()
+        .keys
+        .push(named(NamedKey::Space, Modifiers::new()));
+    app.update();
+    assert_eq!(app.world().get::<Label>(entity).unwrap().text, "ab ");
+
+    let (mut app, entity) = field();
+    app.world_mut()
+        .resource_mut::<Input>()
+        .unwrap()
+        .keys
+        .push(named(NamedKey::Space, mods(true, false, false, false)));
+    app.update();
+    assert_eq!(app.world().get::<Label>(entity).unwrap().text, "ab ");
+
+    let (mut app, entity) = field();
+    app.world_mut()
+        .resource_mut::<Input>()
+        .unwrap()
+        .keys
+        .push(named(NamedKey::Space, mods(false, false, true, false)));
+    app.update();
+    assert_eq!(app.world().get::<Label>(entity).unwrap().text, "ab");
+
+    let (mut app, entity) = field();
+    app.world_mut()
+        .resource_mut::<Input>()
+        .unwrap()
+        .keys
+        .push(named(NamedKey::Space, mods(false, true, false, false)));
+    app.update();
+    assert_eq!(app.world().get::<Label>(entity).unwrap().text, "ab");
+
+    let (mut app, entity) = field();
+    app.world_mut()
+        .resource_mut::<Input>()
+        .unwrap()
+        .keys
+        .push(KeyEvent::character('e', mods(false, false, true, false)).with_text("é"));
+    app.update();
+    assert_eq!(app.world().get::<Label>(entity).unwrap().text, "abé");
+
+    let (mut app, entity) = field();
+    app.world_mut()
+        .resource_mut::<Input>()
+        .unwrap()
+        .keys
+        .push(KeyEvent::character('e', mods(false, true, true, false)).with_text("€"));
+    app.update();
+    assert_eq!(app.world().get::<Label>(entity).unwrap().text, "ab€");
+
+    let (mut app, entity) = field();
+    app.world_mut()
+        .resource_mut::<Input>()
+        .unwrap()
+        .keys
+        .push(KeyEvent::character('a', mods(false, false, false, true)).with_text("a"));
+    app.update();
+    assert_eq!(app.world().get::<Label>(entity).unwrap().text, "ab");
 }
 
 #[test]

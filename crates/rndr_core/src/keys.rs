@@ -255,9 +255,12 @@ impl KeyEvent {
         self
     }
 
-    /// Text that should be inserted: no Ctrl/Super, and no control characters.
+    /// Text that should be inserted.
+    ///
+    /// Super never inserts. Ctrl and Alt insert only when this event already
+    /// carries text, which is how AltGr types. Control characters are dropped.
     pub fn insertable_text(&self) -> Option<String> {
-        if self.modifiers.command() {
+        if self.modifiers.super_key {
             return None;
         }
         let text = self.text.as_ref()?;
