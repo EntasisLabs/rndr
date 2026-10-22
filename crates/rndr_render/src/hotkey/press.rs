@@ -19,6 +19,8 @@ impl PressQueue {
         self.push_edge(HotkeyEdge::Press(id));
     }
 
+    /// Windows `RegisterHotKey` has no key-up, so this stays unused there.
+    #[cfg_attr(target_os = "windows", allow(dead_code))]
     pub(super) fn push_release(&self, id: HotkeyId) {
         self.push_edge(HotkeyEdge::Release(id));
     }
