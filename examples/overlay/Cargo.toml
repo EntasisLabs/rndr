@@ -3,7 +3,7 @@ name = "overlay"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Frameless always-on-top panel that hides on blur and Escape"
+description = "Frameless always-on-top panel summoned by a global hotkey"
 publish = false
 
 [dependencies]

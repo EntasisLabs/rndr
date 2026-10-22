@@ -160,10 +160,12 @@ impl App {
     /// One frame: Startup once, then Input, Update, PostUpdate, Layout.
     ///
     /// The pump ticks [`crate::Time`], drops the previous frame's events, and commits
-    /// task and timer output. Window commands that arrived from tasks or the
-    /// platform are applied next, tray clicks and menu activations are mapped
-    /// into their event queues, and those events are merged so Input can read
-    /// them. [`ScaleChanged`](crate::ScaleChanged) and
+    /// task and timer output. Global hotkey presses are delivered next, and a
+    /// toggle chord queues show or hide before window commands run. Those
+    /// commands, including ones that arrived from tasks or the platform, are
+    /// applied next. Tray clicks and menu activations are mapped into their
+    /// event queues, and those events are merged so Input can read them.
+    /// [`ScaleChanged`](crate::ScaleChanged) and
     /// [`Resized`](crate::Resized) were published before this frame and are
     /// already in the readable queues.
     ///
@@ -188,6 +190,10 @@ impl App {
         }
         event::flip_events(&mut self.world);
         runtime::run_until_parked(&mut self.world);
+        // Hotkey presses wake this frame. Toggle runs before window commands
+        // so a show/hide from the chord is applied below and the event is
+        // readable in Input.
+        crate::hotkey::drive(&mut self.world);
         window::drive(&mut self.world);
         tray::drive(&mut self.world);
         event::merge_events(&mut self.world);

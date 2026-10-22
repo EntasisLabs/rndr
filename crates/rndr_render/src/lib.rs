@@ -6,6 +6,8 @@
 
 mod color;
 mod gpu;
+#[cfg(feature = "hotkey")]
+mod hotkey;
 mod platform;
 #[cfg(feature = "tray")]
 mod tray;
@@ -58,8 +60,84 @@ pub(crate) fn idle_control_flow(deadline: Option<Instant>, now: Instant) -> Cont
     }
 }
 
+/// Chord used when neither `--hotkey` nor `RNDR_HOTKEY` is set.
+pub const DEFAULT_HOTKEY: &str = "Alt+Space";
+
+/// Binding from a `--hotkey` argument, then the `RNDR_HOTKEY` environment
+/// variable, then [`DEFAULT_HOTKEY`].
+///
+/// `--hotkey VALUE` and `--hotkey=VALUE` both count. The first one wins.
+pub fn configured_hotkey<I, S>(args: I) -> String
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    let env = std::env::var("RNDR_HOTKEY").ok();
+    select_hotkey(args, env.as_deref())
+}
+
+/// Same order as [`configured_hotkey`], with the environment value passed in.
+pub fn select_hotkey<I, S>(args: I, env: Option<&str>) -> String
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    let mut args = args.into_iter();
+    while let Some(arg) = args.next() {
+        let arg = arg.as_ref();
+        if let Some(value) = arg.strip_prefix("--hotkey=") {
+            if !value.is_empty() {
+                return value.to_string();
+            }
+        }
+        if arg == "--hotkey" {
+            if let Some(value) = args.next() {
+                let value = value.as_ref();
+                if !value.is_empty() {
+                    return value.to_string();
+                }
+            }
+        }
+    }
+    match env.map(str::trim).filter(|value| !value.is_empty()) {
+        Some(value) => value.to_string(),
+        None => DEFAULT_HOTKEY.to_string(),
+    }
+}
+
+/// Grab `binding` for the life of the returned handle.
+///
+/// Installs the operating-system backend on the first call when the `hotkey`
+/// feature is on. With the feature off, or with no backend this session can
+/// build, this returns [`rndr_core::HotkeyError::Unsupported`].
+pub fn register(
+    world: &mut rndr_core::World,
+    binding: impl rndr_core::hotkey::IntoHotkey,
+) -> Result<rndr_core::HotkeyHandle, rndr_core::HotkeyError> {
+    #[cfg(feature = "hotkey")]
+    hotkey::ensure(world);
+    rndr_core::hotkey::register(world, binding)
+}
+
+/// Grab `binding` and show+focus or hide the window on each press.
+///
+/// This is the launcher case: one call, hold the handle for the process.
+/// The press is also delivered as [`rndr_core::GlobalHotkey`].
+pub fn toggle_window(
+    world: &mut rndr_core::World,
+    binding: impl rndr_core::hotkey::IntoHotkey,
+) -> Result<rndr_core::HotkeyHandle, rndr_core::HotkeyError> {
+    #[cfg(feature = "hotkey")]
+    hotkey::ensure(world);
+    rndr_core::hotkey::toggle_window(world, binding)
+}
+
 /// Block on the desktop event loop. Core stays headless; this is the only winit caller.
 pub fn run(mut app: App) {
+    // A hotkey registered before `run` already installed the backend. Installing
+    // here covers a Startup system that registers through `rndr_core` directly.
+    #[cfg(feature = "hotkey")]
+    hotkey::ensure(app.world_mut());
     let config = WindowConfig::get(app.world());
     if rndr_core::tray::starts_hidden(app.world()) {
         rndr_core::tray::mark_hidden(app.world_mut());
@@ -530,7 +608,7 @@ impl ApplicationHandler<RunnerEvent> for Handler {
         }
     }
 
-    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: RunnerEvent) {
+    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: RunnerEvent) {
         #[cfg(feature = "tray")]
         if let RunnerEvent::Tray(report) = event {
             rndr_core::tray::push_report(self.app.world_mut(), report);
@@ -539,6 +617,10 @@ impl ApplicationHandler<RunnerEvent> for Handler {
         let _ = event;
         if rndr_core::window::is_visible(self.app.world()) {
             self.request_redraw();
+        } else {
+            // A hidden window does not get redraws. A hotkey, a finished task,
+            // or a tray click still has to step the world on this wake.
+            self.run_hidden_frame(event_loop);
         }
     }
 
@@ -730,6 +812,27 @@ mod tests {
     use super::idle_control_flow;
     use std::time::{Duration, Instant};
     use winit::event_loop::ControlFlow;
+
+    #[test]
+    fn hotkey_argument_beats_the_environment() {
+        assert_eq!(
+            super::select_hotkey(["--hotkey", "Ctrl+Space"], Some("Alt+K")),
+            "Ctrl+Space"
+        );
+        assert_eq!(
+            super::select_hotkey(["--hotkey=primary+Space"], Some("Alt+K")),
+            "primary+Space"
+        );
+        assert_eq!(super::select_hotkey(["--other"], Some(" Alt+K ")), "Alt+K");
+        assert_eq!(
+            super::select_hotkey(std::iter::empty::<&str>(), Some("")),
+            super::DEFAULT_HOTKEY
+        );
+        assert_eq!(
+            super::select_hotkey(std::iter::empty::<&str>(), None),
+            super::DEFAULT_HOTKEY
+        );
+    }
 
     #[test]
     fn idle_flow_waits_until_a_future_deadline() {

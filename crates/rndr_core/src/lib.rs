@@ -20,6 +20,7 @@ mod focus;
 mod font;
 mod fs;
 mod hierarchy;
+pub mod hotkey;
 mod input;
 mod keymap;
 mod keys;
@@ -78,6 +79,7 @@ pub use fs::{
     DirtyMark, Files, Fs, FsPath,
 };
 pub use hierarchy::{children_of, despawn, roots, set_parent, Children, Parent};
+pub use hotkey::{GlobalHotkey, HotkeyBinding, HotkeyError, HotkeyHandle, HotkeyId};
 pub use input::{Focus, Input, Insets, Key, Pointer, Viewport, MOUSE_ID};
 pub use keymap::{
     apply_keymap, context_path, context_stack, Clock, Context, Dispatch, KeyBinding, Keymap,
