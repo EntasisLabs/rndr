@@ -684,6 +684,10 @@ fn apply_signal(world: &mut World, signal: WindowSignal) {
     if let Some(effects) = world.resource_mut::<WindowEffects>() {
         effects.pending.extend(step.effects.iter().copied());
     }
+    // A hotkey guard armed on the way down must not eat the next show's Space.
+    if phase.visible && !step.phase.visible {
+        crate::hotkey::disarm_guard(world);
+    }
     note_watch(world, signal, phase, step.phase, &step.effects);
 }
 

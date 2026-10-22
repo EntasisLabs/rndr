@@ -1,10 +1,11 @@
 //! Carbon `RegisterEventHotKey`. No Accessibility permission.
 //!
-//! Presses are delivered to the application event target, which winit's Cocoa
-//! run loop already pumps. The handler posts into the press queue and wakes
-//! winit; it does not take the backend lock. Carbon emits one
-//! `kEventHotKeyPressed` per press and does not auto-repeat a held hotkey, so
-//! this backend does not wait for a release before accepting the next press.
+//! Presses and releases are delivered to the application event target, which
+//! winit's Cocoa run loop already pumps. The handler posts into the press
+//! queue and wakes winit; it does not take the backend lock. Carbon emits one
+//! `kEventHotKeyPressed` per press and a `kEventHotKeyReleased` when it goes
+//! up. A held hotkey does not auto-repeat, so this backend does not wait for
+//! a release before accepting the next press.
 
 use std::collections::HashMap;
 use std::ffi::c_void;
@@ -12,7 +13,7 @@ use std::os::raw::{c_ulong, c_void as RawVoid};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 
-use rndr_core::hotkey::{HotkeyBackend, HotkeyFailure, HotkeyId, PlatformAccel};
+use rndr_core::hotkey::{HotkeyBackend, HotkeyEdge, HotkeyFailure, HotkeyId, PlatformAccel};
 
 use super::press::PressQueue;
 
@@ -76,6 +77,7 @@ extern "C" {
         actual_size: *mut ByteCount,
         data: *mut RawVoid,
     ) -> OSStatus;
+    fn GetEventKind(event: EventRef) -> u16;
 }
 
 #[link(name = "CoreFoundation", kind = "framework")]
@@ -146,6 +148,16 @@ impl HotkeyBackend for MacHotkeys {
     }
 
     fn poll(&mut self) -> Vec<HotkeyId> {
+        self.poll_edges()
+            .into_iter()
+            .filter_map(|edge| match edge {
+                HotkeyEdge::Press(id) => Some(id),
+                HotkeyEdge::Release(_) => None,
+            })
+            .collect()
+    }
+
+    fn poll_edges(&mut self) -> Vec<HotkeyEdge> {
         self.presses.drain()
     }
 }
@@ -170,16 +182,22 @@ fn install_handler() {
         return;
     }
     unsafe {
-        let spec = EventTypeSpec {
-            event_class: 0x6b65_7962, // 'keyb'
-            event_kind: 5,            // kEventHotKeyPressed. A held hotkey does not repeat.
-        };
+        let specs = [
+            EventTypeSpec {
+                event_class: 0x6b65_7962, // 'keyb'
+                event_kind: 5,            // kEventHotKeyPressed. A held hotkey does not repeat.
+            },
+            EventTypeSpec {
+                event_class: 0x6b65_7962,
+                event_kind: 6, // kEventHotKeyReleased
+            },
+        ];
         let mut handler: EventHandlerRef = std::ptr::null_mut();
         let status = InstallEventHandler(
             GetApplicationEventTarget(),
             Some(on_hotkey),
-            1,
-            &spec,
+            specs.len() as ItemCount,
+            specs.as_ptr(),
             std::ptr::null_mut(),
             &mut handler,
         );
@@ -213,7 +231,13 @@ unsafe extern "C" fn on_hotkey(
             .unwrap_or_else(|err| err.into_inner())
             .as_ref()
         {
-            presses.push(HotkeyId::from_raw(hotkey.id));
+            let id = HotkeyId::from_raw(hotkey.id);
+            // 6 is kEventHotKeyReleased. Pressed is 5.
+            if GetEventKind(event) == 6 {
+                presses.push_release(id);
+            } else {
+                presses.push(id);
+            }
         }
     }
     0
