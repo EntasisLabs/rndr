@@ -45,4 +45,4 @@ jobs:
         run: cargo test --workspace
 
       - name: Build examples and rndr_render
-        run: cargo build -p expand -p idle -p palette -p rndr_render
+        run: cargo build -p expand -p idle -p overlay -p palette -p rndr_render

@@ -1,7 +1,12 @@
 //! winit + wgpu plugin. Writes [`rndr_core::Input`] in logical points and presents the quad list.
+//!
+//! The window comes from a [`rndr_core::WindowConfig`] resource. When the app
+//! did not insert one, the window stays 800×600, decorated, resizable, and
+//! titled `rndr`. Hide and show leave the wgpu surface in place.
 
 mod color;
 mod gpu;
+mod platform;
 
 use std::sync::Arc;
 use std::time::Instant;
@@ -9,7 +14,7 @@ use std::time::Instant;
 use rndr_core::{
     ensure_text_engine, legacy_key, text_engine, App, Clipboard, Input, KeyCode as Physical,
     KeyEvent, LogicalKey, Modifiers, NamedKey as CoreNamed, Platform, Pointer, Viewport, Wake,
-    MOUSE_ID,
+    WindowConfig, WindowEffect, WindowKind, MOUSE_ID,
 };
 use rndr_paint::{atlas_r8, frame, ATLAS_H, ATLAS_W};
 use winit::application::ApplicationHandler;
@@ -17,7 +22,7 @@ use winit::event::{ElementState, Ime, MouseButton, MouseScrollDelta, StartCause,
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy};
 use winit::keyboard::{Key, KeyCode, NamedKey, PhysicalKey};
 use winit::platform::modifier_supplement::KeyEventExtModifierSupplement;
-use winit::window::{Window, WindowId};
+use winit::window::WindowId;
 
 use gpu::Gpu;
 
@@ -49,7 +54,9 @@ pub(crate) fn idle_control_flow(deadline: Option<Instant>, now: Instant) -> Cont
 
 /// Block on the desktop event loop. Core stays headless; this is the only winit caller.
 pub fn run(mut app: App) {
+    let config = WindowConfig::get(app.world());
     let mut builder = EventLoop::<RunnerEvent>::with_user_event();
+    platform::configure_event_loop(&mut builder, &config);
     let event_loop = builder.build().expect("event loop");
     let proxy = event_loop.create_proxy();
     app.set_wake(Arc::new(ProxyWake { proxy }));
@@ -57,6 +64,7 @@ pub fn run(mut app: App) {
     event_loop.set_control_flow(ControlFlow::Wait);
     let mut handler = Handler {
         app,
+        config,
         gpu: None,
         cursor_px: [0.0, 0.0],
         pointer: Pointer::default(),
@@ -75,6 +83,7 @@ pub fn run(mut app: App) {
 
 struct Handler {
     app: App,
+    config: WindowConfig,
     gpu: Option<Gpu>,
     /// Last cursor in physical pixels. Converted to points in [`Handler::sync_input`].
     cursor_px: [f32; 2],
@@ -143,22 +152,23 @@ impl Handler {
 
     /// Write the window into [`Viewport`], step the world, paint, and present.
     /// Returns whether the surface presented, so input edges survive a lost frame.
+    /// Hiding does not drop the surface created on resume.
     fn redraw_frame(&mut self) -> bool {
-        let Some((width, height, scale)) = self.gpu.as_ref().map(|gpu| {
+        let Some((raw_width, raw_height, scale)) = self.gpu.as_ref().map(|gpu| {
             let size = gpu.window().inner_size();
             (
-                size.width.max(1),
-                size.height.max(1),
+                size.width,
+                size.height,
                 positive_scale(gpu.window().scale_factor()),
             )
         }) else {
             return false;
         };
-        if let Some(viewport) = self.app.world_mut().resource_mut::<Viewport>() {
-            viewport.width = width as f32 / scale;
-            viewport.height = height as f32 / scale;
-            viewport.scale = scale;
-        }
+        // Publish before `frame` so this update's layout sees the new scale and
+        // the resize events that flip at the start of `App::update`.
+        rndr_core::window::publish_metrics(self.app.world_mut(), raw_width, raw_height, scale);
+        let width = raw_width.max(1);
+        let height = raw_height.max(1);
         let painted = frame(&mut self.app);
         // winit 0.30 has no OS clipboard. The resource is the value; clear the
         // dirty bit after the frame so a platform can see that core wrote it.
@@ -403,6 +413,29 @@ impl Handler {
         let now = Instant::now();
         event_loop.set_control_flow(idle_control_flow(self.app.next_deadline(), now));
     }
+
+    /// Apply show / hide / focus to the existing window. The surface stays.
+    fn apply_effects(&mut self) {
+        if self.gpu.is_none() {
+            return;
+        }
+        let effects = rndr_core::window::drain_effects(self.app.world_mut());
+        if effects.is_empty() {
+            return;
+        }
+        let panel = self.config.kind == WindowKind::Panel;
+        let mut redraw = false;
+        if let Some(gpu) = &self.gpu {
+            let window = gpu.window();
+            for effect in effects {
+                redraw |= matches!(effect, WindowEffect::Show | WindowEffect::Focus);
+                platform::apply_effect(window, panel, effect);
+            }
+        }
+        if redraw {
+            self.request_redraw();
+        }
+    }
 }
 
 impl ApplicationHandler<RunnerEvent> for Handler {
@@ -422,12 +455,13 @@ impl ApplicationHandler<RunnerEvent> for Handler {
 
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.gpu.is_some() {
+            // A later resume (Android, or a hide that the OS reports as a pause)
+            // must keep the surface. Show/hide never drops `Gpu`.
             return;
         }
-        let attrs = Window::default_attributes()
-            .with_title("rndr")
-            .with_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0));
+        let attrs = platform::attributes(&self.config);
         let window = Arc::new(event_loop.create_window(attrs).expect("window"));
+        platform::finish_create(&window, event_loop, &self.config);
         ensure_text_engine(self.app.world_mut());
         let engine = text_engine(self.app.world());
         let coverage = engine.coverage_atlas();
@@ -452,6 +486,7 @@ impl ApplicationHandler<RunnerEvent> for Handler {
             atlas_w,
             atlas_h,
             &atlas_pixels,
+            self.config.transparent,
         ));
         gpu.window().request_redraw();
         self.gpu = Some(gpu);
@@ -465,6 +500,19 @@ impl ApplicationHandler<RunnerEvent> for Handler {
     ) {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::Focused(focused) => {
+                if focused {
+                    rndr_core::window::platform_focused(self.app.world());
+                } else {
+                    rndr_core::window::platform_blurred(self.app.world());
+                }
+                self.request_redraw();
+            }
+            WindowEvent::ScaleFactorChanged { .. } => {
+                // Resized follows with the physical size. Publishing happens
+                // on that redraw, from the window's live scale factor.
+                self.request_redraw();
+            }
             WindowEvent::ModifiersChanged(modifiers) => {
                 let state = modifiers.state();
                 self.shift = state.shift_key();
@@ -556,6 +604,7 @@ impl ApplicationHandler<RunnerEvent> for Handler {
                         input.ime_commit.clear();
                     }
                 }
+                self.apply_effects();
                 if self
                     .app
                     .world()

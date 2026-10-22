@@ -87,6 +87,8 @@ pub struct Gpu {
     queue: wgpu::Queue,
     surface: wgpu::Surface<'static>,
     config: wgpu::SurfaceConfiguration,
+    /// When set, the pass clears to transparent instead of the opaque canvas.
+    clear_transparent: bool,
     pipeline: wgpu::RenderPipeline,
     bind_group: wgpu::BindGroup,
     uniform: wgpu::Buffer,
@@ -103,6 +105,7 @@ impl Gpu {
         atlas_w: u32,
         atlas_h: u32,
         atlas_pixels: &[u8],
+        transparent: bool,
     ) -> Self {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_with_display_handle(
             Box::new(display),
@@ -131,6 +134,23 @@ impl Gpu {
             .get_default_config(&adapter, width, height)
             .expect("surface config");
         config.present_mode = wgpu::PresentMode::AutoVsync;
+        let clear_transparent = if transparent {
+            let caps = surface.get_capabilities(&adapter);
+            let mode = [
+                wgpu::CompositeAlphaMode::PostMultiplied,
+                wgpu::CompositeAlphaMode::PreMultiplied,
+            ]
+            .into_iter()
+            .find(|mode| caps.alpha_modes.contains(mode));
+            if let Some(mode) = mode {
+                config.alpha_mode = mode;
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        };
         surface.configure(&device, &config);
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -325,6 +345,7 @@ impl Gpu {
             instances,
             instance_capacity: INITIAL_INSTANCES,
             staging: Vec::new(),
+            clear_transparent,
         }
     }
 
@@ -394,7 +415,11 @@ impl Gpu {
                     depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(clear_color(self.config.format)),
+                        load: wgpu::LoadOp::Clear(if self.clear_transparent {
+                            wgpu::Color::TRANSPARENT
+                        } else {
+                            clear_color(self.config.format)
+                        }),
                         store: wgpu::StoreOp::Store,
                     },
                 })],

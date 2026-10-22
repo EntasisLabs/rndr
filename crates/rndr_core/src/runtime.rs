@@ -36,7 +36,7 @@ impl Wake for NopWake {
     fn wake(&self) {}
 }
 
-type WakeSlot = Arc<Mutex<Arc<dyn Wake>>>;
+pub(crate) type WakeSlot = Arc<Mutex<Arc<dyn Wake>>>;
 type Inbox = Arc<Mutex<Vec<Delivery>>>;
 type ReadyQueue = Arc<Mutex<Vec<u64>>>;
 type SendOnce = Box<dyn FnOnce(&mut World) + Send>;
@@ -526,6 +526,10 @@ pub(crate) fn set_clock(world: &World, clock: Arc<dyn Clock>) {
 
 pub(crate) fn set_wake(world: &World, wake: Arc<dyn Wake>) {
     *lock(&runtime(world).inner.wake) = wake;
+}
+
+pub(crate) fn wake_slot(world: &World) -> WakeSlot {
+    runtime(world).wake_slot()
 }
 
 pub(crate) fn set_executor(world: &mut World, executor: Arc<dyn Executor>) {

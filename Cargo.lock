@@ -1217,6 +1217,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "overlay"
+version = "0.1.0"
+dependencies = [
+ "rndr_core",
+ "rndr_render",
+]
+
+[[package]]
 name = "owned_ttf_parser"
 version = "0.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1469,6 +1477,8 @@ dependencies = [
 name = "rndr_render"
 version = "0.1.0"
 dependencies = [
+ "objc2 0.5.2",
+ "objc2-app-kit",
  "pollster",
  "rndr_core",
  "rndr_paint",

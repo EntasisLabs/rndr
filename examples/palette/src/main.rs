@@ -7,6 +7,10 @@
 //! drawn in its own dim label color. Letters the filter matched are highlighted.
 //! Running a command spawns a task whose handle lives in ordinary app state.
 //!
+//! The window is frameless, centered, and always on top. Escape and blur hide
+//! it and leave the process running. The clear chord is still registered;
+//! window dismiss claims bare Escape first.
+//!
 //! ```text
 //! cargo run -p palette
 //! ```
@@ -16,10 +20,10 @@ use std::time::Duration;
 
 use rndr_core::{
     context_stack, debounce, events, platform_of, set_parent, sleep, spawn, theme_of, App, Axis,
-    CapturesKeys, Caret, Chrome, Color, Context, Entity, Event, Focus, KeyBinding, Keymap,
-    KeymapFired, Keystroke, Label, Layout, List, ListActivated, ListKeys, ListRows, NamedKey,
-    Radius, Schedule, Size, Spans, TaskHandle, TextChanged, TextFace, TextField, TextSpan, Theme,
-    World,
+    CapturesKeys, Caret, Chrome, Color, Context, Dismiss, Entity, Event, Focus, KeyBinding, Keymap,
+    KeymapFired, Keystroke, Label, Layout, List, ListActivated, ListKeys, ListRows, LogicalSize,
+    NamedKey, Position, Radius, Schedule, Size, Spans, TaskHandle, TextChanged, TextFace,
+    TextField, TextSpan, Theme, WindowConfig, WindowKind, World,
 };
 use rndr_paint::LatinFace;
 use rndr_render::run;
@@ -471,6 +475,17 @@ fn set_text(world: &mut World, entity: Entity, text: &str) {
 
 fn main() {
     let mut app = App::new();
+    app.world_mut().insert_resource(WindowConfig {
+        title: "palette".to_string(),
+        size: LogicalSize::new(640.0, 420.0),
+        position: Position::Center,
+        decorations: false,
+        always_on_top: true,
+        kind: WindowKind::Panel,
+        hide_on_blur: true,
+        dismiss: Dismiss::Hide,
+        ..WindowConfig::default()
+    });
     app.world_mut()
         .insert_resource(TextFace(Arc::new(LatinFace)));
     app.world_mut().insert_resource(Theme::default());

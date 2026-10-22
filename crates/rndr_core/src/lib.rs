@@ -40,6 +40,7 @@ mod tabs;
 mod text;
 mod theme;
 mod typing;
+pub mod window;
 mod world;
 mod wrap;
 
@@ -116,6 +117,11 @@ pub use text::{
     FONT_WEIGHT_BOLD, FONT_WEIGHT_REGULAR,
 };
 pub use theme::{theme_of, Radius, Theme};
+pub use window::{
+    platform_support, Availability, Dismiss, LogicalSize, Position, Resized, ScaleChanged,
+    WindowConfig, WindowEffect, WindowFocus, WindowHandle, WindowKind, WindowMetrics, WindowPhase,
+    WindowSignal, WindowSupport, WindowTransition,
+};
 pub use world::{Bundle, Component, World};
 pub use wrap::{
     apply_wrap, cols_for, field_height_lines, index_at_pointer, index_at_visual, layout_of,
