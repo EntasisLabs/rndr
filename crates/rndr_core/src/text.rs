@@ -5,7 +5,7 @@
 //! until something replaces it. It shapes with the faces already in the
 //! process: the 8×8 bitmap, and Inter when that face is the [`crate::TextFace`].
 //!
-//! A future engine implements the same trait with parley and swash:
+//! The desktop engine implements the same trait with parley and swash:
 //! - [`TextEngine::layout`] asks parley to shape a run at the given family,
 //!   size, weight, and style, then breaks the paragraph into lines.
 //! - Each shaped line is kept in the two-frame cache, keyed by the line text,
@@ -124,6 +124,16 @@ pub trait TextEngine: Send + Sync + 'static {
     fn begin_frame(&self);
     /// How many line shapes missed the cache since this engine was built.
     fn shape_count(&self) -> u64;
+
+    /// Bumps when atlas UVs are no longer the ones already stored on labels.
+    /// Zero means the engine's coordinates do not move under a cached layout.
+    fn cache_epoch(&self) -> u64 {
+        0
+    }
+
+    /// Physical pixels per point for the frame about to be shaped. The builtin
+    /// atlas is already in points and ignores this.
+    fn set_pixels_per_point(&self, _scale: f32) {}
 }
 
 /// The engine the world is using, creating the builtin one if needed.
@@ -349,6 +359,8 @@ impl TextEngine for BuiltinText {
             width,
             height: y,
             cache_key: 0,
+            ime_cursor: None,
+            ime_range: None,
         }
     }
 

@@ -33,7 +33,9 @@ jobs:
             libxkbcommon-dev \
             libwayland-dev \
             libxkbcommon-x11-dev \
-            libvulkan-dev
+            libvulkan-dev \
+            libfontconfig1-dev
+          # fontconfig is the system-font backend parley uses on Linux.
           # The tray feature uses tray-icon's ksni backend (pure Rust D-Bus).
           # It does not link GTK or libappindicator, so no extra -dev packages.
 
@@ -43,7 +45,7 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
-      - name: Clippy without the tray feature
+      - name: Clippy without default features
         run: cargo clippy -p rndr_render --no-default-features --all-targets -- -D warnings
 
       - name: Test

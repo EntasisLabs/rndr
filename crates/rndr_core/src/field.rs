@@ -19,6 +19,9 @@ impl Component for ImePreview {}
 #[derive(Clone, Debug, Default)]
 pub struct ImePreview {
     pub text: String,
+    /// Cursor range inside [`Self::text`], in bytes. `None` draws the caret at
+    /// the end of the preedit.
+    pub cursor: Option<(usize, usize)>,
 }
 
 /// Single-line editor on this entity's [`Label`]. No file binding.
@@ -306,13 +309,19 @@ fn edit_label_queue(
 }
 
 fn sync_preview(world: &mut World, entity: crate::entity::Entity) {
-    let preedit = world
+    let (preedit, cursor) = world
         .resource::<Input>()
-        .map(|input| input.ime_preedit.clone())
+        .map(|input| (input.ime_preedit.clone(), input.ime_cursor))
         .unwrap_or_default();
     if preedit.is_empty() {
         world.remove::<ImePreview>(entity);
     } else {
-        world.insert(entity, ImePreview { text: preedit });
+        world.insert(
+            entity,
+            ImePreview {
+                text: preedit,
+                cursor,
+            },
+        );
     }
 }

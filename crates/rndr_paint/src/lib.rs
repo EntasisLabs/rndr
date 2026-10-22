@@ -27,6 +27,9 @@ pub struct Quad {
     pub clip: Clip,
     /// Corner radius in logical points. Zero keeps a square.
     pub radius: f32,
+    /// `0` samples the coverage atlas. `1` samples the color atlas.
+    /// Snapshot text ignores this so a coverage glyph stays on the old dump.
+    pub atlas: u8,
 }
 
 /// One world frame, then the quads in points.
@@ -90,7 +93,7 @@ pub fn paint(world: &World) -> Vec<Quad> {
                                 layout,
                                 radius,
                                 marks| {
-            push(&mut out, rect, color, solid, clip, radius);
+            push(&mut out, rect, color, solid, clip, radius, 0);
             if dirty {
                 push_dirty_mark(&mut out, rect, clip, solid, theme.dirty);
             }
@@ -122,7 +125,28 @@ pub fn paint(world: &World) -> Vec<Quad> {
                         solid,
                         clip,
                         0.0,
+                        0,
                     );
+                }
+                if let Some((start, end)) = layout.ime_range {
+                    for span in layout.selection_boxes(start, end) {
+                        let bar = 2.0_f32.min(span.h);
+                        push(
+                            &mut out,
+                            snap_box(
+                                rect.x + TEXT_ORIGIN_X + span.x,
+                                rect.y + TEXT_ORIGIN_Y + span.y + span.h - bar,
+                                span.w,
+                                bar,
+                                scale,
+                            ),
+                            theme.caret,
+                            solid,
+                            clip,
+                            0.0,
+                            0,
+                        );
+                    }
                 }
                 push_label(&mut out, rect, layout, clip, scale, text_color);
             }
@@ -144,6 +168,7 @@ pub fn paint(world: &World) -> Vec<Quad> {
                     solid,
                     clip,
                     0.0,
+                    0,
                 );
             }
             if let Some(caret) = caret {
@@ -292,7 +317,15 @@ fn lighten(color: Color) -> Color {
     )
 }
 
-fn push(out: &mut Vec<Quad>, rect: Rect, color: Color, uv: [f32; 4], clip: Clip, radius: f32) {
+fn push(
+    out: &mut Vec<Quad>,
+    rect: Rect,
+    color: Color,
+    uv: [f32; 4],
+    clip: Clip,
+    radius: f32,
+    atlas: u8,
+) {
     if !rect_hits_clip(rect, clip) {
         return;
     }
@@ -302,6 +335,7 @@ fn push(out: &mut Vec<Quad>, rect: Rect, color: Color, uv: [f32; 4], clip: Clip,
         uv,
         clip,
         radius,
+        atlas,
     });
 }
 
@@ -352,6 +386,7 @@ fn push_dirty_mark(out: &mut Vec<Quad>, rect: Rect, clip: Clip, solid: [f32; 4],
         solid,
         clip,
         size * 0.5,
+        0,
     );
 }
 
@@ -399,6 +434,7 @@ fn push_selection(
             solid,
             clip,
             0.0,
+            0,
         );
     }
 }
@@ -425,6 +461,7 @@ fn push_label(
             glyph.uv,
             clip,
             0.0,
+            glyph.atlas,
         );
     }
 }
@@ -443,8 +480,15 @@ fn push_caret(
 ) {
     let (x, y, h) = layout
         .map(|layout| {
-            let (x, y) = layout.caret_xy(caret.index);
-            let h = layout.lines.first().map(|line| line.h).unwrap_or(CELL_H);
+            let index = layout.ime_cursor.unwrap_or(caret.index);
+            let (x, y) = layout.caret_xy(index);
+            let h = layout
+                .lines
+                .iter()
+                .find(|line| index >= line.start && index <= line.end)
+                .map(|line| line.h)
+                .or_else(|| layout.lines.first().map(|line| line.h))
+                .unwrap_or(CELL_H);
             (x, y, h)
         })
         .unwrap_or((0.0, 0.0, CELL_H));
@@ -461,5 +505,6 @@ fn push_caret(
         solid,
         clip,
         0.0,
+        0,
     );
 }

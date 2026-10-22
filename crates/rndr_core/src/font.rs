@@ -266,6 +266,28 @@ pub struct TextLayout {
     pub width: f32,
     pub height: f32,
     pub(crate) cache_key: u64,
+    /// Caret inside an IME preedit, as a byte index in the shaped string.
+    /// `None` keeps the field caret.
+    pub ime_cursor: Option<usize>,
+    /// Byte range of the uncommitted preedit in the shaped string.
+    pub ime_range: Option<(usize, usize)>,
+}
+
+impl TextLayout {
+    /// Glyphs and lines for one shaped string. Highlight rects start empty;
+    /// the framework records the cache key after shaping.
+    pub fn shaped(glyphs: Vec<PlacedGlyph>, lines: Vec<TextLine>, width: f32, height: f32) -> Self {
+        Self {
+            glyphs,
+            lines,
+            highlights: Vec::new(),
+            width,
+            height,
+            cache_key: 0,
+            ime_cursor: None,
+            ime_range: None,
+        }
+    }
 }
 
 impl PartialEq for TextLayout {
@@ -275,6 +297,8 @@ impl PartialEq for TextLayout {
             && self.highlights == other.highlights
             && self.width == other.width
             && self.height == other.height
+            && self.ime_cursor == other.ime_cursor
+            && self.ime_range == other.ime_range
     }
 }
 
@@ -376,6 +400,8 @@ pub(crate) fn layout_text_weighted(
         width,
         height: y,
         cache_key: 0,
+        ime_cursor: None,
+        ime_range: None,
     };
     for span in spans {
         let Some(color) = span.highlight else {
@@ -465,28 +491,42 @@ impl TextLayout {
         if self.lines.is_empty() {
             return 0;
         }
-        let h = self.lines[0].h.max(0.001);
-        let line = (y / h).floor().clamp(0.0, (self.lines.len() - 1) as f32) as usize;
-        self.index_on_line(line, x)
+        let mut chosen = self.lines.len() - 1;
+        for (i, line) in self.lines.iter().enumerate() {
+            let h = if line.h > 0.0 { line.h } else { 0.001 };
+            if y < line.y + h {
+                chosen = i;
+                break;
+            }
+        }
+        self.index_on_line(chosen, x)
     }
 
     /// Byte index on `line` nearest to pen `x`.
+    ///
+    /// Edges are caret stops, not a left-to-right walk, so a right-to-left run
+    /// still hits the cluster under the pointer. A tie goes to the stop with
+    /// the greater x, which matches the old midpoint test on a left-to-right line.
     pub fn index_on_line(&self, line: usize, x: f32) -> usize {
         let Some(span) = self.lines.get(line.min(self.lines.len().saturating_sub(1))) else {
             return 0;
         };
-        if span.edges.len() < 2 {
+        let Some((mut best_i, mut best_x)) = span.edges.first().copied() else {
             return span.start;
-        }
-        for pair in span.edges.windows(2) {
-            let (i0, x0) = pair[0];
-            let (_i1, x1) = pair[1];
-            let mid = (x0 + x1) * 0.5;
-            if x < mid {
-                return i0;
+        };
+        let mut best_d = (best_x - x).abs();
+        for &(i, ex) in &span.edges[1..] {
+            let d = (ex - x).abs();
+            let closer = d < best_d;
+            let tie =
+                (d - best_d).abs() <= f32::EPSILON && (ex > best_x || (ex == best_x && i > best_i));
+            if closer || tie {
+                best_d = d;
+                best_i = i;
+                best_x = ex;
             }
         }
-        span.end
+        best_i
     }
 
     /// Pen position of `index`, relative to the text origin.
@@ -497,13 +537,13 @@ impl TextLayout {
         let (line, col) = line_col(&self.line_ranges(), index);
         let span = &self.lines[line];
         let byte = span.start + col;
-        let x = span
-            .edges
-            .iter()
-            .find(|(i, _)| *i == byte)
-            .map(|(_, x)| *x)
-            .unwrap_or(span.width);
-        (x, span.y)
+        let mut best: Option<(usize, f32)> = None;
+        for &(i, ex) in &span.edges {
+            if i <= byte && best.is_none_or(|(at, _)| i >= at) {
+                best = Some((i, ex));
+            }
+        }
+        (best.map(|(_, x)| x).unwrap_or(span.width), span.y)
     }
 
     /// Selected runs in paint order. An empty visual line inside the range is 2 points wide.
@@ -529,19 +569,36 @@ impl TextLayout {
             if line.end <= start || line.start >= end {
                 continue;
             }
-            let from = start.max(line.start);
-            let to = end.min(line.end);
-            if from >= to {
-                continue;
+            let mut spans = Vec::new();
+            let mut edges = line.edges.clone();
+            edges.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)));
+            for pair in edges.windows(2) {
+                let (i0, x0) = pair[0];
+                let (i1, x1) = pair[1];
+                if i1 <= start || i0 >= end {
+                    continue;
+                }
+                spans.push((x0.min(x1), x0.max(x1)));
             }
-            let x0 = self.caret_xy(from).0;
-            let x1 = edge_on(line, to);
-            boxes.push(SelectionBox {
-                x: x0,
-                y: line.y,
-                w: (x1 - x0).max(0.0),
-                h: line.h,
-            });
+            spans.sort_by(|a, b| a.0.total_cmp(&b.0));
+            let mut merged: Vec<(f32, f32)> = Vec::new();
+            for (left, right) in spans {
+                let touches = merged.last().is_some_and(|last| left <= last.1 + 0.01);
+                if touches {
+                    let last = merged.last_mut().expect("span just checked");
+                    last.1 = last.1.max(right);
+                } else {
+                    merged.push((left, right));
+                }
+            }
+            for (left, right) in merged {
+                boxes.push(SelectionBox {
+                    x: left,
+                    y: line.y,
+                    w: (right - left).max(0.0),
+                    h: line.h,
+                });
+            }
         }
         boxes
     }
@@ -574,14 +631,6 @@ fn span_weight(spans: &[TextSpan], index: usize) -> Option<u16> {
         .iter()
         .find(|span| index >= span.start && index < span.end)
         .and_then(|span| span.weight)
-}
-
-fn edge_on(line: &TextLine, byte: usize) -> f32 {
-    line.edges
-        .iter()
-        .find(|(i, _)| *i == byte)
-        .map(|(_, x)| *x)
-        .unwrap_or(line.width)
 }
 
 /// `(line, byte column)` for `index`. Column is a byte offset on that line.
@@ -650,14 +699,35 @@ pub fn apply_text_layout(world: &mut World) {
             .map(|spans| spans.runs.clone())
             .unwrap_or_default();
         let source = label.text.clone();
-        let key = layout_cache_key(font.as_ref(), &source, max_width, &spans, &preview, at);
+        let cursor = world
+            .get::<crate::field::ImePreview>(entity)
+            .and_then(|preview| preview.cursor);
+        let mut key = layout_cache_key(font.as_ref(), &source, max_width, &spans, &preview, at);
+        if !preview.is_empty() {
+            if let Some((start, end)) = cursor {
+                key ^= (start as u64)
+                    .wrapping_shl(1)
+                    .wrapping_add((end as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15));
+            }
+        }
+        let insert_at = floor_preview(at, &source);
         let mut text = source;
         if !preview.is_empty() {
-            let at = floor_preview(at, &text);
-            text.insert_str(at, &preview);
+            text.insert_str(insert_at, &preview);
         }
         // Always shape through the engine so the line cache records this frame.
         let mut layout = engine.layout(&text, &style, &spans, max_width);
+        let epoch = engine.cache_epoch();
+        if epoch != 0 {
+            key ^= epoch.wrapping_mul(0x9E37_79B9_7F4A_7C15);
+        }
+        if !preview.is_empty() {
+            let end = cursor
+                .map(|(_, end)| end.min(preview.len()))
+                .unwrap_or(preview.len());
+            layout.ime_range = Some((insert_at, insert_at + preview.len()));
+            layout.ime_cursor = Some(insert_at + end);
+        }
         if world
             .get::<TextLayout>(entity)
             .is_some_and(|stored| stored.cache_key == key)
@@ -759,4 +829,49 @@ fn measure(font: &dyn Font, text: &str) -> f32 {
 fn step(font: &dyn Font, prev: Option<char>, ch: char) -> f32 {
     let kern = prev.map(|prev| font.kerning(prev, ch)).unwrap_or(0.0);
     kern + font.advance(ch)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{TextLayout, TextLine};
+
+    fn rtl_line() -> TextLayout {
+        // Byte 0 sits on the right, byte 2 in the middle, byte 4 on the left.
+        TextLayout::shaped(
+            Vec::new(),
+            vec![TextLine {
+                start: 0,
+                end: 4,
+                y: 0.0,
+                h: 16.0,
+                width: 20.0,
+                edges: vec![(0, 20.0), (2, 10.0), (4, 0.0)],
+            }],
+            20.0,
+            16.0,
+        )
+    }
+
+    #[test]
+    fn rtl_selection_follows_visual_edges() {
+        let layout = rtl_line();
+        assert!((layout.caret_xy(0).0 - 20.0).abs() < 0.01);
+        assert!((layout.caret_xy(2).0 - 10.0).abs() < 0.01);
+        assert!((layout.caret_xy(4).0 - 0.0).abs() < 0.01);
+
+        let first = layout.selection_boxes(0, 2);
+        assert_eq!(first.len(), 1);
+        assert!((first[0].x - 10.0).abs() < 0.01, "x {}", first[0].x);
+        assert!((first[0].w - 10.0).abs() < 0.01, "w {}", first[0].w);
+
+        let second = layout.selection_boxes(2, 4);
+        assert_eq!(second.len(), 1);
+        assert!(second[0].x.abs() < 0.01);
+        assert!((second[0].w - 10.0).abs() < 0.01);
+
+        let all = layout.selection_boxes(0, 4);
+        assert_eq!(all.len(), 1);
+        assert!(all[0].x.abs() < 0.01);
+        assert!((all[0].w - 20.0).abs() < 0.01);
+    }
 }

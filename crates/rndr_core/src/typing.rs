@@ -1,6 +1,7 @@
-//! Apply [`KeyEvent`]s to a string caret. Scalar steps, not grapheme clusters.
+//! Apply [`KeyEvent`]s to a string caret. Left, Right, Backspace, and Delete
+//! step by grapheme cluster.
 
-use crate::edit::{edit_string, floor_boundary, next_boundary, prev_boundary, selection_span};
+use crate::edit::{edit_string, floor_boundary, prev_boundary};
 use crate::input::Key;
 use crate::keys::{standard_action, EditAction, KeyEvent, LogicalKey, NamedKey, Platform};
 use crate::world::Component;
@@ -305,8 +306,7 @@ fn selected(text: &str, index: usize, anchor: usize) -> String {
 }
 
 fn span(text: &str, index: usize, anchor: usize) -> (usize, usize) {
-    let len = text.len();
-    selection_span(len, anchor, index, &|i| text.as_bytes()[i])
+    crate::edit::grapheme_selection(text, anchor, index)
 }
 
 fn delete_forward(text: &mut String, index: &mut usize, anchor: &mut usize) {
@@ -317,10 +317,8 @@ fn delete_forward(text: &mut String, index: &mut usize, anchor: &mut usize) {
         *anchor = start;
         return;
     }
-    let len = text.len();
-    let byte = |i: usize| text.as_bytes()[i];
-    let start = floor_boundary(len, *index, &byte);
-    let end = next_boundary(len, start, &byte);
+    let start = crate::edit::floor_grapheme(text, *index);
+    let end = crate::edit::next_grapheme(text, start);
     if start < end {
         text.replace_range(start..end, "");
         *index = start;

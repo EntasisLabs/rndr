@@ -28,6 +28,7 @@ struct VsOut {
     @location(2) clip: vec4<f32>,
     @location(3) rect: vec4<f32>,
     @location(4) radius: f32,
+    @location(5) glyph_atlas: f32,
 }
 
 struct ViewportUniform {
@@ -38,6 +39,8 @@ struct ViewportUniform {
 @group(0) @binding(0) var<uniform> viewport: ViewportUniform;
 @group(0) @binding(1) var atlas: texture_2d<f32>;
 @group(0) @binding(2) var atlas_samp: sampler;
+@group(0) @binding(3) var color_atlas: texture_2d<f32>;
+@group(0) @binding(4) var color_samp: sampler;
 
 @vertex
 fn vs(in: VsIn) -> VsOut {
@@ -53,6 +56,7 @@ fn vs(in: VsIn) -> VsOut {
     out.clip = in.clip;
     out.rect = in.rect;
     out.radius = in.radius.x;
+    out.glyph_atlas = in.radius.y;
     return out;
 }
 
@@ -64,10 +68,16 @@ fn fs(in: VsOut) -> @location(0) vec4<f32> {
         discard;
     }
     // RGB is already in the surface working space: linear on an sRGB target,
-    // authored sRGB on an 8-bit Unorm target. Alpha is coverage.
+    // authored sRGB on an 8-bit Unorm target. Coverage alpha is the mask.
+    // Color glyphs (emoji) sample the sRGB color atlas; `glyph_atlas` > 0.5
+    // selects that path. The instance flag lives in `radius.y`.
     let coverage = textureSample(atlas, atlas_samp, in.uv).r;
+    let sprite = textureSample(color_atlas, color_samp, in.uv);
+    let color_glyph = in.glyph_atlas > 0.5;
+    let rgb = select(in.color.rgb, sprite.rgb, color_glyph);
+    let alpha = select(in.color.a * coverage, sprite.a * in.color.a, color_glyph);
     let corner = round_rect(px, in.rect, in.radius);
-    return vec4<f32>(in.color.rgb, in.color.a * coverage * corner);
+    return vec4<f32>(rgb, alpha * corner);
 }
 
 fn round_rect(px: vec2<f32>, rect: vec4<f32>, radius: f32) -> f32 {
@@ -92,21 +102,53 @@ pub struct Gpu {
     pipeline: wgpu::RenderPipeline,
     bind_group: wgpu::BindGroup,
     uniform: wgpu::Buffer,
+    /// Kept so a later atlas upload can rebuild the bind group. The builtin
+    /// engine never uploads, so these handles are absent without `parley`.
+    #[cfg(feature = "parley")]
+    bind_layout: wgpu::BindGroupLayout,
+    #[cfg(feature = "parley")]
+    sampler: wgpu::Sampler,
+    #[cfg(feature = "parley")]
+    coverage: wgpu::Texture,
+    #[cfg(feature = "parley")]
+    coverage_view: wgpu::TextureView,
+    #[cfg(feature = "parley")]
+    coverage_size: (u32, u32),
+    #[cfg(feature = "parley")]
+    color_tex: wgpu::Texture,
+    #[cfg(feature = "parley")]
+    color_view: wgpu::TextureView,
+    #[cfg(feature = "parley")]
+    color_size: (u32, u32),
+    #[cfg(feature = "parley")]
+    color_format: wgpu::TextureFormat,
     quad: wgpu::Buffer,
     instances: wgpu::Buffer,
     instance_capacity: u64,
     staging: Vec<u8>,
 }
 
+/// Bytes of one atlas image handed to [`Gpu::new`].
+pub struct AtlasBytes<'a> {
+    pub width: u32,
+    pub height: u32,
+    pub pixels: &'a [u8],
+}
+
 impl Gpu {
     pub async fn new(
         display: winit::event_loop::OwnedDisplayHandle,
         window: Arc<Window>,
-        atlas_w: u32,
-        atlas_h: u32,
-        atlas_pixels: &[u8],
+        coverage_atlas: AtlasBytes<'_>,
+        color_atlas: AtlasBytes<'_>,
         transparent: bool,
     ) -> Self {
+        let atlas_w = coverage_atlas.width;
+        let atlas_h = coverage_atlas.height;
+        let atlas_pixels = coverage_atlas.pixels;
+        let color_w = color_atlas.width;
+        let color_h = color_atlas.height;
+        let color_pixels = color_atlas.pixels;
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_with_display_handle(
             Box::new(display),
         ));
@@ -165,41 +207,25 @@ impl Gpu {
             mapped_at_creation: false,
         });
 
-        let atlas = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("atlas"),
-            size: wgpu::Extent3d {
-                width: atlas_w,
-                height: atlas_h,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            // Coverage mask. R8Unorm samples as linear 0..1, which alpha wants.
-            format: wgpu::TextureFormat::R8Unorm,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[],
-        });
-        queue.write_texture(
-            wgpu::TexelCopyTextureInfo {
-                texture: &atlas,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            atlas_pixels,
-            wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(atlas_w),
-                rows_per_image: Some(atlas_h),
-            },
-            wgpu::Extent3d {
-                width: atlas_w,
-                height: atlas_h,
-                depth_or_array_layers: 1,
-            },
-        );
-        let atlas_view = atlas.create_view(&wgpu::TextureViewDescriptor::default());
+        let coverage = device.create_texture(&texture_desc(
+            "atlas",
+            atlas_w,
+            atlas_h,
+            wgpu::TextureFormat::R8Unorm,
+        ));
+        write_full(&queue, &coverage, atlas_w, atlas_h, 1, atlas_pixels);
+        let coverage_view = coverage.create_view(&wgpu::TextureViewDescriptor::default());
+        let color_format = if config.format.is_srgb() {
+            wgpu::TextureFormat::Rgba8UnormSrgb
+        } else {
+            wgpu::TextureFormat::Rgba8Unorm
+        };
+        let color_w = color_w.max(1);
+        let color_h = color_h.max(1);
+        let color_tex =
+            device.create_texture(&texture_desc("color-atlas", color_w, color_h, color_format));
+        write_full(&queue, &color_tex, color_w, color_h, 4, color_pixels);
+        let color_view = color_tex.create_view(&wgpu::TextureViewDescriptor::default());
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             mag_filter: wgpu::FilterMode::Nearest,
             min_filter: wgpu::FilterMode::Nearest,
@@ -235,26 +261,32 @@ impl Gpu {
                     ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                     count: None,
                 },
-            ],
-        });
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("rndr-bg"),
-            layout: &bind_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: uniform.as_entire_binding(),
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
                 },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&atlas_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::Sampler(&sampler),
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
                 },
             ],
         });
+        let bind_group = bind_group_of(
+            &device,
+            &bind_layout,
+            &uniform,
+            &coverage_view,
+            &sampler,
+            &color_view,
+        );
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("rndr-pl"),
@@ -332,6 +364,16 @@ impl Gpu {
             mapped_at_creation: false,
         });
 
+        #[cfg(not(feature = "parley"))]
+        let _keep_alive = (
+            bind_layout,
+            sampler,
+            coverage,
+            coverage_view,
+            color_tex,
+            color_view,
+            color_format,
+        );
         Self {
             window,
             device,
@@ -341,11 +383,96 @@ impl Gpu {
             pipeline,
             bind_group,
             uniform,
+            #[cfg(feature = "parley")]
+            bind_layout,
+            #[cfg(feature = "parley")]
+            sampler,
+            #[cfg(feature = "parley")]
+            coverage,
+            #[cfg(feature = "parley")]
+            coverage_view,
+            #[cfg(feature = "parley")]
+            coverage_size: (atlas_w, atlas_h),
+            #[cfg(feature = "parley")]
+            color_tex,
+            #[cfg(feature = "parley")]
+            color_view,
+            #[cfg(feature = "parley")]
+            color_size: (color_w, color_h),
+            #[cfg(feature = "parley")]
+            color_format,
             quad,
             instances,
             instance_capacity: INITIAL_INSTANCES,
             staging: Vec::new(),
             clear_transparent,
+        }
+    }
+
+    /// Replace atlas texels. A size change recreates the texture and rebinds it.
+    /// Otherwise only dirty regions are copied, each padded to the 256-byte row rule.
+    #[cfg(feature = "parley")]
+    pub fn upload_atlas(&mut self, kind: AtlasKind, upload: &AtlasUpload) {
+        let bpp = upload.bpp.max(1);
+        let current = match kind {
+            AtlasKind::Coverage => self.coverage_size,
+            AtlasKind::Color => self.color_size,
+        };
+        let width = upload.width.max(1);
+        let height = upload.height.max(1);
+        if width != current.0 || height != current.1 {
+            let format = match kind {
+                AtlasKind::Coverage => wgpu::TextureFormat::R8Unorm,
+                AtlasKind::Color => self.color_format,
+            };
+            let texture = self
+                .device
+                .create_texture(&texture_desc("atlas", width, height, format));
+            write_full(&self.queue, &texture, width, height, bpp, &upload.pixels);
+            let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+            match kind {
+                AtlasKind::Coverage => {
+                    self.coverage = texture;
+                    self.coverage_view = view;
+                    self.coverage_size = (width, height);
+                }
+                AtlasKind::Color => {
+                    self.color_tex = texture;
+                    self.color_view = view;
+                    self.color_size = (width, height);
+                }
+            }
+            self.bind_group = bind_group_of(
+                &self.device,
+                &self.bind_layout,
+                &self.uniform,
+                &self.coverage_view,
+                &self.sampler,
+                &self.color_view,
+            );
+            return;
+        }
+        let texture = match kind {
+            AtlasKind::Coverage => &self.coverage,
+            AtlasKind::Color => &self.color_tex,
+        };
+        if upload.full {
+            write_full(&self.queue, texture, width, height, bpp, &upload.pixels);
+            return;
+        }
+        for region in &upload.regions {
+            write_region(
+                &self.queue,
+                texture,
+                TexelRect {
+                    x: region.x,
+                    y: region.y,
+                    width: region.width,
+                    height: region.height,
+                    bpp,
+                    pixels: &region.bytes,
+                },
+            );
         }
     }
 
@@ -442,6 +569,173 @@ impl Gpu {
     }
 }
 
+/// Which glyph atlas an [`AtlasUpload`] writes.
+#[cfg(feature = "parley")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AtlasKind {
+    Coverage,
+    Color,
+}
+
+/// Dirty or full image for one atlas. `regions` is empty when `full` is set.
+#[cfg(feature = "parley")]
+pub struct AtlasUpload {
+    pub width: u32,
+    pub height: u32,
+    pub bpp: usize,
+    pub full: bool,
+    pub pixels: Vec<u8>,
+    pub regions: Vec<AtlasRegion>,
+}
+
+#[cfg(feature = "parley")]
+pub struct AtlasRegion {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+    pub bytes: Vec<u8>,
+}
+
+fn texture_desc(
+    label: &str,
+    width: u32,
+    height: u32,
+    format: wgpu::TextureFormat,
+) -> wgpu::TextureDescriptor<'_> {
+    wgpu::TextureDescriptor {
+        label: Some(label),
+        size: wgpu::Extent3d {
+            width: width.max(1),
+            height: height.max(1),
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    }
+}
+
+fn bind_group_of(
+    device: &wgpu::Device,
+    layout: &wgpu::BindGroupLayout,
+    uniform: &wgpu::Buffer,
+    coverage: &wgpu::TextureView,
+    sampler: &wgpu::Sampler,
+    color: &wgpu::TextureView,
+) -> wgpu::BindGroup {
+    device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("rndr-bg"),
+        layout,
+        entries: &[
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: uniform.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: wgpu::BindingResource::TextureView(coverage),
+            },
+            wgpu::BindGroupEntry {
+                binding: 2,
+                resource: wgpu::BindingResource::Sampler(sampler),
+            },
+            wgpu::BindGroupEntry {
+                binding: 3,
+                resource: wgpu::BindingResource::TextureView(color),
+            },
+            wgpu::BindGroupEntry {
+                binding: 4,
+                resource: wgpu::BindingResource::Sampler(sampler),
+            },
+        ],
+    })
+}
+
+const ROW_ALIGN: usize = 256;
+
+struct TexelRect<'a> {
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+    bpp: usize,
+    pixels: &'a [u8],
+}
+
+fn write_full(
+    queue: &wgpu::Queue,
+    texture: &wgpu::Texture,
+    width: u32,
+    height: u32,
+    bpp: usize,
+    pixels: &[u8],
+) {
+    if width == 0 || height == 0 || pixels.is_empty() {
+        return;
+    }
+    write_region(
+        queue,
+        texture,
+        TexelRect {
+            x: 0,
+            y: 0,
+            width,
+            height,
+            bpp,
+            pixels,
+        },
+    );
+}
+
+fn write_region(queue: &wgpu::Queue, texture: &wgpu::Texture, rect: TexelRect<'_>) {
+    let TexelRect {
+        x,
+        y,
+        width,
+        height,
+        bpp,
+        pixels,
+    } = rect;
+    if width == 0 || height == 0 || bpp == 0 {
+        return;
+    }
+    let row = width as usize * bpp;
+    let aligned = row.div_ceil(ROW_ALIGN) * ROW_ALIGN;
+    let mut padded = vec![0u8; aligned * height as usize];
+    for row_index in 0..height as usize {
+        let src = row_index * row;
+        let dst = row_index * aligned;
+        let available = pixels.len().saturating_sub(src);
+        let n = row.min(available);
+        if n > 0 {
+            padded[dst..dst + n].copy_from_slice(&pixels[src..src + n]);
+        }
+    }
+    queue.write_texture(
+        wgpu::TexelCopyTextureInfo {
+            texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d { x, y, z: 0 },
+            aspect: wgpu::TextureAspect::All,
+        },
+        &padded,
+        wgpu::TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(aligned as u32),
+            rows_per_image: Some(height),
+        },
+        wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+    );
+}
+
 /// Layout quads are points. The uniform and the fragment clip are physical pixels.
 /// Every quad color — solid fills, borders, glyph tints, carets, selections, and
 /// marks — is authored sRGB and is decoded here when `format` is sRGB.
@@ -468,7 +762,7 @@ fn encode_instances(quads: &[Quad], scale: f32, format: wgpu::TextureFormat, out
             quad.clip.w * scale,
             quad.clip.h * scale,
             quad.radius * scale,
-            0.0,
+            quad.atlas as f32,
             0.0,
             0.0,
         ] {
@@ -502,6 +796,7 @@ mod tests {
                 h: 80.0,
             },
             radius: 0.0,
+            atlas: 0,
         }
     }
 
