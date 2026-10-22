@@ -3,7 +3,15 @@ name = "rndr_render"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
 description = "winit + wgpu window plugin for rndr"
+documentation = "https://docs.rs/rndr_render"
+readme = "README.md"
+keywords = ["gui", "wgpu", "winit", "window", "desktop"]
+categories = ["gui", "graphics", "rendering"]
+exclude = ["**/*.snap", "**/*.snap.new"]
 
 [features]
 default = ["hotkey", "tray", "parley"]
@@ -53,3 +61,9 @@ objc2-app-kit = { version = "0.2.2", features = ["NSWindow", "NSView", "NSRespon
 
 [dev-dependencies]
 insta = "1"
+
+[package.metadata.docs.rs]
+# docs.rs uses the crates-build-env image, which includes libfontconfig1-dev,
+# libxkbcommon, Wayland, and Vulkan. `parley` links fontconfig on Linux.
+# `hotkey` and `tray` do not link libdbus (zbus and x11rb are pure Rust).
+all-features = true

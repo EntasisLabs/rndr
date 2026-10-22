@@ -1,8 +1,11 @@
 //! Faces shipped with the desktop runner. Inter is the UI default. Arabic and
 //! color emoji are bundled so a machine with an empty fontconfig still shapes
 //! those scripts. Emoji is the CBDT/CBLC Noto Color Emoji build: swash paints
-//! color bitmaps, and the COLRv1 file does not. CJK comes from the system
-//! fallback list when the OS has it.
+//! color bitmaps, and the COLRv1 file does not. The bundled strike is 32 px
+//! per em, downsampled from the 109 px upstream face, so the published crate
+//! stays under the registry size limit. Glyph coverage is unchanged. Licenses
+//! are next to the files. CJK comes from the system fallback list when the OS
+//! has it.
 
 pub(super) const INTER_REGULAR: &[u8] = include_bytes!("../../fonts/Inter-Regular.ttf");
 pub(super) const INTER_BOLD: &[u8] = include_bytes!("../../fonts/Inter-Bold.ttf");

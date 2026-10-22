@@ -32,6 +32,7 @@ Application
 
 | Crate | Role |
 | --- | --- |
+| `rndr` | Facade. Re-exports the libraries below so `cargo add rndr` is the desktop entry point. Features match `rndr_render` |
 | `rndr_core` | ECS, layout, clip, scroll, disclosure, focus, pane, split, caret, body, wrap, `Font`, `Files`, `Chrome`, events, tasks, timers |
 | `rndr_paint` | `frame`: update, then quads in points. Reads a `TextLayout`. The bitmap face is an 8×8 ASCII atlas |
 | `rndr_std` | `std::fs` plugin |
@@ -142,7 +143,7 @@ F21–F24 have no Carbon virtual key, so they are `InvalidBinding` on macOS and 
 
 ## Headless tests
 
-CI on macOS, Windows, and Ubuntu runs `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo clippy -p rndr_render --no-default-features --all-targets -- -D warnings`, `cargo test --workspace`, then `cargo build -p expand -p idle -p overlay -p palette -p rndr_render`. The Ubuntu job installs the X11, Wayland, and Vulkan packages winit and wgpu need to compile. The tray and hotkey features add no further packages.
+CI on macOS, Windows, and Ubuntu runs `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo clippy -p rndr_render -p rndr --no-default-features --all-targets -- -D warnings`, `cargo test --workspace`, then `cargo build -p expand -p idle -p overlay -p palette -p rndr_render`. The Ubuntu job also packages the publishable crates and builds `cargo doc --no-deps` with warnings denied. It installs the X11, Wayland, and Vulkan packages winit and wgpu need to compile. The tray and hotkey features add no further packages.
 
 A headless test drives one frame without a window:
 

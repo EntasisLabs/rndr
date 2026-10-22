@@ -1,0 +1,39 @@
+[package]
+name = "rndr"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
+description = "Desktop application toolkit: entities, layout, paint, and a window"
+documentation = "https://docs.rs/rndr"
+readme = "README.md"
+keywords = ["gui", "desktop", "ecs", "wgpu", "ui"]
+categories = ["gui", "graphics", "rendering"]
+exclude = ["**/*.snap", "**/*.snap.new"]
+
+[features]
+default = ["hotkey", "tray", "parley"]
+# Same flags as rndr_render. Off skips Carbon, Win32, X11, and the portal client.
+hotkey = ["rndr_render/hotkey"]
+# Menu bar, notification area, and StatusNotifierItem icon.
+tray = ["rndr_render/tray"]
+# Parley shaping and swash rasterization. `--no-default-features` keeps the
+# builtin atlas and skips the fontconfig link.
+parley = ["rndr_render/parley"]
+
+[dependencies]
+rndr_core = { workspace = true }
+rndr_paint = { workspace = true }
+rndr_std = { workspace = true }
+# Path plus version, not workspace = true: turning workspace default features
+# off needs Rust 1.99 and edition 2024. This keeps `hotkey` / `tray` / `parley`
+# optional on the 2021 edition.
+rndr_render = { path = "../rndr_render", version = "0.1.0", default-features = false }
+
+[package.metadata.docs.rs]
+# docs.rs uses the crates-build-env image, which includes libfontconfig1-dev,
+# libxkbcommon, Wayland, and Vulkan. `parley` links fontconfig on Linux.
+# `hotkey` and `tray` do not link libdbus (zbus and x11rb are pure Rust).
+all-features = true

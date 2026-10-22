@@ -86,7 +86,7 @@ impl Input {
     }
 }
 
-/// Currently focused [`Focusable`] entity.
+/// Currently focused [`crate::Focusable`] entity.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Focus {
     pub entity: Option<Entity>,

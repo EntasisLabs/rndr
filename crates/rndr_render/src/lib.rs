@@ -3,6 +3,11 @@
 //! The window comes from a [`rndr_core::WindowConfig`] resource. When the app
 //! did not insert one, the window stays 800×600, decorated, resizable, and
 //! titled `rndr`. Hide and show leave the wgpu surface in place.
+//!
+//! `hotkey`, `tray`, and `parley` are on by default. docs.rs builds every
+//! feature. Its Linux image provides fontconfig (used by `parley`), plus
+//! libxkbcommon, Wayland, and Vulkan for winit and wgpu. `hotkey` and `tray`
+//! do not link libdbus.
 
 mod color;
 mod gpu;

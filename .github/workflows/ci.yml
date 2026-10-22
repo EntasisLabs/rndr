@@ -46,10 +46,16 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Clippy without default features
-        run: cargo clippy -p rndr_render --no-default-features --all-targets -- -D warnings
+        run: cargo clippy -p rndr_render -p rndr --no-default-features --all-targets -- -D warnings
 
       - name: Test
         run: cargo test --workspace
 
       - name: Build examples and rndr_render
         run: cargo build -p expand -p idle -p overlay -p palette -p rndr_render
+
+      - name: Package and docs
+        if: runner.os == 'Linux'
+        run: |
+          cargo package --workspace --no-verify --locked --exclude expand --exclude idle --exclude overlay --exclude palette
+          RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features --locked --exclude expand --exclude idle --exclude overlay --exclude palette

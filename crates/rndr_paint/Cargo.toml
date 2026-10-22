@@ -3,10 +3,21 @@ name = "rndr_paint"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
 description = "World-to-quad paint step for rndr"
+documentation = "https://docs.rs/rndr_paint"
+readme = "README.md"
+keywords = ["gui", "graphics", "paint", "ui", "2d"]
+categories = ["gui", "graphics", "rendering"]
+exclude = ["**/*.snap", "**/*.snap.new"]
 
 [dependencies]
 rndr_core = { workspace = true }
 
 [dev-dependencies]
 insta = "1"
+
+[package.metadata.docs.rs]
+all-features = true
