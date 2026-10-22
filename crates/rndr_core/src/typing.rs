@@ -81,7 +81,9 @@ pub(crate) fn apply_text_event(
     history: &mut EditHistory,
     clip: &str,
 ) -> StepResult {
-    if event.released {
+    // A named Space with no text inserts a character, so a focus-in synthetic
+    // has to be rejected here and not only by dropping its reported text.
+    if event.released || event.synthetic {
         return StepResult::default();
     }
     let text = &mut *surface.text;

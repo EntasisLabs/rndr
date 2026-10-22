@@ -306,13 +306,39 @@ fn map_failure(failure: HotkeyFailure) -> HotkeyError {
     }
 }
 
+/// Receive-order of keyboard events, published by the desktop runner.
+///
+/// The runner bumps this when a key arrives, which can be earlier than the
+/// frame that copies the event into [`Input`]. A hotkey arms against this
+/// sequence so a key-up queued before that press cannot clear the guard.
+#[derive(Clone, Copy, Debug, Default)]
+struct KeyOrder {
+    seq: u64,
+}
+
+/// Record that the platform delivered a key event.
+///
+/// `seq` is monotonic. A later call with a smaller value is ignored. Headless
+/// tests leave this unset; key events then use [`KeyEvent::UNORDERED`] and
+/// count as arriving after any hotkey.
+pub fn note_key_order(world: &mut World, seq: u64) {
+    if let Some(order) = world.resource_mut::<KeyOrder>() {
+        if seq > order.seq {
+            order.seq = seq;
+        }
+        return;
+    }
+    world.insert_resource(KeyOrder { seq });
+}
+
 /// Physical keys held because a global hotkey just fired.
 ///
-/// The base key stays armed until its own release, tracked by [`KeyCode`]
-/// rather than the modifiers on the event that arrives later.
+/// The value is the receive-order just before the key-up that is allowed to
+/// release the guard. Tracked by [`KeyCode`] rather than the modifiers on the
+/// event that arrives later.
 #[derive(Default)]
 struct ArmedKeys {
-    codes: HashSet<KeyCode>,
+    codes: HashMap<KeyCode, u64>,
 }
 
 pub(crate) fn drive(world: &mut World) {
@@ -354,30 +380,38 @@ fn deliver_presses(world: &mut World) -> Vec<HotkeyBinding> {
     fired
 }
 
-/// Drop chord matches, the armed base key, and every key release.
+/// Drop chord matches, synthetic focus events, the armed base key, and releases.
 ///
-/// A release is not text. Leaving it in the queue would let a Space key-up
-/// insert a space once the modifiers are gone. The base key of a hotkey that
-/// fired this frame, or that is still held from an earlier frame, is dropped
-/// even when the event no longer carries those modifiers. A text event whose
-/// source key is one of those keys is dropped with it.
+/// A release is not text. Synthetic key-ups and key-downs (winit focus changes
+/// on X11 and Windows) are not text either, and a synthetic key-up does not
+/// release the guard. macOS and Wayland leave `synthetic` false.
+///
+/// A key-up releases the guard only when it was received after the hotkey.
+/// Events already in this frame's queue count: the runner may have stamped
+/// them before this call. A key-up stamped earlier, and delivered only once
+/// the hidden window catches up, does not.
 fn suppress_hotkey_keys(world: &mut World, fired: &[HotkeyBinding]) {
     let strokes = registered_strokes(world);
     let platform = platform_of(world);
+    let clock = key_order(world);
+    let queued = world
+        .resource::<Input>()
+        .and_then(|input| queued_span(&input.keys));
+    let armed_at = arm_at(clock, queued);
     let mut armed = world
         .resource_mut::<ArmedKeys>()
         .map(|armed| std::mem::take(&mut armed.codes))
         .unwrap_or_default();
     for binding in fired {
         if let Some(code) = trigger_code(binding.keystroke()) {
-            armed.insert(code);
+            armed.insert(code, armed_at);
         }
     }
     let live: HashSet<KeyCode> = strokes
         .iter()
         .filter_map(|stroke| trigger_code(*stroke))
         .collect();
-    armed.retain(|code| live.contains(code));
+    armed.retain(|code, _| live.contains(code));
 
     let Some(input) = world.resource_mut::<Input>() else {
         store_armed(world, armed);
@@ -386,9 +420,14 @@ fn suppress_hotkey_keys(world: &mut World, fired: &[HotkeyBinding]) {
     let before = input.keys.len();
     let mut kept = Vec::with_capacity(before);
     for event in input.keys.drain(..) {
+        if event.synthetic {
+            continue;
+        }
         if event.released {
             if let Some(code) = source_code(&event) {
-                armed.remove(&code);
+                if release_clears(event.order, armed.get(&code).copied()) {
+                    armed.remove(&code);
+                }
             }
             continue;
         }
@@ -420,7 +459,48 @@ fn suppress_hotkey_keys(world: &mut World, fired: &[HotkeyBinding]) {
     store_armed(world, armed);
 }
 
-fn store_armed(world: &mut World, codes: HashSet<KeyCode>) {
+fn key_order(world: &World) -> u64 {
+    world
+        .resource::<KeyOrder>()
+        .map(|order| order.seq)
+        .unwrap_or(0)
+}
+
+/// Oldest and newest receive-order already sitting in this frame.
+fn queued_span(keys: &[KeyEvent]) -> Option<(u64, u64)> {
+    let mut orders = keys
+        .iter()
+        .map(|event| event.order)
+        .filter(|order| *order != KeyEvent::UNORDERED);
+    let first = orders.next()?;
+    Some(orders.fold((first, first), |(min, max), order| {
+        (min.min(order), max.max(order))
+    }))
+}
+
+/// Sequence a key-up must pass to release a guard armed on this frame.
+///
+/// The clock is the cutoff when this frame's queue is empty or older than the
+/// clock: the runner has stamped key-ups that are not in the queue yet, which
+/// is what happens while the window is hidden. When the queue includes the
+/// newest stamp, those events were delivered with this hotkey, and the cutoff
+/// sits just before the oldest of them so a real key-up in the queue still
+/// releases.
+fn arm_at(clock: u64, queued: Option<(u64, u64)>) -> u64 {
+    match queued {
+        Some((min, max)) if max == clock => min.saturating_sub(1),
+        _ => clock,
+    }
+}
+
+fn release_clears(order: u64, armed_at: Option<u64>) -> bool {
+    let Some(armed_at) = armed_at else {
+        return false;
+    };
+    order == KeyEvent::UNORDERED || order > armed_at
+}
+
+fn store_armed(world: &mut World, codes: HashMap<KeyCode, u64>) {
     if codes.is_empty() {
         if let Some(armed) = world.resource_mut::<ArmedKeys>() {
             armed.codes.clear();
@@ -469,18 +549,18 @@ fn normalize_code(code: KeyCode) -> KeyCode {
     }
 }
 
-fn held_hotkey(event: &KeyEvent, armed: &HashSet<KeyCode>) -> bool {
+fn held_hotkey(event: &KeyEvent, armed: &HashMap<KeyCode, u64>) -> bool {
     if armed.is_empty() {
         return false;
     }
     if let Some(code) = source_code(event) {
-        if armed.contains(&code) {
+        if armed.contains_key(&code) {
             return true;
         }
     }
     if event.code.is_none() {
         if let Some(code) = event.text.as_deref().and_then(text_source) {
-            return armed.contains(&code);
+            return armed.contains_key(&code);
         }
     }
     false

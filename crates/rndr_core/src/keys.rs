@@ -218,9 +218,24 @@ pub struct KeyEvent {
     pub repeat: bool,
     /// The key went up. Releases carry no text.
     pub released: bool,
+    /// winit made this event up on a focus change. It is not a physical key.
+    ///
+    /// X11 and Windows synthesize a key-down for every key held when a window
+    /// gains focus, and a key-up when it loses focus. macOS and Wayland leave
+    /// this false.
+    pub synthetic: bool,
+    /// Receive order assigned by the desktop runner.
+    ///
+    /// [`Self::UNORDERED`] was built in-process and counts as arriving after
+    /// any hotkey. A smaller order was queued before the hotkey that armed
+    /// the guard.
+    pub order: u64,
 }
 
 impl KeyEvent {
+    /// No receive-order. Counts as arriving after every hotkey.
+    pub const UNORDERED: u64 = u64::MAX;
+
     pub fn named(key: NamedKey, modifiers: Modifiers) -> Self {
         Self {
             logical: LogicalKey::Named(key),
@@ -229,6 +244,8 @@ impl KeyEvent {
             modifiers,
             repeat: false,
             released: false,
+            synthetic: false,
+            order: Self::UNORDERED,
         }
     }
 
@@ -241,6 +258,8 @@ impl KeyEvent {
             modifiers,
             repeat: false,
             released: false,
+            synthetic: false,
+            order: Self::UNORDERED,
         }
     }
 
@@ -266,12 +285,25 @@ impl KeyEvent {
         self
     }
 
+    /// winit synthesized this event for a focus change.
+    pub fn synthetic(mut self) -> Self {
+        self.synthetic = true;
+        self
+    }
+
+    /// Stamp the runner's receive order. [`Self::UNORDERED`] is the default.
+    pub fn with_order(mut self, order: u64) -> Self {
+        self.order = order;
+        self
+    }
+
     /// Text that should be inserted.
     ///
-    /// Super never inserts. Ctrl and Alt insert only when this event already
-    /// carries text, which is how AltGr types. Control characters are dropped.
+    /// Synthetic focus events and Super never insert. Ctrl and Alt insert only
+    /// when this event already carries text, which is how AltGr types.
+    /// Control characters are dropped.
     pub fn insertable_text(&self) -> Option<String> {
-        if self.modifiers.super_key {
+        if self.synthetic || self.modifiers.super_key {
             return None;
         }
         let text = self.text.as_ref()?;

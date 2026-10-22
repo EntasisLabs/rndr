@@ -334,6 +334,8 @@ fn edit_queue(world: &mut World, entity: crate::entity::Entity) {
             modifiers: Modifiers::new(),
             repeat: false,
             released: false,
+            synthetic: false,
+            order: KeyEvent::UNORDERED,
         };
         let _ = apply_text_event(
             &mut EditSurface {

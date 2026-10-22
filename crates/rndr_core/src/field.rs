@@ -276,6 +276,8 @@ fn edit_label_queue(
             modifiers: Modifiers::new(),
             repeat: false,
             released: false,
+            synthetic: false,
+            order: KeyEvent::UNORDERED,
         };
         let _ = apply_text_event(
             &mut EditSurface {
