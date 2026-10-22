@@ -23,6 +23,3 @@ rndr_paint = { path = "crates/rndr_paint" }
 wgpu = "30"
 winit = "0.30"
 pollster = "0.4"
-
-[patch.crates-io]
-tray-icon = { path = "third_party/tray-icon" }
