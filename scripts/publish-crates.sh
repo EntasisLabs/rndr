@@ -15,10 +15,12 @@
 # index before publishing the next crate.
 #
 # `--dry-run` does not upload and does not need CARGO_REGISTRY_TOKEN.
-# A crate whose workspace dependencies are already on the index gets
-# `cargo publish --dry-run` (package, verify, stop before upload).
-# A crate that still depends on an unpublished sibling cannot be verified
-# against crates.io, so the dry-run falls back to `cargo package --no-verify`.
+# It packages every publishable crate with `cargo package --workspace
+# --no-verify`, which does not need the crates.io index. A crate whose
+# workspace dependencies are already on the index also gets
+# `cargo publish --dry-run` (verify, then stop before upload). Packaging one
+# dependent with `-p` fails until those dependencies exist in the index, so
+# the dry-run does not do that.
 
 set -euo pipefail
 
@@ -124,6 +126,12 @@ wait_for_index() {
     return 1
 }
 
+if [[ "$dry_run" -eq 1 ]]; then
+    echo "packaging publishable crates without uploading"
+    cargo package --workspace --locked --no-verify \
+        --exclude expand --exclude idle --exclude overlay --exclude palette
+fi
+
 for index in "${!CRATES[@]}"; do
     name="${CRATES[$index]}"
     version="${VERSIONS[$name]:-}"
@@ -140,8 +148,7 @@ for index in "${!CRATES[@]}"; do
             echo "dry-run ${name} ${version}"
             cargo publish --locked --dry-run -p "$name"
         else
-            echo "dry-run ${name} ${version} (dependencies are not on crates.io yet; packaging only)"
-            cargo package --locked --no-verify -p "$name"
+            echo "note: ${name} ${version} is in the workspace package above; cargo publish cannot verify it until its dependencies are on the index"
         fi
     else
         echo "publish ${name} ${version}"
