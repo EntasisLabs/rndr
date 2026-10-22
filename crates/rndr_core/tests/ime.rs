@@ -57,6 +57,19 @@ fn editor() -> (App, rndr_core::Entity) {
 }
 
 #[test]
+fn preedit_cursor_places_the_ime_caret() {
+    let (mut app, entity) = field();
+    let input = app.world_mut().resource_mut::<Input>().unwrap();
+    input.ime_preedit = "abc".into();
+    input.ime_cursor = Some((1, 1));
+    app.update();
+    let layout = app.world().get::<TextLayout>(entity).unwrap();
+    // "hi" is 2 bytes; the preedit is inserted at the field caret.
+    assert_eq!(layout.ime_range, Some((2, 5)));
+    assert_eq!(layout.ime_cursor, Some(3));
+}
+
+#[test]
 fn preedit_does_not_change_a_field_until_commit() {
     let (mut app, entity) = field();
     app.world_mut().resource_mut::<Input>().unwrap().ime_preedit = "xy".into();

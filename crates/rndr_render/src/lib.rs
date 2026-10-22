@@ -9,16 +9,24 @@ mod gpu;
 #[cfg(feature = "hotkey")]
 mod hotkey;
 mod platform;
+#[cfg(feature = "parley")]
+mod text;
 #[cfg(feature = "tray")]
 mod tray;
+
+#[cfg(feature = "parley")]
+pub use text::ParleyText;
 
 use std::sync::Arc;
 use std::time::Instant;
 
+#[cfg(feature = "parley")]
+use rndr_core::TextEngine;
 use rndr_core::{
-    ensure_text_engine, legacy_key, text_engine, App, Clipboard, Input, KeyCode as Physical,
-    KeyEvent, LogicalKey, Modifiers, NamedKey as CoreNamed, Platform, Pointer, Viewport, Wake,
-    WindowConfig, WindowEffect, WindowKind, MOUSE_ID,
+    ensure_text_engine, legacy_key, text_engine, App, Caret, Clipboard, Focus, Input,
+    KeyCode as Physical, KeyEvent, LogicalKey, Modifiers, NamedKey as CoreNamed, Platform, Pointer,
+    Rect, TextLayout, Viewport, Wake, WindowConfig, WindowEffect, WindowKind, MOUSE_ID,
+    TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
 use rndr_paint::{atlas_r8, frame, ATLAS_H, ATLAS_W};
 use winit::application::ApplicationHandler;
@@ -29,6 +37,8 @@ use winit::platform::modifier_supplement::KeyEventExtModifierSupplement;
 use winit::window::WindowId;
 
 use gpu::Gpu;
+#[cfg(feature = "parley")]
+use gpu::{AtlasKind, AtlasRegion, AtlasUpload};
 
 /// User event the runtime posts when a task finishes, a timer is armed, or the
 /// tray icon is clicked. The tray variant is what wakes `Wait` while the
@@ -139,6 +149,7 @@ pub fn run(mut app: App) {
     #[cfg(feature = "hotkey")]
     hotkey::ensure(app.world_mut());
     let config = WindowConfig::get(app.world());
+    install_text_engine(&mut app);
     if rndr_core::tray::starts_hidden(app.world()) {
         rndr_core::tray::mark_hidden(app.world_mut());
     }
@@ -159,6 +170,7 @@ pub fn run(mut app: App) {
         scroll: [0.0, 0.0],
         keys: Vec::new(),
         ime_preedit: String::new(),
+        ime_cursor: None,
         ime_commit: String::new(),
         shift: false,
         ctrl: false,
@@ -169,6 +181,16 @@ pub fn run(mut app: App) {
         tray: tray::Session::new(),
     };
     event_loop.run_app(&mut handler).expect("run");
+}
+
+fn install_text_engine(app: &mut App) {
+    #[cfg(feature = "parley")]
+    if !app.world().has_resource::<Arc<dyn TextEngine>>() {
+        let engine: Arc<dyn TextEngine> = Arc::new(ParleyText::new());
+        app.world_mut().insert_resource(engine);
+    }
+    #[cfg(not(feature = "parley"))]
+    let _ = app;
 }
 
 fn install_tray_handlers(proxy: &EventLoopProxy<RunnerEvent>) {
@@ -203,6 +225,7 @@ struct Handler {
     scroll: [f32; 2],
     keys: Vec<KeyEvent>,
     ime_preedit: String,
+    ime_cursor: Option<(usize, usize)>,
     ime_commit: String,
     shift: bool,
     ctrl: bool,
@@ -252,6 +275,7 @@ impl Handler {
                 }
             }
             input.ime_preedit.clone_from(&self.ime_preedit);
+            input.ime_cursor = self.ime_cursor;
             input.ime_commit.clone_from(&self.ime_commit);
             input.shift = self.shift;
             input.ctrl = self.ctrl;
@@ -289,17 +313,108 @@ impl Handler {
         if let Some(clipboard) = self.app.world_mut().resource_mut::<Clipboard>() {
             clipboard.dirty = false;
         }
+        self.upload_atlases();
         let scale = self
             .app
             .world()
             .resource::<Viewport>()
             .map(|viewport| viewport.pixels_per_point())
             .unwrap_or(1.0);
-        self.gpu
-            .as_mut()
-            .expect("surface")
-            .present(&painted.quads, width, height, scale)
+        let presented =
+            self.gpu
+                .as_mut()
+                .expect("surface")
+                .present(&painted.quads, width, height, scale);
+        self.place_ime_cursor();
+        presented
     }
+
+    fn upload_atlases(&mut self) {
+        #[cfg(feature = "parley")]
+        {
+            let uploads = self
+                .app
+                .world()
+                .resource::<Arc<dyn TextEngine>>()
+                .and_then(|engine| engine.as_any().downcast_ref::<ParleyText>())
+                .map(|parley| parley.take_uploads());
+            let Some(uploads) = uploads else {
+                return;
+            };
+            let Some(gpu) = self.gpu.as_mut() else {
+                return;
+            };
+            gpu.upload_atlas(AtlasKind::Coverage, &layer_upload(uploads.coverage));
+            gpu.upload_atlas(AtlasKind::Color, &layer_upload(uploads.color));
+        }
+        #[cfg(not(feature = "parley"))]
+        {
+            let _ = self;
+        }
+    }
+
+    fn place_ime_cursor(&self) {
+        let Some(gpu) = self.gpu.as_ref() else {
+            return;
+        };
+        let Some((x, y, w, h)) = ime_cursor_area(self.app.world()) else {
+            return;
+        };
+        gpu.window().set_ime_cursor_area(
+            winit::dpi::LogicalPosition::new(x, y),
+            winit::dpi::LogicalSize::new(w, h),
+        );
+    }
+}
+
+#[cfg(feature = "parley")]
+fn layer_upload(layer: crate::text::AtlasLayer) -> AtlasUpload {
+    AtlasUpload {
+        width: layer.width,
+        height: layer.height,
+        bpp: layer.bpp,
+        full: layer.full,
+        pixels: layer.pixels,
+        regions: layer
+            .rects
+            .into_iter()
+            .map(|rect| AtlasRegion {
+                x: rect.x,
+                y: rect.y,
+                width: rect.width,
+                height: rect.height,
+                bytes: rect.bytes,
+            })
+            .collect(),
+    }
+}
+
+fn ime_cursor_area(world: &rndr_core::World) -> Option<(f64, f64, f64, f64)> {
+    let entity = world.resource::<Focus>()?.entity?;
+    let rect = *world.get::<Rect>(entity)?;
+    let caret = *world.get::<Caret>(entity)?;
+    let layout = world.get::<TextLayout>(entity);
+    let index = layout
+        .and_then(|layout| layout.ime_cursor)
+        .unwrap_or(caret.index);
+    let (x, y, h) = if let Some(layout) = layout {
+        let (x, y) = layout.caret_xy(index);
+        let h = layout
+            .lines
+            .iter()
+            .find(|line| index >= line.start && index <= line.end)
+            .map(|line| line.h)
+            .unwrap_or(16.0);
+        (x, y, h)
+    } else {
+        (0.0, 0.0, 16.0)
+    };
+    Some((
+        f64::from(rect.x + TEXT_ORIGIN_X + x),
+        f64::from(rect.y + TEXT_ORIGIN_Y + y),
+        2.0,
+        f64::from(h),
+    ))
 }
 
 fn host_platform() -> Platform {
@@ -651,9 +766,8 @@ impl ApplicationHandler<RunnerEvent> for Handler {
         ensure_text_engine(self.app.world_mut());
         let engine = text_engine(self.app.world());
         let coverage = engine.coverage_atlas();
-        // Emoji and other color glyphs live in a second atlas. The builtin
-        // engine leaves it empty; a parley/swash engine fills it. The shader
-        // still samples the coverage atlas until that bind exists.
+        // Emoji lives in the color atlas. The builtin engine leaves it empty;
+        // the shader still binds a 1×1 texture so both engines share a pipeline.
         let color_atlas = engine.color_atlas();
         if let Some(atlas) = &color_atlas {
             debug_assert!(
@@ -666,12 +780,28 @@ impl ApplicationHandler<RunnerEvent> for Handler {
         } else {
             (ATLAS_W, ATLAS_H, atlas_r8())
         };
+        let (color_w, color_h, color_pixels) = if let Some(atlas) = color_atlas {
+            if atlas.width == 0 || atlas.height == 0 {
+                (1, 1, vec![0, 0, 0, 0])
+            } else {
+                (atlas.width, atlas.height, atlas.rgba.to_vec())
+            }
+        } else {
+            (1, 1, vec![0, 0, 0, 0])
+        };
         let gpu = pollster::block_on(Gpu::new(
             event_loop.owned_display_handle(),
             window,
-            atlas_w,
-            atlas_h,
-            &atlas_pixels,
+            gpu::AtlasBytes {
+                width: atlas_w,
+                height: atlas_h,
+                pixels: &atlas_pixels,
+            },
+            gpu::AtlasBytes {
+                width: color_w,
+                height: color_h,
+                pixels: &color_pixels,
+            },
             self.config.transparent,
         ));
         self.gpu = Some(gpu);
@@ -712,8 +842,9 @@ impl ApplicationHandler<RunnerEvent> for Handler {
                 self.alt = state.alt_key();
                 self.super_key = state.super_key();
             }
-            WindowEvent::Ime(Ime::Preedit(text, _)) => {
+            WindowEvent::Ime(Ime::Preedit(text, cursor)) => {
                 self.ime_preedit = text;
+                self.ime_cursor = cursor;
                 if let Some(gpu) = &self.gpu {
                     gpu.window().request_redraw();
                 }
@@ -721,6 +852,7 @@ impl ApplicationHandler<RunnerEvent> for Handler {
             WindowEvent::Ime(Ime::Commit(text)) => {
                 self.ime_commit.push_str(&text);
                 self.ime_preedit.clear();
+                self.ime_cursor = None;
                 if let Some(gpu) = &self.gpu {
                     gpu.window().request_redraw();
                 }

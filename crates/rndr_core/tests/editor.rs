@@ -126,7 +126,29 @@ fn click_maps_to_a_buffer_offset() {
 }
 
 #[test]
-fn backspace_removes_one_scalar() {
+fn backspace_and_left_treat_a_flag_as_one_grapheme() {
+    let flag = "🇺🇸";
+    let (mut app, body, _) = boot(flag, 80.0);
+    app.world_mut().resource_mut::<Focus>().unwrap().entity = Some(body);
+    app.world_mut().resource_mut::<Input>().unwrap().key = Some(Key::Left);
+    app.update();
+    assert_eq!(app.world().get::<Buffer>(body).unwrap().caret, 0);
+
+    let len = flag.len();
+    {
+        let buffer = app.world_mut().get_mut::<Buffer>(body).unwrap();
+        buffer.caret = len;
+        buffer.anchor = len;
+    }
+    app.world_mut().resource_mut::<Focus>().unwrap().entity = Some(body);
+    app.world_mut().resource_mut::<Input>().unwrap().key = Some(Key::Backspace);
+    app.update();
+    assert_eq!(app.world().get::<Buffer>(body).unwrap().text(), "");
+    assert_eq!(app.world().get::<Buffer>(body).unwrap().caret, 0);
+}
+
+#[test]
+fn backspace_removes_one_precomposed_scalar() {
     let (mut app, body, _) = boot("é", 80.0);
     app.world_mut().resource_mut::<Focus>().unwrap().entity = Some(body);
     assert_eq!(app.world().get::<Buffer>(body).unwrap().caret, "é".len());

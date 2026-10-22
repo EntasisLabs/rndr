@@ -177,8 +177,14 @@ impl App {
     /// stay queued until the next frame.
     pub fn update(&mut self) {
         ensure_text_engine(&mut self.world);
+        let scale = self
+            .world
+            .resource::<crate::Viewport>()
+            .map(|viewport| viewport.pixels_per_point())
+            .unwrap_or(1.0);
         if let Some(engine) = self.world.resource::<Arc<dyn crate::TextEngine>>() {
             engine.begin_frame();
+            engine.set_pixels_per_point(scale);
         }
         runtime::tick_time(&mut self.world);
         if !self.started {

@@ -1,6 +1,9 @@
 use crate::caret::Caret;
 use crate::clipboard::{note_clipboard, Clipboard};
-use crate::edit::{delete_prev_span, floor_boundary, next_boundary, prev_boundary, selection_span};
+use crate::edit::{
+    delete_prev_grapheme, floor_boundary, floor_grapheme, grapheme_selection, next_grapheme,
+    prev_grapheme,
+};
 use crate::hierarchy::{children_of, Parent};
 use crate::input::{Focus, Input, Key};
 use crate::keys::{platform_of, KeyEvent, LogicalKey, Modifiers};
@@ -203,13 +206,14 @@ fn edit_focused(world: &mut World, entity: crate::entity::Entity) {
     let Some(buffer) = world.get_mut::<Buffer>(entity) else {
         return;
     };
+    let snapshot = buffer.text();
     let len = buffer.len();
     let mut index = buffer.caret.min(len);
     let mut anchor = buffer.anchor.min(len);
     if matches!(key, Some(Key::Left | Key::Right)) {
         let next = match key {
-            Some(Key::Left) => prev_boundary(len, index, &|i| buffer.byte(i)),
-            Some(Key::Right) => next_boundary(len, index, &|i| buffer.byte(i)),
+            Some(Key::Left) => prev_grapheme(&snapshot, index),
+            Some(Key::Right) => next_grapheme(&snapshot, index),
             _ => index,
         };
         if shift {
@@ -220,7 +224,7 @@ fn edit_focused(world: &mut World, entity: crate::entity::Entity) {
                 Some(Key::Right) => anchor.max(index),
                 _ => next,
             };
-            index = floor_boundary(len, index, &|i| buffer.byte(i));
+            index = floor_grapheme(&snapshot, index);
             anchor = index;
         } else {
             index = next;
@@ -231,12 +235,12 @@ fn edit_focused(world: &mut World, entity: crate::entity::Entity) {
     } else {
         let typing = !chars.is_empty() || key == Some(Key::Backspace) || key == Some(Key::Enter);
         if typing && anchor != index {
-            let (start, end) = selection_span(len, anchor, index, &|i| buffer.byte(i));
+            let (start, end) = grapheme_selection(&snapshot, anchor, index);
             buffer.delete_range(start, end);
             index = start;
             anchor = start;
         } else if key == Some(Key::Backspace) {
-            if let Some((start, end)) = delete_prev_span(len, index, &|i| buffer.byte(i)) {
+            if let Some((start, end)) = delete_prev_grapheme(&snapshot, index) {
                 buffer.delete_range(start, end);
                 index = start;
                 anchor = start;
@@ -377,7 +381,14 @@ fn sync_ime_preview(world: &mut World, entity: crate::entity::Entity) {
     if preedit.is_empty() {
         world.remove::<crate::field::ImePreview>(entity);
     } else {
-        world.insert(entity, crate::field::ImePreview { text: preedit });
+        let cursor = world.resource::<Input>().and_then(|input| input.ime_cursor);
+        world.insert(
+            entity,
+            crate::field::ImePreview {
+                text: preedit,
+                cursor,
+            },
+        );
     }
 }
 

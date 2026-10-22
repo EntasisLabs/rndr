@@ -52,6 +52,9 @@ pub struct Input {
     pub chars: String,
     /// Uncommitted IME composition. Empty when the platform is not composing.
     pub ime_preedit: String,
+    /// Cursor range inside [`Input::ime_preedit`], in bytes. `None` when the
+    /// platform did not report one; the caret then sits at the end of the preedit.
+    pub ime_cursor: Option<(usize, usize)>,
     /// Text the IME committed this frame.
     pub ime_commit: String,
     pub shift: bool,

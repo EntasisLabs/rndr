@@ -5,6 +5,9 @@ edition.workspace = true
 license.workspace = true
 description = "Application ECS for rndr: entities, hierarchy, layout, events, tasks"
 
+[dependencies]
+unicode-segmentation = "1.13"
+
 [features]
 default = []
 # Thread-pool executor. The desktop runner enables this. Core stays free of tokio.

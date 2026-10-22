@@ -99,6 +99,7 @@ mod tests {
                     h: -0.0,
                 },
                 radius: 1.25,
+                atlas: 0,
             }],
             slots: vec![
                 SurfaceRect {

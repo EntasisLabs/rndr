@@ -6,7 +6,7 @@ license.workspace = true
 description = "winit + wgpu window plugin for rndr"
 
 [features]
-default = ["hotkey", "tray"]
+default = ["hotkey", "tray", "parley"]
 # System-wide hotkeys. Off skips Carbon, Win32, X11, and the portal client.
 hotkey = [
     "dep:futures-util",
@@ -19,6 +19,10 @@ hotkey = [
 # Menu bar, notification area, and StatusNotifierItem icon.
 # Linux uses tray-icon's ksni backend (D-Bus on a worker thread), not GTK.
 tray = ["dep:tray-icon", "dep:png"]
+# Parley shaping and swash rasterization. Headless tests that do not call
+# `run` stay on the builtin atlas engine. `--no-default-features` keeps that
+# path and skips the fontconfig link.
+parley = ["dep:parley", "dep:swash", "dep:etagere"]
 
 [dependencies]
 rndr_core = { workspace = true, features = ["pool"] }
@@ -37,9 +41,15 @@ windows-sys = { version = "0.59", optional = true, features = [
 ] }
 x11rb = { version = "0.13.1", optional = true, default-features = false, features = ["allow-unsafe-code", "xkb"] }
 zbus = { version = "5", optional = true, default-features = false, features = ["tokio"] }
+parley = { version = "0.12", optional = true, features = ["complex-scripts"] }
+swash = { version = "0.2.10", optional = true }
+etagere = { version = "0.3", optional = true }
 tray-icon = { version = "0.26.1", optional = true, default-features = false, features = ["ksni"] }
 png = { version = "0.18", optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.5.2"
 objc2-app-kit = { version = "0.2.2", features = ["NSWindow", "NSView", "NSResponder"] }
+
+[dev-dependencies]
+insta = "1"

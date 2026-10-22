@@ -25,6 +25,45 @@ fn backspace_inside_a_scalar_removes_the_whole_scalar() {
 }
 
 #[test]
+fn backspace_deletes_a_combining_grapheme() {
+    let mut text = "e\u{0301}".to_string();
+    let len = text.len();
+    let (index, _) = edit_string(&mut text, len, len, Some(Key::Left), false, "", false);
+    assert_eq!(index, 0);
+    assert_eq!(text, "e\u{0301}");
+
+    let (index, _) = edit_string(&mut text, len, len, Some(Key::Backspace), false, "", false);
+    assert_eq!(text, "");
+    assert_eq!(index, 0);
+}
+
+#[test]
+fn backspace_and_arrows_treat_a_flag_as_one_grapheme() {
+    let flag = "🇺🇸";
+    let mut text = format!("a{flag}b");
+    let len = text.len();
+    let (index, _) = edit_string(&mut text, len, len, Some(Key::Left), false, "", false);
+    assert_eq!(index, len - 1);
+    let (index, _) = edit_string(&mut text, index, index, Some(Key::Left), false, "", false);
+    assert_eq!(index, 1);
+    let (index, _) = edit_string(&mut text, index, index, Some(Key::Left), false, "", false);
+    assert_eq!(index, 0);
+
+    let mut text = flag.to_string();
+    let (index, _) = edit_string(
+        &mut text,
+        flag.len(),
+        flag.len(),
+        Some(Key::Backspace),
+        false,
+        "",
+        false,
+    );
+    assert_eq!(text, "");
+    assert_eq!(index, 0);
+}
+
+#[test]
 fn ascii_caret_still_moves_one_byte() {
     let mut text = "ab".to_string();
     let (index, _) = edit_string(&mut text, 2, 2, Some(Key::Left), false, "", false);
