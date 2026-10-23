@@ -21,15 +21,29 @@ fn main() {
     Session::new(first).window(second).run();
 }
 
+/// Side by side on a 1280×800 screen, with a gap between them.
+const WINDOW_W: f32 = 600.0;
+const WINDOW_H: f32 = 500.0;
+const WINDOW_X: f32 = 32.0;
+const WINDOW_Y: f32 = 40.0;
+const WINDOW_GAP: f32 = 20.0;
+
 fn window(title: &str) -> WindowConfig {
     let position = if title == "Two" {
-        Position::At { x: 420.0, y: 180.0 }
+        Position::At {
+            x: WINDOW_X + WINDOW_W + WINDOW_GAP,
+            y: WINDOW_Y,
+        }
     } else {
-        Position::At { x: 64.0, y: 48.0 }
+        Position::At {
+            x: WINDOW_X,
+            y: WINDOW_Y,
+        }
     };
     WindowConfig {
         title: title.into(),
         position,
+        size: rndr_core::LogicalSize::new(WINDOW_W, WINDOW_H),
         ..WindowConfig::default()
     }
 }
@@ -133,9 +147,24 @@ mod tests {
         let Position::At { x: x2, y: y2 } = two.position else {
             panic!("second window has no position");
         };
+        assert_eq!(one.size.width, 600.0);
+        assert_eq!(one.size.height, 500.0);
+        assert_eq!(two.size, one.size);
+        const SCREEN_W: f32 = 1280.0;
+        const SCREEN_H: f32 = 800.0;
+        for (name, x, y, size) in [("one", x1, y1, one.size), ("two", x2, y2, two.size)] {
+            assert!(
+                x >= 0.0 && y >= 0.0 && x + size.width <= SCREEN_W && y + size.height <= SCREEN_H,
+                "{name} at ({x}, {y}) size {}x{} does not fit {SCREEN_W}x{SCREEN_H}",
+                size.width,
+                size.height
+            );
+        }
+        let overlap_w = (x1 + one.size.width).min(x2 + two.size.width) - x1.max(x2);
+        let overlap_h = (y1 + one.size.height).min(y2 + two.size.height) - y1.max(y2);
         assert!(
-            (x1 - x2).abs() > 40.0 || (y1 - y2).abs() > 40.0,
-            "positions ({x1}, {y1}) and ({x2}, {y2})"
+            overlap_w <= 0.0 || overlap_h <= 0.0,
+            "windows overlap by {overlap_w}x{overlap_h}"
         );
 
         let mut app = App::new();

@@ -39,7 +39,7 @@ use rndr_core::{
     KeymapFired, Keystroke, Label, Layout, List, ListActivated, ListKeys, ListRows, LogicalSize,
     Menu, NamedKey, Placeholder, Position, Prompt, Radius, Schedule, Size, Spans, Submitted,
     TaskHandle, TextChanged, TextFace, TextField, TextOverflow, TextSpan, Theme, TrayConfig,
-    TrayIcon, TrayItemId, TrayMenu, World,
+    TrayIcon, TrayItemId, TrayMenu, World, TEXT_ORIGIN_X,
 };
 use rndr_paint::LatinFace;
 use rndr_render::{configured_hotkey, load_rgba, run, toggle_window};
@@ -47,6 +47,8 @@ use unicode_normalization::UnicodeNormalization;
 
 const CONTEXT: &str = "Palette";
 const ROW_H: f32 = 32.0;
+const ICON_PX: f32 = 16.0;
+const ICON_RADIUS: f32 = 4.0;
 /// Simulated search latency. Overlapping queries finish out of order; the
 /// feed's epoch keeps the newer one.
 const SEARCH_LAG: Duration = Duration::from_millis(100);
@@ -356,37 +358,62 @@ fn row_icon(index: u32) -> Vec<u8> {
     ];
     let color = colors[index as usize % 4];
     let mut pixels = vec![0u8; 16 * 16 * 4];
-    for y in 0..16 {
-        for x in 0..16 {
-            let at = (y * 16 + x) * 4;
-            let edge = x < 1 || y < 1 || x >= 15 || y >= 15;
-            let ink = if edge { [24, 26, 32, 255] } else { color };
-            pixels[at..at + 4].copy_from_slice(&ink);
-        }
+    for pixel in pixels.as_chunks_mut::<4>().0 {
+        *pixel = color;
     }
     pixels
 }
 
+fn row_icon_entity(world: &World, row: Entity) -> Option<Entity> {
+    for child in rndr_core::children_of(world, row) {
+        if world.has::<ImageView>(child) {
+            return Some(child);
+        }
+        for grandchild in rndr_core::children_of(world, child) {
+            if world.has::<ImageView>(grandchild) {
+                return Some(grandchild);
+            }
+        }
+    }
+    None
+}
+
 fn ensure_row_icon(world: &mut World, row: Entity, index: u32) {
     let image = u64::from(index % 4);
-    let existing = rndr_core::children_of(world, row)
-        .into_iter()
-        .find(|child| world.has::<ImageView>(*child));
-    if let Some(icon) = existing {
+    if let Some(icon) = row_icon_entity(world, row) {
         if let Some(view) = world.get_mut::<ImageView>(icon) {
             view.image = image;
+            view.radius = ICON_RADIUS;
         }
         return;
     }
+    // A lead spacer matches the text inset. Row padding would also shrink the
+    // row vertically and clip the label.
+    let lead = world.spawn((Layout {
+        axis: Axis::Row,
+        gap: 0.0,
+        padding: 0.0,
+        width: Size::Px(TEXT_ORIGIN_X + ICON_PX),
+        height: Size::Fill,
+        min_width: 0.0,
+        min_height: 0.0,
+    },));
+    let spacer = world.spawn((Layout {
+        width: Size::Px(TEXT_ORIGIN_X),
+        height: Size::Px(1.0),
+        ..Layout::row()
+    },));
     let icon = world.spawn((
         Layout {
-            width: Size::Px(16.0),
-            height: Size::Px(16.0),
+            width: Size::Px(ICON_PX),
+            height: Size::Px(ICON_PX),
             ..Layout::row()
         },
-        ImageView::new(image).with_radius(4.0),
+        ImageView::new(image).with_radius(ICON_RADIUS),
     ));
-    set_parent(world, icon, row);
+    set_parent(world, spacer, lead);
+    set_parent(world, icon, lead);
+    set_parent(world, lead, row);
 }
 
 fn build_row(world: &mut World, row: Entity, index: u32) {
@@ -1112,6 +1139,53 @@ mod tests {
         let (_, ranges) = fuzzy("resume", decomposed).unwrap();
         assert_eq!(ranges, vec![(0, decomposed.len())]);
         assert!(fuzzy("cafe", "cat").is_none());
+    }
+
+    #[test]
+    fn row_icons_are_solid_and_inset_like_the_text() {
+        let icon = super::row_icon(0);
+        let edge = &icon[0..4];
+        let inner = &icon[(8 * 16 + 8) * 4..][..4];
+        assert_eq!(edge, &[232, 84, 70, 255]);
+        assert_eq!(edge, inner);
+
+        use rndr_core::{Rect, Schedule, Sim, Theme};
+
+        let mut sim = Sim::new();
+        sim.app.world_mut().insert_resource(Theme::default());
+        sim.app.add_plugin(rndr_core::Chrome);
+        sim.app.add_system(Schedule::Startup, super::setup);
+        sim.app.add_system(Schedule::Update, super::palette_update);
+        sim.update();
+        sim.advance(super::SEARCH_LAG);
+        sim.update();
+
+        let list = sim.app.world().resource::<super::Palette>().unwrap().list;
+        let row = rndr_core::children_of(sim.world(), list)
+            .into_iter()
+            .find(|child| sim.app.world().has::<rndr_core::ListItem>(*child))
+            .expect("a row");
+        let row_rect = *sim.app.world().get::<Rect>(row).expect("row rect");
+        let icon_entity = super::row_icon_entity(sim.world(), row).expect("icon");
+        let icon_rect = *sim.app.world().get::<Rect>(icon_entity).expect("icon rect");
+        let view = *sim
+            .app
+            .world()
+            .get::<rndr_core::ImageView>(icon_entity)
+            .unwrap();
+        assert!((view.radius - super::ICON_RADIUS).abs() < 1.0e-4);
+        assert!(
+            (icon_rect.x - (row_rect.x + rndr_core::TEXT_ORIGIN_X)).abs() < 1.0,
+            "icon x {} row x {}",
+            icon_rect.x,
+            row_rect.x
+        );
+        let centered = row_rect.y + (row_rect.h - icon_rect.h) * 0.5;
+        assert!(
+            (icon_rect.y - centered).abs() < 1.0,
+            "icon y {} expected {centered}",
+            icon_rect.y
+        );
     }
 
     #[test]

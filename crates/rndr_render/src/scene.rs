@@ -7,9 +7,11 @@
 //! the edges are multisampled instead of drawn as a coverage fringe: one
 //! tessellation, no halos on joins, and the swapchain stays single-sample.
 //!
-//! A drop shadow is two fullscreen passes, horizontal then vertical, over the
-//! group's alpha. [`FilterPass`] is that list. Another effect is another
-//! variant and another pass in [`SceneGpu::shadow`].
+//! A drop shadow resamples the group into a target padded by the blur radius,
+//! in device pixels, then runs a separable Gaussian on that grid and samples
+//! it back with a linear filter. The grid stays fine enough that a zoomed
+//! view does not stretch the falloff into flat blocks, and the padding keeps
+//! the tail from being clamped to the layer rectangle.
 
 use std::collections::HashMap;
 
@@ -27,13 +29,13 @@ use crate::images::CpuImage;
 const PATH_STRIDE: usize = 24;
 const SPRITE_STRIDE: usize = 72;
 
-/// One fullscreen pass a resolved layer can run. A drop shadow schedules two
-/// of these, horizontal then vertical.
-#[derive(Clone, Copy, Debug)]
-enum FilterPass {
-    /// Gaussian of `sigma_px` device pixels along one axis.
-    Gaussian { horizontal: bool, sigma_px: f32 },
-}
+/// How many sigmas of the Gaussian are kept. Past this the weight is noise,
+/// and the blur target is padded by the same distance so the tail is not clamped.
+const BLUR_SPREAD: f32 = 3.5;
+/// Largest `i` in the blur loop. `blur_factor` keeps the radius inside this.
+const BLUR_MAX_RADIUS: i32 = 80;
+/// Device pixels one blur texel may cover before the linear upsample looks stepped.
+const BLUR_MAX_SPACING: f32 = 4.0;
 
 const PATH_SHADER: &str = r#"
 struct Viewport { size: vec2<f32> }
@@ -91,16 +93,21 @@ fn vs(in: Vin) -> Vout {
     out.scissor = in.scissor;
     return out;
 }
-// `local` and `extra.xyz` are device pixels: radius, width, height.
-// A negative scissor width means the sprite is not masked.
+// `local` and `extra.xyz` are device pixels: position in the quad, radius,
+// width, height. A negative scissor width means the sprite is not masked.
+// The radius is clamped to the box so a large value stays a round rect.
+// `fwidth` is at least one device pixel, so the edge stays anti-aliased
+// when the quad is rotated and a small icon does not lose its corner.
 fn cover(local: vec2<f32>, extra: vec4<f32>) -> f32 {
     let radius = extra.x;
     let size = vec2<f32>(extra.y, extra.z);
     if (radius <= 0.0 || size.x <= 0.0 || size.y <= 0.0) { return 1.0; }
     let half = size * 0.5;
-    let q = abs(local - half) - half + vec2<f32>(radius);
-    let dist = length(max(q, vec2<f32>(0.0))) + min(max(q.x, q.y), 0.0) - radius;
-    return clamp(0.5 - dist, 0.0, 1.0);
+    let r = min(radius, min(half.x, half.y));
+    let q = abs(local - half) - half + vec2<f32>(r);
+    let dist = length(max(q, vec2<f32>(0.0))) + min(max(q.x, q.y), 0.0) - r;
+    let fw = max(fwidth(dist), 1.0);
+    return clamp(0.5 - dist / fw, 0.0, 1.0);
 }
 @fragment
 fn fs(in: Vout) -> @location(0) vec4<f32> {
@@ -109,8 +116,19 @@ fn fs(in: Vout) -> @location(0) vec4<f32> {
     if (box.z >= 0.0 && (px.x < box.x || px.y < box.y || px.x >= box.x + box.z || px.y >= box.y + box.w)) {
         discard;
     }
-    let sample = textureSample(tex, tex_samp, in.uv);
     let mode = in.extra.w;
+    var uv = in.uv;
+    // Image texels are straight alpha. A sample on the texture boundary
+    // mixes the edge texel with the clamp color, which is transparent black,
+    // and that mix darkens the fringe. Stay on the outer texel center.
+    // The gradient is taken from the unclamped uv so a minified image still
+    // selects a mip from the size of the quad.
+    if (mode < 0.5) {
+        let dims = max(vec2<f32>(textureDimensions(tex)), vec2<f32>(1.0));
+        let half_texel = 0.5 / dims;
+        uv = clamp(in.uv, half_texel, vec2<f32>(1.0) - half_texel);
+    }
+    let sample = textureSampleGrad(tex, tex_samp, uv, dpdx(in.uv), dpdy(in.uv));
     var rgb = sample.rgb;
     var a = sample.a * in.color.a;
     if (mode > 0.5 && mode < 1.5) {
@@ -126,7 +144,12 @@ fn fs(in: Vout) -> @location(0) vec4<f32> {
 "#;
 
 const BLUR_SHADER: &str = r#"
-struct Blur { dir: vec2<f32>, sigma: f32, _pad: f32 }
+struct Blur {
+    dir: vec2<f32>,
+    sigma: f32,
+    mode: f32,
+    map: vec4<f32>,
+}
 @group(0) @binding(0) var<uniform> blur: Blur;
 @group(0) @binding(1) var tex: texture_2d<f32>;
 @group(0) @binding(2) var tex_samp: sampler;
@@ -141,22 +164,32 @@ fn vs(in: Vin) -> Vout {
 }
 @fragment
 fn fs(in: Vout) -> @location(0) vec4<f32> {
-    let sigma = max(blur.sigma, 0.5);
-    // Taps are `step` texels apart. The weight uses that distance, not the
-    // tap index, or a wide kernel is a stack of almost-equal samples and the
-    // falloff breaks into blocks. When the step is more than one texel, each
-    // tap sits half a texel off center so the linear sampler blends neighbors.
-    let step = max(sigma / 3.0, 1.0);
+    // mode > 0 copies the layer into a padded, possibly coarser target.
+    // `map` sends dest uv to source uv. Outside the layer is transparent,
+    // which is the padding the Gaussian needs so the tail is not clamped.
+    if (blur.mode > 0.5) {
+        let uv = blur.map.xy + in.uv * blur.map.zw;
+        if (uv.x < -0.001 || uv.y < -0.001 || uv.x > 1.001 || uv.y > 1.001) {
+            return vec4<f32>(0.0);
+        }
+        return textureSampleLevel(tex, tex_samp, clamp(uv, vec2<f32>(0.0), vec2<f32>(1.0)), 0.0);
+    }
+    // One texel per tap. `sigma` is in texels of this target. A wide blur
+    // is a coarser target, not a tap that skips texels: skipping leaves a
+    // flat step between taps when the source edge is hard. The loop bound
+    // matches `BLUR_MAX_RADIUS`.
+    let sigma = max(blur.sigma, 0.0001);
+    let radius = min(i32(ceil(sigma * 3.5)), 80);
     var sum = vec4<f32>(0.0);
     var norm = 0.0;
-    for (var i: i32 = -7; i <= 7; i = i + 1) {
-        var dist = f32(i) * step;
-        if (step > 1.0 && i != 0) {
-            dist = dist + sign(f32(i)) * 0.5;
+    for (var i: i32 = -80; i <= 80; i = i + 1) {
+        if (i < -radius || i > radius) {
+            continue;
         }
+        let dist = f32(i);
         let x = dist / sigma;
         let w = exp(-0.5 * x * x);
-        sum = sum + textureSample(tex, tex_samp, in.uv + blur.dir * dist) * w;
+        sum = sum + textureSampleLevel(tex, tex_samp, in.uv + blur.dir * dist, 0.0) * w;
         norm = norm + w;
     }
     return sum / max(norm, 0.0001);
@@ -231,6 +264,9 @@ struct BlitDraw {
     opacity: f32,
     shadow_color: [f32; 4],
     offset: [f32; 2],
+    /// Device pixels of transparent padding around the shadow texture.
+    /// The shadow quad grows by this on every side. Zero draws the layer rect.
+    shadow_pad: f32,
 }
 
 enum Drawn {
@@ -961,7 +997,7 @@ impl SceneGpu {
             clip_verts,
             cmds,
         }));
-        let (shadow, shadow_color, offset) =
+        let (shadow, shadow_color, offset, shadow_pad) =
             self.shadow(plan, layer, base, scale, width, height, &bind);
         BlitDraw {
             bind,
@@ -969,6 +1005,7 @@ impl SceneGpu {
             opacity: layer.opacity.clamp(0.0, 1.0),
             shadow_color,
             offset,
+            shadow_pad,
         }
     }
 
@@ -982,58 +1019,63 @@ impl SceneGpu {
         width: u32,
         height: u32,
         color_bind: &wgpu::BindGroup,
-    ) -> (Option<wgpu::BindGroup>, [f32; 4], [f32; 2]) {
+    ) -> (Option<wgpu::BindGroup>, [f32; 4], [f32; 2], f32) {
         let Some(Effect::DropShadow {
             offset,
             blur,
             color,
         }) = layer.effect
         else {
-            return (None, [0.0; 4], [0.0; 2]);
+            return (None, [0.0; 4], [0.0; 2], 0.0);
         };
         let px = base.uniform_scale() * scale;
         let offset_px = [offset[0] * px, offset[1] * px];
         let sigma = (blur * px).max(0.0);
         let tint = color_for_surface(color, self.format);
-        if tint[3] <= 0.0 {
-            return (None, tint, offset_px);
+        if tint[3] <= 0.0 || width == 0 || height == 0 {
+            return (None, tint, offset_px, 0.0);
         }
         if sigma < 0.5 {
-            return (Some(color_bind.clone()), tint, offset_px);
+            return (Some(color_bind.clone()), tint, offset_px, 0.0);
         }
-        let passes = [
-            FilterPass::Gaussian {
-                horizontal: true,
-                sigma_px: sigma,
-            },
-            FilterPass::Gaussian {
-                horizontal: false,
-                sigma_px: sigma,
-            },
-        ];
         let mut source_view = plan_color_view(plan);
         // The geometry pass just pushed is the layer. Its color view is the blur source.
         if source_view.is_none() {
-            return (Some(color_bind.clone()), tint, offset_px);
+            return (Some(color_bind.clone()), tint, offset_px, 0.0);
         }
-        let mut source = source_view.take().unwrap();
-        let mut result = color_bind.clone();
-        for pass in passes {
-            let FilterPass::Gaussian {
-                horizontal,
-                sigma_px,
-            } = pass;
-            let target = self.alloc(width, height, 1);
-            let bind = self.blur_bind(&source, horizontal, sigma_px, width, height);
+        let source = source_view.take().unwrap();
+        let pad = blur_pad(sigma);
+        let (bw, bh, sigma_texel) = blur_dims(sigma, width, height, pad, self.max_dim);
+        let expanded_w = width as f32 + pad * 2.0;
+        let expanded_h = height as f32 + pad * 2.0;
+        // Dest uv 0 is `pad` device pixels before the layer origin, so the
+        // Gaussian sees transparent texels instead of a clamped edge.
+        let map = [
+            -pad / width as f32,
+            -pad / height as f32,
+            expanded_w / width as f32,
+            expanded_h / height as f32,
+        ];
+        let resampled = self.alloc(bw, bh, 1);
+        let resample = self.blur_bind(&source, false, 0.0, bw, bh, 1.0, map);
+        let mut source = resampled.color.clone();
+        plan.passes.push(Pass::Blur(BlurJob {
+            view: source.clone(),
+            bind: resample,
+        }));
+        let mut result = resampled.bind.clone();
+        for horizontal in [true, false] {
+            let target = self.alloc(bw, bh, 1);
+            let bind = self.blur_bind(&source, horizontal, sigma_texel, bw, bh, 0.0, [0.0; 4]);
             let view = target.color.clone();
             plan.passes.push(Pass::Blur(BlurJob {
                 view: view.clone(),
                 bind,
             }));
-            result = target.bind.clone();
+            result = target.bind;
             source = view;
         }
-        (Some(result), tint, offset_px)
+        (Some(result), tint, offset_px, pad)
     }
 
     fn clip_bytes(
@@ -1433,6 +1475,7 @@ impl SceneGpu {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn blur_bind(
         &mut self,
         src: &wgpu::TextureView,
@@ -1440,8 +1483,10 @@ impl SceneGpu {
         sigma: f32,
         width: u32,
         height: u32,
+        mode: f32,
+        map: [f32; 4],
     ) -> wgpu::BindGroup {
-        let mut data = [0u8; 16];
+        let mut data = [0u8; 32];
         let (dx, dy) = if horizontal {
             (1.0 / width.max(1) as f32, 0.0)
         } else {
@@ -1450,9 +1495,14 @@ impl SceneGpu {
         data[0..4].copy_from_slice(&dx.to_le_bytes());
         data[4..8].copy_from_slice(&dy.to_le_bytes());
         data[8..12].copy_from_slice(&sigma.to_le_bytes());
+        data[12..16].copy_from_slice(&mode.to_le_bytes());
+        for (index, value) in map.iter().enumerate() {
+            let at = 16 + index * 4;
+            data[at..at + 4].copy_from_slice(&value.to_le_bytes());
+        }
         let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("blur-params"),
-            size: 16,
+            size: 32,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -1657,9 +1707,10 @@ fn blit_sprites(blit: BlitDraw, width: u32, height: u32) -> Vec<SpriteDraw> {
     if let Some(shadow) = blit.shadow {
         if blit.shadow_color[3] > 0.0 {
             let mut bytes = Vec::new();
-            push_screen(
+            push_screen_padded(
                 &mut bytes,
                 blit.offset,
+                blit.shadow_pad,
                 width,
                 height,
                 blit.shadow_color,
@@ -1816,25 +1867,91 @@ fn push_screen(
     color: [f32; 4],
     mode: f32,
 ) {
+    push_screen_padded(out, offset, 0.0, width, height, color, mode);
+}
+
+/// Fullscreen quad expanded by `pad` device pixels on every side.
+///
+/// The shadow texture includes that padding, so the quad has to cover it or
+/// the falloff is cropped back to the layer rectangle.
+fn push_screen_padded(
+    out: &mut Vec<u8>,
+    offset: [f32; 2],
+    pad: f32,
+    width: u32,
+    height: u32,
+    color: [f32; 4],
+    mode: f32,
+) {
+    let pad = if pad.is_finite() && pad > 0.0 {
+        pad
+    } else {
+        0.0
+    };
+    let w = width as f32 + pad * 2.0;
+    let h = height as f32 + pad * 2.0;
     push_quad(
         out,
-        Affine::translate(offset[0], offset[1]),
+        Affine::translate(offset[0] - pad, offset[1] - pad),
         1.0,
         1.0,
         0.0,
         0.0,
         0.0,
         0.0,
-        width as f32,
-        height as f32,
+        w,
+        h,
         [0.0, 0.0, 1.0, 1.0],
         color,
         0.0,
-        width as f32,
-        height as f32,
+        w,
+        h,
         mode,
         NO_SCISSOR,
     );
+}
+
+/// Device pixels of padding on every side of a blur whose sigma is `sigma_px`.
+fn blur_pad(sigma_px: f32) -> f32 {
+    if !sigma_px.is_finite() || sigma_px <= 0.0 {
+        return 0.0;
+    }
+    (sigma_px * BLUR_SPREAD).ceil() + 1.0
+}
+
+/// Device pixels covered by one blur texel.
+///
+/// Sigma at or under 8 stays on the device grid. Wider blurs coarsen to
+/// [`BLUR_MAX_SPACING`] so the linear upsample does not turn into flat steps,
+/// and coarsen further only when [`BLUR_SPREAD`] sigmas would not fit in
+/// [`BLUR_MAX_RADIUS`] taps.
+fn blur_factor(sigma_px: f32) -> f32 {
+    if !sigma_px.is_finite() || sigma_px <= 8.0 {
+        return 1.0;
+    }
+    let min_factor = (sigma_px * BLUR_SPREAD / BLUR_MAX_RADIUS as f32)
+        .ceil()
+        .max(1.0);
+    min_factor.max(BLUR_MAX_SPACING)
+}
+
+/// Width, height, and sigma in texels for the padded blur target.
+fn blur_dims(sigma_px: f32, width: u32, height: u32, pad: f32, max_dim: u32) -> (u32, u32, f32) {
+    let expanded_w = width as f32 + pad * 2.0;
+    let expanded_h = height as f32 + pad * 2.0;
+    let max_side = max_dim.max(1);
+    let mut factor = blur_factor(sigma_px).max(1.0);
+    let fit = (expanded_w / max_side as f32)
+        .max(expanded_h / max_side as f32)
+        .ceil()
+        .max(1.0);
+    if fit > factor {
+        factor = fit;
+    }
+    let bw = (expanded_w / factor).ceil().clamp(1.0, max_side as f32) as u32;
+    let bh = (expanded_h / factor).ceil().clamp(1.0, max_side as f32) as u32;
+    let sigma_texel = sigma_px * bw as f32 / expanded_w.max(1.0);
+    (bw, bh, sigma_texel)
 }
 
 fn push_f32(out: &mut Vec<u8>, values: &[f32]) {
@@ -2292,5 +2409,26 @@ mod tests {
             (mapped[0] - 60.0).abs() < 1.0e-3 && (mapped[1] - 40.0).abs() < 1.0e-3,
             "mapped {mapped:?}"
         );
+    }
+
+    #[test]
+    fn a_zoomed_shadow_stays_on_a_fine_grid_and_keeps_its_tail() {
+        // 10 wheel notches at 1.21× from the default view is about 6.7×.
+        // A 16px sigma there used to step about 35 device pixels.
+        let sigma = 16.0 * 6.7;
+        let factor = blur_factor(sigma);
+        assert!(factor <= BLUR_MAX_SPACING + 1.0, "blur texel {factor} px");
+        let pad = blur_pad(sigma);
+        assert!(pad >= sigma * 3.0, "pad {pad} sigma {sigma}");
+        let (bw, bh, sigma_texel) = blur_dims(sigma, 1280, 800, pad, 8192);
+        let spacing = (1280.0 + pad * 2.0) / bw as f32;
+        assert!(spacing <= 8.0, "spacing {spacing} grid {bw}x{bh}");
+        let radius = (sigma_texel * BLUR_SPREAD).ceil();
+        assert!(
+            radius <= BLUR_MAX_RADIUS as f32 + 0.5,
+            "radius {radius} sigma_texel {sigma_texel}"
+        );
+        assert!(blur_factor(2.0) == 1.0);
+        assert!(blur_pad(0.0) == 0.0);
     }
 }

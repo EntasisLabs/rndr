@@ -234,7 +234,142 @@ fn a_rounded_image_masks_its_corner_and_its_clip() {
     assert!(below[3] < 40, "below clip {below:?}");
 }
 
+#[test]
+fn a_zoomed_drop_shadow_falls_off_without_flat_steps() {
+    let world = World::new();
+    let mut canvas = Canvas::new();
+    // Scale 8 turns a sigma of 8 into 64 device pixels. The old kernel stepped
+    // about sigma/3 texels, which is a run of identical pixels through the
+    // steep part of the falloff.
+    const SCALE: f32 = 8.0;
+    const BLUR: f32 = 8.0;
+    canvas.push_layer(SceneLayer::opacity(1.0).with_effect(Effect::DropShadow {
+        offset: [0.0, 0.0],
+        blur: BLUR,
+        color: Color::rgba(0.0, 0.0, 0.0, 0.9),
+    }));
+    canvas.fill(
+        Path::polygon(&[[30.0, 16.0], [54.0, 16.0], [54.0, 40.0], [30.0, 40.0]]),
+        Color::rgb(0.95, 0.95, 0.95),
+        FillRule::NonZero,
+    );
+    canvas.pop_layer();
+    let image = render_at(&world, canvas, 96.0, 56.0, SCALE);
+    let sigma = BLUR * SCALE;
+    let edge = (54.0 * SCALE).round() as u32;
+    let y = (28.0 * SCALE).round() as u32;
+    let start = edge + 4;
+    let steep_end = start + (sigma * 1.2) as u32;
+    assert!(steep_end + 8 < image.width, "image {}", image.width);
+    let mut longest = 1u32;
+    let mut run = 1u32;
+    let mut prev = pixel(&image, start, y)[3];
+    for x in (start + 1)..=steep_end {
+        let alpha = pixel(&image, x, y)[3];
+        assert!(
+            alpha <= prev.saturating_add(3),
+            "alpha rose from {prev} to {alpha} at x={x}"
+        );
+        if alpha == prev {
+            run += 1;
+            longest = longest.max(run);
+        } else {
+            run = 1;
+        }
+        prev = alpha;
+    }
+    assert!(
+        longest <= 6,
+        "flat run of {longest} px in the steep falloff (sigma {sigma})"
+    );
+    let near = pixel(&image, start + (sigma * 0.25) as u32, y)[3];
+    let mid = pixel(&image, start + (sigma * 1.5) as u32, y)[3];
+    let far = pixel(&image, start + (sigma * 3.0) as u32, y)[3];
+    assert!(near > mid + 20, "near {near} mid {mid}");
+    assert!(mid > far + 8, "mid {mid} far {far}");
+    assert!(far < 30, "tail still clipped or truncated, alpha {far}");
+}
+
+#[test]
+fn a_rounded_image_keeps_its_edge_color_and_a_device_pixel_radius() {
+    let mut world = World::new();
+    let mut rgba = Vec::with_capacity(16 * 16 * 4);
+    for _ in 0..16 * 16 {
+        rgba.extend_from_slice(&[220, 40, 40, 255]);
+    }
+    load_rgba(&mut world, 3, 16, 16, rgba).unwrap();
+    let mut canvas = Canvas::new();
+    canvas.fill(
+        Path::polygon(&[[0.0, 0.0], [80.0, 0.0], [80.0, 40.0], [0.0, 40.0]]),
+        Color::rgb(0.12, 0.13, 0.15),
+        FillRule::NonZero,
+    );
+    canvas.image_opacity(ImageOp {
+        id: 3,
+        dest: Rect {
+            x: 8.0,
+            y: 8.0,
+            w: 16.0,
+            h: 16.0,
+        },
+        uv: [0.0, 0.0, 1.0, 1.0],
+        radius: 4.0,
+        opacity: 1.0,
+        clip: None,
+    });
+    let image = render_at(&world, canvas, 80.0, 40.0, 1.0);
+    let center = pixel(&image, 16, 16);
+    let edge = pixel(&image, 16, 8);
+    assert!(center[0] > 180 && center[3] > 200, "center {center:?}");
+    assert!(
+        edge[0] + 12 > center[0] && edge[1] < 80 && edge[3] > 200,
+        "top edge {edge:?} picked up a dark fringe, center {center:?}"
+    );
+    let corner = pixel(&image, 8, 8);
+    let backdrop = pixel(&image, 2, 2);
+    assert!(
+        corner[0].abs_diff(backdrop[0]) < 8
+            && corner[1].abs_diff(backdrop[1]) < 8
+            && corner[2].abs_diff(backdrop[2]) < 8,
+        "radius 4 should clear the corner pixel, got {corner:?} backdrop {backdrop:?}"
+    );
+
+    let mut canvas = Canvas::new();
+    canvas.image_opacity(ImageOp {
+        id: 3,
+        dest: Rect {
+            x: 2.0,
+            y: 2.0,
+            w: 16.0,
+            h: 16.0,
+        },
+        uv: [0.0, 0.0, 1.0, 1.0],
+        radius: 4.0,
+        opacity: 1.0,
+        clip: None,
+    });
+    // Scale 3: the 16px image is 48 device pixels and the radius is 12.
+    // One device pixel in from the corner is outside that arc, and would be
+    // covered if the radius stayed a single pixel.
+    let zoomed = render_at(&world, canvas, 24.0, 24.0, 3.0);
+    let origin = (2.0_f32 * 3.0).round() as u32;
+    let cut = pixel(&zoomed, origin + 1, origin + 1);
+    let flat = pixel(&zoomed, origin + 24, origin + 2);
+    assert!(
+        cut[3] < 48,
+        "device-pixel radius should still be outside at +1px, got {cut:?}"
+    );
+    assert!(
+        flat[0] > 180 && flat[3] > 200,
+        "flat edge {flat:?} should stay the icon color"
+    );
+}
+
 fn render(world: &World, canvas: Canvas, w: f32, h: f32) -> RgbaImage {
+    render_at(world, canvas, w, h, 1.0)
+}
+
+fn render_at(world: &World, canvas: Canvas, w: f32, h: f32, scale: f32) -> RgbaImage {
     let scene = canvas.into_scene();
     let mut exporter = match Exporter::new() {
         Ok(exporter) => exporter,
@@ -251,7 +386,7 @@ fn render(world: &World, canvas: Canvas, w: f32, h: f32) -> RgbaImage {
                 w,
                 h,
             },
-            1.0,
+            scale,
         )
         .unwrap_or_else(|err| panic!("{err}"))
 }

@@ -16,8 +16,11 @@ impl Component for ImageView {}
 ///
 /// Spawn it on a list-row child with a fixed size. The rect is the destination.
 /// [`Self::uv`] crops the texture. [`Self::radius`] rounds the corners in
-/// logical points. The renderer tiles a texture larger than the device limit
-/// and samples mipmaps when the view is zoomed out.
+/// logical points; the renderer scales that radius to device pixels and
+/// anti-aliases the edge. Image samples stay on texel centers, so a linear
+/// filter does not mix the outer texel with the transparent clamp color and
+/// darken the fringe. The renderer tiles a texture larger than the device
+/// limit and samples mipmaps when the view is zoomed out.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ImageView {
     /// Texture id passed to the image loader.
