@@ -647,7 +647,10 @@ fn label_hug_width(
     } else {
         f32::INFINITY
     };
-    let (lines, width) = hug_lines(world, entity, max_width)?;
+    let (mut lines, width) = hug_lines(world, entity, max_width)?;
+    if let Some(prompt) = world.get::<crate::prompt::Prompt>(entity) {
+        lines = lines.min(crate::prompt::line_cap(prompt));
+    }
     let line_h = engine.line_height(&style);
     let h = (TEXT_ORIGIN_Y + lines as f32 * line_h + TEXT_ORIGIN_Y).max(36.0);
     let w = width + 2.0 * TEXT_ORIGIN_X;
@@ -697,6 +700,9 @@ fn hug_lines(world: &World, entity: Entity, max_width: f32) -> Option<(usize, f3
         }
     }
     let mut text = world.get::<Label>(entity)?.text.clone();
+    if text.is_empty() {
+        text = crate::prompt::placeholder_text(world, entity).unwrap_or(text);
+    }
     if let Some(preview) = world.get::<crate::field::ImePreview>(entity) {
         if !preview.text.is_empty() {
             let at = world

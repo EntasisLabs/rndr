@@ -16,10 +16,10 @@
 //! by that scale and multiplies rectangles when it uploads them.
 //!
 //! [`Shell`] registers the file-tree systems. [`Chrome`] adds chords, buttons,
-//! tabs, a single-line field, overlays, and a virtual list, and leaves `Shell`
-//! in place. [`Sim`] is the headless clock and executor for tests.
-//! [`feed`] carries values produced off the UI thread. The pump delivers them
-//! as [`Event`]s and wakes the window once per burst.
+//! tabs, a single-line field, a multi-line prompt, overlays, and a virtual
+//! list, and leaves `Shell` in place. [`Sim`] is the headless clock and
+//! executor for tests. [`feed`] carries values produced off the UI thread.
+//! The pump delivers them as [`Event`]s and wakes the window once per burst.
 //!
 //! # Example
 //!
@@ -89,6 +89,7 @@ mod overlay;
 mod pane;
 #[cfg(feature = "pool")]
 mod pool;
+mod prompt;
 mod runtime;
 mod shell;
 mod sim;
@@ -173,6 +174,7 @@ pub use pane::{
 };
 #[cfg(feature = "pool")]
 pub use pool::thread_pool;
+pub use prompt::{Placeholder, Prompt, PromptHistory};
 pub use runtime::{
     after, cancel_debounce, debounce, debounce_local, every, frame_wake, run_until_parked, sleep,
     spawn, spawn_detached, spawn_local, Executor, InlineExecutor, Job, NopWake, Sleep, TaskHandle,

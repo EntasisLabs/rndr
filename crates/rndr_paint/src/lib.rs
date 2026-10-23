@@ -158,7 +158,9 @@ fn surface_slots(world: &World) -> Vec<SurfaceRect> {
 /// quad that misses the clip, or whose width or height is not positive,
 /// is left out. A [`rndr_core::Label`] with no [`rndr_core::TextLayout`]
 /// is measured for this call only. A body field wraps; any other missing
-/// layout stays one line. The world stays unchanged. This does not panic.
+/// layout stays one line. A [`rndr_core::Prompt`] shifts its text, selection,
+/// and caret up by [`rndr_core::Prompt::scroll`] so the caret stays inside
+/// the row. The world stays unchanged. This does not panic.
 pub fn paint(world: &World) -> Vec<Quad> {
     let quads = RefCell::new(Vec::new());
     let scale = world
@@ -189,6 +191,7 @@ fn paint_visited(
     layout: Option<&TextLayout>,
     radius: f32,
     marks: &[rndr_core::DecorationMark],
+    shift_y: f32,
 ) {
     push(out, rect, color, solid, clip, radius, 0);
     if dirty {
@@ -204,6 +207,7 @@ fn paint_visited(
             solid,
             scale,
             theme.selection,
+            shift_y,
         );
     }
     if let Some(layout) = layout {
@@ -213,7 +217,7 @@ fn paint_visited(
                 out,
                 snap_box(
                     rect.x + TEXT_ORIGIN_X + highlight.x,
-                    rect.y + TEXT_ORIGIN_Y + highlight.y,
+                    rect.y + TEXT_ORIGIN_Y + highlight.y + shift_y,
                     highlight.w,
                     highlight.h,
                     scale,
@@ -232,7 +236,7 @@ fn paint_visited(
                     out,
                     snap_box(
                         rect.x + TEXT_ORIGIN_X + span.x,
-                        rect.y + TEXT_ORIGIN_Y + span.y + span.h - bar,
+                        rect.y + TEXT_ORIGIN_Y + span.y + span.h - bar + shift_y,
                         span.w,
                         bar,
                         scale,
@@ -245,7 +249,7 @@ fn paint_visited(
                 );
             }
         }
-        push_label(out, rect, layout, clip, scale, text_color);
+        push_label(out, rect, layout, clip, scale, text_color, shift_y);
     }
     for mark in marks {
         let color = match mark.kind {
@@ -256,7 +260,7 @@ fn paint_visited(
             out,
             snap_box(
                 rect.x + TEXT_ORIGIN_X + mark.x,
-                rect.y + TEXT_ORIGIN_Y + mark.y,
+                rect.y + TEXT_ORIGIN_Y + mark.y + shift_y,
                 mark.w,
                 mark.h,
                 scale,
@@ -269,7 +273,17 @@ fn paint_visited(
         );
     }
     if let Some(caret) = caret {
-        push_caret(out, rect, layout, caret, clip, solid, scale, theme.caret);
+        push_caret(
+            out,
+            rect,
+            layout,
+            caret,
+            clip,
+            solid,
+            scale,
+            theme.caret,
+            shift_y,
+        );
     }
 }
 
@@ -325,10 +339,11 @@ fn walk(
                          dirty: bool,
                          layout: Option<&TextLayout>,
                          radius: f32,
-                         marks: &[rndr_core::DecorationMark]| {
+                         marks: &[rndr_core::DecorationMark],
+                         shift_y: f32| {
             paint_visited(
                 &mut guard, scale, solid, theme, rect, color, clip, label, caret, dirty, layout,
-                radius, marks,
+                radius, marks, shift_y,
             );
         };
         if needs_fallback {
@@ -536,6 +551,7 @@ fn emit(
         Option<&TextLayout>,
         f32,
         &[rndr_core::DecorationMark],
+        f32,
     ),
 ) {
     let empty: &[rndr_core::DecorationMark] = &[];
@@ -543,6 +559,10 @@ fn emit(
         .get::<rndr_core::DecorationMarks>(entity)
         .map(|marks| marks.marks.as_slice())
         .unwrap_or(empty);
+    let shift_y = -world
+        .get::<rndr_core::Prompt>(entity)
+        .map(|prompt| prompt.scroll)
+        .unwrap_or(0.0);
     visit(
         rect,
         color,
@@ -553,6 +573,7 @@ fn emit(
         layout,
         radius,
         marks,
+        shift_y,
     );
 }
 
@@ -667,13 +688,14 @@ fn push_selection(
     solid: [f32; 4],
     scale: f32,
     color: Color,
+    shift_y: f32,
 ) {
     for span in layout.selection_boxes(caret.anchor, caret.index) {
         push(
             out,
             snap_box(
                 rect.x + TEXT_ORIGIN_X + span.x,
-                rect.y + TEXT_ORIGIN_Y + span.y,
+                rect.y + TEXT_ORIGIN_Y + span.y + shift_y,
                 span.w,
                 span.h,
                 scale,
@@ -687,6 +709,7 @@ fn push_selection(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn push_label(
     out: &mut Vec<Quad>,
     rect: Rect,
@@ -694,13 +717,14 @@ fn push_label(
     clip: Clip,
     scale: f32,
     color: Color,
+    shift_y: f32,
 ) {
     for glyph in &layout.glyphs {
         push(
             out,
             snap_box(
                 rect.x + TEXT_ORIGIN_X + glyph.x,
-                rect.y + TEXT_ORIGIN_Y + glyph.y,
+                rect.y + TEXT_ORIGIN_Y + glyph.y + shift_y,
                 glyph.w,
                 glyph.h,
                 scale,
@@ -725,6 +749,7 @@ fn push_caret(
     solid: [f32; 4],
     scale: f32,
     color: Color,
+    shift_y: f32,
 ) {
     let (x, y, h) = layout
         .map(|layout| {
@@ -744,7 +769,7 @@ fn push_caret(
         out,
         snap_box(
             rect.x + TEXT_ORIGIN_X + x,
-            rect.y + TEXT_ORIGIN_Y + y,
+            rect.y + TEXT_ORIGIN_Y + y + shift_y,
             2.0,
             h,
             scale,

@@ -1,7 +1,7 @@
 use rndr_core::{
     layout_text, App, Axis, Buffer, Caret, Chrome, Clip, Color, Decoration, DecorationKind,
-    Decorations, Editor, Font, Label, Layout, Radius, Rect, Schedule, Size, Spans, TextSpan, Theme,
-    Viewport, World, CELL_H, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
+    Decorations, Editor, Font, Label, Layout, Prompt, Radius, Rect, Schedule, Size, Spans,
+    TextSpan, Theme, Viewport, World, CELL_H, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
 use rndr_paint::{frame, paint, quads_snapshot, solid_uv, Frame, LatinFace};
 
@@ -208,4 +208,34 @@ fn frame_runs_startup_once_then_paints() {
 
     let second = frame(&mut app);
     assert_eq!(second.quads.len(), 1);
+}
+
+#[test]
+fn prompt_scroll_shifts_the_caret() {
+    let mut world = World::new();
+    let text = "a\nb\nc";
+    world.spawn((
+        rect(),
+        Color::rgb(0.2, 0.22, 0.24),
+        Label::new(text),
+        Caret {
+            index: text.len(),
+            anchor: text.len(),
+        },
+        Prompt {
+            scroll: CELL_H,
+            ..Prompt::new()
+        },
+    ));
+    let quads = paint(&world);
+    let caret = quads.last().expect("caret quad");
+    assert_eq!(
+        caret.rect,
+        Rect {
+            x: rect().x + TEXT_ORIGIN_X + CELL_W,
+            y: rect().y + TEXT_ORIGIN_Y + 2.0 * CELL_H - CELL_H,
+            w: 2.0,
+            h: CELL_H,
+        }
+    );
 }

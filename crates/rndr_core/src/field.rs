@@ -3,10 +3,11 @@ use crate::clipboard::{note_clipboard, Clipboard};
 use crate::edit::edit_string;
 use crate::entity::Entity;
 use crate::event::{send, Event};
+use crate::hierarchy::Parent;
 use crate::input::{Focus, Input, Key};
 use crate::keys::{platform_of, KeyEvent, LogicalKey, Modifiers, NamedKey};
-use crate::layout::{ancestor_with, hit_test, Rect};
-use crate::style::{Label, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
+use crate::layout::{hit_test, Rect};
+use crate::style::{Label, TextOverflow, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
 use crate::typing::{apply_text_event, EditHistory, EditSurface};
 use crate::world::{Component, World};
 use crate::wrap::with_text_layout;
@@ -27,6 +28,10 @@ pub struct ImePreview {
 
 /// Single-line editor on this entity's [`Label`]. No file binding.
 ///
+/// A [`crate::Prompt`] on the same entity replaces this editing behavior:
+/// Shift+Enter inserts a newline, the row grows and then scrolls, and plain
+/// Enter still submits.
+///
 /// A focused field applies the key queue during Input, then clears it. Update
 /// on that same frame reads [`TextChanged`] and [`Submitted`]. Watching the
 /// label from PostUpdate is not required.
@@ -44,7 +49,11 @@ pub struct TextChanged {
 
 impl Event for TextChanged {}
 
-/// Plain Enter on a focused field. The label is unchanged by the key itself.
+/// Plain Enter on a focused field or prompt. The label is unchanged by the key
+/// itself. A [`crate::Prompt`] inserts a newline on Shift+Enter instead, and
+/// skips this event while an IME preedit or commit is in progress. When
+/// [`crate::Prompt::submit_on_enter`] is false, plain Enter inserts a newline
+/// and does not send this event.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Submitted {
     /// The [`TextField`] that received plain Enter.
@@ -65,12 +74,26 @@ pub struct CapturesKeys;
 pub fn apply_fields(world: &mut World) {
     // A click focuses the field before the caret is placed, so this does not
     // depend on Shell's focus system running earlier in the frame.
+    for entity in world.entities_with::<crate::prompt::Prompt>() {
+        if let Some(label) = world.get_mut::<Label>(entity) {
+            label.overflow = TextOverflow::Wrap;
+        }
+    }
     focus_pressed_field(world);
     let focus = world.resource::<Focus>().and_then(|focus| focus.entity);
-    let fields = world.entities_with::<TextField>();
+    let mut fields = world.entities_with::<TextField>();
+    for entity in world.entities_with::<crate::prompt::Prompt>() {
+        if !fields.contains(&entity) {
+            fields.push(entity);
+        }
+    }
     for entity in fields {
         if focus != Some(entity) {
             world.remove::<Caret>(entity);
+            continue;
+        }
+        if world.has::<crate::prompt::Prompt>(entity) {
+            crate::prompt::edit_focused(world, entity);
             continue;
         }
         let existed = world.has::<Caret>(entity);
@@ -92,6 +115,19 @@ pub fn apply_fields(world: &mut World) {
     }
 }
 
+/// Nearest [`TextField`] or [`crate::Prompt`], including `entity` itself.
+pub(crate) fn ancestor_editor(world: &World, mut entity: Entity) -> Option<Entity> {
+    loop {
+        if !world.is_alive(entity) {
+            return None;
+        }
+        if world.has::<TextField>(entity) || world.has::<crate::prompt::Prompt>(entity) {
+            return Some(entity);
+        }
+        entity = world.get::<Parent>(entity)?.entity;
+    }
+}
+
 fn place_from_pointer(world: &mut World, entity: crate::entity::Entity, existed: bool) {
     let Some(input) = world.resource::<Input>().cloned() else {
         return;
@@ -102,7 +138,7 @@ fn place_from_pointer(world: &mut World, entity: crate::entity::Entity, existed:
     let Some(hit) = hit_test(world, input.pointer.position[0], input.pointer.position[1]) else {
         return;
     };
-    if ancestor_with::<TextField>(world, hit) != Some(entity) {
+    if ancestor_editor(world, hit) != Some(entity) {
         return;
     }
     let Some(rect) = world.get::<Rect>(entity).copied() else {
@@ -137,7 +173,7 @@ fn focus_pressed_field(world: &mut World) {
     let Some(hit) = hit_test(world, position[0], position[1]) else {
         return;
     };
-    let Some(field) = ancestor_with::<TextField>(world, hit) else {
+    let Some(field) = ancestor_editor(world, hit) else {
         return;
     };
     if let Some(focus) = world.resource_mut::<Focus>() {
@@ -319,7 +355,7 @@ fn edit_label_queue(
     }
 }
 
-fn sync_preview(world: &mut World, entity: crate::entity::Entity) {
+pub(crate) fn sync_preview(world: &mut World, entity: crate::entity::Entity) {
     let (preedit, cursor) = world
         .resource::<Input>()
         .map(|input| (input.ime_preedit.clone(), input.ime_cursor))

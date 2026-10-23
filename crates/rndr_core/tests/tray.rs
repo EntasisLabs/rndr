@@ -100,11 +100,11 @@ fn menu_ids_updates_and_nested_submenus() {
     assert_eq!(displayed_label("Show", &from_map), "Show\tF6");
     assert_eq!(
         menu_label("Show Palette", "Alt+Space", Platform::X11),
-        "Show Palette"
+        "Show Palette  Alt+Space"
     );
     assert_eq!(
         menu_label("Show Palette", "Alt+Space", Platform::Wayland),
-        "Show Palette"
+        "Show Palette  Alt+Space"
     );
     assert_eq!(
         menu_label("Show Palette", "Alt+Space", Platform::Windows),

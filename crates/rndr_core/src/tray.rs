@@ -9,9 +9,11 @@
 //! [`TrayMenu`] before Input, so an Update system reads them on that frame,
 //! including while the window is hidden.
 //!
-//! Shortcut text on an item is the chord shown as a menu accelerator when the
-//! tray can parse it (`Ctrl+K`, `Alt+Space`, `Cmd+Space`). A symbol string such
-//! as `⌘K` stays in the label on macOS and Windows and is omitted on Linux.
+//! Shortcut text on an item is the chord shown beside the label. macOS and
+//! Windows put a parseable chord (`Ctrl+K`, `Alt+Space`, `Cmd+Space`) in the
+//! accelerator column and keep a symbol string such as `⌘K` in the label.
+//! Linux draws one string and does not show that column, so the chord is
+//! written into the label there as well.
 
 use std::sync::{Mutex, MutexGuard};
 
@@ -150,9 +152,10 @@ impl Item {
         }
     }
 
-    /// Chord for the menu accelerator. [`crate::Keystroke::label`] parses
-    /// (`Alt+Space`, `Cmd+K`). A symbol string is shown in the label where the
-    /// tray has no accelerator column.
+    /// Chord shown beside the label. [`crate::Keystroke::label`] parses
+    /// (`Alt+Space`, `Cmd+K`). macOS and Windows put a parsed chord in the
+    /// accelerator column. Linux appends every chord to the label. A symbol
+    /// string stays in the label on every platform.
     pub fn shortcut(mut self, text: impl Into<String>) -> Self {
         self.shortcut = text.into();
         self
@@ -441,13 +444,16 @@ pub fn displayed_label(label: &str, shortcut: &str) -> String {
 
 /// Label for a native menu row.
 ///
-/// X11 and Wayland draw the whole label as one string, so a tab would show
-/// up literally. Those platforms leave the shortcut out of the label; a
-/// parseable chord is passed separately as the item accelerator. Other
-/// platforms keep a tab before a shortcut the accelerator parser rejects.
+/// macOS and Windows put a tab between the label and the shortcut so the
+/// shortcut can sit in the accelerator column. X11 and Wayland draw the whole
+/// label as one string. A tab would show up as a character there, and the
+/// status item does not draw an accelerator column, so the shortcut is
+/// appended with two spaces instead.
 pub fn menu_label(label: &str, shortcut: &str, platform: Platform) -> String {
-    if shortcut.is_empty() || matches!(platform, Platform::X11 | Platform::Wayland) {
+    if shortcut.is_empty() {
         label.to_string()
+    } else if matches!(platform, Platform::X11 | Platform::Wayland) {
+        format!("{label}  {shortcut}")
     } else {
         displayed_label(label, shortcut)
     }

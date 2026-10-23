@@ -253,6 +253,7 @@ impl App {
         }
         apply_text_layout(&mut self.world);
         apply_mono_grid(&mut self.world);
+        crate::prompt::reveal_prompts(&mut self.world);
         crate::editor::apply_decorations(&mut self.world);
         window::drive(&mut self.world);
     }

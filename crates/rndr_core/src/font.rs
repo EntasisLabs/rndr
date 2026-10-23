@@ -783,11 +783,23 @@ pub fn apply_text_layout(world: &mut World) {
             .get::<crate::caret::Caret>(entity)
             .map(|caret| caret.index.min(label.text.len()))
             .unwrap_or(label.text.len());
-        let spans = world
+        let mut spans = world
             .get::<Spans>(entity)
             .map(|spans| spans.runs.clone())
             .unwrap_or_default();
-        let source = label.text.clone();
+        let mut source = label.text.clone();
+        let mut preview = preview;
+        let mut at = at;
+        if let Some(hint) = crate::prompt::placeholder_text(world, entity) {
+            source = hint;
+            preview.clear();
+            at = 0;
+            spans = vec![TextSpan::new(
+                0,
+                source.len(),
+                crate::prompt::placeholder_color(world),
+            )];
+        }
         let cursor = world
             .get::<crate::field::ImePreview>(entity)
             .and_then(|preview| preview.cursor);
