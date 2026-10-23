@@ -1,4 +1,4 @@
-//! Small thread pool behind the `pool` feature. Core does not depend on tokio.
+//! Small thread pool behind the `pool` feature. The pool does not use tokio.
 //!
 //! Workers poll [`Job`]s. Completions land in the runtime inbox; the desktop
 //! runner wakes winit from that path.

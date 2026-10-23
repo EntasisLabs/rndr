@@ -51,6 +51,11 @@ jobs:
       - name: Test
         run: cargo test --workspace
 
+      - name: Feed tokio feature
+        run: |
+          cargo clippy -p rndr_core --features tokio --all-targets -- -D warnings
+          cargo test -p rndr_core --features tokio
+
       - name: Build examples and rndr_render
         run: cargo build -p expand -p idle -p overlay -p palette -p terminal -p rndr_render
 

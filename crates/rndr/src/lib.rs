@@ -60,6 +60,8 @@
 //! - `parley` shapes and rasterizes text, and links fontconfig on Linux.
 //! - `term` re-exports the embedded terminal. It is off by default, so a
 //!   normal desktop build does not link a pseudoterminal.
+//! - `tokio` is off by default. It forwards to `rndr_core` and spawns a feed
+//!   producer on a tokio runtime the application already started.
 //!
 //! [`register`] and [`toggle_window`] install the operating-system hotkey
 //! backend. The parser and the registry stay at [`hotkey`].

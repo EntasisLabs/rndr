@@ -9,6 +9,6 @@ let mut app = App::new();
 app.update();
 ```
 
-The `pool` feature adds a small thread-pool executor. The desktop runner turns it on. This crate does not depend on tokio.
+The `pool` feature adds a small thread-pool executor. The desktop runner turns it on. The `tokio` feature spawns a feed on a runtime the application already started. The default build depends on neither.
 
 License: MIT.

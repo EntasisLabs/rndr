@@ -174,7 +174,8 @@ impl App {
         runtime::next_deadline(self.world())
     }
 
-    /// Inbox, ready task, or due timer. The runner requests a redraw when this is set.
+    /// Inbox, ready task, due timer, or a [`crate::feed`] value waiting to be
+    /// delivered. The runner requests a redraw when this is set.
     pub fn wants_frame(&self) -> bool {
         runtime::wants_frame(self.world())
     }

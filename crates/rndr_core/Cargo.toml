@@ -6,7 +6,7 @@ license.workspace = true
 repository.workspace = true
 homepage.workspace = true
 rust-version.workspace = true
-description = "Application ECS for rndr: entities, hierarchy, layout, events, tasks"
+description = "Application ECS for rndr: entities, hierarchy, layout, events, tasks, feeds"
 documentation = "https://docs.rs/rndr_core"
 readme = "README.md"
 keywords = ["ecs", "gui", "layout", "desktop", "ui"]
@@ -15,12 +15,15 @@ exclude = ["**/*.snap.new"]
 
 [dependencies]
 unicode-segmentation = "1.13"
+tokio = { version = "1", optional = true, default-features = false, features = ["rt"] }
 
 [features]
 default = []
-# Thread-pool executor. The desktop runner enables this. Core stays free of tokio.
+# Thread-pool executor. The desktop runner enables this. The pool does not use tokio.
 pool = []
+# Spawn a feed producer on a tokio runtime the application already started.
+tokio = ["dep:tokio"]
 
 [package.metadata.docs.rs]
-# `pool` has no native dependencies.
+# `pool` has no native dependencies. `tokio` is optional and pure Rust.
 all-features = true
