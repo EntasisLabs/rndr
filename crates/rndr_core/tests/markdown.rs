@@ -413,6 +413,59 @@ fn list_markers_share_a_column_and_checks_read_apart() {
     let _ = view;
 }
 
+#[test]
+fn drag_past_the_end_of_a_line_does_not_copy_a_leading_blank_line() {
+    let source = "Alpha\n\nSee [the notes](https://example.com) now.";
+    let (mut app, view) = boot(source, 420.0, 280.0);
+    let first = block_label(app.world(), view, 0);
+    let second = block_label(app.world(), view, 1);
+    let first_rect = *app.world().get::<Rect>(first).unwrap();
+    let second_rect = *app.world().get::<Rect>(second).unwrap();
+    let first_layout = app.world().get::<TextLayout>(first).unwrap().clone();
+    let second_layout = app.world().get::<TextLayout>(second).unwrap().clone();
+    let y0 = first_rect.y + TEXT_ORIGIN_Y + first_layout.lines[0].y + 1.0;
+    let y1 = second_rect.y + TEXT_ORIGIN_Y + second_layout.lines[0].y + 1.0;
+    let end = second_layout.lines[0].end;
+    let (x_end, _) = second_layout.caret_xy(end);
+    point(
+        &mut app,
+        first_rect.x + first_rect.w - 4.0,
+        y0,
+        true,
+        false,
+        true,
+    );
+    app.update();
+    point(
+        &mut app,
+        second_rect.x + TEXT_ORIGIN_X + x_end,
+        y1,
+        false,
+        false,
+        true,
+    );
+    app.update();
+    let copied = app
+        .world()
+        .get::<MarkdownView>(view)
+        .unwrap()
+        .selected_text();
+    assert!(
+        !copied.starts_with('\n'),
+        "leading blank lines in {copied:?}"
+    );
+    assert!(copied.starts_with("See "), "{copied:?}");
+    point(
+        &mut app,
+        second_rect.x + TEXT_ORIGIN_X + x_end,
+        y1,
+        false,
+        true,
+        false,
+    );
+    app.update();
+}
+
 fn assert_line_press(app: &mut App, view: Entity, label: Entity, x: f32) {
     let rect = *app.world().get::<Rect>(view).unwrap();
     let layout = app.world().get::<TextLayout>(label).unwrap().clone();

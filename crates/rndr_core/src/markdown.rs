@@ -17,8 +17,10 @@
 //! An unclosed fence stays inside that tail, so earlier blocks keep their
 //! entities and their shaped lines. A trailing inline that is still open
 //! (bold, italic, a code span, or a link whose destination has not closed)
-//! is closed for the parse. The frame shows the styled text. Raw markers
-//! are not drawn, and the source still holds only the characters that arrived.
+//! is closed for the parse, and so is a trailing task marker that has not
+//! reached its item text yet. The frame shows the styled text or the
+//! checkbox. Raw markers are not drawn, and the source still holds only
+//! the characters that arrived.
 //!
 //! A link reference definition (`[id]: url`) disables the boundary: the whole
 //! string is parsed, and unchanged blocks still keep their entities.
@@ -49,8 +51,11 @@
 //! destination. A block that is only partly selected is plain text, except
 //! that an inline span lying entirely inside the selection still keeps its
 //! markers. Strikethrough is copied as plain text. Blocks that are not
-//! tight list items are separated by a blank line. Tight items share one
-//! newline.
+//! tight list items are separated by a blank line. Tight items in one
+//! list share one newline. A blank line in the source between two tight
+//! items stays, so a numbered list followed by a bullet list copies as
+//! two lists. A selection that starts past the last character of a line
+//! does not copy a leading blank line.
 //!
 //! Italic is stored on the span. The desktop shaper slants that run. The
 //! builtin bitmap face has no italic outlines, so those glyphs stay upright.
@@ -433,11 +438,21 @@ impl MarkdownView {
     /// An inline span that lies entirely inside the slice still keeps its
     /// markers, so a whole link or a whole bold word survives a partial
     /// block. Strikethrough is copied as plain text. Blocks that are not
-    /// tight list items are separated by a blank line. Tight items share
-    /// one newline. Empty when the range is empty or the view has no
-    /// selection.
+    /// tight list items are separated by a blank line. Tight items in one
+    /// list share one newline. A blank line in the source between two
+    /// tight items stays, so a numbered list followed by a bullet list
+    /// copies as two lists. A selection that starts past the last
+    /// character of a line does not copy a leading blank line. Empty when
+    /// the range is empty or the view has no selection.
     pub fn selected_text(&self) -> String {
-        selection_text(&self.blocks, self.anchor, self.head)
+        selection_text(
+            &self.blocks,
+            &self.starts,
+            &self.ends,
+            &self.source,
+            self.anchor,
+            self.head,
+        )
     }
 }
 
@@ -1880,6 +1895,9 @@ fn ordered(anchor: Option<CaretPos>, head: Option<CaretPos>) -> Option<(CaretPos
 
 fn selection_text(
     blocks: &[MarkdownBlock],
+    starts: &[usize],
+    _ends: &[usize],
+    source: &str,
     anchor: Option<CaretPos>,
     head: Option<CaretPos>,
 ) -> String {
@@ -1905,8 +1923,18 @@ fn selection_text(
         if index == end.block && index != start.block && to == 0 && !block.text.is_empty() {
             break;
         }
+        // A press past the last glyph of a line reports the byte after that
+        // line. The block then contributes only newlines, and the joiner
+        // would copy a leading blank line.
+        if index == start.block && from > 0 && remainder_is_blank(&block.text, from) {
+            continue;
+        }
         if let Some(prev) = previous {
-            out.push_str(block_joiner(&blocks[prev], block));
+            out.push_str(block_joiner(
+                &blocks[prev],
+                block,
+                list_gap(starts, source, prev, index),
+            ));
         }
         out.push_str(&format_block(blocks, index, from, to));
         previous = Some(index);
@@ -1914,12 +1942,40 @@ fn selection_text(
     out
 }
 
-fn block_joiner(left: &MarkdownBlock, right: &MarkdownBlock) -> &'static str {
-    if left.tight && right.tight {
+fn remainder_is_blank(text: &str, from: usize) -> bool {
+    let from = floor_boundary(text, from.min(text.len()));
+    text[from..].chars().all(|ch| ch == '\n' || ch == '\r')
+}
+
+fn list_gap<'a>(starts: &[usize], source: &'a str, left: usize, right: usize) -> &'a str {
+    // The blank line between two lists sits inside the first item's source
+    // range, so measure from that item's start through the next item.
+    let Some(&from) = starts.get(left) else {
+        return "";
+    };
+    let Some(&to) = starts.get(right) else {
+        return "";
+    };
+    if from > to
+        || to > source.len()
+        || !source.is_char_boundary(from)
+        || !source.is_char_boundary(to)
+    {
+        return "";
+    }
+    &source[from..to]
+}
+
+fn block_joiner(left: &MarkdownBlock, right: &MarkdownBlock, gap: &str) -> &'static str {
+    if left.tight && right.tight && !has_blank_line(gap) {
         "\n"
     } else {
         "\n\n"
     }
+}
+
+fn has_blank_line(gap: &str) -> bool {
+    gap.bytes().filter(|byte| *byte == b'\n').count() >= 2
 }
 
 fn format_block(blocks: &[MarkdownBlock], index: usize, from: usize, to: usize) -> String {
@@ -2294,8 +2350,9 @@ struct Opener {
     len: usize,
 }
 
-/// Close a trailing inline so a partial link, emphasis, or code span does not
-/// draw its raw markers. Markers with no body yet are cut off instead.
+/// Close a trailing inline so a partial link, emphasis, code span, or task
+/// marker does not draw its raw markers. Markers with no body yet are cut
+/// off instead. A task prefix is completed so the line draws as a checkbox.
 fn prepare_partial(source: &str) -> Cow<'_, str> {
     if source.is_empty() {
         return Cow::Borrowed(source);
@@ -2542,12 +2599,98 @@ fn finish_partial(
     }
     let suffix = inline_closers(&stack, end);
     if end == source.len() && code_closer.is_empty() && suffix.is_empty() {
-        return Cow::Borrowed(source);
+        return close_task(Cow::Borrowed(source));
     }
     let mut out = source[..end].to_string();
     out.push_str(&code_closer);
     out.push_str(&suffix);
+    if code_closer.is_empty() {
+        close_task(Cow::Owned(out))
+    } else {
+        Cow::Owned(out)
+    }
+}
+
+fn close_task(source: Cow<'_, str>) -> Cow<'_, str> {
+    let Some(suffix) = task_closer(source.as_ref()) else {
+        return source;
+    };
+    let mut out = source.into_owned();
+    out.push_str(suffix);
     Cow::Owned(out)
+}
+
+/// Suffix that turns a trailing `- [`, `- [x`, or `- [x]` into a task item.
+/// `None` when the last line is not an unfinished checkbox.
+fn task_closer(source: &str) -> Option<&'static str> {
+    let line_start = source.rfind('\n').map_or(0, |pos| pos + 1);
+    let mut line = &source[line_start..];
+    if let Some(stripped) = line.strip_suffix('\r') {
+        line = stripped;
+    }
+    let bytes = line.as_bytes();
+    let mut i = 0usize;
+    while i < bytes.len() && bytes[i] == b'>' {
+        i += 1;
+        if i < bytes.len() && bytes[i] == b' ' {
+            i += 1;
+        }
+    }
+    let mut indent = 0usize;
+    while i < bytes.len() && bytes[i] == b' ' && indent < 4 {
+        indent += 1;
+        i += 1;
+    }
+    if indent > 3 || i >= bytes.len() {
+        return None;
+    }
+    if matches!(bytes[i], b'-' | b'*' | b'+') {
+        i += 1;
+    } else {
+        let digits = i;
+        while i < bytes.len() && bytes[i].is_ascii_digit() {
+            i += 1;
+        }
+        let count = i - digits;
+        if count == 0 || count > 9 || i >= bytes.len() || (bytes[i] != b'.' && bytes[i] != b')') {
+            return None;
+        }
+        i += 1;
+    }
+    if i >= bytes.len() || (bytes[i] != b' ' && bytes[i] != b'\t') {
+        return None;
+    }
+    while i < bytes.len() && (bytes[i] == b' ' || bytes[i] == b'\t') {
+        i += 1;
+    }
+    if i >= bytes.len() || bytes[i] != b'[' {
+        return None;
+    }
+    checkbox_suffix(&line[i + 1..])
+}
+
+fn checkbox_suffix(rest: &str) -> Option<&'static str> {
+    let bytes = rest.as_bytes();
+    if bytes.is_empty() {
+        return Some(" ] ");
+    }
+    if !matches!(bytes[0], b' ' | b'x' | b'X') {
+        return None;
+    }
+    if bytes.len() == 1 {
+        return Some("] ");
+    }
+    if bytes[1] != b']' {
+        return None;
+    }
+    if bytes[2..].iter().any(|byte| !matches!(*byte, b' ' | b'\t')) {
+        return None;
+    }
+    if bytes.len() == 2 {
+        Some(" ")
+    } else {
+        None
+    }
 }
 
 fn inline_closers(stack: &[Opener], end: usize) -> String {
@@ -3058,7 +3201,7 @@ impl<'a> Builder<'a> {
         }
         let tight = matches!(mode, Mode::Item) && !self.item_loose;
         let keep = match kind {
-            MarkdownKind::Code => true,
+            MarkdownKind::Code | MarkdownKind::Task(_) => true,
             MarkdownKind::Paragraph | MarkdownKind::Heading(_) if self.buf.trim().is_empty() => {
                 false
             }
@@ -3553,10 +3696,14 @@ let x = 1;
 - [x] done
 - [ ] open
 ";
-        let blocks = parse_markdown(source);
+        let parsed = parse_range(source, 0, &MarkdownTheme::default());
+        let blocks = &parsed.blocks;
         let last = blocks.len() - 1;
         let text = selection_text(
-            &blocks,
+            blocks,
+            &parsed.starts,
+            &parsed.ends,
+            source,
             Some(CaretPos { block: 0, byte: 0 }),
             Some(CaretPos {
                 block: last,
@@ -3683,16 +3830,21 @@ Tail";
             .any(|span| &code.text[span.start..span.end] == "1" && span.color == theme.number));
     }
 
-    fn whole_text(blocks: &[MarkdownBlock]) -> String {
-        let last = blocks.len() - 1;
-        selection_text(
-            blocks,
+    fn whole_text(source: &str) -> (Vec<MarkdownBlock>, String) {
+        let parsed = parse_range(source, 0, &MarkdownTheme::default());
+        let last = parsed.blocks.len() - 1;
+        let text = selection_text(
+            &parsed.blocks,
+            &parsed.starts,
+            &parsed.ends,
+            source,
             Some(CaretPos { block: 0, byte: 0 }),
             Some(CaretPos {
                 block: last,
-                byte: blocks[last].text.len(),
+                byte: parsed.blocks[last].text.len(),
             }),
-        )
+        );
+        (parsed.blocks, text)
     }
 
     fn kinds(source: &str) -> Vec<(MarkdownKind, String, u8)> {
@@ -3716,8 +3868,7 @@ See **bold** and *italic* and `code` and [notes](https://example.com/a).
 - [x] done
       - nested
 ";
-        let blocks = parse_markdown(source);
-        let copied = whole_text(&blocks);
+        let (blocks, copied) = whole_text(source);
         let again = parse_markdown(&format!("{copied}\n"));
         assert_eq!(again[0].text, blocks[0].text);
         assert!(again[0].spans.iter().any(|span| {
@@ -3743,6 +3894,9 @@ See **bold** and *italic* and `code` and [notes](https://example.com/a).
             .unwrap();
         let cut = selection_text(
             &blocks,
+            &[],
+            &[],
+            source,
             Some(CaretPos {
                 block: 0,
                 byte: bold.start + 1,
@@ -3757,6 +3911,9 @@ See **bold** and *italic* and `code` and [notes](https://example.com/a).
 
         let kept = selection_text(
             &blocks,
+            &[],
+            &[],
+            source,
             Some(CaretPos { block: 0, byte: 0 }),
             Some(CaretPos {
                 block: 0,
@@ -3768,6 +3925,9 @@ See **bold** and *italic* and `code` and [notes](https://example.com/a).
         let link = &paragraph.links[0];
         let linked = selection_text(
             &blocks,
+            &[],
+            &[],
+            source,
             Some(CaretPos {
                 block: 0,
                 byte: link.start,
@@ -3853,5 +4013,92 @@ See **bold** and *italic* and `code` and [notes](https://example.com/a).
                 prepare_partial(sample)
             );
         }
+    }
+
+    #[test]
+    fn partial_task_markers_draw_as_checkboxes() {
+        let checked = parse_markdown("- [x");
+        assert_eq!(checked.len(), 1);
+        assert_eq!(checked[0].kind, MarkdownKind::Task(true));
+        assert!(!checked[0].text.contains('['), "{}", checked[0].text);
+
+        let unchecked = parse_markdown("- [ ]");
+        assert_eq!(unchecked[0].kind, MarkdownKind::Task(false));
+        assert!(!unchecked[0].text.contains('['), "{}", unchecked[0].text);
+
+        let open = parse_markdown("- [");
+        assert_eq!(open[0].kind, MarkdownKind::Task(false));
+        assert!(!open[0].text.contains('['));
+
+        let spaced = parse_markdown("  - [ ");
+        assert_eq!(spaced[0].kind, MarkdownKind::Task(false));
+        assert!(!spaced[0].text.contains('['));
+
+        let numbered = parse_markdown("1. [X");
+        assert_eq!(numbered[0].kind, MarkdownKind::Task(true));
+        assert!(!numbered[0].text.contains('['));
+
+        let link = parse_markdown("- [the notes](https://example.com)");
+        assert_eq!(link[0].kind, MarkdownKind::Bullet);
+        assert_eq!(link[0].links[0].href, "https://example.com");
+        assert!(!link[0].text.contains('['));
+
+        let done = parse_markdown("- [x] parse the prefix\n- [ ] open a browser\n");
+        assert_eq!(
+            done.iter()
+                .map(|block| (block.kind, block.text.as_str()))
+                .collect::<Vec<_>>(),
+            vec![
+                (MarkdownKind::Task(true), "parse the prefix"),
+                (MarkdownKind::Task(false), "open a browser"),
+            ]
+        );
+
+        let mut built = String::new();
+        let source = "- [x] parse the prefix\n- [ ] open\n";
+        for ch in source.chars() {
+            built.push(ch);
+            for block in parse_markdown(&built) {
+                assert!(
+                    !block.text.contains('[') && !block.text.contains(']'),
+                    "raw marker in {built:?} -> {:?}",
+                    block.text
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn adjacent_lists_keep_the_blank_line_and_a_past_end_start_does_not() {
+        let lists = "11. eleven\n\n- bullet top\n";
+        let (_, copied) = whole_text(lists);
+        assert_eq!(copied, "11. eleven\n\n- bullet top");
+        let again = parse_markdown(&format!("{copied}\n"));
+        assert_eq!(again[0].kind, MarkdownKind::Numbered(11));
+        assert_eq!(again[1].kind, MarkdownKind::Bullet);
+
+        let tight = "1. one\n2. two\n";
+        let (_, tight_copy) = whole_text(tight);
+        assert_eq!(tight_copy, "1. one\n2. two");
+
+        let source = "Alpha\n\nSee [the notes](https://example.com).\n";
+        let parsed = parse_range(source, 0, &MarkdownTheme::default());
+        let text = selection_text(
+            &parsed.blocks,
+            &parsed.starts,
+            &parsed.ends,
+            source,
+            Some(CaretPos {
+                block: 0,
+                byte: parsed.blocks[0].text.len(),
+            }),
+            Some(CaretPos {
+                block: 1,
+                byte: parsed.blocks[1].text.len(),
+            }),
+        );
+        assert!(!text.starts_with('\n'), "leading blank lines in {text:?}");
+        assert!(text.starts_with("See "));
+        assert!(text.contains("[the notes](https://example.com)"));
     }
 }
