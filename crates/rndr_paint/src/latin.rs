@@ -17,7 +17,14 @@ const LATIN_EM: f32 = 16.0;
 const LATIN_UPM: f32 = 2048.0;
 
 /// ASCII proportional face. Insert as a [`rndr_core::TextFace`].
+///
 /// The builtin [`rndr_core::TextEngine`] resolves the family name `"Inter"`.
+/// Advances and kerning are in points at a 16-point em. Space through `~`
+/// have cells in the coverage atlas, which is built on first use and then
+/// shared. A newline advances 0. Any other scalar advances like a space.
+/// Kerning is 0 when either side is outside that range or the pair is
+/// absent. A scalar with an empty ink box has no glyph quad, and its UV
+/// is the solid texel. There is no color atlas. The face does not panic.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct LatinFace;
 

@@ -30,14 +30,21 @@ use atlas::{Atlas, GlyphKey};
 use shape::{shape_text, Shaped};
 
 /// How the engine loads fonts and how large the glyph atlases may grow.
+///
+/// Pass this to [`ParleyText::with_config`]. [`ParleyText::new`] and
+/// [`ParleyText::bundled`] fill in the defaults below.
 pub struct TextEngineConfig {
     /// Discover fonts installed on the machine. Tests that must not depend on
-    /// the host set this to false and use the bundled faces.
+    /// the host set this to false and use the bundled faces. The default is
+    /// on.
     pub system_fonts: bool,
-    /// Starting shelf size, in pixels. Grows by doubling.
+    /// Starting shelf size, in pixels. Grows by doubling, or to the glyph
+    /// that did not fit, and stops at [`Self::max_atlas`]. The default is
+    /// 512. A value below 32 is raised to 32 when the engine is built.
     pub atlas_size: u32,
     /// Largest shelf. Past this, a glyph that does not fit evicts the least
-    /// recently used one that no cached line still needs.
+    /// recently used one that no cached line still needs. The default is
+    /// 4096. A maximum below the start size is raised to that size.
     pub max_atlas: u32,
 }
 
@@ -51,33 +58,67 @@ impl Default for TextEngineConfig {
     }
 }
 
-/// One shelf upload. `full` means the texture was recreated and `pixels` is the
-/// whole image. Otherwise `rects` are the regions written since the last take.
+/// One shelf upload. On each layer, `full` means the texture was recreated
+/// and `pixels` is the whole image. Otherwise `rects` are the regions
+/// written since the last take.
 pub struct AtlasUpload {
+    /// Coverage shelf. One byte per pixel. Solid fills and outline glyphs
+    /// sample it.
     pub coverage: AtlasLayer,
+    /// Color shelf. Straight RGBA, four bytes per pixel. Emoji samples it.
     pub color: AtlasLayer,
 }
 
+/// Pixels for one atlas since the last [`ParleyText::take_uploads`].
+///
+/// [`Self::width`] and [`Self::height`] are the shelf after any grow, and
+/// they match. When [`Self::full`] is set, [`Self::pixels`] is the image
+/// and [`Self::rects`] is empty. Otherwise `pixels` is empty and `rects`
+/// lists the dirty regions.
 pub struct AtlasLayer {
+    /// Shelf width in pixels.
     pub width: u32,
+    /// Shelf height in pixels. Equal to [`Self::width`].
     pub height: u32,
     /// 1 for coverage, 4 for straight RGBA.
     pub bpp: usize,
+    /// The shelf was recreated. Replace the texture from [`Self::pixels`].
     pub full: bool,
+    /// Row-major image, `width * height * bpp` bytes, when [`Self::full`]
+    /// is set. Empty when only [`Self::rects`] changed.
     pub pixels: Vec<u8>,
+    /// Dirty rectangles. Empty when [`Self::full`] is set.
     pub rects: Vec<AtlasRegion>,
 }
 
+/// One dirty rectangle inside an [`AtlasLayer`], in pixels. The origin is
+/// the top-left of the shelf.
 pub struct AtlasRegion {
+    /// Left edge, in pixels.
     pub x: u32,
+    /// Top edge, in pixels.
     pub y: u32,
+    /// Width in pixels.
     pub width: u32,
+    /// Height in pixels.
     pub height: u32,
+    /// Row-major pixels for this rectangle. The length is `width * height`
+    /// times the layer's [`AtlasLayer::bpp`].
     pub bytes: Vec<u8>,
 }
 
 /// Production text engine. System fonts plus the bundled Inter, Noto Sans
 /// Arabic, and Noto Color Emoji faces.
+///
+/// [`crate::run`] inserts this as the world's [`rndr_core::TextEngine`]
+/// when none is stored yet. Build one with [`Self::new`] or
+/// [`Self::bundled`] to shape before the window opens.
+///
+/// A shaped line stays cached for this frame and the previous one. Glyph
+/// pixels remain after that line is dropped. Once the shelf is at its
+/// maximum, a glyph that does not fit evicts the least recently used
+/// glyph that no cached line still needs. Methods that lock the engine
+/// panic if that lock is poisoned.
 pub struct ParleyText {
     state: Mutex<State>,
     shapes: AtomicU64,
@@ -130,12 +171,16 @@ struct RunKey {
 
 impl ParleyText {
     /// System fonts, with the bundled faces registered first.
+    ///
+    /// Shelves start at 512 pixels and grow to 4096. [`Default`] builds
+    /// the same engine.
     pub fn new() -> Self {
         Self::with_config(TextEngineConfig::default())
     }
 
     /// Bundled faces only. Snapshots and shaping tests use this so the host's
-    /// font set cannot change the pixels.
+    /// font set cannot change the pixels. Shelves still start at 512 pixels
+    /// and grow to 4096.
     pub fn bundled() -> Self {
         Self::with_config(TextEngineConfig {
             system_fonts: false,
@@ -143,6 +188,11 @@ impl ParleyText {
         })
     }
 
+    /// Build an engine from `config`.
+    ///
+    /// Bundled faces are registered before system fonts are consulted.
+    /// A start size below 32 becomes 32, and a maximum below that start
+    /// becomes the start. This does not panic.
     pub fn with_config(config: TextEngineConfig) -> Self {
         let mut font_cx = FontContext {
             collection: fontique::Collection::new(fontique::CollectionOptions {
@@ -175,6 +225,10 @@ impl ParleyText {
     }
 
     /// Register a font collection from bytes. The family name is read from the file.
+    ///
+    /// The bytes are copied. Every face in the buffer is registered. A
+    /// buffer that contains no font adds no faces, and the shaped-line
+    /// cache is dropped either way. Panics if the engine lock is poisoned.
     pub fn register_bytes(&self, bytes: &[u8]) {
         let mut state = self.lock();
         let blob = fontique::Blob::new(Arc::new(bytes.to_vec()));
@@ -182,18 +236,24 @@ impl ParleyText {
         state.invalidate_lines();
     }
 
-    /// Swash rasters. An atlas hit does not increment this.
+    /// Swash rasters since this engine was built. An atlas hit does not
+    /// increment this. Panics if the engine lock is poisoned.
     pub fn raster_count(&self) -> u64 {
         self.lock().rasters
     }
 
-    /// Glyphs dropped because the shelf was full.
+    /// Glyphs dropped because the shelf was full. Coverage and color
+    /// atlases are both included. Panics if the engine lock is poisoned.
     pub fn eviction_count(&self) -> u64 {
         let state = self.lock();
         state.coverage.evictions + state.color.evictions
     }
 
     /// Dirty atlas regions since the last call. The GPU uploads these and nothing else.
+    ///
+    /// Clears the dirty set. A later call, before another glyph is drawn,
+    /// has `full` clear and no rectangles. Panics if the engine lock is
+    /// poisoned.
     pub fn take_uploads(&self) -> AtlasUpload {
         let mut state = self.lock();
         AtlasUpload {
