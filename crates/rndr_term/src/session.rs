@@ -1,12 +1,15 @@
 //! PTY, parser, and the terminal state machine.
 //!
-//! The reader thread only appends bytes and sets an end-of-file flag. The UI
-//! thread drains that buffer, advances the parser, and drops the session to
-//! kill the child and join the reader.
+//! The reader thread appends bytes and sets an end-of-file flag. It stops
+//! reading once [`INCOMING_CAP`] bytes are waiting, so the kernel buffer
+//! applies backpressure and a flood cannot grow without bound. The UI thread
+//! drains at most one frame budget, advances the parser, and drops the session
+//! to kill the child and join the reader.
 
+use std::collections::VecDeque;
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 
 use alacritty_terminal::event::{Event, EventListener, WindowSize};
@@ -21,6 +24,9 @@ use rndr_core::Wake;
 use crate::screen;
 
 const FRAME_BUDGET: usize = 256 * 1024;
+/// Bytes kept ahead of the parser. A full queue blocks the reader so the PTY
+/// buffer fills and the child blocks in `write`. One frame drains the cap.
+const INCOMING_CAP: usize = 64 * 1024;
 
 pub struct Listener {
     shared: Arc<Shared>,
@@ -81,7 +87,9 @@ enum Note {
 }
 
 struct Shared {
-    incoming: Mutex<Vec<u8>>,
+    incoming: Mutex<VecDeque<u8>>,
+    /// Signaled when the queue has room or the session is shutting down.
+    space: Condvar,
     notes: Mutex<Vec<Note>>,
     eof: AtomicBool,
     shutdown: AtomicBool,
@@ -161,7 +169,8 @@ impl Session {
         let cols = options.cols.max(2);
         let rows = options.rows.max(1);
         let shared = Arc::new(Shared {
-            incoming: Mutex::new(Vec::new()),
+            incoming: Mutex::new(VecDeque::new()),
+            space: Condvar::new(),
             notes: Mutex::new(Vec::new()),
             eof: AtomicBool::new(false),
             shutdown: AtomicBool::new(false),
@@ -313,6 +322,11 @@ impl Session {
         self.parser.advance(&mut self.term, bytes);
     }
 
+    #[cfg(test)]
+    fn queued_len(&self) -> usize {
+        lock(&self.shared.incoming).len()
+    }
+
     pub fn pump(&mut self, clipboard: &str) -> Pump {
         let bytes = drain(&self.shared);
         self.prepare_reply(clipboard);
@@ -441,6 +455,7 @@ impl Session {
 impl Drop for Session {
     fn drop(&mut self) {
         self.shared.shutdown.store(true, Ordering::Release);
+        self.shared.space.notify_one();
         if !self.reaped {
             #[cfg(unix)]
             if let Some(master) = &self.master {
@@ -468,32 +483,52 @@ fn read_loop(mut reader: Box<dyn Read + Send>, shared: Arc<Shared>) {
         if shared.shutdown.load(Ordering::Acquire) {
             break;
         }
-        match reader.read(&mut buf) {
+        let room = {
+            let mut incoming = lock(&shared.incoming);
+            loop {
+                if shared.shutdown.load(Ordering::Acquire) {
+                    finish_read(&shared);
+                    return;
+                }
+                let room = INCOMING_CAP.saturating_sub(incoming.len());
+                if room > 0 {
+                    break room;
+                }
+                incoming = shared
+                    .space
+                    .wait(incoming)
+                    .unwrap_or_else(|err| err.into_inner());
+            }
+        };
+        let max = room.min(buf.len());
+        match reader.read(&mut buf[..max]) {
             Ok(0) => break,
             Ok(n) => {
-                lock(&shared.incoming).extend_from_slice(&buf[..n]);
+                lock(&shared.incoming).extend(buf[..n].iter().copied());
                 shared.wake.wake();
             }
             Err(err) if err.kind() == std::io::ErrorKind::Interrupted => continue,
             Err(_) => break,
         }
     }
+    finish_read(&shared);
+}
+
+fn finish_read(shared: &Shared) {
     shared.eof.store(true, Ordering::Release);
     shared.wake.wake();
 }
 
 fn drain(shared: &Shared) -> Vec<u8> {
-    let mut buf = std::mem::take(&mut *lock(&shared.incoming));
-    if buf.len() > FRAME_BUDGET {
-        let rest = buf.split_off(FRAME_BUDGET);
-        let mut incoming = lock(&shared.incoming);
-        let mut merged = rest;
-        merged.append(&mut incoming);
-        *incoming = merged;
-        drop(incoming);
-        shared.wake.wake();
+    let mut incoming = lock(&shared.incoming);
+    if incoming.is_empty() {
+        return Vec::new();
     }
-    buf
+    let n = incoming.len().min(FRAME_BUDGET);
+    let out: Vec<u8> = incoming.drain(..n).collect();
+    drop(incoming);
+    shared.space.notify_one();
+    out
 }
 
 fn pty_size(cols: u16, rows: u16, cell_w: f32, cell_h: f32) -> PtySize {
@@ -520,5 +555,114 @@ fn window_size(cols: u16, rows: u16, cell_w: f32, cell_h: f32) -> WindowSize {
         num_lines: rows,
         cell_width: pixels(cell_w, 1),
         cell_height: pixels(cell_h, 1),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{Duration, Instant};
+
+    struct Flood;
+
+    impl Read for Flood {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            buf.fill(b'x');
+            Ok(buf.len())
+        }
+    }
+
+    fn shared() -> Arc<Shared> {
+        Arc::new(Shared {
+            incoming: Mutex::new(VecDeque::new()),
+            space: Condvar::new(),
+            notes: Mutex::new(Vec::new()),
+            eof: AtomicBool::new(false),
+            shutdown: AtomicBool::new(false),
+            wake: Arc::new(rndr_core::NopWake),
+        })
+    }
+
+    #[test]
+    fn a_flood_stops_at_the_cap_until_the_queue_is_drained() {
+        let shared = shared();
+        let reader = Arc::clone(&shared);
+        let handle = std::thread::spawn(move || read_loop(Box::new(Flood), reader));
+        let start = Instant::now();
+        while lock(&shared.incoming).len() < INCOMING_CAP
+            && start.elapsed() < Duration::from_secs(2)
+        {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert_eq!(lock(&shared.incoming).len(), INCOMING_CAP);
+        std::thread::sleep(Duration::from_millis(30));
+        assert_eq!(
+            lock(&shared.incoming).len(),
+            INCOMING_CAP,
+            "the reader kept appending after the cap"
+        );
+        let drained = drain(&shared);
+        assert_eq!(drained.len(), INCOMING_CAP);
+        let start = Instant::now();
+        while lock(&shared.incoming).is_empty() && start.elapsed() < Duration::from_secs(2) {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert!(!lock(&shared.incoming).is_empty());
+        assert!(lock(&shared.incoming).len() <= INCOMING_CAP);
+        shared.shutdown.store(true, Ordering::Release);
+        shared.space.notify_one();
+        handle.join().expect("reader");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn interrupt_during_a_flood_drains_within_a_second() {
+        let wake: Arc<dyn Wake> = Arc::new(rndr_core::NopWake);
+        let mut session = Session::open(OpenOptions {
+            program: "sh".into(),
+            args: vec![
+                "-c".into(),
+                "while true; do printf 'flood line with some text ABCDEFGHIJ\\n'; done".into(),
+            ],
+            cwd: None,
+            scrollback: 1_000,
+            cols: 80,
+            rows: 24,
+            offline: false,
+            wake,
+        })
+        .expect("pty");
+        let start = Instant::now();
+        while session.queued_len() < INCOMING_CAP / 2 && start.elapsed() < Duration::from_secs(2) {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert!(session.queued_len() > 0, "flood produced no output");
+        assert!(session.queued_len() <= INCOMING_CAP);
+        // `Child::kill` reaps the process, which would hide the exit from `pump`.
+        let pid = session
+            .child
+            .as_ref()
+            .and_then(|child| child.process_id())
+            .expect("pid");
+        unsafe {
+            libc::kill(pid as i32, libc::SIGKILL);
+        }
+        let recover = Instant::now();
+        // `pump` reports the exit once. Bytes read after that still have to drain.
+        let mut saw_exit = false;
+        loop {
+            let pump = session.pump("");
+            saw_exit |= pump.exit.is_some();
+            if saw_exit && session.queued_len() == 0 {
+                break;
+            }
+            assert!(
+                recover.elapsed() < Duration::from_secs(1),
+                "queued {} after {:?}",
+                session.queued_len(),
+                recover.elapsed()
+            );
+            std::thread::sleep(Duration::from_millis(5));
+        }
     }
 }

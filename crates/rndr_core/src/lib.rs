@@ -158,7 +158,7 @@ pub use list::{
 pub use memory_fs::{MemoryFs, MemoryFsPlugin};
 pub use mono::{
     apply_mono_grid, MonoBand, MonoCache, MonoCell, MonoCursor, MonoCursorShape, MonoGrid, MonoRow,
-    MonoRun, MonoStyle,
+    MonoRun, MonoStyle, MonoUnderline,
 };
 pub use overlay::{Layer, Modal, DISMISS};
 pub use pane::{

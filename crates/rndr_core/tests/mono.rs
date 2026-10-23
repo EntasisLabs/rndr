@@ -1,6 +1,8 @@
 //! Fixed-pitch rows are shaped once and left alone when their generation holds.
 
-use rndr_core::{App, Color, Layout, MonoCache, MonoCell, MonoGrid, MonoStyle, Size, Viewport};
+use rndr_core::{
+    App, Color, Layout, MonoCache, MonoCell, MonoGrid, MonoStyle, MonoUnderline, Size, Viewport,
+};
 
 fn fill(width: f32, height: f32) -> Layout {
     Layout {
@@ -19,7 +21,7 @@ fn unchanged_rows_are_not_reshaped() {
     grid.cells[1] = MonoCell {
         style: MonoStyle {
             bold: true,
-            underline: true,
+            underline: MonoUnderline::Single,
             ..MonoStyle::default()
         },
         ..MonoCell::new('B', Color::rgb(0.2, 0.8, 0.3), Color::rgb(0.1, 0.1, 0.4))

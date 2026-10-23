@@ -614,20 +614,31 @@ fn apply_pointer(world: &mut World, entity: Entity, input: &Input, inside: bool)
                     bytes.extend(encode_mouse(motion, Action::Move, col, row, mods, mouse));
                 }
             } else if button == MouseButton::Middle && input.pointer.pressed {
-                let text = world
-                    .resource::<Clipboard>()
-                    .map(|clipboard| clipboard.text.clone())
-                    .unwrap_or_default();
+                let text = paste_selection(world);
                 let bracketed = session
                     .modes()
                     .contains(alacritty_terminal::term::TermMode::BRACKETED_PASTE);
                 bytes.extend(encode_paste(&text, bracketed));
             } else if button == MouseButton::Left || button == MouseButton::None {
-                if input.pointer.pressed {
-                    session.start_selection(col as usize, row as usize, input.shift);
+                let origin = if input.pointer.pressed {
+                    let at = input.pointer.press_at.unwrap_or(input.pointer.position);
+                    cell_at(rect, &grid, at[0], at[1])
+                } else {
+                    None
+                };
+                if let Some((origin_col, origin_row)) = origin {
+                    session.start_selection(origin_col as usize, origin_row as usize, input.shift);
+                    if (origin_col, origin_row) != (col, row) {
+                        session.drag_selection(col as usize, row as usize);
+                    }
                 } else if input.pointer.down && session.selecting {
                     session.drag_selection(col as usize, row as usize);
-                } else if input.pointer.released {
+                }
+                if input.pointer.released && session.selecting {
+                    session.drag_selection(col as usize, row as usize);
+                    if let Some(text) = session.selection_text() {
+                        set_primary(world, &text);
+                    }
                     session.selecting = false;
                 }
             }
@@ -714,7 +725,33 @@ fn set_clipboard(world: &mut World, text: &str) {
         world.insert_resource(Clipboard {
             text: text.to_string(),
             dirty: true,
+            ..Clipboard::default()
         });
+    }
+}
+
+fn set_primary(world: &mut World, text: &str) {
+    if let Some(clipboard) = world.resource_mut::<Clipboard>() {
+        clipboard.primary = text.to_string();
+        clipboard.primary_dirty = true;
+    } else {
+        world.insert_resource(Clipboard {
+            primary: text.to_string(),
+            primary_dirty: true,
+            ..Clipboard::default()
+        });
+    }
+}
+
+/// Middle-click paste. The primary selection wins when the platform has one.
+fn paste_selection(world: &World) -> String {
+    let Some(clipboard) = world.resource::<Clipboard>() else {
+        return String::new();
+    };
+    if !clipboard.primary.is_empty() {
+        clipboard.primary.clone()
+    } else {
+        clipboard.text.clone()
     }
 }
 

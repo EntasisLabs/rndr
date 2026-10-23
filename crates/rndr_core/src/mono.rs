@@ -15,6 +15,24 @@ use crate::world::{Component, World};
 impl Component for MonoGrid {}
 impl Component for MonoCache {}
 
+/// How the bottom of a cell is stroked.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum MonoUnderline {
+    /// No underline.
+    #[default]
+    None,
+    /// One stroke along the bottom of the cell.
+    Single,
+    /// Two strokes along the bottom of the cell.
+    Double,
+    /// A wave along the bottom of the cell.
+    Curly,
+    /// Short strokes with gaps.
+    Dotted,
+    /// Longer strokes with gaps.
+    Dashed,
+}
+
 /// Style bits that change how a cell is drawn.
 ///
 /// Bold and italic select the face. Underline and strike are extra strokes.
@@ -25,8 +43,8 @@ pub struct MonoStyle {
     pub bold: bool,
     /// Shape this cell as italic.
     pub italic: bool,
-    /// Stroke along the bottom of the cell.
-    pub underline: bool,
+    /// Stroke along the bottom of the cell. [`MonoUnderline::None`] draws nothing.
+    pub underline: MonoUnderline,
     /// Stroke through the middle of the cell.
     pub strike: bool,
     /// Do not draw the character.
@@ -41,11 +59,19 @@ pub struct MonoStyle {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MonoCell {
     /// Character in this column. A spacer keeps the wide character's pair.
+    /// A tab is stored as a space so the font is not asked for a missing glyph.
     pub ch: char,
+    /// Combining marks that follow [`Self::ch`], in order. Unused slots are `'\0'`.
+    ///
+    /// At most four marks are kept. A cluster longer than that drops the rest.
+    pub marks: [char; 4],
     /// Glyph color. Already resolved, including inverse and dim.
     pub fg: Color,
     /// Cell background. Already resolved.
     pub bg: Color,
+    /// Color of [`MonoStyle::underline`]. Equals [`Self::fg`] when the program
+    /// did not set one.
+    pub underline_color: Color,
     /// Face and decoration.
     pub style: MonoStyle,
 }
@@ -55,8 +81,10 @@ impl MonoCell {
     pub fn new(ch: char, fg: Color, bg: Color) -> Self {
         Self {
             ch,
+            marks: ['\0'; 4],
             fg,
             bg,
+            underline_color: fg,
             style: MonoStyle::default(),
         }
     }
@@ -329,7 +357,7 @@ fn shape_row(engine: &dyn TextEngine, plan: &RowPlan, row: usize) -> (MonoRow, u
 
     let mut col = 0usize;
     while col < cells.len() {
-        if cells[col].style.spacer {
+        if cells[col].style.spacer || block_box(cells[col].ch).is_some() {
             col += 1;
             continue;
         }
@@ -340,19 +368,14 @@ fn shape_row(engine: &dyn TextEngine, plan: &RowPlan, row: usize) -> (MonoRow, u
         let mut columns = Vec::new();
         while col < cells.len() {
             let cell = &cells[col];
-            if cell.style.spacer {
+            if cell.style.spacer || block_box(cell.ch).is_some() {
                 break;
             }
             if cell.style.bold != style.bold || cell.style.italic != style.italic {
                 break;
             }
             let byte = text.len();
-            let ch = if cell.style.hidden || cell.ch == '\0' {
-                ' '
-            } else {
-                cell.ch
-            };
-            text.push(ch);
+            push_cluster(&mut text, cell);
             let end = text.len();
             if cell.fg
                 != spans
@@ -414,10 +437,43 @@ fn shape_row(engine: &dyn TextEngine, plan: &RowPlan, row: usize) -> (MonoRow, u
     )
 }
 
+fn push_cluster(text: &mut String, cell: &MonoCell) {
+    if cell.style.hidden || cell.ch == '\0' || cell.ch == '\t' || cell.ch == ' ' {
+        text.push(' ');
+        return;
+    }
+    text.push(cell.ch);
+    for mark in cell.marks {
+        if mark != '\0' {
+            text.push(mark);
+        }
+    }
+}
+
 fn run_needs_glyphs(cells: &[MonoCell]) -> bool {
-    cells
-        .iter()
-        .any(|cell| !cell.style.spacer && !cell.style.hidden && cell.ch != ' ' && cell.ch != '\0')
+    cells.iter().any(|cell| {
+        !cell.style.spacer
+            && !cell.style.hidden
+            && block_box(cell.ch).is_none()
+            && cell.ch != ' '
+            && cell.ch != '\0'
+            && cell.ch != '\t'
+    })
+}
+
+/// Axis-aligned coverage of a block glyph, as fractions of the cell.
+///
+/// These characters are painted as fills. A font glyph for U+2588 is inset
+/// by the side bearings, which leaves a seam between neighboring cells.
+fn block_box(ch: char) -> Option<(f32, f32, f32, f32)> {
+    match ch {
+        '\u{2588}' => Some((0.0, 0.0, 1.0, 1.0)),
+        '\u{2580}' => Some((0.0, 0.0, 1.0, 0.5)),
+        '\u{2584}' => Some((0.0, 0.5, 1.0, 0.5)),
+        '\u{258C}' => Some((0.0, 0.0, 0.5, 1.0)),
+        '\u{2590}' => Some((0.5, 0.0, 0.5, 1.0)),
+        _ => None,
+    }
 }
 
 fn column_of(columns: &[(usize, usize)], byte: usize) -> usize {
@@ -462,14 +518,16 @@ fn coalesce(
     let mut bg: Option<(usize, Color)> = None;
     let mut under: Option<(usize, Color)> = None;
     let mut strike: Option<(usize, Color)> = None;
+    let mut blocks = Vec::new();
     for (col, cell) in cells.iter().enumerate() {
         if cell.style.spacer {
             continue;
         }
+        let solid = block_box(cell.ch).filter(|_| !cell.style.hidden);
         bg = step_run(
             bg,
             col,
-            cell.bg != plan.default_bg,
+            solid.is_none() && cell.bg != plan.default_bg,
             cell.bg,
             backgrounds,
             Band {
@@ -479,12 +537,22 @@ fn coalesce(
                 h: plan.cell_h,
             },
         );
+        if let Some((fx, fy, fw, fh)) = solid {
+            blocks.push(MonoRun {
+                x: (col as f32 + fx) * plan.cell_w,
+                y: row as f32 * plan.cell_h + fy * plan.cell_h,
+                w: fw * plan.cell_w,
+                h: fh * plan.cell_h,
+                color: cell.fg,
+            });
+        }
         let under_h = plan.cell_h.min(2.0);
+        let single = cell.style.underline == MonoUnderline::Single;
         under = step_run(
             under,
             col,
-            cell.style.underline,
-            cell.fg,
+            single,
+            cell.underline_color,
             strokes,
             Band {
                 plan,
@@ -493,6 +561,16 @@ fn coalesce(
                 h: under_h,
             },
         );
+        if cell.style.underline != MonoUnderline::None && !single {
+            emit_decor(
+                strokes,
+                plan,
+                row,
+                col,
+                cell.style.underline,
+                cell.underline_color,
+            );
+        }
         strike = step_run(
             strike,
             col,
@@ -541,6 +619,56 @@ fn coalesce(
             h: 1.5,
         },
     );
+    backgrounds.extend(blocks);
+}
+
+fn emit_decor(
+    out: &mut Vec<MonoRun>,
+    plan: &RowPlan,
+    row: usize,
+    col: usize,
+    kind: MonoUnderline,
+    color: Color,
+) {
+    let x = col as f32 * plan.cell_w;
+    let bottom = (row + 1) as f32 * plan.cell_h;
+    match kind {
+        MonoUnderline::None | MonoUnderline::Single => {}
+        MonoUnderline::Double => {
+            out.push(bar(x, bottom - 3.6, plan.cell_w, 1.2, color));
+            out.push(bar(x, bottom - 1.5, plan.cell_w, 1.2, color));
+        }
+        MonoUnderline::Dotted => {
+            let mut t = 0.0;
+            while t < plan.cell_w {
+                let w = 1.6_f32.min(plan.cell_w - t);
+                out.push(bar(x + t, bottom - 1.8, w, 1.4, color));
+                t += 3.4;
+            }
+        }
+        MonoUnderline::Dashed => {
+            let mut t = 0.0;
+            while t < plan.cell_w {
+                let w = 4.0_f32.min(plan.cell_w - t);
+                out.push(bar(x + t, bottom - 1.8, w, 1.4, color));
+                t += 6.5;
+            }
+        }
+        MonoUnderline::Curly => {
+            let amp = 1.15;
+            let steps = ((plan.cell_w / 2.0).round() as usize).max(3);
+            for i in 0..steps {
+                let frac = i as f32 / steps as f32;
+                let y = bottom - 2.4 - amp + (frac * 2.0 * std::f32::consts::TAU).sin() * amp;
+                let w = plan.cell_w / steps as f32 + 0.8;
+                out.push(bar(x + frac * plan.cell_w, y, w, 1.4, color));
+            }
+        }
+    }
+}
+
+fn bar(x: f32, y: f32, w: f32, h: f32, color: Color) -> MonoRun {
+    MonoRun { x, y, w, h, color }
 }
 
 fn step_run(

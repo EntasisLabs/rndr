@@ -56,6 +56,7 @@ swash = { version = "0.2.10", optional = true }
 etagere = { version = "0.3", optional = true }
 tray-icon = { version = "0.26.1", optional = true, default-features = false, features = ["ksni"] }
 png = { version = "0.18", optional = true }
+arboard = { version = "3", default-features = false, features = ["wayland-data-control"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.5.2"

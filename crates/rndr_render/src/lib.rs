@@ -27,6 +27,7 @@
 
 #![deny(missing_docs)]
 
+mod clipboard;
 mod color;
 mod gpu;
 #[cfg(feature = "hotkey")]
@@ -210,6 +211,8 @@ pub fn run(mut app: App) {
         super_key: false,
         platform: host_platform(),
         key_order: 0,
+        press_px: None,
+        os_clipboard: clipboard::OsClipboard::new(),
         #[cfg(feature = "tray")]
         tray: tray::Session::new(),
     };
@@ -268,6 +271,9 @@ struct Handler {
     /// Receive-order stamped onto each [`KeyEvent`]. Starts at 0; the first
     /// key is 1. [`KeyEvent::UNORDERED`] is reserved and never assigned.
     key_order: u64,
+    /// Cursor in physical pixels at the button-down this frame.
+    press_px: Option<[f32; 2]>,
+    os_clipboard: clipboard::OsClipboard,
     #[cfg(feature = "tray")]
     tray: tray::Session,
 }
@@ -305,6 +311,7 @@ impl Handler {
         let scale = self.scale();
         self.pointer.id = MOUSE_ID;
         self.pointer.position = [self.cursor_px[0] / scale, self.cursor_px[1] / scale];
+        self.pointer.press_at = self.press_px.map(|px| [px[0] / scale, px[1] / scale]);
         let platform = self.platform;
         self.app.world_mut().insert_resource(platform);
         if let Some(input) = self.app.world_mut().resource_mut::<Input>() {
@@ -332,6 +339,8 @@ impl Handler {
         }
         self.pointer.pressed = false;
         self.pointer.released = false;
+        self.pointer.press_at = None;
+        self.press_px = None;
         self.scroll = [0.0, 0.0];
         self.keys.clear();
         self.ime_commit.clear();
@@ -356,11 +365,20 @@ impl Handler {
         rndr_core::window::publish_metrics(self.app.world_mut(), raw_width, raw_height, scale);
         let width = raw_width.max(1);
         let height = raw_height.max(1);
+        {
+            let board = &mut self.os_clipboard;
+            if let Some(clipboard) = self.app.world_mut().resource_mut::<Clipboard>() {
+                board.pull(clipboard);
+            }
+        }
         let painted = frame(&mut self.app);
-        // winit 0.30 has no OS clipboard. The resource is the value; clear the
-        // dirty bit after the frame so a platform can see that core wrote it.
-        if let Some(clipboard) = self.app.world_mut().resource_mut::<Clipboard>() {
-            clipboard.dirty = false;
+        {
+            let board = &mut self.os_clipboard;
+            if let Some(clipboard) = self.app.world_mut().resource_mut::<Clipboard>() {
+                board.push(clipboard);
+                clipboard.dirty = false;
+                clipboard.primary_dirty = false;
+            }
         }
         self.upload_atlases();
         let scale = self
@@ -967,6 +985,7 @@ impl ApplicationHandler<RunnerEvent> for Handler {
                 self.pointer.button = map_pointer_button(button);
                 match state {
                     ElementState::Pressed => {
+                        self.press_px = Some(self.cursor_px);
                         self.pointer.pressed = true;
                         self.pointer.down = true;
                     }

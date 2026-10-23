@@ -38,6 +38,10 @@ pub struct Pointer {
     /// Button that produced [`Self::pressed`] or [`Self::released`].
     /// While `down` is set with no edge, this is the held button.
     pub button: PointerButton,
+    /// Where the button went down, in logical points, when [`Self::pressed`]
+    /// is set. `None` on a frame that did not see a press. It differs from
+    /// [`Self::position`] when the contact moved before the frame was pumped.
+    pub press_at: Option<[f32; 2]>,
 }
 
 /// Ask the window loop for a frame on cursor motion while the button is up.
@@ -58,6 +62,7 @@ impl Default for Pointer {
             down: false,
             released: false,
             button: PointerButton::Left,
+            press_at: None,
         }
     }
 }

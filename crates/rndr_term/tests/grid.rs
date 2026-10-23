@@ -1,6 +1,6 @@
 use rndr_core::{
-    App, Color, FontStyle, Input, KeyCode, KeyEvent, Modifiers, MonoCache, MonoGrid, NamedKey,
-    Platform, PointerButton, TextStyle, Viewport, FONT_WEIGHT_REGULAR,
+    App, Color, FontStyle, Input, KeyCode, KeyEvent, Modifiers, MonoCache, MonoGrid, MonoUnderline,
+    NamedKey, Platform, PointerButton, TextStyle, Viewport, FONT_WEIGHT_REGULAR,
 };
 use rndr_term::{
     feed_terminal, open_terminal, take_terminal_bytes, TerminalExited, TerminalOptions,
@@ -56,7 +56,7 @@ fn sgr_colors_styles_and_unchanged_rows_are_not_reshaped() {
     assert_eq!(bold.ch, 'B');
 
     let under = cell(&app, entity, 2, 0);
-    assert!(under.style.underline);
+    assert_eq!(under.style.underline, MonoUnderline::Single);
     assert_eq!(under.ch, 'U');
 
     let inverse = cell(&app, entity, 3, 0);
@@ -257,6 +257,114 @@ fn copy_selection_sets_the_clipboard() {
         .text
         .clone();
     assert!(text.contains('H'), "{text}");
+}
+
+#[test]
+fn tabs_marks_curly_underline_and_blocks_survive_the_grid() {
+    let (mut app, entity) = harness(20, 4);
+    let bytes =
+        "tab:\tA\r\ne\u{0301} a\u{0308}\r\n\x1b[4:3mC\x1b[0m\x1b[4;58;5;196mU\x1b[0m\u{2588}";
+    feed_terminal(app.world_mut(), entity, bytes.as_bytes());
+    app.update();
+
+    assert!(
+        row_text(&app, entity, 0).chars().all(|ch| ch != '\t'),
+        "a tab cell must be blank, got {:?}",
+        row_text(&app, entity, 0)
+    );
+    assert_eq!(cell(&app, entity, 8, 0).ch, 'A');
+
+    let acute = cell(&app, entity, 0, 1);
+    assert_eq!(acute.ch, 'e');
+    assert_eq!(acute.marks[0], '\u{0301}');
+    let diaeresis = cell(&app, entity, 2, 1);
+    assert_eq!(diaeresis.ch, 'a');
+    assert_eq!(diaeresis.marks[0], '\u{0308}');
+
+    let curly = cell(&app, entity, 0, 2);
+    assert_eq!(curly.ch, 'C');
+    assert_eq!(curly.style.underline, MonoUnderline::Curly);
+    let colored = cell(&app, entity, 1, 2);
+    assert_eq!(colored.ch, 'U');
+    assert_eq!(colored.style.underline, MonoUnderline::Single);
+    assert!(
+        colored.underline_color.r > 0.9 && colored.underline_color.g < 0.05,
+        "{:?}",
+        colored.underline_color
+    );
+    let block = cell(&app, entity, 2, 2);
+    assert_eq!(block.ch, '\u{2588}');
+    let cache = app.world().get::<MonoCache>(entity).unwrap();
+    assert!(
+        cache.rows[2].backgrounds.iter().any(|run| {
+            (run.x - 16.0).abs() < 1.0
+                && run.w >= 7.0
+                && run.h >= 7.0
+                && (run.color.r - block.fg.r).abs() < 0.05
+        }),
+        "full block should fill its cell, runs {:?}",
+        cache.rows[2].backgrounds
+    );
+    assert!(
+        cache.rows[2]
+            .glyphs
+            .iter()
+            .all(|glyph| glyph.ch != '\u{2588}'),
+        "the block glyph would leave seams"
+    );
+    assert!(
+        cache.rows[2].strokes.len() >= 3,
+        "curly underline should be a wave, strokes {:?}",
+        cache.rows[2].strokes
+    );
+}
+
+#[test]
+fn a_press_and_release_in_one_frame_selects_the_span() {
+    let (mut app, entity) = harness(12, 3);
+    feed_terminal(app.world_mut(), entity, b"abcdefghij");
+    app.update();
+    {
+        let input = app.world_mut().resource_mut::<Input>().unwrap();
+        input.pointer.press_at = Some([1.0, 1.0]);
+        input.pointer.position = [40.0, 1.0];
+        input.pointer.pressed = true;
+        input.pointer.released = true;
+        input.pointer.down = false;
+        input.pointer.button = PointerButton::Left;
+    }
+    app.update();
+    let grid = app.world().get::<MonoGrid>(entity).unwrap();
+    let band = grid.selection.first().expect("selection");
+    assert_eq!(band.row, 0);
+    assert!(
+        band.end.saturating_sub(band.start) >= 2,
+        "same-frame drag selected {:?}",
+        grid.selection
+    );
+    let primary = {
+        let clip = app.world().resource::<rndr_core::Clipboard>().unwrap();
+        assert!(clip.primary_dirty, "selection should publish the primary");
+        assert!(clip.primary.contains('a'), "{}", clip.primary);
+        clip.primary.clone()
+    };
+
+    {
+        let input = app.world_mut().resource_mut::<Input>().unwrap();
+        input.pointer.pressed = false;
+        input.pointer.released = false;
+        input.pointer.press_at = None;
+        input.pointer.button = PointerButton::Middle;
+        input.pointer.pressed = true;
+        input.pointer.position = [1.0, 1.0];
+    }
+    app.update();
+    let written = take_terminal_bytes(app.world_mut(), entity).unwrap();
+    let text = std::str::from_utf8(&written).unwrap_or("");
+    assert!(
+        text.contains(primary.as_str()) || text.contains('a'),
+        "middle click should paste the primary {primary:?}, wrote {written:?}"
+    );
 }
 
 fn row_text(app: &App, entity: rndr_core::Entity, row: usize) -> String {

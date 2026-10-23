@@ -9,7 +9,9 @@ use alacritty_terminal::index::{Column, Point};
 use alacritty_terminal::term::cell::Flags;
 use alacritty_terminal::term::{Term, TermMode};
 use alacritty_terminal::vte::ansi::{Color as AnsiColor, CursorShape, NamedColor, Rgb};
-use rndr_core::{Color, MonoBand, MonoCell, MonoCursor, MonoCursorShape, MonoGrid, MonoStyle};
+use rndr_core::{
+    Color, MonoBand, MonoCell, MonoCursor, MonoCursorShape, MonoGrid, MonoStyle, MonoUnderline,
+};
 
 use crate::session::Listener;
 
@@ -104,19 +106,61 @@ fn convert_cell(
         .flags
         .intersects(Flags::WIDE_CHAR_SPACER | Flags::LEADING_WIDE_CHAR_SPACER);
     let hidden = cell.flags.contains(Flags::HIDDEN) || spacer;
+    let underline_color = match cell.underline_color() {
+        Some(color) => {
+            let mut resolved = resolve(color, colors, true);
+            if cell.flags.contains(Flags::DIM) {
+                resolved = scale(resolved, 0.67);
+            }
+            resolved
+        }
+        None => fg,
+    };
     MonoCell {
-        ch: if spacer { ' ' } else { cell.c },
+        ch: if spacer || cell.c == '\t' || cell.c == '\0' {
+            ' '
+        } else {
+            cell.c
+        },
+        marks: marks_of(cell),
         fg,
         bg,
+        underline_color,
         style: MonoStyle {
             bold: cell.flags.contains(Flags::BOLD),
             italic: cell.flags.contains(Flags::ITALIC),
-            underline: cell.flags.intersects(Flags::ALL_UNDERLINES),
+            underline: underline_kind(cell.flags),
             strike: cell.flags.contains(Flags::STRIKEOUT),
             hidden,
             wide: cell.flags.contains(Flags::WIDE_CHAR),
             spacer,
         },
+    }
+}
+
+fn marks_of(cell: &alacritty_terminal::term::cell::Cell) -> [char; 4] {
+    let mut marks = ['\0'; 4];
+    if let Some(extra) = cell.zerowidth() {
+        for (slot, ch) in marks.iter_mut().zip(extra.iter().copied()) {
+            *slot = ch;
+        }
+    }
+    marks
+}
+
+fn underline_kind(flags: Flags) -> MonoUnderline {
+    if flags.contains(Flags::UNDERCURL) {
+        MonoUnderline::Curly
+    } else if flags.contains(Flags::DOUBLE_UNDERLINE) {
+        MonoUnderline::Double
+    } else if flags.contains(Flags::DOTTED_UNDERLINE) {
+        MonoUnderline::Dotted
+    } else if flags.contains(Flags::DASHED_UNDERLINE) {
+        MonoUnderline::Dashed
+    } else if flags.contains(Flags::UNDERLINE) {
+        MonoUnderline::Single
+    } else {
+        MonoUnderline::None
     }
 }
 
