@@ -44,11 +44,14 @@ use crate::world::World;
 
 /// Headless app plus a fake clock and inline executor.
 pub struct Sim {
+    /// Headless [`App`](crate::App) driven by the methods below.
     pub app: App,
     clock: Arc<ManualClock>,
 }
 
 impl Sim {
+    /// Manual clock at zero, [`NopWake`], and an [`InlineExecutor`] that
+    /// keeps spawn order.
     pub fn new() -> Self {
         Self::with_executor(None)
     }
@@ -67,6 +70,7 @@ impl Sim {
         Self { app, clock }
     }
 
+    /// The app [`World`](crate::World).
     pub fn world(&mut self) -> &mut World {
         self.app.world_mut()
     }
@@ -83,6 +87,8 @@ impl Sim {
     }
 
     /// Tick [`crate::Time`], pump tasks and timers, then run schedules.
+    ///
+    /// This calls [`App::update`](crate::App::update).
     pub fn update(&mut self) {
         self.app.update();
     }

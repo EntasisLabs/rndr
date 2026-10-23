@@ -17,11 +17,17 @@ pub const TEXT_INSET_Y: f32 = TEXT_ORIGIN_Y;
 /// A visual row after wrap. Byte range in the source; never includes a trailing `\n`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct VisualLine {
+    /// First byte of the row. A wrapped row starts after the break.
     pub start: usize,
+    /// Byte after the last included scalar. The trailing newline is excluded.
     pub end: usize,
 }
 
-/// How many glyphs fit in a field of `width` pixels.
+/// How many glyphs fit in a field of `width` logical points.
+///
+/// Both sides lose [`TEXT_INSET_X`], then the remainder is divided by
+/// [`GLYPH_PX`]. The count is at least 1. These are bitmap cells, not
+/// shaped clusters.
 pub fn cols_for(width: f32) -> usize {
     let inner = (width - 2.0 * TEXT_INSET_X).max(GLYPH_PX);
     (inner / GLYPH_PX).floor().max(1.0) as usize
@@ -41,6 +47,9 @@ pub fn field_height_lines(n: usize) -> f32 {
 
 /// Greedy wrap on the bitmap face. `\n` always starts a new row.
 /// A word longer than `cols` cells hard-breaks. `usize::MAX` does not wrap.
+///
+/// Empty text yields one empty line. A column is [`CELL_W`] points on the
+/// bitmap face.
 pub fn wrap_lines(text: &str, cols: usize) -> Vec<VisualLine> {
     let max_width = if cols == usize::MAX {
         f32::INFINITY
@@ -58,12 +67,18 @@ pub fn wrap_lines(text: &str, cols: usize) -> Vec<VisualLine> {
 }
 
 /// `(visual_line, column)` for a byte index.
+///
+/// The column is a byte offset from that line's start. An index past the
+/// last line lands on that line, at its end. An empty slice returns `(0, 0)`.
 pub fn visual_pos(lines: &[VisualLine], index: usize) -> (usize, usize) {
     let ranges: Vec<(usize, usize)> = lines.iter().map(|line| (line.start, line.end)).collect();
     line_col(&ranges, index)
 }
 
 /// Selected runs as `(visual_line, start_col, end_col)` in paint order.
+///
+/// Columns are byte offsets from [`VisualLine::start`]. An empty selection
+/// returns an empty vec. A blank line inside the range is `(line, 0, 0)`.
 pub fn visual_selection_spans(
     lines: &[VisualLine],
     anchor: usize,
@@ -95,6 +110,9 @@ pub fn visual_selection_spans(
 }
 
 /// Byte index at `col` on visual `line`.
+///
+/// `line` past the end uses the last line. `col` past the line's bytes
+/// stops at the line's end. An empty slice returns `0`.
 pub fn index_at_visual(lines: &[VisualLine], line: usize, col: usize) -> usize {
     let Some(vis) = lines.get(line.min(lines.len().saturating_sub(1))) else {
         return 0;
@@ -103,6 +121,10 @@ pub fn index_at_visual(lines: &[VisualLine], line: usize, col: usize) -> usize {
 }
 
 /// Byte index under a pointer in a field [`Rect`]. Title uses `cols = usize::MAX`.
+///
+/// The hit test uses the bitmap face, after removing [`TEXT_INSET_X`] and
+/// [`TEXT_INSET_Y`] from the point in `rect`'s space. `usize::MAX` does not
+/// wrap.
 pub fn index_at_pointer(text: &str, cols: usize, rect: Rect, x: f32, y: f32) -> usize {
     let max_width = if cols == usize::MAX {
         f32::INFINITY
@@ -115,6 +137,11 @@ pub fn index_at_pointer(text: &str, cols: usize, rect: Rect, x: f32, y: f32) -> 
 
 /// Fresh layout of `text` on `entity`. Body fields wrap to the row width.
 /// Uses the world's [`crate::TextFace`] when one is set.
+///
+/// A [`crate::Field`] of kind [`crate::EditField::Body`] wraps to the row.
+/// Other fields get an unbounded width. [`crate::Spans`] on the entity are
+/// passed through. The engine may reuse a cached line. The layout is
+/// returned and is not written onto the entity.
 pub fn layout_of(world: &World, entity: Entity, text: &str) -> TextLayout {
     with_text_layout(world, entity, text, TextLayout::clone)
 }
@@ -148,6 +175,11 @@ pub(crate) fn with_text_layout<R>(
 }
 
 /// Grow every body field so its height matches wrapped lines.
+///
+/// Each [`crate::Pane`]'s spawned [`crate::EditField::Body`] gets a
+/// [`crate::Layout`] height of [`crate::Size::Px`]. The line count comes
+/// from the text engine at the row width, or from newline splits when that
+/// width is still unknown. The height is at least one tree row.
 pub fn apply_wrap(world: &mut World) {
     let panes = world.entities_with::<Pane>();
     for pane in panes {

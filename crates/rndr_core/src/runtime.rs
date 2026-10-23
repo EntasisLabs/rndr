@@ -25,6 +25,11 @@ const TIMER_BURST: u8 = 64;
 
 /// Wakes the window loop. The desktop runner sends a winit user event.
 pub trait Wake: Send + Sync {
+    /// Ask the host to pump another frame.
+    ///
+    /// Called when a timer is armed, a task becomes ready, or a completion
+    /// is queued. It may run on a worker, so the body has to be brief.
+    /// [`NopWake`] ignores the call.
     fn wake(&self);
 }
 
@@ -229,6 +234,11 @@ impl TaskHandle {
         self.shared.cancel_and_nudge();
     }
 
+    /// Whether this task has been cancelled.
+    ///
+    /// [`cancel`](Self::cancel) sets the flag, and so does drop unless
+    /// [`detach`](Self::detach) ran. [`Job::poll`] sets it when a background
+    /// future panics.
     pub fn is_cancelled(&self) -> bool {
         self.shared.is_cancelled()
     }
@@ -251,7 +261,8 @@ impl Drop for TaskHandle {
 ///
 /// Executors poll this on a worker and drop it to cancel. [`Job::poll`]
 /// installs the scheduler for [`sleep`] and returns [`Poll::Ready`] once the
-/// task has been cancelled.
+/// task has been cancelled. A panic in the future is caught, the task is
+/// marked cancelled, and the panic does not leave the worker.
 pub struct Job {
     future: Pin<Box<dyn Future<Output = ()> + Send>>,
     runtime: Weak<RuntimeInner>,
@@ -259,10 +270,19 @@ pub struct Job {
 }
 
 impl Job {
+    /// `true` when the handle cancelled the task or [`poll`](Self::poll)
+    /// caught a panic.
     pub fn cancelled(&self) -> bool {
         self.shared.is_cancelled()
     }
 
+    /// Drive the future once.
+    ///
+    /// When the runtime is still alive, the poll enters it so [`sleep`] can
+    /// read the app clock. [`Poll::Ready`] means the runtime is gone, the
+    /// task is cancelled, the future finished, or the future panicked. A
+    /// panic is caught and the task is marked cancelled. The panic does not
+    /// propagate. [`Poll::Pending`] means the future is waiting.
     pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<()> {
         let Some(inner) = self.runtime.upgrade() else {
             return Poll::Ready(());
@@ -293,12 +313,26 @@ impl Job {
 /// [`poll_inline`](Executor::poll_inline) is for executors that share the
 /// caller's thread; a pool returns `false` and polls on its workers.
 pub trait Executor: Send + Sync {
+    /// Own `job` and poll it until it finishes or is cancelled.
+    ///
+    /// Dropping the job drops the future, which drops a result that has not
+    /// been committed. The future [`spawn`] builds queues an [`Event`] only
+    /// while the task is still live at completion.
     fn spawn(&self, job: Job);
 
+    /// Poll ready jobs on the caller's thread.
+    ///
+    /// Returns `true` when a batch was taken. The default returns `false`
+    /// and leaves the jobs on another thread. [`run_until_parked`] treats
+    /// `false` as idle and does not wait for those jobs.
     fn poll_inline(&self) -> bool {
         false
     }
 
+    /// `true` when a job is waiting for [`poll_inline`](Self::poll_inline).
+    ///
+    /// The default is `false`. The frame pump asks this when deciding
+    /// whether to schedule another frame.
     fn has_ready(&self) -> bool {
         false
     }
@@ -357,6 +391,7 @@ pub struct InlineExecutor {
 }
 
 impl InlineExecutor {
+    /// `Some(seed)` shuffles each ready batch. `None` keeps spawn order.
     pub fn new(seed: Option<u64>) -> Self {
         Self {
             state: Mutex::new(InlineState {
@@ -573,6 +608,16 @@ where
 /// Spawn `future` on the background [`Executor`].
 /// The output is committed as an event on the UI thread unless the handle
 /// was dropped or [`TaskHandle::cancel`]led first.
+///
+/// `future` is [`Send`] and may be polled on a worker. [`sleep`] reads the
+/// app clock. A panic during polling is caught, the task is marked
+/// cancelled, and no [`Event`] is committed. Drop the handle to cancel.
+/// [`TaskHandle::detach`] leaves the task running with no handle.
+///
+/// # Panics
+///
+/// Panics if `world` has no runtime or executor. [`crate::App::new`]
+/// installs both.
 pub fn spawn<T, F>(world: &mut World, future: F) -> TaskHandle
 where
     T: Event,
@@ -592,6 +637,18 @@ where
 
 /// Spawn `future` on the thread that pumps the app.
 /// The future may own non-`Send` state. The output still has to be an [`Event`].
+///
+/// The pump is [`run_until_parked`] or [`crate::App::update`] on that thread.
+/// The [`TaskHandle`] is [`Send`] and [`Sync`] even when the future is not.
+/// A panic during polling is caught and the task is dropped. No event is
+/// committed, and [`TaskHandle::is_cancelled`] stays clear unless the handle
+/// was cancelled. State that is not [`Send`] belongs in the future or in
+/// [`crate::World::insert_local`].
+///
+/// # Panics
+///
+/// Panics if `world` has no runtime or local-task table. [`crate::App::new`]
+/// installs both.
 pub fn spawn_local<T, F>(world: &mut World, future: F) -> TaskHandle
 where
     T: Event,
@@ -703,6 +760,10 @@ struct Timer {
 }
 
 /// Cancels the timer when dropped.
+///
+/// [`detach`](Self::detach) keeps the timer armed. The next pump removes a
+/// cancelled timer before it emits. An event already committed stays in the
+/// buffer.
 #[must_use = "dropping a TimerHandle cancels the timer; call detach() to keep it"]
 pub struct TimerHandle {
     cancel: Arc<AtomicBool>,
@@ -710,10 +771,15 @@ pub struct TimerHandle {
 }
 
 impl TimerHandle {
+    /// Stop later firings.
+    ///
+    /// A firing that sees the flag skips the emit.
     pub fn cancel(&self) {
         self.cancel.store(true, Ordering::Release);
     }
 
+    /// Whether [`cancel`](Self::cancel) has run, or the handle was dropped
+    /// without [`detach`](Self::detach).
     pub fn is_cancelled(&self) -> bool {
         self.cancel.load(Ordering::Acquire)
     }
@@ -781,6 +847,14 @@ pub(crate) fn call_after(
 }
 
 /// Emit `event` once `delay` has passed on the clock.
+///
+/// A delay of zero is due on the next pump. The callback runs on the UI
+/// thread. Dropping the [`TimerHandle`] cancels the emit.
+/// [`TimerHandle::detach`] keeps it armed after the handle is gone.
+///
+/// # Panics
+///
+/// Panics if `world` has no runtime. [`crate::App::new`] installs one.
 pub fn after<T: Event>(world: &mut World, delay: Duration, event: T) -> TimerHandle {
     let cancel = Arc::new(AtomicBool::new(false));
     let flag = Arc::clone(&cancel);
@@ -799,6 +873,14 @@ pub fn after<T: Event>(world: &mut World, delay: Duration, event: T) -> TimerHan
 
 /// Emit a clone of `event` every `period`. `period` must be non-zero.
 /// A pump delivers at most 64 missed repeats, then jumps one period past `now`.
+///
+/// The first emit waits one full `period`. Dropping the handle cancels
+/// later emits unless [`TimerHandle::detach`] was called.
+///
+/// # Panics
+///
+/// Panics if `period` is zero, or if `world` has no runtime.
+/// [`crate::App::new`] installs the runtime.
 pub fn every<T: Event + Clone>(world: &mut World, period: Duration, event: T) -> TimerHandle {
     assert!(!period.is_zero(), "every() period must be non-zero");
     let cancel = Arc::new(AtomicBool::new(false));
@@ -817,6 +899,15 @@ pub fn every<T: Event + Clone>(world: &mut World, period: Duration, event: T) ->
 }
 
 /// Park the current task until `duration` has passed on the app clock.
+///
+/// The deadline is fixed on the first poll: the clock then, plus `duration`.
+/// A zero duration is ready on that poll. Dropping the future cancels the
+/// wake that would resume it.
+///
+/// # Panics
+///
+/// The future panics if polled outside a task from [`spawn`] or
+/// [`spawn_local`].
 pub fn sleep(duration: Duration) -> Sleep {
     Sleep {
         duration,
@@ -826,6 +917,10 @@ pub fn sleep(duration: Duration) -> Sleep {
 }
 
 /// Future returned by [`sleep`].
+///
+/// The first poll samples the app clock. Later polls complete once that
+/// deadline has passed. Drop cancels the pending wake. See [`sleep`] for
+/// the panic outside a task.
 pub struct Sleep {
     duration: Duration,
     deadline: Option<Duration>,
@@ -1002,6 +1097,17 @@ where
 /// Reset a named timer. When `delay` passes with no further call for `key`,
 /// `make` runs on the UI thread and its future is spawned in the background.
 /// A later call for the same key cancels the pending timer and any in-flight task.
+///
+/// `make` runs during the pump and receives no [`World`]. It may capture
+/// values that are not [`Send`]. The [`Future`] it returns is [`Send`] and
+/// goes to [`spawn`]. An equal `key` of the same type replaces the previous
+/// slot. A different key type has its own table. [`cancel_debounce`] drops
+/// the slot early. A panic in `make` propagates out of the pump. A panic
+/// in the future is caught the way [`spawn`] catches it.
+///
+/// # Panics
+///
+/// Panics if `world` has no runtime. [`crate::App::new`] installs one.
 pub fn debounce<K, T, Fut>(
     world: &mut World,
     key: K,
@@ -1027,6 +1133,13 @@ pub fn debounce<K, T, Fut>(
 }
 
 /// Like [`debounce`], but the future runs on the UI thread.
+///
+/// `make` and the [`Future`] it returns may both be `!Send`. The future is
+/// started with [`spawn_local`]. Cancellation matches [`debounce`].
+///
+/// # Panics
+///
+/// Panics if `world` has no runtime. [`crate::App::new`] installs one.
 pub fn debounce_local<K, T, Fut>(
     world: &mut World,
     key: K,
@@ -1052,6 +1165,9 @@ pub fn debounce_local<K, T, Fut>(
 }
 
 /// Drop a pending debounce, its timer, and any in-flight task.
+///
+/// The key type has to be the type used to arm the slot. An unknown key
+/// does nothing.
 pub fn cancel_debounce<K>(world: &mut World, key: &K)
 where
     K: Eq + std::hash::Hash + 'static,
@@ -1064,6 +1180,18 @@ where
 /// Fire due timers and poll until every task is parked, then commit results
 /// that were not cancelled into the readable event buffers.
 /// Does not advance [`Time`] and does not run systems.
+///
+/// One step fires due timers, calls [`Executor::poll_inline`], and polls
+/// local tasks. The loop stops when a step does no work, or after 10_000
+/// steps. A `false` from [`Executor::poll_inline`] does not wait for work
+/// that executor runs on other threads. Completions already queued are
+/// committed, and a cancelled one is dropped.
+///
+/// # Panics
+///
+/// Panics if `world` has no runtime or executor. A queued local task also
+/// panics when the local-task table is missing. [`crate::App::new`]
+/// installs the runtime, the executor, and that table.
 pub fn run_until_parked(world: &mut World) {
     for _ in 0..MAX_STEPS {
         let fired = fire_timers(world);

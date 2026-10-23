@@ -17,6 +17,10 @@ struct PoolSlot {
 }
 
 /// Background executor used by the desktop runner.
+///
+/// Create one with [`thread_pool`] under the `pool` feature. Jobs are polled
+/// on worker threads. [`Executor::poll_inline`] returns false. Dropping the
+/// caller's [`Executor`] handle leaves those threads waiting for more jobs.
 pub struct ThreadPool {
     tx: Mutex<Option<Sender<u64>>>,
     slots: Mutex<HashMap<u64, PoolSlot>>,
@@ -25,6 +29,17 @@ pub struct ThreadPool {
 }
 
 /// Start a pool sized to the machine, capped at four workers.
+///
+/// Available parallelism is used, or 2 when it is unknown, then clamped to
+/// `2..=4`. Threads are named `rndr-pool`. Callers hold the pool as an
+/// [`Executor`]. [`Executor::poll_inline`] stays false, so
+/// [`crate::run_until_parked`] does not poll these jobs on the caller.
+/// Completions land in the runtime inbox, and the host is woken from that
+/// path. Requires the `pool` feature.
+///
+/// # Panics
+///
+/// Panics if a worker thread cannot be spawned.
 pub fn thread_pool() -> Arc<dyn Executor> {
     ThreadPool::start()
 }
