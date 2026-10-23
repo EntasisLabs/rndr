@@ -1,6 +1,6 @@
 # rndr
 
-A Bevy-shaped ECS for desktop applications. Core owns the world. wgpu draws a flat list.
+A Bevy-shaped ECS for desktop applications. Core owns the world. wgpu draws quads and a vector display list.
 
 ```
 Application
@@ -34,10 +34,10 @@ Application
 | --- | --- |
 | `rndr` | Facade. Re-exports the libraries below so `cargo add rndr` is the desktop entry point. Features match `rndr_render` |
 | `rndr_core` | ECS, layout, clip, scroll, disclosure, focus, pane, split, caret, body, wrap, `Font`, `Files`, `Chrome`, events, tasks, timers, markdown |
-| `rndr_paint` | `frame`: update, then quads in points. Reads a `TextLayout`. The bitmap face is an 8×8 ASCII atlas |
+| `rndr_paint` | `frame`: update, then quads in points plus a display list of paths, images, and layers. Reads a `TextLayout`. The bitmap face is an 8×8 ASCII atlas |
 | `rndr_std` | `std::fs` plugin |
 | `rndr_term` | Embedded terminal. A PTY and a VT state machine copy cells into a `MonoGrid`. Optional `rndr` feature `term` re-exports it. Core and paint do not link the PTY |
-| `rndr_render` | winit window writes `Input` and `Viewport`, then presents quads. `WindowConfig` chooses title, size, and panel behavior. The default `hotkey`, `tray`, and `accesskit` features add system-wide chords, a menu-bar icon, and an accessibility tree. `dialog` is optional and shows native open and save dialogs |
+| `rndr_render` | winit window writes `Input` and `Viewport`, then presents the frame. `WindowConfig` chooses title, size, and panel behavior. The default `hotkey`, `tray`, and `accesskit` features add system-wide chords, a menu-bar icon, and an accessibility tree. `dialog` is optional and shows native open and save dialogs |
 | `examples/expand` | File-backed expand demo: folder tree, pane, splitter, caret, create, delete |
 | `examples/idle` | Empty window. `ControlFlow::Wait` when nothing is scheduled |
 | `examples/overlay` | Frameless centered panel. Hides on blur and Escape, returns on Alt+Space |
@@ -46,6 +46,7 @@ Application
 | `examples/terminal` | Shell in a window. `cargo run -p terminal` |
 | `examples/windows` | Two windows. A Save button tells the other window. `cargo run -p two-windows` |
 | `examples/pen-probe` | Logs pen and touch pressure. A spike, not a supported tablet API |
+| `examples/canvas-scene` | Pan and zoom a vector scene. `cargo run -p canvas-scene -- --export out.png` writes a PNG |
 
 A blank `App` holds the world, `Input`, and `Viewport`. `Shell` registers the file-tree systems. `Chrome` is optional and leaves `Shell` alone: named chords, buttons, tabs, a single-line field, a multi-line prompt, overlays, a virtual list, an in-memory clipboard, styled runs, a gap-buffer editor, decorations, and IME preedit. `frame` also reports `SurfaceSlot` rects and leaves those interiors empty. `StdFsPlugin` inserts the disk backend. `MemoryFs` is the headless backend. `rndr_paint::frame` steps the world and returns quads in points. `rndr_render` writes the window into `Input` and `Viewport`, then multiplies those quads by `scale` and presents them. Headless crates stop at the standard library. The desktop crate depends on `wgpu`, `winit`, and `pollster`, and, when the default features are on, on `parley` for text, `tray-icon`, and the hotkey backends. `rndr_core` stays headless either way. No layout engine and no third-party ECS.
 
@@ -199,7 +200,7 @@ F21–F24 have no Carbon virtual key, so they are `InvalidBinding` on macOS and 
 
 ## Headless tests
 
-CI on macOS, Windows, and Ubuntu runs `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo clippy -p rndr_render -p rndr --no-default-features --all-targets -- -D warnings`, `cargo clippy -p rndr_render -p rndr --features dialog --all-targets -- -D warnings`, `cargo test --workspace`, `cargo test -p rndr_core --features tokio`, `cargo test -p rndr_core --features highlight`, then `cargo build -p expand -p idle -p overlay -p palette -p terminal -p stream -p two-windows -p pen-probe -p rndr_render`. The Ubuntu job also runs `cargo package --workspace` (a verified build of each packaged crate) and checks that the Inter license and the snapshot files are in those crates, then builds `cargo doc --no-deps` with warnings denied. It installs the X11, Wayland, and Vulkan packages winit and wgpu need to compile. The tray and hotkey features add no further packages. The dialog feature on Linux uses the file-chooser portal and does not link GTK.
+CI on macOS, Windows, and Ubuntu runs `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo clippy -p rndr_render -p rndr --no-default-features --all-targets -- -D warnings`, `cargo clippy -p rndr_render -p rndr --features dialog --all-targets -- -D warnings`, `cargo test --workspace`, `cargo test -p rndr_core --features tokio`, `cargo test -p rndr_core --features highlight`, then `cargo build -p expand -p idle -p overlay -p palette -p terminal -p stream -p two-windows -p pen-probe -p canvas-scene -p rndr_render`. The Ubuntu job also runs `cargo package --workspace` (a verified build of each packaged crate) and checks that the Inter license and the snapshot files are in those crates, then builds `cargo doc --no-deps` with warnings denied. It installs the X11, Wayland, and Vulkan packages winit and wgpu need to compile. The tray and hotkey features add no further packages. The dialog feature on Linux uses the file-chooser portal and does not link GTK.
 
 A headless test drives one frame without a window:
 

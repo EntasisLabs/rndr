@@ -1,9 +1,10 @@
 use rndr_core::{
-    layout_text, App, Axis, Buffer, Caret, Chrome, Clip, Color, Decoration, DecorationKind,
-    Decorations, Editor, Font, Label, Layout, Prompt, Radius, Rect, Schedule, Size, Spans,
-    TextSpan, Theme, Viewport, World, CELL_H, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
+    layout_text, set_parent, App, Axis, Buffer, Caret, Chrome, Clip, Color, Decoration,
+    DecorationKind, Decorations, Editor, Font, ImageView, Label, Layout, Prompt, Radius, Rect,
+    Schedule, Size, Spans, TextSpan, Theme, Viewport, World, CELL_H, CELL_W, TEXT_ORIGIN_X,
+    TEXT_ORIGIN_Y,
 };
-use rndr_paint::{frame, paint, quads_snapshot, solid_uv, Frame, LatinFace};
+use rndr_paint::{frame, paint, quads_snapshot, solid_uv, Frame, LatinFace, Op};
 
 fn rect() -> Rect {
     Rect {
@@ -21,6 +22,7 @@ fn labeled_rect_paints_a_solid_quad_then_glyphs() {
     let painted = Frame {
         quads: paint(&world),
         slots: Vec::new(),
+        draws: Vec::new(),
     };
     insta::assert_snapshot!(quads_snapshot(&painted));
 }
@@ -275,4 +277,37 @@ fn prompt_text_is_clipped_to_the_content_band() {
     assert_eq!(glyphs[0].clip, content);
     let fill = quads.iter().find(|quad| quad.uv == solid).unwrap();
     assert_eq!(fill.clip, Clip::from_rect(rect()));
+}
+
+#[test]
+fn an_image_view_records_a_command_and_does_not_add_a_fill() {
+    let mut app = App::new();
+    app.world_mut().insert_resource(Viewport::new(200.0, 80.0));
+    let row = app.world_mut().spawn((
+        Layout {
+            width: Size::Px(120.0),
+            height: Size::Px(32.0),
+            ..Layout::row()
+        },
+        Color::rgb(0.2, 0.22, 0.24),
+    ));
+    let icon = app.world_mut().spawn((
+        Layout {
+            width: Size::Px(16.0),
+            height: Size::Px(16.0),
+            ..Layout::row()
+        },
+        ImageView::new(7).with_radius(3.0),
+    ));
+    set_parent(app.world_mut(), icon, row);
+    let painted = frame(&mut app);
+    assert!(painted.quads.iter().any(|quad| quad.color.r > 0.1));
+    assert!(painted
+        .draws
+        .iter()
+        .any(|placed| matches!(placed.op, Op::Image(image) if image.id == 7)));
+    assert!(painted
+        .quads
+        .iter()
+        .all(|quad| quad.rect.w > 16.5 || quad.rect.h > 16.5 || quad.color.a == 0.0));
 }

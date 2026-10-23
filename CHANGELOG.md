@@ -14,6 +14,15 @@
 - Native open and save dialogs behind the `dialog` feature, which is off by default. The result is `FileChosen`. Cancel leaves the path empty. Linux uses the file-chooser portal.
 - Custom cursor images. `CursorStyle::Image` uses the `CursorImage` resource. `rotate_cursor` rotates pixels and the hotspot clockwise in screen space.
 - `examples/pen-probe` logs pen and touch pressure. On macOS a local `NSEvent` monitor copies tablet pressure, tilt, and twist onto `PEN_ID`. On Windows a pen arrives as touch and `Touch.force` is the pressure; the kind stays touch. Neither path is verified without a tablet or a digitizer. Trackpad pressure is not a pen.
+- Display list beside the quad list: paths, images, glyphs, transforms, and layers. Quads stay the fast path, and a frame with no commands presents the same way it did before.
+- Vector paths. Fills use non-zero and even-odd rules. Strokes take a width, caps, joins, a dash array, and a hairline that stays one device pixel wide. Ellipse, polygon, line, and rounded-rect helpers build the path. Tessellation runs on the CPU and is cached by geometry and zoom bucket.
+- Edges of paths and layers are 4× multisampled on the offscreen target, then resolved before a blur, an opacity composite, or the quad pass. UI quads keep their signed-distance edges. A device that cannot resolve 4× draws the same mesh at one sample.
+- 2D affine transforms per command, plus a root camera. Device pixels are world units times the camera scale times the viewport scale.
+- PNG, JPEG, and WebP decode off the UI thread. A GPU texture cache evicts least-recently-used images to a byte budget, builds mipmaps, tiles past the device texture limit, and crops with a UV rect and rounded corners. List rows can show an image with `ImageView`.
+- Group opacity, rounded-rect and path clips, and a separable Gaussian drop shadow. The shadow is two filter passes, so another effect is another pass.
+- A canvas painter draws inside a `SurfaceSlot`, under the widgets in that slot.
+- Offscreen export renders a world rectangle at a chosen scale to RGBA and PNG. A side longer than 8192 pixels, or an image over 32 megapixels, is rejected.
+- Text exposes letter spacing, paragraph spacing, and alignment. Glyphs follow rotation and zoom. Runs at or above 64 device pixels are filled from face outlines; smaller runs stay in the atlas.
 
 ## 0.2.0
 

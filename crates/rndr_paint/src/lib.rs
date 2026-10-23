@@ -1,11 +1,15 @@
-//! Quads in logical points. No window and no GPU.
+//! Quads in logical points, plus a display list for vector scenes. No window
+//! and no GPU.
 //!
 //! [`frame`] steps an [`rndr_core::App`] (Startup once, then Input, Update,
 //! PostUpdate, and Layout) and returns one [`Quad`] per solid, glyph,
 //! selection, caret, dirty mark, and fixed-pitch cell, plus [`SurfaceRect`]s
-//! for foreign surfaces. A window crate multiplies those rectangles by
+//! for foreign surfaces. Those quads are the fast path. A
+//! [`CanvasRegistry`] painter on a [`rndr_core::SurfaceSlot`], and an
+//! [`rndr_core::ImageView`] on a row, are recorded as [`Placed`] commands
+//! beside the quads. A window crate multiplies rectangles by
 //! [`rndr_core::Viewport::scale`] when it uploads them. [`paint`] is the same
-//! walk without stepping the app.
+//! walk without stepping the app, and it returns only the quads.
 //!
 //! # Example
 //!
@@ -35,15 +39,26 @@
 
 #![deny(missing_docs)]
 
+mod affine;
+mod display;
 mod font;
 mod latin;
+mod path;
 mod snapshot;
+mod tess;
 
 use std::cell::RefCell;
 
+pub use affine::{bucket_scale, size_bucket, zoom_bucket, Affine, OUTLINE_PX};
+pub use display::{
+    Canvas, CanvasPainter, CanvasRegistry, ClipShape, Effect, FillStyle, GlyphOp, GlyphSprite,
+    ImageOp, Op, PathOp, Placed, Scene, SceneLayer, StrokeStyle, TextSource,
+};
 pub use font::{atlas_r8, glyph_uv, solid_uv, ATLAS_H, ATLAS_W};
 pub use latin::LatinFace;
+pub use path::{Cap, FillRule, Join, Path, PathBuilder, Stroke};
 pub use snapshot::quads_snapshot;
+pub use tess::{tessellate_fill, tessellate_stroke, Mesh, MeshCache};
 
 use rndr_core::{
     children_of, field_text_width, layered_roots, style_for, style_of, text_engine, theme_of, App,
@@ -84,11 +99,14 @@ pub struct Quad {
 /// the returned quads by [`rndr_core::Viewport::scale`] when it presents.
 #[derive(Clone, Debug)]
 pub struct Frame {
-    /// Quads in [`paint`] order, parents before children.
+    /// Quads in [`paint`] order, parents before children. This is the fast path.
     pub quads: Vec<Quad>,
     /// [`rndr_core::SurfaceSlot`] rects after layout, in component-store
     /// order. [`quads_snapshot`] sorts these before it prints them.
     pub slots: Vec<SurfaceRect>,
+    /// Canvas, image, and layer commands. Each one is drawn before
+    /// [`Placed::z`] in [`Self::quads`]. Empty when the frame is quads only.
+    pub draws: Vec<Placed>,
 }
 
 /// A [`rndr_core::SurfaceSlot`] after layout, in logical points.
@@ -111,10 +129,14 @@ pub struct SurfaceRect {
 /// schedule runs after paint. This does not open a window.
 pub fn frame(app: &mut App) -> Frame {
     app.update();
-    let quads = paint(app.world());
+    let (quads, draws) = paint_parts(app.world());
     let slots = surface_slots(app.world());
     app.render();
-    Frame { quads, slots }
+    Frame {
+        quads,
+        slots,
+        draws,
+    }
 }
 
 fn surface_slots(world: &World) -> Vec<SurfaceRect> {
@@ -172,7 +194,12 @@ fn surface_slots(world: &World) -> Vec<SurfaceRect> {
 /// padding. The fill keeps the full clip. The world stays unchanged. This
 /// does not panic.
 pub fn paint(world: &World) -> Vec<Quad> {
+    paint_parts(world).0
+}
+
+fn paint_parts(world: &World) -> (Vec<Quad>, Vec<Placed>) {
     let quads = RefCell::new(Vec::new());
+    let draws = RefCell::new(Vec::new());
     let scale = world
         .resource::<Viewport>()
         .map(|viewport| viewport.pixels_per_point())
@@ -181,9 +208,9 @@ pub fn paint(world: &World) -> Vec<Quad> {
     let solid = text_engine(world).solid_uv(&style);
     let theme = theme_of(world);
     for root in layered_roots(world) {
-        walk(world, root, &quads, scale, solid, &theme);
+        walk(world, root, &quads, &draws, scale, solid, &theme);
     }
-    quads.into_inner()
+    (quads.into_inner(), draws.into_inner())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -362,6 +389,7 @@ fn walk(
     world: &World,
     entity: rndr_core::Entity,
     quads: &RefCell<Vec<Quad>>,
+    draws: &RefCell<Vec<Placed>>,
     scale: f32,
     solid: [f32; 4],
     theme: &Theme,
@@ -370,15 +398,17 @@ fn walk(
         return;
     }
     if world.has::<rndr_core::SurfaceSlot>(entity) {
+        record_canvas(world, entity, quads, draws);
         for child in children_of(world, entity) {
-            walk(world, child, quads, scale, solid, theme);
+            walk(world, child, quads, draws, scale, solid, theme);
         }
         return;
     }
+    record_image(world, entity, quads, draws);
     if world.has::<MonoGrid>(entity) {
         paint_mono(world, entity, &mut quads.borrow_mut(), scale, solid, theme);
         for child in children_of(world, entity) {
-            walk(world, child, quads, scale, solid, theme);
+            walk(world, child, quads, draws, scale, solid, theme);
         }
         return;
     }
@@ -452,8 +482,62 @@ fn walk(
         }
     }
     for child in children_of(world, entity) {
-        walk(world, child, quads, scale, solid, theme);
+        walk(world, child, quads, draws, scale, solid, theme);
     }
+}
+
+fn record_canvas(
+    world: &World,
+    entity: rndr_core::Entity,
+    quads: &RefCell<Vec<Quad>>,
+    draws: &RefCell<Vec<Placed>>,
+) {
+    let Some(slot) = world.get::<rndr_core::SurfaceSlot>(entity).copied() else {
+        return;
+    };
+    let Some(rect) = world.get::<Rect>(entity).copied() else {
+        return;
+    };
+    let Some(registry) = world.resource::<CanvasRegistry>() else {
+        return;
+    };
+    let Some(painter) = registry.get(slot.id) else {
+        return;
+    };
+    let mut canvas = Canvas::new();
+    painter.paint(world, &mut canvas);
+    let z = quads.borrow().len() as u32;
+    for op in canvas.finish_clipped(rect) {
+        draws.borrow_mut().push(Placed { z, op });
+    }
+}
+
+fn record_image(
+    world: &World,
+    entity: rndr_core::Entity,
+    quads: &RefCell<Vec<Quad>>,
+    draws: &RefCell<Vec<Placed>>,
+) {
+    let Some(view) = world.get::<rndr_core::ImageView>(entity).copied() else {
+        return;
+    };
+    let Some(rect) = world.get::<Rect>(entity).copied() else {
+        return;
+    };
+    if rect.w <= 0.0 || rect.h <= 0.0 {
+        return;
+    }
+    let z = quads.borrow().len() as u32;
+    draws.borrow_mut().push(Placed {
+        z,
+        op: Op::Image(ImageOp {
+            id: view.image,
+            dest: rect,
+            uv: view.uv,
+            radius: view.radius,
+            opacity: 1.0,
+        }),
+    });
 }
 
 fn paint_mono(

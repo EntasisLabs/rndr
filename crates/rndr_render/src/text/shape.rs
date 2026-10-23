@@ -3,11 +3,14 @@
 use parley::style::{FontFamily, StyleProperty};
 use parley::{Affinity, Alignment, AlignmentOptions, Cursor, PositionedLayoutItem};
 use rndr_core::{
-    Color, FontStyle, PlacedGlyph, TextHighlight, TextLayout, TextLine, TextSpan, TextStyle,
+    Color, FontStyle, PlacedGlyph, TextAlign, TextHighlight, TextLayout, TextLine, TextSpan,
+    TextStyle,
 };
+use rndr_paint::Path;
 use swash::scale::image::Content;
+use swash::scale::outline::Outline;
 use swash::scale::{Render, ScaleContext, Source, StrikeWith};
-use swash::zeno::{Format, Vector};
+use swash::zeno::{Format, Vector, Verb};
 use swash::FontRef;
 
 use super::atlas::{GlyphKey, Inserted, SUBPIXEL_BINS};
@@ -76,6 +79,9 @@ fn shape_once(
         FontStyle::Italic => parley::FontStyle::Italic,
         FontStyle::Normal => parley::FontStyle::Normal,
     }));
+    if style.letter_spacing != 0.0 {
+        builder.push_default(StyleProperty::LetterSpacing(style.letter_spacing));
+    }
     for run in runs {
         let end = run.end.min(text.len());
         let start = run.start.min(end);
@@ -108,7 +114,16 @@ fn shape_once(
         None
     };
     parley_layout.break_all_lines(max_px);
-    parley_layout.align(Alignment::Start, AlignmentOptions::default());
+    let align = if max_px.is_some() {
+        match style.align {
+            TextAlign::Start => Alignment::Start,
+            TextAlign::Center => Alignment::Center,
+            TextAlign::End => Alignment::End,
+        }
+    } else {
+        Alignment::Start
+    };
+    parley_layout.align(align, AlignmentOptions::default());
 
     let mut glyphs = Vec::new();
     let mut lines = Vec::new();
@@ -230,6 +245,7 @@ fn shape_once(
         .height()
         .max(lines.iter().map(|line| line.y + line.h).fold(0.0, f32::max));
     let mut layout = TextLayout::shaped(glyphs, lines, width, height);
+    apply_paragraph_spacing(&mut layout, text, style.paragraph_spacing);
     for span in runs {
         let Some(color) = span.highlight else {
             continue;
@@ -443,6 +459,39 @@ fn font_id(font: &parley::FontData) -> u64 {
     ptr ^ (u64::from(font.index) << 48)
 }
 
+fn apply_paragraph_spacing(layout: &mut TextLayout, text: &str, gap: f32) {
+    if gap == 0.0 {
+        return;
+    }
+    let mut extra = 0.0f32;
+    let ranges: Vec<(usize, usize, f32)> = layout
+        .lines
+        .iter()
+        .map(|line| {
+            if line.start > 0 && text.as_bytes().get(line.start - 1) == Some(&b'\n') {
+                extra += gap;
+            }
+            (line.start, line.end, extra)
+        })
+        .collect();
+    if extra == 0.0 {
+        return;
+    }
+    for (line, (_, _, shift)) in layout.lines.iter_mut().zip(ranges.iter()) {
+        line.y += *shift;
+    }
+    for glyph in &mut layout.glyphs {
+        if let Some((_, _, shift)) = ranges
+            .iter()
+            .rev()
+            .find(|(start, end, _)| glyph.start >= *start && glyph.start < *end)
+        {
+            glyph.y += *shift;
+        }
+    }
+    layout.height += extra;
+}
+
 fn span_color(spans: &[TextSpan], index: usize) -> Option<Color> {
     spans
         .iter()
@@ -504,3 +553,308 @@ const DEFAULT_FALLBACKS: &[&str] = &[
     "Noto Sans SC",
     "Noto Color Emoji",
 ];
+
+/// Outlines in local units. `None` when a visible glyph has no outline, so the
+/// caller can keep the atlas sprites for the whole run.
+pub(super) fn outline_glyphs(
+    state: &mut State,
+    source: &rndr_paint::TextSource,
+) -> Vec<(Path, Color)> {
+    outline_run(state, source).unwrap_or_default()
+}
+
+fn outline_run(state: &mut State, source: &rndr_paint::TextSource) -> Option<Vec<(Path, Color)>> {
+    let text = source.text.as_str();
+    let style = &source.style;
+    let runs = source.spans.as_slice();
+    let scale = state.scale;
+    let css = state.family_css(&style.family);
+    let family_runs: Vec<(usize, usize, String)> = runs
+        .iter()
+        .filter_map(|run| {
+            let end = run.end.min(text.len());
+            let start = run.start.min(end);
+            if start >= end {
+                return None;
+            }
+            run.family
+                .as_ref()
+                .map(|family| (start, end, state.family_css(family)))
+        })
+        .collect();
+    let mut builder = state
+        .layout_cx
+        .ranged_builder(&mut state.font_cx, text, scale, false);
+    builder.push_default(StyleProperty::FontFamily(FontFamily::Source(
+        std::borrow::Cow::Owned(css),
+    )));
+    builder.push_default(StyleProperty::FontSize(style.size));
+    builder.push_default(StyleProperty::FontWeight(parley::FontWeight::new(
+        style.weight as f32,
+    )));
+    builder.push_default(StyleProperty::FontStyle(match style.style {
+        FontStyle::Italic => parley::FontStyle::Italic,
+        FontStyle::Normal => parley::FontStyle::Normal,
+    }));
+    if style.letter_spacing != 0.0 {
+        builder.push_default(StyleProperty::LetterSpacing(style.letter_spacing));
+    }
+    for run in runs {
+        let end = run.end.min(text.len());
+        let start = run.start.min(end);
+        if start >= end {
+            continue;
+        }
+        if let Some(weight) = run.weight {
+            builder.push(
+                StyleProperty::FontWeight(parley::FontWeight::new(weight as f32)),
+                start..end,
+            );
+        }
+        if run.italic {
+            builder.push(
+                StyleProperty::FontStyle(parley::FontStyle::Italic),
+                start..end,
+            );
+        }
+    }
+    for (start, end, family) in family_runs {
+        builder.push(
+            StyleProperty::FontFamily(FontFamily::Source(std::borrow::Cow::Owned(family))),
+            start..end,
+        );
+    }
+    let mut parley_layout = builder.build(text);
+    let max_px = if source.max_width.is_finite() && source.max_width > 0.0 {
+        Some(source.max_width * scale)
+    } else {
+        None
+    };
+    parley_layout.break_all_lines(max_px);
+    let align = if max_px.is_some() {
+        match style.align {
+            TextAlign::Start => Alignment::Start,
+            TextAlign::Center => Alignment::Center,
+            TextAlign::End => Alignment::End,
+        }
+    } else {
+        Alignment::Start
+    };
+    parley_layout.align(align, AlignmentOptions::default());
+
+    let mut extra = 0.0f32;
+    let mut shifts = Vec::new();
+    for line in parley_layout.lines() {
+        let range = line.text_range();
+        if range.start > 0 && text.as_bytes().get(range.start - 1) == Some(&b'\n') {
+            extra += style.paragraph_spacing;
+        }
+        shifts.push((range.start, range.end, extra));
+    }
+    let px = if scale.is_finite() && scale > 0.0 {
+        scale
+    } else {
+        1.0
+    };
+    let mut out = Vec::new();
+    for line in parley_layout.lines() {
+        for item in line.items() {
+            let PositionedLayoutItem::GlyphRun(glyph_run) = item else {
+                continue;
+            };
+            let run = glyph_run.run();
+            let font = run.font().clone();
+            let px_size = run.font_size();
+            let coords: Vec<i16> = run
+                .normalized_coords()
+                .iter()
+                .map(|coord| coord.to_bits())
+                .collect();
+            let mut positioned = glyph_run.positioned_glyphs();
+            for cluster in run.visual_clusters() {
+                let text_range = cluster.text_range();
+                let ch = text
+                    .get(text_range.clone())
+                    .and_then(|slice| slice.chars().next())
+                    .unwrap_or('\u{FFFD}');
+                let foreground = span_color(runs, text_range.start).unwrap_or(source.color);
+                let shift = shifts
+                    .iter()
+                    .rev()
+                    .find(|(start, end, _)| text_range.start >= *start && text_range.start < *end)
+                    .map(|(_, _, gap)| *gap)
+                    .unwrap_or(0.0);
+                for _glyph in cluster.glyphs() {
+                    let Some(glyph) = positioned.next() else {
+                        break;
+                    };
+                    if !push_glyph_outline(
+                        state,
+                        &font,
+                        &coords,
+                        glyph.id,
+                        px_size,
+                        glyph.x,
+                        glyph.y,
+                        px,
+                        source.origin,
+                        shift,
+                        ch,
+                        foreground,
+                        &mut out,
+                    ) {
+                        return None;
+                    }
+                }
+            }
+        }
+    }
+    Some(out)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn push_glyph_outline(
+    state: &mut State,
+    font: &parley::FontData,
+    coords: &[i16],
+    glyph_id: u32,
+    px_size: f32,
+    pen_x: f32,
+    pen_y: f32,
+    scale: f32,
+    origin: [f32; 2],
+    shift_y: f32,
+    ch: char,
+    foreground: Color,
+    out: &mut Vec<(Path, Color)>,
+) -> bool {
+    let Ok(id) = u16::try_from(glyph_id) else {
+        return ch.is_whitespace();
+    };
+    let bytes = font.data.as_ref();
+    let Some(font_ref) = FontRef::from_index(bytes, font.index as usize) else {
+        return ch.is_whitespace();
+    };
+    let palette = font_ref.color_palettes().next();
+    let mut scaler = scaler_for(&mut state.scale_cx, font_ref, px_size, coords);
+    if scaler.has_color_outlines() {
+        if let Some(outline) = scaler.scale_color_outline(id) {
+            append_outline(
+                &outline,
+                pen_x,
+                pen_y,
+                scale,
+                origin,
+                shift_y,
+                foreground,
+                palette.as_ref(),
+                out,
+            );
+            return true;
+        }
+    }
+    if let Some(outline) = scaler.scale_outline(id) {
+        if !outline.is_empty() {
+            append_outline(
+                &outline, pen_x, pen_y, scale, origin, shift_y, foreground, None, out,
+            );
+        }
+        return true;
+    }
+    ch.is_whitespace()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn append_outline(
+    outline: &Outline,
+    pen_x: f32,
+    pen_y: f32,
+    scale: f32,
+    origin: [f32; 2],
+    shift_y: f32,
+    foreground: Color,
+    palette: Option<&swash::ColorPalette<'_>>,
+    out: &mut Vec<(Path, Color)>,
+) {
+    for index in 0..outline.len() {
+        let Some(layer) = outline.get(index) else {
+            continue;
+        };
+        let path = verbs_to_path(
+            layer.points(),
+            layer.verbs(),
+            pen_x,
+            pen_y,
+            scale,
+            origin,
+            shift_y,
+        );
+        if path.is_empty() {
+            continue;
+        }
+        let color = layer
+            .color_index()
+            .and_then(|slot| palette.map(|palette| palette_color(palette, slot)))
+            .unwrap_or(foreground);
+        out.push((path, color));
+    }
+}
+
+fn palette_color(palette: &swash::ColorPalette<'_>, index: u16) -> Color {
+    let [r, g, b, a] = palette.get(index);
+    Color::rgba(
+        f32::from(r) / 255.0,
+        f32::from(g) / 255.0,
+        f32::from(b) / 255.0,
+        f32::from(a) / 255.0,
+    )
+}
+
+fn verbs_to_path(
+    points: &[swash::zeno::Point],
+    verbs: &[Verb],
+    pen_x: f32,
+    pen_y: f32,
+    scale: f32,
+    origin: [f32; 2],
+    shift_y: f32,
+) -> Path {
+    let mut cursor = 0usize;
+    let mut path = Path::builder();
+    let map = |point: swash::zeno::Point| {
+        [
+            origin[0] + (pen_x + point.x) / scale,
+            origin[1] + shift_y + (pen_y - point.y) / scale,
+        ]
+    };
+    for verb in verbs {
+        let left = points.len().saturating_sub(cursor);
+        match verb {
+            Verb::MoveTo if left >= 1 => {
+                path.move_to(map(points[cursor]));
+                cursor += 1;
+            }
+            Verb::LineTo if left >= 1 => {
+                path.line_to(map(points[cursor]));
+                cursor += 1;
+            }
+            Verb::QuadTo if left >= 2 => {
+                path.quad_to(map(points[cursor]), map(points[cursor + 1]));
+                cursor += 2;
+            }
+            Verb::CurveTo if left >= 3 => {
+                path.cubic_to(
+                    map(points[cursor]),
+                    map(points[cursor + 1]),
+                    map(points[cursor + 2]),
+                );
+                cursor += 3;
+            }
+            Verb::Close => {
+                path.close();
+            }
+            _ => break,
+        }
+    }
+    path.build()
+}

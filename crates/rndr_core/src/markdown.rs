@@ -990,6 +990,7 @@ fn block_style(base: &TextStyle, block: &MarkdownBlock) -> TextStyle {
             size: base.size,
             weight: FONT_WEIGHT_REGULAR,
             style: FontStyle::Normal,
+            ..TextStyle::default()
         },
         _ => base.clone(),
     }

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use rndr_core::{
     App, Axis, BuiltinText, CapturesKeys, Caret, Chrome, Color, Focusable, Font, GlyphBox, Input,
-    Label, Layout, Shell, Size, TextEngine, TextField, TextSpan, TextStyle, Viewport,
+    Label, Layout, Shell, Size, TextAlign, TextEngine, TextField, TextSpan, TextStyle, Viewport,
     FONT_WEIGHT_BOLD, FONT_WEIGHT_REGULAR, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
 
@@ -243,4 +243,50 @@ fn a_field_click_hit_tests_through_the_engine() {
     let caret = app.world().get::<Caret>(entity).expect("caret");
     assert_eq!(caret.index, 1);
     assert_eq!(caret.anchor, 1);
+}
+
+#[test]
+fn letter_spacing_moves_only_later_clusters() {
+    let engine = BuiltinText::new();
+    let base = engine.layout("ab", &style(), &[], f32::INFINITY);
+    let mut spaced = style();
+    spaced.letter_spacing = 4.0;
+    let layout = engine.layout("ab", &spaced, &[], f32::INFINITY);
+    assert!((layout.glyphs[0].x - base.glyphs[0].x).abs() < 0.01);
+    assert!((layout.glyphs[1].x - base.glyphs[1].x - 4.0).abs() < 0.01);
+    assert!((layout.caret_xy(2).0 - base.caret_xy(2).0 - 4.0).abs() < 0.01);
+}
+
+#[test]
+fn paragraph_spacing_follows_a_newline_and_skips_soft_wraps() {
+    let engine = BuiltinText::new();
+    let mut style = style();
+    style.paragraph_spacing = 6.0;
+    let hard = engine.layout("a\nb", &style, &[], f32::INFINITY);
+    let h = engine.line_height(&style);
+    assert!((hard.lines[0].y).abs() < 0.01);
+    assert!((hard.lines[1].y - (h + 6.0)).abs() < 0.01);
+    assert!((hard.height - (h * 2.0 + 6.0)).abs() < 0.01);
+
+    let soft = engine.layout("abcd", &style, &[], 40.0);
+    assert!(soft.lines.len() >= 2);
+    assert!((soft.lines[1].y - h).abs() < 0.01);
+}
+
+#[test]
+fn alignment_shifts_a_finite_line_and_leaves_an_unwrapped_line() {
+    let engine = BuiltinText::new();
+    let mut style = style();
+    style.align = TextAlign::Center;
+    let centered = engine.layout("ab", &style, &[], 64.0);
+    assert!((centered.glyphs[0].x - 16.0).abs() < 0.01);
+    assert!((centered.caret_xy(0).0 - 16.0).abs() < 0.01);
+
+    style.align = TextAlign::End;
+    let end = engine.layout("ab", &style, &[], 64.0);
+    assert!((end.glyphs[0].x - 32.0).abs() < 0.01);
+
+    style.align = TextAlign::Center;
+    let open = engine.layout("ab", &style, &[], f32::INFINITY);
+    assert!(open.glyphs[0].x.abs() < 0.01);
 }

@@ -35,14 +35,14 @@ use rndr_core::window::{self, WindowConfig, WindowKind};
 use rndr_core::{
     context_stack, events, feed, platform_of, set_parent, sleep, spawn, spawn_detached, theme_of,
     toggle_on_click, App, Axis, CapturesKeys, Caret, Chrome, Color, Context, Dismiss, DismissHold,
-    Entity, Event, Focus, HotkeyBinding, HotkeyRejected, Item, KeyBinding, Keymap, KeymapFired,
-    Keystroke, Label, Layout, List, ListActivated, ListKeys, ListRows, LogicalSize, Menu, NamedKey,
-    Placeholder, Position, Prompt, Radius, Schedule, Size, Spans, Submitted, TaskHandle,
-    TextChanged, TextFace, TextField, TextOverflow, TextSpan, Theme, TrayConfig, TrayIcon,
-    TrayItemId, TrayMenu, World,
+    Entity, Event, Focus, HotkeyBinding, HotkeyRejected, ImageView, Item, KeyBinding, Keymap,
+    KeymapFired, Keystroke, Label, Layout, List, ListActivated, ListKeys, ListRows, LogicalSize,
+    Menu, NamedKey, Placeholder, Position, Prompt, Radius, Schedule, Size, Spans, Submitted,
+    TaskHandle, TextChanged, TextFace, TextField, TextOverflow, TextSpan, Theme, TrayConfig,
+    TrayIcon, TrayItemId, TrayMenu, World,
 };
 use rndr_paint::LatinFace;
-use rndr_render::{configured_hotkey, run, toggle_window};
+use rndr_render::{configured_hotkey, load_rgba, run, toggle_window};
 use unicode_normalization::UnicodeNormalization;
 
 const CONTEXT: &str = "Palette";
@@ -158,6 +158,7 @@ fn text_layout(width: Size, height: Size) -> Layout {
 }
 
 fn setup(world: &mut World) {
+    load_row_icons(world);
     let theme = theme_of(world);
     {
         let keymap = world
@@ -340,6 +341,54 @@ fn install_tray(world: &mut World) -> TrayItemId {
     show
 }
 
+fn load_row_icons(world: &mut World) {
+    for index in 0..4u32 {
+        let _ = load_rgba(world, u64::from(index), 16, 16, row_icon(index));
+    }
+}
+
+fn row_icon(index: u32) -> Vec<u8> {
+    let colors = [
+        [232, 84, 70, 255],
+        [70, 160, 232, 255],
+        [232, 180, 60, 255],
+        [90, 190, 120, 255],
+    ];
+    let color = colors[index as usize % 4];
+    let mut pixels = vec![0u8; 16 * 16 * 4];
+    for y in 0..16 {
+        for x in 0..16 {
+            let at = (y * 16 + x) * 4;
+            let edge = x < 1 || y < 1 || x >= 15 || y >= 15;
+            let ink = if edge { [24, 26, 32, 255] } else { color };
+            pixels[at..at + 4].copy_from_slice(&ink);
+        }
+    }
+    pixels
+}
+
+fn ensure_row_icon(world: &mut World, row: Entity, index: u32) {
+    let image = u64::from(index % 4);
+    let existing = rndr_core::children_of(world, row)
+        .into_iter()
+        .find(|child| world.has::<ImageView>(*child));
+    if let Some(icon) = existing {
+        if let Some(view) = world.get_mut::<ImageView>(icon) {
+            view.image = image;
+        }
+        return;
+    }
+    let icon = world.spawn((
+        Layout {
+            width: Size::Px(16.0),
+            height: Size::Px(16.0),
+            ..Layout::row()
+        },
+        ImageView::new(image).with_radius(4.0),
+    ));
+    set_parent(world, icon, row);
+}
+
 fn build_row(world: &mut World, row: Entity, index: u32) {
     let selected = world
         .get::<rndr_core::ListItem>(row)
@@ -365,6 +414,7 @@ fn build_row(world: &mut World, row: Entity, index: u32) {
     if let Some(label) = world.get_mut::<Label>(row) {
         label.text.clear();
     }
+    ensure_row_icon(world, row, index);
     let (name, keys) = row_parts(world, row);
     set_text(world, name, title);
     set_text(world, keys, &shortcut);

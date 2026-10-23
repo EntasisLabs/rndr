@@ -21,13 +21,13 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use parley::fontique;
 use parley::{FontContext, LayoutContext};
 use rndr_core::{
-    Color, ColorAtlas, Font, FontAtlas, FontStyle, TextEngine, TextLayout, TextMeasure, TextSpan,
-    TextStyle,
+    Color, ColorAtlas, Font, FontAtlas, FontStyle, TextAlign, TextEngine, TextLayout, TextMeasure,
+    TextSpan, TextStyle,
 };
 use swash::scale::ScaleContext;
 
 use atlas::{Atlas, GlyphKey};
-use shape::{shape_text, Shaped};
+use shape::{outline_glyphs, shape_text, Shaped};
 
 /// How the engine loads fonts and how large the glyph atlases may grow.
 ///
@@ -156,6 +156,9 @@ struct CacheKey {
     italic: bool,
     width_bits: u32,
     scale_bits: u32,
+    letter_bits: u32,
+    paragraph_bits: u32,
+    align: u8,
     runs: Vec<RunKey>,
 }
 
@@ -248,6 +251,19 @@ impl ParleyText {
     pub fn eviction_count(&self) -> u64 {
         let state = self.lock();
         state.coverage.evictions + state.color.evictions
+    }
+
+    /// Filled outlines for `source`, in the text's local space.
+    ///
+    /// Positions match a layout at the current pixels-per-point. An empty
+    /// vector means a glyph had no outline, and the caller keeps the atlas
+    /// sprites. Color layers use the face palette. Panics if the engine lock
+    /// is poisoned.
+    pub(crate) fn glyph_outlines(
+        &self,
+        source: &rndr_paint::TextSource,
+    ) -> Vec<(rndr_paint::Path, Color)> {
+        outline_glyphs(&mut self.lock(), source)
     }
 
     /// Dirty atlas regions since the last call. The GPU uploads these and nothing else.
@@ -542,6 +558,13 @@ fn cache_key(
         italic: style.style == FontStyle::Italic,
         width_bits: max_width.to_bits(),
         scale_bits: scale.to_bits(),
+        letter_bits: style.letter_spacing.to_bits(),
+        paragraph_bits: style.paragraph_spacing.to_bits(),
+        align: match style.align {
+            TextAlign::Start => 0,
+            TextAlign::Center => 1,
+            TextAlign::End => 2,
+        },
         runs: runs
             .iter()
             .map(|run| RunKey {
