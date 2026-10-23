@@ -128,16 +128,19 @@ impl ZoomCamera {
     ///
     /// `press_at` is that position on a sample that contains the press. The
     /// first delta is `position - press_at`, so content follows the pointer
-    /// when the press and the first move arrive together. Later samples pass
-    /// `None` and continue from the previous position. A real movement drops
-    /// the zoom anchor. [`Self::drag`] is this with no press position.
+    /// when the press and the first move arrive together. A release applies
+    /// the distance still pending from the grab, including when the press,
+    /// the move, and the release all arrive before the next frame. Later
+    /// samples pass `None` and continue from the previous position. A real
+    /// movement drops the zoom anchor. [`Self::drag`] is this with no press
+    /// position.
     pub fn drag_from(&mut self, down: bool, position: [f32; 2], press_at: Option<[f32; 2]>) {
-        if !down {
-            self.grab = None;
-            return;
-        }
         if self.grab.is_none() {
-            self.grab = Some(press_at.unwrap_or(position));
+            if let Some(origin) = press_at {
+                self.grab = Some(origin);
+            } else if !down {
+                return;
+            }
         }
         if let Some(last) = self.grab {
             let dx = position[0] - last[0];
@@ -148,7 +151,7 @@ impl ZoomCamera {
                 self.anchor = None;
             }
         }
-        self.grab = Some(position);
+        self.grab = down.then_some(position);
     }
 }
 
@@ -282,5 +285,76 @@ mod tests {
         assert_eq!(plain.pan(), [0.0, 0.0]);
         plain.drag(true, [80.0, 0.0]);
         assert_eq!(plain.pan()[0], 40.0);
+    }
+
+    #[test]
+    fn a_press_move_and_release_before_the_next_frame_pans_fully() {
+        let start = [20.0, 10.0];
+        let end = [120.0, 70.0];
+        let pointer = press_move_release(start, end);
+        assert!(pointer.pressed && pointer.released);
+        assert!(!pointer.down);
+        assert_eq!(pointer.press_at, Some(start));
+        assert_eq!(pointer.position, end);
+        let mut camera = ZoomCamera::new([0.0, 0.0]);
+        camera.drag_from(pointer.down, pointer.position, pointer.press_at);
+        assert_eq!(camera.pan(), [100.0, 60.0]);
+    }
+
+    #[test]
+    fn a_slow_drag_follows_each_sample_and_the_release() {
+        let mut camera = ZoomCamera::new([5.0, -2.0]);
+        let samples = [[0.0, 0.0], [10.0, 4.0], [40.0, 25.0], [100.0, 60.0]];
+        camera.drag_from(true, samples[0], Some(samples[0]));
+        for sample in samples.iter().skip(1) {
+            camera.drag_from(true, *sample, None);
+            assert_eq!(
+                camera.pan(),
+                [5.0 + sample[0], -2.0 + sample[1]],
+                "sample {sample:?}"
+            );
+        }
+        camera.drag_from(false, samples[3], None);
+        assert_eq!(camera.pan(), [105.0, 58.0]);
+    }
+
+    #[test]
+    fn a_release_applies_a_move_that_arrived_with_it() {
+        let mut camera = ZoomCamera::new([0.0, 0.0]);
+        camera.drag_from(true, [0.0, 0.0], Some([0.0, 0.0]));
+        camera.drag_from(false, [100.0, 60.0], None);
+        assert_eq!(camera.pan(), [100.0, 60.0]);
+        camera.drag_from(false, [140.0, 80.0], None);
+        assert_eq!(camera.pan(), [100.0, 60.0]);
+    }
+
+    fn press_move_release(start: [f32; 2], end: [f32; 2]) -> rndr_core::Pointer {
+        use std::time::Duration;
+
+        use rndr_core::{
+            ContactPhase, ContactUpdate, PointerButton, PointerButtons, PointerKind, Pointers,
+            MOUSE_ID,
+        };
+
+        let mut held = PointerButtons::new();
+        held.set(PointerButton::Left, true);
+        let sample =
+            |position: [f32; 2], phase: ContactPhase, buttons: PointerButtons| ContactUpdate {
+                id: MOUSE_ID,
+                kind: PointerKind::Mouse,
+                position,
+                pressure: None,
+                tilt: None,
+                twist: None,
+                buttons,
+                button: PointerButton::Left,
+                phase,
+                time: Duration::from_millis(1),
+            };
+        let mut pointers = Pointers::new();
+        pointers.apply(sample(start, ContactPhase::Start, held));
+        pointers.apply(sample(end, ContactPhase::Move, held));
+        pointers.apply(sample(end, ContactPhase::End, PointerButtons::new()));
+        pointers.mirror().expect("primary contact")
     }
 }

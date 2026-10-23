@@ -55,6 +55,9 @@ jobs:
       - name: Test
         run: cargo test --workspace
 
+      - name: Test all features
+        run: cargo test --workspace --all-features
+
       - name: Feed tokio feature
         run: |
           cargo clippy -p rndr_core --features tokio --all-targets -- -D warnings
@@ -78,7 +81,7 @@ jobs:
           test "${#render_crate[@]}" -eq 1
           paint_files="$(tar -tzf "${paint_crate[0]}")"
           render_files="$(tar -tzf "${render_crate[0]}")"
-          test "$(printf '%s\n' "$paint_files" | grep -c '\.snap$')" = 6
+          test "$(printf '%s\n' "$paint_files" | grep -c '\.snap$')" = 7
           test "$(printf '%s\n' "$render_files" | grep -c '\.snap$')" = 2
           printf '%s\n' "$paint_files" | grep -q '/Inter-LICENSE.txt$'
           printf '%s\n' "$paint_files" | grep -q '/latin_atlas.bin$'
