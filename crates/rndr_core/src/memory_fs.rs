@@ -17,11 +17,16 @@ pub struct MemoryFs {
 }
 
 impl MemoryFs {
+    /// Empty store. Seed it with [`Self::insert_dir_all`] and
+    /// [`Self::insert_file`] before a test reads it.
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Create `path` and any missing parents as directories.
+    ///
+    /// An existing file or directory on that chain is left unchanged, so a
+    /// file in the middle stays a file.
     pub fn insert_dir_all(&mut self, path: &Path) {
         let mut acc = PathBuf::new();
         for component in path.components() {
@@ -30,6 +35,12 @@ impl MemoryFs {
         }
     }
 
+    /// Store `bytes` at `path`, creating any missing parent directories.
+    ///
+    /// Replaces a node already at `path`, including a directory. Descendants
+    /// of a replaced directory stay stored, but listings of that path are
+    /// empty while it is a file. Parents that already exist are left as they
+    /// are, same as [`Self::insert_dir_all`].
     pub fn insert_file(&mut self, path: &Path, bytes: impl AsRef<[u8]>) {
         if let Some(parent) = path.parent() {
             if !parent.as_os_str().is_empty() {
@@ -158,7 +169,11 @@ fn parent_ready(fs: &MemoryFs, path: &Path) -> bool {
 }
 
 /// Inserts a [`MemoryFs`] as the [`Files`] resource.
+///
+/// [`crate::Plugin::build`] moves [`MemoryFsPlugin::fs`] into the world and
+/// replaces a [`Files`] resource that was already there.
 pub struct MemoryFsPlugin {
+    /// Store installed as [`Files`].
     pub fs: MemoryFs,
 }
 

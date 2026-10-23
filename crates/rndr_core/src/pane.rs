@@ -13,13 +13,19 @@ impl Component for Pane {}
 /// The entity whose interior is shown in a [`Pane`].
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Selection {
+    /// Tree node to show, or `None` for the empty pane. A dead id is stored
+    /// as given; [`apply_pane`] treats it as no selection.
     pub entity: Option<Entity>,
 }
 
 /// Right-hand surface. Spawned children are the current body, not the pane itself.
 #[derive(Clone, Debug, Default)]
 pub struct Pane {
+    /// Children [`apply_pane`] spawned for the current body. Despawned on the
+    /// next rebuild. These are not the pane entity itself.
     pub spawned: Vec<Entity>,
+    /// Selection currently reflected in [`Self::spawned`]. `None` is the
+    /// empty body, including after a dead selection.
     pub shown: Option<Entity>,
 }
 
@@ -85,6 +91,10 @@ pub fn detail_pane() -> (Layout, Scroll, Pane) {
     )
 }
 
+/// Point [`Selection`] at `entity`.
+///
+/// Does nothing when the resource is missing. [`crate::Shell`] inserts one.
+/// A dead id is stored as given; [`apply_pane`] treats it as no selection.
 pub fn set_selection(world: &mut World, entity: Option<Entity>) {
     if let Some(selection) = world.resource_mut::<Selection>() {
         selection.entity = entity;
@@ -92,6 +102,14 @@ pub fn set_selection(world: &mut World, entity: Option<Entity>) {
 }
 
 /// Rebuild every [`Pane`] so it matches [`Selection`].
+///
+/// A dead or missing selection clears the pane and leaves one "Nothing open"
+/// row, and skips that work when the empty body is already up. A pane whose
+/// [`Pane::shown`] is already the live selection is left alone. Any other
+/// pane despawns [`Pane::spawned`] and rebuilds: an editable title (the
+/// node's label, or "Untitled"), an editable body from [`crate::Body`], a
+/// status line (`Open`, `Closed`, or `Leaf`), then one row per disclosure
+/// child label.
 pub fn apply_pane(world: &mut World) {
     let selected = world
         .resource::<Selection>()
@@ -145,7 +163,11 @@ fn clear_pane(world: &mut World, pane: Entity) {
     }
 }
 
-/// Newline-based row height. A hugging body is sized by layout from the face.
+/// Newline-based row height, in logical points.
+///
+/// The count is `text.split('\n').count()`, so an empty string is one row.
+/// The result uses the bitmap line height and is at least 36. A hugging body
+/// is sized by layout from the face.
 pub fn field_height(text: &str) -> f32 {
     crate::wrap::field_height_lines(text.split('\n').count())
 }

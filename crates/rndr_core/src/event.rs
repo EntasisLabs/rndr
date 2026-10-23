@@ -15,9 +15,18 @@ use std::any::TypeId;
 use crate::world::World;
 
 /// A value that can be written into an [`Events`] queue.
+///
+/// Marker bound: `Send + Sync + 'static`, with no methods. Implement it, then
+/// [`send`] and [`events`] queue that type. The first [`send`] of `T` inserts
+/// the [`Events`] resource.
 pub trait Event: Send + Sync + 'static {}
 
 /// Reader and writer buffers for `T`.
+///
+/// [`Events::iter`], [`Events::as_slice`], [`Events::len`], and
+/// [`Events::is_empty`] see only the reader side. [`Events::send`] appends to
+/// the writer. The frame flip publishes the writer and drops the previous
+/// reader. The module docs say which schedule sees a send.
 #[derive(Debug)]
 pub struct Events<T> {
     read: Vec<T>,
@@ -34,22 +43,28 @@ impl<T> Default for Events<T> {
 }
 
 impl<T> Events<T> {
+    /// Reader-buffer items, in send order. Unpublished writes are omitted.
     pub fn iter(&self) -> impl Iterator<Item = &T> {
         self.read.iter()
     }
 
+    /// Reader buffer. Unpublished writes are omitted.
     pub fn as_slice(&self) -> &[T] {
         &self.read
     }
 
+    /// Number of events in the reader buffer, not the unpublished writer.
     pub fn len(&self) -> usize {
         self.read.len()
     }
 
+    /// `true` when the reader buffer is empty. Unpublished writes do not count.
     pub fn is_empty(&self) -> bool {
         self.read.is_empty()
     }
 
+    /// Append `event` to the writer. Readers miss it until the next flip or
+    /// merge. Prefer [`send`], which inserts the resource on first use.
     pub fn send(&mut self, event: T) {
         self.write.push(event);
     }
@@ -100,6 +115,13 @@ fn ensure<T: Event>(world: &mut World) {
 
 /// Queue `event` for readers. Visible to systems on the next commit
 /// (the current frame's pump, or the next frame when called from a system).
+///
+/// The first send of `T` inserts [`Events<T>`].
+///
+/// # Panics
+///
+/// Panics if this is the first send of `T` and the world has no event hub.
+/// [`crate::App::new`] installs the hub.
 pub fn send<T: Event>(world: &mut World, event: T) {
     ensure::<T>(world);
     world

@@ -18,6 +18,7 @@ impl Component for ImePreview {}
 /// Uncommitted composition shown at the caret. The label stays unchanged.
 #[derive(Clone, Debug, Default)]
 pub struct ImePreview {
+    /// Composition text. [`Self::cursor`] is a byte range inside this string.
     pub text: String,
     /// Cursor range inside [`Self::text`], in bytes. `None` draws the caret at
     /// the end of the preedit.
@@ -35,7 +36,9 @@ pub struct TextField;
 /// The focused field's label changed while it applied this frame's keys.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TextChanged {
+    /// The [`TextField`] whose label changed.
     pub entity: Entity,
+    /// Label contents after this frame's edit, not a diff.
     pub text: String,
 }
 
@@ -44,13 +47,18 @@ impl Event for TextChanged {}
 /// Plain Enter on a focused field. The label is unchanged by the key itself.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Submitted {
+    /// The [`TextField`] that received plain Enter.
     pub entity: Entity,
+    /// Label contents at submit time. Enter does not insert a newline.
     pub text: String,
 }
 
 impl Event for Submitted {}
 
 /// Focused entity keeps key edges for itself. Tree navigation does not take them.
+///
+/// Marker with no data. [`crate::apply_focus`] leaves [`crate::Input::key`]
+/// alone when the focused entity has this component.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct CapturesKeys;
 

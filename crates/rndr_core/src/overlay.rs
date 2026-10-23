@@ -8,12 +8,19 @@ impl Component for Modal {}
 
 /// Paint and hit order. Higher values are on top. Missing means 0.
 #[derive(Clone, Copy, Debug)]
-pub struct Layer(pub i32);
+pub struct Layer(
+    /// Index compared by paint and hit order. Higher is on top.
+    pub i32,
+);
 
 /// Drops hits to every layer below this one.
+///
+/// Marker with no data. Hit testing ignores roots whose [`Layer`] is below
+/// the highest modal. A modal with no [`Layer`] reads as 0.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Modal;
 
+/// [`crate::Fired`] name written when Escape removes the top [`Layer`] root.
 pub const DISMISS: &str = "dismiss";
 
 /// Escape removes the top [`Layer`] root and records [`DISMISS`].

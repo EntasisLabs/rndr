@@ -10,6 +10,35 @@ use crate::style::Label;
 use crate::world::World;
 
 /// Click and keys update [`Focus`], toggle disclosures, and keep the row on screen.
+///
+/// [`crate::Shell`] runs this on [`crate::Schedule::Update`].
+///
+/// Snaps a focus that is dead or not [`crate::Focusable`] before anything
+/// else. A live id that is not focusable moves to its nearest focusable
+/// ancestor, or to the first focusable when it has none. A dead id moves to
+/// the first focusable. Focus is cleared when the tree has no focusable.
+/// Returns after that snap when [`Input`] is missing.
+///
+/// The pointer's press edge selects a focusable hit, sets [`crate::Selection`]
+/// to it, and clears editing. A hit on a pane [`crate::Field`], while that
+/// selection is still alive, starts editing the field instead. Keys are the
+/// legacy [`Input::key`] only, not [`Input::keys`]. Arrows walk the live
+/// focusable tree. Right opens a closed disclosure that has template children
+/// or is a directory, and Left closes an open one. Tab and Shift-Tab move
+/// and do not wrap. Enter selects the row and starts editing its title.
+/// Escape clears the selection, closes an open disclosure that has template
+/// children or is a directory, moves to the parent, or sets [`Input::quit`]
+/// when none of those apply.
+///
+/// Save, and New or Delete while not editing, stay set for the file systems.
+/// A focused [`crate::CapturesKeys`] keeps the key. While a pane field is
+/// being edited, Escape stops editing and New and Delete are consumed; the
+/// caret keys stay. When the tree owns the key it clears [`Input::key`],
+/// including keys it does not act on.
+///
+/// The focused row is then scrolled into the nearest [`crate::Scroll`]
+/// ancestor, in logical points. A child [`crate::Label`] rectangle is used
+/// when the row has one, otherwise the row's own rectangle.
 pub fn apply_focus(world: &mut World) {
     snap_stale_focus(world);
 

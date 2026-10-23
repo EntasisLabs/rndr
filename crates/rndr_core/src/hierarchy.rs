@@ -7,15 +7,26 @@ impl Component for Children {}
 /// Child → parent link. Canonical hierarchy edge.
 #[derive(Clone, Copy, Debug)]
 pub struct Parent {
+    /// Parent entity. A dead id means this node is a root until [`set_parent`]
+    /// runs again. [`despawn`] of the parent removes the child as well.
     pub entity: Entity,
 }
 
 /// Parent → children list. Maintained by [`set_parent`].
 #[derive(Clone, Debug, Default)]
 pub struct Children {
+    /// Children in insertion order. [`set_parent`] appends. Reparent and
+    /// [`despawn`] remove. A dead id can linger here until the next edit;
+    /// [`children_of`] skips those.
     pub list: Vec<Entity>,
 }
 
+/// Make `child` a child of `parent`, and keep both links in step.
+///
+/// Returns without writing when either entity is dead, when `child` is
+/// `parent`, or when `child` is already under `parent`. An old parent loses
+/// `child` from its [`Children`] list. Does not walk ancestors, so the caller
+/// must not close a cycle.
 pub fn set_parent(world: &mut World, child: Entity, parent: Entity) {
     if !world.is_alive(child) || !world.is_alive(parent) || child == parent {
         return;
@@ -38,6 +49,10 @@ pub fn set_parent(world: &mut World, child: Entity, parent: Entity) {
 }
 
 /// Cascade-despawn a subtree. Detached children are not created; children die with the parent.
+///
+/// A dead `entity` returns immediately. A live parent drops `entity` from its
+/// [`Children`] list first, then every live descendant is despawned with it.
+/// Dead ids already stored on a [`Children`] list are skipped.
 pub fn despawn(world: &mut World, entity: Entity) {
     if !world.is_alive(entity) {
         return;
@@ -61,6 +76,11 @@ pub fn despawn(world: &mut World, entity: Entity) {
     }
 }
 
+/// Live children of `entity`, in [`Children`] order.
+///
+/// Dead ids stored on the parent are skipped. An entity with no [`Children`]
+/// component yields an empty list. The list is owned; it is not a borrow of
+/// the component.
 pub fn children_of(world: &World, entity: Entity) -> Vec<Entity> {
     world
         .get::<Children>(entity)
@@ -74,6 +94,10 @@ pub fn children_of(world: &World, entity: Entity) -> Vec<Entity> {
         .unwrap_or_default()
 }
 
+/// Live entities with `T` that have no live [`Parent`].
+///
+/// A parent id that has already been despawned counts as no parent. The order
+/// is the component store's, not spawn order.
 pub fn roots<T: crate::world::Component>(world: &World) -> Vec<Entity> {
     world
         .entities_with::<T>()
