@@ -43,7 +43,7 @@ fn window(title: &str) -> WindowConfig {
     WindowConfig {
         title: title.into(),
         position,
-        size: LogicalSize::new(WINDOW_W, WINDOW_H),
+        size: rndr_core::LogicalSize::new(WINDOW_W, WINDOW_H),
         ..WindowConfig::default()
     }
 }
