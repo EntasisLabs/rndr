@@ -114,6 +114,16 @@ fn standard_actions_resolve_on_mac_and_windows() {
             );
         }
     }
+    for platform in [Platform::Windows, Platform::X11, Platform::Wayland] {
+        let event = letter(platform, 'z', true);
+        assert_eq!(
+            standard_action(platform, &event),
+            Some(EditAction::Redo),
+            "{platform:?}"
+        );
+    }
+    let mac_ctrl = KeyEvent::character('z', mods(true, true, false, false));
+    assert_eq!(standard_action(Platform::Mac, &mac_ctrl), None);
 }
 
 #[test]
@@ -406,6 +416,46 @@ fn modifier_chords_insert_only_platform_text() {
         .unwrap()
         .keys
         .push(KeyEvent::character('a', mods(false, false, false, true)).with_text("a"));
+    app.update();
+    assert_eq!(app.world().get::<Label>(entity).unwrap().text, "ab");
+}
+
+#[test]
+fn unbound_ctrl_and_alt_chords_do_not_insert_the_key_character() {
+    let mut input = Input::default();
+    input.push_key(
+        KeyEvent::character('b', mods(false, true, false, false)).with_text("b"),
+        Platform::X11,
+    );
+    input.push_key(
+        KeyEvent::character('q', mods(true, true, false, false)).with_text("Q"),
+        Platform::X11,
+    );
+    assert!(input.chars.is_empty());
+
+    input.push_key(
+        KeyEvent::character('e', mods(false, false, true, false)).with_text("é"),
+        Platform::X11,
+    );
+    assert_eq!(input.chars, "é");
+
+    let (mut app, entity) = field();
+    app.world_mut().insert_resource(Platform::X11);
+    app.world_mut()
+        .resource_mut::<Input>()
+        .unwrap()
+        .keys
+        .push(KeyEvent::character('b', mods(false, true, false, false)).with_text("b"));
+    app.world_mut()
+        .resource_mut::<Input>()
+        .unwrap()
+        .keys
+        .push(KeyEvent::character('q', mods(true, true, false, false)).with_text("Q"));
+    app.world_mut()
+        .resource_mut::<Input>()
+        .unwrap()
+        .keys
+        .push(KeyEvent::character('b', mods(false, false, true, false)).with_text("b"));
     app.update();
     assert_eq!(app.world().get::<Label>(entity).unwrap().text, "ab");
 }

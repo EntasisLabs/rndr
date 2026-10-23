@@ -241,3 +241,34 @@ fn prompt_scroll_shifts_the_caret() {
         }
     );
 }
+
+#[test]
+fn prompt_text_is_clipped_to_the_content_band() {
+    let mut world = World::new();
+    world.spawn((
+        rect(),
+        Color::rgb(0.2, 0.22, 0.24),
+        Label::new("a\nb"),
+        Caret {
+            index: 0,
+            anchor: 0,
+        },
+        Prompt {
+            scroll: CELL_H,
+            ..Prompt::new()
+        },
+    ));
+    let quads = paint(&world);
+    let solid = solid_uv();
+    let glyphs: Vec<_> = quads.iter().filter(|quad| quad.uv != solid).collect();
+    assert_eq!(glyphs.len(), 1, "the line in the top padding is dropped");
+    let content = Clip {
+        x: rect().x,
+        y: rect().y + TEXT_ORIGIN_Y,
+        w: rect().w,
+        h: rect().h - 2.0 * TEXT_ORIGIN_Y,
+    };
+    assert_eq!(glyphs[0].clip, content);
+    let fill = quads.iter().find(|quad| quad.uv == solid).unwrap();
+    assert_eq!(fill.clip, Clip::from_rect(rect()));
+}

@@ -116,7 +116,7 @@ pub fn platform_of(world: &World) -> Platform {
 pub struct Modifiers {
     /// Shift was held. Letter matching still folds ASCII case.
     pub shift: bool,
-    /// Control was held. Text insertion treats this differently from Super.
+    /// Control was held. Without Alt, text from this chord is not inserted.
     pub ctrl: bool,
     /// Alt was held. Shortcut matching compares this exactly.
     pub alt: bool,
@@ -145,7 +145,10 @@ impl Modifiers {
         }
     }
 
-    /// Ctrl or Super. Text is not inserted while either is held.
+    /// Ctrl or Super.
+    ///
+    /// Super never inserts text. Ctrl inserts only together with Alt, and
+    /// only when that text is not the key's own character (AltGr).
     pub fn command(self) -> bool {
         self.ctrl || self.super_key
     }
@@ -444,8 +447,10 @@ impl KeyEvent {
 
     /// Text that should be inserted.
     ///
-    /// Synthetic focus events and Super never insert. Ctrl and Alt insert only
-    /// when this event already carries text, which is how AltGr types.
+    /// Synthetic focus events never insert. Super never inserts. Ctrl without
+    /// Alt never inserts, so an unbound Ctrl or Cmd letter chord does not type
+    /// that letter. Alt, and Ctrl+Alt, insert when the text is not the key's
+    /// own plain or shifted character: that is how AltGr and Option type.
     /// Control characters are dropped.
     pub fn insertable_text(&self) -> Option<String> {
         if self.synthetic || self.modifiers.super_key {
@@ -454,11 +459,62 @@ impl KeyEvent {
         let text = self.text.as_ref()?;
         let filtered: String = text.chars().filter(|ch| is_insertable(*ch)).collect();
         if filtered.is_empty() {
-            None
-        } else {
-            Some(filtered)
+            return None;
         }
+        if self.modifiers.ctrl && !self.modifiers.alt {
+            return None;
+        }
+        if self.modifiers.alt && is_plain_key_text(self, &filtered) {
+            return None;
+        }
+        Some(filtered)
     }
+}
+
+/// `text` is the unmodified or shifted character of this key, not AltGr output.
+fn is_plain_key_text(event: &KeyEvent, text: &str) -> bool {
+    let Some(identity) = key_identity(event) else {
+        return false;
+    };
+    let mut chars = text.chars();
+    let Some(got) = chars.next() else {
+        return true;
+    };
+    if chars.next().is_some() {
+        return false;
+    }
+    got.eq_ignore_ascii_case(&identity)
+}
+
+fn key_identity(event: &KeyEvent) -> Option<char> {
+    if let Some(ch) = event.code.and_then(code_identity) {
+        return Some(ch);
+    }
+    match event.logical {
+        LogicalKey::Character(ch) => Some(ch),
+        LogicalKey::Named(NamedKey::Space) => Some(' '),
+        _ => None,
+    }
+}
+
+fn code_identity(code: KeyCode) -> Option<char> {
+    Some(match code {
+        KeyCode::Letter(ch) => ch,
+        KeyCode::Digit(n) => char::from_digit(u32::from(n), 10)?,
+        KeyCode::Space => ' ',
+        KeyCode::Minus => '-',
+        KeyCode::Equal => '=',
+        KeyCode::BracketLeft => '[',
+        KeyCode::BracketRight => ']',
+        KeyCode::Backslash => '\\',
+        KeyCode::Semicolon => ';',
+        KeyCode::Quote => '\'',
+        KeyCode::Comma => ',',
+        KeyCode::Period => '.',
+        KeyCode::Slash => '/',
+        KeyCode::Backquote => '`',
+        _ => return None,
+    })
 }
 
 /// Printable text, including non-ASCII. Control characters stay out of the buffer.
@@ -815,8 +871,9 @@ pub enum EditAction {
     /// Undo. Primary+Z with Shift up. On macOS, Shift+Primary+Z is
     /// [`Self::Redo`] instead. Matches the physical Z key or the Latin letter.
     Undo,
-    /// Redo. Shift+Primary+Z on macOS, Primary+Y with Shift up elsewhere.
-    /// Matches the physical letter or the Latin letter.
+    /// Redo. Shift+Primary+Z on every platform. Primary+Y with Shift up also
+    /// redoes on Windows, X11, and Wayland. Matches the physical letter or
+    /// the Latin letter.
     Redo,
     /// Copy. Primary+C with Shift up. Matches the physical C key or the Latin
     /// letter, so a non-Latin layout still copies.
@@ -980,6 +1037,10 @@ fn patterns(platform: Platform) -> Vec<StdPat> {
         letter(EditAction::Cut, 'x', false),
         letter(EditAction::Paste, 'v', false),
     ];
+    // Ctrl+Y stays. Ctrl+Shift+Z is the other redo chord on Windows and Linux.
+    if !mac {
+        pats.push(letter(EditAction::Redo, 'z', true));
+    }
     if mac {
         pats.push(motion(
             EditAction::WordLeft,

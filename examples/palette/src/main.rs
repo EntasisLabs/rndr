@@ -8,13 +8,16 @@
 //! and is drawn in its own dim label color. Letters the filter matched are
 //! highlighted. Running a command spawns a task whose handle lives in ordinary
 //! app state. Activating Ask Medousa switches the field to a multi-line prompt:
-//! Enter sends, Shift+Enter inserts a newline, and clicking Ask Medousa again
-//! returns to the list. Filter replies are ignored while that prompt is open.
+//! Enter sends, Shift+Enter inserts a newline, and the Ask chord
+//! (Ctrl+Enter or Cmd+Enter) returns to the list. Esc returns when the
+//! prompt is empty. The unsent draft is restored the next time Ask opens.
+//! Filter replies are ignored while that prompt is open.
 //!
 //! The window is frameless, centered, and always on top. Escape and blur hide
 //! it and leave the process running. Alt+Space shows or hides it from any
 //! application (`RNDR_HOTKEY` or `--hotkey` overrides the chord). The clear
-//! chord is still registered; window dismiss claims bare Escape first.
+//! chord is still registered; window dismiss claims bare Escape first, except
+//! while Ask is open and the prompt is empty. Then Escape leaves Ask.
 //!
 //! A tray icon stays up while the window is hidden. Left click toggles the
 //! window. The menu is Show Palette (the same global hotkey), Settings
@@ -31,9 +34,9 @@ use std::time::Duration;
 use rndr_core::window::{self, WindowConfig, WindowKind};
 use rndr_core::{
     context_stack, events, feed, platform_of, set_parent, sleep, spawn, spawn_detached, theme_of,
-    toggle_on_click, App, Axis, CapturesKeys, Caret, Chrome, Color, Context, Dismiss, Entity,
-    Event, Focus, HotkeyBinding, HotkeyRejected, Item, KeyBinding, Keymap, KeymapFired, Keystroke,
-    Label, Layout, List, ListActivated, ListKeys, ListRows, LogicalSize, Menu, NamedKey,
+    toggle_on_click, App, Axis, CapturesKeys, Caret, Chrome, Color, Context, Dismiss, DismissHold,
+    Entity, Event, Focus, HotkeyBinding, HotkeyRejected, Item, KeyBinding, Keymap, KeymapFired,
+    Keystroke, Label, Layout, List, ListActivated, ListKeys, ListRows, LogicalSize, Menu, NamedKey,
     Placeholder, Position, Prompt, Radius, Schedule, Size, Spans, Submitted, TaskHandle,
     TextChanged, TextFace, TextField, TextOverflow, TextSpan, Theme, TrayConfig, TrayIcon,
     TrayItemId, TrayMenu, World,
@@ -120,6 +123,8 @@ struct Palette {
     search_tx: feed::Sender<Filtered>,
     /// Ask Medousa replaced the filter field with a multi-line prompt.
     asking: bool,
+    /// Unsent Ask prompt. Leaving Ask keeps it; opening Ask writes it back.
+    draft: String,
 }
 
 fn bindings() -> Vec<KeyBinding> {
@@ -236,6 +241,7 @@ fn setup(world: &mut World) {
         search,
         search_tx,
         asking: false,
+        draft: String::new(),
     });
     start_search(world, String::new());
     paint_status(world);
@@ -439,22 +445,30 @@ struct Atom {
     bases: Vec<char>,
 }
 
+/// One folded base from the query, tied back to the grapheme it came from.
+struct Needle {
+    base: char,
+    piece: usize,
+}
+
+/// Cost of matching a base only after folding an accent away.
+///
+/// Larger than a position gap inside a title, so an exact accent match
+/// sorts ahead of a folded one. Case differences are not a penalty.
+const ACCENT_PENALTY: i32 = 1_000;
+
 /// Subsequence match. Lower score is better: tight, early matches win.
-/// Ranges are byte spans in `title` for the letters that hit, merged when
-/// they sit next to each other. Matching ignores case and diacritics, and a
-/// hit covers the original character including a following combining mark.
+/// An exact accent match scores above the same letters with accents folded
+/// off. Ranges are byte spans in `title` for the letters that hit, merged
+/// when they sit next to each other. Matching ignores case and diacritics,
+/// and a hit covers the original character including a following combining
+/// mark.
 fn fuzzy(query: &str, title: &str) -> Option<(i32, Vec<(usize, usize)>)> {
     let query = query.trim();
     if query.is_empty() {
         return Some((0, Vec::new()));
     }
-    let mut needles = Vec::new();
-    for ch in query.chars() {
-        if ch.is_whitespace() || is_mark(ch) {
-            continue;
-        }
-        needles.extend(fold_bases(ch));
-    }
+    let (pieces, needles) = query_needles(query);
     if needles.is_empty() {
         return Some((0, Vec::new()));
     }
@@ -466,24 +480,32 @@ fn fuzzy(query: &str, title: &str) -> Option<(i32, Vec<(usize, usize)>)> {
         if needle >= needles.len() {
             break;
         }
+        let grapheme = &title[atom.start..atom.end];
         let mut used = false;
-        for base in atom.bases {
+        let mut inexact = false;
+        for base in &atom.bases {
             if needle >= needles.len() {
                 break;
             }
-            if base == needles[needle] {
+            if *base == needles[needle].base {
                 let at = atom.start;
                 score += match last {
                     Some(prev) => (at as i32 - prev as i32 - 1).max(0),
                     None => at as i32,
                 };
                 last = Some(at);
+                if !same_grapheme(&pieces[needles[needle].piece], grapheme) {
+                    inexact = true;
+                }
                 needle += 1;
                 used = true;
             }
         }
         if !used {
             continue;
+        }
+        if inexact {
+            score += ACCENT_PENALTY;
         }
         if let Some((_, end)) = ranges.last_mut() {
             if *end == atom.start {
@@ -494,6 +516,31 @@ fn fuzzy(query: &str, title: &str) -> Option<(i32, Vec<(usize, usize)>)> {
         ranges.push((atom.start, atom.end));
     }
     (needle == needles.len()).then_some((score, ranges))
+}
+
+fn query_needles(query: &str) -> (Vec<String>, Vec<Needle>) {
+    let mut pieces = Vec::new();
+    let mut needles = Vec::new();
+    for atom in atoms(query) {
+        let grapheme = &query[atom.start..atom.end];
+        if grapheme.chars().all(char::is_whitespace) {
+            continue;
+        }
+        let piece = pieces.len();
+        pieces.push(grapheme.to_string());
+        for base in atom.bases {
+            needles.push(Needle { base, piece });
+        }
+    }
+    (pieces, needles)
+}
+
+fn same_grapheme(query: &str, title: &str) -> bool {
+    fold_grapheme(query) == fold_grapheme(title)
+}
+
+fn fold_grapheme(text: &str) -> String {
+    text.nfd().flat_map(char::to_lowercase).collect()
 }
 
 fn atoms(text: &str) -> Vec<Atom> {
@@ -677,7 +724,32 @@ fn palette_update(world: &mut World) {
         }
     }
 
+    sync_dismiss_hold(world);
     paint_status(world);
+}
+
+fn sync_dismiss_hold(world: &mut World) {
+    let asking_field = world
+        .resource::<Palette>()
+        .filter(|palette| palette.asking)
+        .map(|palette| palette.field);
+    let hold = match asking_field {
+        Some(field) => world
+            .get::<Label>(field)
+            .map(|label| label.text.trim().is_empty())
+            .unwrap_or(true),
+        None => false,
+    };
+    world.insert_resource(DismissHold { hold });
+}
+
+fn ask_hint(world: &World) -> String {
+    let shortcut = world
+        .resource::<Keymap>()
+        .map(|keymap| keymap.shortcut("ask", &[], platform_of(world)))
+        .filter(|text| !text.is_empty())
+        .unwrap_or_else(|| "Ctrl+Enter".to_string());
+    format!("Enter sends. Shift+Enter line. {shortcut} back. Esc if empty.")
 }
 
 fn toggle_ask(world: &mut World) {
@@ -692,27 +764,28 @@ fn toggle_ask(world: &mut World) {
 }
 
 fn enter_ask(world: &mut World) {
-    let (field, list) = {
+    let (field, list, draft) = {
         let palette = world.resource::<Palette>().unwrap();
-        (palette.field, palette.list)
+        (palette.field, palette.list, palette.draft.clone())
     };
     world.insert(field, Prompt::new().max_lines(6));
     world.insert(field, Placeholder::new("Ask Medousa"));
     if let Some(label) = world.get_mut::<Label>(field) {
-        label.text.clear();
+        label.text = draft.clone();
         label.overflow = TextOverflow::Wrap;
     }
     if let Some(caret) = world.get_mut::<Caret>(field) {
-        caret.index = 0;
-        caret.anchor = 0;
+        let len = draft.len();
+        caret.index = len;
+        caret.anchor = len;
     }
     world.remove::<ListKeys>(list);
+    let hint = ask_hint(world);
     let palette = world.resource_mut::<Palette>().unwrap();
     palette.asking = true;
     palette.query.clear();
     palette.hits = (0..COMMANDS.len()).collect();
-    palette.message =
-        "Enter sends. Shift+Enter adds a line. Click Ask Medousa to go back.".to_string();
+    palette.message = hint;
     if let Some(list) = world.get_mut::<List>(list) {
         list.count = COMMANDS.len() as u32;
         list.selected = Some(0);
@@ -725,6 +798,10 @@ fn leave_ask(world: &mut World) {
         let palette = world.resource::<Palette>().unwrap();
         (palette.field, palette.list)
     };
+    let draft = world
+        .get::<Label>(field)
+        .map(|label| label.text.clone())
+        .unwrap_or_default();
     world.remove::<Prompt>(field);
     world.remove::<Placeholder>(field);
     if let Some(label) = world.get_mut::<Label>(field) {
@@ -739,6 +816,7 @@ fn leave_ask(world: &mut World) {
     let hint = status_hint(world);
     let palette = world.resource_mut::<Palette>().unwrap();
     palette.asking = false;
+    palette.draft = draft;
     palette.query.clear();
     palette.hits = (0..COMMANDS.len()).collect();
     palette.message = hint;
@@ -758,19 +836,28 @@ fn clear_prompt(world: &mut World) {
         caret.index = 0;
         caret.anchor = 0;
     }
+    world.resource_mut::<Palette>().unwrap().draft.clear();
 }
 
 fn clear_query(world: &mut World) {
+    let asking = world.resource::<Palette>().unwrap().asking;
     let field = world.resource::<Palette>().unwrap().field;
+    if asking {
+        let empty = world
+            .get::<Label>(field)
+            .map(|label| label.text.trim().is_empty())
+            .unwrap_or(true);
+        if empty {
+            leave_ask(world);
+        }
+        return;
+    }
     if let Some(label) = world.get_mut::<Label>(field) {
         label.text.clear();
     }
     if let Some(caret) = world.get_mut::<Caret>(field) {
         caret.index = 0;
         caret.anchor = 0;
-    }
-    if world.resource::<Palette>().unwrap().asking {
-        return;
     }
     world.resource_mut::<Palette>().unwrap().query.clear();
     start_search(world, String::new());
@@ -798,12 +885,16 @@ fn start_search(world: &mut World, query: String) {
 fn paint_status(world: &mut World) {
     let (status, message) = {
         let palette = world.resource::<Palette>().unwrap();
-        let message = format!(
-            "{} of {}  |  {}",
-            palette.hits.len(),
-            COMMANDS.len(),
-            palette.message
-        );
+        let message = if palette.asking {
+            palette.message.clone()
+        } else {
+            format!(
+                "{} of {}  |  {}",
+                palette.hits.len(),
+                COMMANDS.len(),
+                palette.message
+            )
+        };
         (palette.status, message)
     };
     set_text(world, status, &message);
@@ -940,8 +1031,22 @@ mod tests {
         let (score, ranges) = fuzzy("É", "Résumé builder").unwrap();
         assert_eq!(ranges, vec![(1, 3)]);
         assert_eq!(score, 1);
-        let (_, ranges) = fuzzy("rés", "Résumé builder").unwrap();
+        let (score, ranges) = fuzzy("rés", "Résumé builder").unwrap();
         assert_eq!(ranges, vec![(0, 4)]);
+        let (folded, _) = fuzzy("rés", "Restart daemon").unwrap();
+        assert!(score < folded, "{score} vs {folded}");
+        let hits = super::filter("rés");
+        let resume = super::COMMANDS
+            .iter()
+            .position(|(_, title)| *title == "Résumé builder")
+            .unwrap();
+        let restart = super::COMMANDS
+            .iter()
+            .position(|(_, title)| *title == "Restart daemon")
+            .unwrap();
+        let resume_at = hits.iter().position(|index| *index == resume).unwrap();
+        let restart_at = hits.iter().position(|index| *index == restart).unwrap();
+        assert!(resume_at < restart_at);
         let (_, cafe) = fuzzy("cafe", "Café").unwrap();
         assert_eq!(cafe, vec![(0, "Café".len())]);
         let (_, resume) = fuzzy("resume", "résumé").unwrap();
@@ -971,6 +1076,93 @@ mod tests {
         assert_eq!(opaque_rgb(&mac), Some([0, 0, 0]));
         assert_eq!(opaque_rgb(&x11), Some([255, 255, 255]));
         assert_eq!(opaque_rgb(&windows), Some([255, 255, 255]));
+    }
+
+    #[test]
+    fn ask_hint_fits_and_the_draft_survives_leaving() {
+        use rndr_core::{
+            Dismiss, KeyEvent, Label, Modifiers, NamedKey, Sim, WindowConfig, WindowPhase,
+        };
+
+        let mut sim = Sim::new();
+        sim.app.world_mut().insert_resource(WindowConfig {
+            dismiss: Dismiss::Hide,
+            ..WindowConfig::default()
+        });
+        sim.app
+            .world_mut()
+            .insert_resource(rndr_core::Theme::default());
+        sim.app.add_plugin(rndr_core::Chrome);
+        sim.app
+            .add_system(rndr_core::Schedule::Startup, super::setup);
+        sim.app
+            .add_system(rndr_core::Schedule::Update, super::palette_update);
+        sim.update();
+
+        super::enter_ask(sim.world());
+        super::palette_update(sim.world());
+        let status = status_text(&sim);
+        let platform = rndr_core::platform_of(sim.world());
+        let shortcut = sim
+            .app
+            .world()
+            .resource::<rndr_core::Keymap>()
+            .unwrap()
+            .shortcut("ask", &[], platform);
+        assert!(status.contains(&shortcut), "{status}");
+        assert!(status.contains("Esc"));
+        assert!(!status.contains("Click"));
+        assert!(!status.contains(" of "));
+        assert!(status.len() < 70, "{status}");
+
+        {
+            let input = sim.world().resource_mut::<rndr_core::Input>().unwrap();
+            input
+                .keys
+                .push(KeyEvent::named(NamedKey::Escape, Modifiers::new()));
+        }
+        sim.update();
+        assert!(!sim.app.world().resource::<super::Palette>().unwrap().asking);
+        assert!(sim
+            .app
+            .world()
+            .resource::<WindowPhase>()
+            .map(|phase| phase.visible)
+            .unwrap_or(true));
+
+        super::enter_ask(sim.world());
+        let field = sim.app.world().resource::<super::Palette>().unwrap().field;
+        sim.app.world_mut().get_mut::<Label>(field).unwrap().text = "keep me".into();
+        super::leave_ask(sim.world());
+        assert_eq!(
+            sim.app.world().resource::<super::Palette>().unwrap().draft,
+            "keep me"
+        );
+        assert_eq!(sim.app.world().get::<Label>(field).unwrap().text, "");
+        super::enter_ask(sim.world());
+        assert_eq!(sim.app.world().get::<Label>(field).unwrap().text, "keep me");
+
+        super::palette_update(sim.world());
+        {
+            let input = sim.world().resource_mut::<rndr_core::Input>().unwrap();
+            input
+                .keys
+                .push(KeyEvent::named(NamedKey::Escape, Modifiers::new()));
+        }
+        sim.update();
+        assert!(sim.app.world().resource::<super::Palette>().unwrap().asking);
+        assert!(!sim.app.world().resource::<WindowPhase>().unwrap().visible);
+        assert_eq!(sim.app.world().get::<Label>(field).unwrap().text, "keep me");
+    }
+
+    fn status_text(sim: &rndr_core::Sim) -> String {
+        let status = sim.app.world().resource::<super::Palette>().unwrap().status;
+        sim.app
+            .world()
+            .get::<rndr_core::Label>(status)
+            .unwrap()
+            .text
+            .clone()
     }
 
     #[test]

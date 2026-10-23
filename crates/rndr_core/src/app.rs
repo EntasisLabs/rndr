@@ -193,7 +193,8 @@ impl App {
     /// already in the readable queues.
     ///
     /// Input then runs. Dismiss claims a bare Escape before the keymap and
-    /// text fields. Events this stage sends, including `TextChanged` and a
+    /// text fields, unless [`crate::DismissHold`] is set. Events this stage
+    /// sends, including `TextChanged` and a
     /// dismiss blur, are merged before Update. Layout systems run, then the
     /// hierarchy walk. Window commands queued by systems are applied after
     /// that, so the runner can show or hide on this frame; those focus events

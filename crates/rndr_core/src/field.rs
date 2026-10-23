@@ -1,14 +1,16 @@
 use crate::caret::Caret;
-use crate::clipboard::{note_clipboard, Clipboard};
-use crate::edit::edit_string;
+use crate::clipboard::{
+    note_clipboard, note_primary, paste_selection, primary_selection, Clipboard,
+};
+use crate::edit::{edit_string, grapheme_selection};
 use crate::entity::Entity;
 use crate::event::{send, Event};
 use crate::hierarchy::Parent;
-use crate::input::{Focus, Input, Key};
+use crate::input::{Focus, Input, Key, PointerButton};
 use crate::keys::{platform_of, KeyEvent, LogicalKey, Modifiers, NamedKey};
 use crate::layout::{hit_test, Rect};
 use crate::style::{Label, TextOverflow, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
-use crate::typing::{apply_text_event, EditHistory, EditSurface};
+use crate::typing::{apply_text_event, insert_plain, EditHistory, EditSurface};
 use crate::world::{Component, World};
 use crate::wrap::with_text_layout;
 
@@ -35,6 +37,10 @@ pub struct ImePreview {
 /// A focused field applies the key queue during Input, then clears it. Update
 /// on that same frame reads [`TextChanged`] and [`Submitted`]. Watching the
 /// label from PostUpdate is not required.
+///
+/// On X11 and Wayland, releasing the mouse over a selection writes
+/// [`crate::Clipboard::primary`]. Middle-click pastes that selection, or the
+/// clipboard when the selection is empty.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct TextField;
 
@@ -111,6 +117,7 @@ pub fn apply_fields(world: &mut World) {
             );
         }
         place_from_pointer(world, entity, existed);
+        publish_field_primary(world, entity);
         edit_label(world, entity);
     }
 }
@@ -156,9 +163,105 @@ fn place_from_pointer(world: &mut World, entity: crate::entity::Entity, existed:
     });
     if let Some(caret) = world.get_mut::<Caret>(entity) {
         caret.index = index;
-        if !(input.shift && existed) {
+        if input.pointer.button == PointerButton::Middle || !(input.shift && existed) {
             caret.anchor = index;
         }
+    }
+    break_typing_at(world, entity);
+}
+
+fn publish_field_primary(world: &mut World, entity: Entity) {
+    if !primary_selection(platform_of(world)) {
+        return;
+    }
+    let Some(input) = world.resource::<Input>() else {
+        return;
+    };
+    if input.pointer.button != PointerButton::Left || !input.pointer.released {
+        return;
+    }
+    let position = input.pointer.position;
+    let Some(hit) = hit_test(world, position[0], position[1]) else {
+        return;
+    };
+    if ancestor_editor(world, hit) != Some(entity) {
+        return;
+    }
+    let selected = label_selection(world, entity);
+    note_primary(world, &selected);
+}
+
+/// Text to insert for a middle-click on `entity`, when this platform has a
+/// primary selection and the press landed in the field.
+pub(crate) fn middle_paste_text(world: &World, entity: Entity) -> Option<String> {
+    if !primary_selection(platform_of(world)) {
+        return None;
+    }
+    let input = world.resource::<Input>()?;
+    if input.pointer.button != PointerButton::Middle || !input.pointer.pressed {
+        return None;
+    }
+    let hit = hit_test(world, input.pointer.position[0], input.pointer.position[1])?;
+    if ancestor_editor(world, hit) != Some(entity) {
+        return None;
+    }
+    let text = paste_selection(world);
+    if text.is_empty() {
+        None
+    } else {
+        Some(text)
+    }
+}
+
+pub(crate) fn label_selection(world: &World, entity: Entity) -> String {
+    let text = world
+        .get::<Label>(entity)
+        .map(|label| label.text.clone())
+        .unwrap_or_default();
+    let (index, anchor) = world
+        .get::<Caret>(entity)
+        .map(|caret| (caret.index, caret.anchor))
+        .unwrap_or((text.len(), text.len()));
+    let (start, end) = grapheme_selection(&text, anchor, index);
+    text[start..end].to_string()
+}
+
+fn paste_field_primary(world: &mut World, entity: Entity) {
+    let Some(paste) = middle_paste_text(world, entity) else {
+        return;
+    };
+    let mut text = world
+        .get::<Label>(entity)
+        .map(|label| label.text.clone())
+        .unwrap_or_default();
+    let mut index = world
+        .get::<Caret>(entity)
+        .map(|caret| caret.index.min(text.len()))
+        .unwrap_or(text.len());
+    let mut anchor = index;
+    let mut history = world.remove::<EditHistory>(entity).unwrap_or_default();
+    insert_plain(
+        &mut EditSurface {
+            text: &mut text,
+            index: &mut index,
+            anchor: &mut anchor,
+        },
+        &mut history,
+        &paste,
+    );
+    if let Some(label) = world.get_mut::<Label>(entity) {
+        label.text = text;
+    }
+    if let Some(caret) = world.get_mut::<Caret>(entity) {
+        caret.index = index;
+        caret.anchor = anchor;
+    }
+    world.insert(entity, history);
+}
+
+pub(crate) fn break_typing_at(world: &mut World, entity: Entity) {
+    if let Some(history) = world.get_mut::<EditHistory>(entity) {
+        history.break_run();
     }
 }
 
@@ -196,6 +299,7 @@ fn edit_label(world: &mut World, entity: crate::entity::Entity) {
         .get::<Label>(entity)
         .map(|label| label.text.clone())
         .unwrap_or_default();
+    paste_field_primary(world, entity);
     let submitted = wants_submit(key, &keys);
     if keys.is_empty() {
         edit_label_legacy(world, entity, key, shift, &chars, &commit);
@@ -293,6 +397,7 @@ fn edit_label_queue(
         .unwrap_or_default();
     let mut copied = None;
     let mut clipboard_action = false;
+    let now = crate::typing::frame_now(world);
     for event in keys {
         let step = apply_text_event(
             &mut EditSurface {
@@ -303,6 +408,7 @@ fn edit_label_queue(
             event,
             platform,
             false,
+            now,
             &mut history,
             &clip,
         );
@@ -332,6 +438,7 @@ fn edit_label_queue(
             &commit_event,
             platform,
             false,
+            now,
             &mut history,
             &clip,
         );

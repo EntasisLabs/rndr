@@ -38,7 +38,8 @@ pub struct Theme {
     pub text: Color,
     /// Caret quad.
     pub caret: Color,
-    /// Selection highlight and find decoration.
+    /// Selection highlight and find decoration. The default is a bright blue
+    /// so the range stays readable on the dark chrome.
     pub selection: Color,
     /// Mark painted on a node with unsaved edits.
     pub dirty: Color,
@@ -60,7 +61,7 @@ impl Default for Theme {
             empty: Color::rgb(0.16, 0.17, 0.19),
             text: Color::rgb(0.94, 0.95, 0.97),
             caret: Color::rgb(0.94, 0.95, 0.97),
-            selection: Color::rgba(0.35, 0.55, 0.85, 0.55),
+            selection: Color::rgba(0.36, 0.62, 0.98, 0.88),
             dirty: Color::rgb(0.86, 0.62, 0.20),
             radius: 8.0,
         }

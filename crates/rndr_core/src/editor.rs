@@ -362,6 +362,7 @@ fn edit_queue(world: &mut World, entity: crate::entity::Entity) {
         .unwrap_or_default();
     let mut copied = None;
     let mut clipboard_action = false;
+    let now = crate::typing::frame_now(world);
     for event in &keys {
         let step = apply_text_event(
             &mut EditSurface {
@@ -372,6 +373,7 @@ fn edit_queue(world: &mut World, entity: crate::entity::Entity) {
             event,
             platform,
             true,
+            now,
             &mut history,
             &clip,
         );
@@ -401,6 +403,7 @@ fn edit_queue(world: &mut World, entity: crate::entity::Entity) {
             &commit_event,
             platform,
             true,
+            now,
             &mut history,
             &clip,
         );

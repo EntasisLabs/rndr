@@ -1,7 +1,11 @@
+use std::sync::Arc;
+use std::time::Duration;
+
 use rndr_core::{
     events, App, CapturesKeys, Caret, Chrome, Clipboard, Color, Focus, ImePreview, Input, KeyEvent,
-    Label, Layout, Modifiers, NamedKey, Placeholder, Platform, Prompt, PromptHistory, Rect, Size,
-    Submitted, TextLayout, TextOverflow, Viewport, CELL_H, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
+    Label, Layout, ManualClock, Modifiers, NamedKey, Placeholder, Platform, PointerButton, Prompt,
+    PromptHistory, Rect, Size, Submitted, TextLayout, TextOverflow, Viewport, CELL_H, CELL_W,
+    TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
 
 fn boot(text: &str) -> (App, rndr_core::Entity) {
@@ -471,4 +475,149 @@ fn ime_preedit_stays_out_of_the_label_until_commit() {
     assert_eq!(label(&app, entity), "hiz");
     assert!(app.world().get::<ImePreview>(entity).is_none());
     assert!(submitted(&app).is_empty());
+}
+
+#[test]
+fn ctrl_shift_z_redoes_and_does_not_insert() {
+    let (mut app, entity) = boot("");
+    type_text(&mut app, "ab");
+    keys(&mut app, vec![KeyEvent::character('z', ctrl())]);
+    assert_eq!(label(&app, entity), "");
+    let mut redo = KeyEvent::character('z', mods(true, true, false, false));
+    redo.text = Some("Z".into());
+    keys(&mut app, vec![redo]);
+    assert_eq!(label(&app, entity), "ab");
+}
+
+#[test]
+fn typed_runs_share_one_undo_step() {
+    let (mut app, entity) = boot("");
+    type_text(&mut app, "ab");
+    type_text(&mut app, " ");
+    type_text(&mut app, "c");
+    keys(&mut app, vec![KeyEvent::character('z', ctrl())]);
+    assert_eq!(label(&app, entity), "ab ");
+    keys(&mut app, vec![KeyEvent::character('z', ctrl())]);
+    assert_eq!(label(&app, entity), "ab");
+    keys(&mut app, vec![KeyEvent::character('z', ctrl())]);
+    assert_eq!(label(&app, entity), "");
+
+    type_text(&mut app, "ab");
+    keys(
+        &mut app,
+        vec![KeyEvent::named(NamedKey::ArrowLeft, Modifiers::new())],
+    );
+    keys(
+        &mut app,
+        vec![KeyEvent::named(NamedKey::ArrowRight, Modifiers::new())],
+    );
+    type_text(&mut app, "c");
+    keys(&mut app, vec![KeyEvent::character('z', ctrl())]);
+    assert_eq!(label(&app, entity), "ab");
+}
+
+#[test]
+fn a_pause_starts_a_new_undo_step() {
+    let (mut app, entity) = boot("");
+    let clock = Arc::new(ManualClock::new());
+    app.set_clock(clock.clone());
+    type_text(&mut app, "a");
+    clock.advance(Duration::from_millis(700));
+    type_text(&mut app, "b");
+    keys(&mut app, vec![KeyEvent::character('z', ctrl())]);
+    assert_eq!(label(&app, entity), "a");
+    keys(&mut app, vec![KeyEvent::character('z', ctrl())]);
+    assert_eq!(label(&app, entity), "");
+}
+
+#[test]
+fn mouse_selection_sets_the_primary_and_middle_click_pastes_it() {
+    let (mut app, entity) = boot("hello");
+    app.world_mut().insert_resource(Platform::X11);
+    app.world_mut().insert(
+        entity,
+        Caret {
+            index: 0,
+            anchor: 0,
+        },
+    );
+    let rect = *app.world().get::<Rect>(entity).unwrap();
+    {
+        let input = app.world_mut().resource_mut::<Input>().unwrap();
+        input.shift = true;
+        input.pointer.button = PointerButton::Left;
+        input.pointer.pressed = true;
+        input.pointer.down = true;
+        input.pointer.released = false;
+        input.pointer.position = [
+            rect.x + TEXT_ORIGIN_X + CELL_W * 3.0 + 1.0,
+            rect.y + TEXT_ORIGIN_Y + 1.0,
+        ];
+    }
+    app.update();
+    {
+        let input = app.world_mut().resource_mut::<Input>().unwrap();
+        input.shift = false;
+        input.pointer.pressed = false;
+        input.pointer.down = false;
+        input.pointer.released = true;
+    }
+    app.update();
+    let clipboard = app.world().resource::<Clipboard>().unwrap();
+    assert_eq!(clipboard.primary, "hel");
+    assert!(clipboard.primary_dirty);
+
+    {
+        let input = app.world_mut().resource_mut::<Input>().unwrap();
+        input.pointer.button = PointerButton::Middle;
+        input.pointer.pressed = true;
+        input.pointer.down = true;
+        input.pointer.released = false;
+        input.pointer.position = [rect.x + TEXT_ORIGIN_X + 1.0, rect.y + TEXT_ORIGIN_Y + 1.0];
+    }
+    app.update();
+    assert_eq!(label(&app, entity), "helhello");
+    {
+        let input = app.world_mut().resource_mut::<Input>().unwrap();
+        input.pointer.pressed = false;
+        input.pointer.down = false;
+        input.pointer.released = false;
+    }
+    keys(&mut app, vec![KeyEvent::character('z', ctrl())]);
+    assert_eq!(label(&app, entity), "hello");
+
+    app.world_mut().insert_resource(Platform::Windows);
+    app.world_mut()
+        .resource_mut::<Clipboard>()
+        .unwrap()
+        .primary
+        .clear();
+    app.world_mut()
+        .resource_mut::<Clipboard>()
+        .unwrap()
+        .primary_dirty = false;
+    {
+        let input = app.world_mut().resource_mut::<Input>().unwrap();
+        input.pointer.button = PointerButton::Left;
+        input.pointer.pressed = false;
+        input.pointer.down = false;
+        input.pointer.released = true;
+        input.pointer.position = [
+            rect.x + TEXT_ORIGIN_X + CELL_W * 3.0 + 1.0,
+            rect.y + TEXT_ORIGIN_Y + 1.0,
+        ];
+    }
+    app.update();
+    let clipboard = app.world().resource::<Clipboard>().unwrap();
+    assert!(clipboard.primary.is_empty());
+    assert!(!clipboard.primary_dirty);
+}
+
+fn mods(shift: bool, ctrl: bool, alt: bool, super_key: bool) -> Modifiers {
+    Modifiers {
+        shift,
+        ctrl,
+        alt,
+        super_key,
+    }
 }
