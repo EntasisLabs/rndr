@@ -322,7 +322,9 @@ impl Session {
         self.parser.advance(&mut self.term, bytes);
     }
 
-    #[cfg(test)]
+    /// Bytes still waiting. Only the Unix flood test reads this; Windows
+    /// clippy treats a test-only helper with no caller as dead code.
+    #[cfg(all(test, unix))]
     fn queued_len(&self) -> usize {
         lock(&self.shared.incoming).len()
     }
