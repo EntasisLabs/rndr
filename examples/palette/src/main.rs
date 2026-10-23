@@ -1,11 +1,13 @@
 //! Command palette.
 //!
 //! A search field over a virtual list of commands. Typing emits `TextChanged`
-//! during Input; Update debounces a subsequence filter on the background
-//! executor. The list's standard keymap actions move the selection and Enter
-//! activates the row. Each row's shortcut comes from `Keymap::shortcut` and is
-//! drawn in its own dim label color. Letters the filter matched are highlighted.
-//! Running a command spawns a task whose handle lives in ordinary app state.
+//! during Input. Update starts a background feed that waits, then filters.
+//! A reply stamped with an older epoch is dropped, so a slow result cannot
+//! replace a newer query. The list's standard keymap actions move the selection
+//! and Enter activates the row. Each row's shortcut comes from `Keymap::shortcut`
+//! and is drawn in its own dim label color. Letters the filter matched are
+//! highlighted. Running a command spawns a task whose handle lives in ordinary
+//! app state.
 //!
 //! The window is frameless, centered, and always on top. Escape and blur hide
 //! it and leave the process running. Alt+Space shows or hides it from any
@@ -26,7 +28,7 @@ use std::time::Duration;
 
 use rndr_core::window::{self, WindowConfig, WindowKind};
 use rndr_core::{
-    context_stack, debounce, events, platform_of, set_parent, sleep, spawn, theme_of,
+    context_stack, events, feed, platform_of, set_parent, sleep, spawn, spawn_detached, theme_of,
     toggle_on_click, App, Axis, CapturesKeys, Caret, Chrome, Color, Context, Dismiss, Entity,
     Event, Focus, HotkeyBinding, HotkeyRejected, Item, KeyBinding, Keymap, KeymapFired, Keystroke,
     Label, Layout, List, ListActivated, ListKeys, ListRows, LogicalSize, Menu, NamedKey, Position,
@@ -38,7 +40,9 @@ use rndr_render::{configured_hotkey, run, toggle_window};
 
 const CONTEXT: &str = "Palette";
 const ROW_H: f32 = 32.0;
-const DEBOUNCE: Duration = Duration::from_millis(40);
+/// Simulated search latency. Overlapping queries finish out of order; the
+/// feed's epoch keeps the newer one.
+const SEARCH_LAG: Duration = Duration::from_millis(100);
 const RUN_DELAY: Duration = Duration::from_millis(350);
 const CLEAR: &str = "palette.clear";
 
@@ -79,7 +83,10 @@ const COMMANDS: &[(&str, &str)] = &[
     ("quit", "Quit Medousa"),
 ];
 
-/// Filter result produced on the background executor.
+/// Filter result produced on the background feed.
+///
+/// The feed drops a result stamped with an older epoch before this event is
+/// delivered. Update also ignores a result whose query is no longer the field.
 struct Filtered {
     query: String,
     hits: Vec<usize>,
@@ -104,6 +111,9 @@ struct Palette {
     message: String,
     /// Dropping this cancels a run that is still in flight.
     running: Option<TaskHandle>,
+    /// Closing this tells an in-flight search to stop.
+    search: feed::Feed<Filtered>,
+    search_tx: feed::Sender<Filtered>,
 }
 
 fn bindings() -> Vec<KeyBinding> {
@@ -186,7 +196,7 @@ fn setup(world: &mut World) {
         },
         theme.pane,
         Radius(theme.radius),
-        List::new(COMMANDS.len() as u32, ROW_H),
+        List::new(0, ROW_H),
         ListKeys,
         ListRows(build_row),
     ));
@@ -207,16 +217,20 @@ fn setup(world: &mut World) {
         entity: Some(field),
     });
     let show_item = install_tray(world);
+    let (search, search_tx) = feed::open(world, rndr_core::FeedConfig::latest());
     world.insert_resource(Palette {
         field,
         list,
         status,
         show_item,
         query: String::new(),
-        hits: (0..COMMANDS.len()).collect(),
-        message: status_hint(world),
+        hits: Vec::new(),
+        message: "Searching…".into(),
         running: None,
+        search,
+        search_tx,
     });
+    start_search(world, String::new());
     paint_status(world);
 }
 
@@ -510,10 +524,7 @@ fn palette_update(world: &mut World) {
         let field = world.resource::<Palette>().unwrap().field;
         if entity == field {
             world.resource_mut::<Palette>().unwrap().query = text.clone();
-            debounce(world, "filter", DEBOUNCE, move || async move {
-                let hits = filter(&text);
-                Filtered { query: text, hits }
-            });
+            start_search(world, text);
         }
     }
 
@@ -523,7 +534,12 @@ fn palette_update(world: &mut World) {
             continue;
         }
         let list = world.resource::<Palette>().unwrap().list;
+        let running = world.resource::<Palette>().unwrap().running.is_some();
         world.resource_mut::<Palette>().unwrap().hits = hits.clone();
+        if !running {
+            let hint = status_hint(world);
+            world.resource_mut::<Palette>().unwrap().message = hint;
+        }
         if let Some(list) = world.get_mut::<List>(list) {
             list.count = hits.len() as u32;
             list.selected = if hits.is_empty() { None } else { Some(0) };
@@ -567,11 +583,26 @@ fn clear_query(world: &mut World) {
         caret.anchor = 0;
     }
     world.resource_mut::<Palette>().unwrap().query.clear();
-    let text = String::new();
-    debounce(world, "filter", DEBOUNCE, move || async move {
-        let hits = filter(&text);
-        Filtered { query: text, hits }
-    });
+    start_search(world, String::new());
+}
+
+/// Start a search for `query`. A newer call advances the epoch, so a reply
+/// from this search is dropped if the field changes again before it returns.
+fn start_search(world: &mut World, query: String) {
+    let epoch = world.resource::<Palette>().unwrap().search.advance();
+    let tx = world.resource::<Palette>().unwrap().search_tx.clone();
+    world.resource_mut::<Palette>().unwrap().message = "Searching…".into();
+    // Detach so this search can finish after a newer one has started. The
+    // epoch, not the task handle, decides which reply is applied.
+    spawn_detached(world, async move {
+        sleep(SEARCH_LAG).await;
+        if tx.is_cancelled() || tx.epoch() != epoch {
+            return;
+        }
+        let hits = filter(&query);
+        let _ = tx.send_at(epoch, Filtered { query, hits });
+    })
+    .detach();
 }
 
 fn paint_status(world: &mut World) {
@@ -735,6 +766,69 @@ mod tests {
         assert_eq!(opaque_rgb(&mac), Some([0, 0, 0]));
         assert_eq!(opaque_rgb(&x11), Some([255, 255, 255]));
         assert_eq!(opaque_rgb(&windows), Some([255, 255, 255]));
+    }
+
+    #[test]
+    fn a_slower_query_does_not_replace_a_newer_one() {
+        use std::time::Duration;
+
+        use rndr_core::{events, send, Schedule, Sim, TextChanged, Theme};
+
+        let mut sim = Sim::new();
+        sim.app.world_mut().insert_resource(Theme::default());
+        sim.app.add_plugin(rndr_core::Chrome);
+        sim.app.add_system(Schedule::Startup, super::setup);
+        sim.app.add_system(Schedule::Update, super::palette_update);
+
+        sim.update();
+        assert_eq!(list_count(&sim), 0, "rows wait for the background feed");
+
+        sim.advance(super::SEARCH_LAG);
+        sim.update();
+        assert_eq!(list_count(&sim), super::COMMANDS.len() as u32);
+
+        let field = sim.app.world().resource::<super::Palette>().unwrap().field;
+        send(
+            sim.world(),
+            TextChanged {
+                entity: field,
+                text: "a".into(),
+            },
+        );
+        sim.update();
+        // Poll the "a" search so its deadline is armed.
+        sim.update();
+
+        sim.advance(Duration::from_millis(1));
+        send(
+            sim.world(),
+            TextChanged {
+                entity: field,
+                text: "ab".into(),
+            },
+        );
+        sim.update();
+        sim.update();
+
+        // The "a" search is due. The "ab" search is still one millisecond out.
+        sim.advance(super::SEARCH_LAG - Duration::from_millis(1));
+        sim.update();
+        assert_eq!(
+            list_count(&sim),
+            super::COMMANDS.len() as u32,
+            "the older query must not replace the full list"
+        );
+        assert!(events::<super::Filtered>(sim.world()).is_empty());
+
+        sim.advance(Duration::from_millis(1));
+        sim.update();
+        assert_eq!(list_count(&sim), super::filter("ab").len() as u32);
+        assert_ne!(super::filter("a").len(), super::COMMANDS.len());
+    }
+
+    fn list_count(sim: &rndr_core::Sim) -> u32 {
+        let list = sim.app.world().resource::<super::Palette>().unwrap().list;
+        sim.app.world().get::<rndr_core::List>(list).unwrap().count
     }
 
     fn opaque_rgb(icon: &rndr_core::TrayIcon) -> Option<[u8; 3]> {

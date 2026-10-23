@@ -24,6 +24,8 @@ tray = ["rndr_render/tray"]
 # Parley shaping and swash rasterization. `--no-default-features` keeps the
 # builtin atlas and skips the fontconfig link.
 parley = ["rndr_render/parley"]
+# Spawn a feed producer on a tokio runtime the application already started.
+tokio = ["rndr_core/tokio"]
 
 [dependencies]
 rndr_core = { workspace = true }

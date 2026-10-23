@@ -27,8 +27,9 @@ const TIMER_BURST: u8 = 64;
 pub trait Wake: Send + Sync {
     /// Ask the host to pump another frame.
     ///
-    /// Called when a timer is armed, a task becomes ready, or a completion
-    /// is queued. It may run on a worker, so the body has to be brief.
+    /// Called when a timer is armed, a task becomes ready, a feed queues its
+    /// first value since the last drain, or a completion is queued. It may
+    /// run on a worker, so the body has to be brief.
     /// [`NopWake`] ignores the call.
     fn wake(&self);
 }
@@ -553,6 +554,7 @@ pub(crate) fn install(world: &mut World) {
     world.insert_resource(Runtime::new());
     world.insert_resource(Exec(Arc::new(InlineExecutor::new(None))));
     world.insert_local(LocalTasks::default());
+    crate::feed::install(world);
 }
 
 pub(crate) fn set_clock(world: &World, clock: Arc<dyn Clock>) {
@@ -620,6 +622,35 @@ where
         });
         lock(&wake).wake();
     }
+}
+
+/// Spawn `future` on the background [`Executor`] and do not emit an event.
+///
+/// Use this when the future reports through a [`crate::feed`] instead of
+/// returning one value. Dropping the handle cancels the task the same way
+/// [`spawn`] does. A panic during polling is caught and the task is marked
+/// cancelled. [`TaskHandle::detach`] leaves it running with no handle.
+///
+/// The desktop runner replaces the executor before the first frame. Spawn
+/// from Startup or later so the future lands on that executor.
+///
+/// # Panics
+///
+/// Panics if `world` has no runtime or executor. [`crate::App::new`]
+/// installs both.
+pub fn spawn_detached<F>(world: &mut World, future: F) -> TaskHandle
+where
+    F: Future<Output = ()> + Send + 'static,
+{
+    let runtime = runtime(world);
+    let shared = TaskShared::new();
+    let job = Job {
+        future: Box::pin(future),
+        runtime: runtime.downgrade(),
+        shared: Arc::clone(&shared),
+    };
+    exec(world).spawn(job);
+    TaskHandle::new(shared)
 }
 
 /// Spawn `future` on the background [`Executor`].
@@ -1195,7 +1226,8 @@ where
 }
 
 /// Fire due timers and poll until every task is parked, then commit results
-/// that were not cancelled into the readable event buffers.
+/// that were not cancelled and drain [`crate::feed`]s into the readable
+/// event buffers.
 /// Does not advance [`Time`] and does not run systems.
 ///
 /// One step fires due timers, calls [`Executor::poll_inline`], and polls
@@ -1219,6 +1251,7 @@ pub fn run_until_parked(world: &mut World) {
         }
     }
     drain_inbox(world);
+    crate::feed::drain(world);
     event::merge_events(world);
 }
 
@@ -1252,6 +1285,9 @@ pub(crate) fn next_deadline(world: &World) -> Option<std::time::Instant> {
 pub(crate) fn wants_frame(world: &World) -> bool {
     let rt = runtime(world);
     if !lock(&rt.inner.inbox).is_empty() {
+        return true;
+    }
+    if crate::feed::pending(world) {
         return true;
     }
     if !lock(&rt.inner.local_ready).is_empty() {

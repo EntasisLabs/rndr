@@ -18,6 +18,8 @@
 //! [`Shell`] registers the file-tree systems. [`Chrome`] adds chords, buttons,
 //! tabs, a single-line field, overlays, and a virtual list, and leaves `Shell`
 //! in place. [`Sim`] is the headless clock and executor for tests.
+//! [`feed`] carries values produced off the UI thread. The pump delivers them
+//! as [`Event`]s and wakes the window once per burst.
 //!
 //! # Example
 //!
@@ -37,7 +39,9 @@
 //! # Features
 //!
 //! The optional `pool` feature adds a small thread-pool executor. The desktop
-//! runner turns it on. This crate does not depend on an async runtime.
+//! runner turns it on. The optional `tokio` feature spawns a [`feed`] producer
+//! on a runtime the application already started. The default build depends on
+//! neither.
 //!
 //! [`hotkey`], [`tray`], and [`window`] are the headless halves of those
 //! desktop features: parsing, commands, and events. The operating-system
@@ -67,6 +71,7 @@ mod edit;
 mod editor;
 mod entity;
 mod event;
+pub mod feed;
 mod field;
 mod focus;
 mod font;
@@ -120,6 +125,7 @@ pub use editor::{
 };
 pub use entity::Entity;
 pub use event::{events, send, Event, Events};
+pub use feed::{Epoch, Feed, FeedConfig, FeedError, OnFull};
 pub use field::{CapturesKeys, ImePreview, Submitted, TextChanged, TextField};
 pub use focus::apply_focus;
 pub use font::{
@@ -169,8 +175,8 @@ pub use pane::{
 pub use pool::thread_pool;
 pub use runtime::{
     after, cancel_debounce, debounce, debounce_local, every, frame_wake, run_until_parked, sleep,
-    spawn, spawn_local, Executor, InlineExecutor, Job, NopWake, Sleep, TaskHandle, TimerHandle,
-    Wake,
+    spawn, spawn_detached, spawn_local, Executor, InlineExecutor, Job, NopWake, Sleep, TaskHandle,
+    TimerHandle, Wake,
 };
 pub use shell::Shell;
 pub use sim::Sim;

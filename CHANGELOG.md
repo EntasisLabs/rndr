@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Background feeds deliver values from a thread or future onto the UI thread. A burst wakes the window once, a fixed capacity applies backpressure, and an older epoch is dropped so a slow search cannot overwrite a newer query.
+
 ## 0.1.0
 
 First published release.
