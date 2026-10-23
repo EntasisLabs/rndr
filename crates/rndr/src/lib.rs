@@ -58,6 +58,8 @@
 //!   global shortcuts portal.
 //! - `tray` adds a menu-bar or notification-area icon.
 //! - `parley` shapes and rasterizes text, and links fontconfig on Linux.
+//! - `accesskit` publishes the accessibility tree. It is on by default.
+//! - `dialog` shows native open and save dialogs. It is off by default.
 //! - `term` re-exports the embedded terminal. It is off by default, so a
 //!   normal desktop build does not link a pseudoterminal.
 //! - `tokio` is off by default. It forwards to `rndr_core` and spawns a feed

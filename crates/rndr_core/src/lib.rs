@@ -62,6 +62,7 @@
 
 #![deny(missing_docs)]
 
+mod access;
 mod action;
 mod app;
 mod button;
@@ -69,6 +70,9 @@ mod caret;
 mod chrome;
 mod clipboard;
 pub mod clock;
+mod cursor;
+mod desktop;
+mod dialog;
 mod disclosure;
 mod edit;
 mod editor;
@@ -76,11 +80,13 @@ mod entity;
 mod event;
 pub mod feed;
 mod field;
+mod file_drop;
 mod focus;
 mod font;
 mod fs;
 mod hierarchy;
 pub mod hotkey;
+mod ime;
 mod input;
 mod keymap;
 mod keys;
@@ -91,6 +97,7 @@ mod memory_fs;
 mod mono;
 mod overlay;
 mod pane;
+mod pointers;
 #[cfg(feature = "pool")]
 mod pool;
 mod prompt;
@@ -109,6 +116,10 @@ pub mod window;
 mod world;
 mod wrap;
 
+pub use access::{
+    access_id, access_tree, apply_access, entity_from_access_id, AccessCommand, AccessNode,
+    AccessRole, AccessTree, ACCESS_ROOT,
+};
 pub use action::{apply_actions, Actions, Binding, Chord, Fired, COPY, CUT, PASTE};
 pub use app::{App, Plugin, Schedule, System};
 pub use button::Button;
@@ -117,8 +128,16 @@ pub use caret::{
     Editing, Field, TextSelection,
 };
 pub use chrome::Chrome;
-pub use clipboard::Clipboard;
+pub use clipboard::{Clipboard, ClipboardImage};
 pub use clock::{ManualClock, SystemClock, Time};
+pub use cursor::{cursor_image, rotate_cursor, CursorImage};
+pub use desktop::{
+    deliver, desktop, install_wake, CountingWake, Desktop, OpenWindow, WindowHub, WindowId,
+    WindowMsg,
+};
+pub use dialog::{
+    request_file_dialog, take_file_dialog, FileChosen, FileDialog, FileDialogKind, FileFilter,
+};
 pub use disclosure::{
     page_layout, scroll_page, spawn_node, toggle_disclosure, toggle_disclosures, Disclosure,
     Focusable, NodeSpec,
@@ -132,6 +151,7 @@ pub use entity::Entity;
 pub use event::{events, send, Event, Events};
 pub use feed::{Epoch, Feed, FeedConfig, FeedError, OnFull};
 pub use field::{CapturesKeys, ImePreview, Submitted, TextChanged, TextField};
+pub use file_drop::{FileDrop, FileHover, FileHoverCancel};
 pub use focus::apply_focus;
 pub use font::{
     apply_text_layout, field_text_width, layout_text, layout_text_spans, line_col, measure_text,
@@ -147,6 +167,7 @@ pub use hotkey::{
     note_unregistered, GlobalHotkey, HotkeyBinding, HotkeyError, HotkeyHandle, HotkeyId,
     HotkeyRejected,
 };
+pub use ime::{resolve_ime, text_frame, ImeEvent, ResolvedIme, TextFrame};
 pub use input::{
     CursorStyle, Focus, Input, Insets, Key, MotionWatch, Pointer, PointerButton, Viewport, MOUSE_ID,
 };
@@ -179,6 +200,10 @@ pub use overlay::{Layer, Modal, DISMISS};
 pub use pane::{
     apply_pane, detail_pane, field_height, set_selection, shell, splitter, tree_column, Pane,
     Selection,
+};
+pub use pointers::{
+    touch_id, Contact, ContactPhase, ContactUpdate, Gesture, GesturePhase, GestureState,
+    PointerButtons, PointerKind, PointerSample, Pointers, PEN_ID, TOUCH_ID_BIT,
 };
 #[cfg(feature = "pool")]
 pub use pool::thread_pool;

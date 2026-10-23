@@ -14,7 +14,7 @@ categories = ["gui", "graphics", "rendering"]
 exclude = ["**/*.snap.new"]
 
 [features]
-default = ["hotkey", "tray", "parley"]
+default = ["hotkey", "tray", "parley", "accesskit"]
 # Embedded terminal. Off by default so a desktop build does not link a PTY.
 term = ["dep:rndr_term"]
 # Same flags as rndr_render. Off skips Carbon, Win32, X11, and the portal client.
@@ -24,6 +24,10 @@ tray = ["rndr_render/tray"]
 # Parley shaping and swash rasterization. `--no-default-features` keeps the
 # builtin atlas and skips the fontconfig link.
 parley = ["rndr_render/parley"]
+# Accessibility tree. On by default, matching `rndr_render`.
+accesskit = ["rndr_render/accesskit"]
+# Native open and save dialogs. Off by default.
+dialog = ["rndr_render/dialog"]
 # Spawn a feed producer on a tokio runtime the application already started.
 tokio = ["rndr_core/tokio"]
 

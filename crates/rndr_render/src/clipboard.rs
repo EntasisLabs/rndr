@@ -1,6 +1,8 @@
-//! Operating-system clipboard. Core keeps the strings; this pushes and pulls them.
+//! Operating-system clipboard. Core keeps the strings and images; this pushes and pulls them.
 
-use rndr_core::Clipboard;
+use std::borrow::Cow;
+
+use rndr_core::{Clipboard, ClipboardImage};
 
 #[cfg(all(
     unix,
@@ -56,6 +58,16 @@ impl OsClipboard {
                 }
             }
         }
+        if clip.want_image {
+            clip.want_image = false;
+            if let Ok(image) = board.get_image() {
+                let width = u32::try_from(image.width).unwrap_or(0);
+                let height = u32::try_from(image.height).unwrap_or(0);
+                if let Some(image) = ClipboardImage::new(width, height, image.bytes.into_owned()) {
+                    clip.image = Some(image);
+                }
+            }
+        }
     }
 
     /// Write dirty fields out. Failures are ignored; the caller clears the flags.
@@ -75,6 +87,15 @@ impl OsClipboard {
                 .set()
                 .clipboard(LinuxClipboardKind::Primary)
                 .text(clip.primary.as_str());
+        }
+        if clip.image_dirty {
+            if let Some(image) = &clip.image {
+                let _ = board.set_image(arboard::ImageData {
+                    width: image.width as usize,
+                    height: image.height as usize,
+                    bytes: Cow::Borrowed(image.rgba.as_slice()),
+                });
+            }
         }
     }
 }

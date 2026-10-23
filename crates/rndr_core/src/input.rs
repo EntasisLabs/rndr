@@ -64,6 +64,9 @@ pub enum CursorStyle {
     Arrow,
     /// A pointing hand, for a link under the pointer.
     Hand,
+    /// The [`crate::CursorImage`] resource. The runner draws the arrow when
+    /// that resource is absent.
+    Image,
 }
 
 impl Default for Pointer {
@@ -107,6 +110,12 @@ pub struct Input {
     pub ime_cursor: Option<(usize, usize)>,
     /// Text the IME committed this frame.
     pub ime_commit: String,
+    /// The platform input method is enabled for the focused field.
+    ///
+    /// The desktop runner sets this from the IME enable and disable events.
+    /// A commit while this is true drops key text, so the keys that produced
+    /// the commit are not inserted again.
+    pub ime_enabled: bool,
     /// Shift held this frame. Extends a selection, reverses Tab, and matches
     /// [`crate::Actions`] chords.
     pub shift: bool,

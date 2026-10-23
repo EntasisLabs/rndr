@@ -12,7 +12,7 @@ fn main() {
 }
 ```
 
-`hotkey`, `tray`, and `parley` are on by default, matching `rndr_render`. Turn them off with `--no-default-features`. A headless program can depend on `rndr_core` instead of this crate.
+`hotkey`, `tray`, `parley`, and `accesskit` are on by default, matching `rndr_render`. `dialog` is off by default and shows native open and save dialogs. Turn the defaults off with `--no-default-features`. A headless program can depend on `rndr_core` instead of this crate.
 
 Repository: <https://github.com/EntasisLabs/rndr>
 

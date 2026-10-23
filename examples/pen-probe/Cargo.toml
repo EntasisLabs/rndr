@@ -1,0 +1,11 @@
+[package]
+name = "pen-probe"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Logs pen and touch pressure. A spike, not a supported tablet API"
+publish = false
+
+[dependencies]
+rndr_core = { workspace = true }
+rndr_render = { workspace = true }

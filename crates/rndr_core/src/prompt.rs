@@ -353,17 +353,16 @@ fn index_at_pointer(world: &World, entity: Entity, position: [f32; 2]) -> usize 
 }
 
 fn edit_text(world: &mut World, entity: Entity) {
-    let (key, shift, chars, commit, preedit, keys) = match world.resource::<Input>() {
-        Some(input) => (
-            input.key,
-            input.shift,
-            input.chars.clone(),
-            input.ime_commit.clone(),
-            input.ime_preedit.clone(),
-            input.keys.clone(),
-        ),
+    let frame = match world.resource::<Input>() {
+        Some(input) => crate::ime::text_frame(input),
         None => return,
     };
+    let key = frame.legacy_key;
+    let shift = frame.shift;
+    let chars = frame.chars;
+    let commit = frame.commit;
+    let preedit = frame.preedit;
+    let keys = frame.keys;
     let submit_on_enter = world
         .get::<Prompt>(entity)
         .is_none_or(|prompt| prompt.submit_on_enter);
