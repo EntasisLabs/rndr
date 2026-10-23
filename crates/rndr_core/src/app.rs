@@ -38,21 +38,29 @@ use crate::world::World;
 /// not after the list has already rebuilt.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Schedule {
+    /// Once, before the first [`Schedule::Input`]. Later frames skip it.
     Startup,
     /// Keymap, list keys, and text fields. Runs before [`Schedule::Update`].
     Input,
+    /// Application systems. Events sent during [`Schedule::Input`] are readable here.
     Update,
     /// After [`Schedule::Update`] and before layout.
     PostUpdate,
+    /// User layout systems, then the hierarchy walk and text measurement.
     Layout,
     /// After paint, before present.
     Render,
 }
 
+/// Function [`App`] calls with the world for one schedule pass.
 pub type System = fn(&mut World);
 
 /// Registers systems and resources on a blank [`App`].
+///
+/// [`App::add_plugin`] calls [`Plugin::build`] immediately and returns the app
+/// so plugins can be chained. `build` may insert resources and register systems.
 pub trait Plugin {
+    /// Install this plugin's resources and systems on `app`.
     fn build(self, app: &mut App);
 }
 
@@ -71,6 +79,8 @@ pub struct App {
 }
 
 impl App {
+    /// Blank app. Inserts default [`Input`], [`Viewport`], and [`Platform::host`],
+    /// plus [`crate::Time`] and the window and tray slots. Startup has not run.
     pub fn new() -> Self {
         let mut world = World::new();
         world.insert_resource(Input::default());
@@ -91,16 +101,24 @@ impl App {
         }
     }
 
+    /// Run [`Plugin::build`] now. Returns `self` so calls can chain.
     pub fn add_plugin(&mut self, plugin: impl Plugin) -> &mut Self {
         plugin.build(self);
         self
     }
 
+    /// Append `system` so it runs after systems already on `schedule`.
+    ///
+    /// A [`Schedule::Startup`] system added after the first [`App::update`]
+    /// never runs. Returns `self` so calls can chain.
     pub fn add_system(&mut self, schedule: Schedule, system: System) -> &mut Self {
         self.insert_system(schedule, system, false)
     }
 
     /// Insert at the front of a schedule so the system runs before ones already registered.
+    ///
+    /// A [`Schedule::Startup`] system added after the first [`App::update`]
+    /// never runs.
     pub fn add_system_front(&mut self, schedule: Schedule, system: System) -> &mut Self {
         self.insert_system(schedule, system, true)
     }
@@ -122,10 +140,12 @@ impl App {
         self
     }
 
+    /// Shared borrow of the world, including resources plugins have inserted.
     pub fn world(&self) -> &World {
         &self.world
     }
 
+    /// Exclusive borrow of the world. Plugins and tests insert resources through it.
     pub fn world_mut(&mut self) -> &mut World {
         &mut self.world
     }

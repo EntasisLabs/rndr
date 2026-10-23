@@ -13,14 +13,21 @@ impl Component for Focusable {}
 pub struct Focusable;
 
 /// Expand template: child labels (and optional nested templates) to spawn when opened.
+///
+/// [`spawn_node`] builds one entity from a spec. [`toggle_disclosure`] spawns
+/// [`NodeSpec::children`] when a closed node that is not a directory opens.
 #[derive(Clone, Debug)]
 pub struct NodeSpec {
+    /// Header text of the spawned node.
     pub label: String,
+    /// Fill color of the header row.
     pub color: Color,
+    /// Nested templates. Empty means [`spawn_node`] omits [`Disclosure`].
     pub children: Vec<NodeSpec>,
 }
 
 impl NodeSpec {
+    /// Template with no nested nodes. [`spawn_node`] omits [`Disclosure`].
     pub fn leaf(label: impl Into<String>, color: Color) -> Self {
         Self {
             label: label.into(),
@@ -29,6 +36,7 @@ impl NodeSpec {
         }
     }
 
+    /// Template whose [`NodeSpec::children`] are spawned when the node opens.
     pub fn branch(label: impl Into<String>, color: Color, children: Vec<NodeSpec>) -> Self {
         Self {
             label: label.into(),
@@ -39,14 +47,22 @@ impl NodeSpec {
 }
 
 /// Open state plus the subtree this node can spawn.
+///
+/// A closed node keeps its templates and an empty [`Disclosure::spawned`].
+/// Opening a directory lists the filesystem instead of [`Disclosure::children`].
+/// Closing saves dirty filesystem descendants, then despawns that spawned list.
 #[derive(Clone, Debug)]
 pub struct Disclosure {
+    /// Whether the spawned children are currently in the world.
     pub open: bool,
+    /// Templates used on open when this node is not a directory.
     pub children: Vec<NodeSpec>,
+    /// Entities created the last time this node opened. Cleared on close.
     pub spawned: Vec<Entity>,
 }
 
 impl Disclosure {
+    /// Closed disclosure. `children` are used on open when it is not a directory.
     pub fn new(children: Vec<NodeSpec>) -> Self {
         Self {
             open: false,
@@ -57,6 +73,12 @@ impl Disclosure {
 }
 
 /// Spawn a disclosure node: a hugging column with a header row.
+///
+/// The column fills width, hugs height, and leaves a 4-point gap. A spec with
+/// children also gets a closed [`Disclosure`]. A leaf does not. Both get
+/// [`Focusable`] and an empty [`Body`]. The header is a child row, 36 points
+/// tall, padded by 8, filled with `spec.color`, and labeled with `spec.label`.
+/// Returns the column.
 pub fn spawn_node(world: &mut World, spec: NodeSpec) -> Entity {
     let mut layout = Layout::column();
     layout.gap = 4.0;
@@ -85,6 +107,10 @@ pub fn spawn_node(world: &mut World, spec: NodeSpec) -> Entity {
 }
 
 /// Toggle the disclosure under the pointer. The shell does not run this: click selects, Right expands.
+///
+/// Returns with no change when [`Input`] is missing, the pointer is not on
+/// its press edge, the point hits nothing, or the hit has no [`Disclosure`]
+/// on itself or an ancestor.
 pub fn toggle_disclosures(world: &mut World) {
     let Some(input) = world.resource::<Input>().cloned() else {
         return;
@@ -101,6 +127,13 @@ pub fn toggle_disclosures(world: &mut World) {
     toggle_disclosure(world, target);
 }
 
+/// Open `target` if it is closed, or close it if it is open.
+///
+/// Returns immediately when `target` is dead or has no [`Disclosure`].
+/// Closing saves dirty filesystem descendants, despawns [`Disclosure::spawned`],
+/// and clears that list. Opening a directory [`crate::FsPath`] spawns a node
+/// per child of that path. Opening any other node spawns
+/// [`Disclosure::children`] with [`spawn_node`] and parents them to `target`.
 pub fn toggle_disclosure(world: &mut World, target: Entity) {
     let Some(current) = world.get::<Disclosure>(target).cloned() else {
         return;
@@ -137,6 +170,9 @@ pub fn toggle_disclosure(world: &mut World, target: Entity) {
 }
 
 /// Convenience layout for a page that stacks root disclosures.
+///
+/// Column, 8-point gap, 16-point padding, fill width, hug height. Minimums
+/// are zero.
 pub fn page_layout() -> Layout {
     Layout {
         axis: Axis::Column,
@@ -150,6 +186,9 @@ pub fn page_layout() -> Layout {
 }
 
 /// Window-filling column that offsets overflowing children.
+///
+/// The layout matches [`page_layout`] except the height fills the parent.
+/// The [`Scroll`] offset and content size start at zero.
 pub fn scroll_page() -> (Layout, Scroll) {
     (
         Layout {

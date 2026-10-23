@@ -30,7 +30,10 @@ use crate::world::World;
 /// `dirty` is set when this frame wrote `text`, so a platform can push it out.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Clipboard {
+    /// Last string written by a copy or cut. Paste reads it.
     pub text: String,
+    /// Set when this frame wrote [`Clipboard::text`]. Core leaves it set.
+    /// The desktop runner clears it after the frame so a host can see the write.
     pub dirty: bool,
 }
 
