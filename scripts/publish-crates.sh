@@ -9,7 +9,11 @@
 # that up itself. This script never prints the token and never passes it as an
 # argument. Do not run the script under `bash -x`.
 #
-# Order: rndr_core, rndr_term, rndr_paint, rndr_std, rndr_render, rndr.
+# Order: rndr_core, rndr_paint, rndr_std, rndr_term, rndr_render, rndr.
+# rndr_term depends on rndr_core, and its dev-dependency on rndr_paint is
+# versioned. Cargo writes a lockfile for the packaged crate and resolves that
+# dev-dependency from crates.io, so rndr_paint has to be published first.
+# rndr's optional `term` feature depends on rndr_term, so the facade is last.
 # A version already present in the sparse index is skipped.
 # After each upload, the script waits until that version is visible in the
 # index before publishing the next crate.
@@ -49,7 +53,7 @@ if [[ "$dry_run" -eq 0 && -z "${CARGO_REGISTRY_TOKEN:-}" ]]; then
     exit 1
 fi
 
-CRATES=(rndr_core rndr_term rndr_paint rndr_std rndr_render rndr)
+CRATES=(rndr_core rndr_paint rndr_std rndr_term rndr_render rndr)
 
 declare -A VERSIONS=()
 while IFS=$'\t' read -r name version; do
@@ -90,9 +94,11 @@ published() {
 workspace_deps() {
     case "$1" in
     rndr_core) ;;
-    rndr_term | rndr_paint | rndr_std) echo rndr_core ;;
+    rndr_paint | rndr_std) echo rndr_core ;;
+    # rndr_paint is a versioned dev-dependency. The packaged lockfile resolves it.
+    rndr_term) echo rndr_core rndr_paint ;;
     rndr_render) echo rndr_core rndr_paint ;;
-    rndr) echo rndr_core rndr_paint rndr_std rndr_render ;;
+    rndr) echo rndr_core rndr_paint rndr_std rndr_term rndr_render ;;
     *)
         echo "unknown crate: $1" >&2
         return 1
@@ -129,7 +135,7 @@ wait_for_index() {
 if [[ "$dry_run" -eq 1 ]]; then
     echo "packaging publishable crates without uploading"
     cargo package --workspace --locked --no-verify \
-        --exclude expand --exclude idle --exclude overlay --exclude palette --exclude terminal
+        --exclude expand --exclude idle --exclude overlay --exclude palette --exclude terminal --exclude stream
 fi
 
 for index in "${!CRATES[@]}"; do
