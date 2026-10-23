@@ -27,8 +27,11 @@ struct PenState {
 
 pub(crate) struct PenFeed {
     state: Arc<Mutex<PenState>>,
+    /// The monitor object is main-thread only. `Rc` shares it across window
+    /// clones on that thread. The callback writes [`PenState`] through `state`,
+    /// which stays an `Arc`.
     #[cfg(target_os = "macos")]
-    monitor: Arc<Mutex<Option<MacMonitor>>>,
+    monitor: std::rc::Rc<Mutex<Option<MacMonitor>>>,
 }
 
 impl Clone for PenFeed {
@@ -36,7 +39,7 @@ impl Clone for PenFeed {
         Self {
             state: Arc::clone(&self.state),
             #[cfg(target_os = "macos")]
-            monitor: Arc::clone(&self.monitor),
+            monitor: std::rc::Rc::clone(&self.monitor),
         }
     }
 }
@@ -46,7 +49,7 @@ impl PenFeed {
         Self {
             state: Arc::new(Mutex::new(PenState::default())),
             #[cfg(target_os = "macos")]
-            monitor: Arc::new(Mutex::new(None)),
+            monitor: std::rc::Rc::new(Mutex::new(None)),
         }
     }
 
@@ -163,7 +166,7 @@ fn read_tablet(event: &objc2_app_kit::NSEvent) -> Option<PenReading> {
         None
     };
     let twist = unsafe { event.rotation() };
-    let twist = twist.is_finite().then_some(twist as f32);
+    let twist = twist.is_finite().then_some(twist);
     let device = unsafe { event.pointingDeviceType() };
     let kind = if device == NSPointingDeviceType::Eraser {
         PointerKind::Eraser

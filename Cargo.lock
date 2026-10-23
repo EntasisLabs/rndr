@@ -107,7 +107,7 @@ dependencies = [
  "accesskit_consumer",
  "hashbrown 0.17.1",
  "static_assertions",
- "windows 0.62.2",
+ "windows",
  "windows-core",
 ]
 
@@ -1058,7 +1058,7 @@ dependencies = [
  "read-fonts",
  "roxmltree",
  "smallvec",
- "windows 0.62.2",
+ "windows",
  "windows-core",
  "yeslogic-fontconfig-sys",
 ]
@@ -1241,7 +1241,7 @@ dependencies = [
  "log",
  "presser",
  "thiserror 2.0.20",
- "windows 0.62.2",
+ "windows",
 ]
 
 [[package]]
@@ -3564,6 +3564,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2df906b07856748fa3f6e0ad0cbaa047052d4a7dd609e231c4f72cee8c36f31"
 
 [[package]]
+name = "two-windows"
+version = "0.2.0"
+dependencies = [
+ "rndr_core",
+ "rndr_render",
+]
+
+[[package]]
 name = "uds_windows"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4020,7 +4028,7 @@ dependencies = [
  "web-sys",
  "wgpu-naga-bridge",
  "wgpu-types",
- "windows 0.62.2",
+ "windows",
  "windows-core",
  "windows-result",
 ]
@@ -4081,14 +4089,6 @@ name = "winapi-x86_64-pc-windows-gnu"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
-
-[[package]]
-name = "windows"
-version = "0.2.0"
-dependencies = [
- "rndr_core",
- "rndr_render",
-]
 
 [[package]]
 name = "windows"
