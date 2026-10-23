@@ -73,9 +73,9 @@ pub struct SurfaceRect {
 
 /// Run one frame and return its quads and foreign-surface rects.
 ///
-/// Runs Startup once, then Update, Layout, and paint. Input and
-/// PostUpdate run in that same update, and the render schedule runs
-/// after paint. This does not open a window.
+/// Runs Startup once, then Update, Layout, and paint. Input runs
+/// before Update, PostUpdate runs before Layout, and the render
+/// schedule runs after paint. This does not open a window.
 pub fn frame(app: &mut App) -> Frame {
     app.update();
     let quads = paint(app.world());
