@@ -1,13 +1,31 @@
-//! winit + wgpu plugin. Writes [`rndr_core::Input`] in logical points and presents the quad list.
+//! winit + wgpu plugin. Writes [`rndr_core::Input`] in logical points and
+//! presents the quad list.
 //!
-//! The window comes from a [`rndr_core::WindowConfig`] resource. When the app
-//! did not insert one, the window stays 800×600, decorated, resizable, and
-//! titled `rndr`. Hide and show leave the wgpu surface in place.
+//! [`run`] is the only function here that opens a window. It reads a
+//! [`rndr_core::WindowConfig`] resource when one is present. Otherwise the
+//! window stays 800×600, decorated, resizable, and titled `rndr`. Hide and
+//! show leave the wgpu surface in place.
+//!
+//! # Example
+//!
+//! ```no_run
+//! use rndr_core::{App, Color, Label};
+//! use rndr_render::run;
+//!
+//! fn main() {
+//!     let mut app = App::new();
+//!     app.world_mut()
+//!         .spawn((Label::new("hello"), Color::rgb(0.12, 0.13, 0.16)));
+//!     run(app);
+//! }
+//! ```
 //!
 //! `hotkey`, `tray`, and `parley` are on by default. docs.rs builds every
 //! feature. Its Linux image provides fontconfig (used by `parley`), plus
 //! libxkbcommon, Wayland, and Vulkan for winit and wgpu. `hotkey` and `tray`
 //! do not link libdbus.
+
+#![deny(missing_docs)]
 
 mod color;
 mod gpu;
@@ -148,6 +166,15 @@ pub fn toggle_window(
 }
 
 /// Block on the desktop event loop. Core stays headless; this is the only winit caller.
+///
+/// Returns when the window is closed, [`rndr_core::Input::quit`] is set, or a
+/// tray item built to quit the process fires. Hide leaves the process running.
+///
+/// # Panics
+///
+/// Panics if the process cannot create the event loop or the window, or if
+/// the loop returns an error. A redraw after that window exists also panics
+/// if the surface was not created.
 pub fn run(mut app: App) {
     // A hotkey registered before `run` already installed the backend. Installing
     // here covers a Startup system that registers through `rndr_core` directly.

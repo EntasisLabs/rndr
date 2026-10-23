@@ -1,5 +1,21 @@
-//! Desktop [`rndr_core::Fs`] backed by [`std::fs`].
-#![warn(missing_docs)]
+//! [`std::fs`] backend for [`rndr_core::Fs`].
+//!
+//! [`StdFsPlugin`] inserts [`StdFs`] as the [`rndr_core::Files`] resource.
+//! Headless tests that must not touch the disk use [`rndr_core::MemoryFs`]
+//! instead.
+//!
+//! # Example
+//!
+//! ```
+//! use rndr_core::{App, Files};
+//! use rndr_std::StdFsPlugin;
+//!
+//! let mut app = App::new();
+//! app.add_plugin(StdFsPlugin);
+//! assert!(app.world().has_resource::<Files>());
+//! ```
+
+#![deny(missing_docs)]
 
 use std::fs;
 use std::path::Path;

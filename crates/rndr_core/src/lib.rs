@@ -1,7 +1,59 @@
-//! Application structure for rndr. No GPU types live here.
+//! Headless application core: entities, layout, input, text, events, and tasks.
 //!
-//! Three.js-shaped cut from mob3: the world owns entities and hierarchy.
-//! A render plugin reads the flat [`layout::Rect`] list.
+//! No window and no GPU types live here. A desktop program usually depends on
+//! the `rndr` facade, which opens a window and presents this world. Tests and
+//! tools can drive [`App`] directly.
+//!
+//! # Model
+//!
+//! [`World`] stores entities, components, and resources. [`App::new`] installs
+//! [`Input`], [`Viewport`], and the host [`Platform`]. [`App::update`] runs one
+//! frame: [`Schedule::Startup`] once, then Input, Update, PostUpdate, and
+//! Layout. Paint and present live in `rndr_paint` and `rndr_render`.
+//!
+//! Layout, hit-testing, and scroll are in logical points. [`Viewport::scale`]
+//! is physical pixels per point. The desktop crate divides window coordinates
+//! by that scale and multiplies rectangles when it uploads them.
+//!
+//! [`Shell`] registers the file-tree systems. [`Chrome`] adds chords, buttons,
+//! tabs, a single-line field, overlays, and a virtual list, and leaves `Shell`
+//! in place. [`Sim`] is the headless clock and executor for tests.
+//!
+//! # Example
+//!
+//! ```
+//! use rndr_core::{App, Color, Label};
+//!
+//! let mut app = App::new();
+//! let entity = app.world_mut().spawn((
+//!     Label::new("hello"),
+//!     Color::rgb(0.9, 0.9, 0.9),
+//! ));
+//! app.update();
+//! assert!(app.world().is_alive(entity));
+//! assert_eq!(app.world().get::<Label>(entity).unwrap().text, "hello");
+//! ```
+//!
+//! # Features
+//!
+//! The optional `pool` feature adds a small thread-pool executor. The desktop
+//! runner turns it on. This crate does not depend on an async runtime.
+//!
+//! [`hotkey`], [`tray`], and [`window`] are the headless halves of those
+//! desktop features: parsing, commands, and events. The operating-system
+//! backends live in `rndr_render`.
+//!
+//! # Crate map
+//!
+//! | Crate | Role |
+//! | --- | --- |
+//! | `rndr` | Facade that re-exports the crates below. |
+//! | `rndr_core` | This crate. |
+//! | `rndr_paint` | One frame, then quads in logical points. |
+//! | `rndr_std` | [`std::fs`] backend for [`Fs`]. |
+//! | `rndr_render` | Window, input, and presentation. |
+
+#![deny(missing_docs)]
 
 mod action;
 mod app;

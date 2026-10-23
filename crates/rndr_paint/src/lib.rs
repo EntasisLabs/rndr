@@ -1,9 +1,39 @@
 //! Quads in logical points. No window and no GPU.
-#![warn(missing_docs)]
 //!
-//! [`paint`] walks a [`rndr_core::World`] and returns one [`Quad`] per solid,
-//! glyph, selection, caret, and dirty mark. A surface plugin multiplies those
-//! rects by [`rndr_core::Viewport::scale`] when it uploads them.
+//! [`frame`] steps an [`rndr_core::App`] (Startup once, then Input, Update,
+//! PostUpdate, and Layout) and returns one [`Quad`] per solid, glyph,
+//! selection, caret, and dirty mark, plus [`SurfaceRect`]s for foreign
+//! surfaces. A window crate multiplies those rectangles by
+//! [`rndr_core::Viewport::scale`] when it uploads them. [`paint`] is the same
+//! walk without stepping the app.
+//!
+//! # Example
+//!
+//! ```
+//! use rndr_core::{App, Axis, Color, Label, Layout, Size, Viewport};
+//! use rndr_paint::frame;
+//!
+//! let mut app = App::new();
+//! app.world_mut()
+//!     .insert_resource(Viewport::new(200.0, 100.0));
+//! app.world_mut().spawn((
+//!     Layout {
+//!         axis: Axis::Column,
+//!         gap: 0.0,
+//!         padding: 0.0,
+//!         width: Size::Px(80.0),
+//!         height: Size::Px(32.0),
+//!         min_width: 0.0,
+//!         min_height: 0.0,
+//!     },
+//!     Color::rgb(0.2, 0.3, 0.4),
+//!     Label::new("hi"),
+//! ));
+//! let painted = frame(&mut app);
+//! assert!(!painted.quads.is_empty());
+//! ```
+
+#![deny(missing_docs)]
 
 mod font;
 mod latin;
