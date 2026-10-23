@@ -13,6 +13,8 @@ members = [
     "examples/palette",
     "examples/terminal",
     "examples/stream",
+    "examples/windows",
+    "examples/pen-probe",
 ]
 
 [workspace.package]

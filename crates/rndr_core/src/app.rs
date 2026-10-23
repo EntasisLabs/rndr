@@ -8,6 +8,7 @@ use crate::input::{Input, Viewport};
 use crate::keys::Platform;
 use crate::layout::layout_propagate;
 use crate::mono::apply_mono_grid;
+use crate::pointers::Pointers;
 use crate::runtime::{self, Executor, Wake};
 use crate::text::ensure_text_engine;
 use crate::tray;
@@ -80,11 +81,13 @@ pub struct App {
 }
 
 impl App {
-    /// Blank app. Inserts default [`Input`], [`Viewport`], and [`Platform::host`],
-    /// plus [`crate::Time`] and the window and tray slots. Startup has not run.
+    /// Blank app. Inserts default [`Input`], [`Pointers`], [`Viewport`], and
+    /// [`Platform::host`], plus [`crate::Time`] and the window and tray slots.
+    /// Startup has not run.
     pub fn new() -> Self {
         let mut world = World::new();
         world.insert_resource(Input::default());
+        world.insert_resource(Pointers::default());
         world.insert_resource(Viewport::default());
         world.insert_resource(Platform::host());
         runtime::install(&mut world);

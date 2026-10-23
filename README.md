@@ -37,17 +37,19 @@ Application
 | `rndr_paint` | `frame`: update, then quads in points. Reads a `TextLayout`. The bitmap face is an 8×8 ASCII atlas |
 | `rndr_std` | `std::fs` plugin |
 | `rndr_term` | Embedded terminal. A PTY and a VT state machine copy cells into a `MonoGrid`. Optional `rndr` feature `term` re-exports it. Core and paint do not link the PTY |
-| `rndr_render` | winit window writes `Input` and `Viewport`, then presents quads. `WindowConfig` chooses title, size, and panel behavior. The default `hotkey` and `tray` features add system-wide chords and a menu-bar icon |
+| `rndr_render` | winit window writes `Input` and `Viewport`, then presents quads. `WindowConfig` chooses title, size, and panel behavior. The default `hotkey`, `tray`, and `accesskit` features add system-wide chords, a menu-bar icon, and an accessibility tree. `dialog` is optional and shows native open and save dialogs |
 | `examples/expand` | File-backed expand demo: folder tree, pane, splitter, caret, create, delete |
 | `examples/idle` | Empty window. `ControlFlow::Wait` when nothing is scheduled |
 | `examples/overlay` | Frameless centered panel. Hides on blur and Escape, returns on Alt+Space |
 | `examples/palette` | Command palette: debounced filter, virtual list, shortcuts |
 | `examples/stream` | Streamed markdown answer: a background feed appends tokens into a pinned text view |
 | `examples/terminal` | Shell in a window. `cargo run -p terminal` |
+| `examples/windows` | Two windows. A Save button tells the other window. `cargo run -p two-windows` |
+| `examples/pen-probe` | Logs pen and touch pressure. A spike, not a supported tablet API |
 
 A blank `App` holds the world, `Input`, and `Viewport`. `Shell` registers the file-tree systems. `Chrome` is optional and leaves `Shell` alone: named chords, buttons, tabs, a single-line field, a multi-line prompt, overlays, a virtual list, an in-memory clipboard, styled runs, a gap-buffer editor, decorations, and IME preedit. `frame` also reports `SurfaceSlot` rects and leaves those interiors empty. `StdFsPlugin` inserts the disk backend. `MemoryFs` is the headless backend. `rndr_paint::frame` steps the world and returns quads in points. `rndr_render` writes the window into `Input` and `Viewport`, then multiplies those quads by `scale` and presents them. Headless crates stop at the standard library. The desktop crate depends on `wgpu`, `winit`, and `pollster`, and, when the default features are on, on `parley` for text, `tray-icon`, and the hotkey backends. `rndr_core` stays headless either way. No layout engine and no third-party ECS.
 
-Layout, hit-testing, and scroll are in logical points. `Viewport.scale` is physical pixels per point. The desktop plugin divides window size, the cursor, and pixel-wheel deltas by that scale, then multiplies rects by it when uploading instances. `Viewport.insets` shrinks root placement for a status bar or home indicator. `Input.pointer` is one contact: the mouse writes id `0`. A drag inside a scrollport follows that contact after 4 points. A drag that starts on the seam still resizes the split.
+Layout, hit-testing, and scroll are in logical points. `Viewport.scale` is physical pixels per point. The desktop plugin divides window size, the cursor, and pixel-wheel deltas by that scale, then multiplies rects by it when uploading instances. `Viewport.insets` shrinks root placement for a status bar or home indicator. `Input.pointer` is the primary contact: the mouse writes id `0` and stays primary while that contact exists. `Pointers` holds every other contact. A drag inside a scrollport follows the primary contact after 4 points. A drag that starts on the seam still resizes the split.
 
 ## Frame
 
@@ -96,6 +98,55 @@ Insert a `WindowConfig` before `run`. Omit it and the window stays what it was: 
 | Hide, show, focus without a new GPU surface | yes | yes | yes | surface stays; hide and focus are ignored |
 
 A macOS panel is an `NSWindow` (winit 0.30 does not build an `NSPanel`) with the non-activating style bit, pop-up window level, and collection behavior for every Space including full-screen. Focusing it does not call `activateIgnoringOtherApps`. `accessory` sets the accessory activation policy and skips launch-time activation. On Wayland, winit 0.30 ignores position, `set_visible`, `focus_window`, and window levels; the logical phase still updates.
+
+## Several windows
+
+`Session::new(app).window(other).run()` opens two apps on one event loop. Each has its own world and surface. `run(app)` is the one-window case and is the same as `Session::new(app).run()`. Closing the first window exits the process. Closing a later window removes only that window. `Input.quit` on any window exits. Hiding a window leaves its surface in place.
+
+The runner inserts a `Desktop` before the first frame. `send` queues a `WindowMsg<T>` for one id. `broadcast` queues it for every other window. Mail is delivered at the start of the receiver's next frame, before `App::update`, so Update reads it on that frame. `open` asks the runner to create another window on the event-loop thread; the build closure runs there after the new world has its `Desktop` and `WindowConfig`. `examples/windows` is the two-window case: Save broadcasts, and the other window writes the text into its status label.
+
+The tray, the hotkey backend, and the accessory activation policy stay on the first window. Each window creates its own GPU device. A `WindowConfig` that asks for a panel still builds that panel.
+
+## Pointers
+
+`Pointers` holds every contact for the frame. A contact has an id, a kind (`Mouse`, `Touch`, `Pen`, or `Eraser`), a position in logical points, optional pressure, tilt, and twist, buttons, a timestamp, and every coalesced sample since the previous frame. `Input.pointer` mirrors the primary contact. The mouse stays primary while that contact exists, so a widget that only reads `Input.pointer` does not change. `Pointers::set_primary` selects another id, such as `PEN_ID`, when the app wants a pen to drive those widgets. Choosing the pen over a palm touch stays in the app.
+
+winit `Touch` writes a touch contact. `touch_id` sets the high bit so a finger cannot collide with the mouse. `Touch.force`, where the platform provides it, is stored as pressure in `0..=1`. macOS does not deliver touch through winit 0.30. Two touch contacts that are down synthesize `Gesture` events. Pinch is the span ratio (`1.0` is unchanged). Pan is the centroid delta in logical points, Y down. Rotation is the change in angle, positive counterclockwise. A lift ends the gesture. A cancel on either contact cancels it. Extra fingers are ignored. The pair is the two lowest ids.
+
+On macOS, `PinchGesture` and `RotationGesture` are also `Gesture` events and are not mixed into the touch synthesis. A magnification delta of `0` is stored as scale `1 + delta`. Rotation degrees become radians.
+
+| | macOS | Windows | X11 | Wayland |
+| --- | --- | --- | --- | --- |
+| Touch contacts | not from winit 0.30 | yes, and a pen is reported as touch | yes | yes |
+| Touch force as pressure | no | Windows 8+ | no | no |
+| Pinch and rotation from the platform | yes | no; two touches synthesize them | no; two touches synthesize them | no; two touches synthesize them |
+| File drop | yes | yes | yes | no |
+
+## Text input
+
+A focused field, prompt, or editor calls `set_ime_allowed(true)` on its window. Preedit, commit, and the keys of that frame are resolved together. A commit replaces key text that the same frame also reported, so the character is inserted once. A nonempty preedit drops composition keys. `Input.ime_enabled` records whether the platform has enabled an input method. A preedit with no caret range places the caret at the end of the preedit string.
+
+## Accessibility
+
+The `accesskit` feature is on by default. Each frame the runner publishes `access_tree`: a window root, then a role and a name for buttons, labels, text fields, prompts, editors, lists, list rows, tabs, and disclosures. Hidden subtrees are skipped. Layout boxes with no role of their own are flattened. Bounds are the widget rect in physical pixels. A platform focus, activate, or set-value command is applied on the UI thread.
+
+A `ListKeys` list is focusable. When focus is on that list, or on a descendant that does not capture keys, and the keymap did not already fire a list action, Arrow, Page Up, Page Down, Home, End, and Enter move or activate the selection. A list that shares a keymap context with a search field keeps the keymap path.
+
+`--no-default-features` omits the platform adapter. `access_tree` itself stays in `rndr_core` and has no platform dependency.
+
+## Files, clipboard images, dialogs, and cursors
+
+`FileHover`, `FileDrop`, and `FileHoverCancel` are events. winit 0.30 supplies them on macOS, Windows, and X11. The payload is a path and has no position. One drop of several files is one event per path. Wayland does not emit them.
+
+`Clipboard.image` is straight RGBA8. Set `image_dirty` to write it on the next frame. Set `want_image` to read the operating-system image; a missing image does not clear what the operating system is holding.
+
+`request_file_dialog` stores an open or save request. The `dialog` feature, off by default, shows it and sends `FileChosen`. Cancel leaves `path` empty. On Linux the dialog uses the file-chooser portal. Without the feature the request stays until `take_file_dialog`.
+
+`CursorStyle::Image` uses the `CursorImage` resource. The bytes are straight RGBA8. `rotate_cursor` returns a new image rotated clockwise in screen space, hotspot included. The runner builds a platform cursor from those pixels. An image the platform rejects falls back to the default cursor.
+
+## Pen spike
+
+`examples/pen-probe` prints contacts whose kind is not a mouse, or that carry pressure. On macOS the runner installs a local `NSEvent` monitor. Mouse and tablet events whose subtype is a tablet point copy pressure, tilt, and twist onto `PEN_ID`. The contact position is the window cursor. The monitor is compiled; it is not verified against a tablet. An Apple Pencil through Sidecar, or another tablet, is the check that still needs hardware. On Windows a pen arrives as a touch contact and `Touch.force` is the pressure. The kind stays `Touch`, because the event does not say pen. That force is unverified without a digitizer. Trackpad pressure is not treated as a pen. Linux does not install the monitor.
 
 ## Tray
 
@@ -148,7 +199,7 @@ F21–F24 have no Carbon virtual key, so they are `InvalidBinding` on macOS and 
 
 ## Headless tests
 
-CI on macOS, Windows, and Ubuntu runs `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo clippy -p rndr_render -p rndr --no-default-features --all-targets -- -D warnings`, `cargo test --workspace`, `cargo test -p rndr_core --features tokio`, `cargo test -p rndr_core --features highlight`, then `cargo build -p expand -p idle -p overlay -p palette -p terminal -p stream -p rndr_render`. The Ubuntu job also runs `cargo package --workspace` (a verified build of each packaged crate) and checks that the Inter license and the snapshot files are in those crates, then builds `cargo doc --no-deps` with warnings denied. It installs the X11, Wayland, and Vulkan packages winit and wgpu need to compile. The tray and hotkey features add no further packages.
+CI on macOS, Windows, and Ubuntu runs `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo clippy -p rndr_render -p rndr --no-default-features --all-targets -- -D warnings`, `cargo clippy -p rndr_render -p rndr --features dialog --all-targets -- -D warnings`, `cargo test --workspace`, `cargo test -p rndr_core --features tokio`, `cargo test -p rndr_core --features highlight`, then `cargo build -p expand -p idle -p overlay -p palette -p terminal -p stream -p two-windows -p pen-probe -p rndr_render`. The Ubuntu job also runs `cargo package --workspace` (a verified build of each packaged crate) and checks that the Inter license and the snapshot files are in those crates, then builds `cargo doc --no-deps` with warnings denied. It installs the X11, Wayland, and Vulkan packages winit and wgpu need to compile. The tray and hotkey features add no further packages. The dialog feature on Linux uses the file-chooser portal and does not link GTK.
 
 A headless test drives one frame without a window:
 

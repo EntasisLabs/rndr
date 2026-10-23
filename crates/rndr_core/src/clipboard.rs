@@ -87,6 +87,52 @@ pub struct Clipboard {
     /// Set when this frame wrote [`Self::primary`]. The desktop runner clears
     /// it after pushing the value out.
     pub primary_dirty: bool,
+    /// Last image written by the app, or the image the runner pulled because
+    /// [`Self::want_image`] was set. `None` does not clear the OS clipboard.
+    pub image: Option<ClipboardImage>,
+    /// Set when this frame wrote [`Self::image`]. The desktop runner clears it
+    /// after pushing the image out.
+    pub image_dirty: bool,
+    /// Ask the runner to read an image from the OS clipboard on the next pull.
+    ///
+    /// The runner clears this after the attempt. A frame that leaves it false
+    /// does not read images, so a platform that prompts on each paste is not
+    /// prompted every frame.
+    pub want_image: bool,
+}
+
+/// Straight RGBA8 image on the clipboard, row-major, origin top-left.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ClipboardImage {
+    /// Width in pixels.
+    pub width: u32,
+    /// Height in pixels.
+    pub height: u32,
+    /// Pixel bytes. Length is `width * height * 4`.
+    pub rgba: Vec<u8>,
+}
+
+impl ClipboardImage {
+    /// `rgba` when its length is `width * height * 4`.
+    ///
+    /// A zero width or height is rejected.
+    pub fn new(width: u32, height: u32, rgba: Vec<u8>) -> Option<Self> {
+        if width == 0 || height == 0 {
+            return None;
+        }
+        let pixels = usize::try_from(width)
+            .ok()?
+            .checked_mul(usize::try_from(height).ok()?)?;
+        let bytes = pixels.checked_mul(4)?;
+        if rgba.len() != bytes {
+            return None;
+        }
+        Some(Self {
+            width,
+            height,
+            rgba,
+        })
+    }
 }
 
 pub fn copy_binding() -> Binding {

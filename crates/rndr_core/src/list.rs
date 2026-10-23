@@ -13,6 +13,12 @@
 //! list share one palette. Enter and a double-click send [`ListActivated`] during
 //! Input, so Update on the same frame can run the command.
 //!
+//! A focused list with no keymap context still moves from the keyboard. Arrow,
+//! Page Up, Page Down, Home, End, and Enter apply when focus is on the list, or
+//! on a descendant that does not capture keys, and those actions were not
+//! already fired by the keymap. The list is [`Focusable`], so tab order can
+//! land on it.
+//!
 //! Changing [`List::count`] clamps [`List::selected`] into range and resets
 //! [`List::offset`]. The selection is then scrolled back into view, aligned to
 //! a row so the selected row is fully inside the viewport. Set `count` from
@@ -22,12 +28,14 @@
 //! The list layout should use a gap of 0. Row height is the stride, and
 //! [`Size::Fill`] on each row is what makes a resize follow the list width.
 
+use crate::disclosure::Focusable;
 use crate::entity::Entity;
 use crate::event::{send, Event};
+use crate::field::CapturesKeys;
 use crate::hierarchy::{children_of, despawn, set_parent, Parent};
-use crate::input::{Focus, Input};
+use crate::input::{Focus, Input, Key};
 use crate::keymap::{self, context_stack, KeyBinding, Keymap};
-use crate::keys::{Keystroke, NamedKey};
+use crate::keys::{KeyEvent, Keystroke, LogicalKey, NamedKey};
 use crate::layout::{ancestor_with, hit_test, Axis, Layout, Rect, Size};
 use crate::style::Label;
 use crate::world::{Component, World};
@@ -157,6 +165,11 @@ struct InstalledNav {
 
 /// Install or drop the standard navigation bindings for every [`ListKeys`] list.
 pub(crate) fn prepare_list_keys(world: &mut World) {
+    for entity in world.entities_with::<ListKeys>() {
+        if world.has::<List>(entity) && !world.has::<Focusable>(entity) {
+            world.insert(entity, Focusable);
+        }
+    }
     let desired = desired_bindings(world);
     let previous = world
         .resource::<InstalledNav>()
@@ -208,8 +221,11 @@ pub(crate) fn apply_list_input(world: &mut World) {
         list.clicked = None;
         let height = world.get::<Rect>(entity).map(|rect| rect.h).unwrap_or(0.0);
         let page = page_len(height, list.row_height);
+        let mut handled = false;
         if world.has::<ListKeys>(entity) && list_targeted(world, entity, &focus_stack) {
             for action in &actions {
+                let is_nav = NAV_ACTIONS.contains(&action.as_str());
+                handled |= is_nav;
                 apply_nav(&mut list, action, page);
                 if action == LIST_ACTIVATE {
                     if let Some(index) = list.selected {
@@ -217,6 +233,9 @@ pub(crate) fn apply_list_input(world: &mut World) {
                     }
                 }
             }
+        }
+        if world.has::<ListKeys>(entity) && !handled {
+            apply_direct_keys(world, entity, &mut list, page, &mut activations);
         }
         let moved = list.pointer_ready && pointer_moved(list.pointer, pointer);
         list.pointer = pointer;
@@ -357,6 +376,109 @@ fn apply_nav(list: &mut List, action: &str, page: u32) {
 
 fn pointer_moved(previous: [f32; 2], next: [f32; 2]) -> bool {
     previous[0].to_bits() != next[0].to_bits() || previous[1].to_bits() != next[1].to_bits()
+}
+
+fn apply_direct_keys(
+    world: &mut World,
+    entity: Entity,
+    list: &mut List,
+    page: u32,
+    activations: &mut Vec<(Entity, u32)>,
+) {
+    if focused_list(world) != Some(entity) {
+        return;
+    }
+    let captures = world
+        .resource::<Focus>()
+        .and_then(|focus| focus.entity)
+        .is_some_and(|focus| world.has::<CapturesKeys>(focus));
+    if captures {
+        return;
+    }
+    let (keys, legacy) = match world.resource::<Input>() {
+        Some(input) => (input.keys.clone(), input.key),
+        None => return,
+    };
+    let mut used = false;
+    if keys.is_empty() {
+        if let Some(action) = legacy.and_then(legacy_nav) {
+            used = true;
+            step_nav(list, action, page, entity, activations);
+        }
+    } else {
+        for event in &keys {
+            if let Some(action) = direct_nav(event) {
+                used = true;
+                step_nav(list, action, page, entity, activations);
+            }
+        }
+    }
+    if !used {
+        return;
+    }
+    if let Some(input) = world.resource_mut::<Input>() {
+        input.keys.retain(|event| direct_nav(event).is_none());
+        if matches!(input.key, Some(Key::Up | Key::Down | Key::Enter)) {
+            input.key = None;
+        }
+    }
+}
+
+fn step_nav(
+    list: &mut List,
+    action: &str,
+    page: u32,
+    entity: Entity,
+    activations: &mut Vec<(Entity, u32)>,
+) {
+    apply_nav(list, action, page);
+    if action == LIST_ACTIVATE {
+        if let Some(index) = list.selected {
+            activations.push((entity, index));
+        }
+    }
+}
+
+fn legacy_nav(key: Key) -> Option<&'static str> {
+    match key {
+        Key::Up => Some(LIST_UP),
+        Key::Down => Some(LIST_DOWN),
+        Key::Enter => Some(LIST_ACTIVATE),
+        _ => None,
+    }
+}
+
+fn direct_nav(event: &KeyEvent) -> Option<&'static str> {
+    if event.released || event.synthetic {
+        return None;
+    }
+    if event.modifiers.ctrl || event.modifiers.alt || event.modifiers.super_key {
+        return None;
+    }
+    match event.logical {
+        LogicalKey::Named(NamedKey::ArrowUp) => Some(LIST_UP),
+        LogicalKey::Named(NamedKey::ArrowDown) => Some(LIST_DOWN),
+        LogicalKey::Named(NamedKey::PageUp) => Some(LIST_PAGE_UP),
+        LogicalKey::Named(NamedKey::PageDown) => Some(LIST_PAGE_DOWN),
+        LogicalKey::Named(NamedKey::Home) => Some(LIST_HOME),
+        LogicalKey::Named(NamedKey::End) => Some(LIST_END),
+        LogicalKey::Named(NamedKey::Enter) => Some(LIST_ACTIVATE),
+        _ => None,
+    }
+}
+
+fn focused_list(world: &World) -> Option<Entity> {
+    let mut current = world.resource::<Focus>().and_then(|focus| focus.entity)?;
+    for _ in 0..64 {
+        if !world.is_alive(current) {
+            return None;
+        }
+        if world.has::<List>(current) && world.has::<ListKeys>(current) {
+            return Some(current);
+        }
+        current = world.get::<Parent>(current)?.entity;
+    }
+    None
 }
 
 fn list_targeted(world: &World, list: Entity, focus_stack: &[String]) -> bool {

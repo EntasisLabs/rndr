@@ -16,7 +16,7 @@ categories = ["gui", "graphics", "rendering"]
 exclude = ["**/*.snap.new"]
 
 [features]
-default = ["hotkey", "tray", "parley"]
+default = ["hotkey", "tray", "parley", "accesskit"]
 # System-wide hotkeys. Off skips Carbon, Win32, X11, and the portal client.
 hotkey = [
     "dep:futures-util",
@@ -33,6 +33,10 @@ tray = ["dep:tray-icon", "dep:png"]
 # `run` stay on the builtin atlas engine. `--no-default-features` keeps that
 # path and skips the fontconfig link.
 parley = ["dep:parley", "dep:swash", "dep:etagere"]
+# Accessibility tree on macOS, Windows, and Linux. `--no-default-features` skips it.
+accesskit = ["dep:accesskit", "dep:accesskit_winit"]
+# Native open and save dialogs. Off by default.
+dialog = ["dep:rfd"]
 
 [dependencies]
 rndr_core = { workspace = true, features = ["pool"] }
@@ -56,11 +60,20 @@ swash = { version = "0.2.10", optional = true }
 etagere = { version = "0.3", optional = true }
 tray-icon = { version = "0.26.1", optional = true, default-features = false, features = ["ksni"] }
 png = { version = "0.18", optional = true }
-arboard = { version = "3", default-features = false, features = ["wayland-data-control"] }
+arboard = { version = "3", default-features = false, features = ["wayland-data-control", "image-data"] }
+accesskit = { version = "0.25", optional = true }
+accesskit_winit = { version = "0.34", optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.5.2"
-objc2-app-kit = { version = "0.2.2", features = ["NSWindow", "NSView", "NSResponder"] }
+objc2-app-kit = { version = "0.2.2", features = ["NSWindow", "NSView", "NSResponder", "NSEvent", "block2"] }
+block2 = "0.5.1"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+rfd = { version = "0.15", optional = true, default-features = false, features = ["xdg-portal", "tokio"] }
+
+[target.'cfg(not(any(target_os = "linux", target_os = "android", target_os = "ios")))'.dependencies]
+rfd = { version = "0.15", optional = true }
 
 [dev-dependencies]
 insta = "1"

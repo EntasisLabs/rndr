@@ -242,22 +242,18 @@ pub fn apply_editor(world: &mut World) {
 }
 
 fn edit_focused(world: &mut World, entity: crate::entity::Entity) {
-    let queued = world
-        .resource::<Input>()
-        .is_some_and(|input| !input.keys.is_empty());
-    if queued {
-        edit_queue(world, entity);
-        return;
-    }
-    let (key, shift, chars, commit) = match world.resource::<Input>() {
-        Some(input) => (
-            input.key,
-            input.shift,
-            input.chars.clone(),
-            input.ime_commit.clone(),
-        ),
+    let frame = match world.resource::<Input>() {
+        Some(input) => crate::ime::text_frame(input),
         None => return,
     };
+    if !frame.keys.is_empty() {
+        edit_queue(world, entity, &frame.keys, &frame.commit);
+        return;
+    }
+    let key = frame.legacy_key;
+    let shift = frame.shift;
+    let chars = frame.chars;
+    let commit = frame.commit;
     let Some(buffer) = world.get_mut::<Buffer>(entity) else {
         return;
     };
@@ -343,12 +339,8 @@ fn edit_focused(world: &mut World, entity: crate::entity::Entity) {
     }
 }
 
-fn edit_queue(world: &mut World, entity: crate::entity::Entity) {
+fn edit_queue(world: &mut World, entity: crate::entity::Entity, keys: &[KeyEvent], commit: &str) {
     let platform = platform_of(world);
-    let (keys, commit) = match world.resource::<Input>() {
-        Some(input) => (input.keys.clone(), input.ime_commit.clone()),
-        None => return,
-    };
     let Some(buffer) = world.get::<Buffer>(entity) else {
         return;
     };
@@ -363,7 +355,7 @@ fn edit_queue(world: &mut World, entity: crate::entity::Entity) {
     let mut copied = None;
     let mut clipboard_action = false;
     let now = crate::typing::frame_now(world);
-    for event in &keys {
+    for event in keys {
         let step = apply_text_event(
             &mut EditSurface {
                 text: &mut text,
@@ -386,7 +378,7 @@ fn edit_queue(world: &mut World, entity: crate::entity::Entity) {
     if !commit.is_empty() {
         let commit_event = KeyEvent {
             logical: LogicalKey::Unidentified,
-            text: Some(commit),
+            text: Some(commit.to_string()),
             code: None,
             modifiers: Modifiers::new(),
             repeat: false,

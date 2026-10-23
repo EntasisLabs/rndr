@@ -310,16 +310,15 @@ fn focus_pressed_field(world: &mut World) {
 }
 
 fn edit_label(world: &mut World, entity: crate::entity::Entity) {
-    let (key, shift, chars, commit, keys) = match world.resource::<Input>() {
-        Some(input) => (
-            input.key,
-            input.shift,
-            input.chars.clone(),
-            input.ime_commit.clone(),
-            input.keys.clone(),
-        ),
+    let frame = match world.resource::<Input>() {
+        Some(input) => crate::ime::text_frame(input),
         None => return,
     };
+    let key = frame.legacy_key;
+    let shift = frame.shift;
+    let chars = frame.chars;
+    let commit = frame.commit;
+    let keys = frame.keys;
     let before = world
         .get::<Label>(entity)
         .map(|label| label.text.clone())
