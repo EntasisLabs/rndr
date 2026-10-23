@@ -240,10 +240,10 @@ fn host_linux() -> bool {
 
 /// Menu text and the accelerator passed to the native item.
 ///
-/// A parsed chord is the accelerator and is not also written into the label.
-/// The ksni backend does not display that accelerator, so on Linux the
-/// shortcut stays out of the label as well. A shortcut that does not parse
-/// stays in the label on other platforms and is left out on Linux.
+/// A parsed chord is the accelerator. macOS and Windows draw that column, so
+/// the chord is left out of the label. Linux does not draw it, so the chord
+/// stays in the label. A shortcut that does not parse stays in the label on
+/// every platform.
 pub(crate) fn row_presentation(
     label: &str,
     shortcut: &str,
@@ -251,7 +251,11 @@ pub(crate) fn row_presentation(
 ) -> (String, Option<tray_icon::menu::accelerator::Accelerator>) {
     let accelerator = shortcut.parse().ok();
     let platform = if linux { Platform::X11 } else { Platform::Mac };
-    let shown = if accelerator.is_some() { "" } else { shortcut };
+    let shown = if linux || accelerator.is_none() {
+        shortcut
+    } else {
+        ""
+    };
     let text = menu_label(label, shown, platform).replace('&', "&&");
     (text, accelerator)
 }
@@ -383,18 +387,18 @@ mod tests {
     }
 
     #[test]
-    fn menu_rows_pass_a_parsed_accelerator_and_leave_linux_labels_plain() {
+    fn menu_rows_show_the_hotkey_on_linux_and_keep_other_accelerators() {
         let (text, accel) = super::row_presentation("Show Palette", "Alt+Space", true);
-        assert_eq!(text, "Show Palette");
+        assert_eq!(text, "Show Palette  Alt+Space");
         assert!(accel.is_some());
         let (text, accel) = super::row_presentation("Show Palette", "Ctrl+Alt+Space", true);
-        assert_eq!(text, "Show Palette");
+        assert_eq!(text, "Show Palette  Ctrl+Alt+Space");
         assert!(accel.is_some());
         let (text, accel) = super::row_presentation("Show Palette", "Cmd+Space", true);
-        assert_eq!(text, "Show Palette");
+        assert_eq!(text, "Show Palette  Cmd+Space");
         assert!(accel.is_some());
         let (text, accel) = super::row_presentation("Show Palette", "⌥Space", true);
-        assert_eq!(text, "Show Palette");
+        assert_eq!(text, "Show Palette  ⌥Space");
         assert!(accel.is_none());
         let (text, accel) = super::row_presentation("Show & Palette", "Alt+Space", false);
         assert_eq!(text, "Show && Palette");

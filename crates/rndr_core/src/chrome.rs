@@ -22,7 +22,8 @@ use crate::tabs::apply_tabs;
 /// are merged before Update. The Update system is inserted at the front, so
 /// actions, overlays, buttons, and tabs run before Update systems already
 /// registered. PostUpdate rebuilds virtual lists, applies editor decorations,
-/// and applies copy, cut, and paste on the focused [`crate::TextField`].
+/// and applies copy, cut, and paste on the focused [`crate::TextField`] or
+/// [`crate::Prompt`].
 pub struct Chrome;
 
 impl Plugin for Chrome {

@@ -7,7 +7,9 @@
 //! and Enter activates the row. Each row's shortcut comes from `Keymap::shortcut`
 //! and is drawn in its own dim label color. Letters the filter matched are
 //! highlighted. Running a command spawns a task whose handle lives in ordinary
-//! app state.
+//! app state. Activating Ask Medousa switches the field to a multi-line prompt:
+//! Enter sends, Shift+Enter inserts a newline, and clicking Ask Medousa again
+//! returns to the list. Filter replies are ignored while that prompt is open.
 //!
 //! The window is frameless, centered, and always on top. Escape and blur hide
 //! it and leave the process running. Alt+Space shows or hides it from any
@@ -31,12 +33,14 @@ use rndr_core::{
     context_stack, events, feed, platform_of, set_parent, sleep, spawn, spawn_detached, theme_of,
     toggle_on_click, App, Axis, CapturesKeys, Caret, Chrome, Color, Context, Dismiss, Entity,
     Event, Focus, HotkeyBinding, HotkeyRejected, Item, KeyBinding, Keymap, KeymapFired, Keystroke,
-    Label, Layout, List, ListActivated, ListKeys, ListRows, LogicalSize, Menu, NamedKey, Position,
-    Radius, Schedule, Size, Spans, TaskHandle, TextChanged, TextFace, TextField, TextOverflow,
-    TextSpan, Theme, TrayConfig, TrayIcon, TrayItemId, TrayMenu, World,
+    Label, Layout, List, ListActivated, ListKeys, ListRows, LogicalSize, Menu, NamedKey,
+    Placeholder, Position, Prompt, Radius, Schedule, Size, Spans, Submitted, TaskHandle,
+    TextChanged, TextFace, TextField, TextOverflow, TextSpan, Theme, TrayConfig, TrayIcon,
+    TrayItemId, TrayMenu, World,
 };
 use rndr_paint::LatinFace;
 use rndr_render::{configured_hotkey, run, toggle_window};
+use unicode_normalization::UnicodeNormalization;
 
 const CONTEXT: &str = "Palette";
 const ROW_H: f32 = 32.0;
@@ -114,6 +118,8 @@ struct Palette {
     /// Closing this tells an in-flight search to stop.
     search: feed::Feed<Filtered>,
     search_tx: feed::Sender<Filtered>,
+    /// Ask Medousa replaced the filter field with a multi-line prompt.
+    asking: bool,
 }
 
 fn bindings() -> Vec<KeyBinding> {
@@ -229,6 +235,7 @@ fn setup(world: &mut World) {
         running: None,
         search,
         search_tx,
+        asking: false,
     });
     start_search(world, String::new());
     paint_status(world);
@@ -425,44 +432,112 @@ fn row_parts(world: &mut World, row: Entity) -> (Entity, Entity) {
     (labels[0], labels[1])
 }
 
-/// Subsequence match. Lower score is better: tight, early matches win.
-/// Ranges are byte spans in `title` for the letters that hit, merged when
-/// they sit next to each other.
-fn chars_match(query: char, title: char) -> bool {
-    if query.is_ascii() && title.is_ascii() {
-        query.eq_ignore_ascii_case(&title)
-    } else {
-        // Per code point, so a fold that grows (İ) cannot shift later ranges.
-        query.to_lowercase().eq(title.to_lowercase())
-    }
+/// One base character in `title`, plus any combining marks that follow it.
+struct Atom {
+    start: usize,
+    end: usize,
+    bases: Vec<char>,
 }
 
+/// Subsequence match. Lower score is better: tight, early matches win.
+/// Ranges are byte spans in `title` for the letters that hit, merged when
+/// they sit next to each other. Matching ignores case and diacritics, and a
+/// hit covers the original character including a following combining mark.
 fn fuzzy(query: &str, title: &str) -> Option<(i32, Vec<(usize, usize)>)> {
     let query = query.trim();
     if query.is_empty() {
         return Some((0, Vec::new()));
     }
+    let mut needles = Vec::new();
+    for ch in query.chars() {
+        if ch.is_whitespace() || is_mark(ch) {
+            continue;
+        }
+        needles.extend(fold_bases(ch));
+    }
+    if needles.is_empty() {
+        return Some((0, Vec::new()));
+    }
     let mut score = 0i32;
     let mut last: Option<usize> = None;
     let mut ranges = Vec::new();
-    let mut chars = title.char_indices();
-    for q in query.chars().filter(|c| !c.is_whitespace()) {
-        let (at, ch) = chars.by_ref().find(|(_, ch)| chars_match(q, *ch))?;
-        score += match last {
-            Some(prev) => (at - prev - 1) as i32,
-            None => at as i32,
-        };
-        last = Some(at);
-        let end = at + ch.len_utf8();
-        if let Some((_, prev_end)) = ranges.last_mut() {
-            if *prev_end == at {
-                *prev_end = end;
+    let mut needle = 0usize;
+    for atom in atoms(title) {
+        if needle >= needles.len() {
+            break;
+        }
+        let mut used = false;
+        for base in atom.bases {
+            if needle >= needles.len() {
+                break;
+            }
+            if base == needles[needle] {
+                let at = atom.start;
+                score += match last {
+                    Some(prev) => (at as i32 - prev as i32 - 1).max(0),
+                    None => at as i32,
+                };
+                last = Some(at);
+                needle += 1;
+                used = true;
+            }
+        }
+        if !used {
+            continue;
+        }
+        if let Some((_, end)) = ranges.last_mut() {
+            if *end == atom.start {
+                *end = atom.end;
                 continue;
             }
         }
-        ranges.push((at, end));
+        ranges.push((atom.start, atom.end));
     }
-    Some((score, ranges))
+    (needle == needles.len()).then_some((score, ranges))
+}
+
+fn atoms(text: &str) -> Vec<Atom> {
+    let mut atoms: Vec<Atom> = Vec::new();
+    let mut chars = text.char_indices().peekable();
+    while let Some((start, ch)) = chars.next() {
+        if is_mark(ch) {
+            if let Some(prev) = atoms.last_mut() {
+                prev.end = start + ch.len_utf8();
+            }
+            continue;
+        }
+        let mut end = start + ch.len_utf8();
+        while let Some(&(at, next)) = chars.peek() {
+            if !is_mark(next) {
+                break;
+            }
+            chars.next();
+            end = at + next.len_utf8();
+        }
+        atoms.push(Atom {
+            start,
+            end,
+            bases: fold_bases(ch),
+        });
+    }
+    atoms
+}
+
+fn fold_bases(ch: char) -> Vec<char> {
+    let lower: String = ch.to_lowercase().collect();
+    lower.nfd().filter(|ch| !is_mark(*ch)).collect()
+}
+
+fn is_mark(ch: char) -> bool {
+    matches!(
+        ch,
+        '\u{0300}'..='\u{036F}'
+            | '\u{1AB0}'..='\u{1AFF}'
+            | '\u{1DC0}'..='\u{1DFF}'
+            | '\u{20D0}'..='\u{20FF}'
+            | '\u{FE20}'..='\u{FE2F}'
+            | '\u{3099}'..='\u{309A}'
+    )
 }
 
 fn filter(query: &str) -> Vec<usize> {
@@ -503,6 +578,10 @@ fn palette_update(world: &mut World) {
         .iter()
         .map(|event| (event.entity, event.text.clone()))
         .collect();
+    let submitted: Vec<(Entity, String)> = events::<Submitted>(world)
+        .iter()
+        .map(|event| (event.entity, event.text.clone()))
+        .collect();
     let filtered: Vec<(String, Vec<usize>)> = events::<Filtered>(world)
         .iter()
         .map(|event| (event.query.clone(), event.hits.clone()))
@@ -521,16 +600,38 @@ fn palette_update(world: &mut World) {
         .unwrap_or_default();
 
     for (entity, text) in changed {
-        let field = world.resource::<Palette>().unwrap().field;
-        if entity == field {
+        let (field, asking) = {
+            let palette = world.resource::<Palette>().unwrap();
+            (palette.field, palette.asking)
+        };
+        if entity == field && !asking {
             world.resource_mut::<Palette>().unwrap().query = text.clone();
             start_search(world, text);
         }
     }
 
+    for (entity, text) in submitted {
+        let (field, asking) = {
+            let palette = world.resource::<Palette>().unwrap();
+            (palette.field, palette.asking)
+        };
+        if entity == field && asking {
+            let message = if text.trim().is_empty() {
+                "Enter a prompt.".to_string()
+            } else {
+                format!("Asked: {}", text.replace('\n', " "))
+            };
+            world.resource_mut::<Palette>().unwrap().message = message;
+            clear_prompt(world);
+        }
+    }
+
     for (query, hits) in filtered {
-        let current = world.resource::<Palette>().unwrap().query.clone();
-        if query != current {
+        let (current, asking) = {
+            let palette = world.resource::<Palette>().unwrap();
+            (palette.query.clone(), palette.asking)
+        };
+        if asking || query != current {
             continue;
         }
         let list = world.resource::<Palette>().unwrap().list;
@@ -558,19 +659,105 @@ fn palette_update(world: &mut World) {
             .resource::<Palette>()
             .and_then(|palette| palette.hits.get(index as usize).copied());
         if let Some(hit) = hit {
-            run_command(world, hit);
+            if COMMANDS[hit].0 == "ask" {
+                toggle_ask(world);
+            } else {
+                run_command(world, hit);
+            }
         }
     }
 
     for action in actions {
         if action == CLEAR {
             clear_query(world);
+        } else if action == "ask" {
+            toggle_ask(world);
         } else if let Some(index) = COMMANDS.iter().position(|(id, _)| *id == action) {
             run_command(world, index);
         }
     }
 
     paint_status(world);
+}
+
+fn toggle_ask(world: &mut World) {
+    let asking = world
+        .resource::<Palette>()
+        .is_some_and(|palette| palette.asking);
+    if asking {
+        leave_ask(world);
+    } else {
+        enter_ask(world);
+    }
+}
+
+fn enter_ask(world: &mut World) {
+    let (field, list) = {
+        let palette = world.resource::<Palette>().unwrap();
+        (palette.field, palette.list)
+    };
+    world.insert(field, Prompt::new().max_lines(6));
+    world.insert(field, Placeholder::new("Ask Medousa"));
+    if let Some(label) = world.get_mut::<Label>(field) {
+        label.text.clear();
+        label.overflow = TextOverflow::Wrap;
+    }
+    if let Some(caret) = world.get_mut::<Caret>(field) {
+        caret.index = 0;
+        caret.anchor = 0;
+    }
+    world.remove::<ListKeys>(list);
+    let palette = world.resource_mut::<Palette>().unwrap();
+    palette.asking = true;
+    palette.query.clear();
+    palette.hits = (0..COMMANDS.len()).collect();
+    palette.message =
+        "Enter sends. Shift+Enter adds a line. Click Ask Medousa to go back.".to_string();
+    if let Some(list) = world.get_mut::<List>(list) {
+        list.count = COMMANDS.len() as u32;
+        list.selected = Some(0);
+        list.offset = 0.0;
+    }
+}
+
+fn leave_ask(world: &mut World) {
+    let (field, list) = {
+        let palette = world.resource::<Palette>().unwrap();
+        (palette.field, palette.list)
+    };
+    world.remove::<Prompt>(field);
+    world.remove::<Placeholder>(field);
+    if let Some(label) = world.get_mut::<Label>(field) {
+        label.text.clear();
+        label.overflow = TextOverflow::Visible;
+    }
+    if let Some(caret) = world.get_mut::<Caret>(field) {
+        caret.index = 0;
+        caret.anchor = 0;
+    }
+    world.insert(list, ListKeys);
+    let hint = status_hint(world);
+    let palette = world.resource_mut::<Palette>().unwrap();
+    palette.asking = false;
+    palette.query.clear();
+    palette.hits = (0..COMMANDS.len()).collect();
+    palette.message = hint;
+    if let Some(list) = world.get_mut::<List>(list) {
+        list.count = COMMANDS.len() as u32;
+        list.selected = Some(0);
+        list.offset = 0.0;
+    }
+}
+
+fn clear_prompt(world: &mut World) {
+    let field = world.resource::<Palette>().unwrap().field;
+    if let Some(label) = world.get_mut::<Label>(field) {
+        label.text.clear();
+    }
+    if let Some(caret) = world.get_mut::<Caret>(field) {
+        caret.index = 0;
+        caret.anchor = 0;
+    }
 }
 
 fn clear_query(world: &mut World) {
@@ -581,6 +768,9 @@ fn clear_query(world: &mut World) {
     if let Some(caret) = world.get_mut::<Caret>(field) {
         caret.index = 0;
         caret.anchor = 0;
+    }
+    if world.resource::<Palette>().unwrap().asking {
+        return;
     }
     world.resource_mut::<Palette>().unwrap().query.clear();
     start_search(world, String::new());
@@ -752,6 +942,21 @@ mod tests {
         assert_eq!(score, 1);
         let (_, ranges) = fuzzy("rés", "Résumé builder").unwrap();
         assert_eq!(ranges, vec![(0, 4)]);
+        let (_, cafe) = fuzzy("cafe", "Café").unwrap();
+        assert_eq!(cafe, vec![(0, "Café".len())]);
+        let (_, resume) = fuzzy("resume", "résumé").unwrap();
+        assert_eq!(resume, vec![(0, "résumé".len())]);
+        let (_, upper) = fuzzy("CAFE", "café menu").unwrap();
+        assert_eq!(upper, vec![(0, "café".len())]);
+        let nfd = "Cafe\u{0301}";
+        let (_, ranges) = fuzzy("cafe", nfd).unwrap();
+        assert_eq!(ranges, vec![(0, nfd.len())]);
+        let (_, ranges) = fuzzy("e\u{0301}", "Résumé builder").unwrap();
+        assert_eq!(ranges, vec![(1, 3)]);
+        let decomposed = "re\u{0301}sume\u{0301}";
+        let (_, ranges) = fuzzy("resume", decomposed).unwrap();
+        assert_eq!(ranges, vec![(0, decomposed.len())]);
+        assert!(fuzzy("cafe", "cat").is_none());
     }
 
     #[test]

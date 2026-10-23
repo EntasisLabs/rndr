@@ -268,6 +268,21 @@ fn restore(
     *anchor = prev.anchor.min(text.len());
 }
 
+/// Replace the whole buffer and record one undo step when the text changes.
+/// The caret moves to the end.
+pub(crate) fn rewrite(surface: &mut EditSurface<'_>, history: &mut EditHistory, next: &str) {
+    let next = next.to_string();
+    let text = &mut *surface.text;
+    let index = &mut *surface.index;
+    let anchor = &mut *surface.anchor;
+    change(text, index, anchor, history, |text, index, anchor| {
+        text.clear();
+        text.push_str(&next);
+        *index = text.len();
+        *anchor = *index;
+    });
+}
+
 fn change(
     text: &mut String,
     index: &mut usize,

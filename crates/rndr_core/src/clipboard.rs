@@ -60,7 +60,8 @@ pub fn paste_binding() -> Binding {
     Binding::new(PASTE, Chord::new(Key::Paste)).consume()
 }
 
-/// Copy, cut, or paste the focused [`TextField`] selection from [`Fired`].
+/// Copy, cut, or paste the focused [`TextField`] or [`crate::Prompt`] selection
+/// from [`Fired`].
 pub fn apply_clipboard(world: &mut World) {
     let name = world
         .resource::<Fired>()
@@ -71,7 +72,9 @@ pub fn apply_clipboard(world: &mut World) {
     let entity = world
         .resource::<Focus>()
         .and_then(|focus| focus.entity)
-        .filter(|entity| world.has::<TextField>(*entity));
+        .filter(|entity| {
+            world.has::<TextField>(*entity) || world.has::<crate::prompt::Prompt>(*entity)
+        });
     let Some(entity) = entity else {
         return;
     };
