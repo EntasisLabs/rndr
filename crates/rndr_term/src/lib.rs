@@ -967,6 +967,7 @@ fn default_font() -> TextStyle {
         size: 16.0,
         weight: FONT_WEIGHT_REGULAR,
         style: rndr_core::FontStyle::Normal,
+        ..TextStyle::default()
     }
 }
 

@@ -14,6 +14,7 @@ fn inter(size: f32) -> TextStyle {
         size,
         weight: FONT_WEIGHT_REGULAR,
         style: rndr_core::FontStyle::Normal,
+        ..TextStyle::default()
     }
 }
 

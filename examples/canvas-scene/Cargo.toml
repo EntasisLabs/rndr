@@ -1,0 +1,12 @@
+[package]
+name = "canvas-scene"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Pan and zoom a vector scene, or export it to PNG"
+publish = false
+
+[dependencies]
+rndr_core = { workspace = true }
+rndr_paint = { workspace = true }
+rndr_render = { workspace = true }

@@ -1,6 +1,6 @@
 # rndr_render
 
-winit window and wgpu presenter for [rndr](https://github.com/EntasisLabs/rndr). The runner writes input in logical points and draws the quad list from `rndr_paint`.
+winit window and wgpu presenter for [rndr](https://github.com/EntasisLabs/rndr). The runner writes input in logical points and draws the frame from `rndr_paint`: signed-distance quads, plus paths, images, and layers when the frame records them.
 
 ```rust
 rndr_render::run(app);

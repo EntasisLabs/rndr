@@ -15,6 +15,7 @@ members = [
     "examples/stream",
     "examples/windows",
     "examples/pen-probe",
+    "examples/canvas-scene",
 ]
 
 [workspace.package]

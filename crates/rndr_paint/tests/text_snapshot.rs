@@ -32,6 +32,7 @@ fn styled_label_snapshot_has_two_colors_and_a_highlight() {
     let painted = Frame {
         quads: paint(&world),
         slots: Vec::new(),
+        draws: Vec::new(),
     };
     insta::assert_snapshot!(quads_snapshot(&painted));
 

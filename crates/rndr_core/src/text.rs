@@ -33,6 +33,18 @@ use crate::world::{Component, World};
 
 impl Component for TextStyle {}
 
+/// Horizontal alignment of a wrapped block.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
+pub enum TextAlign {
+    /// Flush to the start of the line. This is the default.
+    #[default]
+    Start,
+    /// Centered in the wrap width. A non-finite width stays at the start.
+    Center,
+    /// Flush to the end of the wrap width. A non-finite width stays at the start.
+    End,
+}
+
 /// Regular and bold weights. A run can override these per range.
 /// This value is 400.
 pub const FONT_WEIGHT_REGULAR: u16 = 400;
@@ -67,6 +79,13 @@ pub struct TextStyle {
     pub weight: u16,
     /// Upright or italic. The default is [`FontStyle::Normal`].
     pub style: FontStyle,
+    /// Extra advance between clusters, in points. The default is `0.0`.
+    pub letter_spacing: f32,
+    /// Extra gap after a line that ends on a newline, in points.
+    /// The default is `0.0`. Soft wraps do not take this gap.
+    pub paragraph_spacing: f32,
+    /// Alignment inside the wrap width. The default is [`TextAlign::Start`].
+    pub align: TextAlign,
 }
 
 impl Default for TextStyle {
@@ -76,19 +95,21 @@ impl Default for TextStyle {
             size: 16.0,
             weight: FONT_WEIGHT_REGULAR,
             style: FontStyle::Normal,
+            letter_spacing: 0.0,
+            paragraph_spacing: 0.0,
+            align: TextAlign::Start,
         }
     }
 }
 
 impl TextStyle {
     /// Family and em size from `font`, at [`FONT_WEIGHT_REGULAR`] and
-    /// [`FontStyle::Normal`].
+    /// [`FontStyle::Normal`], with no extra spacing.
     pub fn from_face(font: &dyn Font) -> Self {
         Self {
             family: font.family_name().to_string(),
             size: font.em_size(),
-            weight: FONT_WEIGHT_REGULAR,
-            style: FontStyle::Normal,
+            ..Self::default()
         }
     }
 }
@@ -114,6 +135,9 @@ pub(crate) fn style_key(style: &TextStyle) -> u64 {
     style.size.to_bits().hash(&mut hasher);
     style.weight.hash(&mut hasher);
     (style.style == FontStyle::Italic).hash(&mut hasher);
+    style.letter_spacing.to_bits().hash(&mut hasher);
+    style.paragraph_spacing.to_bits().hash(&mut hasher);
+    (style.align as u8).hash(&mut hasher);
     hasher.finish()
 }
 
@@ -246,6 +270,7 @@ struct LineKey {
     weight: u16,
     italic: bool,
     width_bits: u32,
+    letter_bits: u32,
     runs: Vec<RunKey>,
 }
 
@@ -359,28 +384,48 @@ impl TextEngine for BuiltinText {
         max_width: f32,
     ) -> TextLayout {
         let fonts = self.fonts_for(&style.family);
-        let stack = FaceStack {
+        // Letter spacing is on the face only while wrapping, so the line
+        // breaker sees it. Layout adds the same gap between clusters and
+        // must not see it on the advance as well.
+        let mut stack = FaceStack {
             fonts,
             size: style.size,
+            letter_spacing: style.letter_spacing,
         };
         let ranges = wrap_ranges(&stack, text, max_width);
+        stack.letter_spacing = 0.0;
         let mut glyphs = Vec::new();
         let mut lines = Vec::new();
         let mut highlights = Vec::new();
         let mut width = 0.0f32;
         let mut y = 0.0f32;
         for (origin, end) in ranges {
+            if style.paragraph_spacing != 0.0
+                && origin > 0
+                && text.as_bytes().get(origin - 1) == Some(&b'\n')
+            {
+                y += style.paragraph_spacing;
+            }
             let line_text = &text[origin..end];
             let local_runs = clip_runs(runs, origin, end);
             let key = line_key(line_text, style, max_width, &local_runs);
             let cached = self.cached_line(key, || {
-                layout_text_weighted(&stack, line_text, f32::INFINITY, &local_runs, style.weight)
+                layout_text_weighted(
+                    &stack,
+                    line_text,
+                    f32::INFINITY,
+                    &local_runs,
+                    style.weight,
+                    style.letter_spacing,
+                )
             });
+            let shift = align_shift(style.align, max_width, cached.width);
             let line_y = y;
             for glyph in &cached.glyphs {
                 let mut glyph = *glyph;
                 glyph.start += origin;
                 glyph.end += origin;
+                glyph.x += shift;
                 glyph.y += line_y;
                 glyphs.push(glyph);
             }
@@ -394,7 +439,7 @@ impl TextEngine for BuiltinText {
                     edges: line
                         .edges
                         .iter()
-                        .map(|(index, x)| (origin + index, *x))
+                        .map(|(index, x)| (origin + index, *x + shift))
                         .collect(),
                 });
                 y += line.h;
@@ -404,7 +449,7 @@ impl TextEngine for BuiltinText {
             }
             for highlight in &cached.highlights {
                 highlights.push(crate::font::TextHighlight {
-                    x: highlight.x,
+                    x: highlight.x + shift,
                     y: line_y + highlight.y,
                     w: highlight.w,
                     h: highlight.h,
@@ -456,6 +501,7 @@ impl TextEngine for BuiltinText {
         FaceStack {
             fonts: self.fonts_for(&style.family),
             size: style.size,
+            letter_spacing: 0.0,
         }
         .line_height()
     }
@@ -464,6 +510,7 @@ impl TextEngine for BuiltinText {
         FaceStack {
             fonts: self.fonts_for(&style.family),
             size: style.size,
+            letter_spacing: 0.0,
         }
         .advance('0')
     }
@@ -564,6 +611,7 @@ fn line_key(text: &str, style: &TextStyle, max_width: f32, runs: &[TextSpan]) ->
         weight: style.weight,
         italic: style.style == FontStyle::Italic,
         width_bits: max_width.to_bits(),
+        letter_bits: style.letter_spacing.to_bits(),
         runs: runs
             .iter()
             .map(|run| RunKey {
@@ -616,10 +664,29 @@ fn clip_runs(runs: &[TextSpan], start: usize, end: usize) -> Vec<TextSpan> {
     clipped
 }
 
+/// Extra gap before a line that follows a newline, and the horizontal shift
+/// for [`TextAlign`], applied after a cached line is copied into the paragraph.
+fn align_shift(align: TextAlign, max_width: f32, line_width: f32) -> f32 {
+    if !max_width.is_finite() {
+        return 0.0;
+    }
+    let slack = (max_width - line_width).max(0.0);
+    match align {
+        TextAlign::Start => 0.0,
+        TextAlign::Center => slack * 0.5,
+        TextAlign::End => slack,
+    }
+}
+
 /// Faces tried in order for one style. Advances scale by `size / em_size`.
+///
+/// `letter_spacing` is added inside [`Font::advance`] only while wrapping.
+/// Shaping sets it back to zero and applies the gap between clusters, so a
+/// character is not charged twice.
 struct FaceStack {
     fonts: Vec<Arc<dyn Font>>,
     size: f32,
+    letter_spacing: f32,
 }
 
 impl FaceStack {
@@ -648,7 +715,7 @@ impl Font for FaceStack {
 
     fn advance(&self, ch: char) -> f32 {
         let font = &self.fonts[self.resolve(ch)];
-        font.advance(ch) * self.scale_of(font.as_ref())
+        font.advance(ch) * self.scale_of(font.as_ref()) + self.letter_spacing
     }
 
     fn kerning(&self, left: char, right: char) -> f32 {

@@ -1,5 +1,6 @@
 //! winit + wgpu plugin. Writes [`rndr_core::Input`] in logical points and
-//! presents the quad list.
+//! presents a frame. Quads stay on the signed-distance path. A display list
+//! of paths, images, glyphs, and layers is drawn in the same frame.
 //!
 //! [`run`] is the only function here that opens a window. It reads a
 //! [`rndr_core::WindowConfig`] resource when one is present. Otherwise the
@@ -32,13 +33,18 @@
 mod a11y;
 mod clipboard;
 mod color;
+mod decode;
 #[cfg(feature = "dialog")]
 mod dialogs;
+mod export;
 mod gpu;
 #[cfg(feature = "hotkey")]
 mod hotkey;
+mod images;
+mod outline;
 mod pen;
 mod platform;
+mod scene;
 #[cfg(feature = "parley")]
 mod text;
 #[cfg(feature = "tray")]
@@ -73,8 +79,17 @@ use winit::platform::modifier_supplement::KeyEventExtModifierSupplement;
 use winit::window::{CursorIcon, CustomCursor, WindowId};
 
 use gpu::Gpu;
+
+pub use decode::{DecodeError, Raster};
+pub use export::{
+    encode_png, render_frame_rgba, render_scene_rgba, ExportError, Exporter, RgbaImage,
+    EXPORT_MAX_PIXELS, EXPORT_MAX_SIDE,
+};
 #[cfg(feature = "parley")]
 use gpu::{AtlasKind, AtlasRegion, AtlasUpload};
+pub use images::{
+    decode, load_image, load_rgba, set_image_budget, DecodedImage, ImageError, IMAGE_BUDGET_DEFAULT,
+};
 
 /// User event the runtime posts when a task finishes, a timer is armed, or the
 /// tray icon is clicked. The tray variant is what wakes `Wait` while the
@@ -624,17 +639,23 @@ impl Handler {
             }
         }
         self.upload_atlases();
+        crate::images::ingest(self.app.world_mut());
+        let images = crate::images::pending(self.app.world());
+        let budget = crate::images::budget_of(self.app.world());
         let scale = self
             .app
             .world()
             .resource::<Viewport>()
             .map(|viewport| viewport.pixels_per_point())
             .unwrap_or(1.0);
-        let presented =
-            self.gpu
-                .as_mut()
-                .expect("surface")
-                .present(&painted.quads, width, height, scale);
+        let (presented, uploaded) = {
+            let gpu = self.gpu.as_mut().expect("surface");
+            let world = self.app.world();
+            gpu.present_frame(&painted, &images, budget, width, height, scale, Some(world))
+        };
+        if !uploaded.is_empty() {
+            crate::images::release_cpu(self.app.world_mut(), &uploaded);
+        }
         self.apply_cursor(event_loop);
         self.reveal_window();
         self.place_ime_cursor();

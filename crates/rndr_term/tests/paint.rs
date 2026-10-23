@@ -18,6 +18,7 @@ fn colored_cells_paint_a_glyph_and_a_cursor() {
         size: 8.0,
         weight: FONT_WEIGHT_REGULAR,
         style: FontStyle::Normal,
+        ..TextStyle::default()
     });
     open_terminal(app.world_mut(), entity, options).unwrap();
     assert!(feed_terminal(app.world_mut(), entity, b"\x1b[31mHi\x1b[0m"));
@@ -26,6 +27,7 @@ fn colored_cells_paint_a_glyph_and_a_cursor() {
     let painted = Frame {
         quads: paint(app.world()),
         slots: Vec::new(),
+        draws: Vec::new(),
     };
     let glyphs: Vec<_> = painted
         .quads

@@ -9,11 +9,12 @@
 //! - [`rndr_core`] owns the world: entities, hierarchy, layout, input, text,
 //!   events, and tasks. It has no GPU types.
 //! - [`rndr_paint`] turns one frame of that world into [`Quad`]s in logical
-//!   points. It does not open a window.
+//!   points, plus a display list of paths, images, and layers. It does not
+//!   open a window.
 //! - [`rndr_std`] inserts an [`Fs`] backend that reads and writes the process
 //!   filesystem.
 //! - [`rndr_render`] opens the window, writes [`Input`] and [`Viewport`], and
-//!   presents those quads.
+//!   presents that frame.
 //!
 //! # Example
 //!

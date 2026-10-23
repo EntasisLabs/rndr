@@ -189,6 +189,7 @@ impl MonoGrid {
                 size: 16.0,
                 weight: FONT_WEIGHT_REGULAR,
                 style: FontStyle::Normal,
+                ..TextStyle::default()
             },
         }
     }

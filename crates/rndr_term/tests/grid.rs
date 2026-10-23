@@ -13,6 +13,7 @@ fn font() -> TextStyle {
         size: 8.0,
         weight: FONT_WEIGHT_REGULAR,
         style: FontStyle::Normal,
+        ..TextStyle::default()
     }
 }
 

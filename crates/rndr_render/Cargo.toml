@@ -28,7 +28,7 @@ hotkey = [
 ]
 # Menu bar, notification area, and StatusNotifierItem icon.
 # Linux uses tray-icon's ksni backend (D-Bus on a worker thread), not GTK.
-tray = ["dep:tray-icon", "dep:png"]
+tray = ["dep:tray-icon"]
 # Parley shaping and swash rasterization. Headless tests that do not call
 # `run` stay on the builtin atlas engine. `--no-default-features` keeps that
 # path and skips the fontconfig link.
@@ -59,7 +59,9 @@ parley = { version = "0.12", optional = true, features = ["complex-scripts"] }
 swash = { version = "0.2.10", optional = true }
 etagere = { version = "0.3", optional = true }
 tray-icon = { version = "0.26.1", optional = true, default-features = false, features = ["ksni"] }
-png = { version = "0.18", optional = true }
+png = "0.18"
+jpeg-decoder = "0.3"
+image-webp = "0.2"
 arboard = { version = "3", default-features = false, features = ["wayland-data-control", "image-data"] }
 accesskit = { version = "0.25", optional = true }
 accesskit_winit = { version = "0.34", optional = true }

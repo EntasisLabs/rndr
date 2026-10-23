@@ -425,16 +425,20 @@ pub fn layout_text_spans(
     max_width: f32,
     spans: &[TextSpan],
 ) -> TextLayout {
-    layout_text_weighted(font, text, max_width, spans, 400)
+    layout_text_weighted(font, text, max_width, spans, 400, 0.0)
 }
 
 /// [`layout_text_spans`] with `default_weight` on bytes no span overrides.
+///
+/// `letter_spacing` is added before each cluster after the first. Zero
+/// leaves advances where they were.
 pub(crate) fn layout_text_weighted(
     font: &dyn Font,
     text: &str,
     max_width: f32,
     spans: &[TextSpan],
     default_weight: u16,
+    letter_spacing: f32,
 ) -> TextLayout {
     let ranges = wrap_ranges(font, text, max_width);
     let mut glyphs = Vec::new();
@@ -450,6 +454,9 @@ pub(crate) fn layout_text_weighted(
             let abs = start + i;
             if let Some(prev) = prev {
                 x += font.kerning(prev, ch);
+                if letter_spacing != 0.0 {
+                    x += letter_spacing;
+                }
             }
             let adv = font.advance(ch);
             if let Some(glyph) = font.glyph_box(ch) {

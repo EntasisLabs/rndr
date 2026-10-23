@@ -15,6 +15,7 @@ categories = ["gui", "graphics", "rendering"]
 exclude = ["**/*.snap.new"]
 
 [dependencies]
+lyon = "1.0"
 rndr_core = { workspace = true }
 
 [dev-dependencies]

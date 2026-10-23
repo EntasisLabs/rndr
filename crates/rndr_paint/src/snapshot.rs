@@ -121,6 +121,7 @@ mod tests {
                     },
                 },
             ],
+            draws: Vec::new(),
         };
         assert_eq!(
             quads_snapshot(&frame),

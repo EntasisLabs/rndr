@@ -8,10 +8,10 @@ use crate::color::{clear_color, color_for_surface};
 
 const QUAD: [[f32; 2]; 4] = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
 const INSTANCE_FLOATS: usize = 20;
-const INSTANCE_STRIDE: u64 = (INSTANCE_FLOATS * 4) as u64;
+pub(crate) const INSTANCE_STRIDE: u64 = (INSTANCE_FLOATS * 4) as u64;
 const INITIAL_INSTANCES: u64 = 2048;
 
-const SHADER: &str = r#"
+pub(crate) const QUAD_SHADER: &str = r#"
 struct VsIn {
     @location(0) quad: vec2<f32>,
     @location(1) rect: vec4<f32>,
@@ -110,13 +110,11 @@ pub struct Gpu {
     sampler: wgpu::Sampler,
     #[cfg(feature = "parley")]
     coverage: wgpu::Texture,
-    #[cfg(feature = "parley")]
     coverage_view: wgpu::TextureView,
     #[cfg(feature = "parley")]
     coverage_size: (u32, u32),
     #[cfg(feature = "parley")]
     color_tex: wgpu::Texture,
-    #[cfg(feature = "parley")]
     color_view: wgpu::TextureView,
     #[cfg(feature = "parley")]
     color_size: (u32, u32),
@@ -126,6 +124,7 @@ pub struct Gpu {
     instances: wgpu::Buffer,
     instance_capacity: u64,
     staging: Vec<u8>,
+    scene: crate::scene::SceneGpu,
 }
 
 /// Bytes of one atlas image handed to [`Gpu::new`].
@@ -197,7 +196,7 @@ impl Gpu {
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("rndr"),
-            source: wgpu::ShaderSource::Wgsl(SHADER.into()),
+            source: wgpu::ShaderSource::Wgsl(QUAD_SHADER.into()),
         });
 
         let uniform = device.create_buffer(&wgpu::BufferDescriptor {
@@ -365,15 +364,10 @@ impl Gpu {
         });
 
         #[cfg(not(feature = "parley"))]
-        let _keep_alive = (
-            bind_layout,
-            sampler,
-            coverage,
-            coverage_view,
-            color_tex,
-            color_view,
-            color_format,
-        );
+        let _keep_alive = (bind_layout, sampler, coverage, color_tex, color_format);
+        let samples = crate::scene::choose_samples(&adapter, config.format);
+        let scene =
+            crate::scene::SceneGpu::new(device.clone(), queue.clone(), config.format, samples);
         Self {
             window,
             device,
@@ -389,13 +383,11 @@ impl Gpu {
             sampler,
             #[cfg(feature = "parley")]
             coverage,
-            #[cfg(feature = "parley")]
             coverage_view,
             #[cfg(feature = "parley")]
             coverage_size: (atlas_w, atlas_h),
             #[cfg(feature = "parley")]
             color_tex,
-            #[cfg(feature = "parley")]
             color_view,
             #[cfg(feature = "parley")]
             color_size: (color_w, color_h),
@@ -406,6 +398,7 @@ impl Gpu {
             instance_capacity: INITIAL_INSTANCES,
             staging: Vec::new(),
             clear_transparent,
+            scene,
         }
     }
 
@@ -566,6 +559,67 @@ impl Gpu {
         self.queue.submit(Some(encoder.finish()));
         self.queue.present(texture);
         true
+    }
+
+    /// Present a display list. An empty command list uses [`Self::present`].
+    ///
+    /// Returns whether the surface presented, and the image ids uploaded this
+    /// frame. The caller drops those CPU copies once the GPU cache owns them.
+    #[allow(clippy::too_many_arguments)]
+    pub fn present_frame(
+        &mut self,
+        frame: &rndr_paint::Frame,
+        images: &[(u64, crate::images::CpuImage)],
+        budget: u64,
+        width: u32,
+        height: u32,
+        scale: f32,
+        world: Option<&rndr_core::World>,
+    ) -> (bool, Vec<u64>) {
+        if frame.draws.is_empty() {
+            return (self.present(&frame.quads, width, height, scale), Vec::new());
+        }
+        let texture = match self.surface.get_current_texture() {
+            wgpu::CurrentSurfaceTexture::Success(texture)
+            | wgpu::CurrentSurfaceTexture::Suboptimal(texture) => texture,
+            wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
+                self.surface.configure(&self.device, &self.config);
+                return (false, Vec::new());
+            }
+            wgpu::CurrentSurfaceTexture::Timeout
+            | wgpu::CurrentSurfaceTexture::Occluded
+            | wgpu::CurrentSurfaceTexture::Validation => return (false, Vec::new()),
+        };
+        let view = texture
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("rndr-scene"),
+            });
+        let clear = if self.clear_transparent {
+            wgpu::Color::TRANSPARENT
+        } else {
+            clear_color(self.config.format)
+        };
+        let uploaded = self.scene.render(
+            &mut encoder,
+            &view,
+            frame,
+            images,
+            budget,
+            &self.coverage_view,
+            &self.color_view,
+            width,
+            height,
+            scale,
+            clear,
+            world,
+        );
+        self.queue.submit(Some(encoder.finish()));
+        self.queue.present(texture);
+        (true, uploaded)
     }
 }
 
@@ -739,7 +793,12 @@ fn write_region(queue: &wgpu::Queue, texture: &wgpu::Texture, rect: TexelRect<'_
 /// Layout quads are points. The uniform and the fragment clip are physical pixels.
 /// Every quad color — solid fills, borders, glyph tints, carets, selections, and
 /// marks — is authored sRGB and is decoded here when `format` is sRGB.
-fn encode_instances(quads: &[Quad], scale: f32, format: wgpu::TextureFormat, out: &mut Vec<u8>) {
+pub(crate) fn encode_instances(
+    quads: &[Quad],
+    scale: f32,
+    format: wgpu::TextureFormat,
+    out: &mut Vec<u8>,
+) {
     out.clear();
     out.reserve(quads.len() * INSTANCE_FLOATS * 4);
     for quad in quads {
