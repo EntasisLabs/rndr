@@ -29,7 +29,8 @@ pub struct Pointer {
     /// Contact position in logical points, origin top-left. Tracks hover
     /// while [`Self::down`] is false.
     pub position: [f32; 2],
-    /// Press edge for this update only.
+    /// Press edge for this update. Stays set when a release arrives in the
+    /// same frame, so a click with no gap still activates a button.
     pub pressed: bool,
     /// Contact held this frame. Core does not clear it.
     pub down: bool,

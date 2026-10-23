@@ -311,3 +311,100 @@ fn an_image_view_records_a_command_and_does_not_add_a_fill() {
         .iter()
         .all(|quad| quad.rect.w > 16.5 || quad.rect.h > 16.5 || quad.color.a == 0.0));
 }
+
+#[test]
+fn an_image_view_is_centered_and_keeps_its_radius() {
+    let mut app = App::new();
+    app.world_mut().insert_resource(Viewport::new(200.0, 80.0));
+    let row = app.world_mut().spawn((
+        Layout {
+            width: Size::Px(120.0),
+            height: Size::Px(32.0),
+            ..Layout::row()
+        },
+        Color::rgb(0.2, 0.22, 0.24),
+    ));
+    let icon = app.world_mut().spawn((
+        Layout {
+            width: Size::Px(16.0),
+            height: Size::Px(16.0),
+            ..Layout::row()
+        },
+        ImageView::new(7).with_radius(3.0),
+    ));
+    set_parent(app.world_mut(), icon, row);
+    let painted = frame(&mut app);
+    let row_rect = *app.world().get::<Rect>(row).unwrap();
+    let icon_rect = *app.world().get::<Rect>(icon).unwrap();
+    assert!(
+        (icon_rect.y - (row_rect.y + 8.0)).abs() < 0.6,
+        "icon {} row {}",
+        icon_rect.y,
+        row_rect.y
+    );
+    let image = painted
+        .draws
+        .iter()
+        .find_map(|placed| match &placed.op {
+            Op::Image(image) if image.id == 7 => Some(*image),
+            _ => None,
+        })
+        .unwrap();
+    assert!((image.radius - 3.0).abs() < 1.0e-6);
+    assert!((image.dest.y - icon_rect.y).abs() < 0.6);
+    let clip = image.clip.unwrap();
+    assert!((clip.h - icon_rect.h).abs() < 0.6, "clip height {}", clip.h);
+}
+
+#[test]
+fn an_image_past_the_parent_is_clipped() {
+    let mut app = App::new();
+    app.world_mut().insert_resource(Viewport::new(200.0, 80.0));
+    let parent = app.world_mut().spawn((Layout {
+        width: Size::Px(120.0),
+        height: Size::Px(50.0),
+        ..Layout::column()
+    },));
+    let first = app.world_mut().spawn((Layout {
+        width: Size::Px(120.0),
+        height: Size::Px(32.0),
+        ..Layout::row()
+    },));
+    let second = app.world_mut().spawn((Layout {
+        width: Size::Px(120.0),
+        height: Size::Px(32.0),
+        ..Layout::row()
+    },));
+    let icon = app.world_mut().spawn((
+        Layout {
+            width: Size::Px(16.0),
+            height: Size::Px(16.0),
+            ..Layout::row()
+        },
+        ImageView::new(9).with_radius(4.0),
+    ));
+    set_parent(app.world_mut(), first, parent);
+    set_parent(app.world_mut(), second, parent);
+    set_parent(app.world_mut(), icon, second);
+    let painted = frame(&mut app);
+    let parent_rect = *app.world().get::<Rect>(parent).unwrap();
+    let icon_rect = *app.world().get::<Rect>(icon).unwrap();
+    assert!(icon_rect.y + icon_rect.h > parent_rect.y + parent_rect.h + 1.0);
+    let image = painted
+        .draws
+        .iter()
+        .find_map(|placed| match &placed.op {
+            Op::Image(image) if image.id == 9 => Some(*image),
+            _ => None,
+        })
+        .unwrap();
+    let clip = image.clip.unwrap();
+    assert!(
+        clip.h + 1.0 < icon_rect.h,
+        "clip {} icon {}",
+        clip.h,
+        icon_rect.h
+    );
+    assert!((clip.y + clip.h - (parent_rect.y + parent_rect.h)).abs() < 0.6);
+    assert!((image.radius - 4.0).abs() < 1.0e-6);
+}

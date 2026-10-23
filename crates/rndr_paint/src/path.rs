@@ -312,11 +312,12 @@ pub struct PathBuilder {
 }
 
 impl PathBuilder {
-    /// Start a subpath at `p`. A subpath that was still open is closed first.
+    /// Start a subpath at `p`.
+    ///
+    /// An open subpath stays open. Only [`Self::close`] adds the edge back to
+    /// its start, so a later `move_to` does not turn a dashed polyline into a
+    /// closed loop.
     pub fn move_to(&mut self, p: [f32; 2]) -> &mut Self {
-        if self.open {
-            self.path.verbs.push(Verb::Close);
-        }
         self.path.verbs.push(Verb::Move);
         self.path.points.push(p);
         self.open = true;

@@ -534,6 +534,14 @@ fn place(
 
     let mut cursor_x = inner_x + offset[0];
     let mut cursor_y = inner_y + offset[1];
+    // A list's first pooled row is `floor(offset / row_height)`. The remainder
+    // shifts that row up under the clip so a scroll can stop between rows.
+    if let Some(list) = world.get::<crate::list::List>(entity).copied() {
+        if list.row_height > 0.0 && list.offset.is_finite() {
+            let rows = (list.offset / list.row_height).floor();
+            cursor_y -= list.offset - rows * list.row_height;
+        }
+    }
     let mut main_delta = 0.0f32;
     for child in kids {
         let child_layout = world.get::<Layout>(child).copied();
@@ -568,7 +576,16 @@ fn place(
                 )
             }
         };
-        let (used_w, used_h) = place(world, child, cursor_x, cursor_y, cw, ch, clip);
+        // An image in a row is centered on the cross axis. A 16px icon in a
+        // 32px row then sits below a rounded selection instead of on its corner.
+        let (mut place_x, mut place_y) = (cursor_x, cursor_y);
+        if world.has::<crate::image_view::ImageView>(child) {
+            match layout.axis {
+                Axis::Row => place_y += (inner_h - ch).max(0.0) * 0.5,
+                Axis::Column => place_x += (inner_w - cw).max(0.0) * 0.5,
+            }
+        }
+        let (used_w, used_h) = place(world, child, place_x, place_y, cw, ch, clip);
         match layout.axis {
             Axis::Column => {
                 main_delta += used_h - ch;

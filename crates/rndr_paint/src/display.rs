@@ -27,7 +27,8 @@ pub enum Op {
     Image(ImageOp),
     /// Atlas glyphs, plus the source used to re-raster or switch to outlines.
     Glyphs(GlyphOp),
-    /// Multiply the current transform by this one.
+    /// Push a local map. It runs before the transform already on the stack,
+    /// including the camera, so a rotated child stays put under zoom and pan.
     PushTransform(Affine),
     /// Remove the transform pushed last. Extra pops are ignored.
     PopTransform,
@@ -88,6 +89,10 @@ pub struct ImageOp {
     pub radius: f32,
     /// Multiplier on the image alpha, in `0.0..=1.0`.
     pub opacity: f32,
+    /// Scissor in the same space as [`Self::dest`]. `None` draws the whole
+    /// destination. A list-row icon sets this from the entity clip so a
+    /// partial row does not paint past the list.
+    pub clip: Option<Rect>,
 }
 
 /// One atlas glyph in local units.
@@ -385,6 +390,7 @@ impl Canvas {
             uv,
             radius,
             opacity: 1.0,
+            clip: None,
         }));
     }
 

@@ -528,6 +528,12 @@ fn record_image(
         return;
     }
     let z = quads.borrow().len() as u32;
+    let clip = world.get::<Clip>(entity).copied().map(|clip| Rect {
+        x: clip.x,
+        y: clip.y,
+        w: clip.w,
+        h: clip.h,
+    });
     draws.borrow_mut().push(Placed {
         z,
         op: Op::Image(ImageOp {
@@ -536,6 +542,7 @@ fn record_image(
             uv: view.uv,
             radius: view.radius,
             opacity: 1.0,
+            clip,
         }),
     });
 }

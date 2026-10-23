@@ -3,8 +3,11 @@
 //! The golden is the same image. Mean absolute error absorbs the small
 //! differences between a 4× resolve on lavapipe, Metal, and DX12.
 
+use std::f32::consts::PI;
+
 use rndr_core::{Color, Rect, World};
-use rndr_paint::{Canvas, ClipShape, Effect, FillRule, Path, SceneLayer, Stroke};
+use rndr_paint::{Affine, Canvas, ClipShape, Effect, FillRule, ImageOp, Path, SceneLayer, Stroke};
+use rndr_render::load_rgba;
 use rndr_render::{encode_png, ExportError, Exporter, RgbaImage};
 
 #[test]
@@ -155,6 +158,102 @@ fn offscreen_scene_matches_regions_and_the_golden() {
         "golden mae {error:.4} on {}",
         exporter.adapter_name()
     );
+}
+
+#[test]
+fn a_rotated_child_stays_with_a_scaled_camera() {
+    let world = World::new();
+    let mut canvas = Canvas::new();
+    canvas.push_transform(Affine::scale(2.0));
+    canvas.push_transform(Affine::rotate(PI / 2.0).then(Affine::translate(30.0, 10.0)));
+    canvas.fill(
+        Path::polygon(&[[8.0, -2.0], [12.0, -2.0], [12.0, 2.0], [8.0, 2.0]]),
+        Color::rgb(1.0, 0.0, 0.0),
+        FillRule::NonZero,
+    );
+    canvas.pop_transform();
+    canvas.pop_transform();
+    let image = render(&world, canvas, 80.0, 80.0);
+    let hit = pixel(&image, 60, 40);
+    let miss = pixel(&image, 30, 30);
+    assert!(hit[0] > 200 && hit[3] > 200, "child under camera {hit:?}");
+    assert!(miss[3] < 40, "old composition {miss:?}");
+}
+
+#[test]
+fn a_rounded_image_masks_its_corner_and_its_clip() {
+    let mut world = World::new();
+    let mut rgba = Vec::with_capacity(8 * 8 * 4);
+    for _ in 0..8 * 8 {
+        rgba.extend_from_slice(&[255, 0, 0, 255]);
+    }
+    load_rgba(&mut world, 1, 8, 8, rgba).unwrap();
+    let mut canvas = Canvas::new();
+    canvas.image_opacity(ImageOp {
+        id: 1,
+        dest: Rect {
+            x: 10.0,
+            y: 10.0,
+            w: 40.0,
+            h: 40.0,
+        },
+        uv: [0.0, 0.0, 1.0, 1.0],
+        radius: 16.0,
+        opacity: 1.0,
+        clip: None,
+    });
+    canvas.image_opacity(ImageOp {
+        id: 1,
+        dest: Rect {
+            x: 60.0,
+            y: 10.0,
+            w: 24.0,
+            h: 24.0,
+        },
+        uv: [0.0, 0.0, 1.0, 1.0],
+        radius: 0.0,
+        opacity: 1.0,
+        clip: Some(Rect {
+            x: 60.0,
+            y: 10.0,
+            w: 24.0,
+            h: 12.0,
+        }),
+    });
+    let image = render(&world, canvas, 100.0, 50.0);
+    let corner = pixel(&image, 11, 11);
+    let center = pixel(&image, 30, 30);
+    let inside = pixel(&image, 70, 14);
+    let below = pixel(&image, 70, 30);
+    assert!(corner[3] < 40, "rounded corner {corner:?}");
+    assert!(
+        center[0] > 200 && center[3] > 200,
+        "image center {center:?}"
+    );
+    assert!(inside[0] > 200 && inside[3] > 200, "inside clip {inside:?}");
+    assert!(below[3] < 40, "below clip {below:?}");
+}
+
+fn render(world: &World, canvas: Canvas, w: f32, h: f32) -> RgbaImage {
+    let scene = canvas.into_scene();
+    let mut exporter = match Exporter::new() {
+        Ok(exporter) => exporter,
+        Err(ExportError::NoAdapter) => panic!("no graphics adapter"),
+        Err(err) => panic!("{err}"),
+    };
+    exporter
+        .render_scene(
+            world,
+            &scene,
+            Rect {
+                x: 0.0,
+                y: 0.0,
+                w,
+                h,
+            },
+            1.0,
+        )
+        .unwrap_or_else(|err| panic!("{err}"))
 }
 
 fn pixel(image: &RgbaImage, x: u32, y: u32) -> [u8; 4] {

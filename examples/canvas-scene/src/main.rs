@@ -1,6 +1,6 @@
 //! Pan and zoom a vector scene, or write it to a PNG.
 //!
-//! Drag to pan. The wheel zooms. `--export out.png` writes the world at 1:1
+//! Drag to pan. The wheel zooms around the cursor. `--export out.png` writes the world at 1:1
 //! and exits. `--bench` times ten thousand filled paths and prints frames per
 //! second. It does not open a window.
 //!
@@ -15,7 +15,7 @@ use std::time::Instant;
 
 use rndr_core::{
     App, Color, Input, Layout, Rect, Schedule, Size, SurfaceSlot, TextAlign, TextEngine, TextSpan,
-    TextStyle, World, FONT_WEIGHT_BOLD,
+    TextStyle, WindowConfig, World, FONT_WEIGHT_BOLD,
 };
 use rndr_paint::{
     Affine, Canvas, CanvasPainter, CanvasRegistry, Cap, ClipShape, Effect, FillRule, Join, Path,
@@ -59,6 +59,10 @@ fn main() {
     install_text(app.world_mut());
     app.add_system(Schedule::Startup, setup);
     app.add_system(Schedule::Update, navigate);
+    app.world_mut().insert_resource(WindowConfig {
+        title: "Canvas scene".into(),
+        ..WindowConfig::default()
+    });
     rndr_render::run(app);
 }
 
@@ -94,10 +98,24 @@ fn navigate(world: &mut World) {
     } else {
         view.grab = None;
     }
-    if input.scroll[1].abs() > 0.5 {
-        let steps = (input.scroll[1] / 32.0).clamp(-4.0, 4.0);
-        view.zoom = (view.zoom * 1.1_f32.powf(steps)).clamp(0.15, 16.0);
+    zoom_about(view, input.pointer.position, input.scroll[1]);
+}
+
+/// Keep the world point under `cursor` fixed while the wheel changes zoom.
+fn zoom_about(view: &mut View, cursor: [f32; 2], scroll_y: f32) {
+    if scroll_y.abs() <= 0.5 {
+        return;
     }
+    let steps = (scroll_y / 32.0).clamp(-4.0, 4.0);
+    let next = (view.zoom * 1.1_f32.powf(steps)).clamp(0.15, 16.0);
+    if view.zoom <= 1.0e-6 {
+        view.zoom = next;
+        return;
+    }
+    let factor = next / view.zoom;
+    view.pan[0] = cursor[0] - (cursor[0] - view.pan[0]) * factor;
+    view.pan[1] = cursor[1] - (cursor[1] - view.pan[1]) * factor;
+    view.zoom = next;
 }
 
 struct ScenePainter;
@@ -407,4 +425,38 @@ fn run_bench() -> Result<(), Box<dyn std::error::Error>> {
         exporter.adapter_name()
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn zoom_keeps_the_point_under_the_cursor() {
+        let mut view = View {
+            zoom: 2.0,
+            pan: [10.0, -4.0],
+            ..View::default()
+        };
+        let cursor = [80.0, 50.0];
+        let before = [
+            (cursor[0] - view.pan[0]) / view.zoom,
+            (cursor[1] - view.pan[1]) / view.zoom,
+        ];
+        zoom_about(&mut view, cursor, 32.0);
+        let after = [
+            (cursor[0] - view.pan[0]) / view.zoom,
+            (cursor[1] - view.pan[1]) / view.zoom,
+        ];
+        assert!(
+            (before[0] - after[0]).abs() < 1.0e-3 && (before[1] - after[1]).abs() < 1.0e-3,
+            "before {before:?} after {after:?}"
+        );
+        assert!((view.zoom - 2.2).abs() < 1.0e-3, "zoom {}", view.zoom);
+        let zoom = view.zoom;
+        let pan = view.pan;
+        zoom_about(&mut view, cursor, 0.0);
+        assert_eq!(view.zoom, zoom);
+        assert_eq!(view.pan, pan);
+    }
 }
