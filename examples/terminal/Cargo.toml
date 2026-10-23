@@ -1,0 +1,12 @@
+[package]
+name = "terminal"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Shell hosted in an rndr window"
+publish = false
+
+[dependencies]
+rndr_core = { workspace = true }
+rndr_render = { workspace = true }
+rndr_term = { workspace = true }

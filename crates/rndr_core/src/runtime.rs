@@ -563,6 +563,23 @@ pub(crate) fn set_wake(world: &World, wake: Arc<dyn Wake>) {
     *lock(&runtime(world).inner.wake) = wake;
 }
 
+/// Wake handle that follows a later [`crate::App::set_wake`].
+///
+/// The desktop runner installs its wake after the app is built. A worker that
+/// cloned this handle still reaches that wake. [`NopWake`] is what it calls
+/// until then.
+pub fn frame_wake(world: &World) -> Arc<dyn Wake> {
+    Arc::new(FollowWake(runtime(world).wake_slot()))
+}
+
+struct FollowWake(WakeSlot);
+
+impl Wake for FollowWake {
+    fn wake(&self) {
+        lock(&self.0).wake();
+    }
+}
+
 pub(crate) fn wake_slot(world: &World) -> WakeSlot {
     runtime(world).wake_slot()
 }

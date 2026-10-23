@@ -47,9 +47,9 @@ use std::time::Instant;
 use rndr_core::TextEngine;
 use rndr_core::{
     ensure_text_engine, legacy_key, text_engine, App, Caret, Clipboard, Focus, Input,
-    KeyCode as Physical, KeyEvent, LogicalKey, Modifiers, NamedKey as CoreNamed, Platform, Pointer,
-    Rect, TextLayout, Viewport, Wake, WindowConfig, WindowEffect, WindowKind, MOUSE_ID,
-    TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
+    KeyCode as Physical, KeyEvent, LogicalKey, Modifiers, MotionWatch, NamedKey as CoreNamed,
+    Platform, Pointer, PointerButton, Rect, TextLayout, Viewport, Wake, WindowConfig, WindowEffect,
+    WindowKind, MOUSE_ID, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
 use rndr_paint::{atlas_r8, frame, ATLAS_H, ATLAS_W};
 use winit::application::ApplicationHandler;
@@ -272,6 +272,17 @@ struct Handler {
     tray: tray::Session,
 }
 
+fn map_pointer_button(button: MouseButton) -> PointerButton {
+    match button {
+        MouseButton::Left => PointerButton::Left,
+        MouseButton::Right => PointerButton::Right,
+        MouseButton::Middle => PointerButton::Middle,
+        MouseButton::Back => PointerButton::Other(8),
+        MouseButton::Forward => PointerButton::Other(9),
+        MouseButton::Other(code) => PointerButton::Other(code),
+    }
+}
+
 /// Physical pixels per point. A missing or non-positive factor reads as 1.
 pub(crate) fn positive_scale(factor: f64) -> f32 {
     let scale = factor as f32;
@@ -320,6 +331,7 @@ impl Handler {
             input.super_key = self.super_key;
         }
         self.pointer.pressed = false;
+        self.pointer.released = false;
         self.scroll = [0.0, 0.0];
         self.keys.clear();
         self.ime_commit.clear();
@@ -939,25 +951,28 @@ impl ApplicationHandler<RunnerEvent> for Handler {
             }
             WindowEvent::CursorMoved { position, .. } => {
                 self.cursor_px = [position.x as f32, position.y as f32];
-                if self.pointer.down {
+                let watch = self
+                    .app
+                    .world()
+                    .resource::<MotionWatch>()
+                    .is_some_and(|watch| watch.active);
+                if self.pointer.down || watch {
                     if let Some(gpu) = &self.gpu {
                         gpu.window().request_redraw();
                     }
                 }
             }
-            WindowEvent::MouseInput {
-                state,
-                button: MouseButton::Left,
-                ..
-            } => {
+            WindowEvent::MouseInput { state, button, .. } => {
+                self.pointer.id = MOUSE_ID;
+                self.pointer.button = map_pointer_button(button);
                 match state {
                     ElementState::Pressed => {
-                        self.pointer.id = MOUSE_ID;
                         self.pointer.pressed = true;
                         self.pointer.down = true;
                     }
                     ElementState::Released => {
                         self.pointer.down = false;
+                        self.pointer.released = true;
                     }
                 }
                 if let Some(gpu) = &self.gpu {

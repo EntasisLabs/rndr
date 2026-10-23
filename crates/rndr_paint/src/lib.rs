@@ -2,8 +2,8 @@
 //!
 //! [`frame`] steps an [`rndr_core::App`] (Startup once, then Input, Update,
 //! PostUpdate, and Layout) and returns one [`Quad`] per solid, glyph,
-//! selection, caret, and dirty mark, plus [`SurfaceRect`]s for foreign
-//! surfaces. A window crate multiplies those rectangles by
+//! selection, caret, dirty mark, and fixed-pitch cell, plus [`SurfaceRect`]s
+//! for foreign surfaces. A window crate multiplies those rectangles by
 //! [`rndr_core::Viewport::scale`] when it uploads them. [`paint`] is the same
 //! walk without stepping the app.
 //!
@@ -39,14 +39,16 @@ mod font;
 mod latin;
 mod snapshot;
 
+use std::cell::RefCell;
+
 pub use font::{atlas_r8, glyph_uv, solid_uv, ATLAS_H, ATLAS_W};
 pub use latin::LatinFace;
 pub use snapshot::quads_snapshot;
 
 use rndr_core::{
     children_of, field_text_width, layered_roots, style_of, text_engine, theme_of, App, Caret,
-    Clip, Color, DirtyMark, EditField, Field, Focus, Label, Parent, Radius, Rect, TextLayout,
-    Viewport, World, CELL_H, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
+    Clip, Color, DirtyMark, EditField, Field, Focus, Label, MonoCache, MonoCursorShape, MonoGrid,
+    Parent, Radius, Rect, TextLayout, Theme, Viewport, World, CELL_H, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
 
 /// One instanced quad in logical points.
@@ -158,7 +160,7 @@ fn surface_slots(world: &World) -> Vec<SurfaceRect> {
 /// is measured for this call only. A body field wraps; any other missing
 /// layout stays one line. The world stays unchanged. This does not panic.
 pub fn paint(world: &World) -> Vec<Quad> {
-    let mut out = Vec::new();
+    let quads = RefCell::new(Vec::new());
     let scale = world
         .resource::<Viewport>()
         .map(|viewport| viewport.pixels_per_point())
@@ -167,131 +169,131 @@ pub fn paint(world: &World) -> Vec<Quad> {
     let solid = text_engine(world).solid_uv(&style);
     let theme = theme_of(world);
     for root in layered_roots(world) {
-        walk(world, root, &mut |rect,
-                                color,
-                                clip,
-                                _label,
-                                caret,
-                                dirty,
-                                layout,
-                                radius,
-                                marks| {
-            push(&mut out, rect, color, solid, clip, radius, 0);
-            if dirty {
-                push_dirty_mark(&mut out, rect, clip, solid, theme.dirty);
-            }
-            if let (Some(layout), Some(caret)) = (layout, caret) {
-                push_selection(
-                    &mut out,
-                    rect,
-                    layout,
-                    caret,
-                    clip,
-                    solid,
+        walk(world, root, &quads, scale, solid, &theme);
+    }
+    quads.into_inner()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn paint_visited(
+    out: &mut Vec<Quad>,
+    scale: f32,
+    solid: [f32; 4],
+    theme: &Theme,
+    rect: Rect,
+    color: Color,
+    clip: Clip,
+    label: Option<&Label>,
+    caret: Option<&Caret>,
+    dirty: bool,
+    layout: Option<&TextLayout>,
+    radius: f32,
+    marks: &[rndr_core::DecorationMark],
+) {
+    push(out, rect, color, solid, clip, radius, 0);
+    if dirty {
+        push_dirty_mark(out, rect, clip, solid, theme.dirty);
+    }
+    if let (Some(layout), Some(caret)) = (layout, caret) {
+        push_selection(
+            out,
+            rect,
+            layout,
+            caret,
+            clip,
+            solid,
+            scale,
+            theme.selection,
+        );
+    }
+    if let Some(layout) = layout {
+        let text_color = label.and_then(|label| label.color).unwrap_or(theme.text);
+        for highlight in &layout.highlights {
+            push(
+                out,
+                snap_box(
+                    rect.x + TEXT_ORIGIN_X + highlight.x,
+                    rect.y + TEXT_ORIGIN_Y + highlight.y,
+                    highlight.w,
+                    highlight.h,
                     scale,
-                    theme.selection,
-                );
-            }
-            if let Some(layout) = layout {
-                let text_color = _label.and_then(|label| label.color).unwrap_or(theme.text);
-                for highlight in &layout.highlights {
-                    push(
-                        &mut out,
-                        snap_box(
-                            rect.x + TEXT_ORIGIN_X + highlight.x,
-                            rect.y + TEXT_ORIGIN_Y + highlight.y,
-                            highlight.w,
-                            highlight.h,
-                            scale,
-                        ),
-                        highlight.color,
-                        solid,
-                        clip,
-                        0.0,
-                        0,
-                    );
-                }
-                if let Some((start, end)) = layout.ime_range {
-                    for span in layout.selection_boxes(start, end) {
-                        let bar = 2.0_f32.min(span.h);
-                        push(
-                            &mut out,
-                            snap_box(
-                                rect.x + TEXT_ORIGIN_X + span.x,
-                                rect.y + TEXT_ORIGIN_Y + span.y + span.h - bar,
-                                span.w,
-                                bar,
-                                scale,
-                            ),
-                            theme.caret,
-                            solid,
-                            clip,
-                            0.0,
-                            0,
-                        );
-                    }
-                }
-                push_label(&mut out, rect, layout, clip, scale, text_color);
-            }
-            for mark in marks {
-                let color = match mark.kind {
-                    rndr_core::DecorationKind::Find => theme.selection,
-                    rndr_core::DecorationKind::Diagnostic => Color::rgb(0.86, 0.28, 0.24),
-                };
+                ),
+                highlight.color,
+                solid,
+                clip,
+                0.0,
+                0,
+            );
+        }
+        if let Some((start, end)) = layout.ime_range {
+            for span in layout.selection_boxes(start, end) {
+                let bar = 2.0_f32.min(span.h);
                 push(
-                    &mut out,
+                    out,
                     snap_box(
-                        rect.x + TEXT_ORIGIN_X + mark.x,
-                        rect.y + TEXT_ORIGIN_Y + mark.y,
-                        mark.w,
-                        mark.h,
+                        rect.x + TEXT_ORIGIN_X + span.x,
+                        rect.y + TEXT_ORIGIN_Y + span.y + span.h - bar,
+                        span.w,
+                        bar,
                         scale,
                     ),
-                    color,
+                    theme.caret,
                     solid,
                     clip,
                     0.0,
                     0,
                 );
             }
-            if let Some(caret) = caret {
-                push_caret(
-                    &mut out,
-                    rect,
-                    layout,
-                    caret,
-                    clip,
-                    solid,
-                    scale,
-                    theme.caret,
-                );
-            }
-        });
+        }
+        push_label(out, rect, layout, clip, scale, text_color);
     }
-    out
+    for mark in marks {
+        let color = match mark.kind {
+            rndr_core::DecorationKind::Find => theme.selection,
+            rndr_core::DecorationKind::Diagnostic => Color::rgb(0.86, 0.28, 0.24),
+        };
+        push(
+            out,
+            snap_box(
+                rect.x + TEXT_ORIGIN_X + mark.x,
+                rect.y + TEXT_ORIGIN_Y + mark.y,
+                mark.w,
+                mark.h,
+                scale,
+            ),
+            color,
+            solid,
+            clip,
+            0.0,
+            0,
+        );
+    }
+    if let Some(caret) = caret {
+        push_caret(out, rect, layout, caret, clip, solid, scale, theme.caret);
+    }
 }
 
 fn walk(
     world: &World,
     entity: rndr_core::Entity,
-    visit: &mut impl FnMut(
-        Rect,
-        Color,
-        Clip,
-        Option<&Label>,
-        Option<&Caret>,
-        bool,
-        Option<&TextLayout>,
-        f32,
-        &[rndr_core::DecorationMark],
-    ),
+    quads: &RefCell<Vec<Quad>>,
+    scale: f32,
+    solid: [f32; 4],
+    theme: &Theme,
 ) {
     if !world.is_alive(entity) || world.has::<rndr_core::Hidden>(entity) {
         return;
     }
     if world.has::<rndr_core::SurfaceSlot>(entity) {
         for child in children_of(world, entity) {
-            walk(world, child, visit);
+            walk(world, child, quads, scale, solid, theme);
+        }
+        return;
+    }
+    if world.has::<MonoGrid>(entity) {
+        paint_mono(world, entity, &mut quads.borrow_mut(), scale, solid, theme);
+        for child in children_of(world, entity) {
+            walk(world, child, quads, scale, solid, theme);
         }
         return;
     }
@@ -314,6 +316,21 @@ fn walk(
             .unwrap_or(0.0);
         let needs_fallback =
             world.get::<Label>(entity).is_some() && world.get::<TextLayout>(entity).is_none();
+        let mut guard = quads.borrow_mut();
+        let mut paint = |rect: Rect,
+                         color: Color,
+                         clip: Clip,
+                         label: Option<&Label>,
+                         caret: Option<&Caret>,
+                         dirty: bool,
+                         layout: Option<&TextLayout>,
+                         radius: f32,
+                         marks: &[rndr_core::DecorationMark]| {
+            paint_visited(
+                &mut guard, scale, solid, theme, rect, color, clip, label, caret, dirty, layout,
+                radius, marks,
+            );
+        };
         if needs_fallback {
             let text = world
                 .get::<Label>(entity)
@@ -329,7 +346,7 @@ fn walk(
                 dirty,
                 Some(&fallback),
                 radius,
-                visit,
+                &mut paint,
             );
         } else {
             emit(
@@ -341,13 +358,161 @@ fn walk(
                 dirty,
                 world.get::<TextLayout>(entity),
                 radius,
-                visit,
+                &mut paint,
             );
         }
     }
     for child in children_of(world, entity) {
-        walk(world, child, visit);
+        walk(world, child, quads, scale, solid, theme);
     }
+}
+
+fn paint_mono(
+    world: &World,
+    entity: rndr_core::Entity,
+    out: &mut Vec<Quad>,
+    scale: f32,
+    solid: [f32; 4],
+    theme: &Theme,
+) {
+    let Some(grid) = world.get::<MonoGrid>(entity) else {
+        return;
+    };
+    let Some(rect) = world.get::<Rect>(entity).copied() else {
+        return;
+    };
+    let clip = world
+        .get::<Clip>(entity)
+        .copied()
+        .unwrap_or_else(|| Clip::from_rect(rect));
+    if let Some(color) = world.get::<Color>(entity).copied() {
+        push(out, rect, color, solid, clip, 0.0, 0);
+    }
+    let Some(cache) = world.get::<MonoCache>(entity) else {
+        paint_cursor(out, rect, grid, clip, scale, solid);
+        return;
+    };
+    for row in &cache.rows {
+        for run in &row.backgrounds {
+            push(
+                out,
+                place_run(rect, *run, scale),
+                run.color,
+                solid,
+                clip,
+                0.0,
+                0,
+            );
+        }
+    }
+    for band in &grid.selection {
+        let width = grid.cell_w * (band.end.saturating_sub(band.start)) as f32;
+        if width <= 0.0 {
+            continue;
+        }
+        push(
+            out,
+            snap_box(
+                rect.x + band.start as f32 * grid.cell_w,
+                rect.y + band.row as f32 * grid.cell_h,
+                width,
+                grid.cell_h,
+                scale,
+            ),
+            theme.selection,
+            solid,
+            clip,
+            0.0,
+            0,
+        );
+    }
+    for row in &cache.rows {
+        for glyph in &row.glyphs {
+            push(
+                out,
+                snap_box(rect.x + glyph.x, rect.y + glyph.y, glyph.w, glyph.h, scale),
+                glyph.color.unwrap_or(theme.text),
+                glyph.uv,
+                clip,
+                0.0,
+                glyph.atlas,
+            );
+        }
+        for run in &row.strokes {
+            push(
+                out,
+                place_run(rect, *run, scale),
+                run.color,
+                solid,
+                clip,
+                0.0,
+                0,
+            );
+        }
+    }
+    paint_cursor(out, rect, grid, clip, scale, solid);
+    if let Some(cursor) = grid.cursor.filter(|cursor| cursor.visible) {
+        if cursor.shape == MonoCursorShape::Block {
+            if let Some(row) = cache.rows.get(cursor.row as usize) {
+                let x0 = cursor.col as f32 * grid.cell_w;
+                let x1 = x0 + grid.cell_w;
+                let y0 = cursor.row as f32 * grid.cell_h;
+                let y1 = y0 + grid.cell_h;
+                for glyph in &row.glyphs {
+                    if glyph.x >= x0 && glyph.x < x1 && glyph.y >= y0 && glyph.y < y1 {
+                        push(
+                            out,
+                            snap_box(rect.x + glyph.x, rect.y + glyph.y, glyph.w, glyph.h, scale),
+                            cursor.ink,
+                            glyph.uv,
+                            clip,
+                            0.0,
+                            glyph.atlas,
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn place_run(rect: Rect, run: rndr_core::MonoRun, scale: f32) -> Rect {
+    snap_box(rect.x + run.x, rect.y + run.y, run.w, run.h, scale)
+}
+
+fn paint_cursor(
+    out: &mut Vec<Quad>,
+    rect: Rect,
+    grid: &MonoGrid,
+    clip: Clip,
+    scale: f32,
+    solid: [f32; 4],
+) {
+    let Some(cursor) = grid.cursor.filter(|cursor| cursor.visible) else {
+        return;
+    };
+    if cursor.col >= grid.cols || cursor.row >= grid.rows {
+        return;
+    }
+    let x = rect.x + cursor.col as f32 * grid.cell_w;
+    let y = rect.y + cursor.row as f32 * grid.cell_h;
+    let (dx, dy, w, h) = match cursor.shape {
+        MonoCursorShape::Block => (0.0, 0.0, grid.cell_w, grid.cell_h),
+        MonoCursorShape::Beam => (0.0, 0.0, 2.0_f32.min(grid.cell_w), grid.cell_h),
+        MonoCursorShape::Underline => {
+            let h = 2.0_f32.min(grid.cell_h);
+            (0.0, grid.cell_h - h, grid.cell_w, h)
+        }
+    };
+    push(
+        out,
+        snap_box(x + dx, y + dy, w, h, scale),
+        cursor.color,
+        solid,
+        clip,
+        0.0,
+        0,
+    );
 }
 
 // The walk hands the visitor rect, clip, text, and marks together.

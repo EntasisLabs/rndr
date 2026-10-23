@@ -9,7 +9,7 @@
 # that up itself. This script never prints the token and never passes it as an
 # argument. Do not run the script under `bash -x`.
 #
-# Order: rndr_core, rndr_paint, rndr_std, rndr_render, rndr.
+# Order: rndr_core, rndr_term, rndr_paint, rndr_std, rndr_render, rndr.
 # A version already present in the sparse index is skipped.
 # After each upload, the script waits until that version is visible in the
 # index before publishing the next crate.
@@ -49,14 +49,14 @@ if [[ "$dry_run" -eq 0 && -z "${CARGO_REGISTRY_TOKEN:-}" ]]; then
     exit 1
 fi
 
-CRATES=(rndr_core rndr_paint rndr_std rndr_render rndr)
+CRATES=(rndr_core rndr_term rndr_paint rndr_std rndr_render rndr)
 
 declare -A VERSIONS=()
 while IFS=$'\t' read -r name version; do
     VERSIONS["$name"]="$version"
 done < <(cargo metadata --format-version 1 --no-deps | python3 -c '
 import json, sys
-wanted = {"rndr_core", "rndr_paint", "rndr_std", "rndr_render", "rndr"}
+wanted = {"rndr_core", "rndr_term", "rndr_paint", "rndr_std", "rndr_render", "rndr"}
 meta = json.load(sys.stdin)
 for package in meta["packages"]:
     if package["name"] in wanted:
@@ -90,7 +90,7 @@ published() {
 workspace_deps() {
     case "$1" in
     rndr_core) ;;
-    rndr_paint | rndr_std) echo rndr_core ;;
+    rndr_term | rndr_paint | rndr_std) echo rndr_core ;;
     rndr_render) echo rndr_core rndr_paint ;;
     rndr) echo rndr_core rndr_paint rndr_std rndr_render ;;
     *)
@@ -129,7 +129,7 @@ wait_for_index() {
 if [[ "$dry_run" -eq 1 ]]; then
     echo "packaging publishable crates without uploading"
     cargo package --workspace --locked --no-verify \
-        --exclude expand --exclude idle --exclude overlay --exclude palette
+        --exclude expand --exclude idle --exclude overlay --exclude palette --exclude terminal
 fi
 
 for index in "${!CRATES[@]}"; do
