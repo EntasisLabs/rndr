@@ -27,6 +27,7 @@
 
 #![deny(missing_docs)]
 
+mod clipboard;
 mod color;
 mod gpu;
 #[cfg(feature = "hotkey")]
@@ -47,9 +48,9 @@ use std::time::Instant;
 use rndr_core::TextEngine;
 use rndr_core::{
     ensure_text_engine, legacy_key, text_engine, App, Caret, Clipboard, Focus, Input,
-    KeyCode as Physical, KeyEvent, LogicalKey, Modifiers, NamedKey as CoreNamed, Platform, Pointer,
-    Rect, TextLayout, Viewport, Wake, WindowConfig, WindowEffect, WindowKind, MOUSE_ID,
-    TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
+    KeyCode as Physical, KeyEvent, LogicalKey, Modifiers, MotionWatch, NamedKey as CoreNamed,
+    Platform, Pointer, PointerButton, Rect, TextLayout, Viewport, Wake, WindowConfig, WindowEffect,
+    WindowKind, MOUSE_ID, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
 use rndr_paint::{atlas_r8, frame, ATLAS_H, ATLAS_W};
 use winit::application::ApplicationHandler;
@@ -210,6 +211,8 @@ pub fn run(mut app: App) {
         super_key: false,
         platform: host_platform(),
         key_order: 0,
+        press_px: None,
+        os_clipboard: clipboard::OsClipboard::new(),
         #[cfg(feature = "tray")]
         tray: tray::Session::new(),
     };
@@ -268,8 +271,22 @@ struct Handler {
     /// Receive-order stamped onto each [`KeyEvent`]. Starts at 0; the first
     /// key is 1. [`KeyEvent::UNORDERED`] is reserved and never assigned.
     key_order: u64,
+    /// Cursor in physical pixels at the button-down this frame.
+    press_px: Option<[f32; 2]>,
+    os_clipboard: clipboard::OsClipboard,
     #[cfg(feature = "tray")]
     tray: tray::Session,
+}
+
+fn map_pointer_button(button: MouseButton) -> PointerButton {
+    match button {
+        MouseButton::Left => PointerButton::Left,
+        MouseButton::Right => PointerButton::Right,
+        MouseButton::Middle => PointerButton::Middle,
+        MouseButton::Back => PointerButton::Other(8),
+        MouseButton::Forward => PointerButton::Other(9),
+        MouseButton::Other(code) => PointerButton::Other(code),
+    }
 }
 
 /// Physical pixels per point. A missing or non-positive factor reads as 1.
@@ -294,6 +311,7 @@ impl Handler {
         let scale = self.scale();
         self.pointer.id = MOUSE_ID;
         self.pointer.position = [self.cursor_px[0] / scale, self.cursor_px[1] / scale];
+        self.pointer.press_at = self.press_px.map(|px| [px[0] / scale, px[1] / scale]);
         let platform = self.platform;
         self.app.world_mut().insert_resource(platform);
         if let Some(input) = self.app.world_mut().resource_mut::<Input>() {
@@ -320,6 +338,9 @@ impl Handler {
             input.super_key = self.super_key;
         }
         self.pointer.pressed = false;
+        self.pointer.released = false;
+        self.pointer.press_at = None;
+        self.press_px = None;
         self.scroll = [0.0, 0.0];
         self.keys.clear();
         self.ime_commit.clear();
@@ -344,11 +365,20 @@ impl Handler {
         rndr_core::window::publish_metrics(self.app.world_mut(), raw_width, raw_height, scale);
         let width = raw_width.max(1);
         let height = raw_height.max(1);
+        {
+            let board = &mut self.os_clipboard;
+            if let Some(clipboard) = self.app.world_mut().resource_mut::<Clipboard>() {
+                board.pull(clipboard);
+            }
+        }
         let painted = frame(&mut self.app);
-        // winit 0.30 has no OS clipboard. The resource is the value; clear the
-        // dirty bit after the frame so a platform can see that core wrote it.
-        if let Some(clipboard) = self.app.world_mut().resource_mut::<Clipboard>() {
-            clipboard.dirty = false;
+        {
+            let board = &mut self.os_clipboard;
+            if let Some(clipboard) = self.app.world_mut().resource_mut::<Clipboard>() {
+                board.push(clipboard);
+                clipboard.dirty = false;
+                clipboard.primary_dirty = false;
+            }
         }
         self.upload_atlases();
         let scale = self
@@ -939,25 +969,29 @@ impl ApplicationHandler<RunnerEvent> for Handler {
             }
             WindowEvent::CursorMoved { position, .. } => {
                 self.cursor_px = [position.x as f32, position.y as f32];
-                if self.pointer.down {
+                let watch = self
+                    .app
+                    .world()
+                    .resource::<MotionWatch>()
+                    .is_some_and(|watch| watch.active);
+                if self.pointer.down || watch {
                     if let Some(gpu) = &self.gpu {
                         gpu.window().request_redraw();
                     }
                 }
             }
-            WindowEvent::MouseInput {
-                state,
-                button: MouseButton::Left,
-                ..
-            } => {
+            WindowEvent::MouseInput { state, button, .. } => {
+                self.pointer.id = MOUSE_ID;
+                self.pointer.button = map_pointer_button(button);
                 match state {
                     ElementState::Pressed => {
-                        self.pointer.id = MOUSE_ID;
+                        self.press_px = Some(self.cursor_px);
                         self.pointer.pressed = true;
                         self.pointer.down = true;
                     }
                     ElementState::Released => {
                         self.pointer.down = false;
+                        self.pointer.released = true;
                     }
                 }
                 if let Some(gpu) = &self.gpu {

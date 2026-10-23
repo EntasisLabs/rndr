@@ -6,10 +6,12 @@ members = [
     "crates/rndr_paint",
     "crates/rndr_render",
     "crates/rndr_std",
+    "crates/rndr_term",
     "examples/expand",
     "examples/idle",
     "examples/overlay",
     "examples/palette",
+    "examples/terminal",
 ]
 
 [workspace.package]
@@ -28,6 +30,7 @@ rndr_core = { path = "crates/rndr_core", version = "0.1.0" }
 rndr_paint = { path = "crates/rndr_paint", version = "0.1.0" }
 rndr_render = { path = "crates/rndr_render", version = "0.1.0" }
 rndr_std = { path = "crates/rndr_std", version = "0.1.0" }
+rndr_term = { path = "crates/rndr_term", version = "0.1.0" }
 wgpu = "30"
 winit = "0.30"
 pollster = "0.4"

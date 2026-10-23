@@ -6,6 +6,20 @@ pub use crate::keys::Key;
 /// Mouse contact id. A later touch plugin writes a different id into the same slot.
 pub const MOUSE_ID: u64 = 0;
 
+/// Which mouse button the pointer event belongs to.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PointerButton {
+    /// Primary button.
+    #[default]
+    Left,
+    /// Wheel press.
+    Middle,
+    /// Secondary button.
+    Right,
+    /// A button this platform numbered itself. Back is `8`, forward is `9`.
+    Other(u16),
+}
+
 /// One contact in logical points. The desktop plugin fills this with the mouse.
 /// A finger can fill the same slot later.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -19,6 +33,24 @@ pub struct Pointer {
     pub pressed: bool,
     /// Contact held this frame. Core does not clear it.
     pub down: bool,
+    /// Release edge for this update only.
+    pub released: bool,
+    /// Button that produced [`Self::pressed`] or [`Self::released`].
+    /// While `down` is set with no edge, this is the held button.
+    pub button: PointerButton,
+    /// Where the button went down, in logical points, when [`Self::pressed`]
+    /// is set. `None` on a frame that did not see a press. It differs from
+    /// [`Self::position`] when the contact moved before the frame was pumped.
+    pub press_at: Option<[f32; 2]>,
+}
+
+/// Ask the window loop for a frame on cursor motion while the button is up.
+///
+/// Dragging already redraws. A widget that reports hover sets `active`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MotionWatch {
+    /// Cursor motion requests a frame.
+    pub active: bool,
 }
 
 impl Default for Pointer {
@@ -28,6 +60,9 @@ impl Default for Pointer {
             position: [0.0, 0.0],
             pressed: false,
             down: false,
+            released: false,
+            button: PointerButton::Left,
+            press_at: None,
         }
     }
 }

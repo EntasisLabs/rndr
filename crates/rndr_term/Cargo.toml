@@ -1,0 +1,29 @@
+[package]
+name = "rndr_term"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
+description = "Embedded terminal session for rndr"
+documentation = "https://docs.rs/rndr_term"
+readme = "README.md"
+keywords = ["terminal", "pty", "tty", "shell"]
+categories = ["command-line-interface", "gui"]
+exclude = ["**/*.snap.new"]
+
+[dependencies]
+rndr_core = { workspace = true }
+alacritty_terminal = "0.26"
+portable-pty = "0.9"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+rndr_paint = { workspace = true }
+insta = "1"
+
+[package.metadata.docs.rs]
+all-features = true

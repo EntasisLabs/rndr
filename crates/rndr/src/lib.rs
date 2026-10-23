@@ -58,6 +58,8 @@
 //!   global shortcuts portal.
 //! - `tray` adds a menu-bar or notification-area icon.
 //! - `parley` shapes and rasterizes text, and links fontconfig on Linux.
+//! - `term` re-exports the embedded terminal. It is off by default, so a
+//!   normal desktop build does not link a pseudoterminal.
 //!
 //! [`register`] and [`toggle_window`] install the operating-system hotkey
 //! backend. The parser and the registry stay at [`hotkey`].
@@ -73,6 +75,10 @@ pub use rndr_core::*;
 pub use rndr_paint::*;
 pub use rndr_render::*;
 pub use rndr_std::*;
+
+/// Embedded terminal. Enable the `term` feature.
+#[cfg(feature = "term")]
+pub use rndr_term::*;
 
 #[cfg(test)]
 mod tests {

@@ -79,6 +79,7 @@ mod keys;
 mod layout;
 mod list;
 mod memory_fs;
+mod mono;
 mod overlay;
 mod pane;
 #[cfg(feature = "pool")]
@@ -135,7 +136,9 @@ pub use hotkey::{
     note_unregistered, GlobalHotkey, HotkeyBinding, HotkeyError, HotkeyHandle, HotkeyId,
     HotkeyRejected,
 };
-pub use input::{Focus, Input, Insets, Key, Pointer, Viewport, MOUSE_ID};
+pub use input::{
+    Focus, Input, Insets, Key, MotionWatch, Pointer, PointerButton, Viewport, MOUSE_ID,
+};
 pub use keymap::{
     apply_keymap, context_path, context_stack, Clock, Context, Dispatch, KeyBinding, Keymap,
     KeymapFired,
@@ -153,6 +156,10 @@ pub use list::{
     LIST_HOME, LIST_PAGE_DOWN, LIST_PAGE_UP, LIST_UP,
 };
 pub use memory_fs::{MemoryFs, MemoryFsPlugin};
+pub use mono::{
+    apply_mono_grid, MonoBand, MonoCache, MonoCell, MonoCursor, MonoCursorShape, MonoGrid, MonoRow,
+    MonoRun, MonoStyle, MonoUnderline,
+};
 pub use overlay::{Layer, Modal, DISMISS};
 pub use pane::{
     apply_pane, detail_pane, field_height, set_selection, shell, splitter, tree_column, Pane,
@@ -161,8 +168,9 @@ pub use pane::{
 #[cfg(feature = "pool")]
 pub use pool::thread_pool;
 pub use runtime::{
-    after, cancel_debounce, debounce, debounce_local, every, run_until_parked, sleep, spawn,
-    spawn_local, Executor, InlineExecutor, Job, NopWake, Sleep, TaskHandle, TimerHandle, Wake,
+    after, cancel_debounce, debounce, debounce_local, every, frame_wake, run_until_parked, sleep,
+    spawn, spawn_local, Executor, InlineExecutor, Job, NopWake, Sleep, TaskHandle, TimerHandle,
+    Wake,
 };
 pub use shell::Shell;
 pub use sim::Sim;

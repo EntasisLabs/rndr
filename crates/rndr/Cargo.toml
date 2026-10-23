@@ -15,6 +15,8 @@ exclude = ["**/*.snap.new"]
 
 [features]
 default = ["hotkey", "tray", "parley"]
+# Embedded terminal. Off by default so a desktop build does not link a PTY.
+term = ["dep:rndr_term"]
 # Same flags as rndr_render. Off skips Carbon, Win32, X11, and the portal client.
 hotkey = ["rndr_render/hotkey"]
 # Menu bar, notification area, and StatusNotifierItem icon.
@@ -31,6 +33,7 @@ rndr_std = { workspace = true }
 # off needs Rust 1.99 and edition 2024. This keeps `hotkey` / `tray` / `parley`
 # optional on the 2021 edition.
 rndr_render = { path = "../rndr_render", version = "0.1.0", default-features = false }
+rndr_term = { workspace = true, optional = true }
 
 [package.metadata.docs.rs]
 # docs.rs uses the crates-build-env image, which includes libfontconfig1-dev,

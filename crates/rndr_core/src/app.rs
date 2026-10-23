@@ -7,6 +7,7 @@ use crate::font::apply_text_layout;
 use crate::input::{Input, Viewport};
 use crate::keys::Platform;
 use crate::layout::layout_propagate;
+use crate::mono::apply_mono_grid;
 use crate::runtime::{self, Executor, Wake};
 use crate::text::ensure_text_engine;
 use crate::tray;
@@ -250,6 +251,7 @@ impl App {
             layout_propagate(&mut self.world);
         }
         apply_text_layout(&mut self.world);
+        apply_mono_grid(&mut self.world);
         crate::editor::apply_decorations(&mut self.world);
         window::drive(&mut self.world);
     }

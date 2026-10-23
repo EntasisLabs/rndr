@@ -11,6 +11,7 @@ pub(crate) fn note_clipboard(world: &mut World, copied: Option<&str>) {
             world.insert_resource(Clipboard {
                 text: copied.to_string(),
                 dirty: true,
+                ..Clipboard::default()
             });
         }
     }
@@ -26,15 +27,25 @@ use crate::input::{Focus, Key};
 use crate::style::Label;
 use crate::world::World;
 
-/// In-memory clipboard. Core never calls the operating system.
-/// `dirty` is set when this frame wrote `text`, so a platform can push it out.
+/// Clipboard shared by widgets. Core never calls the operating system.
+///
+/// `dirty` is set when this frame wrote [`Self::text`]. `primary_dirty` is set
+/// when this frame wrote [`Self::primary`]. The desktop runner pushes a dirty
+/// value to the OS clipboard (and, on X11 and Wayland, a dirty primary
+/// selection) and fills the fields from the OS at the start of the next frame.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Clipboard {
-    /// Last string written by a copy or cut. Paste reads it.
+    /// Last string written by a copy or cut. Explicit paste reads it.
     pub text: String,
-    /// Set when this frame wrote [`Clipboard::text`]. Core leaves it set.
-    /// The desktop runner clears it after the frame so a host can see the write.
+    /// Set when this frame wrote [`Self::text`]. Core leaves it set.
+    /// The desktop runner clears it after pushing the value out.
     pub dirty: bool,
+    /// X11 and Wayland primary selection. Middle-click paste reads this when
+    /// it is not empty, and otherwise reads [`Self::text`].
+    pub primary: String,
+    /// Set when this frame wrote [`Self::primary`]. The desktop runner clears
+    /// it after pushing the value out.
+    pub primary_dirty: bool,
 }
 
 pub fn copy_binding() -> Binding {
