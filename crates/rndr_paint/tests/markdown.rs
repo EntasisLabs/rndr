@@ -17,7 +17,11 @@ fn markdown_document_paints_heading_list_quote_rule_and_code() {
         .unwrap()
         .set_follow(false);
     let painted = frame(&mut app);
+    // `highlight` recolors `let` and `1`. The default build keeps one code color.
+    #[cfg(not(feature = "highlight"))]
     insta::assert_snapshot!(quads_snapshot(&painted));
+    #[cfg(feature = "highlight")]
+    insta::assert_snapshot!("markdown_document_code_highlight", quads_snapshot(&painted));
 }
 
 #[test]

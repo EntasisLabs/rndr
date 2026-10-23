@@ -119,6 +119,11 @@ fn offscreen_scene_matches_regions_and_the_golden() {
     assert!(clipped[2] > 150, "inside clip {clipped:?}");
     let outside = pixel(&image, 116, 20);
     assert!(outside[2] < 80, "outside clip {outside:?}");
+    // The clip box is (124, 8) 28×28 with radius 6. Pixel (124, 8) sits in
+    // that box and outside the quarter circle, so a square scissor would
+    // still paint it blue.
+    let corner = pixel(&image, 124, 8);
+    assert!(corner[2] < 80, "rounded corner should clip, got {corner:?}");
     // 50% white over the dark background blends in linear light, so the
     // stored sRGB channel sits near 188 and the composite alpha is opaque.
     let faded = pixel(&image, 20, 84);

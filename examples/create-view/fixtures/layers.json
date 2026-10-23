@@ -15,6 +15,22 @@
       "content": { "kind": "frame", "name": "Board", "background": "#fffdf8" }
     },
     {
+      "id": "corner",
+      "name": "Corner overflow",
+      "parent_id": "board",
+      "transform": { "x": -8, "y": -8, "width": 44, "height": 44, "rotation": 0 },
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "content": {
+        "kind": "shape",
+        "shape": "rectangle",
+        "fill": "#c4233a",
+        "stroke": "transparent",
+        "stroke_width": 0
+      }
+    },
+    {
       "id": "clipped",
       "name": "Clipped",
       "parent_id": "board",

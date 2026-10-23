@@ -14,6 +14,10 @@ keywords = ["gui", "graphics", "paint", "ui", "2d"]
 categories = ["gui", "graphics", "rendering"]
 exclude = ["**/*.snap.new"]
 
+[features]
+# Fenced-code token colors. Forwards `rndr_core`'s `highlight` feature.
+highlight = ["rndr_core/highlight"]
+
 [dependencies]
 lyon = "1.0"
 rndr_core = { workspace = true }

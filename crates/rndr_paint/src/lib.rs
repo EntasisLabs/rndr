@@ -1,6 +1,8 @@
 //! Quads in logical points, plus a display list for vector scenes. No window
 //! and no GPU.
 //!
+//! The `highlight` feature forwards `rndr_core`'s fenced-code token colors.
+//!
 //! [`frame`] steps an [`rndr_core::App`] (Startup once, then Input, Update,
 //! PostUpdate, and Layout) and returns one [`Quad`] per solid, glyph,
 //! selection, caret, dirty mark, and fixed-pitch cell, plus [`SurfaceRect`]s
