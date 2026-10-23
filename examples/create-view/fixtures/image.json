@@ -1,0 +1,32 @@
+{
+  "schema": "medousa-create",
+  "version": 3,
+  "background": "#efeae2",
+  "nodes": [
+    {
+      "id": "crop",
+      "name": "Cropped",
+      "parent_id": null,
+      "transform": { "x": 40, "y": 36, "width": 180, "height": 140, "rotation": 0 },
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "appearance": { "corner_radius": 22, "shadow": null },
+      "content": {
+        "kind": "image",
+        "asset_id": "swatch",
+        "crop": { "x": 0.15, "y": 0.1, "width": 0.7, "height": 0.75 }
+      }
+    },
+    {
+      "id": "full",
+      "name": "Full",
+      "parent_id": null,
+      "transform": { "x": 260, "y": 48, "width": 120, "height": 120, "rotation": 0 },
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "content": { "kind": "image", "asset_id": "swatch", "crop": null }
+    }
+  ]
+}

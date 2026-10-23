@@ -1,0 +1,87 @@
+{
+  "schema": "medousa-create",
+  "version": 3,
+  "background": "#fbf7f1",
+  "nodes": [
+    {
+      "id": "pen",
+      "name": "Pen",
+      "parent_id": null,
+      "transform": { "x": 40, "y": 36, "width": 280, "height": 150, "rotation": 0 },
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "content": {
+        "kind": "ink",
+        "color": "#c4492c",
+        "input": "pen",
+        "brush": {
+          "kind": "pen",
+          "size": 14,
+          "thinning": 0.65,
+          "smoothing": 0.45,
+          "streamline": 0.2,
+          "opacity": 1
+        },
+        "points": [
+          { "x": 24, "y": 110, "pressure": 0.25, "elapsed_ms": 0 },
+          { "x": 70, "y": 48, "pressure": 0.85, "elapsed_ms": 16 },
+          { "x": 130, "y": 96, "pressure": 0.4, "elapsed_ms": 32 },
+          { "x": 190, "y": 40, "pressure": 0.95, "elapsed_ms": 48 },
+          { "x": 250, "y": 100, "pressure": 0.3, "elapsed_ms": 64 }
+        ]
+      }
+    },
+    {
+      "id": "marker",
+      "name": "Highlighter",
+      "parent_id": null,
+      "transform": { "x": 40, "y": 210, "width": 300, "height": 70, "rotation": 0 },
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "content": {
+        "kind": "ink",
+        "color": "#e2c15a",
+        "input": "pen",
+        "brush": {
+          "kind": "highlighter",
+          "size": 28,
+          "thinning": 0,
+          "smoothing": 0.2,
+          "streamline": 0,
+          "opacity": 0.45
+        },
+        "points": [
+          { "x": 20, "y": 36, "pressure": 0.6 },
+          { "x": 110, "y": 28, "pressure": 0.6 },
+          { "x": 210, "y": 40, "pressure": 0.6 },
+          { "x": 280, "y": 32, "pressure": 0.6 }
+        ]
+      }
+    },
+    {
+      "id": "dot",
+      "name": "Dot",
+      "parent_id": null,
+      "transform": { "x": 360, "y": 48, "width": 48, "height": 48, "rotation": 0 },
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "content": {
+        "kind": "ink",
+        "color": "#243028",
+        "input": "pen",
+        "brush": {
+          "kind": "pencil",
+          "size": 10,
+          "thinning": 0,
+          "smoothing": 0,
+          "streamline": 0,
+          "opacity": 1
+        },
+        "points": [{ "x": 24, "y": 24, "pressure": 0.8 }]
+      }
+    }
+  ]
+}

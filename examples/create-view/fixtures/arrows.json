@@ -1,0 +1,53 @@
+{
+  "schema": "medousa-create",
+  "version": 3,
+  "background": "#f7f4ec",
+  "nodes": [
+    {
+      "id": "dashed-arrow",
+      "name": "Dashed arrow",
+      "parent_id": null,
+      "transform": { "x": 36, "y": 40, "width": 340, "height": 120, "rotation": 0 },
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "content": {
+        "kind": "shape",
+        "shape": "line",
+        "fill": "transparent",
+        "stroke": "#243028",
+        "stroke_width": 6,
+        "line": {
+          "start": { "x": 16, "y": 88 },
+          "end": { "x": 320, "y": 28 },
+          "start_arrow": false,
+          "end_arrow": true,
+          "dashed": true
+        }
+      }
+    },
+    {
+      "id": "both-ends",
+      "name": "Both ends",
+      "parent_id": null,
+      "transform": { "x": 36, "y": 190, "width": 340, "height": 80, "rotation": 0 },
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "content": {
+        "kind": "shape",
+        "shape": "line",
+        "fill": "transparent",
+        "stroke": "#8c3d2f",
+        "stroke_width": 5,
+        "line": {
+          "start": { "x": 24, "y": 40 },
+          "end": { "x": 310, "y": 40 },
+          "start_arrow": true,
+          "end_arrow": true,
+          "dashed": false
+        }
+      }
+    }
+  ]
+}

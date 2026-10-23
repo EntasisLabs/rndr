@@ -16,6 +16,7 @@ members = [
     "examples/windows",
     "examples/pen-probe",
     "examples/canvas-scene",
+    "examples/create-view",
 ]
 
 [workspace.package]
