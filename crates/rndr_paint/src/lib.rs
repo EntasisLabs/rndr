@@ -46,6 +46,7 @@ mod latin;
 mod path;
 mod snapshot;
 mod tess;
+mod zoom;
 
 use std::cell::RefCell;
 
@@ -56,9 +57,10 @@ pub use display::{
 };
 pub use font::{atlas_r8, glyph_uv, solid_uv, ATLAS_H, ATLAS_W};
 pub use latin::LatinFace;
-pub use path::{Cap, FillRule, Join, Path, PathBuilder, Stroke};
+pub use path::{Cap, FillRule, Join, Marker, Path, PathBuilder, Stroke};
 pub use snapshot::quads_snapshot;
 pub use tess::{tessellate_fill, tessellate_stroke, Mesh, MeshCache};
+pub use zoom::{ZoomCamera, ZOOM_MAX_STEP, ZOOM_MIN_STEP};
 
 use rndr_core::{
     children_of, field_text_width, layered_roots, style_for, style_of, text_engine, theme_of, App,

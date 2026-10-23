@@ -18,8 +18,8 @@ use rndr_core::{
     TextStyle, WindowConfig, World, FONT_WEIGHT_BOLD,
 };
 use rndr_paint::{
-    Affine, Canvas, CanvasPainter, CanvasRegistry, Cap, ClipShape, Effect, FillRule, Join, Path,
-    SceneLayer, Stroke, TextSource,
+    Affine, Canvas, CanvasPainter, CanvasRegistry, Cap, ClipShape, Effect, FillRule, Join, Marker,
+    Path, SceneLayer, Stroke, TextSource, ZoomCamera,
 };
 use rndr_render::{encode_png, load_rgba, Exporter};
 
@@ -71,7 +71,7 @@ fn setup(world: &mut World) {
     let mut registry = CanvasRegistry::new();
     registry.insert(SLOT, ScenePainter);
     world.insert_resource(registry);
-    world.insert_resource(View::default());
+    world.insert_resource(ZoomCamera::new([24.0, 24.0]));
     world.spawn((
         Layout {
             width: Size::Fill,
@@ -86,63 +86,20 @@ fn setup(world: &mut World) {
 
 fn navigate(world: &mut World) {
     let input = world.resource::<Input>().cloned().unwrap_or_default();
-    let Some(view) = world.resource_mut::<View>() else {
+    let Some(view) = world.resource_mut::<ZoomCamera>() else {
         return;
     };
-    if input.pointer.down {
-        if let Some(last) = view.grab {
-            view.pan[0] += input.pointer.position[0] - last[0];
-            view.pan[1] += input.pointer.position[1] - last[1];
-        }
-        view.grab = Some(input.pointer.position);
-    } else {
-        view.grab = None;
-    }
-    zoom_about(view, input.pointer.position, input.scroll[1]);
-}
-
-/// Keep the world point under `cursor` fixed while the wheel changes zoom.
-fn zoom_about(view: &mut View, cursor: [f32; 2], scroll_y: f32) {
-    if scroll_y.abs() <= 0.5 {
-        return;
-    }
-    let steps = (scroll_y / 32.0).clamp(-4.0, 4.0);
-    let next = (view.zoom * 1.1_f32.powf(steps)).clamp(0.15, 16.0);
-    if view.zoom <= 1.0e-6 {
-        view.zoom = next;
-        return;
-    }
-    let factor = next / view.zoom;
-    view.pan[0] = cursor[0] - (cursor[0] - view.pan[0]) * factor;
-    view.pan[1] = cursor[1] - (cursor[1] - view.pan[1]) * factor;
-    view.zoom = next;
+    view.drag(input.pointer.down, input.pointer.position);
+    view.apply_wheel(input.pointer.position, input.scroll[1]);
 }
 
 struct ScenePainter;
 
 impl CanvasPainter for ScenePainter {
     fn paint(&self, world: &World, canvas: &mut Canvas) {
-        let view = world.resource::<View>().copied().unwrap_or_default();
-        canvas
-            .set_camera(Affine::scale(view.zoom).then(Affine::translate(view.pan[0], view.pan[1])));
+        let view = world.resource::<ZoomCamera>().copied().unwrap_or_default();
+        canvas.set_camera(view.affine());
         draw_demo(canvas, world);
-    }
-}
-
-#[derive(Clone, Copy)]
-struct View {
-    pan: [f32; 2],
-    zoom: f32,
-    grab: Option<[f32; 2]>,
-}
-
-impl Default for View {
-    fn default() -> Self {
-        Self {
-            pan: [24.0, 24.0],
-            zoom: 1.0,
-            grab: None,
-        }
     }
 }
 
@@ -178,11 +135,15 @@ fn draw_demo(canvas: &mut Canvas, world: &World) {
     canvas.pop_transform();
 
     canvas.stroke(
-        arrow([70.0, 80.0], [280.0, 120.0]),
+        Path::line([70.0, 80.0], [280.0, 120.0]),
         Color::rgb(0.95, 0.95, 0.97),
         Stroke::solid(3.0)
             .dashed(vec![10.0, 7.0])
-            .with_cap(Cap::Butt),
+            .with_cap(Cap::Butt)
+            .with_end_marker(Marker::Chevron {
+                length: 16.0,
+                spread: 8.0,
+            }),
     );
     canvas.stroke(
         Path::line([70.0, 150.0], [280.0, 150.0]),
@@ -304,24 +265,6 @@ fn draw_demo(canvas: &mut Canvas, world: &World) {
     canvas.pop_transform();
 }
 
-fn arrow(from: [f32; 2], to: [f32; 2]) -> Path {
-    let dx = to[0] - from[0];
-    let dy = to[1] - from[1];
-    let len = (dx * dx + dy * dy).sqrt().max(1.0);
-    let ux = dx / len;
-    let uy = dy / len;
-    let head = 16.0;
-    let px = -uy;
-    let py = ux;
-    let mut path = Path::builder();
-    path.move_to(from).line_to(to);
-    path.move_to(to)
-        .line_to([to[0] - ux * head + px * 8.0, to[1] - uy * head + py * 8.0]);
-    path.move_to(to)
-        .line_to([to[0] - ux * head - px * 8.0, to[1] - uy * head - py * 8.0]);
-    path.build()
-}
-
 fn ink_ribbon(from: [f32; 2], to: [f32; 2]) -> Path {
     let dx = to[0] - from[0];
     let dy = to[1] - from[1];
@@ -432,31 +375,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn zoom_keeps_the_point_under_the_cursor() {
-        let mut view = View {
-            zoom: 2.0,
-            pan: [10.0, -4.0],
-            ..View::default()
-        };
-        let cursor = [80.0, 50.0];
-        let before = [
-            (cursor[0] - view.pan[0]) / view.zoom,
-            (cursor[1] - view.pan[1]) / view.zoom,
-        ];
-        zoom_about(&mut view, cursor, 32.0);
-        let after = [
-            (cursor[0] - view.pan[0]) / view.zoom,
-            (cursor[1] - view.pan[1]) / view.zoom,
-        ];
-        assert!(
-            (before[0] - after[0]).abs() < 1.0e-3 && (before[1] - after[1]).abs() < 1.0e-3,
-            "before {before:?} after {after:?}"
-        );
-        assert!((view.zoom - 2.2).abs() < 1.0e-3, "zoom {}", view.zoom);
-        let zoom = view.zoom;
-        let pan = view.pan;
-        zoom_about(&mut view, cursor, 0.0);
-        assert_eq!(view.zoom, zoom);
-        assert_eq!(view.pan, pan);
+    fn ten_wheel_notches_in_and_out_restore_the_camera() {
+        let mut view = ZoomCamera::new([24.0, 24.0]);
+        let cursor = [120.0, 80.0];
+        let pan = view.pan();
+        let scale = view.scale();
+        for _ in 0..10 {
+            view.apply_wheel(cursor, 32.0);
+        }
+        for _ in 0..10 {
+            view.apply_wheel(cursor, -32.0);
+        }
+        assert_eq!(view.scale().to_bits(), scale.to_bits());
+        assert_eq!(view.pan(), pan);
     }
 }

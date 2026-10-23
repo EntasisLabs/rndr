@@ -35,7 +35,7 @@ use lyon::tessellation::{
 };
 
 use crate::affine::{bucket_scale, zoom_bucket};
-use crate::path::{Cap, FillRule, Join, Path, Stroke, Verb};
+use crate::path::{Cap, FillRule, Join, Marker, Path, Stroke, Verb};
 
 /// Triangle mesh in local units. Indices are groups of three.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -88,6 +88,10 @@ pub fn tessellate_fill(path: &Path, rule: FillRule, scale: f32) -> Mesh {
 }
 
 /// Stroke `path`. Hairline widths use `scale`. Dashes split the centerline first.
+///
+/// [`Marker`]s are tessellated after the centerline. They stay solid unless
+/// [`Stroke::dash_markers`] is set, so a dashed shaft does not punch gaps
+/// through an arrowhead.
 pub fn tessellate_stroke(path: &Path, stroke: &Stroke, scale: f32) -> Mesh {
     if path.is_empty() {
         return Mesh::default();
@@ -98,7 +102,7 @@ pub fn tessellate_stroke(path: &Path, stroke: &Stroke, scale: f32) -> Mesh {
         return Mesh::default();
     }
     let tolerance = tolerance_for(scale);
-    if stroke.dash.iter().any(|len| *len > 0.0) {
+    let mut mesh = if stroke.dash.iter().any(|len| *len > 0.0) {
         let dashed = dash_path(path, &stroke.dash, stroke.dash_offset, tolerance);
         let mut mesh = Mesh::default();
         for sub in dashed {
@@ -108,10 +112,13 @@ pub fn tessellate_stroke(path: &Path, stroke: &Stroke, scale: f32) -> Mesh {
                 &stroke_lyon(&lyon_path, stroke, width, tolerance),
             );
         }
-        return mesh;
-    }
-    let lyon_path = to_lyon(path);
-    stroke_lyon(&lyon_path, stroke, width, tolerance)
+        mesh
+    } else {
+        let lyon_path = to_lyon(path);
+        stroke_lyon(&lyon_path, stroke, width, tolerance)
+    };
+    append_markers(&mut mesh, path, stroke, width, tolerance);
+    mesh
 }
 
 /// LRU of fill and stroke meshes. `limit` is the number of entries kept.
@@ -229,8 +236,27 @@ fn stroke_key(path: &Path, stroke: &Stroke, scale: f32) -> u64 {
     for dash in &stroke.dash {
         dash.to_bits().hash(&mut hasher);
     }
+    hash_marker(stroke.start_marker, &mut hasher);
+    hash_marker(stroke.end_marker, &mut hasher);
+    stroke.dash_markers.hash(&mut hasher);
     zoom_bucket(scale).hash(&mut hasher);
     hasher.finish()
+}
+
+fn hash_marker(marker: Marker, hasher: &mut impl Hasher) {
+    match marker {
+        Marker::None => 0u8.hash(hasher),
+        Marker::Chevron { length, spread } => {
+            1u8.hash(hasher);
+            length.to_bits().hash(hasher);
+            spread.to_bits().hash(hasher);
+        }
+        Marker::Triangle { length, spread } => {
+            2u8.hash(hasher);
+            length.to_bits().hash(hasher);
+            spread.to_bits().hash(hasher);
+        }
+    }
 }
 
 fn hash_path(path: &Path, hasher: &mut impl Hasher) {
@@ -564,6 +590,244 @@ fn distance(a: [f32; 2], b: [f32; 2]) -> f32 {
     (dx * dx + dy * dy).sqrt()
 }
 
+struct OpenEnd {
+    start: [f32; 2],
+    /// Unit direction of travel leaving the start.
+    start_dir: [f32; 2],
+    end: [f32; 2],
+    /// Unit direction of travel arriving at the end.
+    end_dir: [f32; 2],
+}
+
+fn open_ends(path: &Path) -> Vec<OpenEnd> {
+    let mut out = Vec::new();
+    let mut start: Option<[f32; 2]> = None;
+    let mut start_dir: Option<[f32; 2]> = None;
+    let mut last: Option<[f32; 2]> = None;
+    let mut end_dir: Option<[f32; 2]> = None;
+    let mut closed = false;
+    let flush = |out: &mut Vec<OpenEnd>,
+                 start: &mut Option<[f32; 2]>,
+                 start_dir: &mut Option<[f32; 2]>,
+                 last: &mut Option<[f32; 2]>,
+                 end_dir: &mut Option<[f32; 2]>,
+                 closed: &mut bool| {
+        if !*closed {
+            if let (Some(start_pt), Some(dir0), Some(end_pt), Some(dir1)) =
+                (*start, *start_dir, *last, *end_dir)
+            {
+                out.push(OpenEnd {
+                    start: start_pt,
+                    start_dir: dir0,
+                    end: end_pt,
+                    end_dir: dir1,
+                });
+            }
+        }
+        *start = None;
+        *start_dir = None;
+        *last = None;
+        *end_dir = None;
+        *closed = false;
+    };
+    for (verb, at) in path.verbs() {
+        match verb {
+            Verb::Move => {
+                flush(
+                    &mut out,
+                    &mut start,
+                    &mut start_dir,
+                    &mut last,
+                    &mut end_dir,
+                    &mut closed,
+                );
+                let point = path.point(at);
+                start = Some(point);
+                last = Some(point);
+            }
+            Verb::Line => {
+                let point = path.point(at);
+                if let Some(prev) = last {
+                    note_segment(&mut start_dir, &mut end_dir, prev, point, point);
+                }
+                last = Some(point);
+            }
+            Verb::Quad => {
+                let ctrl = path.point(at);
+                let point = path.point(at + 1);
+                if let Some(prev) = last {
+                    note_segment(&mut start_dir, &mut end_dir, prev, ctrl, point);
+                }
+                last = Some(point);
+            }
+            Verb::Cubic => {
+                let c1 = path.point(at);
+                let c2 = path.point(at + 1);
+                let point = path.point(at + 2);
+                if let Some(prev) = last {
+                    let leave = unit(prev, c1).or_else(|| unit(prev, point));
+                    let arrive = unit(c2, point).or_else(|| unit(prev, point));
+                    if start_dir.is_none() {
+                        start_dir = leave;
+                    }
+                    if let Some(arrive) = arrive {
+                        end_dir = Some(arrive);
+                    }
+                }
+                last = Some(point);
+            }
+            Verb::Close => {
+                closed = true;
+                flush(
+                    &mut out,
+                    &mut start,
+                    &mut start_dir,
+                    &mut last,
+                    &mut end_dir,
+                    &mut closed,
+                );
+            }
+        }
+    }
+    flush(
+        &mut out,
+        &mut start,
+        &mut start_dir,
+        &mut last,
+        &mut end_dir,
+        &mut closed,
+    );
+    out
+}
+
+fn note_segment(
+    start_dir: &mut Option<[f32; 2]>,
+    end_dir: &mut Option<[f32; 2]>,
+    prev: [f32; 2],
+    toward: [f32; 2],
+    end: [f32; 2],
+) {
+    let leave = unit(prev, toward).or_else(|| unit(prev, end));
+    let arrive = unit(toward, end).or_else(|| unit(prev, end));
+    if start_dir.is_none() {
+        *start_dir = leave;
+    }
+    if let Some(arrive) = arrive {
+        *end_dir = Some(arrive);
+    }
+}
+
+fn unit(a: [f32; 2], b: [f32; 2]) -> Option<[f32; 2]> {
+    let dx = b[0] - a[0];
+    let dy = b[1] - a[1];
+    let len = (dx * dx + dy * dy).sqrt();
+    if !len.is_finite() || len <= 1.0e-6 {
+        None
+    } else {
+        Some([dx / len, dy / len])
+    }
+}
+
+fn append_markers(mesh: &mut Mesh, path: &Path, stroke: &Stroke, width: f32, tolerance: f32) {
+    if matches!(stroke.start_marker, Marker::None) && matches!(stroke.end_marker, Marker::None) {
+        return;
+    }
+    for end in open_ends(path) {
+        append_marker(
+            mesh,
+            end.start,
+            [-end.start_dir[0], -end.start_dir[1]],
+            stroke.start_marker,
+            stroke,
+            width,
+            tolerance,
+        );
+        append_marker(
+            mesh,
+            end.end,
+            end.end_dir,
+            stroke.end_marker,
+            stroke,
+            width,
+            tolerance,
+        );
+    }
+}
+
+fn append_marker(
+    mesh: &mut Mesh,
+    tip: [f32; 2],
+    travel: [f32; 2],
+    marker: Marker,
+    stroke: &Stroke,
+    width: f32,
+    tolerance: f32,
+) {
+    let (length, spread, filled) = match marker {
+        Marker::None => return,
+        Marker::Chevron { length, spread } => (length, spread, false),
+        Marker::Triangle { length, spread } => (length, spread, true),
+    };
+    if !length.is_finite() || !spread.is_finite() || length <= 1.0e-4 || spread < 0.0 {
+        return;
+    }
+    if filled {
+        let path = marker_triangle(tip, travel, length, spread);
+        append_mesh(
+            mesh,
+            &fill_lyon(&to_lyon(&path), FillRule::NonZero, tolerance),
+        );
+        return;
+    }
+    let path = marker_chevron(tip, travel, length, spread);
+    let mut bare = stroke.clone();
+    bare.start_marker = Marker::None;
+    bare.end_marker = Marker::None;
+    if !stroke.dash_markers {
+        bare.dash.clear();
+        bare.dash_offset = 0.0;
+    }
+    bare.dash_markers = false;
+    if bare.dash.iter().any(|len| *len > 0.0) {
+        for sub in dash_path(&path, &bare.dash, bare.dash_offset, tolerance) {
+            append_mesh(mesh, &stroke_lyon(&to_lyon(&sub), &bare, width, tolerance));
+        }
+    } else {
+        append_mesh(mesh, &stroke_lyon(&to_lyon(&path), &bare, width, tolerance));
+    }
+}
+
+fn marker_chevron(tip: [f32; 2], travel: [f32; 2], length: f32, spread: f32) -> Path {
+    let (ux, uy) = (travel[0], travel[1]);
+    let (px, py) = (-uy, ux);
+    let mut path = Path::builder();
+    path.move_to(tip).line_to([
+        tip[0] - ux * length + px * spread,
+        tip[1] - uy * length + py * spread,
+    ]);
+    path.move_to(tip).line_to([
+        tip[0] - ux * length - px * spread,
+        tip[1] - uy * length - py * spread,
+    ]);
+    path.build()
+}
+
+fn marker_triangle(tip: [f32; 2], travel: [f32; 2], length: f32, spread: f32) -> Path {
+    let (ux, uy) = (travel[0], travel[1]);
+    let (px, py) = (-uy, ux);
+    Path::polygon(&[
+        tip,
+        [
+            tip[0] - ux * length + px * spread,
+            tip[1] - uy * length + py * spread,
+        ],
+        [
+            tip[0] - ux * length - px * spread,
+            tip[1] - uy * length - py * spread,
+        ],
+    ])
+}
+
 fn point_in_triangle(p: [f32; 2], a: [f32; 2], b: [f32; 2], c: [f32; 2]) -> bool {
     let v0x = c[0] - a[0];
     let v0y = c[1] - a[1];
@@ -675,6 +939,53 @@ mod tests {
         assert!(Arc::ptr_eq(&a, &b));
         let c = cache.fill(&path, FillRule::NonZero, 2.5);
         assert!(!Arc::ptr_eq(&a, &c));
+    }
+
+    #[test]
+    fn a_dashed_shaft_keeps_its_arrowhead_solid() {
+        let path = Path::line([0.0, 0.0], [100.0, 0.0]);
+        let stroke = Stroke::solid(3.0)
+            .dashed(vec![10.0, 8.0])
+            .with_end_marker(Marker::Triangle {
+                length: 20.0,
+                spread: 8.0,
+            });
+        let mesh = tessellate_stroke(&path, &stroke, 1.0);
+        let zoomed = tessellate_stroke(&path, &stroke, 8.0);
+        // The pattern is off on [82, 90), which is inside the triangle and
+        // off the shaft, so a dashed head would miss this sample.
+        assert!(
+            mesh.contains([86.7, 0.0]),
+            "triangle should fill a dash gap"
+        );
+        assert!(
+            zoomed.contains([86.7, 0.0]),
+            "zooming should not dash the triangle"
+        );
+        assert!(!mesh.contains([14.0, 0.0]), "shaft gap stays open");
+    }
+
+    #[test]
+    fn a_chevron_marker_is_solid_unless_asked_to_dash() {
+        let path = Path::line([0.0, 0.0], [80.0, 0.0]);
+        let solid = Stroke::solid(3.0)
+            .dashed(vec![10.0, 7.0])
+            .with_cap(Cap::Butt)
+            .with_end_marker(Marker::Chevron {
+                length: 16.0,
+                spread: 8.0,
+            });
+        let dashed = solid.clone().with_dashed_markers(true);
+        let mesh = tessellate_stroke(&path, &solid, 4.0);
+        assert!(mesh.contains([72.0, 4.0]), "chevron arm");
+        assert!(!mesh.contains([13.0, 0.0]), "shaft gap");
+        let punched = tessellate_stroke(&path, &dashed, 1.0);
+        assert!(
+            mesh.area() > punched.area() + 5.0,
+            "dashed marker loses area: {} vs {}",
+            mesh.area(),
+            punched.area()
+        );
     }
 
     #[test]

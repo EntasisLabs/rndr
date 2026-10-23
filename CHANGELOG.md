@@ -23,6 +23,9 @@
 - A canvas painter draws inside a `SurfaceSlot`, under the widgets in that slot.
 - Offscreen export renders a world rectangle at a chosen scale to RGBA and PNG. A side longer than 8192 pixels, or an image over 32 megapixels, is rejected.
 - Text exposes letter spacing, paragraph spacing, and alignment. Glyphs follow rotation and zoom. Runs at or above 64 device pixels are filled from face outlines; smaller runs stay in the atlas.
+- Stroke arrowheads. [`Marker::Chevron`](crates/rndr_paint/src/path.rs) and [`Marker::Triangle`](crates/rndr_paint/src/path.rs) are drawn with the stroke but stay solid unless `dash_markers` is set, so a dash on the shaft does not break the head. `examples/canvas-scene` uses a chevron on the dashed arrow.
+- [`ZoomCamera`](crates/rndr_paint/src/zoom.rs) stores wheel zoom as an integer step around the cursor that started the gesture. Ten notches in and ten notches out restore the pan and the scale exactly.
+- `examples/create-view` loads a saved Create scene (schema `medousa-create` version 3) and draws shapes, lines, ink, text, images, groups, and frames. The scene types live in the example. Published crates do not depend on Medousa. `--export out.png` renders offscreen. Fixture scenes under `examples/create-view/fixtures` cover every node kind.
 
 ## 0.2.0
 

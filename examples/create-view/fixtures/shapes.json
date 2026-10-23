@@ -1,0 +1,73 @@
+{
+  "schema": "medousa-create",
+  "version": 3,
+  "background": "#f3efe6",
+  "nodes": [
+    {
+      "id": "card",
+      "name": "Card",
+      "parent_id": null,
+      "transform": { "x": 40, "y": 36, "width": 180, "height": 110, "rotation": 0 },
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "appearance": { "corner_radius": 18, "shadow": null },
+      "content": {
+        "kind": "shape",
+        "shape": "rectangle",
+        "fill": "#2c6b4a",
+        "stroke": "#163828",
+        "stroke_width": 4
+      }
+    },
+    {
+      "id": "disc",
+      "name": "Disc",
+      "parent_id": null,
+      "transform": { "x": 260, "y": 36, "width": 150, "height": 110, "rotation": 0 },
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "content": {
+        "kind": "shape",
+        "shape": "ellipse",
+        "fill": "#d7e4c8",
+        "stroke": "#3d5a40",
+        "stroke_width": 3
+      }
+    },
+    {
+      "id": "turned",
+      "name": "Turned",
+      "parent_id": null,
+      "transform": { "x": 460, "y": 40, "width": 120, "height": 72, "rotation": 18 },
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "appearance": { "corner_radius": 8, "shadow": null },
+      "content": {
+        "kind": "shape",
+        "shape": "rectangle",
+        "fill": "#e7b15a",
+        "stroke": "transparent",
+        "stroke_width": 0
+      }
+    },
+    {
+      "id": "hidden",
+      "name": "Hidden",
+      "parent_id": null,
+      "transform": { "x": 48, "y": 48, "width": 40, "height": 40, "rotation": 0 },
+      "opacity": 1,
+      "visible": false,
+      "locked": false,
+      "content": {
+        "kind": "shape",
+        "shape": "rectangle",
+        "fill": "#ff0000",
+        "stroke": "transparent",
+        "stroke_width": 0
+      }
+    }
+  ]
+}

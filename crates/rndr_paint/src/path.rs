@@ -36,6 +36,38 @@ pub enum Join {
     Round,
 }
 
+/// Decoration at an open end of a [`Stroke`].
+///
+/// Markers are not part of the dashed centerline. A chevron is stroked solid,
+/// and a triangle is filled, unless [`Stroke::dash_markers`] is set. A closed
+/// subpath has no end to attach a marker to, so it is left bare.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum Marker {
+    /// No decoration.
+    #[default]
+    None,
+    /// Two segments that meet at the tip and open back along the stroke.
+    ///
+    /// `length` runs along the tangent. `spread` is the perpendicular distance
+    /// from the tangent to each arm's end. Both are local units.
+    Chevron {
+        /// Arm length along the tangent, in local units.
+        length: f32,
+        /// Half-width of the opening, in local units.
+        spread: f32,
+    },
+    /// Filled triangle. The tip sits on the end point.
+    ///
+    /// `length` and `spread` are local units. A fill has no dash, so
+    /// [`Stroke::dash_markers`] does not punch holes in the triangle.
+    Triangle {
+        /// Distance from the tip back along the tangent, in local units.
+        length: f32,
+        /// Half the base width, in local units.
+        spread: f32,
+    },
+}
+
 /// Stroke decoration. Width is in local units unless [`Self::hairline`] is set.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Stroke {
@@ -50,7 +82,9 @@ pub struct Stroke {
     /// On/off lengths in local units, along the centerline. Empty means solid.
     ///
     /// An odd-length array is repeated once, matching the usual dash rule, so
-    /// the pattern always alternates on and off.
+    /// the pattern always alternates on and off. The pattern covers this
+    /// stroke's centerline only. [`Self::start_marker`] and [`Self::end_marker`]
+    /// stay solid unless [`Self::dash_markers`] is set.
     pub dash: Vec<f32>,
     /// Distance into [`Self::dash`] before the first on-segment, in local units.
     pub dash_offset: f32,
@@ -60,6 +94,15 @@ pub struct Stroke {
     /// is cached per zoom bucket, so a hairline stays about `width` pixels wide
     /// inside a bucket and is rebuilt when the bucket changes.
     pub hairline: bool,
+    /// Drawn at the start of each open subpath. [`Marker::None`] draws nothing.
+    pub start_marker: Marker,
+    /// Drawn at the end of each open subpath. [`Marker::None`] draws nothing.
+    pub end_marker: Marker,
+    /// When set, a [`Marker::Chevron`] is stroked with [`Self::dash`].
+    ///
+    /// The default is `false`: the centerline keeps the dash, and the marker
+    /// stays solid. A [`Marker::Triangle`] is a fill, so it stays solid either way.
+    pub dash_markers: bool,
 }
 
 impl Default for Stroke {
@@ -72,6 +115,9 @@ impl Default for Stroke {
             dash: Vec::new(),
             dash_offset: 0.0,
             hairline: false,
+            start_marker: Marker::None,
+            end_marker: Marker::None,
+            dash_markers: false,
         }
     }
 }
@@ -105,6 +151,26 @@ impl Stroke {
     /// Store `cap` and return the stroke.
     pub fn with_cap(mut self, cap: Cap) -> Self {
         self.cap = cap;
+        self
+    }
+
+    /// Store `marker` as [`Self::start_marker`] and return the stroke.
+    pub fn with_start_marker(mut self, marker: Marker) -> Self {
+        self.start_marker = marker;
+        self
+    }
+
+    /// Store `marker` as [`Self::end_marker`] and return the stroke.
+    pub fn with_end_marker(mut self, marker: Marker) -> Self {
+        self.end_marker = marker;
+        self
+    }
+
+    /// Store `enabled` as [`Self::dash_markers`] and return the stroke.
+    ///
+    /// `false` keeps markers solid while the centerline stays dashed.
+    pub fn with_dashed_markers(mut self, enabled: bool) -> Self {
+        self.dash_markers = enabled;
         self
     }
 

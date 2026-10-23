@@ -1,0 +1,97 @@
+{
+  "schema": "medousa-create",
+  "version": 3,
+  "background": "#e7e1d6",
+  "nodes": [
+    {
+      "id": "board",
+      "name": "Board",
+      "parent_id": null,
+      "transform": { "x": 32, "y": 28, "width": 220, "height": 160, "rotation": 0 },
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "appearance": { "corner_radius": 24, "shadow": null },
+      "content": { "kind": "frame", "name": "Board", "background": "#fffdf8" }
+    },
+    {
+      "id": "clipped",
+      "name": "Clipped",
+      "parent_id": "board",
+      "transform": { "x": 140, "y": 36, "width": 140, "height": 80, "rotation": 0 },
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "content": {
+        "kind": "shape",
+        "shape": "rectangle",
+        "fill": "#3c6e9a",
+        "stroke": "transparent",
+        "stroke_width": 0
+      }
+    },
+    {
+      "id": "inside",
+      "name": "Inside",
+      "parent_id": "board",
+      "transform": { "x": 28, "y": 40, "width": 84, "height": 84, "rotation": 0 },
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "content": {
+        "kind": "shape",
+        "shape": "ellipse",
+        "fill": "#e07a3d",
+        "stroke": "transparent",
+        "stroke_width": 0
+      }
+    },
+    {
+      "id": "group",
+      "name": "Wash",
+      "parent_id": null,
+      "transform": { "x": 290, "y": 36, "width": 180, "height": 140, "rotation": 0 },
+      "opacity": 0.45,
+      "visible": true,
+      "locked": false,
+      "content": { "kind": "group" }
+    },
+    {
+      "id": "wash",
+      "name": "Wash rect",
+      "parent_id": "group",
+      "transform": { "x": 12, "y": 18, "width": 150, "height": 96, "rotation": 8 },
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "appearance": { "corner_radius": 12, "shadow": null },
+      "content": {
+        "kind": "shape",
+        "shape": "rectangle",
+        "fill": "#f2d34a",
+        "stroke": "transparent",
+        "stroke_width": 0
+      }
+    },
+    {
+      "id": "card",
+      "name": "Shadow card",
+      "parent_id": null,
+      "transform": { "x": 36, "y": 230, "width": 170, "height": 100, "rotation": 0 },
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "appearance": {
+        "corner_radius": 14,
+        "shadow": { "x": 0, "y": 10, "blur": 8, "color": "#000000", "opacity": 0.28 }
+      },
+      "content": {
+        "kind": "shape",
+        "shape": "rectangle",
+        "fill": "#f7f4ee",
+        "stroke": "transparent",
+        "stroke_width": 0
+      }
+    }
+  ]
+}
