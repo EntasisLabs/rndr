@@ -55,40 +55,60 @@ pub struct ResolvedMods {
 pub enum AccelKey {
     /// ASCII letter, stored lowercase. The physical letter key, not the glyph.
     Letter(char),
+    /// Digit key `0` through `9`.
     Digit(u8),
     /// 1 through 24. Carbon only has codes through F20.
     Function(u8),
+    /// A named key other than a function key. Function keys use [`Self::Function`].
     Named(NamedKey),
+    /// Punctuation named by its US position. See [`Punct`].
     Punct(Punct),
 }
 
 /// A punctuation key named by its US position.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Punct {
+    /// The `-` key.
     Minus,
+    /// The `=` key.
     Equal,
+    /// The `[` key.
     BracketLeft,
+    /// The `]` key.
     BracketRight,
+    /// The backslash key.
     Backslash,
+    /// The `;` key.
     Semicolon,
+    /// The `'` key.
     Quote,
+    /// The `,` key.
     Comma,
+    /// The `.` key.
     Period,
+    /// The `/` key.
     Slash,
+    /// The grave accent key.
     Grave,
 }
 
 /// Carbon virtual key code and modifier flags for `RegisterEventHotKey`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct MacAccel {
+    /// Carbon virtual key code for the key's position.
     pub key_code: u32,
+    /// Carbon modifier bits for command, shift, option, and control.
     pub modifiers: u32,
 }
 
 /// Win32 virtual key and `MOD_*` flags. The backend adds `MOD_NOREPEAT`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct WinAccel {
+    /// Combined `MOD_ALT`, `MOD_CONTROL`, `MOD_SHIFT`, and `MOD_WIN` bits.
+    ///
+    /// `MOD_NOREPEAT` is left for the backend to add.
     pub modifiers: u32,
+    /// Win32 virtual-key code.
     pub vk: u32,
 }
 
@@ -98,21 +118,35 @@ pub struct WinAccel {
 /// Num Lock, and Mod5, so a lock state does not hide the chord.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct X11Accel {
+    /// Keysym of the key, with no modifiers mixed in.
     pub keysym: u32,
+    /// Modifier mask of the chord, with the lock bits clear.
     pub modifiers: u32,
+    /// Eight masks: `modifiers` combined with every subset of Caps Lock,
+    /// Num Lock, and Mod5, so a lock state still matches the grab.
     pub grab_masks: [u32; 8],
 }
 
 /// One binding, encoded for every backend that can express it.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PlatformAccel {
+    /// Shift from the binding. Resolving `primary` leaves this flag alone.
     pub shift: bool,
+    /// Ctrl after `primary` is resolved. On macOS `primary` contributes to
+    /// [`Self::super_key`]. Elsewhere `primary` contributes to this flag.
+    /// An explicit Ctrl on the binding sets it on every platform.
     pub ctrl: bool,
+    /// Alt, which is Option on macOS.
     pub alt: bool,
+    /// Command, the Windows key, or Super, after `primary` is resolved.
     pub super_key: bool,
+    /// Key identity shared by the encodings below.
     pub key: AccelKey,
+    /// Carbon encoding. `None` when Carbon has no virtual key for [`Self::key`].
     pub macos: Option<MacAccel>,
+    /// Win32 encoding. `None` when Win32 has no virtual key for [`Self::key`].
     pub windows: Option<WinAccel>,
+    /// X11 encoding. `None` when there is no keysym for [`Self::key`].
     pub x11: Option<X11Accel>,
     /// XDG shortcuts trigger, for example `ALT+space` or `CTRL+SHIFT+k`.
     pub wayland_trigger: Option<String>,

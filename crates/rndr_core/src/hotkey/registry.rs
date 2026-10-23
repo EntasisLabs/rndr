@@ -38,7 +38,19 @@ pub enum HotkeyEdge {
 /// real backend pushes those from the thread the OS woke and does not touch
 /// the world.
 pub trait HotkeyBackend: Send {
+    /// Grab `accel` under `id`.
+    ///
+    /// The registry calls this once per operating-system registration. A
+    /// second handle for the same resolved chord does not call it again.
+    /// Return [`HotkeyFailure::Taken`] when another client owns the chord,
+    /// [`HotkeyFailure::Unsupported`] when this session cannot bind, and
+    /// [`HotkeyFailure::Invalid`] when `accel` has no encoding here.
     fn register(&mut self, id: HotkeyId, accel: &PlatformAccel) -> Result<(), HotkeyFailure>;
+    /// Release the operating-system grab for `id`.
+    ///
+    /// Called when the last [`HotkeyHandle`] for `id` is dropped or passed to
+    /// [`HotkeyHandle::unregister`]. Earlier drops only decrement the owner
+    /// count.
     fn unregister(&mut self, id: HotkeyId);
     /// Presses queued since the last call.
     ///
@@ -78,6 +90,10 @@ impl HotkeyBackend for Box<dyn HotkeyBackend> {
 pub struct HotkeyId(u32);
 
 impl HotkeyId {
+    /// The raw id passed to [`HotkeyBackend::register`].
+    ///
+    /// The registry starts at 1 and does not issue 0. [`Self::from_raw`]
+    /// will still rebuild a 0 when a caller passes one.
     pub fn get(self) -> u32 {
         self.0
     }
@@ -97,7 +113,10 @@ impl std::fmt::Display for HotkeyId {
 /// A system-wide chord was pressed. Readable on the frame that wakes for it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct GlobalHotkey {
+    /// Grab id. Every handle for this resolved chord shares it.
     pub id: HotkeyId,
+    /// Chord that was registered. `primary` is still set when the binding
+    /// used it. The platform fold lives on [`PlatformAccel`].
     pub binding: HotkeyBinding,
 }
 
@@ -124,6 +143,7 @@ impl std::fmt::Debug for HotkeyHandle {
 }
 
 impl HotkeyHandle {
+    /// Id shared by every handle for this resolved chord.
     pub fn id(&self) -> HotkeyId {
         self.id
     }
