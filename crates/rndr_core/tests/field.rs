@@ -1,7 +1,7 @@
 use rndr_core::{
-    events, App, Axis, CapturesKeys, Caret, Chrome, Color, Focus, Focusable, Input, Key, KeyEvent,
-    Label, Layout, Modifiers, NamedKey, Rect, Schedule, Shell, Size, Submitted, TextChanged,
-    TextField, Viewport, World, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
+    events, App, Axis, CapturesKeys, Caret, Chrome, Clipboard, Color, Focus, Focusable, Input, Key,
+    KeyEvent, Label, Layout, Modifiers, NamedKey, Platform, Rect, Schedule, Shell, Size, Submitted,
+    TextChanged, TextField, Viewport, World, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
 
 fn field_layout() -> Layout {
@@ -57,6 +57,64 @@ fn type_and_backspace_edit_the_label() {
     app.update();
     assert_eq!(app.world().get::<Label>(entity).unwrap().text, "hello");
     assert_eq!(app.world().get::<Caret>(entity).unwrap().index, 5);
+}
+
+#[test]
+fn keyboard_selection_sets_the_primary() {
+    let (mut app, entity) = boot();
+    focus(&mut app, entity);
+    app.world_mut().insert_resource(Platform::X11);
+    app.world_mut()
+        .resource_mut::<Input>()
+        .unwrap()
+        .keys
+        .push(KeyEvent::named(NamedKey::ArrowLeft, shift_mod()));
+    app.update();
+    let clipboard = app.world().resource::<Clipboard>().unwrap();
+    assert_eq!(clipboard.primary, "o");
+    assert!(clipboard.primary_dirty);
+
+    app.world_mut()
+        .resource_mut::<Clipboard>()
+        .unwrap()
+        .primary_dirty = false;
+    let mut mods = Modifiers::new();
+    mods.ctrl = true;
+    app.world_mut()
+        .resource_mut::<Input>()
+        .unwrap()
+        .keys
+        .push(KeyEvent::character('a', mods));
+    app.update();
+    let clipboard = app.world().resource::<Clipboard>().unwrap();
+    assert_eq!(clipboard.primary, "hello");
+    assert!(clipboard.primary_dirty);
+
+    app.world_mut().insert_resource(Platform::Windows);
+    app.world_mut()
+        .resource_mut::<Clipboard>()
+        .unwrap()
+        .primary
+        .clear();
+    app.world_mut()
+        .resource_mut::<Clipboard>()
+        .unwrap()
+        .primary_dirty = false;
+    app.world_mut()
+        .resource_mut::<Input>()
+        .unwrap()
+        .keys
+        .push(KeyEvent::character('a', mods));
+    app.update();
+    let clipboard = app.world().resource::<Clipboard>().unwrap();
+    assert!(clipboard.primary.is_empty());
+    assert!(!clipboard.primary_dirty);
+}
+
+fn shift_mod() -> Modifiers {
+    let mut modifiers = Modifiers::new();
+    modifiers.shift = true;
+    modifiers
 }
 
 #[test]

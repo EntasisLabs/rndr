@@ -47,7 +47,7 @@ use std::time::Instant;
 #[cfg(feature = "parley")]
 use rndr_core::TextEngine;
 use rndr_core::{
-    ensure_text_engine, legacy_key, text_engine, App, Caret, Clipboard, Focus, Input,
+    ensure_text_engine, legacy_key, text_engine, App, Caret, Clipboard, CursorStyle, Focus, Input,
     KeyCode as Physical, KeyEvent, LogicalKey, Modifiers, MotionWatch, NamedKey as CoreNamed,
     Platform, Pointer, PointerButton, Rect, TextLayout, Viewport, Wake, WindowConfig, WindowEffect,
     WindowKind, MOUSE_ID, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
@@ -58,7 +58,7 @@ use winit::event::{ElementState, Ime, MouseButton, MouseScrollDelta, StartCause,
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy};
 use winit::keyboard::{Key, KeyCode, NamedKey, PhysicalKey};
 use winit::platform::modifier_supplement::KeyEventExtModifierSupplement;
-use winit::window::WindowId;
+use winit::window::{CursorIcon, WindowId};
 
 use gpu::Gpu;
 #[cfg(feature = "parley")]
@@ -213,6 +213,7 @@ pub fn run(mut app: App) {
         key_order: 0,
         press_px: None,
         os_clipboard: clipboard::OsClipboard::new(),
+        show_after_present: false,
         #[cfg(feature = "tray")]
         tray: tray::Session::new(),
     };
@@ -274,6 +275,9 @@ struct Handler {
     /// Cursor in physical pixels at the button-down this frame.
     press_px: Option<[f32; 2]>,
     os_clipboard: clipboard::OsClipboard,
+    /// The window was created hidden so the first present is the first frame
+    /// the user sees. Cleared after [`Handler::reveal_window`].
+    show_after_present: bool,
     #[cfg(feature = "tray")]
     tray: tray::Session,
 }
@@ -392,8 +396,37 @@ impl Handler {
                 .as_mut()
                 .expect("surface")
                 .present(&painted.quads, width, height, scale);
+        self.apply_cursor();
+        self.reveal_window();
         self.place_ime_cursor();
         presented
+    }
+
+    fn apply_cursor(&self) {
+        let Some(gpu) = self.gpu.as_ref() else {
+            return;
+        };
+        let style = self
+            .app
+            .world()
+            .resource::<CursorStyle>()
+            .copied()
+            .unwrap_or_default();
+        let icon = match style {
+            CursorStyle::Hand => CursorIcon::Pointer,
+            CursorStyle::Arrow => CursorIcon::Default,
+        };
+        gpu.window().set_cursor(icon);
+    }
+
+    fn reveal_window(&mut self) {
+        if !self.show_after_present {
+            return;
+        }
+        self.show_after_present = false;
+        if let Some(gpu) = self.gpu.as_ref() {
+            gpu.window().set_visible(true);
+        }
     }
 
     fn upload_atlases(&mut self) {
@@ -839,8 +872,15 @@ impl ApplicationHandler<RunnerEvent> for Handler {
             return;
         }
         let mut attrs = platform::attributes(&self.config);
-        if !rndr_core::window::is_visible(self.app.world()) {
+        let show = rndr_core::window::is_visible(self.app.world());
+        if !show {
             attrs = attrs.with_visible(false);
+        } else {
+            // GPU init blocks for a frame. Keep the window unmapped until the
+            // first present so X11 does not show an unpainted black frame.
+            // Wayland ignores set_visible; the compositor may still show it.
+            attrs = attrs.with_visible(false);
+            self.show_after_present = true;
         }
         let window = Arc::new(event_loop.create_window(attrs).expect("window"));
         platform::finish_create(&window, event_loop, &self.config);

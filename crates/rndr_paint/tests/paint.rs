@@ -113,6 +113,8 @@ fn two_spans_paint_two_colors() {
                     weight: None,
                     highlight: None,
                     italic: false,
+                    family: None,
+                    underline: false,
                 },
                 TextSpan {
                     start: 1,
@@ -122,6 +124,8 @@ fn two_spans_paint_two_colors() {
                     weight: None,
                     highlight: None,
                     italic: false,
+                    family: None,
+                    underline: false,
                 },
             ],
         },

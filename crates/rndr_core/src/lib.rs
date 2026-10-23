@@ -114,7 +114,7 @@ pub use app::{App, Plugin, Schedule, System};
 pub use button::Button;
 pub use caret::{
     apply_caret, caret_line_col, selection_spans, set_editing, set_editing_field, Caret, EditField,
-    Editing, Field,
+    Editing, Field, TextSelection,
 };
 pub use chrome::Chrome;
 pub use clipboard::Clipboard;
@@ -148,7 +148,7 @@ pub use hotkey::{
     HotkeyRejected,
 };
 pub use input::{
-    Focus, Input, Insets, Key, MotionWatch, Pointer, PointerButton, Viewport, MOUSE_ID,
+    CursorStyle, Focus, Input, Insets, Key, MotionWatch, Pointer, PointerButton, Viewport, MOUSE_ID,
 };
 pub use keymap::{
     apply_keymap, context_path, context_stack, Clock, Context, Dispatch, KeyBinding, Keymap,

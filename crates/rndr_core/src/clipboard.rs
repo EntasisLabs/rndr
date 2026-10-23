@@ -69,9 +69,11 @@ use crate::world::World;
 /// value to the OS clipboard (and, on X11 and Wayland, a dirty primary
 /// selection) and fills the fields from the OS at the start of the next frame.
 ///
-/// A text field or prompt on X11 or Wayland writes [`Self::primary`] when a
-/// mouse selection is released. Middle-click in that field pastes
-/// [`Self::primary`] when it is not empty, and [`Self::text`] otherwise.
+/// A text field, prompt, or markdown view on X11 or Wayland writes
+/// [`Self::primary`] when a mouse selection is released. A text field or
+/// prompt also writes it when the keyboard changes the selection. Middle-click
+/// in a field pastes [`Self::primary`] when it is not empty, and [`Self::text`]
+/// otherwise.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Clipboard {
     /// Last string written by a copy or cut. Explicit paste reads it.

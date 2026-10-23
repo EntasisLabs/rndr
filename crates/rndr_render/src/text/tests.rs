@@ -246,6 +246,67 @@ fn paint_label(text: &str) -> String {
 }
 
 #[test]
+fn hard_break_left_edge_stays_on_that_line() {
+    let engine = bundled();
+    let text = "line 5\nline 6";
+    let layout = engine.layout(text, &inter(16.0), &[], 400.0);
+    assert!(layout.lines.len() >= 2, "lines {}", layout.lines.len());
+    for line in &layout.lines {
+        if line.start == line.end {
+            continue;
+        }
+        let y = line.y + 1.0;
+        assert_eq!(
+            layout.index_at(-8.0, y),
+            line.start,
+            "edges {:?}",
+            line.edges
+        );
+        assert_eq!(
+            layout.index_at(0.0, y),
+            line.start,
+            "edges {:?}",
+            line.edges
+        );
+        let next = layout
+            .lines
+            .iter()
+            .find(|other| other.start > line.start)
+            .map(|other| other.start);
+        for &(index, x) in &line.edges {
+            if next == Some(index) {
+                assert!(
+                    x > line.width * 0.5,
+                    "next line's byte {index} aliased to x={x} on {:?}",
+                    line.edges
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn wrapped_line_start_stays_on_that_line() {
+    let engine = bundled();
+    let text = "alpha beta gamma delta epsilon zeta eta theta iota kappa";
+    let layout = engine.layout(text, &inter(16.0), &[], 80.0);
+    assert!(layout.lines.len() >= 2, "lines {}", layout.lines.len());
+    let first = &layout.lines[0];
+    let second = &layout.lines[1];
+    assert_eq!(layout.index_at(-2.0, first.y + 1.0), first.start);
+    assert_eq!(layout.index_at(0.0, first.y + 1.0), first.start);
+    assert_eq!(layout.index_at(0.0, second.y + 1.0), second.start);
+    let boxes = layout.selection_boxes(first.start, first.end);
+    assert!(!boxes.is_empty());
+    assert!(
+        boxes.iter().all(|span| span.w <= first.width + 1.0),
+        "selection {:?} wider than line {}",
+        boxes,
+        first.width
+    );
+}
+
+#[test]
 fn engine_in_the_world_is_the_one_paint_uses() {
     let mut app = App::new();
     let engine: Arc<dyn TextEngine> = Arc::new(bundled());

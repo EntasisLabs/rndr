@@ -1,9 +1,9 @@
 //! Scroll pin, link clicks, copy, and stable block entities.
 
 use rndr_core::{
-    children_of, events, platform_of, App, Caret, Clipboard, Entity, Input, KeyEvent, Label,
-    LinkActivated, MarkdownPlugin, MarkdownView, Modifiers, PointerButton, TextLayout, Viewport,
-    World, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
+    children_of, events, platform_of, App, Clipboard, Entity, Input, KeyEvent, Label,
+    LinkActivated, MarkdownPlugin, MarkdownView, Modifiers, Platform, PointerButton, Rect,
+    TextLayout, TextSelection, Viewport, World, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
 
 fn boot(source: &str, width: f32, height: f32) -> (App, Entity) {
@@ -126,9 +126,116 @@ fn select_all_and_copy_write_the_clipboard() {
         .get::<MarkdownView>(view)
         .unwrap()
         .selected_text();
-    assert_eq!(selected, "Alpha\nBeta");
-    assert_eq!(app.world().resource::<Clipboard>().unwrap().text, selected);
-    assert!(!app.world().entities_with::<Caret>().is_empty());
+    assert_eq!(selected, "Alpha\n\nBeta");
+    let clipboard = app.world().resource::<Clipboard>().unwrap();
+    assert_eq!(clipboard.text, selected);
+    if matches!(platform, Platform::X11 | Platform::Wayland) {
+        assert_eq!(clipboard.primary, selected);
+    }
+    assert!(app.world().entities_with::<TextSelection>().len() >= 2);
+    assert!(app.world().entities_with::<rndr_core::Caret>().is_empty());
+}
+
+#[test]
+fn block_height_tracks_the_width_in_the_same_update() {
+    let text = "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu";
+    let (mut app, view) = boot(text, 420.0, 320.0);
+    let wide = block_height(app.world(), view);
+    app.world_mut().insert_resource(Viewport::new(160.0, 320.0));
+    app.update();
+    let narrow = block_height(app.world(), view);
+    assert!(
+        narrow > wide + 8.0,
+        "narrow {narrow} should grow past wide {wide}"
+    );
+    app.world_mut().insert_resource(Viewport::new(420.0, 320.0));
+    app.update();
+    let again = block_height(app.world(), view);
+    assert!(
+        (again - wide).abs() < 1.0,
+        "restored {again} should match the first width {wide}"
+    );
+}
+
+#[test]
+fn press_in_the_left_padding_anchors_the_first_line() {
+    let text = "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda";
+    let (mut app, view) = boot(text, 160.0, 280.0);
+    let label = block_label(app.world(), view, 0);
+    let rect = *app.world().get::<Rect>(label).unwrap();
+    let layout = app.world().get::<TextLayout>(label).unwrap().clone();
+    assert!(layout.lines.len() >= 2, "lines {}", layout.lines.len());
+    let y = rect.y + TEXT_ORIGIN_Y + layout.lines[0].y + 1.0;
+    let head = layout.lines[0].end.clamp(1, 5);
+    let (x_head, _) = layout.caret_xy(head);
+    point(&mut app, rect.x + 2.0, y, true, false, true);
+    app.update();
+    point(
+        &mut app,
+        rect.x + TEXT_ORIGIN_X + x_head,
+        y,
+        false,
+        false,
+        true,
+    );
+    app.update();
+    point(
+        &mut app,
+        rect.x + TEXT_ORIGIN_X + x_head,
+        y,
+        false,
+        true,
+        false,
+    );
+    app.update();
+    let selected = app
+        .world()
+        .get::<MarkdownView>(view)
+        .unwrap()
+        .selected_text();
+    assert!(
+        selected.starts_with("alpha"),
+        "copied {selected:?} dropped the first line"
+    );
+    let selection = app.world().get::<TextSelection>(label).unwrap();
+    assert_eq!(selection.anchor.min(selection.head), 0);
+    if matches!(platform_of(app.world()), Platform::X11 | Platform::Wayland) {
+        assert_eq!(
+            app.world().resource::<Clipboard>().unwrap().primary,
+            selected
+        );
+    }
+}
+
+#[test]
+fn select_all_copies_markdown_structure() {
+    let source = "# Title\n\nHello.\n\n- a\n  - b\n\n> quote\n\n---\n\n```\nlet x = 1;\n```\n";
+    let (mut app, view) = boot(source, 420.0, 640.0);
+    let rect = *app.world().get::<Rect>(view).unwrap();
+    point(&mut app, rect.x + 4.0, rect.y + 4.0, true, false, true);
+    app.update();
+    point(&mut app, rect.x + 4.0, rect.y + 4.0, false, true, false);
+    app.update();
+    let platform = platform_of(app.world());
+    let mut mods = Modifiers::new();
+    if platform.primary_is_super() {
+        mods.super_key = true;
+    } else {
+        mods.ctrl = true;
+    }
+    {
+        let input = app.world_mut().resource_mut::<Input>().unwrap();
+        input.keys.clear();
+        input.key = None;
+        input.push_key(KeyEvent::character('a', mods), platform);
+        input.push_key(KeyEvent::character('c', mods), platform);
+    }
+    app.update();
+    let copied = app.world().resource::<Clipboard>().unwrap().text.clone();
+    assert_eq!(
+        copied,
+        "# Title\n\nHello.\n\n- a\n  - b\n\n> quote\n\n---\n\n```\nlet x = 1;\n```"
+    );
 }
 
 #[test]
@@ -169,13 +276,27 @@ fn point(app: &mut App, x: f32, y: f32, pressed: bool, released: bool, down: boo
     input.scroll = [0.0, 0.0];
 }
 
+fn block_height(world: &World, view: Entity) -> f32 {
+    world.get::<Rect>(block_label(world, view, 0)).unwrap().h
+}
+
 fn block_label(world: &World, view: Entity, index: usize) -> Entity {
+    let text = world.get::<MarkdownView>(view).unwrap().blocks()[index]
+        .text
+        .clone();
     let root = children_of(world, view)[index];
-    if world.has::<Label>(root) {
+    if world
+        .get::<Label>(root)
+        .is_some_and(|label| label.text == text)
+    {
         return root;
     }
     children_of(world, root)
         .into_iter()
-        .find(|child| world.has::<Label>(*child))
+        .find(|child| {
+            world
+                .get::<Label>(*child)
+                .is_some_and(|label| label.text == text)
+        })
         .expect("block label")
 }

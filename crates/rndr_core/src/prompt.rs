@@ -8,6 +8,9 @@
 //! A keymap binding for the same key is taken before the prompt sees it. Drop
 //! list navigation while the prompt is the editor if Up, Down, Home, End, and
 //! Enter should edit instead of moving a list.
+//!
+//! On X11 and Wayland, releasing a mouse selection writes the primary
+//! selection, and so does a keyboard selection.
 
 use crate::caret::Caret;
 use crate::clipboard::{note_clipboard, note_primary, primary_selection, Clipboard};
@@ -380,6 +383,7 @@ fn edit_text(world: &mut World, entity: Entity) {
         .get::<Caret>(entity)
         .map(|caret| (caret.index.min(text.len()), caret.anchor.min(text.len())))
         .unwrap_or((text.len(), text.len()));
+    let (before_index, before_anchor) = (index, anchor);
     let mut history = world.remove::<EditHistory>(entity).unwrap_or_default();
     let mut recalls = world.remove::<PromptHistory>(entity).unwrap_or_default();
     if let Some(paste) = field::middle_paste_text(world, entity) {
@@ -544,6 +548,7 @@ fn edit_text(world: &mut World, entity: Entity) {
         caret.index = index;
         caret.anchor = anchor;
     }
+    field::publish_keyboard_primary(world, entity, before_index, before_anchor);
     world.insert(entity, history);
     world.insert(entity, recalls);
     if clipboard_action {

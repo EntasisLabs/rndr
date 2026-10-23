@@ -49,6 +49,19 @@ fn shape_once(
 ) -> Shaped {
     let scale = state.scale;
     let css = state.family_css(&style.family);
+    let family_runs: Vec<(usize, usize, String)> = runs
+        .iter()
+        .filter_map(|run| {
+            let end = run.end.min(text.len());
+            let start = run.start.min(end);
+            if start >= end {
+                return None;
+            }
+            run.family
+                .as_ref()
+                .map(|family| (start, end, state.family_css(family)))
+        })
+        .collect();
     let mut builder = state
         .layout_cx
         .ranged_builder(&mut state.font_cx, text, scale, false);
@@ -82,6 +95,12 @@ fn shape_once(
             );
         }
     }
+    for (start, end, family) in family_runs {
+        builder.push(
+            StyleProperty::FontFamily(FontFamily::Source(std::borrow::Cow::Owned(family))),
+            start..end,
+        );
+    }
     let mut parley_layout = builder.build(text);
     let max_px = if max_width.is_finite() && max_width > 0.0 {
         Some(max_width * scale)
@@ -111,10 +130,29 @@ fn shape_once(
         indexes.sort_unstable();
         indexes.dedup();
         let mut edges = Vec::with_capacity(indexes.len());
+        let line_top = f64::from(metrics.block_min_coord);
+        let line_bottom = line_top + f64::from(metrics.line_height.max(0.0));
         for index in indexes {
-            let cursor = Cursor::from_byte_index(&parley_layout, index, Affinity::Downstream);
+            // Downstream at a soft-wrap boundary sits at x=0 on the next
+            // line. Upstream keeps that boundary on this line's end.
+            // A hard break ignores affinity and still draws the following
+            // byte on the next line; that stop is omitted here so a click
+            // in this line's left padding cannot select the next line.
+            let affinity = if index == range.end && index != range.start {
+                Affinity::Upstream
+            } else {
+                Affinity::Downstream
+            };
+            let cursor = Cursor::from_byte_index(&parley_layout, index, affinity);
             let caret = cursor.geometry(&parley_layout, 1.0);
+            let mid = (caret.y0 + caret.y1) * 0.5;
+            if mid < line_top - 0.5 || mid >= line_bottom - 0.5 {
+                continue;
+            }
             edges.push((index, (caret.x0 as f32) / scale));
+        }
+        if edges.is_empty() {
+            edges.push((range.start, 0.0));
         }
         for item in line.items() {
             let PositionedLayoutItem::GlyphRun(glyph_run) = item else {

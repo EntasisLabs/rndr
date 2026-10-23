@@ -53,6 +53,19 @@ pub struct MotionWatch {
     pub active: bool,
 }
 
+/// Pointer shape the desktop runner applies to the window.
+///
+/// Absent from the world, the runner draws the platform arrow. A widget
+/// that tracks hover writes this every Input frame.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum CursorStyle {
+    /// The platform arrow.
+    #[default]
+    Arrow,
+    /// A pointing hand, for a link under the pointer.
+    Hand,
+}
+
 impl Default for Pointer {
     fn default() -> Self {
         Self {
