@@ -64,14 +64,20 @@ fn shape_once(
         FontStyle::Normal => parley::FontStyle::Normal,
     }));
     for run in runs {
-        let Some(weight) = run.weight else {
-            continue;
-        };
         let end = run.end.min(text.len());
         let start = run.start.min(end);
-        if start < end {
+        if start >= end {
+            continue;
+        }
+        if let Some(weight) = run.weight {
             builder.push(
                 StyleProperty::FontWeight(parley::FontWeight::new(weight as f32)),
+                start..end,
+            );
+        }
+        if run.italic {
+            builder.push(
+                StyleProperty::FontStyle(parley::FontStyle::Italic),
                 start..end,
             );
         }

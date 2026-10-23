@@ -4,7 +4,7 @@ use crate::hierarchy::{children_of, roots, Parent};
 use crate::input::{Input, Viewport};
 use crate::split::Splitter;
 use crate::style::{Label, TextOverflow, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
-use crate::text::{style_of, text_engine};
+use crate::text::{style_for, text_engine};
 use crate::world::{Component, World};
 
 impl Component for Layout {}
@@ -640,7 +640,7 @@ fn label_hug_width(
         return None;
     }
     world.get::<Label>(entity)?;
-    let style = style_of(world);
+    let style = style_for(world, entity);
     let engine = text_engine(world);
     let max_width = if field_w.is_finite() {
         field_text_width(field_w, engine.unit_advance(&style))
@@ -659,7 +659,7 @@ fn label_hug_width(
 
 fn hug_lines(world: &World, entity: Entity, max_width: f32) -> Option<(usize, f32)> {
     if world.get::<Label>(entity)?.overflow == TextOverflow::Ellipsis {
-        let style = style_of(world);
+        let style = style_for(world, entity);
         let engine = text_engine(world);
         let mut text = world.get::<Label>(entity)?.text.clone();
         if text.contains('\n') {
@@ -719,7 +719,7 @@ fn hug_lines(world: &World, entity: Entity, max_width: f32) -> Option<(usize, f3
         .get::<crate::font::Spans>(entity)
         .map(|spans| spans.runs.clone())
         .unwrap_or_default();
-    let style = style_of(world);
+    let style = style_for(world, entity);
     let measured = text_engine(world).measure(&text, &style, &spans, max_width);
     Some((measured.line_count.max(1), measured.width))
 }

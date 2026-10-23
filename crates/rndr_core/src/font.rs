@@ -33,6 +33,9 @@ pub struct TextSpan {
     pub weight: Option<u16>,
     /// Background behind this range. `None` draws no bar.
     pub highlight: Option<Color>,
+    /// Italic cut for this range. The bitmap face has no italic outlines, so
+    /// those glyphs stay upright. A shaper that has an italic cut uses it.
+    pub italic: bool,
 }
 
 impl TextSpan {
@@ -45,12 +48,19 @@ impl TextSpan {
             face: 0,
             weight: None,
             highlight: None,
+            italic: false,
         }
     }
 
     /// Store `weight` as [`Self::weight`] and return the span.
     pub fn weight(mut self, weight: u16) -> Self {
         self.weight = Some(weight);
+        self
+    }
+
+    /// Set [`Self::italic`] and return the span.
+    pub fn italic(mut self) -> Self {
+        self.italic = true;
         self
     }
 
@@ -540,6 +550,7 @@ pub(crate) fn layout_cache_key(
         span.color.a.to_bits().hash(&mut hasher);
         span.face.hash(&mut hasher);
         span.weight.hash(&mut hasher);
+        span.italic.hash(&mut hasher);
         match span.highlight {
             Some(color) => {
                 1u8.hash(&mut hasher);
@@ -739,12 +750,12 @@ pub fn field_text_width(field_width: f32, unit: f32) -> f32 {
 /// A label whose text, wrap width, spans, face, and IME preview are unchanged
 /// keeps the layout it already has.
 pub fn apply_text_layout(world: &mut World) {
-    let style = crate::text::style_of(world);
     let engine = crate::text::text_engine(world);
     let font = text_face(world);
-    let unit = engine.unit_advance(&style);
     let labels = world.entities_with::<Label>();
     for entity in labels {
+        let style = crate::text::style_for(world, entity);
+        let unit = engine.unit_advance(&style);
         let wrap = world
             .get::<Field>(entity)
             .is_some_and(|field| field.kind == EditField::Body);
@@ -804,6 +815,7 @@ pub fn apply_text_layout(world: &mut World) {
             .get::<crate::field::ImePreview>(entity)
             .and_then(|preview| preview.cursor);
         let mut key = layout_cache_key(font.as_ref(), &source, max_width, &spans, &preview, at);
+        key ^= crate::text::style_key(&style);
         key ^= overflow_bits(overflow);
         if !preview.is_empty() {
             if let Some((start, end)) = cursor {

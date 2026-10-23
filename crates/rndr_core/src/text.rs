@@ -24,11 +24,14 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
+use crate::entity::Entity;
 use crate::font::{
     layout_text_weighted, shared_bitmap, text_face, wrap_ranges, ColorAtlas, Font, FontAtlas,
     TextLayout, TextMeasure, TextSpan,
 };
-use crate::world::World;
+use crate::world::{Component, World};
+
+impl Component for TextStyle {}
 
 /// Regular and bold weights. A run can override these per range.
 /// This value is 400.
@@ -49,6 +52,10 @@ pub enum FontStyle {
 
 /// What to shape a run with. Theme colors are applied at paint time; this is
 /// the font request.
+///
+/// On a label, this replaces [`style_of`] for that entity's measurement and
+/// shaping. Headings and code blocks store one. A label without it uses the
+/// world's face.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextStyle {
     /// Family name passed to the engine. The default is `"bitmap"`.
@@ -89,6 +96,25 @@ impl TextStyle {
 /// Style of the world's [`crate::TextFace`], or the bitmap face when none is set.
 pub fn style_of(world: &World) -> TextStyle {
     TextStyle::from_face(text_face(world).as_ref())
+}
+
+/// [`TextStyle`] stored on `entity`, or [`style_of`] when it has none.
+pub fn style_for(world: &World, entity: Entity) -> TextStyle {
+    world
+        .get::<TextStyle>(entity)
+        .cloned()
+        .unwrap_or_else(|| style_of(world))
+}
+
+pub(crate) fn style_key(style: &TextStyle) -> u64 {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut hasher = DefaultHasher::new();
+    style.family.hash(&mut hasher);
+    style.size.to_bits().hash(&mut hasher);
+    style.weight.hash(&mut hasher);
+    (style.style == FontStyle::Italic).hash(&mut hasher);
+    hasher.finish()
 }
 
 /// Shape and hit-test text. Insert an `Arc<dyn TextEngine>` to replace the
@@ -230,6 +256,7 @@ struct RunKey {
     rgba: [u32; 4],
     weight: Option<u16>,
     face: u8,
+    italic: bool,
     highlight: Option<[u32; 4]>,
 }
 
@@ -548,6 +575,7 @@ fn line_key(text: &str, style: &TextStyle, max_width: f32, runs: &[TextSpan]) ->
                 ],
                 weight: run.weight,
                 face: run.face,
+                italic: run.italic,
                 highlight: run.highlight.map(|color| {
                     [
                         color.r.to_bits(),
@@ -576,6 +604,7 @@ fn clip_runs(runs: &[TextSpan], start: usize, end: usize) -> Vec<TextSpan> {
             face: run.face,
             weight: run.weight,
             highlight: run.highlight,
+            italic: run.italic,
         });
     }
     clipped
