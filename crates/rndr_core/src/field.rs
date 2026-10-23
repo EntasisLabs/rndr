@@ -39,8 +39,9 @@ pub struct ImePreview {
 /// label from PostUpdate is not required.
 ///
 /// On X11 and Wayland, releasing the mouse over a selection writes
-/// [`crate::Clipboard::primary`]. Middle-click pastes that selection, or the
-/// clipboard when the selection is empty.
+/// [`crate::Clipboard::primary`], and so does a keyboard selection
+/// (Primary+A, Shift+arrows, and the other selection motions). Middle-click
+/// pastes that selection, or the clipboard when the selection is empty.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct TextField;
 
@@ -213,6 +214,30 @@ pub(crate) fn middle_paste_text(world: &World, entity: Entity) -> Option<String>
     }
 }
 
+/// Publish the field's selection when a key this frame changed the range.
+///
+/// Mouse release has its own write. An empty range leaves the primary
+/// selection untouched, matching [`note_primary`].
+pub(crate) fn publish_keyboard_primary(
+    world: &mut World,
+    entity: Entity,
+    before_index: usize,
+    before_anchor: usize,
+) {
+    if !primary_selection(platform_of(world)) {
+        return;
+    }
+    let (index, anchor) = world
+        .get::<Caret>(entity)
+        .map(|caret| (caret.index, caret.anchor))
+        .unwrap_or((before_index, before_anchor));
+    if index == before_index && anchor == before_anchor {
+        return;
+    }
+    let selected = label_selection(world, entity);
+    note_primary(world, &selected);
+}
+
 pub(crate) fn label_selection(world: &World, entity: Entity) -> String {
     let text = world
         .get::<Label>(entity)
@@ -354,11 +379,19 @@ fn edit_label_legacy(
         .get::<Label>(entity)
         .map(|label| label.text.clone())
         .unwrap_or_default();
-    let (index, anchor) = world
+    let (before_index, before_anchor) = world
         .get::<Caret>(entity)
         .map(|caret| (caret.index, caret.anchor))
         .unwrap_or((text.len(), text.len()));
-    let (index, anchor) = edit_string(&mut text, index, anchor, key, shift, &typed, false);
+    let (index, anchor) = edit_string(
+        &mut text,
+        before_index,
+        before_anchor,
+        key,
+        shift,
+        &typed,
+        false,
+    );
     if let Some(label) = world.get_mut::<Label>(entity) {
         label.text = text;
     }
@@ -366,6 +399,7 @@ fn edit_label_legacy(
         caret.index = index;
         caret.anchor = anchor;
     }
+    publish_keyboard_primary(world, entity, before_index, before_anchor);
     if let Some(input) = world.resource_mut::<Input>() {
         input.chars.clear();
         input.ime_commit.clear();
@@ -390,6 +424,7 @@ fn edit_label_queue(
         .get::<Caret>(entity)
         .map(|caret| (caret.index, caret.anchor))
         .unwrap_or((text.len(), text.len()));
+    let (before_index, before_anchor) = (index, anchor);
     let mut history = world.remove::<EditHistory>(entity).unwrap_or_default();
     let mut clip = world
         .resource::<Clipboard>()
@@ -450,6 +485,7 @@ fn edit_label_queue(
         caret.index = index;
         caret.anchor = anchor;
     }
+    publish_keyboard_primary(world, entity, before_index, before_anchor);
     world.insert(entity, history);
     if clipboard_action {
         note_clipboard(world, copied.as_deref());

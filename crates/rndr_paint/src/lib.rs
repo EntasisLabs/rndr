@@ -48,8 +48,8 @@ pub use snapshot::quads_snapshot;
 use rndr_core::{
     children_of, field_text_width, layered_roots, style_for, style_of, text_engine, theme_of, App,
     Caret, Clip, Color, DirtyMark, EditField, Field, Focus, Label, MonoCache, MonoCursorShape,
-    MonoGrid, Parent, Radius, Rect, TextLayout, Theme, Viewport, World, CELL_H, TEXT_ORIGIN_X,
-    TEXT_ORIGIN_Y,
+    MonoGrid, Parent, Radius, Rect, Spans, TextLayout, TextSelection, Theme, Viewport, World,
+    CELL_H, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
 
 /// One instanced quad in logical points.
@@ -143,15 +143,19 @@ fn surface_slots(world: &World) -> Vec<SurfaceRect> {
 ///
 /// The fill moves 25% of the way toward white when the entity is
 /// focused, is a direct child of the focused entity, or has a
-/// [`rndr_core::Caret`]. Alpha stays as authored. After the fill the
-/// order is the dirty mark, the selection, highlight bars, the IME
-/// underline, glyphs, decoration marks, and the caret. Glyphs keep the
-/// layout UV and [`Quad::atlas`]. Other quads use the text engine's
-/// solid UV and atlas `0`. Find marks use [`rndr_core::Theme::selection`].
-/// A diagnostic mark uses sRGB `(0.86, 0.28, 0.24)`. The dirty mark is
-/// a 6-point circle in [`rndr_core::Theme::dirty`]. The caret is 2
-/// points wide and uses [`rndr_core::Theme::caret`]. The IME underline
-/// is at most 2 points tall, in that same caret color.
+/// [`rndr_core::Caret`]. A [`rndr_core::TextSelection`] does not lighten
+/// the fill. Alpha stays as authored. After the fill the order is the
+/// dirty mark, a caret selection, highlight bars, a text selection, the
+/// IME underline, link underlines, glyphs, decoration marks, and the
+/// caret. Glyphs keep the layout UV and [`Quad::atlas`]. Other quads use
+/// the text engine's solid UV and atlas `0`. Find marks use
+/// [`rndr_core::Theme::selection`]. A diagnostic mark uses sRGB
+/// `(0.86, 0.28, 0.24)`. The dirty mark is a 6-point circle in
+/// [`rndr_core::Theme::dirty`]. The caret is 2 points wide and uses
+/// [`rndr_core::Theme::caret`]. A text selection uses
+/// [`rndr_core::Theme::selection`] and draws no caret. The IME underline
+/// is at most 2 points tall, in that same caret color. A span underline
+/// is 1 point tall, in the span color.
 ///
 /// Text, selection, the caret, and marks snap to the pixel grid of
 /// [`rndr_core::Viewport::pixels_per_point`]. A missing viewport snaps
@@ -190,6 +194,8 @@ fn paint_visited(
     clip: Clip,
     label: Option<&Label>,
     caret: Option<&Caret>,
+    selection: Option<&TextSelection>,
+    spans: Option<&Spans>,
     dirty: bool,
     layout: Option<&TextLayout>,
     radius: f32,
@@ -216,7 +222,8 @@ fn paint_visited(
             out,
             rect,
             layout,
-            caret,
+            caret.anchor,
+            caret.index,
             text_clip,
             solid,
             scale,
@@ -243,6 +250,22 @@ fn paint_visited(
                 0,
             );
         }
+        if caret.is_none() {
+            if let Some(selection) = selection {
+                push_selection(
+                    out,
+                    rect,
+                    layout,
+                    selection.anchor,
+                    selection.head,
+                    text_clip,
+                    solid,
+                    scale,
+                    theme.selection,
+                    shift_y,
+                );
+            }
+        }
         if let Some((start, end)) = layout.ime_range {
             for span in layout.selection_boxes(start, end) {
                 let bar = 2.0_f32.min(span.h);
@@ -261,6 +284,31 @@ fn paint_visited(
                     0.0,
                     0,
                 );
+            }
+        }
+        if let Some(spans) = spans {
+            for run in &spans.runs {
+                if !run.underline || run.start >= run.end {
+                    continue;
+                }
+                for span in layout.selection_boxes(run.start, run.end) {
+                    let bar = 1.0_f32.min(span.h);
+                    push(
+                        out,
+                        snap_box(
+                            rect.x + TEXT_ORIGIN_X + span.x,
+                            rect.y + TEXT_ORIGIN_Y + span.y + span.h - bar + shift_y,
+                            span.w,
+                            bar,
+                            scale,
+                        ),
+                        run.color,
+                        solid,
+                        text_clip,
+                        0.0,
+                        0,
+                    );
+                }
             }
         }
         push_label(out, rect, layout, text_clip, scale, text_color, shift_y);
@@ -350,6 +398,8 @@ fn walk(
                          clip: Clip,
                          label: Option<&Label>,
                          caret: Option<&Caret>,
+                         selection: Option<&TextSelection>,
+                         spans: Option<&Spans>,
                          dirty: bool,
                          layout: Option<&TextLayout>,
                          radius: f32,
@@ -357,8 +407,8 @@ fn walk(
                          shift_y: f32,
                          clip_text: bool| {
             paint_visited(
-                &mut guard, scale, solid, theme, rect, color, clip, label, caret, dirty, layout,
-                radius, marks, shift_y, clip_text,
+                &mut guard, scale, solid, theme, rect, color, clip, label, caret, selection, spans,
+                dirty, layout, radius, marks, shift_y, clip_text,
             );
         };
         if needs_fallback {
@@ -562,6 +612,8 @@ fn emit(
         Clip,
         Option<&Label>,
         Option<&Caret>,
+        Option<&TextSelection>,
+        Option<&Spans>,
         bool,
         Option<&TextLayout>,
         f32,
@@ -584,6 +636,8 @@ fn emit(
         clip,
         world.get::<Label>(entity),
         world.get::<Caret>(entity),
+        world.get::<TextSelection>(entity),
+        world.get::<Spans>(entity),
         dirty,
         layout,
         radius,
@@ -699,14 +753,15 @@ fn push_selection(
     out: &mut Vec<Quad>,
     rect: Rect,
     layout: &TextLayout,
-    caret: &Caret,
+    anchor: usize,
+    index: usize,
     clip: Clip,
     solid: [f32; 4],
     scale: f32,
     color: Color,
     shift_y: f32,
 ) {
-    for span in layout.selection_boxes(caret.anchor, caret.index) {
+    for span in layout.selection_boxes(anchor, index) {
         push(
             out,
             snap_box(

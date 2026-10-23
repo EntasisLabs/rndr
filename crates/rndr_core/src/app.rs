@@ -252,6 +252,12 @@ impl App {
             }
             layout_propagate(&mut self.world);
         }
+        // Markdown heights are measured before this layout pass, from the
+        // previous rect. A width change remeasures once and lays out again
+        // so wrapped lines are not clipped inside the old block height.
+        if crate::markdown::sync_widths(&mut self.world) {
+            layout_propagate(&mut self.world);
+        }
         apply_text_layout(&mut self.world);
         apply_mono_grid(&mut self.world);
         crate::prompt::reveal_prompts(&mut self.world);

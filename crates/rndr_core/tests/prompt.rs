@@ -531,6 +531,100 @@ fn a_pause_starts_a_new_undo_step() {
 }
 
 #[test]
+fn press_at_the_left_edge_of_a_line_anchors_that_line() {
+    let (mut app, entity) = boot_sized("line 5\nline 6", 280.0, Prompt::new());
+    let rect = *app.world().get::<Rect>(entity).unwrap();
+    let layout = app.world().get::<TextLayout>(entity).unwrap().clone();
+    assert!(layout.lines.len() >= 2, "lines {}", layout.lines.len());
+    let first_y = layout.lines[0].y;
+    let first_start = layout.lines[0].start;
+    let second_y = layout.lines[1].y;
+    let second_start = layout.lines[1].start;
+    press_at(
+        &mut app,
+        rect.x + TEXT_ORIGIN_X - 4.0,
+        rect.y + TEXT_ORIGIN_Y + second_y + 1.0,
+    );
+    assert_eq!(caret(&app, entity).index, second_start);
+    assert_eq!(caret(&app, entity).anchor, second_start);
+
+    press_at(
+        &mut app,
+        rect.x + TEXT_ORIGIN_X - 4.0,
+        rect.y + TEXT_ORIGIN_Y + first_y + 1.0,
+    );
+    let placed = caret(&app, entity);
+    assert_eq!(placed.index, first_start);
+    assert_eq!(placed.anchor, first_start);
+}
+
+fn press_at(app: &mut App, x: f32, y: f32) {
+    {
+        let input = app.world_mut().resource_mut::<Input>().unwrap();
+        input.pointer.button = PointerButton::Left;
+        input.pointer.pressed = false;
+        input.pointer.down = false;
+        input.pointer.released = false;
+    }
+    app.update();
+    {
+        let input = app.world_mut().resource_mut::<Input>().unwrap();
+        input.pointer.button = PointerButton::Left;
+        input.pointer.pressed = true;
+        input.pointer.down = true;
+        input.pointer.released = false;
+        input.pointer.position = [x, y];
+    }
+    app.update();
+}
+
+#[test]
+fn keyboard_selection_sets_the_primary() {
+    let (mut app, _entity) = boot("hello\nworld");
+    app.world_mut().insert_resource(Platform::X11);
+    keys(
+        &mut app,
+        vec![KeyEvent::named(NamedKey::ArrowLeft, shift())],
+    );
+    let clipboard = app.world().resource::<Clipboard>().unwrap();
+    assert_eq!(clipboard.primary, "d");
+    assert!(clipboard.primary_dirty);
+
+    app.world_mut()
+        .resource_mut::<Clipboard>()
+        .unwrap()
+        .primary_dirty = false;
+    keys(&mut app, vec![KeyEvent::character('a', ctrl())]);
+    let clipboard = app.world().resource::<Clipboard>().unwrap();
+    assert_eq!(clipboard.primary, "hello\nworld");
+    assert!(clipboard.primary_dirty);
+
+    app.world_mut()
+        .resource_mut::<Clipboard>()
+        .unwrap()
+        .primary_dirty = false;
+    app.update();
+    let clipboard = app.world().resource::<Clipboard>().unwrap();
+    assert_eq!(clipboard.primary, "hello\nworld");
+    assert!(!clipboard.primary_dirty);
+
+    app.world_mut().insert_resource(Platform::Windows);
+    app.world_mut()
+        .resource_mut::<Clipboard>()
+        .unwrap()
+        .primary
+        .clear();
+    app.world_mut()
+        .resource_mut::<Clipboard>()
+        .unwrap()
+        .primary_dirty = false;
+    keys(&mut app, vec![KeyEvent::character('a', ctrl())]);
+    let clipboard = app.world().resource::<Clipboard>().unwrap();
+    assert!(clipboard.primary.is_empty());
+    assert!(!clipboard.primary_dirty);
+}
+
+#[test]
 fn mouse_selection_sets_the_primary_and_middle_click_pastes_it() {
     let (mut app, entity) = boot("hello");
     app.world_mut().insert_resource(Platform::X11);

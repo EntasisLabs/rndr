@@ -257,6 +257,8 @@ struct RunKey {
     weight: Option<u16>,
     face: u8,
     italic: bool,
+    underline: bool,
+    family: Option<String>,
     highlight: Option<[u32; 4]>,
 }
 
@@ -576,6 +578,8 @@ fn line_key(text: &str, style: &TextStyle, max_width: f32, runs: &[TextSpan]) ->
                 weight: run.weight,
                 face: run.face,
                 italic: run.italic,
+                underline: run.underline,
+                family: run.family.clone(),
                 highlight: run.highlight.map(|color| {
                     [
                         color.r.to_bits(),
@@ -605,6 +609,8 @@ fn clip_runs(runs: &[TextSpan], start: usize, end: usize) -> Vec<TextSpan> {
             weight: run.weight,
             highlight: run.highlight,
             italic: run.italic,
+            family: run.family.clone(),
+            underline: run.underline,
         });
     }
     clipped

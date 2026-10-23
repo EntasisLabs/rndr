@@ -69,6 +69,8 @@ fn wrap_inside_a_span_keeps_every_glyph() {
         weight: None,
         highlight: None,
         italic: false,
+        family: None,
+        underline: false,
     }];
     let layout = layout_text_spans(&BitmapFont, "abcd", 32.0, &spans);
     assert_eq!(layout.glyphs.len(), 4);

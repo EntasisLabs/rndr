@@ -17,7 +17,8 @@ impl Component for Spans {}
 ///
 /// `color` tints the glyphs. `weight` overrides the run's font weight when set
 /// (`None` keeps the style weight). `highlight` paints a bar behind the range.
-/// `face` is reserved for a second atlas.
+/// `face` is reserved for a second atlas. `family` overrides the shaper's
+/// family for the range. `underline` draws a line in `color` under the range.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextSpan {
     /// First byte of the range, inclusive.
@@ -33,9 +34,15 @@ pub struct TextSpan {
     pub weight: Option<u16>,
     /// Background behind this range. `None` draws no bar.
     pub highlight: Option<Color>,
-    /// Italic cut for this range. The bitmap face has no italic outlines, so
-    /// those glyphs stay upright. A shaper that has an italic cut uses it.
+    /// Italic cut for this range. The desktop shaper slants the run. The
+    /// builtin bitmap face has no italic outlines, so those glyphs stay upright.
     pub italic: bool,
+    /// Family override. `None` keeps the label's [`crate::TextStyle`] family.
+    /// `"monospace"` asks the shaper for a monospace face. The builtin engine
+    /// keeps the bitmap face when that family is not registered.
+    pub family: Option<String>,
+    /// Draw a line under this range, in [`Self::color`].
+    pub underline: bool,
 }
 
 impl TextSpan {
@@ -49,6 +56,8 @@ impl TextSpan {
             weight: None,
             highlight: None,
             italic: false,
+            family: None,
+            underline: false,
         }
     }
 
@@ -67,6 +76,18 @@ impl TextSpan {
     /// Store `color` as [`Self::highlight`] and return the span.
     pub fn highlight(mut self, color: Color) -> Self {
         self.highlight = Some(color);
+        self
+    }
+
+    /// Store `family` as [`Self::family`] and return the span.
+    pub fn family(mut self, family: impl Into<String>) -> Self {
+        self.family = Some(family.into());
+        self
+    }
+
+    /// Set [`Self::underline`] and return the span.
+    pub fn underline(mut self) -> Self {
+        self.underline = true;
         self
     }
 }
@@ -551,6 +572,8 @@ pub(crate) fn layout_cache_key(
         span.face.hash(&mut hasher);
         span.weight.hash(&mut hasher);
         span.italic.hash(&mut hasher);
+        span.underline.hash(&mut hasher);
+        span.family.hash(&mut hasher);
         match span.highlight {
             Some(color) => {
                 1u8.hash(&mut hasher);
@@ -589,25 +612,43 @@ impl TextLayout {
     /// Byte index on `line` nearest to pen `x`.
     ///
     /// Edges are caret stops, not a left-to-right walk, so a right-to-left run
-    /// still hits the cluster under the pointer. A tie goes to the stop with
-    /// the greater x, which matches the old midpoint test on a left-to-right line.
+    /// still hits the cluster under the pointer. A tie in distance goes to the
+    /// stop with the greater x, which matches the old midpoint test on a
+    /// left-to-right line. Two stops at the same x on the left edge resolve to
+    /// the earlier byte. The later byte there is the next line's caret, which
+    /// a shaper records at x = 0 when it asks for the position after a hard
+    /// break. A tie on the right edge keeps the later byte, the position after
+    /// the last cluster.
     pub fn index_on_line(&self, line: usize, x: f32) -> usize {
         let Some(span) = self.lines.get(line.min(self.lines.len().saturating_sub(1))) else {
             return 0;
         };
-        let Some((mut best_i, mut best_x)) = span.edges.first().copied() else {
+        let Some(min_x) = span.edges.iter().map(|(_, ex)| *ex).reduce(f32::min) else {
             return span.start;
         };
-        let mut best_d = (best_x - x).abs();
-        for &(i, ex) in &span.edges[1..] {
+        let mut best_i = span.start;
+        let mut best_x = min_x;
+        let mut best_d = f32::MAX;
+        let mut have = false;
+        for &(i, ex) in &span.edges {
             let d = (ex - x).abs();
-            let closer = d < best_d;
-            let tie =
-                (d - best_d).abs() <= f32::EPSILON && (ex > best_x || (ex == best_x && i > best_i));
-            if closer || tie {
+            let closer = !have || d < best_d;
+            let tied = have && (d - best_d).abs() <= f32::EPSILON;
+            let prefer = if (ex - best_x).abs() <= f32::EPSILON {
+                let on_left = ex <= min_x + 0.01;
+                if on_left {
+                    i < best_i
+                } else {
+                    i > best_i
+                }
+            } else {
+                ex > best_x
+            };
+            if closer || (tied && prefer) {
                 best_d = d;
                 best_i = i;
                 best_x = ex;
+                have = true;
             }
         }
         best_i
@@ -1050,5 +1091,45 @@ mod tests {
         assert_eq!(all.len(), 1);
         assert!(all[0].x.abs() < 0.01);
         assert!((all[0].w - 20.0).abs() < 0.01);
+
+        assert_eq!(layout.index_at(0.0, 1.0), 4);
+        assert_eq!(layout.index_at(15.0, 1.0), 0);
+        assert_eq!(layout.index_at(5.0, 1.0), 2);
+    }
+
+    #[test]
+    fn left_edge_alias_of_the_next_line_stays_on_this_line() {
+        // Byte 7 is the next line's start. Downstream affinity draws that
+        // caret at x=0, and a shaper can store the same stop on this line.
+        let layout = TextLayout::shaped(
+            Vec::new(),
+            vec![
+                TextLine {
+                    start: 0,
+                    end: 7,
+                    y: 0.0,
+                    h: 16.0,
+                    width: 48.0,
+                    edges: vec![(0, 0.0), (1, 8.0), (6, 48.0), (7, 0.0)],
+                },
+                TextLine {
+                    start: 7,
+                    end: 14,
+                    y: 16.0,
+                    h: 16.0,
+                    width: 48.0,
+                    edges: vec![(7, 0.0), (8, 8.0), (13, 48.0), (14, 48.0)],
+                },
+            ],
+            48.0,
+            32.0,
+        );
+        assert_eq!(layout.index_at(-8.0, 1.0), 0);
+        assert_eq!(layout.index_at(0.0, 1.0), 0);
+        assert_eq!(layout.index_at(2.0, 1.0), 0);
+        assert_eq!(layout.index_at(48.0, 1.0), 6);
+        assert_eq!(layout.index_at(-8.0, 17.0), 7);
+        assert_eq!(layout.index_at(0.0, 17.0), 7);
+        assert_eq!(layout.index_at(48.0, 17.0), 14);
     }
 }

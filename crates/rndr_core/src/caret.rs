@@ -16,6 +16,7 @@ use crate::wrap::{
 };
 
 impl Component for Caret {}
+impl Component for TextSelection {}
 impl Component for Field {}
 
 /// Which pane field the caret is bound to.
@@ -61,6 +62,20 @@ pub struct Caret {
     /// Byte offset where the selection started. Equals [`Caret::index`] when
     /// the range is empty.
     pub anchor: usize,
+}
+
+/// Highlighted byte range with no caret and no focus chrome.
+///
+/// Paint draws the range after inline highlight bars. It does not lighten
+/// the entity fill and it does not draw a caret. [`Caret`] remains the
+/// insertion point for a field.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct TextSelection {
+    /// Byte offset where the range started.
+    pub anchor: usize,
+    /// Byte offset of the other end. Equals [`Self::anchor`] when the range
+    /// is empty.
+    pub head: usize,
 }
 
 /// Point [`Editing`] at `source` and select the title.
