@@ -258,6 +258,28 @@ fn letter_spacing_moves_only_later_clusters() {
 }
 
 #[test]
+fn line_height_multiplier_sets_the_line_box() {
+    let engine = BuiltinText::new();
+    let mut style = style();
+    style.size = 16.0;
+    let natural = engine.line_height(&style);
+    let plain = engine.layout("a\nb", &style, &[], f32::INFINITY);
+    style.line_height = Some(1.5);
+    assert!((engine.line_height(&style) - 24.0).abs() < 1.0e-4);
+    let boxed = engine.layout("a\nb", &style, &[], f32::INFINITY);
+    assert!((boxed.lines[0].h - 24.0).abs() < 1.0e-4);
+    assert!((boxed.lines[1].y - 24.0).abs() < 1.0e-4);
+    assert!(
+        (boxed.lines[0].baseline - (plain.lines[0].baseline + (24.0 - natural) * 0.5)).abs()
+            < 1.0e-3
+    );
+    style.line_height = None;
+    assert!((engine.line_height(&style) - natural).abs() < 1.0e-4);
+    style.line_height = Some(0.0);
+    assert!((engine.line_height(&style) - natural).abs() < 1.0e-4);
+}
+
+#[test]
 fn paragraph_spacing_follows_a_newline_and_skips_soft_wraps() {
     let engine = BuiltinText::new();
     let mut style = style();

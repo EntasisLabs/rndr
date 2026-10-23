@@ -308,6 +308,80 @@ fn wrapped_line_start_stays_on_that_line() {
 }
 
 #[test]
+fn line_height_multiplier_spaces_the_lines() {
+    let engine = bundled();
+    let mut style = inter(36.0);
+    style.line_height = Some(1.3);
+    style.paragraph_spacing = 4.0;
+    let layout = engine.layout("Field notes\nfrom the desk", &style, &[], f32::INFINITY);
+    assert_eq!(layout.lines.len(), 2);
+    let h = layout.lines[0].h;
+    assert!((h - 36.0 * 1.3).abs() < 0.5, "line box {h}");
+    let gap = layout.lines[1].y - layout.lines[0].y;
+    assert!((gap - (36.0 * 1.3 + 4.0)).abs() < 0.5, "gap {gap}");
+    let natural = engine.layout(
+        "Field notes\nfrom the desk",
+        &inter(36.0),
+        &[],
+        f32::INFINITY,
+    );
+    let natural_gap = natural.lines[1].y - natural.lines[0].y;
+    assert!(
+        (natural_gap - gap).abs() > 1.0,
+        "natural {natural_gap} requested {gap}"
+    );
+    let small = engine.layout("A", &inter(18.0), &[], f32::INFINITY);
+    let large = engine.layout("A", &inter(36.0), &[], f32::INFINITY);
+    let thin = small.lines[0].underline_thickness;
+    let thick = large.lines[0].underline_thickness;
+    assert!(
+        (thick - thin * 2.0).abs() < 0.2,
+        "underline {thin} vs {thick}"
+    );
+    assert!(layout.lines[0].baseline > 1.0);
+}
+
+#[test]
+fn bold_italic_ink_is_heavier_than_italic() {
+    let engine = bundled();
+    let italic = TextStyle {
+        family: "Inter".into(),
+        size: 32.0,
+        weight: 400,
+        style: rndr_core::FontStyle::Italic,
+        ..TextStyle::default()
+    };
+    let bold_italic = TextStyle {
+        weight: 700,
+        ..italic.clone()
+    };
+    let regular = TextStyle {
+        weight: 400,
+        style: rndr_core::FontStyle::Normal,
+        ..italic.clone()
+    };
+    let ink = |style: &TextStyle| {
+        engine
+            .layout("H", style, &[], f32::INFINITY)
+            .glyphs
+            .iter()
+            .map(|glyph| glyph.w)
+            .sum::<f32>()
+    };
+    let bold_w = ink(&bold_italic);
+    let italic_w = ink(&italic);
+    let regular_w = ink(&regular);
+    assert!(
+        bold_w > italic_w + 0.2,
+        "bold italic {bold_w} italic {italic_w}"
+    );
+    assert!(
+        bold_w > regular_w + 0.2,
+        "bold italic {bold_w} regular {regular_w}"
+    );
+}
+
+#[test]
 fn engine_in_the_world_is_the_one_paint_uses() {
     let mut app = App::new();
     let engine: Arc<dyn TextEngine> = Arc::new(bundled());

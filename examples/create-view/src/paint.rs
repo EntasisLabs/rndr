@@ -598,11 +598,11 @@ fn svg_text(out: &mut String, node: &CreativeNode) {
     let weight = *font_weight;
     let layout = node.text_layout.as_ref();
     let size = *font_size as f32;
-    // Same line box the scene renderer uses when it cannot measure a face:
-    // line height is the multiplier times the em size, the em is 0.8 ascent
-    // and 0.2 descent, and that box is centered in the line. A live canvas
-    // replaces the em box with the browser's CSS baseline. Side bearings are
-    // omitted, so a left-aligned run starts at the 6% em padding.
+    // The SVG cannot measure the face. The line box is the multiplier times
+    // the em size, the em is 0.8 ascent and 0.2 descent, and that box is
+    // centered in the line. Side bearings are omitted, so a left-aligned run
+    // starts at the 6% em padding. The display list uses the face metrics
+    // and the same multiplier.
     let line_height = size * layout.map(|item| item.line_height as f32).unwrap_or(1.3);
     let paragraph = layout
         .and_then(|item| item.paragraph_spacing)
@@ -828,6 +828,14 @@ fn text_style(
             CreativeTextAlign::Center => TextAlign::Center,
             CreativeTextAlign::Right => TextAlign::End,
         },
+        line_height: layout.and_then(|item| {
+            let factor = item.line_height as f32;
+            if factor.is_finite() && factor > 0.0 {
+                Some(factor)
+            } else {
+                None
+            }
+        }),
     }
 }
 
@@ -1153,18 +1161,27 @@ fn quadratic_outline(outline: &[[f32; 2]]) -> Path {
         return Path::new();
     }
     let mut path = Path::builder();
-    path.move_to(round2(outline[0]));
     let n = outline.len();
-    for index in 1..n {
+    if n < 2 {
+        path.move_to(round2(outline[0]));
+        path.close();
+        return path.build();
+    }
+    // Start on the midpoint so every vertex, including the first, is a
+    // quadratic control. Both ends of the ribbon then use the same cap.
+    // `outline_data` writes this same sequence.
+    path.move_to(ribbon_mid(outline[n - 1], outline[0]));
+    for index in 0..n {
         let point = outline[index];
         let next = outline[(index + 1) % n];
-        path.quad_to(
-            round2(point),
-            round2([(point[0] + next[0]) * 0.5, (point[1] + next[1]) * 0.5]),
-        );
+        path.quad_to(round2(point), ribbon_mid(point, next));
     }
     path.close();
     path.build()
+}
+
+fn ribbon_mid(a: [f32; 2], b: [f32; 2]) -> [f32; 2] {
+    round2([(a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5])
 }
 
 fn visual_bounds(node: &CreativeNode, nodes: &[CreativeNode]) -> Option<Rect> {
@@ -1446,19 +1463,16 @@ fn outline_data(brush: &CreativeBrush, points: &[CreativePoint]) -> String {
     if outline.is_empty() {
         return String::new();
     }
-    let mut data = format!(
-        "M {} {}",
-        num(round2(outline[0])[0]),
-        num(round2(outline[0])[1])
-    );
     let n = outline.len();
-    for index in 1..n {
+    if n < 2 {
+        let point = round2(outline[0]);
+        return format!("M {} {} Z", num(point[0]), num(point[1]));
+    }
+    let start = ribbon_mid(outline[n - 1], outline[0]);
+    let mut data = format!("M {} {}", num(start[0]), num(start[1]));
+    for index in 0..n {
         let point = round2(outline[index]);
-        let next = outline[(index + 1) % n];
-        let mid = round2([
-            (outline[index][0] + next[0]) * 0.5,
-            (outline[index][1] + next[1]) * 0.5,
-        ]);
+        let mid = ribbon_mid(outline[index], outline[(index + 1) % n]);
         data.push_str(&format!(
             " Q {} {} {} {}",
             num(point[0]),
@@ -1559,5 +1573,43 @@ mod tests {
         assert!(svg.contains("data-arrowhead"), "{svg}");
         assert!(svg.contains("<line "), "{svg}");
         assert!(!svg.contains("stroke-dasharray"), "{svg}");
+    }
+
+    #[test]
+    fn highlighter_caps_match() {
+        use rndr_paint::tessellate_fill;
+        let brush = CreativeBrush {
+            kind: crate::model::CreativeBrushKind::Highlighter,
+            size: 28.0,
+            thinning: 0.0,
+            smoothing: 0.0,
+            streamline: 0.0,
+            opacity: 0.45,
+        };
+        let points: Vec<CreativePoint> = [0.0, 100.0, 200.0]
+            .into_iter()
+            .map(|x| CreativePoint {
+                x,
+                y: 0.0,
+                pressure: Some(0.6),
+                elapsed_ms: None,
+                tilt_x: None,
+                tilt_y: None,
+            })
+            .collect();
+        let path = ink_outline(&brush, &points);
+        let mesh = tessellate_fill(&path, FillRule::NonZero, 4.0);
+        let radius = 14.0;
+        assert!(mesh.contains([100.0, 0.0]), "body");
+        assert!(mesh.contains([4.0, 0.0]), "start cap");
+        assert!(mesh.contains([196.0, 0.0]), "end cap");
+        assert!(
+            !mesh.contains([1.0, radius - 0.5]),
+            "start corner is rounded off"
+        );
+        assert!(
+            !mesh.contains([199.0, radius - 0.5]),
+            "end corner is rounded off"
+        );
     }
 }

@@ -109,7 +109,11 @@ fn navigate(world: &mut World) {
     let Some(camera) = world.resource_mut::<ZoomCamera>() else {
         return;
     };
-    camera.drag(input.pointer.down, input.pointer.position);
+    camera.drag_from(
+        input.pointer.down,
+        input.pointer.position,
+        input.pointer.press_at,
+    );
     camera.apply_wheel(input.pointer.position, input.scroll[1]);
 }
 

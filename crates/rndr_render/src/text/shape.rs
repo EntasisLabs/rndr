@@ -10,7 +10,7 @@ use rndr_paint::Path;
 use swash::scale::image::Content;
 use swash::scale::outline::Outline;
 use swash::scale::{Render, ScaleContext, Source, StrikeWith};
-use swash::zeno::{Format, Vector, Verb};
+use swash::zeno::{Angle, Format, Transform, Vector, Verb};
 use swash::FontRef;
 
 use super::atlas::{GlyphKey, Inserted, SUBPIXEL_BINS};
@@ -82,6 +82,7 @@ fn shape_once(
     if style.letter_spacing != 0.0 {
         builder.push_default(StyleProperty::LetterSpacing(style.letter_spacing));
     }
+    push_line_height(&mut builder, style);
     for run in runs {
         let end = run.end.min(text.len());
         let start = run.start.min(end);
@@ -169,6 +170,7 @@ fn shape_once(
         if edges.is_empty() {
             edges.push((range.start, 0.0));
         }
+        let mut decoration = None;
         for item in line.items() {
             let PositionedLayoutItem::GlyphRun(glyph_run) = item else {
                 continue;
@@ -176,6 +178,11 @@ fn shape_once(
             let run = glyph_run.run();
             let font = run.font().clone();
             let px_size = run.font_size();
+            let synth = ink_synth(run.synthesis(), px_size);
+            if decoration.is_none() {
+                let metrics = run.font_metrics();
+                decoration = Some((metrics.underline_size, metrics.underline_offset));
+            }
             let coords: Vec<i16> = run
                 .normalized_coords()
                 .iter()
@@ -211,6 +218,7 @@ fn shape_once(
                             color,
                             weight,
                             face,
+                            synth,
                         },
                         &mut keys,
                     ) {
@@ -220,23 +228,33 @@ fn shape_once(
             }
         }
         let width = metrics.advance / scale;
+        let (underline_thickness, underline_offset) = underline_metrics(decoration, style, scale);
         lines.push(TextLine {
             start: range.start,
             end: range.end,
             y: metrics.block_min_coord / scale,
             h: metrics.line_height.max(0.0) / scale,
             width,
+            baseline: (metrics.baseline - metrics.block_min_coord) / scale,
+            underline_thickness,
+            underline_offset,
             edges,
         });
     }
     if lines.is_empty() {
-        let h = (style.size * 1.2).max(1.0);
+        let h = style
+            .line_box()
+            .unwrap_or_else(|| (style.size * 1.2).max(1.0));
+        let thickness = (style.size / 18.0).max(0.0);
         lines.push(TextLine {
             start: 0,
             end: 0,
             y: 0.0,
             h,
             width: 0.0,
+            baseline: h * 0.8,
+            underline_thickness: thickness,
+            underline_offset: thickness,
             edges: vec![(0, 0.0)],
         });
     }
@@ -277,6 +295,7 @@ struct GlyphPaint<'a> {
     color: Option<Color>,
     weight: u16,
     face: u8,
+    synth: InkSynth,
 }
 
 fn raster_glyph(
@@ -298,6 +317,7 @@ fn raster_glyph(
         color,
         weight,
         face,
+        synth,
     } = paint;
     let paint_at = PlacedInk {
         x_px,
@@ -320,23 +340,17 @@ fn raster_glyph(
     let size_bits = px_size.to_bits();
     // The line cache only keeps two frames. The pixels stay, so a hide/show or
     // a scroll back reuses the slot instead of running swash again.
-    if let Some(hit) = state.coverage.resident(GlyphKey {
-        font: font_key,
-        glyph: glyph_id,
-        size_bits,
-        bin,
-        color: false,
-    }) {
+    if let Some(hit) = state
+        .coverage
+        .resident(glyph_key(font_key, glyph_id, size_bits, bin, false, synth))
+    {
         keys.push(hit.key);
         return Some(place_glyph(hit, &paint_at, false));
     }
-    if let Some(hit) = state.color.resident(GlyphKey {
-        font: font_key,
-        glyph: glyph_id,
-        size_bits,
-        bin: 0,
-        color: true,
-    }) {
+    if let Some(hit) = state
+        .color
+        .resident(glyph_key(font_key, glyph_id, size_bits, 0, true, synth))
+    {
         keys.push(hit.key);
         return Some(place_glyph(hit, &paint_at, true));
     }
@@ -351,10 +365,7 @@ fn raster_glyph(
     let probe = {
         let font_ref = FontRef::from_index(bytes, font.index as usize)?;
         let mut scaler = scaler_for(&mut state.scale_cx, font_ref, px_size, coords);
-        Render::new(&sources)
-            .format(Format::Alpha)
-            .offset(Vector::new(0.0, 0.0))
-            .render(&mut scaler, id)?
+        render_mask(&mut scaler, &sources, id, 0.0, synth)?
     };
     let color_glyph = probe.content == Content::Color;
     let bin = if color_glyph { 0 } else { bin };
@@ -368,23 +379,14 @@ fn raster_glyph(
     } else {
         let font_ref = FontRef::from_index(bytes, font.index as usize)?;
         let mut scaler = scaler_for(&mut state.scale_cx, font_ref, px_size, coords);
-        Render::new(&sources)
-            .format(Format::Alpha)
-            .offset(Vector::new(offset, 0.0))
-            .render(&mut scaler, id)?
+        render_mask(&mut scaler, &sources, id, offset, synth)?
     };
     let width = image.placement.width;
     let height = image.placement.height;
     if width == 0 || height == 0 {
         return None;
     }
-    let key = GlyphKey {
-        font: font_key,
-        glyph: glyph_id,
-        size_bits,
-        bin,
-        color: color_glyph,
-    };
+    let key = glyph_key(font_key, glyph_id, size_bits, bin, color_glyph, synth);
     let atlas = if color_glyph {
         &mut state.color
     } else {
@@ -439,6 +441,111 @@ fn place_glyph(ink: super::atlas::Ink, at: &PlacedInk, color_glyph: bool) -> Pla
         weight: at.weight,
         atlas: u8::from(color_glyph),
     }
+}
+
+#[derive(Clone, Copy)]
+struct InkSynth {
+    embolden: f32,
+    skew: f32,
+}
+
+fn ink_synth(synthesis: parley::fontique::Synthesis, px_size: f32) -> InkSynth {
+    let embolden = if synthesis.embolden() {
+        (px_size / 24.0).max(0.0)
+    } else {
+        0.0
+    };
+    let skew = synthesis
+        .skew()
+        .filter(|angle| angle.is_finite())
+        .unwrap_or(0.0);
+    InkSynth { embolden, skew }
+}
+
+fn push_line_height(builder: &mut parley::RangedBuilder<'_, ()>, style: &TextStyle) {
+    let Some(box_h) = style.line_box() else {
+        return;
+    };
+    let factor = box_h / style.size;
+    builder.push_default(StyleProperty::LineHeight(
+        parley::LineHeight::FontSizeRelative(factor),
+    ));
+}
+
+fn underline_metrics(decoration: Option<(f32, f32)>, style: &TextStyle, scale: f32) -> (f32, f32) {
+    let scale = if scale.is_finite() && scale > 0.0 {
+        scale
+    } else {
+        1.0
+    };
+    let fallback = (style.size / 18.0).max(0.0);
+    let Some((size, offset)) = decoration else {
+        return (fallback, fallback);
+    };
+    let thickness = if size.is_finite() && size > 0.0 {
+        size / scale
+    } else {
+        fallback
+    };
+    let down = if offset.is_finite() {
+        -offset / scale
+    } else {
+        thickness
+    };
+    (thickness, down)
+}
+
+fn glyph_key(
+    font: u64,
+    glyph: u32,
+    size_bits: u32,
+    bin: u8,
+    color: bool,
+    synth: InkSynth,
+) -> GlyphKey {
+    GlyphKey {
+        font,
+        glyph,
+        size_bits,
+        bin,
+        color,
+        embolden_bits: synth.embolden.to_bits(),
+        skew_bits: synth.skew.to_bits(),
+    }
+}
+
+fn render_mask(
+    scaler: &mut swash::scale::Scaler<'_>,
+    sources: &[Source],
+    id: u16,
+    offset: f32,
+    synth: InkSynth,
+) -> Option<swash::scale::image::Image> {
+    let mut render = Render::new(sources);
+    render
+        .format(Format::Alpha)
+        .offset(Vector::new(offset, 0.0));
+    if synth.embolden != 0.0 {
+        render.embolden(synth.embolden);
+    }
+    if synth.skew != 0.0 {
+        render.transform(Some(skew_transform(synth.skew)));
+    }
+    render.render(scaler, id)
+}
+
+fn synthesize_outline(outline: &mut Outline, synth: InkSynth) {
+    if synth.embolden != 0.0 {
+        outline.embolden(synth.embolden, synth.embolden);
+    }
+    if synth.skew != 0.0 {
+        let transform = skew_transform(synth.skew);
+        outline.transform(&transform);
+    }
+}
+
+fn skew_transform(degrees: f32) -> Transform {
+    Transform::skew(Angle::from_degrees(degrees), Angle::from_degrees(0.0))
 }
 
 fn scaler_for<'a>(
@@ -599,6 +706,7 @@ fn outline_run(state: &mut State, source: &rndr_paint::TextSource) -> Option<Vec
     if style.letter_spacing != 0.0 {
         builder.push_default(StyleProperty::LetterSpacing(style.letter_spacing));
     }
+    push_line_height(&mut builder, style);
     for run in runs {
         let end = run.end.min(text.len());
         let start = run.start.min(end);
@@ -665,6 +773,7 @@ fn outline_run(state: &mut State, source: &rndr_paint::TextSource) -> Option<Vec
             let run = glyph_run.run();
             let font = run.font().clone();
             let px_size = run.font_size();
+            let synth = ink_synth(run.synthesis(), px_size);
             let coords: Vec<i16> = run
                 .normalized_coords()
                 .iter()
@@ -701,6 +810,7 @@ fn outline_run(state: &mut State, source: &rndr_paint::TextSource) -> Option<Vec
                         shift,
                         ch,
                         foreground,
+                        synth,
                         &mut out,
                     ) {
                         return None;
@@ -726,6 +836,7 @@ fn push_glyph_outline(
     shift_y: f32,
     ch: char,
     foreground: Color,
+    synth: InkSynth,
     out: &mut Vec<(Path, Color)>,
 ) -> bool {
     let Ok(id) = u16::try_from(glyph_id) else {
@@ -738,7 +849,16 @@ fn push_glyph_outline(
     let palette = font_ref.color_palettes().next();
     let mut scaler = scaler_for(&mut state.scale_cx, font_ref, px_size, coords);
     if scaler.has_color_outlines() {
-        if let Some(outline) = scaler.scale_color_outline(id) {
+        if let Some(mut outline) = scaler.scale_color_outline(id) {
+            // Color layers keep their palette. A missing oblique is a skew;
+            // embolden is left to the coverage outline.
+            synthesize_outline(
+                &mut outline,
+                InkSynth {
+                    embolden: 0.0,
+                    ..synth
+                },
+            );
             append_outline(
                 &outline,
                 pen_x,
@@ -753,8 +873,9 @@ fn push_glyph_outline(
             return true;
         }
     }
-    if let Some(outline) = scaler.scale_outline(id) {
+    if let Some(mut outline) = scaler.scale_outline(id) {
         if !outline.is_empty() {
+            synthesize_outline(&mut outline, synth);
             append_outline(
                 &outline, pen_x, pen_y, scale, origin, shift_y, foreground, None, out,
             );

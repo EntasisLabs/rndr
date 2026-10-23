@@ -86,6 +86,13 @@ pub struct TextStyle {
     pub paragraph_spacing: f32,
     /// Alignment inside the wrap width. The default is [`TextAlign::Start`].
     pub align: TextAlign,
+    /// Line box height as a multiple of [`Self::size`].
+    ///
+    /// `None` keeps the face's own line height. `Some(1.3)` makes each line
+    /// `1.3 * size` points tall, with the extra space split above and below
+    /// the face's em box. A non-finite or non-positive factor is treated as
+    /// `None`. [`Self::paragraph_spacing`] is still added after a newline.
+    pub line_height: Option<f32>,
 }
 
 impl Default for TextStyle {
@@ -98,6 +105,7 @@ impl Default for TextStyle {
             letter_spacing: 0.0,
             paragraph_spacing: 0.0,
             align: TextAlign::Start,
+            line_height: None,
         }
     }
 }
@@ -110,6 +118,23 @@ impl TextStyle {
             family: font.family_name().to_string(),
             size: font.em_size(),
             ..Self::default()
+        }
+    }
+
+    /// Line box in points when [`Self::line_height`] is a positive finite
+    /// multiple of [`Self::size`].
+    ///
+    /// `None` means the engine should use the face's own line height.
+    pub fn line_box(&self) -> Option<f32> {
+        let factor = self.line_height?;
+        if !factor.is_finite() || factor <= 0.0 || !self.size.is_finite() || self.size <= 0.0 {
+            return None;
+        }
+        let height = self.size * factor;
+        if height.is_finite() && height > 0.0 {
+            Some(height)
+        } else {
+            None
         }
     }
 }
@@ -138,6 +163,7 @@ pub(crate) fn style_key(style: &TextStyle) -> u64 {
     style.letter_spacing.to_bits().hash(&mut hasher);
     style.paragraph_spacing.to_bits().hash(&mut hasher);
     (style.align as u8).hash(&mut hasher);
+    style.line_box().unwrap_or(0.0).to_bits().hash(&mut hasher);
     hasher.finish()
 }
 
@@ -176,6 +202,9 @@ pub trait TextEngine: Send + Sync + 'static {
     ) -> TextMeasure;
 
     /// Height of one line box for `style`, in logical points.
+    ///
+    /// When [`TextStyle::line_height`] is set, this is that multiple of
+    /// [`TextStyle::size`]. Otherwise it is the face's own line height.
     fn line_height(&self, style: &TextStyle) -> f32;
     /// Advance of `0`, used as the floor for a field's inner width.
     fn unit_advance(&self, style: &TextStyle) -> f32;
@@ -421,51 +450,78 @@ impl TextEngine for BuiltinText {
             });
             let shift = align_shift(style.align, max_width, cached.width);
             let line_y = y;
+            let natural = cached
+                .lines
+                .first()
+                .map(|line| line.h)
+                .unwrap_or_else(|| stack.line_height().max(0.0));
+            let (box_h, pad) = match style.line_box() {
+                Some(desired) => (desired, (desired - natural) * 0.5),
+                None => (natural, 0.0),
+            };
             for glyph in &cached.glyphs {
                 let mut glyph = *glyph;
                 glyph.start += origin;
                 glyph.end += origin;
                 glyph.x += shift;
-                glyph.y += line_y;
+                glyph.y += line_y + pad;
                 glyphs.push(glyph);
             }
+            if cached.lines.is_empty() {
+                y += box_h;
+            }
             for line in &cached.lines {
+                let (h, line_pad) = match style.line_box() {
+                    Some(desired) => (desired, (desired - line.h) * 0.5),
+                    None => (line.h, 0.0),
+                };
                 lines.push(crate::font::TextLine {
                     start: origin + line.start,
                     end: origin + line.end,
                     y: line_y + line.y,
-                    h: line.h,
+                    h,
                     width: line.width,
+                    baseline: line.baseline + line_pad,
+                    underline_thickness: line.underline_thickness,
+                    underline_offset: line.underline_offset,
                     edges: line
                         .edges
                         .iter()
                         .map(|(index, x)| (origin + index, *x + shift))
                         .collect(),
                 });
-                y += line.h;
-            }
-            if cached.lines.is_empty() {
-                y += stack.line_height().max(0.0);
+                y += h;
             }
             for highlight in &cached.highlights {
+                let covers_line = highlight.y.abs() < 0.01 && (highlight.h - natural).abs() < 0.01;
+                let (hy, hh) = if covers_line && style.line_box().is_some() {
+                    (line_y, box_h)
+                } else {
+                    (line_y + highlight.y + pad, highlight.h)
+                };
                 highlights.push(crate::font::TextHighlight {
                     x: highlight.x + shift,
-                    y: line_y + highlight.y,
+                    y: hy,
                     w: highlight.w,
-                    h: highlight.h,
+                    h: hh,
                     color: highlight.color,
                 });
             }
             width = width.max(cached.width);
         }
         if lines.is_empty() {
-            let h = stack.line_height().max(0.0);
+            let h = style
+                .line_box()
+                .unwrap_or_else(|| stack.line_height().max(0.0));
             lines.push(crate::font::TextLine {
                 start: 0,
                 end: 0,
                 y: 0.0,
                 h,
                 width: 0.0,
+                baseline: h * 0.8,
+                underline_thickness: 1.0,
+                underline_offset: 1.0,
                 edges: vec![(0, 0.0)],
             });
             y = h;
@@ -498,6 +554,9 @@ impl TextEngine for BuiltinText {
     }
 
     fn line_height(&self, style: &TextStyle) -> f32 {
+        if let Some(height) = style.line_box() {
+            return height;
+        }
         FaceStack {
             fonts: self.fonts_for(&style.family),
             size: style.size,

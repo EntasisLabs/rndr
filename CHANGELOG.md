@@ -26,6 +26,13 @@
 - Stroke arrowheads. [`Marker::Chevron`](crates/rndr_paint/src/path.rs) and [`Marker::Triangle`](crates/rndr_paint/src/path.rs) are drawn with the stroke but stay solid unless `dash_markers` is set, so a dash on the shaft does not break the head. `examples/canvas-scene` uses a chevron on the dashed arrow.
 - [`ZoomCamera`](crates/rndr_paint/src/zoom.rs) stores wheel zoom as an integer step around the cursor that started the gesture. Ten notches in and ten notches out restore the pan and the scale exactly.
 - `examples/create-view` loads a saved Create scene (schema `medousa-create` version 3) and draws shapes, lines, ink, text, images, groups, and frames. The scene types live in the example. Published crates do not depend on Medousa. `--export out.png` renders offscreen. Fixture scenes under `examples/create-view/fixtures` cover every node kind.
+- `TextStyle::line_height` is an optional multiple of the font size. `None` keeps the face's own line height. Paragraph spacing is still added after a newline.
+- A face with no bold or italic master is synthesized: the outline is emboldened, or skewed when the requested style is italic and the selected face is upright.
+- Rotated glyph runs are filled from face outlines. When a face has no outlines, those sprites are sampled linearly. Axis-aligned runs below 64 device pixels stay on the nearest sampler.
+- `ZoomCamera::drag_from` anchors a pan at the press position, so a move that arrives with the press is kept.
+- Canvas underlines use the font's underline thickness, at least one device pixel, snapped to the pixel grid.
+- An ink ribbon closes with the same rounded cap at both ends.
+- A chevron marker is one stroke with a miter join at the tip, so the two arms meet.
 
 ## 0.2.0
 

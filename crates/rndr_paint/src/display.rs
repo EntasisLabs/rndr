@@ -402,9 +402,10 @@ impl Canvas {
     /// Shape `source` and record glyphs.
     ///
     /// The raster size is `style.size` times the camera scale times the current
-    /// viewport scale, snapped with [`size_bucket`]. At or above [`OUTLINE_PX`]
-    /// the sprites are still recorded, and the renderer replaces them with
-    /// outlines when it can. Letter spacing, paragraph spacing, alignment, and
+    /// viewport scale, snapped with [`size_bucket`]. At or above [`OUTLINE_PX`],
+    /// and for a run whose transform is not axis-aligned, the sprites are still
+    /// recorded and the renderer replaces them with outlines when it can.
+    /// Letter spacing, paragraph spacing, alignment, line height, and
     /// underlines come from [`TextStyle`] and [`TextSpan`].
     pub fn text(&mut self, world: &World, source: TextSource) {
         let viewport = world
@@ -428,7 +429,8 @@ impl Canvas {
         let layout = engine.layout(&source.text, &source.style, &source.spans, source.max_width);
         drop(_guard);
         let sprites = sprites_from(&layout, &source);
-        let underlines = underline_paths(&layout, &source);
+        let px = self.scene.camera.uniform_scale() * viewport;
+        let underlines = underline_paths(&layout, &source, px);
         let em = source.style.size;
         self.scene.commands.push(Op::Glyphs(GlyphOp {
             sprites: Arc::from(sprites),
@@ -478,7 +480,12 @@ fn sprites_from(layout: &TextLayout, source: &TextSource) -> Vec<GlyphSprite> {
         .collect()
 }
 
-fn underline_paths(layout: &TextLayout, source: &TextSource) -> Vec<(Path, Color)> {
+fn underline_paths(layout: &TextLayout, source: &TextSource, px: f32) -> Vec<(Path, Color)> {
+    let px = if px.is_finite() && px > 1.0e-4 {
+        px
+    } else {
+        1.0
+    };
     let mut out = Vec::new();
     for span in &source.spans {
         if !span.underline || span.start >= span.end {
@@ -488,12 +495,27 @@ fn underline_paths(layout: &TextLayout, source: &TextSource) -> Vec<(Path, Color
             if selection.w <= 0.0 || selection.h <= 0.0 {
                 continue;
             }
-            let y = source.origin[1] + selection.y + selection.h - 1.0;
+            let line = layout
+                .lines
+                .iter()
+                .find(|line| (line.y - selection.y).abs() < 0.01);
+            let (baseline, thickness, offset) = line
+                .map(|line| {
+                    (
+                        line.baseline,
+                        line.underline_thickness,
+                        line.underline_offset,
+                    )
+                })
+                .unwrap_or((selection.h * 0.8, 1.0, 1.0));
+            let y = source.origin[1] + selection.y + baseline + offset;
+            let y0 = (y * px).round() / px;
+            let h = (thickness.max(0.0) * px).round().max(1.0) / px;
             let rect = Rect {
                 x: source.origin[0] + selection.x,
-                y,
+                y: y0,
                 w: selection.w,
-                h: 1.0,
+                h,
             };
             out.push((Path::round_rect(rect, 0.0), span.color));
         }

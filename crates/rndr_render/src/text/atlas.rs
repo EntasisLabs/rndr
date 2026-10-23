@@ -20,6 +20,10 @@ pub(super) struct GlyphKey {
     pub size_bits: u32,
     pub bin: u8,
     pub color: bool,
+    /// Faux-bold strength. Zero keeps the face as it was drawn.
+    pub embolden_bits: u32,
+    /// Faux-oblique angle in degrees. Zero keeps the face upright.
+    pub skew_bits: u32,
 }
 
 struct Slot {
@@ -336,6 +340,8 @@ impl Atlas {
             size_bits: 0,
             bin: 0,
             color: false,
+            embolden_bits: 0,
+            skew_bits: 0,
         };
         let Some(alloc) = self.packer.allocate(size2(1, 1)) else {
             return;

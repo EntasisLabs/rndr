@@ -337,6 +337,7 @@ pub(crate) struct SceneGpu {
     blur_quad: wgpu::Buffer,
     image_sampler: wgpu::Sampler,
     glyph_sampler: wgpu::Sampler,
+    glyph_sampler_linear: wgpu::Sampler,
     plain: PipeSet,
     msaa: Option<PipeSet>,
     sprite_swap: wgpu::RenderPipeline,
@@ -415,6 +416,14 @@ impl SceneGpu {
             label: Some("glyph"),
             mag_filter: wgpu::FilterMode::Nearest,
             min_filter: wgpu::FilterMode::Nearest,
+            ..Default::default()
+        });
+        let glyph_sampler_linear = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("glyph-linear"),
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
             ..Default::default()
         });
         let plain = pipe_set(
@@ -509,6 +518,7 @@ impl SceneGpu {
             blur_quad,
             image_sampler,
             glyph_sampler,
+            glyph_sampler_linear,
             plain,
             msaa,
             sprite_swap,
@@ -559,8 +569,11 @@ impl SceneGpu {
         viewport[4..8].copy_from_slice(&(height.max(1) as f32).to_le_bytes());
         self.queue.write_buffer(&self.uniform, 0, &viewport);
         let glyph = self.glyph_sampler.clone();
+        let glyph_linear = self.glyph_sampler_linear.clone();
         let coverage_bind = self.sprite_bind(coverage, &glyph);
         let color_bind = self.sprite_bind(color_atlas, &glyph);
+        let coverage_linear = self.sprite_bind(coverage, &glyph_linear);
+        let color_linear = self.sprite_bind(color_atlas, &glyph_linear);
         let quad_bind = self.quad_bind(coverage, color_atlas);
         let mut plan = Plan {
             path_bytes: Vec::new(),
@@ -576,6 +589,8 @@ impl SceneGpu {
             scale,
             &coverage_bind,
             &color_bind,
+            &coverage_linear,
+            &color_linear,
             world,
         );
         self.path_buffer = grow(
@@ -618,6 +633,8 @@ impl SceneGpu {
         scale: f32,
         coverage: &wgpu::BindGroup,
         color_atlas: &wgpu::BindGroup,
+        coverage_linear: &wgpu::BindGroup,
+        color_linear: &wgpu::BindGroup,
         world: Option<&World>,
     ) {
         let mut quad_at = 0u32;
@@ -654,6 +671,8 @@ impl SceneGpu {
                 height,
                 coverage,
                 color_atlas,
+                coverage_linear,
+                color_linear,
                 world,
             );
             self.emit_root(plan, drawn, width, height, scale);
@@ -724,6 +743,8 @@ impl SceneGpu {
         height: u32,
         coverage: &wgpu::BindGroup,
         color_atlas: &wgpu::BindGroup,
+        coverage_linear: &wgpu::BindGroup,
+        color_linear: &wgpu::BindGroup,
         world: Option<&World>,
     ) -> Vec<Drawn> {
         let mut stack = vec![base];
@@ -758,6 +779,8 @@ impl SceneGpu {
                             height,
                             coverage,
                             color_atlas,
+                            coverage_linear,
+                            color_linear,
                             world,
                         );
                         let baked = self.bake(plan, inner, layer, current, scale, width, height);
@@ -783,15 +806,21 @@ impl SceneGpu {
                 }
                 Op::Glyphs(glyphs) => {
                     let device = glyphs.em * current.uniform_scale() * scale;
+                    let choice = glyph_choice(device, current);
                     let mut outlined = false;
-                    if device >= OUTLINE_PX {
+                    if choice.outlines {
                         if let Some(source) = glyphs.source.as_deref() {
                             outlined = self.push_outlines(&mut out, source, current, scale, world);
                         }
                     }
                     if !outlined {
+                        let (cover, color) = if choice.linear_sprites {
+                            (coverage_linear, color_linear)
+                        } else {
+                            (coverage, color_atlas)
+                        };
                         out.extend(
-                            self.glyph_sprites(glyphs, current, scale, coverage, color_atlas)
+                            self.glyph_sprites(glyphs, current, scale, cover, color)
                                 .into_iter()
                                 .map(Drawn::Sprite),
                         );
@@ -1748,6 +1777,30 @@ fn pushed(current: Affine, child: Affine) -> Affine {
     child.then(current)
 }
 
+/// How a glyph run is drawn once the device size and the affine are known.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct GlyphChoice {
+    /// Fill from face outlines when the engine can supply them.
+    outlines: bool,
+    /// Sample atlas sprites linearly when outlines are unavailable.
+    /// Axis-aligned sprites stay on the nearest sampler.
+    linear_sprites: bool,
+}
+
+fn axis_aligned(affine: Affine) -> bool {
+    let scale = affine.uniform_scale().max(1.0e-6);
+    let slack = scale * 1.0e-3;
+    affine.m[1].abs() <= slack && affine.m[2].abs() <= slack
+}
+
+fn glyph_choice(device: f32, affine: Affine) -> GlyphChoice {
+    let rotated = !axis_aligned(affine);
+    GlyphChoice {
+        outlines: device >= OUTLINE_PX || rotated,
+        linear_sprites: rotated,
+    }
+}
+
 /// Affine in effect just before `ops[index]`, starting from identity.
 ///
 /// Paths, images, and glyphs are all drawn with this affine. A child push
@@ -2391,6 +2444,20 @@ mod tests {
     use std::f32::consts::PI;
 
     use super::*;
+
+    #[test]
+    fn rotated_glyphs_use_outlines_and_a_linear_fallback() {
+        let upright = Affine::scale(2.0).then(Affine::translate(3.0, 4.0));
+        let small = glyph_choice(32.0, upright);
+        assert!(!small.outlines);
+        assert!(!small.linear_sprites);
+        let large = glyph_choice(OUTLINE_PX, upright);
+        assert!(large.outlines);
+        assert!(!large.linear_sprites, "axis-aligned sprites stay nearest");
+        let turned = glyph_choice(32.0, Affine::rotate(0.2));
+        assert!(turned.outlines);
+        assert!(turned.linear_sprites);
+    }
 
     #[test]
     fn a_rotated_child_runs_before_the_camera() {

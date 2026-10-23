@@ -109,8 +109,8 @@ pub struct CreativeTextLayout {
     pub width: Option<f64>,
     /// Horizontal alignment inside [`Self::width`].
     pub align: CreativeTextAlign,
-    /// Line box as a multiple of the font size. The viewer records it; the
-    /// text engine still uses the face's own line height.
+    /// Line box as a multiple of the font size. The viewer passes it to the
+    /// text engine. A non-positive value keeps the face's own line height.
     pub line_height: f64,
     /// Extra advance between clusters, in local units.
     #[serde(default)]

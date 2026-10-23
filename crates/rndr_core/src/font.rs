@@ -336,6 +336,14 @@ pub struct TextLine {
     pub y: f32,
     /// Line box height in points. The caret quad uses this height.
     pub h: f32,
+    /// Distance from [`Self::y`] down to the alphabetic baseline, in points.
+    pub baseline: f32,
+    /// Underline thickness in points, from the face. `1.0` when the face
+    /// has no decoration metric.
+    pub underline_thickness: f32,
+    /// Distance from the baseline down to the top of the underline, in points.
+    /// Positive sits below the baseline.
+    pub underline_offset: f32,
     /// Pen advance of the line in points, after kerning.
     pub width: f32,
     /// Caret stops as `(byte index, pen x in points)`. Not ordered left to
@@ -486,6 +494,9 @@ pub(crate) fn layout_text_weighted(
             y,
             h,
             width: x,
+            baseline: h * 0.8,
+            underline_thickness: 1.0,
+            underline_offset: 1.0,
             edges,
         });
         y += h;
@@ -497,6 +508,9 @@ pub(crate) fn layout_text_weighted(
             y: 0.0,
             h,
             width: 0.0,
+            baseline: h * 0.8,
+            underline_thickness: 1.0,
+            underline_offset: 1.0,
             edges: vec![(0, 0.0)],
         });
         y = h;
@@ -1070,6 +1084,9 @@ mod tests {
                 y: 0.0,
                 h: 16.0,
                 width: 20.0,
+                baseline: 12.0,
+                underline_thickness: 1.0,
+                underline_offset: 1.0,
                 edges: vec![(0, 20.0), (2, 10.0), (4, 0.0)],
             }],
             20.0,
@@ -1117,6 +1134,9 @@ mod tests {
                     y: 0.0,
                     h: 16.0,
                     width: 48.0,
+                    baseline: 12.0,
+                    underline_thickness: 1.0,
+                    underline_offset: 1.0,
                     edges: vec![(0, 0.0), (1, 8.0), (6, 48.0), (7, 0.0)],
                 },
                 TextLine {
@@ -1125,6 +1145,9 @@ mod tests {
                     y: 16.0,
                     h: 16.0,
                     width: 48.0,
+                    baseline: 12.0,
+                    underline_thickness: 1.0,
+                    underline_offset: 1.0,
                     edges: vec![(7, 0.0), (8, 8.0), (13, 48.0), (14, 48.0)],
                 },
             ],

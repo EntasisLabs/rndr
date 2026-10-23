@@ -1,8 +1,10 @@
-//! Glyph outlines for em sizes at or above [`rndr_paint::OUTLINE_PX`].
+//! Glyph outlines for em sizes at or above [`rndr_paint::OUTLINE_PX`], and for
+//! any run whose transform is not axis-aligned.
 //!
-//! Below that size the atlas sprites are the drawn glyphs. Above it, a canvas
-//! run is filled from the face outlines so a zoomed or rotated run stays sharp.
-//! The builtin bitmap face has no outlines and keeps its sprites.
+//! An axis-aligned run below that size keeps its atlas sprites. A larger run,
+//! or a rotated one, is filled from the face outlines so the edges stay smooth.
+//! The builtin bitmap face has no outlines and keeps its sprites. Rotated
+//! bitmap sprites are sampled linearly.
 
 use rndr_core::{Color, World};
 use rndr_paint::{Path, TextSource};
