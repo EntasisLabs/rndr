@@ -20,3 +20,5 @@ open_terminal(app.world_mut(), entity, TerminalOptions::shell())?;
 ```
 
 `cargo run -p terminal` opens a window running the login shell.
+
+License: MIT.
