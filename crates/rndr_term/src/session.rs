@@ -458,6 +458,8 @@ impl Drop for Session {
     fn drop(&mut self) {
         self.shared.shutdown.store(true, Ordering::Release);
         self.shared.space.notify_one();
+        // Drop the writer first so the child observes EOF on stdin.
+        self.writer.take();
         if !self.reaped {
             #[cfg(unix)]
             if let Some(master) = &self.master {
@@ -469,6 +471,14 @@ impl Drop for Session {
             }
             if let Some(child) = self.child.as_mut() {
                 let _ = child.kill();
+            }
+        }
+        // On Windows the reader is blocked in `ReadFile` on the ConPTY output
+        // pipe. That call returns when the master drops (`ClosePseudoConsole`).
+        // Joining first never comes back, and `close_terminal` hangs.
+        self.master.take();
+        if !self.reaped {
+            if let Some(child) = self.child.as_mut() {
                 let _ = child.wait();
                 self.reaped = true;
             }
