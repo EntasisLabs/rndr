@@ -155,7 +155,10 @@ fn surface_slots(world: &World) -> Vec<SurfaceRect> {
 /// [`rndr_core::Theme::caret`]. A text selection uses
 /// [`rndr_core::Theme::selection`] and draws no caret. The IME underline
 /// is at most 2 points tall, in that same caret color. A span underline
-/// is 1 point tall, in the span color.
+/// is 1 point tall, in the span color. A glyph that overlaps a caret
+/// selection or a [`rndr_core::TextSelection`], and the part of an
+/// underline inside that range, uses the label color, so a selected
+/// link reads like the rest of the selected text.
 ///
 /// Text, selection, the caret, and marks snap to the pixel grid of
 /// [`rndr_core::Viewport::pixels_per_point`]. A missing viewport snaps
@@ -286,32 +289,38 @@ fn paint_visited(
                 );
             }
         }
+        let selected = selection_range(caret, selection);
         if let Some(spans) = spans {
             for run in &spans.runs {
                 if !run.underline || run.start >= run.end {
                     continue;
                 }
-                for span in layout.selection_boxes(run.start, run.end) {
-                    let bar = 1.0_f32.min(span.h);
-                    push(
-                        out,
-                        snap_box(
-                            rect.x + TEXT_ORIGIN_X + span.x,
-                            rect.y + TEXT_ORIGIN_Y + span.y + span.h - bar + shift_y,
-                            span.w,
-                            bar,
-                            scale,
-                        ),
-                        run.color,
-                        solid,
-                        text_clip,
-                        0.0,
-                        0,
-                    );
+                for (start, end, inside) in underline_parts(run.start, run.end, selected) {
+                    let color = if inside { text_color } else { run.color };
+                    for span in layout.selection_boxes(start, end) {
+                        let bar = 1.0_f32.min(span.h);
+                        push(
+                            out,
+                            snap_box(
+                                rect.x + TEXT_ORIGIN_X + span.x,
+                                rect.y + TEXT_ORIGIN_Y + span.y + span.h - bar + shift_y,
+                                span.w,
+                                bar,
+                                scale,
+                            ),
+                            color,
+                            solid,
+                            text_clip,
+                            0.0,
+                            0,
+                        );
+                    }
                 }
             }
         }
-        push_label(out, rect, layout, text_clip, scale, text_color, shift_y);
+        push_label(
+            out, rect, layout, text_clip, scale, text_color, selected, shift_y,
+        );
     }
     for mark in marks {
         let color = match mark.kind {
@@ -780,6 +789,51 @@ fn push_selection(
     }
 }
 
+fn selection_range(
+    caret: Option<&Caret>,
+    selection: Option<&TextSelection>,
+) -> Option<(usize, usize)> {
+    let (anchor, head) = if let Some(caret) = caret {
+        (caret.anchor, caret.index)
+    } else {
+        let selection = selection?;
+        (selection.anchor, selection.head)
+    };
+    if anchor == head {
+        None
+    } else {
+        Some((anchor.min(head), anchor.max(head)))
+    }
+}
+
+fn underline_parts(
+    start: usize,
+    end: usize,
+    selected: Option<(usize, usize)>,
+) -> Vec<(usize, usize, bool)> {
+    let Some((sel_start, sel_end)) = selected else {
+        return vec![(start, end, false)];
+    };
+    let overlap_start = start.max(sel_start);
+    let overlap_end = end.min(sel_end);
+    if overlap_start >= overlap_end {
+        return vec![(start, end, false)];
+    }
+    let mut parts = Vec::new();
+    if start < overlap_start {
+        parts.push((start, overlap_start, false));
+    }
+    parts.push((overlap_start, overlap_end, true));
+    if overlap_end < end {
+        parts.push((overlap_end, end, false));
+    }
+    parts
+}
+
+fn glyph_in_selection(glyph: &rndr_core::PlacedGlyph, selected: Option<(usize, usize)>) -> bool {
+    selected.is_some_and(|(start, end)| glyph.start < end && glyph.end > start)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn push_label(
     out: &mut Vec<Quad>,
@@ -788,9 +842,15 @@ fn push_label(
     clip: Clip,
     scale: f32,
     color: Color,
+    selected: Option<(usize, usize)>,
     shift_y: f32,
 ) {
     for glyph in &layout.glyphs {
+        let fill = if glyph_in_selection(glyph, selected) {
+            color
+        } else {
+            glyph.color.unwrap_or(color)
+        };
         push(
             out,
             snap_box(
@@ -800,7 +860,7 @@ fn push_label(
                 glyph.h,
                 scale,
             ),
-            glyph.color.unwrap_or(color),
+            fill,
             glyph.uv,
             clip,
             0.0,

@@ -14,8 +14,11 @@
 //! [`MarkdownPlugin`] sync the view parses again from a stable boundary and
 //! writes only the blocks whose text or style changed. A boundary is the byte
 //! after two blank lines outside a fence, or the start of an unclosed fence.
-//! An unclosed fence or a trailing `**` stays inside that tail, so earlier
-//! blocks keep their entities and their shaped lines.
+//! An unclosed fence stays inside that tail, so earlier blocks keep their
+//! entities and their shaped lines. A trailing inline that is still open
+//! (bold, italic, a code span, or a link whose destination has not closed)
+//! is closed for the parse. The frame shows the styled text. Raw markers
+//! are not drawn, and the source still holds only the characters that arrived.
 //!
 //! A link reference definition (`[id]: url`) disables the boundary: the whole
 //! string is parsed, and unchanged blocks still keep their entities.
@@ -26,9 +29,9 @@
 //! [`crate::apply_scroll`]. While the view is pinned, sync sets the vertical
 //! offset to the bottom after layout clamps it. A wheel or a drag that leaves
 //! the bottom clears the pin. Returning to the bottom sets it again.
-//! [`MarkdownView::set_follow`] turns the pin off. A drag that starts on a
-//! block selects text and puts the offset back, so the same drag does not
-//! scroll.
+//! [`MarkdownView::set_follow`] turns the pin off. A drag that starts inside
+//! the view, including the padding gutter, selects text and puts the offset
+//! back, so the same drag does not scroll.
 //!
 //! # Selection
 //!
@@ -38,9 +41,16 @@
 //! Primary+C, or [`Key::Copy`](crate::Key::Copy), writes
 //! [`selected_text`](MarkdownView::selected_text) to
 //! [`Clipboard`](crate::Clipboard). Releasing a drag publishes the same
-//! string as the primary selection. The copied text keeps markdown structure:
-//! a blank line between blocks, a single newline between tight list items,
-//! list markers and indent, a `> ` quote prefix, and `---` for a rule.
+//! string as the primary selection. Copy writes markdown that round-trips
+//! when the selection covers whole blocks: heading marks, list markers,
+//! quote prefixes, rules, and fences stay, and nested list indents parse
+//! back as the same nesting. Bold, italic, and inline code keep their
+//! markers. A link fully inside the selection is copied with its
+//! destination. A block that is only partly selected is plain text, except
+//! that an inline span lying entirely inside the selection still keeps its
+//! markers. Strikethrough is copied as plain text. Blocks that are not
+//! tight list items are separated by a blank line. Tight items share one
+//! newline.
 //!
 //! Italic is stored on the span. The desktop shaper slants that run. The
 //! builtin bitmap face has no italic outlines, so those glyphs stay upright.
@@ -48,10 +58,11 @@
 //! The optional `highlight` feature colors fenced code by token class. Without
 //! it, a code block is one color.
 
+use std::borrow::Cow;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{CodeBlockKind, CowStr, Event, Options, Parser, Tag, TagEnd};
 
 use crate::app::{App, Plugin, Schedule};
 use crate::caret::TextSelection;
@@ -77,11 +88,10 @@ const BLOCK_GAP: f32 = 12.0;
 const TIGHT_GAP: f32 = 4.0;
 const ROW_GAP: f32 = 8.0;
 const BAR_W: f32 = 3.0;
-const NEST_INDENT: f32 = 24.0;
+const QUOTE_STEP: f32 = 12.0;
 const BULLET: f32 = 6.0;
-const BULLET_TOP: f32 = 13.0;
 const CHECK: f32 = 14.0;
-const CHECK_TOP: f32 = 9.0;
+const CHECK_PAD: f32 = 2.0;
 const CODE_FAMILY: &str = "monospace";
 
 fn parser_options() -> Options {
@@ -269,6 +279,11 @@ struct Marker;
 
 impl Component for Marker {}
 
+/// Left pad that right-aligns a marker inside its column.
+struct MarkerGap;
+
+impl Component for MarkerGap {}
+
 /// Scrollport of markdown blocks.
 ///
 /// Build one with [`markdown_view`] and add [`MarkdownPlugin`]. The source
@@ -404,14 +419,23 @@ impl MarkdownView {
         });
     }
 
-    /// Text inside the selection, in markdown-ish form.
+    /// Text inside the selection.
     ///
-    /// Blocks are separated by a blank line. Two tight list items are
-    /// separated by one newline. A heading keeps its `#` marks, a list item
-    /// keeps its marker and indent, a quote keeps a `> ` prefix on each line,
-    /// a rule is `---`, and a fully selected code block keeps its fence. A
-    /// range that starts in the middle of a block is the raw slice of that
-    /// block. Empty when the range is empty or the view has no selection.
+    /// A block the selection covers from its first byte through its last is
+    /// markdown: a heading keeps its `#` marks, a list item keeps its marker
+    /// and an indent that parses back at the same depth, a quote keeps a
+    /// `> ` prefix on each line, a rule is `---`, and a code block keeps its
+    /// fence. Bold, italic, and inline code inside that block keep `**`,
+    /// `*`, and backtick markers. A link the selection covers completely is
+    /// `[label](url)`.
+    ///
+    /// A block the selection only partly covers contributes its plain slice.
+    /// An inline span that lies entirely inside the slice still keeps its
+    /// markers, so a whole link or a whole bold word survives a partial
+    /// block. Strikethrough is copied as plain text. Blocks that are not
+    /// tight list items are separated by a blank line. Tight items share
+    /// one newline. Empty when the range is empty or the view has no
+    /// selection.
     pub fn selected_text(&self) -> String {
         selection_text(&self.blocks, self.anchor, self.head)
     }
@@ -527,7 +551,8 @@ pub(crate) fn sync_widths(world: &mut World) -> bool {
             continue;
         };
         let selecting = view.gesture.is_some_and(|gesture| gesture.moved);
-        reconcile(world, entity, &mut view, width, &base);
+        let columns = list_columns(world, &base, &view.blocks);
+        reconcile(world, entity, &mut view, width, &base, &columns);
         view.width = width;
         let pin = view.pinned && view.follow && !selecting;
         apply_selection(world, &view);
@@ -571,9 +596,10 @@ fn sync_one(world: &mut World, entity: Entity) {
         view.dirty = false;
         clamp_selection(&mut view);
     }
+    let columns = list_columns(world, &base, &view.blocks);
     let width_changed = (view.width - width).abs() > 0.5;
-    if width_changed || view.slots.len() != view.blocks.len() || slots_stale(&view) {
-        reconcile(world, entity, &mut view, width, &base);
+    if width_changed || view.slots.len() != view.blocks.len() || slots_stale(&view, &columns) {
+        reconcile(world, entity, &mut view, width, &base, &columns);
         view.width = width;
     }
     apply_selection(world, &view);
@@ -583,10 +609,11 @@ fn sync_one(world: &mut World, entity: Entity) {
     world.insert(entity, view);
 }
 
-fn slots_stale(view: &MarkdownView) -> bool {
+fn slots_stale(view: &MarkdownView, columns: &ListColumns) -> bool {
     view.slots.iter().enumerate().any(|(i, slot)| {
         view.blocks.get(i).is_none_or(|block| {
-            slot.shape != shape_of(block) || slot.fingerprint != fingerprint(block)
+            slot.shape != shape_of(block, columns)
+                || slot.fingerprint != fingerprint(block, columns)
         })
     })
 }
@@ -633,12 +660,13 @@ fn reconcile(
     doc: &mut MarkdownView,
     width: f32,
     base: &TextStyle,
+    columns: &ListColumns,
 ) {
     let theme = doc.theme;
     let mut index = 0;
     while index < doc.blocks.len() {
-        let shape = shape_of(&doc.blocks[index]);
-        let fingerprint = fingerprint(&doc.blocks[index]);
+        let shape = shape_of(&doc.blocks[index], columns);
+        let fingerprint = fingerprint(&doc.blocks[index], columns);
         let alive = doc
             .slots
             .get(index)
@@ -648,7 +676,7 @@ fn reconcile(
                 despawn(world, doc.slots.pop().expect("slot").entity);
             }
         }
-        let content = block_height(world, base, &doc.blocks[index], width);
+        let content = block_height(world, base, &doc.blocks[index], width, columns);
         let outer = content + trail_after(&doc.blocks, index);
         if index == doc.slots.len() {
             let entity = spawn_block(
@@ -660,6 +688,7 @@ fn reconcile(
                 outer,
                 &theme,
                 base,
+                columns,
             );
             doc.slots.push(Slot {
                 entity,
@@ -682,6 +711,7 @@ fn reconcile(
                 outer,
                 &theme,
                 base,
+                columns,
             ) {
                 despawn(world, entity);
                 let entity = spawn_block(
@@ -693,6 +723,7 @@ fn reconcile(
                     outer,
                     &theme,
                     base,
+                    columns,
                 );
                 doc.slots[index] = Slot {
                     entity,
@@ -717,7 +748,7 @@ fn reconcile(
     }
 }
 
-fn shape_of(block: &MarkdownBlock) -> u16 {
+fn shape_of(block: &MarkdownBlock, columns: &ListColumns) -> u16 {
     if matches!(block.kind, MarkdownKind::Rule) {
         return 0;
     }
@@ -725,7 +756,7 @@ fn shape_of(block: &MarkdownBlock) -> u16 {
     if block.quote > 0 {
         shape |= 2;
     }
-    if spacer_width(block) > 0.0 {
+    if spacer_width(columns, block) > 0.0 {
         shape |= 4;
     }
     if matches!(block.kind, MarkdownKind::Code) {
@@ -740,9 +771,11 @@ fn shape_of(block: &MarkdownBlock) -> u16 {
     shape
 }
 
-fn fingerprint(block: &MarkdownBlock) -> u64 {
+fn fingerprint(block: &MarkdownBlock, columns: &ListColumns) -> u64 {
     let mut hasher = DefaultHasher::new();
     kind_key(block.kind).hash(&mut hasher);
+    column_of(columns, block).to_bits().hash(&mut hasher);
+    spacer_width(columns, block).to_bits().hash(&mut hasher);
     block.depth.hash(&mut hasher);
     block.quote.hash(&mut hasher);
     block.tight.hash(&mut hasher);
@@ -801,12 +834,18 @@ fn trail_after(blocks: &[MarkdownBlock], index: usize) -> f32 {
     }
 }
 
-fn block_height(world: &World, base: &TextStyle, block: &MarkdownBlock, inner: f32) -> f32 {
+fn block_height(
+    world: &World,
+    base: &TextStyle,
+    block: &MarkdownBlock,
+    inner: f32,
+    columns: &ListColumns,
+) -> f32 {
     if matches!(block.kind, MarkdownKind::Rule) {
         return 2.0;
     }
     let style = block_style(base, block);
-    let width = label_width(world, base, inner, block);
+    let width = label_width(inner, block, columns);
     let engine = text_engine(world);
     let wrap = field_text_width(width, engine.unit_advance(&style));
     let measured = engine.measure(&block.text, &style, &block.spans, wrap);
@@ -814,19 +853,19 @@ fn block_height(world: &World, base: &TextStyle, block: &MarkdownBlock, inner: f
     (TEXT_ORIGIN_Y + lines * engine.line_height(&style) + TEXT_ORIGIN_Y).max(36.0)
 }
 
-fn label_width(world: &World, base: &TextStyle, inner: f32, block: &MarkdownBlock) -> f32 {
+fn label_width(inner: f32, block: &MarkdownBlock, columns: &ListColumns) -> f32 {
     let mut width = inner;
     let mut gaps = 0.0;
     if block.quote > 0 {
         width -= BAR_W;
         gaps += ROW_GAP;
     }
-    let spacer = spacer_width(block);
+    let spacer = spacer_width(columns, block);
     if spacer > 0.0 {
         width -= spacer;
         gaps += ROW_GAP;
     }
-    let marker = marker_width(world, base, block);
+    let marker = column_of(columns, block);
     if marker > 0.0 {
         width -= marker;
         gaps += ROW_GAP;
@@ -834,22 +873,76 @@ fn label_width(world: &World, base: &TextStyle, inner: f32, block: &MarkdownBloc
     (width - gaps).max(16.0)
 }
 
-fn spacer_width(block: &MarkdownBlock) -> f32 {
-    (block.quote.saturating_sub(1) as f32) * 12.0
-        + (block.depth.saturating_sub(1) as f32) * NEST_INDENT
+/// Marker column shared by every list depth, so a two-digit number and a
+/// bullet put their text on the same x, and each nested level steps by the
+/// same amount.
+struct ListColumns {
+    width: f32,
 }
 
-fn marker_width(world: &World, base: &TextStyle, block: &MarkdownBlock) -> f32 {
+fn list_columns(world: &World, base: &TextStyle, blocks: &[MarkdownBlock]) -> ListColumns {
+    let mut width = 0.0f32;
+    for block in blocks {
+        width = width.max(marker_outer(world, base, block));
+    }
+    ListColumns { width }
+}
+
+fn marker_outer(world: &World, base: &TextStyle, block: &MarkdownBlock) -> f32 {
     match block.kind {
-        MarkdownKind::Bullet => BULLET,
-        MarkdownKind::Task(_) => CHECK,
-        MarkdownKind::Numbered(n) => {
-            let engine = text_engine(world);
-            let measured = engine.measure(&format!("{n}."), base, &[], f32::INFINITY);
-            measured.width + 2.0 * TEXT_ORIGIN_X
-        }
+        MarkdownKind::Numbered(n) => number_label_width(world, base, n),
+        MarkdownKind::Bullet => BULLET + TEXT_ORIGIN_X,
+        MarkdownKind::Task(_) => CHECK + TEXT_ORIGIN_X,
         _ => 0.0,
     }
+}
+
+fn number_label_width(world: &World, base: &TextStyle, n: u64) -> f32 {
+    let engine = text_engine(world);
+    let measured = engine.measure(&format!("{n}."), base, &[], f32::INFINITY);
+    measured.width + 2.0 * TEXT_ORIGIN_X
+}
+
+fn column_of(columns: &ListColumns, block: &MarkdownBlock) -> f32 {
+    if marker_kind(block.kind) {
+        columns.width
+    } else {
+        0.0
+    }
+}
+
+fn spacer_width(columns: &ListColumns, block: &MarkdownBlock) -> f32 {
+    let quote = f32::from(block.quote.saturating_sub(1)) * QUOTE_STEP;
+    let depth = block.depth;
+    let nest = if depth <= 1 || columns.width <= 0.0 {
+        0.0
+    } else {
+        // One gap sits between the spacer and the marker. Extra levels fold
+        // that gap into the spacer so each level's text starts one column
+        // further right than the level above it.
+        f32::from(depth - 1) * columns.width + f32::from(depth - 2) * ROW_GAP
+    };
+    quote + nest
+}
+
+fn marker_lead(block: &MarkdownBlock) -> f32 {
+    match block.kind {
+        MarkdownKind::Bullet | MarkdownKind::Task(_) => TEXT_ORIGIN_X,
+        _ => 0.0,
+    }
+}
+
+fn marker_box(world: &World, base: &TextStyle, block: &MarkdownBlock) -> f32 {
+    match block.kind {
+        MarkdownKind::Numbered(n) => number_label_width(world, base, n),
+        MarkdownKind::Bullet => BULLET,
+        MarkdownKind::Task(_) => CHECK,
+        _ => 0.0,
+    }
+}
+
+fn marker_top(line_h: f32, size: f32) -> f32 {
+    (TEXT_ORIGIN_Y + (line_h - size) * 0.5).max(0.0)
 }
 
 fn is_row(block: &MarkdownBlock) -> bool {
@@ -924,6 +1017,7 @@ fn spawn_block(
     outer: f32,
     theme: &MarkdownTheme,
     base: &TextStyle,
+    columns: &ListColumns,
 ) -> Entity {
     if matches!(block.kind, MarkdownKind::Rule) {
         let column = world.spawn((
@@ -982,13 +1076,13 @@ fn spawn_block(
         ));
         set_parent(world, bar, row);
     }
-    let spacer = spacer_width(block);
+    let spacer = spacer_width(columns, block);
     if spacer > 0.0 {
         let gap = world.spawn(box_layout(Axis::Column, Size::Px(spacer), Size::Px(1.0)));
         set_parent(world, gap, row);
     }
     if marker_kind(block.kind) {
-        let marker = spawn_marker(world, block, theme, base);
+        let marker = spawn_marker(world, block, theme, base, columns);
         set_parent(world, marker, row);
     }
     let label = spawn_label(world, view, index, block, content, Size::Fill, theme, base);
@@ -1001,64 +1095,95 @@ fn spawn_marker(
     block: &MarkdownBlock,
     theme: &MarkdownTheme,
     base: &TextStyle,
+    columns: &ListColumns,
 ) -> Entity {
+    let column = column_of(columns, block).max(marker_outer(world, base, block));
+    let row = world.spawn((
+        Marker,
+        Layout {
+            axis: Axis::Row,
+            gap: 0.0,
+            padding: 0.0,
+            width: Size::Px(column),
+            height: Size::Hug,
+            min_width: 0.0,
+            min_height: 0.0,
+        },
+    ));
+    let box_w = marker_box(world, base, block);
+    let gap_w = (column - box_w - marker_lead(block)).max(0.0);
+    let gap = world.spawn((
+        MarkerGap,
+        box_layout(Axis::Column, Size::Px(gap_w), Size::Px(1.0)),
+    ));
+    set_parent(world, gap, row);
+    let inner = spawn_marker_inner(world, block, theme, base);
+    set_parent(world, inner, row);
+    row
+}
+
+fn spawn_marker_inner(
+    world: &mut World,
+    block: &MarkdownBlock,
+    theme: &MarkdownTheme,
+    base: &TextStyle,
+) -> Entity {
+    let line_h = text_engine(world).line_height(base);
     match block.kind {
         MarkdownKind::Numbered(n) => world.spawn((
-            Marker,
             box_layout(Axis::Column, Size::Hug, Size::Hug),
             Label::new(format!("{n}.")).with_color(theme.muted),
             Color::rgba(0.0, 0.0, 0.0, 0.0),
             base.clone(),
         )),
-        MarkdownKind::Task(checked) => {
-            let column =
-                world.spawn((Marker, box_layout(Axis::Column, Size::Px(CHECK), Size::Hug)));
-            let top = world.spawn(box_layout(
-                Axis::Column,
-                Size::Px(CHECK),
-                Size::Px(CHECK_TOP),
-            ));
-            set_parent(world, top, column);
-            let box_entity = world.spawn((
-                Layout {
-                    axis: Axis::Column,
-                    gap: 0.0,
-                    padding: 3.0,
-                    width: Size::Px(CHECK),
-                    height: Size::Px(CHECK),
-                    min_width: 0.0,
-                    min_height: 0.0,
-                },
-                theme.muted,
-            ));
-            set_parent(world, box_entity, column);
-            if checked {
-                let mark =
-                    world.spawn((box_layout(Axis::Column, Size::Fill, Size::Fill), theme.text));
-                set_parent(world, mark, box_entity);
-            }
-            column
-        }
-        _ => {
-            let column = world.spawn((
-                Marker,
-                box_layout(Axis::Column, Size::Px(BULLET), Size::Hug),
-            ));
-            let top = world.spawn(box_layout(
-                Axis::Column,
-                Size::Px(BULLET),
-                Size::Px(BULLET_TOP),
-            ));
-            set_parent(world, top, column);
-            let dot = world.spawn((
-                box_layout(Axis::Column, Size::Px(BULLET), Size::Px(BULLET)),
-                Radius(BULLET * 0.5),
-                theme.muted,
-            ));
-            set_parent(world, dot, column);
-            column
-        }
+        MarkdownKind::Task(checked) => spawn_check(world, checked, theme, line_h),
+        _ => spawn_bullet(world, theme, line_h),
     }
+}
+
+fn spawn_bullet(world: &mut World, theme: &MarkdownTheme, line_h: f32) -> Entity {
+    let column = world.spawn(box_layout(Axis::Column, Size::Px(BULLET), Size::Hug));
+    let top = world.spawn(box_layout(
+        Axis::Column,
+        Size::Px(BULLET),
+        Size::Px(marker_top(line_h, BULLET)),
+    ));
+    set_parent(world, top, column);
+    let dot = world.spawn((
+        box_layout(Axis::Column, Size::Px(BULLET), Size::Px(BULLET)),
+        Radius(BULLET * 0.5),
+        theme.muted,
+    ));
+    set_parent(world, dot, column);
+    column
+}
+
+fn spawn_check(world: &mut World, checked: bool, theme: &MarkdownTheme, line_h: f32) -> Entity {
+    let column = world.spawn(box_layout(Axis::Column, Size::Px(CHECK), Size::Hug));
+    let top = world.spawn(box_layout(
+        Axis::Column,
+        Size::Px(CHECK),
+        Size::Px(marker_top(line_h, CHECK)),
+    ));
+    set_parent(world, top, column);
+    let border = world.spawn((
+        Layout {
+            axis: Axis::Column,
+            gap: 0.0,
+            padding: CHECK_PAD,
+            width: Size::Px(CHECK),
+            height: Size::Px(CHECK),
+            min_width: 0.0,
+            min_height: 0.0,
+        },
+        theme.muted,
+    ));
+    set_parent(world, border, column);
+    // A hollow center matches the page. A checked item fills that center.
+    let hole = if checked { theme.text } else { theme.surface };
+    let mark = world.spawn((box_layout(Axis::Column, Size::Fill, Size::Fill), hole));
+    set_parent(world, mark, border);
+    column
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1100,6 +1225,7 @@ fn update_block(
     outer: f32,
     theme: &MarkdownTheme,
     base: &TextStyle,
+    columns: &ListColumns,
 ) -> bool {
     world.insert(
         entity,
@@ -1182,7 +1308,7 @@ fn update_block(
     if (block.quote > 0) != bar.is_some() {
         return false;
     }
-    if (spacer_width(block) > 0.0) != spacer.is_some() {
+    if (spacer_width(columns, block) > 0.0) != spacer.is_some() {
         return false;
     }
     if marker_kind(block.kind) != marker.is_some() {
@@ -1195,11 +1321,15 @@ fn update_block(
     if let Some(spacer) = spacer {
         world.insert(
             spacer,
-            box_layout(Axis::Column, Size::Px(spacer_width(block)), Size::Px(1.0)),
+            box_layout(
+                Axis::Column,
+                Size::Px(spacer_width(columns, block)),
+                Size::Px(1.0),
+            ),
         );
     }
     if let Some(marker) = marker {
-        if !sync_marker(world, marker, block, theme, base) {
+        if !sync_marker(world, marker, block, theme, base, columns) {
             return false;
         }
     }
@@ -1220,35 +1350,54 @@ fn sync_marker(
     block: &MarkdownBlock,
     theme: &MarkdownTheme,
     base: &TextStyle,
+    columns: &ListColumns,
 ) -> bool {
+    let column = column_of(columns, block).max(marker_outer(world, base, block));
+    let Some(layout) = world.get::<Layout>(marker).copied() else {
+        return false;
+    };
+    if layout.axis != Axis::Row {
+        return false;
+    }
+    world.insert(
+        marker,
+        Layout {
+            width: Size::Px(column),
+            ..layout
+        },
+    );
+    let kids = children_of(world, marker);
+    let Some(gap) = kids
+        .iter()
+        .copied()
+        .find(|child| world.has::<MarkerGap>(*child))
+    else {
+        return false;
+    };
+    let box_w = marker_box(world, base, block);
+    let gap_w = (column - box_w - marker_lead(block)).max(0.0);
+    world.insert(
+        gap,
+        box_layout(Axis::Column, Size::Px(gap_w), Size::Px(1.0)),
+    );
+    let Some(inner) = kids
+        .into_iter()
+        .find(|child| !world.has::<MarkerGap>(*child))
+    else {
+        return false;
+    };
     match block.kind {
         MarkdownKind::Numbered(n) => {
-            world.insert(marker, Label::new(format!("{n}.")).with_color(theme.muted));
-            world.insert(marker, base.clone());
-            true
-        }
-        MarkdownKind::Task(checked) => {
-            let kids = children_of(world, marker);
-            let Some(box_entity) = kids.into_iter().find(|child| world.has::<Color>(*child)) else {
+            if !world.has::<Label>(inner) {
                 return false;
-            };
-            world.insert(box_entity, theme.muted);
-            let marks = children_of(world, box_entity);
-            if checked && marks.is_empty() {
-                let mark =
-                    world.spawn((box_layout(Axis::Column, Size::Fill, Size::Fill), theme.text));
-                set_parent(world, mark, box_entity);
-            } else if !checked {
-                for mark in marks {
-                    despawn(world, mark);
-                }
-            } else if let Some(mark) = marks.first() {
-                world.insert(*mark, theme.text);
             }
+            world.insert(inner, Label::new(format!("{n}.")).with_color(theme.muted));
+            world.insert(inner, base.clone());
             true
         }
+        MarkdownKind::Task(checked) => sync_check(world, inner, checked, theme),
         MarkdownKind::Bullet => {
-            let dot = children_of(world, marker)
+            let dot = children_of(world, inner)
                 .into_iter()
                 .find(|child| world.has::<Color>(*child));
             if let Some(dot) = dot {
@@ -1258,6 +1407,22 @@ fn sync_marker(
         }
         _ => false,
     }
+}
+
+fn sync_check(world: &mut World, inner: Entity, checked: bool, theme: &MarkdownTheme) -> bool {
+    let Some(border) = children_of(world, inner)
+        .into_iter()
+        .find(|child| world.has::<Color>(*child))
+    else {
+        return false;
+    };
+    world.insert(border, theme.muted);
+    let Some(hole) = children_of(world, border).into_iter().next() else {
+        return false;
+    };
+    let color = if checked { theme.text } else { theme.surface };
+    world.insert(hole, color);
+    true
 }
 
 fn apply_height(world: &mut World, entity: Entity, content: f32, outer: f32) {
@@ -1408,7 +1573,21 @@ fn markdown_input(world: &mut World) {
     let ids = world.entities_with::<MarkdownView>();
     if pressed && button == PointerButton::Left {
         let hit = hit_block(world, x, y);
-        let view_hit = hit.map(|hit| hit.view).or_else(|| view_at(world, x, y));
+        let pressed_at = hit
+            .map(|hit| {
+                (
+                    hit.view,
+                    CaretPos {
+                        block: hit.index,
+                        byte: hit.byte,
+                    },
+                )
+            })
+            .or_else(|| {
+                let view = view_at(world, x, y)?;
+                locate(world, view, x, y).map(|pos| (view, pos))
+            });
+        let view_hit = pressed_at.map(|(view, _)| view);
         for id in &ids {
             if let Some(view) = world.get_mut::<MarkdownView>(*id) {
                 view.engaged = Some(*id) == view_hit;
@@ -1417,16 +1596,12 @@ fn markdown_input(world: &mut World) {
                 }
             }
         }
-        if let Some(hit) = hit {
+        if let Some((view_id, pos)) = pressed_at {
             let scroll = world
-                .get::<Scroll>(hit.view)
+                .get::<Scroll>(view_id)
                 .map(|scroll| scroll.offset)
                 .unwrap_or([0.0, 0.0]);
-            if let Some(view) = world.get_mut::<MarkdownView>(hit.view) {
-                let pos = CaretPos {
-                    block: hit.index,
-                    byte: hit.byte,
-                };
+            if let Some(view) = world.get_mut::<MarkdownView>(view_id) {
                 if shift && view.anchor.is_some() {
                     view.head = Some(pos);
                 } else {
@@ -1434,8 +1609,8 @@ fn markdown_input(world: &mut World) {
                     view.head = Some(pos);
                 }
                 view.gesture = Some(Gesture {
-                    index: hit.index,
-                    byte: hit.byte,
+                    index: pos.block,
+                    byte: pos.byte,
                     x,
                     y,
                     moved: false,
@@ -1579,15 +1754,12 @@ fn hit_block(world: &World, x: f32, y: f32) -> Option<BlockHit> {
     let mut current = Some(hit);
     while let Some(id) = current {
         if let Some(piece) = world.get::<Piece>(id).copied() {
-            let content = label_entity(world, id);
-            let on_content = content.is_some_and(|label| entity_within(world, hit, label));
-            let byte = if on_content {
-                content
-                    .and_then(|label| byte_at(world, label, x, y))
-                    .unwrap_or(0)
-            } else {
-                0
-            };
+            // A marker, quote bar, or the row beside the text is the same
+            // line as the label under the pointer. Byte 0 would be the first
+            // line of a wrapped item.
+            let byte = label_entity(world, id)
+                .and_then(|label| byte_at(world, label, x, y))
+                .unwrap_or(0);
             return Some(BlockHit {
                 view: piece.view,
                 index: piece.index as usize,
@@ -1599,19 +1771,6 @@ fn hit_block(world: &World, x: f32, y: f32) -> Option<BlockHit> {
             .map(|parent| parent.entity);
     }
     None
-}
-
-fn entity_within(world: &World, hit: Entity, root: Entity) -> bool {
-    let mut current = Some(hit);
-    while let Some(id) = current {
-        if id == root {
-            return true;
-        }
-        current = world
-            .get::<crate::hierarchy::Parent>(id)
-            .map(|parent| parent.entity);
-    }
-    false
 }
 
 fn update_cursor(world: &mut World) {
@@ -1660,34 +1819,28 @@ fn locate(world: &World, view: Entity, x: f32, y: f32) -> Option<CaretPos> {
         .iter()
         .map(|slot| (slot.index, slot.entity))
         .collect();
-    let mut last = None;
+    let mut nearest = None;
     for (index, entity) in slots {
         let rect = world.get::<Rect>(entity).copied()?;
-        let len = label_entity(world, entity)
-            .and_then(|label| world.get::<Label>(label))
-            .map(|label| label.text.len())
-            .unwrap_or(0);
-        if y < rect.y {
-            return Some(CaretPos {
-                block: index as usize,
-                byte: 0,
-            });
-        }
-        last = Some(CaretPos {
-            block: index as usize,
-            byte: len,
-        });
+        nearest = Some((index, entity));
         if y < rect.y + rect.h {
-            let byte = label_entity(world, entity)
-                .and_then(|label| byte_at(world, label, x, y))
-                .unwrap_or(0);
             return Some(CaretPos {
                 block: index as usize,
-                byte,
+                byte: label_byte(world, entity, x, y),
             });
         }
     }
-    last
+    let (index, entity) = nearest?;
+    Some(CaretPos {
+        block: index as usize,
+        byte: label_byte(world, entity, x, y),
+    })
+}
+
+fn label_byte(world: &World, entity: Entity, x: f32, y: f32) -> usize {
+    label_entity(world, entity)
+        .and_then(|label| byte_at(world, label, x, y))
+        .unwrap_or(0)
 }
 
 fn byte_at(world: &World, label: Entity, x: f32, y: f32) -> Option<usize> {
@@ -1755,7 +1908,7 @@ fn selection_text(
         if let Some(prev) = previous {
             out.push_str(block_joiner(&blocks[prev], block));
         }
-        out.push_str(&format_block(block, from, to, from == 0));
+        out.push_str(&format_block(blocks, index, from, to));
         previous = Some(index);
     }
     out
@@ -1769,52 +1922,201 @@ fn block_joiner(left: &MarkdownBlock, right: &MarkdownBlock) -> &'static str {
     }
 }
 
-fn format_block(block: &MarkdownBlock, from: usize, to: usize, include_prefix: bool) -> String {
-    let body = slice_text(&block.text, from, to).to_string();
-    if !include_prefix {
+fn format_block(blocks: &[MarkdownBlock], index: usize, from: usize, to: usize) -> String {
+    let block = &blocks[index];
+    let len = block.text.len();
+    let end = to.min(len);
+    let whole = from == 0 && to >= len;
+    if matches!(block.kind, MarkdownKind::Code) {
+        let body = slice_text(&block.text, from, end).to_string();
+        if !whole {
+            return body;
+        }
+        return prefix_lines(&format!("```{}\n{body}\n```", block.language), block.quote);
+    }
+    let body = format_inline(block, from, end);
+    if !whole {
         return body;
     }
     let formatted = match block.kind {
-        MarkdownKind::Heading(level) => format!("{} {body}", "#".repeat(level as usize)),
+        MarkdownKind::Heading(level) => format!("{} {body}", "#".repeat(usize::from(level))),
         MarkdownKind::Paragraph => body,
-        MarkdownKind::Bullet => with_marker(&list_indent(block.depth), "- ", &body),
+        MarkdownKind::Bullet => with_marker(&copy_indent(blocks, index), "- ", &body),
         MarkdownKind::Numbered(n) => {
-            with_marker(&list_indent(block.depth), &format!("{n}. "), &body)
+            with_marker(&copy_indent(blocks, index), &format!("{n}. "), &body)
         }
         MarkdownKind::Task(checked) => {
             let mark = if checked { "[x]" } else { "[ ]" };
-            with_marker(&list_indent(block.depth), &format!("- {mark} "), &body)
+            with_marker(&copy_indent(blocks, index), &format!("- {mark} "), &body)
         }
         MarkdownKind::Rule => "---".to_string(),
-        MarkdownKind::Code => {
-            let whole = from == 0 && to >= block.text.len();
-            if whole {
-                format!("```{}\n{body}\n```", block.language)
-            } else {
-                body
-            }
-        }
+        MarkdownKind::Code => body,
     };
     prefix_lines(&formatted, block.quote)
 }
 
-fn list_indent(depth: u8) -> String {
-    "  ".repeat(depth.saturating_sub(1) as usize)
+fn copy_indent(blocks: &[MarkdownBlock], index: usize) -> String {
+    let depth = blocks[index].depth;
+    if depth <= 1 {
+        return String::new();
+    }
+    let mut cols = 0usize;
+    for level in 1..depth {
+        let width = blocks[..=index]
+            .iter()
+            .rev()
+            .find(|block| block.depth == level && marker_kind(block.kind))
+            .map(marker_columns)
+            .unwrap_or(2);
+        cols += width;
+    }
+    " ".repeat(cols)
+}
+
+fn marker_columns(block: &MarkdownBlock) -> usize {
+    match block.kind {
+        MarkdownKind::Bullet => 2,
+        MarkdownKind::Numbered(n) => format!("{n}. ").len(),
+        MarkdownKind::Task(_) => 6,
+        _ => 2,
+    }
 }
 
 fn with_marker(indent: &str, marker: &str, body: &str) -> String {
     let mut lines = body.split('\n');
     let first = lines.next().unwrap_or("");
     let mut out = format!("{indent}{marker}{first}");
+    let cont = " ".repeat(marker.len());
     for line in lines {
         out.push('\n');
         out.push_str(indent);
         if !line.is_empty() {
-            out.push_str("  ");
+            out.push_str(&cont);
             out.push_str(line);
         }
     }
     out
+}
+
+struct InlineMark {
+    at: usize,
+    rank: u8,
+    text: String,
+}
+
+fn format_inline(block: &MarkdownBlock, from: usize, to: usize) -> String {
+    let text = &block.text;
+    let from = floor_boundary(text, from.min(text.len()));
+    let to = floor_boundary(text, to.min(text.len()));
+    if from >= to {
+        return String::new();
+    }
+    let mut marks = Vec::new();
+    for span in &block.spans {
+        if span.start < from || span.end > to || span.start >= span.end {
+            continue;
+        }
+        if span_is_code(span) {
+            let (open, close) = code_delimiters(&text[span.start..span.end]);
+            marks.push(InlineMark {
+                at: span.start,
+                rank: 3,
+                text: open,
+            });
+            marks.push(InlineMark {
+                at: span.end,
+                rank: 4,
+                text: close,
+            });
+        }
+        if span.italic {
+            marks.push(InlineMark {
+                at: span.start,
+                rank: 2,
+                text: "*".to_string(),
+            });
+            marks.push(InlineMark {
+                at: span.end,
+                rank: 5,
+                text: "*".to_string(),
+            });
+        }
+        if span.weight == Some(FONT_WEIGHT_BOLD) {
+            marks.push(InlineMark {
+                at: span.start,
+                rank: 1,
+                text: "**".to_string(),
+            });
+            marks.push(InlineMark {
+                at: span.end,
+                rank: 6,
+                text: "**".to_string(),
+            });
+        }
+    }
+    for link in &block.links {
+        if link.start < from || link.end > to || link.start >= link.end {
+            continue;
+        }
+        marks.push(InlineMark {
+            at: link.start,
+            rank: 0,
+            text: "[".to_string(),
+        });
+        marks.push(InlineMark {
+            at: link.end,
+            rank: 7,
+            text: format!("]({})", link_dest(&link.href)),
+        });
+    }
+    marks.sort_by(|a, b| a.at.cmp(&b.at).then(a.rank.cmp(&b.rank)));
+    let mut out = String::new();
+    let mut cursor = from;
+    for mark in marks {
+        if mark.at > cursor {
+            out.push_str(&text[cursor..mark.at]);
+            cursor = mark.at;
+        }
+        out.push_str(&mark.text);
+    }
+    if cursor < to {
+        out.push_str(&text[cursor..to]);
+    }
+    out
+}
+
+fn span_is_code(span: &TextSpan) -> bool {
+    span.family.as_deref() == Some(CODE_FAMILY) || span.highlight.is_some()
+}
+
+fn code_delimiters(text: &str) -> (String, String) {
+    let mut longest = 0usize;
+    let mut run = 0usize;
+    for ch in text.chars() {
+        if ch == '`' {
+            run += 1;
+            longest = longest.max(run);
+        } else {
+            run = 0;
+        }
+    }
+    let tick = "`".repeat(longest + 1);
+    if text.starts_with('`') || text.ends_with('`') {
+        (format!("{tick} "), format!(" {tick}"))
+    } else {
+        (tick.clone(), tick)
+    }
+}
+
+fn link_dest(href: &str) -> String {
+    let awkward = href
+        .chars()
+        .any(|ch| ch.is_whitespace() || ch == '(' || ch == ')' || ch.is_control());
+    if awkward {
+        format!("<{href}>")
+    } else {
+        href.to_string()
+    }
 }
 
 fn prefix_lines(text: &str, quote: u8) -> String {
@@ -1932,9 +2234,16 @@ fn parse_range(source: &str, origin: usize, theme: &MarkdownTheme) -> Parsed {
         };
     }
     let slice = &source[origin..];
+    let prepared = prepare_partial(slice);
+    let limit = slice.len();
     let mut builder = Builder::new(theme, origin);
-    for (event, range) in Parser::new_ext(slice, parser_options()).into_offset_iter() {
-        builder.push(event, origin + range.start, origin + range.end);
+    for (event, range) in Parser::new_ext(prepared.as_ref(), parser_options()).into_offset_iter() {
+        let Some(event) = clip_event(event, range.start, range.end, limit) else {
+            continue;
+        };
+        let start = origin + range.start.min(limit);
+        let end = origin + range.end.min(limit);
+        builder.push(event, start, end);
     }
     builder.finish(source.len());
     Parsed {
@@ -1942,6 +2251,454 @@ fn parse_range(source: &str, origin: usize, theme: &MarkdownTheme) -> Parsed {
         starts: builder.starts,
         ends: builder.ends,
     }
+}
+
+fn clip_event<'a>(event: Event<'a>, start: usize, end: usize, limit: usize) -> Option<Event<'a>> {
+    let clip = |text: CowStr<'a>| -> Option<CowStr<'a>> {
+        if start >= limit {
+            return None;
+        }
+        let keep = end.min(limit).saturating_sub(start);
+        if keep >= text.len() {
+            return Some(text);
+        }
+        if text.is_char_boundary(keep) {
+            Some(CowStr::from(text[..keep].to_string()))
+        } else {
+            Some(text)
+        }
+    };
+    Some(match event {
+        Event::Text(text) => Event::Text(clip(text)?),
+        Event::Code(text) => Event::Code(clip(text)?),
+        Event::Html(text) => Event::Html(clip(text)?),
+        Event::InlineHtml(text) => Event::InlineHtml(clip(text)?),
+        Event::FootnoteReference(text) => Event::FootnoteReference(clip(text)?),
+        Event::InlineMath(text) => Event::InlineMath(clip(text)?),
+        Event::DisplayMath(text) => Event::DisplayMath(clip(text)?),
+        other => other,
+    })
+}
+
+#[derive(Clone, Copy)]
+enum OpenerKind {
+    Emph(char),
+    Strike,
+    Label,
+    Dest,
+}
+
+struct Opener {
+    kind: OpenerKind,
+    at: usize,
+    len: usize,
+}
+
+/// Close a trailing inline so a partial link, emphasis, or code span does not
+/// draw its raw markers. Markers with no body yet are cut off instead.
+fn prepare_partial(source: &str) -> Cow<'_, str> {
+    if source.is_empty() {
+        return Cow::Borrowed(source);
+    }
+    let mut i = 0usize;
+    let mut fence: Option<(char, usize)> = None;
+    let mut code: Option<(usize, usize)> = None;
+    let mut stack: Vec<Opener> = Vec::new();
+    let mut dangling: Option<usize> = None;
+    while i < source.len() {
+        if let Some((ch, len)) = fence {
+            let (line, next) = split_line(&source[i..]);
+            if next == 0 {
+                break;
+            }
+            let body = line.trim_end_matches(['\n', '\r']);
+            if closing_fence(body, ch, len) {
+                fence = None;
+            }
+            i += next;
+            continue;
+        }
+        if at_line_start(source, i) {
+            let (line, next) = split_line(&source[i..]);
+            let body = line.trim_end_matches(['\n', '\r']);
+            if let Some((ch, len)) = opening_fence(body) {
+                let after = i + next;
+                if fence_runs_to_eof(source, after, ch, len) {
+                    return close_before_fence(source, i);
+                }
+                fence = Some((ch, len));
+                i = after;
+                continue;
+            }
+        }
+        let Some(ch) = source[i..].chars().next() else {
+            break;
+        };
+        let ch_len = ch.len_utf8();
+        if ch == '\\' {
+            dangling = None;
+            i += ch_len;
+            if let Some(escaped) = source[i..].chars().next() {
+                i += escaped.len_utf8();
+            }
+            continue;
+        }
+        if ch == '`' && code.is_none() && !in_dest(&stack) {
+            let n = run_len(source, i, '`');
+            code = Some((i, n));
+            dangling = None;
+            i += n;
+            continue;
+        }
+        if ch == '`' {
+            if let Some((_, n)) = code {
+                let run = run_len(source, i, '`');
+                if run == n {
+                    code = None;
+                }
+                dangling = None;
+                i += run;
+                continue;
+            }
+        }
+        if code.is_some() {
+            i += ch_len;
+            continue;
+        }
+        if in_dest(&stack) {
+            if ch == ')' {
+                stack.pop();
+            }
+            dangling = None;
+            i += ch_len;
+            continue;
+        }
+        if ch == '[' {
+            if !is_task_bracket(source, i) {
+                stack.push(Opener {
+                    kind: OpenerKind::Label,
+                    at: i,
+                    len: 1,
+                });
+            }
+            dangling = None;
+            i += 1;
+            continue;
+        }
+        if ch == ']' {
+            if let Some(pos) = stack
+                .iter()
+                .rposition(|op| matches!(op.kind, OpenerKind::Label))
+            {
+                let next = source[i + 1..].chars().next();
+                stack.truncate(pos);
+                if next == Some('(') {
+                    stack.push(Opener {
+                        kind: OpenerKind::Dest,
+                        at: i,
+                        len: 2,
+                    });
+                    dangling = None;
+                    i += 2;
+                    continue;
+                }
+            }
+            dangling = None;
+            i += 1;
+            continue;
+        }
+        if ch == '~' {
+            let n = run_len(source, i, '~');
+            if n == 2 {
+                note_delim(
+                    source,
+                    &mut stack,
+                    &mut dangling,
+                    i,
+                    2,
+                    OpenerKind::Strike,
+                    true,
+                );
+            } else {
+                dangling = None;
+            }
+            i += n;
+            continue;
+        }
+        if ch == '*' || ch == '_' {
+            let n = run_len(source, i, ch);
+            note_delim(
+                source,
+                &mut stack,
+                &mut dangling,
+                i,
+                n,
+                OpenerKind::Emph(ch),
+                false,
+            );
+            i += n;
+            continue;
+        }
+        dangling = None;
+        i += ch_len;
+    }
+    finish_partial(source, stack, code, dangling)
+}
+
+fn note_delim(
+    source: &str,
+    stack: &mut Vec<Opener>,
+    dangling: &mut Option<usize>,
+    at: usize,
+    len: usize,
+    kind: OpenerKind,
+    strike: bool,
+) {
+    let prev = prev_char(source, at);
+    let next_at = at + len;
+    let next = source[next_at..].chars().next();
+    let left = left_flanking(prev, next);
+    let right = right_flanking(prev, next);
+    let both_alnum =
+        prev.is_some_and(char::is_alphanumeric) && next.is_some_and(char::is_alphanumeric);
+    let (can_open, can_close) = if strike {
+        (left && !both_alnum, right)
+    } else if matches!(kind, OpenerKind::Emph('_')) {
+        let open = left && (!right || prev.is_some_and(is_punct));
+        let close = right && (!left || next.is_some_and(is_punct));
+        (open, close)
+    } else {
+        (left && !both_alnum, right)
+    };
+    let matched = can_close
+        .then(|| stack.iter().rposition(|op| opener_matches(op, &kind, len)))
+        .flatten();
+    if let Some(pos) = matched {
+        stack.truncate(pos);
+        *dangling = None;
+        return;
+    }
+    if can_open {
+        stack.push(Opener { kind, at, len });
+        *dangling = None;
+        return;
+    }
+    // A closer that did not pair stays in the source. Only a trailing run
+    // that can neither open nor close (`Hello **`) is cut off.
+    if next.is_none() && !can_close {
+        *dangling = Some(at);
+    } else {
+        *dangling = None;
+    }
+}
+
+fn opener_matches(op: &Opener, kind: &OpenerKind, len: usize) -> bool {
+    op.len == len
+        && match (op.kind, kind) {
+            (OpenerKind::Strike, OpenerKind::Strike) => true,
+            (OpenerKind::Emph(a), OpenerKind::Emph(b)) => a == *b,
+            _ => false,
+        }
+}
+
+fn in_dest(stack: &[Opener]) -> bool {
+    matches!(stack.last(), Some(op) if matches!(op.kind, OpenerKind::Dest))
+}
+
+fn finish_partial(
+    source: &str,
+    stack: Vec<Opener>,
+    code: Option<(usize, usize)>,
+    dangling: Option<usize>,
+) -> Cow<'_, str> {
+    // An opener that already has a later closer stays for the real parse.
+    // Appending another closer would change a finished string.
+    let stack: Vec<Opener> = stack
+        .into_iter()
+        .filter(|op| !emph_closed_later(source, op))
+        .collect();
+    let mut end = source.len();
+    if let Some(at) = dangling {
+        let code_ok = code.is_none_or(|(code_at, _)| code_at < at);
+        if code_ok && stack.iter().all(|op| op.at < at) && source.is_char_boundary(at) {
+            end = at;
+        }
+    }
+    let mut code_closer = String::new();
+    if let Some((at, n)) = code {
+        if at < end {
+            let body_at = at + n;
+            let body = if body_at <= end {
+                source[body_at..end].trim()
+            } else {
+                ""
+            };
+            if body.is_empty() {
+                end = at;
+            } else {
+                code_closer = "`".repeat(n);
+            }
+        }
+    }
+    let suffix = inline_closers(&stack, end);
+    if end == source.len() && code_closer.is_empty() && suffix.is_empty() {
+        return Cow::Borrowed(source);
+    }
+    let mut out = source[..end].to_string();
+    out.push_str(&code_closer);
+    out.push_str(&suffix);
+    Cow::Owned(out)
+}
+
+fn inline_closers(stack: &[Opener], end: usize) -> String {
+    let mut out = String::new();
+    for op in stack.iter().rev() {
+        if op.at >= end {
+            continue;
+        }
+        match op.kind {
+            OpenerKind::Emph(ch) => out.extend(std::iter::repeat_n(ch, op.len)),
+            OpenerKind::Strike => out.push_str("~~"),
+            OpenerKind::Label => out.push_str("]()"),
+            OpenerKind::Dest => out.push(')'),
+        }
+    }
+    out
+}
+
+fn close_before_fence<'a>(source: &'a str, fence_at: usize) -> Cow<'a, str> {
+    if fence_at == 0 || !source.is_char_boundary(fence_at) {
+        return Cow::Borrowed(source);
+    }
+    let prefix = prepare_partial(&source[..fence_at]);
+    if matches!(prefix, Cow::Borrowed(_)) {
+        Cow::Borrowed(source)
+    } else {
+        let mut out = prefix.into_owned();
+        out.push_str(&source[fence_at..]);
+        Cow::Owned(out)
+    }
+}
+
+fn at_line_start(source: &str, index: usize) -> bool {
+    index == 0 || source.as_bytes().get(index.wrapping_sub(1)) == Some(&b'\n')
+}
+
+fn prev_char(source: &str, index: usize) -> Option<char> {
+    source[..index].chars().next_back()
+}
+
+fn run_len(source: &str, index: usize, ch: char) -> usize {
+    source[index..].chars().take_while(|c| *c == ch).count()
+}
+
+fn left_flanking(prev: Option<char>, next: Option<char>) -> bool {
+    if next.is_none_or(char::is_whitespace) {
+        return false;
+    }
+    let next_punct = next.is_some_and(is_punct);
+    let prev_boundary = prev.is_none_or(|ch| ch.is_whitespace() || is_punct(ch));
+    !next_punct || prev_boundary
+}
+
+fn emph_closed_later(source: &str, op: &Opener) -> bool {
+    let OpenerKind::Emph(ch) = op.kind else {
+        return false;
+    };
+    later_closer(source, op.at.saturating_add(op.len), ch)
+}
+
+/// A right-flanking run of `ch` after `from`, ignoring backslash escapes and
+/// backtick spans. That run is the document's own closer.
+fn later_closer(source: &str, from: usize, ch: char) -> bool {
+    let mut i = from;
+    let mut code: Option<usize> = None;
+    while i < source.len() {
+        let Some(current) = source[i..].chars().next() else {
+            break;
+        };
+        if current == '\\' {
+            i += current.len_utf8();
+            if let Some(escaped) = source[i..].chars().next() {
+                i += escaped.len_utf8();
+            }
+            continue;
+        }
+        if current == '`' && code.is_none() {
+            let n = run_len(source, i, '`');
+            code = Some(n);
+            i += n;
+            continue;
+        }
+        if current == '`' {
+            if let Some(n) = code {
+                let run = run_len(source, i, '`');
+                if run == n {
+                    code = None;
+                }
+                i += run;
+                continue;
+            }
+        }
+        if code.is_some() {
+            i += current.len_utf8();
+            continue;
+        }
+        if current == ch {
+            let n = run_len(source, i, ch);
+            let prev = prev_char(source, i);
+            let next = source[i + n..].chars().next();
+            if right_flanking(prev, next) {
+                return true;
+            }
+            i += n;
+            continue;
+        }
+        i += current.len_utf8();
+    }
+    false
+}
+
+fn right_flanking(prev: Option<char>, next: Option<char>) -> bool {
+    if prev.is_none_or(char::is_whitespace) {
+        return false;
+    }
+    let prev_punct = prev.is_some_and(is_punct);
+    let next_boundary = next.is_none_or(|ch| ch.is_whitespace() || is_punct(ch));
+    !prev_punct || next_boundary
+}
+
+fn is_punct(ch: char) -> bool {
+    !ch.is_whitespace() && !ch.is_alphanumeric()
+}
+
+fn is_task_bracket(source: &str, index: usize) -> bool {
+    let line_start = source[..index].rfind('\n').map_or(0, |pos| pos + 1);
+    let prefix = &source[line_start..index];
+    let trimmed = prefix.trim_start();
+    if prefix.len() - trimmed.len() > 3 {
+        return false;
+    }
+    let bytes = trimmed.as_bytes();
+    if bytes.len() >= 2
+        && matches!(bytes[0], b'-' | b'*' | b'+')
+        && bytes[1..].iter().all(u8::is_ascii_whitespace)
+        && bytes[1..].contains(&b' ')
+    {
+        return true;
+    }
+    let mut digits = 0usize;
+    while digits < bytes.len() && bytes[digits].is_ascii_digit() {
+        digits += 1;
+    }
+    if digits == 0 || digits > 9 || digits >= bytes.len() {
+        return false;
+    }
+    if bytes[digits] != b'.' && bytes[digits] != b')' {
+        return false;
+    }
+    let rest = &bytes[digits + 1..];
+    !rest.is_empty() && rest.iter().all(u8::is_ascii_whitespace)
 }
 
 struct Builder<'a> {
@@ -2924,5 +3681,177 @@ Tail";
             .spans
             .iter()
             .any(|span| &code.text[span.start..span.end] == "1" && span.color == theme.number));
+    }
+
+    fn whole_text(blocks: &[MarkdownBlock]) -> String {
+        let last = blocks.len() - 1;
+        selection_text(
+            blocks,
+            Some(CaretPos { block: 0, byte: 0 }),
+            Some(CaretPos {
+                block: last,
+                byte: blocks[last].text.len(),
+            }),
+        )
+    }
+
+    fn kinds(source: &str) -> Vec<(MarkdownKind, String, u8)> {
+        parse_markdown(source)
+            .into_iter()
+            .map(|block| (block.kind, block.text, block.depth))
+            .collect()
+    }
+
+    #[test]
+    fn copied_inline_markers_and_nested_numbers_round_trip() {
+        let source = "\
+See **bold** and *italic* and `code` and [notes](https://example.com/a).
+
+1. parent
+   1. child
+
+10. tenth
+    1. under
+
+- [x] done
+      - nested
+";
+        let blocks = parse_markdown(source);
+        let copied = whole_text(&blocks);
+        let again = parse_markdown(&format!("{copied}\n"));
+        assert_eq!(again[0].text, blocks[0].text);
+        assert!(again[0].spans.iter().any(|span| {
+            span.weight == Some(FONT_WEIGHT_BOLD) && &again[0].text[span.start..span.end] == "bold"
+        }));
+        assert!(again[0]
+            .spans
+            .iter()
+            .any(|span| { span.italic && &again[0].text[span.start..span.end] == "italic" }));
+        assert!(again[0]
+            .spans
+            .iter()
+            .any(|span| { span_is_code(span) && &again[0].text[span.start..span.end] == "code" }));
+        assert_eq!(again[0].links.len(), 1);
+        assert_eq!(again[0].links[0].href, "https://example.com/a");
+        assert_eq!(kinds(&format!("{copied}\n")), kinds(source));
+
+        let paragraph = &blocks[0];
+        let bold = paragraph
+            .spans
+            .iter()
+            .find(|span| span.weight == Some(FONT_WEIGHT_BOLD))
+            .unwrap();
+        let cut = selection_text(
+            &blocks,
+            Some(CaretPos {
+                block: 0,
+                byte: bold.start + 1,
+            }),
+            Some(CaretPos {
+                block: 0,
+                byte: paragraph.text.len(),
+            }),
+        );
+        assert!(!cut.contains("**"), "{cut}");
+        assert!(cut.starts_with(&paragraph.text[bold.start + 1..bold.end]));
+
+        let kept = selection_text(
+            &blocks,
+            Some(CaretPos { block: 0, byte: 0 }),
+            Some(CaretPos {
+                block: 0,
+                byte: bold.end,
+            }),
+        );
+        assert_eq!(kept, "See **bold**");
+
+        let link = &paragraph.links[0];
+        let linked = selection_text(
+            &blocks,
+            Some(CaretPos {
+                block: 0,
+                byte: link.start,
+            }),
+            Some(CaretPos {
+                block: 0,
+                byte: link.end,
+            }),
+        );
+        assert_eq!(linked, "[notes](https://example.com/a)");
+    }
+
+    #[test]
+    fn partial_inline_constructs_do_not_show_raw_markers() {
+        let link = parse_markdown("See [the notes](https://exa");
+        assert_eq!(link[0].text, "See the notes");
+        assert!(!link[0].text.contains('['));
+        assert_eq!(link[0].links[0].href, "https://exa");
+
+        let label = parse_markdown("See [the notes");
+        assert_eq!(label[0].text, "See the notes");
+        assert!(!label[0].text.contains('['));
+        assert!(label[0].links[0].href.is_empty());
+
+        let bold = parse_markdown("Hello **Weights");
+        assert_eq!(bold[0].text, "Hello Weights");
+        assert!(!bold[0].text.contains('*'));
+        assert!(bold[0].spans.iter().any(|span| {
+            span.weight == Some(FONT_WEIGHT_BOLD)
+                && &bold[0].text[span.start..span.end] == "Weights"
+        }));
+
+        let italic = parse_markdown("*routing");
+        assert_eq!(italic[0].text, "routing");
+        assert!(italic[0].spans.iter().any(|span| span.italic));
+
+        let code = parse_markdown("the `palette");
+        assert_eq!(code[0].text, "the palette");
+        assert!(!code[0].text.contains('`'));
+        assert!(code[0].spans.iter().any(|span| {
+            span_is_code(span) && &code[0].text[span.start..span.end] == "palette"
+        }));
+
+        let finished = parse_markdown("See [the notes](https://example.com).");
+        assert_eq!(finished[0].text, "See the notes.");
+        assert_eq!(finished[0].links[0].href, "https://example.com");
+
+        let literal = parse_markdown("See [literal]");
+        assert!(literal[0].links.is_empty());
+        assert!(literal[0].text.contains('['), "{}", literal[0].text);
+
+        let bullet = parse_markdown("- keep the pin\n");
+        assert_eq!(bullet[0].kind, MarkdownKind::Bullet);
+        assert_eq!(bullet[0].text, "keep the pin");
+
+        let star = parse_markdown("* item\n");
+        assert_eq!(star[0].kind, MarkdownKind::Bullet);
+        assert_eq!(star[0].text, "item");
+
+        let fence = parse_markdown("Para\n\n```\nlet\n");
+        assert_eq!(fence[0].text, "Para");
+        assert_eq!(fence[1].kind, MarkdownKind::Code);
+        assert!(fence[1].text.contains("let"));
+
+        let samples = [
+            "See **bold** and *italic* and `code` and [notes](https://example.com/a).\n",
+            "- a\n  - b\n",
+            "1. parent\n   1. child\n",
+            "10. tenth\n    1. under\n",
+            "- [x] done\n- [ ] open\n",
+            "> quote\n",
+            "```rust\nlet x = 1;\n```\n",
+            "***bold***\n",
+            "**bold *italic***\n",
+            "*foo**bar*\n",
+            "See [literal]\n",
+            "word**\n",
+        ];
+        for sample in samples {
+            assert!(
+                matches!(prepare_partial(sample), Cow::Borrowed(_)),
+                "rewrote {sample:?} into {}",
+                prepare_partial(sample)
+            );
+        }
     }
 }
