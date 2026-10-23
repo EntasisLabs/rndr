@@ -355,6 +355,7 @@ fn edit_row(
         event,
         platform,
         field == EditField::Body,
+        crate::typing::frame_now(world),
         &mut history,
         clip,
     );

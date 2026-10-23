@@ -14,7 +14,8 @@
 //!
 //! Focus and blur are one [`WindowFocus`] queue, so their order is the order
 //! they happened. [`Dismiss`] runs at the start of Input, before the keymap,
-//! and its blur is readable in Update. [`ScaleChanged`] and [`Resized`] are
+//! unless [`DismissHold`] is set, and its blur is readable in Update.
+//! [`ScaleChanged`] and [`Resized`] are
 //! written by [`publish_metrics`] before the frame, and [`Viewport`] is updated
 //! in that same call, so Input and Layout read the new size and scale.
 
@@ -96,8 +97,9 @@ pub enum Position {
 /// What Escape does when nothing else has claimed it.
 ///
 /// This runs at the start of the Input stage, before the keymap and text
-/// fields, and only when the config asks. The file-tree plugin keeps its own
-/// Escape handling because the default is [`Ignore`](Self::Ignore).
+/// fields, and only when the config asks. [`DismissHold`] leaves the key
+/// for the app for one frame. The file-tree plugin keeps its own Escape
+/// handling because the default is [`Ignore`](Self::Ignore).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Dismiss {
     /// Leave the key for the app.
@@ -107,6 +109,18 @@ pub enum Dismiss {
     Close,
     /// Hide the window and keep the process running.
     Hide,
+}
+
+/// Leave a bare Escape for the keymap and text fields on the next Input pass.
+///
+/// [`Dismiss`] claims that key at the start of Input. Set [`Self::hold`]
+/// during Update from the state the next frame should see. The flag is read
+/// before Input systems run, so Escape on the frame that empties a field
+/// still dismisses.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DismissHold {
+    /// When true, [`Dismiss`] does not consume a bare Escape.
+    pub hold: bool,
 }
 
 /// Ordinary top-level window, or a floating launcher panel.
@@ -843,6 +857,12 @@ fn settle_blur(world: &mut World) {
 fn take_dismiss(world: &mut World) -> Option<WindowSignal> {
     let action = WindowConfig::get(world).dismiss;
     if action == Dismiss::Ignore || !bare_escape(world) {
+        return None;
+    }
+    if world
+        .resource::<DismissHold>()
+        .is_some_and(|hold| hold.hold)
+    {
         return None;
     }
     consume_escape(world);

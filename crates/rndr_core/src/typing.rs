@@ -1,6 +1,8 @@
 //! Apply [`KeyEvent`]s to a string caret. Left, Right, Backspace, and Delete
 //! step by grapheme cluster.
 
+use std::time::Duration;
+
 use crate::edit::{edit_string, floor_boundary, prev_boundary};
 use crate::input::Key;
 use crate::keys::{standard_action, EditAction, KeyEvent, LogicalKey, NamedKey, Platform};
@@ -15,11 +17,25 @@ struct Snap {
     anchor: usize,
 }
 
+/// How long a typed run may pause before the next character is a new undo step.
+const TYPING_PAUSE: Duration = Duration::from_millis(600);
+
+#[derive(Clone, Debug)]
+struct TypingRun {
+    end: usize,
+    at: Duration,
+}
+
 /// Undo and redo snapshots for one text surface. Capped at 100 edits.
+///
+/// Characters typed in a row share one snapshot. The run ends at whitespace,
+/// when the caret moves, and after a pause of 600 milliseconds. A delete,
+/// paste, or newline is its own snapshot.
 #[derive(Clone, Debug, Default)]
 pub struct EditHistory {
     undo: Vec<Snap>,
     redo: Vec<Snap>,
+    run: Option<TypingRun>,
 }
 
 impl EditHistory {
@@ -30,6 +46,36 @@ impl EditHistory {
         }
         self.redo.clear();
     }
+
+    fn can_extend(&self, index: usize, anchor: usize, now: Duration, typed: &str) -> bool {
+        if !is_typed_run(typed) {
+            return false;
+        }
+        let Some(run) = &self.run else {
+            return false;
+        };
+        index == anchor && index == run.end && now.saturating_sub(run.at) < TYPING_PAUSE
+    }
+
+    fn note_typed(&mut self, end: usize, at: Duration) {
+        self.run = Some(TypingRun { end, at });
+    }
+
+    /// The next edit starts a new undo step.
+    pub(crate) fn break_run(&mut self) {
+        self.run = None;
+    }
+}
+
+fn is_typed_run(text: &str) -> bool {
+    let mut any = false;
+    for ch in text.chars() {
+        if ch.is_whitespace() {
+            return false;
+        }
+        any = true;
+    }
+    any
 }
 
 /// Result of one key. `copied` replaces the clipboard when set.
@@ -73,11 +119,20 @@ pub(crate) struct EditSurface<'a> {
     pub anchor: &'a mut usize,
 }
 
+/// [`crate::Time::now`] for this frame, or zero when the resource is absent.
+pub(crate) fn frame_now(world: &crate::world::World) -> Duration {
+    world
+        .resource::<crate::clock::Time>()
+        .map(|time| time.now)
+        .unwrap_or_default()
+}
+
 pub(crate) fn apply_text_event(
     surface: &mut EditSurface<'_>,
     event: &KeyEvent,
     platform: Platform,
     newline: bool,
+    now: Duration,
     history: &mut EditHistory,
     clip: &str,
 ) -> StepResult {
@@ -91,35 +146,63 @@ pub(crate) fn apply_text_event(
     let anchor = &mut *surface.anchor;
     let shift = event.modifiers.shift;
     if let Some(action) = standard_action(platform, event) {
-        return apply_action(text, index, anchor, action, shift, history, clip);
+        return apply_action(text, index, anchor, action, shift, now, history, clip);
     }
     match event.logical {
         LogicalKey::Named(NamedKey::ArrowLeft) => {
+            history.break_run();
             step_key(text, index, anchor, Some(Key::Left), shift, "", false);
         }
         LogicalKey::Named(NamedKey::ArrowRight) => {
+            history.break_run();
             step_key(text, index, anchor, Some(Key::Right), shift, "", false);
         }
         LogicalKey::Named(NamedKey::Backspace) => {
-            change(text, index, anchor, history, |text, index, anchor| {
-                step_key(text, index, anchor, Some(Key::Backspace), false, "", false);
-            });
+            change(
+                text,
+                index,
+                anchor,
+                history,
+                now,
+                None,
+                |text, index, anchor| {
+                    step_key(text, index, anchor, Some(Key::Backspace), false, "", false);
+                },
+            );
         }
         LogicalKey::Named(NamedKey::Delete) => {
-            change(text, index, anchor, history, |text, index, anchor| {
-                delete_forward(text, index, anchor);
-            });
+            change(
+                text,
+                index,
+                anchor,
+                history,
+                now,
+                None,
+                |text, index, anchor| {
+                    delete_forward(text, index, anchor);
+                },
+            );
         }
         LogicalKey::Named(NamedKey::Enter) if newline && !event.modifiers.command() => {
-            change(text, index, anchor, history, |text, index, anchor| {
-                step_key(text, index, anchor, Some(Key::Enter), false, "", true);
-            });
+            change(
+                text,
+                index,
+                anchor,
+                history,
+                now,
+                None,
+                |text, index, anchor| {
+                    step_key(text, index, anchor, Some(Key::Enter), false, "", true);
+                },
+            );
         }
         LogicalKey::Named(NamedKey::Home) => {
+            history.break_run();
             let dest = line_start(text, *index);
             place(index, anchor, dest, shift);
         }
         LogicalKey::Named(NamedKey::End) => {
+            history.break_run();
             let dest = line_end(text, *index);
             place(index, anchor, dest, shift);
         }
@@ -129,32 +212,53 @@ pub(crate) fn apply_text_event(
                 && !event.modifiers.alt
                 && !event.modifiers.super_key =>
         {
-            change(text, index, anchor, history, |text, index, anchor| {
-                step_key(text, index, anchor, None, false, " ", false);
-            });
+            change(
+                text,
+                index,
+                anchor,
+                history,
+                now,
+                Some(" "),
+                |text, index, anchor| {
+                    step_key(text, index, anchor, None, false, " ", false);
+                },
+            );
         }
         _ => {
             if let Some(typed) = event.insertable_text() {
-                change(text, index, anchor, history, |text, index, anchor| {
-                    step_key(text, index, anchor, None, false, &typed, false);
-                });
+                let typed_for_run = typed.clone();
+                change(
+                    text,
+                    index,
+                    anchor,
+                    history,
+                    now,
+                    Some(&typed_for_run),
+                    |text, index, anchor| {
+                        step_key(text, index, anchor, None, false, &typed, false);
+                    },
+                );
             }
         }
     }
     StepResult::default()
 }
 
+// Motions, undo, and the clipboard share the buffer, caret, clock, and history.
+#[allow(clippy::too_many_arguments)]
 fn apply_action(
     text: &mut String,
     index: &mut usize,
     anchor: &mut usize,
     action: EditAction,
     shift: bool,
+    now: Duration,
     history: &mut EditHistory,
     clip: &str,
 ) -> StepResult {
     match action {
         EditAction::SelectAll => {
+            history.break_run();
             *anchor = 0;
             *index = text.len();
             StepResult::default()
@@ -173,12 +277,20 @@ fn apply_action(
         },
         EditAction::Cut => {
             let copied = selected(text, *index, *anchor);
-            change(text, index, anchor, history, |text, index, anchor| {
-                let (start, end) = span(text, *index, *anchor);
-                text.replace_range(start..end, "");
-                *index = start;
-                *anchor = start;
-            });
+            change(
+                text,
+                index,
+                anchor,
+                history,
+                now,
+                None,
+                |text, index, anchor| {
+                    let (start, end) = span(text, *index, *anchor);
+                    text.replace_range(start..end, "");
+                    *index = start;
+                    *anchor = start;
+                },
+            );
             StepResult {
                 copied: Some(copied),
                 clipboard_action: true,
@@ -186,53 +298,79 @@ fn apply_action(
         }
         EditAction::Paste => {
             let clip = clip.to_string();
-            change(text, index, anchor, history, |text, index, anchor| {
-                let (start, end) = span(text, *index, *anchor);
-                text.replace_range(start..end, &clip);
-                let next = start + clip.len();
-                *index = next;
-                *anchor = next;
-            });
+            change(
+                text,
+                index,
+                anchor,
+                history,
+                now,
+                None,
+                |text, index, anchor| {
+                    let (start, end) = span(text, *index, *anchor);
+                    text.replace_range(start..end, &clip);
+                    let next = start + clip.len();
+                    *index = next;
+                    *anchor = next;
+                },
+            );
             StepResult {
                 copied: None,
                 clipboard_action: true,
             }
         }
         EditAction::WordLeft => {
+            history.break_run();
             let dest = word_left(text, *index);
             place(index, anchor, dest, shift);
             StepResult::default()
         }
         EditAction::WordRight => {
+            history.break_run();
             let dest = word_right(text, *index);
             place(index, anchor, dest, shift);
             StepResult::default()
         }
         EditAction::LineStart => {
+            history.break_run();
             let dest = line_start(text, *index);
             place(index, anchor, dest, shift);
             StepResult::default()
         }
         EditAction::LineEnd => {
+            history.break_run();
             let dest = line_end(text, *index);
             place(index, anchor, dest, shift);
             StepResult::default()
         }
-        EditAction::DocStart => place(index, anchor, 0, shift),
-        EditAction::DocEnd => place(index, anchor, text.len(), shift),
+        EditAction::DocStart => {
+            history.break_run();
+            place(index, anchor, 0, shift)
+        }
+        EditAction::DocEnd => {
+            history.break_run();
+            place(index, anchor, text.len(), shift)
+        }
         EditAction::DeleteWordBackward => {
-            change(text, index, anchor, history, |text, index, anchor| {
-                if *index != *anchor {
-                    step_key(text, index, anchor, Some(Key::Backspace), false, "", false);
-                    return;
-                }
-                let start = word_left(text, *index);
-                if start < *index {
-                    text.replace_range(start..*index, "");
-                    *index = start;
-                    *anchor = start;
-                }
-            });
+            change(
+                text,
+                index,
+                anchor,
+                history,
+                now,
+                None,
+                |text, index, anchor| {
+                    if *index != *anchor {
+                        step_key(text, index, anchor, Some(Key::Backspace), false, "", false);
+                        return;
+                    }
+                    let start = word_left(text, *index);
+                    if start < *index {
+                        text.replace_range(start..*index, "");
+                        *index = start;
+                        *anchor = start;
+                    }
+                },
+            );
             StepResult::default()
         }
     }
@@ -263,6 +401,7 @@ fn restore(
     } else {
         history.undo.push(current);
     }
+    history.run = None;
     *text = prev.text;
     *index = prev.index.min(text.len());
     *anchor = prev.anchor.min(text.len());
@@ -275,12 +414,37 @@ pub(crate) fn rewrite(surface: &mut EditSurface<'_>, history: &mut EditHistory, 
     let text = &mut *surface.text;
     let index = &mut *surface.index;
     let anchor = &mut *surface.anchor;
-    change(text, index, anchor, history, |text, index, anchor| {
-        text.clear();
-        text.push_str(&next);
-        *index = text.len();
-        *anchor = *index;
-    });
+    change(
+        text,
+        index,
+        anchor,
+        history,
+        Duration::ZERO,
+        None,
+        |text, index, anchor| {
+            text.clear();
+            text.push_str(&next);
+            *index = text.len();
+            *anchor = *index;
+        },
+    );
+}
+
+/// Insert `text` at the caret, replacing a selection, as its own undo step.
+pub(crate) fn insert_plain(surface: &mut EditSurface<'_>, history: &mut EditHistory, text: &str) {
+    let pasted = text.to_string();
+    *surface.anchor = *surface.index;
+    change(
+        surface.text,
+        surface.index,
+        surface.anchor,
+        history,
+        Duration::ZERO,
+        None,
+        |text, index, anchor| {
+            step_key(text, index, anchor, None, false, &pasted, false);
+        },
+    );
 }
 
 fn change(
@@ -288,16 +452,29 @@ fn change(
     index: &mut usize,
     anchor: &mut usize,
     history: &mut EditHistory,
+    now: Duration,
+    typed: Option<&str>,
     mutate: impl FnOnce(&mut String, &mut usize, &mut usize),
 ) {
+    let extend = typed.is_some_and(|typed| history.can_extend(*index, *anchor, now, typed));
     let before = Snap {
         text: text.clone(),
         index: *index,
         anchor: *anchor,
     };
     mutate(text, index, anchor);
-    if *text != before.text {
-        history.push_undo(before);
+    if *text == before.text {
+        return;
+    }
+    if extend {
+        history.note_typed(*index, now);
+        return;
+    }
+    history.push_undo(before);
+    if typed.is_some_and(is_typed_run) && *index == *anchor {
+        history.note_typed(*index, now);
+    } else {
+        history.run = None;
     }
 }
 

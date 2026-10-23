@@ -10,12 +10,12 @@
 //! Enter should edit instead of moving a list.
 
 use crate::caret::Caret;
-use crate::clipboard::{note_clipboard, Clipboard};
+use crate::clipboard::{note_clipboard, note_primary, primary_selection, Clipboard};
 use crate::entity::Entity;
 use crate::event::send;
 use crate::field::{self, ImePreview, Submitted, TextChanged};
 use crate::font::{field_text_width, line_col, TextLayout};
-use crate::input::{Focus, Input, Key};
+use crate::input::{Focus, Input, Key, PointerButton};
 use crate::keys::{platform_of, KeyEvent, LogicalKey, Modifiers, NamedKey, Platform};
 use crate::layout::{hit_test, Rect};
 use crate::style::{Color, Label, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
@@ -39,7 +39,9 @@ impl Component for PromptHistory {}
 ///
 /// The label's overflow is set to [`crate::TextOverflow::Wrap`] while this component
 /// is present. Copy, cut, and paste use the in-memory [`Clipboard`] the desktop
-/// runner mirrors. Undo and redo use the same stack as a text field.
+/// runner mirrors. On X11 and Wayland, releasing a mouse selection also writes
+/// the primary selection, and middle-click pastes it. Undo and redo use the
+/// same stack as a text field: a typed run is one step.
 ///
 /// # Example
 ///
@@ -262,42 +264,66 @@ fn place_pointer(world: &mut World, entity: Entity, existed: bool) {
     let Some(input) = world.resource::<Input>().cloned() else {
         return;
     };
-    if !input.pointer.down {
-        if let Some(drag) = world.resource_mut::<PromptDrag>() {
-            drag.entity = None;
-        }
-        return;
-    }
-    if input.pointer.pressed {
-        let hit = hit_test(world, input.pointer.position[0], input.pointer.position[1])
-            .and_then(|hit| field::ancestor_editor(world, hit));
-        if hit != Some(entity) {
-            if let Some(drag) = world.resource_mut::<PromptDrag>() {
-                drag.entity = None;
-            }
-            return;
-        }
-        world.insert_resource(PromptDrag {
-            entity: Some(entity),
-        });
-        let index = index_at_pointer(world, entity, input.pointer.position);
-        if let Some(caret) = world.get_mut::<Caret>(entity) {
-            caret.index = index;
-            if !(input.shift && existed) {
+    let hit = hit_test(world, input.pointer.position[0], input.pointer.position[1])
+        .and_then(|hit| field::ancestor_editor(world, hit));
+    if input.pointer.button == PointerButton::Middle && input.pointer.pressed {
+        if hit == Some(entity) {
+            let index = index_at_pointer(world, entity, input.pointer.position);
+            if let Some(caret) = world.get_mut::<Caret>(entity) {
+                caret.index = index;
                 caret.anchor = index;
             }
+            field::break_typing_at(world, entity);
         }
         return;
     }
-    let dragging = world
-        .resource::<PromptDrag>()
-        .is_some_and(|drag| drag.entity == Some(entity));
-    if !dragging {
-        return;
+    if input.pointer.pressed && input.pointer.button == PointerButton::Left {
+        if hit != Some(entity) {
+            clear_drag(world, entity);
+        } else {
+            world.insert_resource(PromptDrag {
+                entity: Some(entity),
+            });
+            let index = index_at_pointer(world, entity, input.pointer.position);
+            if let Some(caret) = world.get_mut::<Caret>(entity) {
+                caret.index = index;
+                if !(input.shift && existed) {
+                    caret.anchor = index;
+                }
+            }
+            field::break_typing_at(world, entity);
+        }
+    } else if input.pointer.down && input.pointer.button == PointerButton::Left {
+        let dragging = world
+            .resource::<PromptDrag>()
+            .is_some_and(|drag| drag.entity == Some(entity));
+        if dragging {
+            let index = index_at_pointer(world, entity, input.pointer.position);
+            if let Some(caret) = world.get_mut::<Caret>(entity) {
+                caret.index = index;
+            }
+            field::break_typing_at(world, entity);
+        }
     }
-    let index = index_at_pointer(world, entity, input.pointer.position);
-    if let Some(caret) = world.get_mut::<Caret>(entity) {
-        caret.index = index;
+    if input.pointer.released && input.pointer.button == PointerButton::Left {
+        let dragging = world
+            .resource::<PromptDrag>()
+            .is_some_and(|drag| drag.entity == Some(entity));
+        if (dragging || hit == Some(entity)) && primary_selection(platform_of(world)) {
+            let selected = field::label_selection(world, entity);
+            note_primary(world, &selected);
+        }
+        clear_drag(world, entity);
+    } else if !input.pointer.down {
+        clear_drag(world, entity);
+    }
+}
+
+fn clear_drag(world: &mut World, entity: Entity) {
+    if let Some(drag) = world.resource_mut::<PromptDrag>() {
+        if drag.entity == Some(entity) {
+            drag.entity = None;
+        }
     }
 }
 
@@ -356,6 +382,18 @@ fn edit_text(world: &mut World, entity: Entity) {
         .unwrap_or((text.len(), text.len()));
     let mut history = world.remove::<EditHistory>(entity).unwrap_or_default();
     let mut recalls = world.remove::<PromptHistory>(entity).unwrap_or_default();
+    if let Some(paste) = field::middle_paste_text(world, entity) {
+        anchor = index;
+        typing::insert_plain(
+            &mut EditSurface {
+                text: &mut text,
+                index: &mut index,
+                anchor: &mut anchor,
+            },
+            &mut history,
+            &paste,
+        );
+    }
     let mut clip = world
         .resource::<Clipboard>()
         .map(|clipboard| clipboard.text.clone())
@@ -364,6 +402,7 @@ fn edit_text(world: &mut World, entity: Entity) {
     let mut clipboard_action = false;
     let mut submitted = false;
     let mut break_recall = false;
+    let now = typing::frame_now(world);
     for event in &events {
         if event.released || event.synthetic {
             continue;
@@ -385,6 +424,7 @@ fn edit_text(world: &mut World, entity: Entity) {
                         event,
                         platform,
                         true,
+                        now,
                         &mut history,
                         &clip,
                     );
@@ -395,6 +435,7 @@ fn edit_text(world: &mut World, entity: Entity) {
                 }
             }
             Steer::Up | Steer::Down => {
+                history.break_run();
                 let delta = if matches!(event.logical, LogicalKey::Named(NamedKey::ArrowUp)) {
                     -1
                 } else {
@@ -446,6 +487,7 @@ fn edit_text(world: &mut World, entity: Entity) {
                     event,
                     platform,
                     false,
+                    now,
                     &mut history,
                     &clip,
                 );
@@ -481,6 +523,7 @@ fn edit_text(world: &mut World, entity: Entity) {
             &commit_event,
             platform,
             false,
+            now,
             &mut history,
             &clip,
         );
@@ -571,6 +614,7 @@ fn apply(
     event: &KeyEvent,
     platform: Platform,
     newline: bool,
+    now: std::time::Duration,
     history: &mut EditHistory,
     clip: &str,
 ) -> typing::StepResult {
@@ -583,6 +627,7 @@ fn apply(
         event,
         platform,
         newline,
+        now,
         history,
         clip,
     )

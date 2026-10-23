@@ -161,7 +161,9 @@ fn surface_slots(world: &World) -> Vec<SurfaceRect> {
 /// is measured for this call only. A body field wraps; any other missing
 /// layout stays one line. A [`rndr_core::Prompt`] shifts its text, selection,
 /// and caret up by [`rndr_core::Prompt::scroll`] so the caret stays inside
-/// the row. The world stays unchanged. This does not panic.
+/// the row, and clips those quads to the content band inside the vertical
+/// padding. The fill keeps the full clip. The world stays unchanged. This
+/// does not panic.
 pub fn paint(world: &World) -> Vec<Quad> {
     let quads = RefCell::new(Vec::new());
     let scale = world
@@ -193,7 +195,18 @@ fn paint_visited(
     radius: f32,
     marks: &[rndr_core::DecorationMark],
     shift_y: f32,
+    clip_text: bool,
 ) {
+    let text_clip = if clip_text {
+        clip.intersect(Clip {
+            x: rect.x,
+            y: rect.y + TEXT_ORIGIN_Y,
+            w: rect.w,
+            h: (rect.h - 2.0 * TEXT_ORIGIN_Y).max(0.0),
+        })
+    } else {
+        clip
+    };
     push(out, rect, color, solid, clip, radius, 0);
     if dirty {
         push_dirty_mark(out, rect, clip, solid, theme.dirty);
@@ -204,7 +217,7 @@ fn paint_visited(
             rect,
             layout,
             caret,
-            clip,
+            text_clip,
             solid,
             scale,
             theme.selection,
@@ -225,7 +238,7 @@ fn paint_visited(
                 ),
                 highlight.color,
                 solid,
-                clip,
+                text_clip,
                 0.0,
                 0,
             );
@@ -244,13 +257,13 @@ fn paint_visited(
                     ),
                     theme.caret,
                     solid,
-                    clip,
+                    text_clip,
                     0.0,
                     0,
                 );
             }
         }
-        push_label(out, rect, layout, clip, scale, text_color, shift_y);
+        push_label(out, rect, layout, text_clip, scale, text_color, shift_y);
     }
     for mark in marks {
         let color = match mark.kind {
@@ -268,7 +281,7 @@ fn paint_visited(
             ),
             color,
             solid,
-            clip,
+            text_clip,
             0.0,
             0,
         );
@@ -279,7 +292,7 @@ fn paint_visited(
             rect,
             layout,
             caret,
-            clip,
+            text_clip,
             solid,
             scale,
             theme.caret,
@@ -341,10 +354,11 @@ fn walk(
                          layout: Option<&TextLayout>,
                          radius: f32,
                          marks: &[rndr_core::DecorationMark],
-                         shift_y: f32| {
+                         shift_y: f32,
+                         clip_text: bool| {
             paint_visited(
                 &mut guard, scale, solid, theme, rect, color, clip, label, caret, dirty, layout,
-                radius, marks, shift_y,
+                radius, marks, shift_y, clip_text,
             );
         };
         if needs_fallback {
@@ -553,6 +567,7 @@ fn emit(
         f32,
         &[rndr_core::DecorationMark],
         f32,
+        bool,
     ),
 ) {
     let empty: &[rndr_core::DecorationMark] = &[];
@@ -560,10 +575,9 @@ fn emit(
         .get::<rndr_core::DecorationMarks>(entity)
         .map(|marks| marks.marks.as_slice())
         .unwrap_or(empty);
-    let shift_y = -world
-        .get::<rndr_core::Prompt>(entity)
-        .map(|prompt| prompt.scroll)
-        .unwrap_or(0.0);
+    let prompt = world.get::<rndr_core::Prompt>(entity);
+    let shift_y = -prompt.map(|prompt| prompt.scroll).unwrap_or(0.0);
+    let clip_text = prompt.is_some();
     visit(
         rect,
         color,
@@ -575,6 +589,7 @@ fn emit(
         radius,
         marks,
         shift_y,
+        clip_text,
     );
 }
 

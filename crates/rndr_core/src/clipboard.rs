@@ -1,4 +1,5 @@
 use crate::action::{Binding, Chord, Fired, COPY, CUT, PASTE};
+use crate::keys::Platform;
 
 /// Write `copied` into the clipboard and clear a legacy copy/cut/paste [`Fired`]
 /// so this frame does not apply the same edit twice.
@@ -21,6 +22,40 @@ pub(crate) fn note_clipboard(world: &mut World, copied: Option<&str>) {
         }
     }
 }
+
+/// X11 and Wayland keep a primary selection separate from the clipboard.
+pub(crate) fn primary_selection(platform: Platform) -> bool {
+    matches!(platform, Platform::X11 | Platform::Wayland)
+}
+
+/// Write the primary selection. Empty text is left untouched.
+pub(crate) fn note_primary(world: &mut World, text: &str) {
+    if text.is_empty() {
+        return;
+    }
+    if let Some(clipboard) = world.resource_mut::<Clipboard>() {
+        clipboard.primary = text.to_string();
+        clipboard.primary_dirty = true;
+    } else {
+        world.insert_resource(Clipboard {
+            primary: text.to_string(),
+            primary_dirty: true,
+            ..Clipboard::default()
+        });
+    }
+}
+
+/// Middle-click paste. The primary selection wins when it is not empty.
+pub(crate) fn paste_selection(world: &World) -> String {
+    let Some(clipboard) = world.resource::<Clipboard>() else {
+        return String::new();
+    };
+    if !clipboard.primary.is_empty() {
+        clipboard.primary.clone()
+    } else {
+        clipboard.text.clone()
+    }
+}
 use crate::caret::Caret;
 use crate::field::TextField;
 use crate::input::{Focus, Key};
@@ -33,6 +68,10 @@ use crate::world::World;
 /// when this frame wrote [`Self::primary`]. The desktop runner pushes a dirty
 /// value to the OS clipboard (and, on X11 and Wayland, a dirty primary
 /// selection) and fills the fields from the OS at the start of the next frame.
+///
+/// A text field or prompt on X11 or Wayland writes [`Self::primary`] when a
+/// mouse selection is released. Middle-click in that field pastes
+/// [`Self::primary`] when it is not empty, and [`Self::text`] otherwise.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Clipboard {
     /// Last string written by a copy or cut. Explicit paste reads it.

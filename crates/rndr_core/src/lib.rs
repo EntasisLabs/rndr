@@ -206,9 +206,9 @@ pub use tray::{
     TrayIcon, TrayItemId, TrayMapped, TrayMenu, TrayPhase, TrayReport, TraySupport,
 };
 pub use window::{
-    platform_support, Availability, Dismiss, LogicalSize, Position, Resized, ScaleChanged,
-    WindowConfig, WindowEffect, WindowFocus, WindowHandle, WindowKind, WindowMetrics, WindowPhase,
-    WindowSignal, WindowSupport, WindowTransition,
+    platform_support, Availability, Dismiss, DismissHold, LogicalSize, Position, Resized,
+    ScaleChanged, WindowConfig, WindowEffect, WindowFocus, WindowHandle, WindowKind, WindowMetrics,
+    WindowPhase, WindowSignal, WindowSupport, WindowTransition,
 };
 pub use world::{Bundle, Component, World};
 pub use wrap::{

@@ -113,7 +113,7 @@ mod tests {
         let canvas = Theme::default().canvas;
         assert_eq!(canvas, Color::rgb(0.08, 0.09, 0.10));
         let selection = Theme::default().selection;
-        assert_eq!(selection.a, 0.55);
+        assert_eq!(selection.a, 0.88);
         let text = Theme::default().text;
 
         let linear_canvas = [0.007194409_f32, 0.008540382, 0.010022826, 1.0];
