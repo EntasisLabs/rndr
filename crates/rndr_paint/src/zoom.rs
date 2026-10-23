@@ -117,21 +117,38 @@ impl ZoomCamera {
     }
 
     /// Pan with the primary contact. A real movement drops the zoom anchor.
+    ///
+    /// The first sample is the anchor. A press and a move that arrive together
+    /// are kept by [`Self::drag_from`].
     pub fn drag(&mut self, down: bool, position: [f32; 2]) {
-        if down {
-            if let Some(last) = self.grab {
-                let dx = position[0] - last[0];
-                let dy = position[1] - last[1];
-                if dx != 0.0 || dy != 0.0 {
-                    self.pan[0] += dx;
-                    self.pan[1] += dy;
-                    self.anchor = None;
-                }
-            }
-            self.grab = Some(position);
-        } else {
+        self.drag_from(down, position, None);
+    }
+
+    /// Pan with the primary contact, anchored where the button went down.
+    ///
+    /// `press_at` is that position on a sample that contains the press. The
+    /// first delta is `position - press_at`, so content follows the pointer
+    /// when the press and the first move arrive together. Later samples pass
+    /// `None` and continue from the previous position. A real movement drops
+    /// the zoom anchor. [`Self::drag`] is this with no press position.
+    pub fn drag_from(&mut self, down: bool, position: [f32; 2], press_at: Option<[f32; 2]>) {
+        if !down {
             self.grab = None;
+            return;
         }
+        if self.grab.is_none() {
+            self.grab = Some(press_at.unwrap_or(position));
+        }
+        if let Some(last) = self.grab {
+            let dx = position[0] - last[0];
+            let dy = position[1] - last[1];
+            if dx != 0.0 || dy != 0.0 {
+                self.pan[0] += dx;
+                self.pan[1] += dy;
+                self.anchor = None;
+            }
+        }
+        self.grab = Some(position);
     }
 }
 
@@ -246,5 +263,24 @@ mod tests {
         assert!((world[0] - after[0]).abs() < 1.0e-4);
         assert!((world[1] - after[1]).abs() < 1.0e-4);
         assert_ne!(camera.pan(), [0.0, 0.0]);
+    }
+
+    #[test]
+    fn a_fast_drag_keeps_the_press_delta() {
+        let mut camera = ZoomCamera::new([0.0, 0.0]);
+        camera.drag_from(true, [40.0, 0.0], Some([0.0, 0.0]));
+        assert_eq!(camera.pan()[0], 40.0);
+        assert_eq!(camera.pan()[1], 0.0);
+        camera.drag_from(true, [80.0, 10.0], None);
+        assert_eq!(camera.pan()[0], 80.0);
+        assert_eq!(camera.pan()[1], 10.0);
+        camera.drag_from(false, [80.0, 10.0], None);
+        assert_eq!(camera.pan()[0], 80.0);
+
+        let mut plain = ZoomCamera::new([0.0, 0.0]);
+        plain.drag(true, [40.0, 0.0]);
+        assert_eq!(plain.pan(), [0.0, 0.0]);
+        plain.drag(true, [80.0, 0.0]);
+        assert_eq!(plain.pan()[0], 40.0);
     }
 }

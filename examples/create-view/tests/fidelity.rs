@@ -1,11 +1,11 @@
 //! Rasterize each fixture the way the Create canvas exports SVG, then diff it
 //! against the offscreen renderer.
 //!
-//! resvg stands in for the browser rasterizer. Mean absolute error is per
-//! channel in `0.0..=1.0`. Shapes, arrows, ink, images, and layers should stay
-//! close. Text is placed with the scene renderer's unmeasured line box, while
-//! the offscreen renderer uses the face's own line height and baseline, so
-//! that fixture is reported and only fails when the picture is unrelated.
+//! Mean absolute error is per channel in `0.0..=1.0`. Shapes, arrows, ink,
+//! images, and layers should stay close. Text uses the fixture's line height
+//! on both sides. The SVG places glyphs in a fixed em box with side bearings,
+//! while the renderer uses the face metrics, so that fixture is reported and
+//! only fails when the picture is unrelated.
 
 use std::fs;
 use std::path::PathBuf;
@@ -104,8 +104,8 @@ fn fixtures_match_the_svg_raster() {
                     report.over_48
                 );
             }
-            // The text engine has no line-height multiplier and a different
-            // baseline, so the ceiling only catches a blank or swapped picture.
+            // The SVG em box and side bearings still differ from the face
+            // metrics, so the ceiling only catches a blank or swapped picture.
             "text" => {
                 assert!(
                     report.mae < 0.25,

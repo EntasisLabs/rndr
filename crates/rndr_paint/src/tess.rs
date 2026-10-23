@@ -783,6 +783,10 @@ fn append_marker(
     let mut bare = stroke.clone();
     bare.start_marker = Marker::None;
     bare.end_marker = Marker::None;
+    // One polyline, so the tip is a join. A miter closes the wedge the two
+    // arm caps used to leave open. The arm ends keep the stroke cap.
+    bare.join = Join::Miter;
+    bare.miter_limit = bare.miter_limit.max(8.0);
     if !stroke.dash_markers {
         bare.dash.clear();
         bare.dash_offset = 0.0;
@@ -800,15 +804,14 @@ fn append_marker(
 fn marker_chevron(tip: [f32; 2], travel: [f32; 2], length: f32, spread: f32) -> Path {
     let (ux, uy) = (travel[0], travel[1]);
     let (px, py) = (-uy, ux);
+    let arm = |sign: f32| {
+        [
+            tip[0] - ux * length + px * spread * sign,
+            tip[1] - uy * length + py * spread * sign,
+        ]
+    };
     let mut path = Path::builder();
-    path.move_to(tip).line_to([
-        tip[0] - ux * length + px * spread,
-        tip[1] - uy * length + py * spread,
-    ]);
-    path.move_to(tip).line_to([
-        tip[0] - ux * length - px * spread,
-        tip[1] - uy * length - py * spread,
-    ]);
+    path.move_to(arm(1.0)).line_to(tip).line_to(arm(-1.0));
     path.build()
 }
 
@@ -985,6 +988,22 @@ mod tests {
             "dashed marker loses area: {} vs {}",
             mesh.area(),
             punched.area()
+        );
+    }
+
+    #[test]
+    fn a_chevron_tip_meets_without_a_notch() {
+        let path = Path::line([0.0, 0.0], [80.0, 0.0]);
+        let stroke = Stroke::solid(3.0)
+            .with_cap(Cap::Butt)
+            .with_end_marker(Marker::Chevron {
+                length: 16.0,
+                spread: 8.0,
+            });
+        let mesh = tessellate_stroke(&path, &stroke, 4.0);
+        assert!(
+            mesh.contains([81.0, 0.0]),
+            "the tip should cover the point just past the end"
         );
     }
 

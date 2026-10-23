@@ -159,6 +159,8 @@ struct CacheKey {
     letter_bits: u32,
     paragraph_bits: u32,
     align: u8,
+    /// [`TextStyle::line_height`] bits, or zero when the face's own line height is used.
+    line_bits: u32,
     runs: Vec<RunKey>,
 }
 
@@ -560,6 +562,11 @@ fn cache_key(
         scale_bits: scale.to_bits(),
         letter_bits: style.letter_spacing.to_bits(),
         paragraph_bits: style.paragraph_spacing.to_bits(),
+        line_bits: style
+            .line_height
+            .filter(|factor| factor.is_finite() && *factor > 0.0)
+            .map(|factor| factor.to_bits())
+            .unwrap_or(0),
         align: match style.align {
             TextAlign::Start => 0,
             TextAlign::Center => 1,
