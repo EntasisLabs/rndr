@@ -20,9 +20,14 @@ impl Component for Spans {}
 /// `face` is reserved for a second atlas.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextSpan {
+    /// First byte of the range, inclusive.
     pub start: usize,
+    /// First byte after the range.
     pub end: usize,
+    /// Tint for glyphs whose byte index falls in `start..end`.
     pub color: Color,
+    /// Face slot copied onto each glyph. `0` is the default. Paint does not
+    /// switch atlases from this; [`PlacedGlyph::atlas`] does.
     pub face: u8,
     /// `None` inherits the style weight.
     pub weight: Option<u16>,
@@ -31,6 +36,7 @@ pub struct TextSpan {
 }
 
 impl TextSpan {
+    /// Range `start..end` tinted `color`, face 0, inherited weight, no bar.
     pub fn new(start: usize, end: usize, color: Color) -> Self {
         Self {
             start,
@@ -42,11 +48,13 @@ impl TextSpan {
         }
     }
 
+    /// Store `weight` as [`Self::weight`] and return the span.
     pub fn weight(mut self, weight: u16) -> Self {
         self.weight = Some(weight);
         self
     }
 
+    /// Store `color` as [`Self::highlight`] and return the span.
     pub fn highlight(mut self, color: Color) -> Self {
         self.highlight = Some(color);
         self
@@ -56,11 +64,14 @@ impl TextSpan {
 /// Styled ranges painted over a label. Absent means one theme-colored run.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Spans {
+    /// Ranges tested in order. The first range that contains a byte wins.
     pub runs: Vec<TextSpan>,
 }
 
 /// Horizontal advance and painted box for one scalar, in logical points.
 pub trait Font: Send + Sync {
+    /// Line box height in points. Layout stacks lines by this and clamps a
+    /// negative value to 0.
     fn line_height(&self) -> f32;
     /// Width the pen moves after `ch`. A newline advances 0.
     fn advance(&self, ch: char) -> f32;
@@ -104,15 +115,25 @@ pub trait Font: Send + Sync {
 
 /// R8 coverage atlas owned by a face.
 pub struct FontAtlas {
+    /// Pixel width of [`Self::r8`].
     pub width: u32,
+    /// Pixel height of [`Self::r8`].
     pub height: u32,
+    /// Coverage samples, one byte per pixel, row-major. Glyph UVs in the
+    /// 0–1 range address this image. Paint samples it for [`PlacedGlyph`]
+    /// values whose [`PlacedGlyph::atlas`] is `0`.
     pub r8: Arc<[u8]>,
 }
 
 /// RGBA atlas for emoji and other color glyphs. Empty until a face provides one.
 pub struct ColorAtlas {
+    /// Pixel width of [`Self::rgba`]. A zero width or height is uploaded as
+    /// a 1×1 clear texture.
     pub width: u32,
+    /// Pixel height of [`Self::rgba`].
     pub height: u32,
+    /// Straight RGBA, four bytes per pixel, row-major. Paint samples it for
+    /// [`PlacedGlyph`] values whose [`PlacedGlyph::atlas`] is `1`.
     pub rgba: Arc<[u8]>,
 }
 
@@ -140,9 +161,13 @@ fn bitmap_solid_uv() -> [f32; 4] {
 /// Painted size of one glyph. Offsets are from the pen, in points.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GlyphBox {
+    /// Quad width in points. Layout copies this to [`PlacedGlyph::w`].
     pub w: f32,
+    /// Quad height in points. Layout copies this to [`PlacedGlyph::h`].
     pub h: f32,
+    /// Points added to the pen x. Layout folds this into [`PlacedGlyph::x`].
     pub bearing_x: f32,
+    /// Points added to the line top. Layout folds this into [`PlacedGlyph::y`].
     pub bearing_y: f32,
 }
 
@@ -191,9 +216,13 @@ impl Font for BitmapFont {
 }
 
 /// The face layout and paint measure with. Absent means [`BitmapFont`].
-pub struct TextFace(pub Arc<dyn Font>);
+pub struct TextFace(
+    /// Shared face. [`text_face`] clones this, or the bitmap when absent.
+    pub Arc<dyn Font>,
+);
 
 impl TextFace {
+    /// Shared [`BitmapFont`], ready to insert as a resource.
     pub fn bitmap() -> Self {
         Self(shared_bitmap())
     }
@@ -204,6 +233,7 @@ pub(crate) fn shared_bitmap() -> Arc<dyn Font> {
     Arc::clone(BITMAP.get_or_init(|| Arc::new(BitmapFont)))
 }
 
+/// [`TextFace`] resource, or the shared [`BitmapFont`] when it is absent.
 pub fn text_face(world: &World) -> Arc<dyn Font> {
     world
         .resource::<TextFace>()
@@ -214,31 +244,51 @@ pub fn text_face(world: &World) -> Arc<dyn Font> {
 /// One painted glyph. `x` and `y` are relative to the text origin, in points.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PlacedGlyph {
+    /// Byte index of [`Self::ch`] in the shaped string.
     pub start: usize,
+    /// Byte just after [`Self::ch`].
     pub end: usize,
+    /// Scalar this quad stands for. Paint samples [`Self::uv`], not this.
     pub ch: char,
+    /// Left edge in points from the text origin. Paint adds
+    /// [`crate::TEXT_ORIGIN_X`] and snaps the quad.
     pub x: f32,
+    /// Top edge in points from the text origin. Paint adds
+    /// [`crate::TEXT_ORIGIN_Y`] and snaps the quad.
     pub y: f32,
+    /// Quad width in points. Paint uses this as the quad width.
     pub w: f32,
+    /// Quad height in points. Paint uses this as the quad height.
     pub h: f32,
+    /// Atlas rect as `u0, v0, u1, v1`, each in 0–1. Paint samples it.
     pub uv: [f32; 4],
     /// `None` paints with the label color, or the theme text color when the label
     /// has none.
     pub color: Option<Color>,
+    /// Face slot copied from the covering [`TextSpan`]. Paint does not read it.
     pub face: u8,
-    /// Resolved weight. A future engine picks a master from this.
+    /// Resolved weight. Paint does not read it. A future engine picks a master
+    /// from this.
     pub weight: u16,
-    /// `0` samples the coverage atlas. `1` samples the color atlas.
+    /// `0` samples the coverage atlas. `1` samples the color atlas. Paint
+    /// selects the texture with this index.
     pub atlas: u8,
 }
 
 /// Background behind a styled range, relative to the text origin.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TextHighlight {
+    /// Left edge in points from the text origin. Paint adds
+    /// [`crate::TEXT_ORIGIN_X`] and draws this before the glyphs.
     pub x: f32,
+    /// Top edge in points from the text origin. Paint adds
+    /// [`crate::TEXT_ORIGIN_Y`].
     pub y: f32,
+    /// Quad width in points. Paint uses this, not the glyph advance.
     pub w: f32,
+    /// Quad height in points. Paint uses this as the bar height.
     pub h: f32,
+    /// Solid fill. Paint uses the white texel, not a glyph UV.
     pub color: Color,
 }
 
@@ -246,11 +296,19 @@ pub struct TextHighlight {
 /// the position after the last scalar.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextLine {
+    /// First byte of this line in the shaped string.
     pub start: usize,
+    /// Byte just after the line. Equal to [`Self::start`] when the line is empty.
     pub end: usize,
+    /// Top of the line box, in points from the text origin. The caret and
+    /// selection use this; paint does not walk lines on its own.
     pub y: f32,
+    /// Line box height in points. The caret quad uses this height.
     pub h: f32,
+    /// Pen advance of the line in points, after kerning.
     pub width: f32,
+    /// Caret stops as `(byte index, pen x in points)`. Not ordered left to
+    /// right, so a right-to-left run still hits the cluster under the pointer.
     pub edges: Vec<(usize, f32)>,
 }
 
@@ -260,10 +318,16 @@ pub struct TextLine {
 /// this run was built from. A matching key means the glyphs are still current.
 #[derive(Clone, Debug)]
 pub struct TextLayout {
+    /// Quads in paint order. Paint walks this list.
     pub glyphs: Vec<PlacedGlyph>,
+    /// Visual lines, top to bottom. Hit testing and the caret read these.
     pub lines: Vec<TextLine>,
+    /// Bars behind styled ranges. Paint draws these before [`Self::glyphs`].
     pub highlights: Vec<TextHighlight>,
+    /// Widest line's pen advance, in points. Hug layout reads this; paint
+    /// uses the glyph quads instead.
     pub width: f32,
+    /// Sum of line heights, in points.
     pub height: f32,
     pub(crate) cache_key: u64,
     /// Caret inside an IME preedit, as a byte index in the shaped string.
@@ -305,9 +369,15 @@ impl PartialEq for TextLayout {
 /// Highlight rectangle relative to the text origin.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SelectionBox {
+    /// Left edge in points from the text origin. Paint adds
+    /// [`crate::TEXT_ORIGIN_X`].
     pub x: f32,
+    /// Top edge in points from the text origin. Paint adds
+    /// [`crate::TEXT_ORIGIN_Y`].
     pub y: f32,
+    /// Width in points. An empty line inside the range is 2.
     pub w: f32,
+    /// Line box height in points.
     pub h: f32,
 }
 
@@ -423,8 +493,11 @@ pub(crate) fn layout_text_weighted(
 /// Width and line count for a wrap, without glyph quads or per-line edge buffers.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TextMeasure {
+    /// Widest line's pen advance, in points.
     pub width: f32,
+    /// [`Self::line_count`] times the face line height, in points.
     pub height: f32,
+    /// Wrapped lines. At least 1, including an empty string.
     pub line_count: usize,
 }
 

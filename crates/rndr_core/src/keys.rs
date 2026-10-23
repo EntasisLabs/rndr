@@ -11,19 +11,61 @@ use crate::world::World;
 /// Prefer [`KeyEvent`] on [`crate::Input::keys`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Key {
+    /// Legacy edge for the up arrow, not a physical position.
+    /// [`legacy_key`] maps [`NamedKey::ArrowUp`], or [`KeyCode::ArrowUp`]
+    /// when the logical key is not named.
     Up,
+    /// Legacy edge for the down arrow, not a physical position.
+    /// [`legacy_key`] maps [`NamedKey::ArrowDown`], or [`KeyCode::ArrowDown`]
+    /// when the logical key is not named.
     Down,
+    /// Legacy edge for the left arrow, not a physical position.
+    /// [`legacy_key`] maps [`NamedKey::ArrowLeft`], or [`KeyCode::ArrowLeft`]
+    /// when the logical key is not named.
     Left,
+    /// Legacy edge for the right arrow, not a physical position.
+    /// [`legacy_key`] maps [`NamedKey::ArrowRight`], or [`KeyCode::ArrowRight`]
+    /// when the logical key is not named.
     Right,
+    /// Legacy edge for Enter, not a physical position.
+    /// [`legacy_key`] maps [`NamedKey::Enter`], or [`KeyCode::Enter`] when
+    /// the logical key is not named.
     Enter,
+    /// Legacy edge for Escape, not a physical position.
+    /// [`legacy_key`] maps [`NamedKey::Escape`], or [`KeyCode::Escape`] when
+    /// the logical key is not named.
     Escape,
+    /// Legacy edge for Tab, not a physical position.
+    /// [`legacy_key`] maps [`NamedKey::Tab`], or [`KeyCode::Tab`] when the
+    /// logical key is not named.
     Tab,
+    /// Legacy edge for Backspace, not a physical position.
+    /// [`legacy_key`] maps [`NamedKey::Backspace`], or [`KeyCode::Backspace`]
+    /// when the logical key is not named.
     Backspace,
+    /// Legacy edge for primary+S. Not a logical key or a physical position.
+    /// [`legacy_key`] matches physical [`KeyCode::Letter`] `s`, or a Latin
+    /// logical character, with the platform primary modifier.
     Save,
+    /// Legacy edge for primary+N. Not a logical key or a physical position.
+    /// [`legacy_key`] matches physical [`KeyCode::Letter`] `n`, or a Latin
+    /// logical character, with the platform primary modifier.
     New,
+    /// Legacy edge for forward delete, not a letter chord and not a physical
+    /// position. [`legacy_key`] maps [`NamedKey::Delete`], or
+    /// [`KeyCode::Delete`] when the logical key is not named.
     Delete,
+    /// Legacy edge for primary+C. Not a logical key or a physical position.
+    /// [`legacy_key`] matches physical [`KeyCode::Letter`] `c`, or a Latin
+    /// logical character, with the platform primary modifier.
     Copy,
+    /// Legacy edge for primary+X. Not a logical key or a physical position.
+    /// [`legacy_key`] matches physical [`KeyCode::Letter`] `x`, or a Latin
+    /// logical character, with the platform primary modifier.
     Cut,
+    /// Legacy edge for primary+V. Not a logical key or a physical position.
+    /// [`legacy_key`] matches physical [`KeyCode::Letter`] `v`, or a Latin
+    /// logical character, with the platform primary modifier.
     Paste,
 }
 
@@ -31,9 +73,15 @@ pub enum Key {
 /// The primary modifier is Super on [`Platform::Mac`] and Ctrl everywhere else.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Platform {
+    /// macOS. The primary modifier is Super, not Ctrl.
     Mac,
+    /// Windows. The primary modifier is Ctrl.
     Windows,
+    /// X11. The primary modifier is Ctrl. [`Platform::host`] reports this on
+    /// Linux until the runner stores [`Self::Wayland`].
     X11,
+    /// Wayland. The primary modifier is Ctrl. The runner overwrites the host
+    /// guess with this when the session is Wayland.
     Wayland,
 }
 
@@ -49,6 +97,7 @@ impl Platform {
         }
     }
 
+    /// True only for [`Platform::Mac`]. Shortcut tables branch on this.
     pub fn primary_is_super(self) -> bool {
         matches!(self, Self::Mac)
     }
@@ -65,14 +114,19 @@ pub fn platform_of(world: &World) -> Platform {
 /// Shift, Ctrl, Alt, and Super as held at the moment of a key event.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Modifiers {
+    /// Shift was held. Letter matching still folds ASCII case.
     pub shift: bool,
+    /// Control was held. Text insertion treats this differently from Super.
     pub ctrl: bool,
+    /// Alt was held. Shortcut matching compares this exactly.
     pub alt: bool,
-    /// Super, Command, or the Windows key.
+    /// Super, Command, or the Windows key. Text is not inserted while this
+    /// is set.
     pub super_key: bool,
 }
 
 impl Modifiers {
+    /// No modifiers held.
     pub const fn new() -> Self {
         Self {
             shift: false,
@@ -100,26 +154,58 @@ impl Modifiers {
 /// Named key, independent of the character it might also produce.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum NamedKey {
+    /// Logical up arrow, not the physical [`KeyCode::ArrowUp`].
+    /// [`legacy_key`] maps this to [`Key::Up`].
     ArrowUp,
+    /// Logical down arrow, not the physical [`KeyCode::ArrowDown`].
+    /// [`legacy_key`] maps this to [`Key::Down`].
     ArrowDown,
+    /// Logical left arrow, not the physical [`KeyCode::ArrowLeft`].
+    /// [`legacy_key`] maps this to [`Key::Left`].
     ArrowLeft,
+    /// Logical right arrow, not the physical [`KeyCode::ArrowRight`].
+    /// [`legacy_key`] maps this to [`Key::Right`].
     ArrowRight,
+    /// Logical Enter, not the physical [`KeyCode::Enter`].
+    /// [`legacy_key`] maps this to [`Key::Enter`].
     Enter,
+    /// Logical Escape, not the physical [`KeyCode::Escape`].
+    /// [`legacy_key`] maps this to [`Key::Escape`].
     Escape,
+    /// Logical Tab, not the physical [`KeyCode::Tab`].
+    /// [`legacy_key`] maps this to [`Key::Tab`].
     Tab,
+    /// Logical Backspace, not the physical [`KeyCode::Backspace`].
+    /// [`legacy_key`] maps this to [`Key::Backspace`].
     Backspace,
+    /// Logical forward delete, not the physical [`KeyCode::Delete`].
+    /// [`legacy_key`] maps this to [`Key::Delete`].
     Delete,
+    /// Logical Insert, not the physical [`KeyCode::Insert`].
+    /// [`legacy_key`] has no [`Key`] for it and returns `None`.
     Insert,
+    /// Logical Home, not the physical [`KeyCode::Home`].
+    /// [`legacy_key`] returns `None`.
     Home,
+    /// Logical End, not the physical [`KeyCode::End`].
+    /// [`legacy_key`] returns `None`.
     End,
+    /// Logical Page Up, not the physical [`KeyCode::PageUp`].
+    /// [`legacy_key`] returns `None`.
     PageUp,
+    /// Logical Page Down, not the physical [`KeyCode::PageDown`].
+    /// [`legacy_key`] returns `None`.
     PageDown,
+    /// Logical space bar, not the physical [`KeyCode::Space`] and not the
+    /// character. [`legacy_key`] returns `None`.
     Space,
-    /// Function key. `n` is 1 through 24.
+    /// Logical function key. `n` is 1 through 24, the same range as
+    /// [`KeyCode::Function`]. [`legacy_key`] returns `None`.
     F(u8),
 }
 
 impl NamedKey {
+    /// [`Self::F`] when `n` is 1 through 24. `None` outside that range.
     pub fn function(n: u8) -> Option<Self> {
         (1..=24).contains(&n).then_some(Self::F(n))
     }
@@ -149,59 +235,104 @@ impl NamedKey {
 /// Key identity with modifiers removed. Shortcut matching uses this or [`KeyCode`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum LogicalKey {
+    /// A [`NamedKey`] with Shift, Ctrl, Alt, and Super ignored.
     Named(NamedKey),
-    /// Character the key produces with no Shift/Ctrl/Alt/Super. Layout dependent.
+    /// Character the key produces with no Shift/Ctrl/Alt/Super. Layout
+    /// dependent, not a physical position. Matching folds ASCII case.
     Character(char),
+    /// The host reported no logical key and no character. Matches only
+    /// another unidentified key, never a [`KeyCode`].
     Unidentified,
 }
 
 /// Physical key position. US-letter names are positions, not the typed character.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum KeyCode {
-    /// A–Z key. Stored lowercase.
+    /// A–Z key. Stored lowercase. Physical position, not the typed character.
+    /// Matching folds ASCII case.
     Letter(char),
-    /// Top-row digit, 0–9.
+    /// Top-row digit, 0–9. Physical position, not the shifted symbol.
     Digit(u8),
-    /// Function key, 1–24.
+    /// Function key, 1–24. Physical position. Same range as [`NamedKey::F`].
     Function(u8),
+    /// Physical up arrow. [`legacy_key`] maps this to [`Key::Up`] when the
+    /// logical key is not named.
     ArrowUp,
+    /// Physical down arrow. [`legacy_key`] maps this to [`Key::Down`] when
+    /// the logical key is not named.
     ArrowDown,
+    /// Physical left arrow. [`legacy_key`] maps this to [`Key::Left`] when
+    /// the logical key is not named.
     ArrowLeft,
+    /// Physical right arrow. [`legacy_key`] maps this to [`Key::Right`] when
+    /// the logical key is not named.
     ArrowRight,
+    /// Physical Enter. [`legacy_key`] maps this to [`Key::Enter`] when the
+    /// logical key is not named.
     Enter,
+    /// Physical Escape. [`legacy_key`] maps this to [`Key::Escape`] when the
+    /// logical key is not named.
     Escape,
+    /// Physical Tab. [`legacy_key`] maps this to [`Key::Tab`] when the
+    /// logical key is not named.
     Tab,
+    /// Physical Backspace. [`legacy_key`] maps this to [`Key::Backspace`]
+    /// when the logical key is not named.
     Backspace,
+    /// Physical forward delete. [`legacy_key`] maps this to [`Key::Delete`]
+    /// when the logical key is not named.
     Delete,
+    /// Physical Insert. [`legacy_key`] returns `None` for this position.
     Insert,
+    /// Physical Home. [`legacy_key`] returns `None` for this position.
     Home,
+    /// Physical End. [`legacy_key`] returns `None` for this position.
     End,
+    /// Physical Page Up. [`legacy_key`] returns `None` for this position.
     PageUp,
+    /// Physical Page Down. [`legacy_key`] returns `None` for this position.
     PageDown,
+    /// Physical space bar. Not the character, and not [`NamedKey::Space`].
+    /// [`legacy_key`] returns `None`.
     Space,
+    /// Physical minus key. US position of `-` and `_`, not the character typed.
     Minus,
+    /// Physical equal key. US position of `=` and `+`, not the character typed.
     Equal,
+    /// Physical left bracket. US position of `[` and `{`.
     BracketLeft,
+    /// Physical right bracket. US position of `]` and `}`.
     BracketRight,
+    /// Physical backslash. US position of `\` and `|`.
     Backslash,
+    /// Physical semicolon. US position of `;` and `:`.
     Semicolon,
+    /// Physical quote. US position of `'` and `"`.
     Quote,
+    /// Physical comma. US position of `,` and `<`.
     Comma,
+    /// Physical period. US position of `.` and `>`.
     Period,
+    /// Physical slash. US position of `/` and `?`.
     Slash,
+    /// Physical backquote. US position of the grave accent and `~`.
     Backquote,
 }
 
 impl KeyCode {
+    /// [`Self::Letter`] of the ASCII letter, stored lowercase. `None` when
+    /// `ch` is not A–Z or a–z.
     pub fn letter(ch: char) -> Option<Self> {
         ch.is_ascii_alphabetic()
             .then_some(Self::Letter(ch.to_ascii_lowercase()))
     }
 
+    /// [`Self::Digit`] when `n` is 0 through 9. `None` otherwise.
     pub fn digit(n: u8) -> Option<Self> {
         (n < 10).then_some(Self::Digit(n))
     }
 
+    /// [`Self::Function`] when `n` is 1 through 24. `None` otherwise.
     pub fn function(n: u8) -> Option<Self> {
         (1..=24).contains(&n).then_some(Self::Function(n))
     }
@@ -210,11 +341,16 @@ impl KeyCode {
 /// One press, repeat, or release. Several of these can land in a single frame.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct KeyEvent {
+    /// Key with modifiers stripped. Shortcut matching uses this or [`Self::code`].
     pub logical: LogicalKey,
     /// Characters to insert, after layout and Shift. `None` when the key types nothing.
     pub text: Option<String>,
+    /// Physical position when the host reported one. `None` does not match a
+    /// [`Trigger::Code`] binding.
     pub code: Option<KeyCode>,
+    /// Modifiers held for this event.
     pub modifiers: Modifiers,
+    /// The host repeated this key while it was held down.
     pub repeat: bool,
     /// The key went up. Releases carry no text.
     pub released: bool,
@@ -236,6 +372,8 @@ impl KeyEvent {
     /// No receive-order. Counts as arriving after every hotkey.
     pub const UNORDERED: u64 = u64::MAX;
 
+    /// A press of `key` with `modifiers`, no text, and the physical code for
+    /// that name. Order is [`Self::UNORDERED`].
     pub fn named(key: NamedKey, modifiers: Modifiers) -> Self {
         Self {
             logical: LogicalKey::Named(key),
@@ -249,6 +387,9 @@ impl KeyEvent {
         }
     }
 
+    /// A press of `ch`. Text is set when `ch` is insertable and neither Ctrl
+    /// nor Super is held. An ASCII letter also stores [`KeyCode::Letter`]
+    /// in lowercase. Order is [`Self::UNORDERED`].
     pub fn character(ch: char, modifiers: Modifiers) -> Self {
         let code = KeyCode::letter(ch);
         Self {
@@ -263,16 +404,20 @@ impl KeyEvent {
         }
     }
 
+    /// Set the physical [`KeyCode`].
     pub fn with_code(mut self, code: KeyCode) -> Self {
         self.code = Some(code);
         self
     }
 
+    /// Replace [`Self::text`]. Control characters stay until
+    /// [`Self::insertable_text`] filters them.
     pub fn with_text(mut self, text: impl Into<String>) -> Self {
         self.text = Some(text.into());
         self
     }
 
+    /// Mark this event as a key repeat.
     pub fn repeating(mut self) -> Self {
         self.repeat = true;
         self
@@ -404,22 +549,36 @@ fn named_of_code(code: KeyCode) -> Option<NamedKey> {
 /// What a shortcut binds to: the unmodified logical key, or the physical code.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Trigger {
+    /// Match [`KeyEvent::logical`]. Characters compare ASCII-case-insensitively.
+    /// A named key does not match a character that looks the same.
     Logical(LogicalKey),
+    /// Match [`KeyEvent::code`]. Letters compare ASCII-case-insensitively.
+    /// A missing code does not match.
     Code(KeyCode),
 }
 
 /// One step of a binding. `primary` means Cmd on macOS and Ctrl elsewhere.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Keystroke {
+    /// Logical key or physical code this step requires.
     pub trigger: Trigger,
+    /// Shift must be down. Compared exactly.
     pub shift: bool,
+    /// Require Ctrl. On macOS this is separate from [`Self::primary`]. On
+    /// other hosts primary already means Ctrl, so both flags ask for it.
     pub ctrl: bool,
+    /// Alt must be down. Compared exactly.
     pub alt: bool,
+    /// Require Super. On macOS [`Self::primary`] already means Super, so both
+    /// flags ask for it. Elsewhere this is separate from primary.
     pub super_key: bool,
+    /// Cmd on macOS, Ctrl elsewhere. Add [`Self::ctrl`] or [`Self::super_key`]
+    /// only when that second modifier is also required.
     pub primary: bool,
 }
 
 impl Keystroke {
+    /// Stroke matching `key` with no modifiers.
     pub const fn logical(key: LogicalKey) -> Self {
         Self {
             trigger: Trigger::Logical(key),
@@ -431,14 +590,17 @@ impl Keystroke {
         }
     }
 
+    /// [`Self::logical`] of [`LogicalKey::Named`].
     pub const fn named(key: NamedKey) -> Self {
         Self::logical(LogicalKey::Named(key))
     }
 
+    /// [`Self::logical`] of `ch`, forced to ASCII lowercase. No modifiers.
     pub fn character(ch: char) -> Self {
         Self::logical(LogicalKey::Character(ch.to_ascii_lowercase()))
     }
 
+    /// Stroke matching the physical `code` with no modifiers.
     pub const fn code(code: KeyCode) -> Self {
         Self {
             trigger: Trigger::Code(code),
@@ -450,31 +612,38 @@ impl Keystroke {
         }
     }
 
+    /// Require Shift.
     pub const fn shift(mut self) -> Self {
         self.shift = true;
         self
     }
 
+    /// Require Ctrl, as well as [`Self::primary`] when that is also set.
     pub const fn ctrl(mut self) -> Self {
         self.ctrl = true;
         self
     }
 
+    /// Require Alt.
     pub const fn alt(mut self) -> Self {
         self.alt = true;
         self
     }
 
+    /// Require Super, as well as [`Self::primary`] when that is also set.
     pub const fn super_key(mut self) -> Self {
         self.super_key = true;
         self
     }
 
+    /// Require the platform primary modifier: Cmd on macOS, Ctrl elsewhere.
     pub const fn primary(mut self) -> Self {
         self.primary = true;
         self
     }
 
+    /// True when the modifiers and the trigger agree. A release or a
+    /// synthetic event can still match; callers filter those.
     pub fn matches(&self, event: &KeyEvent, platform: Platform) -> bool {
         mods_match(self, &event.modifiers, platform) && trigger_match(self.trigger, event)
     }
@@ -640,22 +809,49 @@ fn code_eq(want: KeyCode, got: KeyCode) -> bool {
 /// Editing commands whose chord depends on the platform.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum EditAction {
+    /// Select the whole field. Primary+A with Shift up, on every platform.
+    /// Matches the physical A key or the Latin letter.
     SelectAll,
+    /// Undo. Primary+Z with Shift up. On macOS, Shift+Primary+Z is
+    /// [`Self::Redo`] instead. Matches the physical Z key or the Latin letter.
     Undo,
+    /// Redo. Shift+Primary+Z on macOS, Primary+Y with Shift up elsewhere.
+    /// Matches the physical letter or the Latin letter.
     Redo,
+    /// Copy. Primary+C with Shift up. Matches the physical C key or the Latin
+    /// letter, so a non-Latin layout still copies.
     Copy,
+    /// Cut. Primary+X with Shift up. Matches the physical X key or the Latin
+    /// letter.
     Cut,
+    /// Paste. Primary+V with Shift up. Matches the physical V key or the Latin
+    /// letter.
     Paste,
+    /// Move one word left. Alt+Left on macOS, Ctrl+Left elsewhere.
+    /// Shift is ignored, so it still extends the selection.
     WordLeft,
+    /// Move one word right. Alt+Right on macOS, Ctrl+Right elsewhere.
+    /// Shift is ignored, so it still extends the selection.
     WordRight,
+    /// Move to the start of the line. Cmd+Left on macOS, Home elsewhere.
+    /// Shift is ignored, so it still extends the selection.
     LineStart,
+    /// Move to the end of the line. Cmd+Right on macOS, End elsewhere.
+    /// Shift is ignored, so it still extends the selection.
     LineEnd,
+    /// Move to the start of the document. Cmd+Up on macOS, Ctrl+Home elsewhere.
+    /// Shift is ignored, so it still extends the selection.
     DocStart,
+    /// Move to the end of the document. Cmd+Down on macOS, Ctrl+End elsewhere.
+    /// Shift is ignored, so it still extends the selection.
     DocEnd,
+    /// Delete the word before the caret. Alt+Backspace on macOS, Ctrl+Backspace
+    /// elsewhere. Shift is ignored.
     DeleteWordBackward,
 }
 
 impl EditAction {
+    /// Every action [`standard_action`] can return.
     pub const ALL: [EditAction; 13] = [
         EditAction::SelectAll,
         EditAction::Undo,
@@ -745,7 +941,8 @@ fn is_named(event: &KeyEvent, named: NamedKey) -> bool {
 ///
 /// Letter chords match the physical key or the unmodified Latin letter, so
 /// Cmd+C copies when the logical character is Cyrillic. Shift selects for
-/// motions and is part of the chord for Undo/Redo.
+/// motions and is part of the chord for Undo/Redo. The modifier that is not
+/// primary must be up, so Ctrl and Super together do not match.
 pub fn standard_action(platform: Platform, event: &KeyEvent) -> Option<EditAction> {
     patterns(platform)
         .into_iter()
