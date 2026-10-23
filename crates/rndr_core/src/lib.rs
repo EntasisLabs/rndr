@@ -43,6 +43,9 @@
 //! on a runtime the application already started. The default build depends on
 //! neither.
 //!
+//! The optional `highlight` feature colors fenced code by token class. Without
+//! it, a code block is one color.
+//!
 //! [`hotkey`], [`tray`], and [`window`] are the headless halves of those
 //! desktop features: parsing, commands, and events. The operating-system
 //! backends live in `rndr_render`.
@@ -83,6 +86,7 @@ mod keymap;
 mod keys;
 mod layout;
 mod list;
+mod markdown;
 mod memory_fs;
 mod mono;
 mod overlay;
@@ -162,6 +166,10 @@ pub use list::{
     List, ListActivated, ListItem, ListKeys, ListRows, LIST_ACTIVATE, LIST_DOWN, LIST_END,
     LIST_HOME, LIST_PAGE_DOWN, LIST_PAGE_UP, LIST_UP,
 };
+pub use markdown::{
+    markdown_view, parse_markdown, LinkActivated, MarkdownBlock, MarkdownKind, MarkdownLink,
+    MarkdownPlugin, MarkdownTheme, MarkdownView,
+};
 pub use memory_fs::{MemoryFs, MemoryFsPlugin};
 pub use mono::{
     apply_mono_grid, MonoBand, MonoCache, MonoCell, MonoCursor, MonoCursorShape, MonoGrid, MonoRow,
@@ -187,8 +195,8 @@ pub use split::{apply_split, Drag, Splitter};
 pub use style::{Body, Color, Label, TextOverflow, CELL_H, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
 pub use tabs::{Hidden, Tab, TabPanel, Tabs};
 pub use text::{
-    ensure_text_engine, style_of, text_engine, BuiltinText, FontStyle, TextEngine, TextStyle,
-    FONT_WEIGHT_BOLD, FONT_WEIGHT_REGULAR,
+    ensure_text_engine, style_for, style_of, text_engine, BuiltinText, FontStyle, TextEngine,
+    TextStyle, FONT_WEIGHT_BOLD, FONT_WEIGHT_REGULAR,
 };
 pub use theme::{theme_of, Radius, Theme};
 pub use tray::{

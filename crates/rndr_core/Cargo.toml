@@ -14,6 +14,7 @@ categories = ["gui"]
 exclude = ["**/*.snap.new"]
 
 [dependencies]
+pulldown-cmark = { version = "0.13.5", default-features = false }
 unicode-segmentation = "1.13"
 tokio = { version = "1", optional = true, default-features = false, features = ["rt"] }
 
@@ -23,7 +24,10 @@ default = []
 pool = []
 # Spawn a feed producer on a tokio runtime the application already started.
 tokio = ["dep:tokio"]
+# Color fenced code by token class: comments, strings, numbers, and keywords.
+# Off leaves a code block in one color. No extra crates.
+highlight = []
 
 [package.metadata.docs.rs]
-# `pool` has no native dependencies. `tokio` is optional and pure Rust.
+# `pool` and `highlight` have no native dependencies. `tokio` is optional and pure Rust.
 all-features = true

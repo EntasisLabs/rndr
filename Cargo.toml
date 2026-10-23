@@ -12,6 +12,7 @@ members = [
     "examples/overlay",
     "examples/palette",
     "examples/terminal",
+    "examples/stream",
 ]
 
 [workspace.package]

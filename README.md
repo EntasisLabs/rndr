@@ -33,7 +33,7 @@ Application
 | Crate | Role |
 | --- | --- |
 | `rndr` | Facade. Re-exports the libraries below so `cargo add rndr` is the desktop entry point. Features match `rndr_render` |
-| `rndr_core` | ECS, layout, clip, scroll, disclosure, focus, pane, split, caret, body, wrap, `Font`, `Files`, `Chrome`, events, tasks, timers |
+| `rndr_core` | ECS, layout, clip, scroll, disclosure, focus, pane, split, caret, body, wrap, `Font`, `Files`, `Chrome`, events, tasks, timers, markdown |
 | `rndr_paint` | `frame`: update, then quads in points. Reads a `TextLayout`. The bitmap face is an 8×8 ASCII atlas |
 | `rndr_std` | `std::fs` plugin |
 | `rndr_term` | Embedded terminal. A PTY and a VT state machine copy cells into a `MonoGrid`. Optional `rndr` feature `term` re-exports it. Core and paint do not link the PTY |
@@ -42,6 +42,7 @@ Application
 | `examples/idle` | Empty window. `ControlFlow::Wait` when nothing is scheduled |
 | `examples/overlay` | Frameless centered panel. Hides on blur and Escape, returns on Alt+Space |
 | `examples/palette` | Command palette: debounced filter, virtual list, shortcuts |
+| `examples/stream` | Streamed markdown answer: a background feed appends tokens into a pinned text view |
 | `examples/terminal` | Shell in a window. `cargo run -p terminal` |
 
 A blank `App` holds the world, `Input`, and `Viewport`. `Shell` registers the file-tree systems. `Chrome` is optional and leaves `Shell` alone: named chords, buttons, tabs, a single-line field, a multi-line prompt, overlays, a virtual list, an in-memory clipboard, styled runs, a gap-buffer editor, decorations, and IME preedit. `frame` also reports `SurfaceSlot` rects and leaves those interiors empty. `StdFsPlugin` inserts the disk backend. `MemoryFs` is the headless backend. `rndr_paint::frame` steps the world and returns quads in points. `rndr_render` writes the window into `Input` and `Viewport`, then multiplies those quads by `scale` and presents them. Headless crates stop at the standard library. The desktop crate depends on `wgpu`, `winit`, and `pollster`, and, when the default features are on, on `parley` for text, `tray-icon`, and the hotkey backends. `rndr_core` stays headless either way. No layout engine and no third-party ECS.
@@ -147,7 +148,7 @@ F21–F24 have no Carbon virtual key, so they are `InvalidBinding` on macOS and 
 
 ## Headless tests
 
-CI on macOS, Windows, and Ubuntu runs `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo clippy -p rndr_render -p rndr --no-default-features --all-targets -- -D warnings`, `cargo test --workspace`, then `cargo build -p expand -p idle -p overlay -p palette -p terminal -p rndr_render`. The Ubuntu job also runs `cargo package --workspace` (a verified build of each packaged crate) and checks that the Inter license and the snapshot files are in those crates, then builds `cargo doc --no-deps` with warnings denied. It installs the X11, Wayland, and Vulkan packages winit and wgpu need to compile. The tray and hotkey features add no further packages.
+CI on macOS, Windows, and Ubuntu runs `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo clippy -p rndr_render -p rndr --no-default-features --all-targets -- -D warnings`, `cargo test --workspace`, `cargo test -p rndr_core --features tokio`, `cargo test -p rndr_core --features highlight`, then `cargo build -p expand -p idle -p overlay -p palette -p terminal -p stream -p rndr_render`. The Ubuntu job also runs `cargo package --workspace` (a verified build of each packaged crate) and checks that the Inter license and the snapshot files are in those crates, then builds `cargo doc --no-deps` with warnings denied. It installs the X11, Wayland, and Vulkan packages winit and wgpu need to compile. The tray and hotkey features add no further packages.
 
 A headless test drives one frame without a window:
 
@@ -173,6 +174,7 @@ cargo test -p rndr_core
 cargo run -p idle
 cargo run -p overlay
 cargo run -p palette
+cargo run -p stream
 cargo run -p expand
 cargo run -p expand -- /path/to/dir
 ```
@@ -180,5 +182,7 @@ cargo run -p expand -- /path/to/dir
 `overlay` opens a frameless, always-on-top panel in the center of the screen. Escape or a click away hides it. Alt+Space shows it again, from any application, and hides it if it is already visible. `RNDR_HOTKEY` or `--hotkey` replaces Alt+Space (`cargo run -p overlay -- --hotkey Ctrl+Space`).
 
 `palette` is a command list in that same kind of window: frameless, centered, always on top, hidden on blur and on Escape, and summoned by the same hotkey. On macOS it runs as an accessory app, so the Dock stays out of it. A tray icon remains: Show Palette (the global hotkey, `⌥Space` on macOS and `Alt+Space` elsewhere, unless `--hotkey` or `RNDR_HOTKEY` changed it), Settings (disabled), and Quit. Left click toggles the window. The search field emits `TextChanged`. Each change starts a background feed that waits, then filters thirty commands. A reply stamped with an older epoch is dropped, so a slow result cannot replace a newer query. A virtual list shows the matches with shortcuts from `Keymap::shortcut` (`⌘K` on macOS, `Ctrl+K` elsewhere, `Ctrl+G M` for a two-stroke chord). The shortcut is a label with its own dim color. Letters the filter hit are painted with a highlight. Up and Down move the selection, Enter runs it, and the run is a task whose handle sits in ordinary app state. The field and the row labels measure through `TextEngine`. Activating Ask Medousa switches that field to a multi-line prompt: Enter sends, Shift+Enter inserts a newline, and activating it again returns to the list. Filter replies stay ignored while the prompt is open.
+
+`stream` opens a window. A background feed sends a canned markdown answer a few characters at a time. The view appends each chunk and stays pinned to the bottom until the pointer scrolls up. A link click writes the destination into the status line.
 
 A tree column on the left and a detail pane on the right. Drag the seam to resize. The body wraps to the pane width; drag the splitter and the next frame reflows. The demo opens the first argument if it is an existing directory, otherwise `examples/expand/fixture`. Click a row to select it. Right lists a directory; Enter opens a file into the pane. Click a title or body cell to place the caret; Shift extends the selection. Type in the title to rename, Tab into the body to edit, Ctrl+S writes the file. A mark on the tree row means the file is dirty. Ctrl+N creates `untitled.txt` (Ctrl+Shift+N a folder) and starts a title edit. Delete removes a file or an empty folder. Collapse writes dirty children first. Hidden names and binary files are skipped for the body. Escape leaves the caret, then the pane.

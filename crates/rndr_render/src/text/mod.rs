@@ -166,6 +166,7 @@ struct RunKey {
     rgba: [u32; 4],
     weight: Option<u16>,
     face: u8,
+    italic: bool,
     highlight: Option<[u32; 4]>,
 }
 
@@ -549,6 +550,7 @@ fn cache_key(
                 rgba: color_bits(run.color),
                 weight: run.weight,
                 face: run.face,
+                italic: run.italic,
                 highlight: run.highlight.map(color_bits),
             })
             .collect(),

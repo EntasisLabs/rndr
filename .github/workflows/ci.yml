@@ -56,23 +56,26 @@ jobs:
           cargo clippy -p rndr_core --features tokio --all-targets -- -D warnings
           cargo test -p rndr_core --features tokio
 
+      - name: Test markdown code coloring
+        run: cargo test -p rndr_core --features highlight
+
       - name: Build examples and rndr_render
-        run: cargo build -p expand -p idle -p overlay -p palette -p terminal -p rndr_render
+        run: cargo build -p expand -p idle -p overlay -p palette -p terminal -p stream -p rndr_render
 
       - name: Package and docs
         if: runner.os == 'Linux'
         run: |
           # Builds each packaged crate from the tarball. Cargo does not execute
           # tests here, so the archive checks below guard the snapshot suite.
-          cargo package --workspace --locked --exclude expand --exclude idle --exclude overlay --exclude palette --exclude terminal
+          cargo package --workspace --locked --exclude expand --exclude idle --exclude overlay --exclude palette --exclude terminal --exclude stream
           paint_crate=(target/package/rndr_paint-*.crate)
           render_crate=(target/package/rndr_render-*.crate)
           test "${#paint_crate[@]}" -eq 1
           test "${#render_crate[@]}" -eq 1
           paint_files="$(tar -tzf "${paint_crate[0]}")"
           render_files="$(tar -tzf "${render_crate[0]}")"
-          test "$(printf '%s\n' "$paint_files" | grep -c '\.snap$')" = 5
+          test "$(printf '%s\n' "$paint_files" | grep -c '\.snap$')" = 6
           test "$(printf '%s\n' "$render_files" | grep -c '\.snap$')" = 2
           printf '%s\n' "$paint_files" | grep -q '/Inter-LICENSE.txt$'
           printf '%s\n' "$paint_files" | grep -q '/latin_atlas.bin$'
-          RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features --locked --exclude expand --exclude idle --exclude overlay --exclude palette --exclude terminal
+          RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features --locked --exclude expand --exclude idle --exclude overlay --exclude palette --exclude terminal --exclude stream

@@ -46,9 +46,10 @@ pub use latin::LatinFace;
 pub use snapshot::quads_snapshot;
 
 use rndr_core::{
-    children_of, field_text_width, layered_roots, style_of, text_engine, theme_of, App, Caret,
-    Clip, Color, DirtyMark, EditField, Field, Focus, Label, MonoCache, MonoCursorShape, MonoGrid,
-    Parent, Radius, Rect, TextLayout, Theme, Viewport, World, CELL_H, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
+    children_of, field_text_width, layered_roots, style_for, style_of, text_engine, theme_of, App,
+    Caret, Clip, Color, DirtyMark, EditField, Field, Focus, Label, MonoCache, MonoCursorShape,
+    MonoGrid, Parent, Radius, Rect, TextLayout, Theme, Viewport, World, CELL_H, TEXT_ORIGIN_X,
+    TEXT_ORIGIN_Y,
 };
 
 /// One instanced quad in logical points.
@@ -660,7 +661,7 @@ fn push_dirty_mark(out: &mut Vec<Quad>, rect: Rect, clip: Clip, solid: [f32; 4],
 }
 
 fn measured(world: &World, entity: rndr_core::Entity, text: &str, rect: Rect) -> TextLayout {
-    let style = style_of(world);
+    let style = style_for(world, entity);
     let engine = text_engine(world);
     let wrap = world
         .get::<Field>(entity)
