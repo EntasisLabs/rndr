@@ -3,6 +3,10 @@
 //! The id matches a texture the renderer decoded. Paint records an image
 //! command in the display list and does not change the quads of any other
 //! entity. A missing texture draws nothing until the decode finishes.
+//!
+//! Layout centers the view on its parent's cross axis, so a 16px icon in a
+//! 32px row sits clear of a rounded selection. The recorded command carries
+//! the entity clip, and the sprite is masked to it.
 
 use crate::world::Component;
 

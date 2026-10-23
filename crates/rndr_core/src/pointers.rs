@@ -182,11 +182,13 @@ pub struct Contact {
     pub button: PointerButton,
     /// Timestamp of the latest update.
     pub time: Duration,
-    /// Press edge for this frame only. Cleared by [`Pointers::end_frame`].
+    /// Press edge for this frame. A later move or release in the same frame
+    /// leaves it set. Cleared by [`Pointers::end_frame`].
     pub pressed: bool,
     /// `true` while the contact has not ended.
     pub down: bool,
-    /// Release edge for this frame only. Cleared by [`Pointers::end_frame`].
+    /// Release edge for this frame. A press earlier in the same frame leaves
+    /// [`Self::pressed`] set. Cleared by [`Pointers::end_frame`].
     pub released: bool,
     /// `true` when this frame's end was [`ContactPhase::Cancel`].
     pub cancelled: bool,
@@ -245,22 +247,22 @@ impl Pointers {
             contact.button = update.button;
             contact.time = update.time;
             contact.samples.push(sample);
+            // Edges stick until `end_frame`. A press and release in one batch
+            // used to keep only the release, so a click with no gap never
+            // looked pressed.
             match update.phase {
                 ContactPhase::Start => {
                     contact.pressed = true;
                     contact.down = true;
-                    contact.released = false;
                     contact.cancelled = false;
                     contact.press_at = Some(update.position);
                 }
                 ContactPhase::Move => {
-                    contact.pressed = false;
                     if contact.buttons.is_empty() && contact.kind == PointerKind::Mouse {
                         // A hover keeps `down` as it was. A touch move stays down.
                     }
                 }
                 ContactPhase::End | ContactPhase::Cancel => {
-                    contact.pressed = false;
                     contact.down = false;
                     contact.released = true;
                     contact.cancelled = update.phase == ContactPhase::Cancel;

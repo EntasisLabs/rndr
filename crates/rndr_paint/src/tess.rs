@@ -588,7 +588,7 @@ fn point_in_triangle(p: [f32; 2], a: [f32; 2], b: [f32; 2], c: [f32; 2]) -> bool
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::path::Path;
+    use crate::path::{Path, Verb};
 
     #[test]
     fn square_fill_covers_the_center_and_not_the_outside() {
@@ -622,6 +622,34 @@ mod tests {
             "same winding fills the hole"
         );
         assert!(even.area() < nonzero.area() - 50.0);
+    }
+
+    #[test]
+    fn a_following_move_to_does_not_fill_dash_gaps() {
+        let open = Path::line([0.0, 0.0], [40.0, 0.0]);
+        let mut with_move = Path::builder();
+        with_move
+            .move_to([0.0, 0.0])
+            .line_to([40.0, 0.0])
+            .move_to([0.0, 10.0]);
+        let with_move = with_move.build();
+        assert!(with_move
+            .verbs()
+            .all(|(verb, _)| !matches!(verb, Verb::Close)));
+        let stroke = Stroke::solid(2.0).dashed(vec![4.0, 4.0]);
+        let plain = tessellate_stroke(&open, &stroke, 1.0);
+        let followed = tessellate_stroke(&with_move, &stroke, 1.0);
+        assert!(plain.contains([2.0, 0.0]), "dash on");
+        assert!(!plain.contains([6.0, 0.0]), "dash gap");
+        assert!(followed.contains([2.0, 0.0]), "move_to dash on");
+        assert!(!followed.contains([6.0, 0.0]), "move_to filled the gap");
+        let ratio = plain.area() / followed.area().max(1.0e-6);
+        assert!(
+            (ratio - 1.0).abs() < 0.05,
+            "areas {} {}",
+            plain.area(),
+            followed.area()
+        );
     }
 
     #[test]

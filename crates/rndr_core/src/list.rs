@@ -27,6 +27,10 @@
 //!
 //! The list layout should use a gap of 0. Row height is the stride, and
 //! [`Size::Fill`] on each row is what makes a resize follow the list width.
+//!
+//! A wheel over the list changes [`List::offset`] and leaves the selection
+//! where it is. The remainder after whole rows shifts the first pooled row
+//! up under the list clip, so the window can sit between rows.
 
 use crate::disclosure::Focusable;
 use crate::entity::Entity;
@@ -82,8 +86,9 @@ pub struct List {
     /// Uniform stride in points. The list layout should use a gap of 0.
     /// A non-positive value builds an empty window.
     pub row_height: f32,
-    /// Content scroll in points. The first pooled row is
-    /// `floor(offset / row_height)`.
+    /// Content scroll in points, `0` at the top. The first pooled row is
+    /// `floor(offset / row_height)`. The fractional part shifts that row up.
+    /// A wheel over the list writes this and does not change [`Self::selected`].
     pub offset: f32,
     /// Data index pressed this frame, not the pool slot. `None` when the
     /// pointer did not press a row.
@@ -197,7 +202,7 @@ pub(crate) fn prepare_list_keys(world: &mut World) {
     });
 }
 
-/// Keymap actions, hover, and click. Runs in Input, before text fields.
+/// Keymap actions, hover, click, and the wheel. Runs in Input, before text fields.
 pub(crate) fn apply_list_input(world: &mut World) {
     let actions = world
         .resource::<keymap::KeymapFired>()
@@ -259,8 +264,40 @@ pub(crate) fn apply_list_input(world: &mut World) {
         reveal_if_moved(&mut list, height);
         world.insert(entity, list);
     }
+    // After reveal, so a wheel on a frame that also anchors the selection
+    // is not snapped back to a row boundary.
+    apply_list_wheel(world);
     for (list, index) in activations {
         send(world, ListActivated { list, index });
+    }
+}
+
+/// Scroll the list under the pointer. The selection stays put.
+fn apply_list_wheel(world: &mut World) {
+    let (scroll, pointer) = match world.resource::<Input>() {
+        Some(input) => (input.scroll, input.pointer.position),
+        None => return,
+    };
+    if scroll[1] == 0.0 {
+        return;
+    }
+    let Some(hit) = hit_test(world, pointer[0], pointer[1]) else {
+        return;
+    };
+    let Some(entity) = ancestor_with::<List>(world, hit) else {
+        return;
+    };
+    let Some(mut list) = world.get::<List>(entity).copied() else {
+        return;
+    };
+    let height = world.get::<Rect>(entity).map(|rect| rect.h).unwrap_or(0.0);
+    let max_offset = max_scroll(list.count, list.row_height, height);
+    if list.row_height > 0.0 {
+        list.offset = (list.offset - scroll[1]).clamp(0.0, max_offset);
+    }
+    world.insert(entity, list);
+    if let Some(input) = world.resource_mut::<Input>() {
+        input.scroll = [0.0, 0.0];
     }
 }
 

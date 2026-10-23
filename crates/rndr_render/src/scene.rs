@@ -25,7 +25,7 @@ use crate::gpu::{self, INSTANCE_STRIDE};
 use crate::images::CpuImage;
 
 const PATH_STRIDE: usize = 24;
-const SPRITE_STRIDE: usize = 56;
+const SPRITE_STRIDE: usize = 72;
 
 /// One fullscreen pass a resolved layer can run. A drop shadow schedules two
 /// of these, horizontal then vertical.
@@ -69,6 +69,7 @@ struct Vin {
     @location(2) color: vec4<f32>,
     @location(3) local: vec2<f32>,
     @location(4) extra: vec4<f32>,
+    @location(5) scissor: vec4<f32>,
 }
 struct Vout {
     @builtin(position) clip: vec4<f32>,
@@ -76,6 +77,7 @@ struct Vout {
     @location(1) color: vec4<f32>,
     @location(2) local: vec2<f32>,
     @location(3) extra: vec4<f32>,
+    @location(4) scissor: vec4<f32>,
 }
 @vertex
 fn vs(in: Vin) -> Vout {
@@ -86,19 +88,27 @@ fn vs(in: Vin) -> Vout {
     out.color = in.color;
     out.local = in.local;
     out.extra = in.extra;
+    out.scissor = in.scissor;
     return out;
 }
+// `local` and `extra.xyz` are device pixels: radius, width, height.
+// A negative scissor width means the sprite is not masked.
 fn cover(local: vec2<f32>, extra: vec4<f32>) -> f32 {
     let radius = extra.x;
-    if (radius <= 0.0 || extra.y <= 0.0 || extra.z <= 0.0) { return 1.0; }
-    let half = vec2<f32>(extra.y, extra.z) * 0.5;
-    let p = abs(local - half) - (half - vec2<f32>(radius));
-    let dist = length(max(p, vec2<f32>(0.0))) + min(max(p.x, p.y), 0.0) - radius;
-    let fw = max(fwidth(dist), 0.0001);
-    return clamp(0.5 - dist / fw, 0.0, 1.0);
+    let size = vec2<f32>(extra.y, extra.z);
+    if (radius <= 0.0 || size.x <= 0.0 || size.y <= 0.0) { return 1.0; }
+    let half = size * 0.5;
+    let q = abs(local - half) - half + vec2<f32>(radius);
+    let dist = length(max(q, vec2<f32>(0.0))) + min(max(q.x, q.y), 0.0) - radius;
+    return clamp(0.5 - dist, 0.0, 1.0);
 }
 @fragment
 fn fs(in: Vout) -> @location(0) vec4<f32> {
+    let px = in.clip.xy;
+    let box = in.scissor;
+    if (box.z >= 0.0 && (px.x < box.x || px.y < box.y || px.x >= box.x + box.z || px.y >= box.y + box.w)) {
+        discard;
+    }
     let sample = textureSample(tex, tex_samp, in.uv);
     let mode = in.extra.w;
     var rgb = sample.rgb;
@@ -132,14 +142,21 @@ fn vs(in: Vin) -> Vout {
 @fragment
 fn fs(in: Vout) -> @location(0) vec4<f32> {
     let sigma = max(blur.sigma, 0.5);
+    // Taps are `step` texels apart. The weight uses that distance, not the
+    // tap index, or a wide kernel is a stack of almost-equal samples and the
+    // falloff breaks into blocks. When the step is more than one texel, each
+    // tap sits half a texel off center so the linear sampler blends neighbors.
     let step = max(sigma / 3.0, 1.0);
-    let base = blur.dir * step;
     var sum = vec4<f32>(0.0);
     var norm = 0.0;
     for (var i: i32 = -7; i <= 7; i = i + 1) {
-        let x = f32(i) / sigma;
+        var dist = f32(i) * step;
+        if (step > 1.0 && i != 0) {
+            dist = dist + sign(f32(i)) * 0.5;
+        }
+        let x = dist / sigma;
         let w = exp(-0.5 * x * x);
-        sum = sum + textureSample(tex, tex_samp, in.uv + base * f32(i)) * w;
+        sum = sum + textureSample(tex, tex_samp, in.uv + blur.dir * dist) * w;
         norm = norm + w;
     }
     return sum / max(norm, 0.0001);
@@ -680,7 +697,11 @@ impl SceneGpu {
             let current = *stack.last().unwrap_or(&Affine::IDENTITY);
             match &ops[index] {
                 Op::PushTransform(affine) => {
-                    stack.push(current.then(*affine));
+                    // The child maps local space. The stack already holds the
+                    // parent, so the child runs first (`Affine::then` is
+                    // "self first"). `current.then(child)` did the reverse
+                    // and a rotated child drifted under a non-identity camera.
+                    stack.push(pushed(current, *affine));
                     index += 1;
                 }
                 Op::PopTransform => {
@@ -831,10 +852,21 @@ impl SceneGpu {
             let y0 = (v0 - image.uv[1]) / dv * image.dest.h;
             let y1 = (v1 - image.uv[1]) / dv * image.dest.h;
             let mut bytes = Vec::new();
+            let local_px = affine.uniform_scale() * scale;
+            let scissor = match image.clip {
+                Some(rect) => [
+                    rect.x * scale,
+                    rect.y * scale,
+                    rect.w * scale,
+                    rect.h * scale,
+                ],
+                None => NO_SCISSOR,
+            };
             push_quad(
                 &mut bytes,
                 affine,
                 scale,
+                local_px,
                 image.dest.x,
                 image.dest.y,
                 x0,
@@ -847,6 +879,7 @@ impl SceneGpu {
                 image.dest.w,
                 image.dest.h,
                 0.0,
+                scissor,
             );
             out.push(SpriteDraw {
                 bytes,
@@ -875,8 +908,8 @@ impl SceneGpu {
             };
             let mode = if sprite.atlas == 0 { 1.0 } else { 2.0 };
             push_quad(
-                bucket, affine, scale, sprite.x, sprite.y, 0.0, 0.0, sprite.w, sprite.h, sprite.uv,
-                color, 0.0, sprite.w, sprite.h, mode,
+                bucket, affine, scale, 1.0, sprite.x, sprite.y, 0.0, 0.0, sprite.w, sprite.h,
+                sprite.uv, color, 0.0, sprite.w, sprite.h, mode, NO_SCISSOR,
             );
         }
         let mut out = Vec::new();
@@ -1656,6 +1689,37 @@ fn blit_sprites(blit: BlitDraw, width: u32, height: u32) -> Vec<SpriteDraw> {
     out
 }
 
+/// Child transform first, then the affine already on the stack.
+///
+/// [`Affine::then`] applies `self` first. A pushed transform is the child's
+/// local map, and `current` is everything outside it, including the camera.
+fn pushed(current: Affine, child: Affine) -> Affine {
+    child.then(current)
+}
+
+/// Affine in effect just before `ops[index]`, starting from identity.
+///
+/// Paths, images, and glyphs are all drawn with this affine. A child push
+/// runs before the parent already on the stack. The draw path keeps its own
+/// stack; this walk exists so a test can name the matrix at one command.
+#[cfg(test)]
+fn current_affine(ops: &[Op], index: usize) -> Affine {
+    let mut stack = vec![Affine::IDENTITY];
+    for op in ops.iter().take(index) {
+        match op {
+            Op::PushTransform(affine) => {
+                let current = *stack.last().unwrap_or(&Affine::IDENTITY);
+                stack.push(pushed(current, *affine));
+            }
+            Op::PopTransform if stack.len() > 1 => {
+                stack.pop();
+            }
+            _ => {}
+        }
+    }
+    *stack.last().unwrap_or(&Affine::IDENTITY)
+}
+
 fn write_mesh(out: &mut Vec<u8>, mesh: &Mesh, affine: Affine, scale: f32, color: [f32; 4]) {
     for tri in mesh.indices.as_chunks::<3>().0 {
         for index in tri {
@@ -1680,11 +1744,15 @@ fn write_mesh(out: &mut Vec<u8>, mesh: &Mesh, affine: Affine, scale: f32, color:
     }
 }
 
+/// No sprite scissor. A negative width skips the mask in the shader.
+const NO_SCISSOR: [f32; 4] = [0.0, 0.0, -1.0, 0.0];
+
 #[allow(clippy::too_many_arguments)]
 fn push_quad(
     out: &mut Vec<u8>,
     affine: Affine,
     scale: f32,
+    local_scale: f32,
     ox: f32,
     oy: f32,
     x0: f32,
@@ -1697,6 +1765,7 @@ fn push_quad(
     dest_w: f32,
     dest_h: f32,
     mode: f32,
+    scissor: [f32; 4],
 ) {
     let corners = [
         (x0, y0, uv[0], uv[1]),
@@ -1706,6 +1775,11 @@ fn push_quad(
         (x0, y1, uv[0], uv[3]),
         (x1, y1, uv[2], uv[3]),
     ];
+    let local_scale = if local_scale.is_finite() && local_scale > 0.0 {
+        local_scale
+    } else {
+        1.0
+    };
     for (x, y, u, v) in corners {
         let mapped = affine.transform_point([ox + x, oy + y]);
         push_f32(
@@ -1719,12 +1793,16 @@ fn push_quad(
                 color[1],
                 color[2],
                 color[3],
-                x,
-                y,
-                radius,
-                dest_w,
-                dest_h,
+                x * local_scale,
+                y * local_scale,
+                radius * local_scale,
+                dest_w * local_scale,
+                dest_h * local_scale,
                 mode,
+                scissor[0],
+                scissor[1],
+                scissor[2],
+                scissor[3],
             ],
         );
     }
@@ -1742,6 +1820,7 @@ fn push_screen(
         out,
         Affine::translate(offset[0], offset[1]),
         1.0,
+        1.0,
         0.0,
         0.0,
         0.0,
@@ -1754,6 +1833,7 @@ fn push_screen(
         width as f32,
         height as f32,
         mode,
+        NO_SCISSOR,
     );
 }
 
@@ -2123,8 +2203,8 @@ fn sprite_pipeline(
     samples: u32,
     stencil: Option<wgpu::CompareFunction>,
 ) -> wgpu::RenderPipeline {
-    const ATTRS: [wgpu::VertexAttribute; 5] = wgpu::vertex_attr_array![
-        0 => Float32x2, 1 => Float32x2, 2 => Float32x4, 3 => Float32x2, 4 => Float32x4,
+    const ATTRS: [wgpu::VertexAttribute; 6] = wgpu::vertex_attr_array![
+        0 => Float32x2, 1 => Float32x2, 2 => Float32x4, 3 => Float32x2, 4 => Float32x4, 5 => Float32x4,
     ];
     let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("sprite-pl"),
@@ -2186,5 +2266,31 @@ fn stencil_state(
             write_mask: 0xff,
         },
         bias: wgpu::DepthBiasState::default(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::f32::consts::PI;
+
+    use super::*;
+
+    #[test]
+    fn a_rotated_child_runs_before_the_camera() {
+        // Glyphs and outlines use this same affine. Identity on the outside
+        // hides a reversed multiply, so the camera scale has to be non-1.
+        let camera = Affine::scale(2.0);
+        let child = Affine::rotate(PI / 2.0).then(Affine::translate(30.0, 10.0));
+        let ops = [
+            Op::PushTransform(camera),
+            Op::PushTransform(child),
+            Op::PopTransform,
+            Op::PopTransform,
+        ];
+        let mapped = current_affine(&ops, 2).transform_point([10.0, 0.0]);
+        assert!(
+            (mapped[0] - 60.0).abs() < 1.0e-3 && (mapped[1] - 40.0).abs() < 1.0e-3,
+            "mapped {mapped:?}"
+        );
     }
 }

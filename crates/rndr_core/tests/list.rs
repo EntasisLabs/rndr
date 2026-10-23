@@ -47,6 +47,45 @@ fn pool_tracks_the_visible_window() {
 }
 
 #[test]
+fn wheel_scrolls_without_moving_the_selection() {
+    let (mut app, list) = boot();
+    let rect = *app.world().get::<Rect>(list).unwrap();
+    {
+        let input = app.world_mut().resource_mut::<Input>().unwrap();
+        input.pointer.position = [rect.x + 4.0, rect.y + 4.0];
+        input.scroll = [0.0, -40.0];
+    }
+    app.update();
+    let scrolled = *app.world().get::<List>(list).unwrap();
+    assert!(
+        (scrolled.offset - 40.0).abs() < 0.01,
+        "offset {}",
+        scrolled.offset
+    );
+    assert_eq!(scrolled.selected, Some(0));
+    let rows = pool(&app, list);
+    assert_eq!(app.world().get::<ListItem>(rows[0]).unwrap().index, 2);
+    assert_eq!(app.world().resource::<Input>().unwrap().scroll, [0.0, 0.0]);
+}
+
+#[test]
+fn a_fractional_offset_shifts_the_first_row_up() {
+    let (mut app, list) = boot();
+    app.world_mut().get_mut::<List>(list).unwrap().offset = 30.0;
+    app.update();
+    let list_rect = *app.world().get::<Rect>(list).unwrap();
+    let rows = pool(&app, list);
+    let row = *app.world().get::<Rect>(rows[0]).unwrap();
+    assert_eq!(app.world().get::<ListItem>(rows[0]).unwrap().index, 1);
+    assert!(
+        (row.y - (list_rect.y - 10.0)).abs() < 0.6,
+        "row {} list {}",
+        row.y,
+        list_rect.y
+    );
+}
+
+#[test]
 fn offset_maps_to_the_first_index() {
     let (mut app, list) = boot();
     app.world_mut().get_mut::<List>(list).unwrap().offset = 200.0;

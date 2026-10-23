@@ -83,6 +83,43 @@ fn a_press_mirrors_into_the_primary_pointer() {
 }
 
 #[test]
+fn a_press_and_release_in_one_frame_keeps_both_edges() {
+    let mut pointers = Pointers::new();
+    let mut held = PointerButtons::new();
+    held.set(PointerButton::Left, true);
+    pointers.apply(update(
+        MOUSE_ID,
+        PointerKind::Mouse,
+        [12.0, 18.0],
+        ContactPhase::Start,
+        held,
+    ));
+    pointers.apply(update(
+        MOUSE_ID,
+        PointerKind::Mouse,
+        [14.0, 19.0],
+        ContactPhase::Move,
+        held,
+    ));
+    pointers.apply(update(
+        MOUSE_ID,
+        PointerKind::Mouse,
+        [14.0, 19.0],
+        ContactPhase::End,
+        PointerButtons::new(),
+    ));
+    let mouse = pointers.get(MOUSE_ID).unwrap();
+    assert!(mouse.pressed);
+    assert!(mouse.released);
+    assert!(!mouse.down);
+    assert_eq!(mouse.press_at, Some([12.0, 18.0]));
+    assert_eq!(mouse.position, [14.0, 19.0]);
+    let mirrored = pointers.mirror().unwrap();
+    assert!(mirrored.pressed && mirrored.released && !mirrored.down);
+    assert_eq!(mirrored.press_at, Some([12.0, 18.0]));
+}
+
+#[test]
 fn touch_ids_do_not_collide_and_end_frame_drops_them() {
     let mut pointers = Pointers::new();
     pointers.apply(update(

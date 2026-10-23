@@ -49,6 +49,20 @@ fn fired(app: &App) -> Option<String> {
 }
 
 #[test]
+fn a_press_and_release_in_one_frame_fires() {
+    let (mut app, button) = boot(true);
+    let rect = *app.world().get::<Rect>(button).unwrap();
+    let input = app.world_mut().resource_mut::<Input>().unwrap();
+    input.pointer.position = [rect.x + 4.0, rect.y + 4.0];
+    input.pointer.press_at = Some(input.pointer.position);
+    input.pointer.pressed = true;
+    input.pointer.released = true;
+    input.pointer.down = false;
+    app.update();
+    assert_eq!(fired(&app).as_deref(), Some("go"));
+}
+
+#[test]
 fn click_fires_once() {
     let (mut app, button) = boot(true);
     let rect = *app.world().get::<Rect>(button).unwrap();
