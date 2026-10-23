@@ -280,6 +280,192 @@ fn block_height(world: &World, view: Entity) -> f32 {
     world.get::<Rect>(block_label(world, view, 0)).unwrap().h
 }
 
+#[test]
+fn wrapped_list_and_quote_press_anchors_the_line_under_the_pointer() {
+    let item = "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron";
+    let source = format!("1. {item}\n\n> {item}\n");
+    let (mut app, view) = boot(&source, 220.0, 640.0);
+    let list = block_label(app.world(), view, 0);
+    assert_line_press(&mut app, view, list, 22.0);
+    let quote = block_label(app.world(), view, 1);
+    assert_line_press(&mut app, view, quote, 24.0);
+}
+
+#[test]
+fn wrapped_paragraph_press_still_anchors_the_line_under_the_pointer() {
+    let text = "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron";
+    let (mut app, view) = boot(text, 220.0, 320.0);
+    let label = block_label(app.world(), view, 0);
+    assert_line_press(&mut app, view, label, 22.0);
+}
+
+#[test]
+fn gutter_press_selects_the_nearest_line_and_does_not_scroll() {
+    let (mut app, view) = boot(&long_answer(), 360.0, 140.0);
+    let rect = *app.world().get::<Rect>(view).unwrap();
+    {
+        let input = app.world_mut().resource_mut::<Input>().unwrap();
+        input.pointer.position = [rect.x + rect.w * 0.5, rect.y + rect.h * 0.5];
+        input.scroll = [0.0, 100_000.0];
+    }
+    app.update();
+    assert!(!app.world().get::<MarkdownView>(view).unwrap().pinned());
+    let parked = app.world().get::<rndr_core::Scroll>(view).unwrap().offset[1];
+    assert!(parked.abs() < 1.5, "offset {parked} should be the top");
+
+    let label = block_label(app.world(), view, 0);
+    let label_rect = *app.world().get::<Rect>(label).unwrap();
+    let layout = app.world().get::<TextLayout>(label).unwrap().clone();
+    assert!(layout.lines.len() >= 2, "lines {}", layout.lines.len());
+    let y = label_rect.y + TEXT_ORIGIN_Y + layout.lines[1].y + 1.0;
+    let start = layout.lines[1].start;
+    assert_ne!(start, 0);
+
+    point(&mut app, rect.x + 4.0, y, true, false, true);
+    app.update();
+    point(&mut app, rect.x + 40.0, y, false, false, true);
+    app.update();
+    let selection = app.world().get::<TextSelection>(label).unwrap();
+    assert_eq!(selection.anchor.min(selection.head), start);
+    point(&mut app, rect.x + 40.0, y, false, true, false);
+    app.update();
+
+    point(&mut app, rect.x + 4.0, y, true, false, true);
+    app.update();
+    point(&mut app, rect.x + 4.0, y - 36.0, false, false, true);
+    app.update();
+    let offset = app.world().get::<rndr_core::Scroll>(view).unwrap().offset[1];
+    assert!(
+        (offset - parked).abs() < 1.0,
+        "gutter drag scrolled from {parked} to {offset}"
+    );
+}
+
+#[test]
+fn list_markers_share_a_column_and_checks_read_apart() {
+    let source = "\
+9. nine
+10. ten
+- bullet item
+- [x] done task
+- [ ] open task
+8. parent item
+   1. nested one
+   2. nested two
+";
+    let mut app = App::new();
+    app.add_plugin(MarkdownPlugin);
+    app.world_mut()
+        .insert_resource(rndr_core::MarkdownTheme::default());
+    app.world_mut().insert_resource(Viewport::new(640.0, 720.0));
+    let view = rndr_core::markdown_view(app.world_mut(), source);
+    app.update();
+
+    let nine = label_rect(app.world(), "9.");
+    let ten = label_rect(app.world(), "10.");
+    let nine_ink = nine.x + nine.w - TEXT_ORIGIN_X;
+    let ten_ink = ten.x + ten.w - TEXT_ORIGIN_X;
+    assert!(
+        (nine_ink - ten_ink).abs() < 0.5,
+        "number ink {nine_ink} vs {ten_ink}"
+    );
+
+    let content = [
+        "nine",
+        "ten",
+        "bullet item",
+        "done task",
+        "open task",
+        "parent item",
+    ];
+    let xs: Vec<f32> = content
+        .iter()
+        .map(|text| label_rect(app.world(), text).x)
+        .collect();
+    for x in &xs {
+        assert!((x - xs[0]).abs() < 0.5, "content x {x} vs {}", xs[0]);
+    }
+    let nested_one = label_rect(app.world(), "nested one").x;
+    let nested_two = label_rect(app.world(), "nested two").x;
+    assert!((nested_one - nested_two).abs() < 0.5);
+    assert!(nested_one > xs[0] + 8.0);
+
+    let theme = rndr_core::MarkdownTheme::default();
+    let mut holes: Vec<(f32, rndr_core::Color)> = app
+        .world()
+        .entities_with::<rndr_core::Color>()
+        .into_iter()
+        .filter_map(|entity| {
+            let rect = app.world().get::<Rect>(entity).copied()?;
+            if (rect.w - 10.0).abs() > 0.5 || (rect.h - 10.0).abs() > 0.5 {
+                return None;
+            }
+            Some((
+                rect.y,
+                app.world().get::<rndr_core::Color>(entity).copied()?,
+            ))
+        })
+        .collect();
+    holes.sort_by(|a, b| a.0.total_cmp(&b.0));
+    assert_eq!(holes.len(), 2, "holes {holes:?}");
+    assert_eq!(holes[0].1, theme.text);
+    assert_eq!(holes[1].1, theme.surface);
+    let _ = view;
+}
+
+fn assert_line_press(app: &mut App, view: Entity, label: Entity, x: f32) {
+    let rect = *app.world().get::<Rect>(view).unwrap();
+    let layout = app.world().get::<TextLayout>(label).unwrap().clone();
+    let label_rect = *app.world().get::<Rect>(label).unwrap();
+    assert!(layout.lines.len() >= 2, "lines {}", layout.lines.len());
+    let start = layout.lines[1].start;
+    assert_ne!(start, 0);
+    let y = label_rect.y + TEXT_ORIGIN_Y + layout.lines[1].y + 1.0;
+    let into = (start + 4).min(layout.lines[1].end.max(start));
+    let (x_head, _) = layout.caret_xy(into);
+    point(app, rect.x + x, y, true, false, true);
+    app.update();
+    point(
+        app,
+        label_rect.x + TEXT_ORIGIN_X + x_head,
+        y,
+        false,
+        false,
+        true,
+    );
+    app.update();
+    let selection = app.world().get::<TextSelection>(label).unwrap();
+    assert_eq!(
+        selection.anchor.min(selection.head),
+        start,
+        "anchor landed on byte {} of {:?}",
+        selection.anchor.min(selection.head),
+        app.world().get::<Label>(label).unwrap().text
+    );
+    point(
+        app,
+        label_rect.x + TEXT_ORIGIN_X + x_head,
+        y,
+        false,
+        true,
+        false,
+    );
+    app.update();
+}
+
+fn label_rect(world: &World, text: &str) -> Rect {
+    let entity = world
+        .entities_with::<Label>()
+        .into_iter()
+        .find(|entity| {
+            world
+                .get::<Label>(*entity)
+                .is_some_and(|label| label.text == text)
+        })
+        .unwrap_or_else(|| panic!("missing label {text}"));
+    *world.get::<Rect>(entity).unwrap()
+}
+
 fn block_label(world: &World, view: Entity, index: usize) -> Entity {
     let text = world.get::<MarkdownView>(view).unwrap().blocks()[index]
         .text
