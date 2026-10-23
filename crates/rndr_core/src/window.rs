@@ -58,11 +58,16 @@ fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 /// Width and height in logical points.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LogicalSize {
+    /// Width in logical points.
     pub width: f32,
+    /// Height in logical points.
     pub height: f32,
 }
 
 impl LogicalSize {
+    /// Width and height in logical points, stored as given.
+    ///
+    /// Non-finite and non-positive values are kept.
     pub const fn new(width: f32, height: f32) -> Self {
         Self { width, height }
     }
@@ -80,7 +85,12 @@ pub enum Position {
     /// Centered on the monitor the window opens on.
     Center,
     /// Outer top-left, in logical points.
-    At { x: f32, y: f32 },
+    At {
+        /// Horizontal offset from the left of the screen, in logical points.
+        x: f32,
+        /// Vertical offset from the top of the screen, in logical points.
+        y: f32,
+    },
 }
 
 /// What Escape does when nothing else has claimed it.
@@ -122,11 +132,15 @@ pub enum WindowKind {
 /// Defaults match the window `rndr_render` used to hard-code.
 #[derive(Clone, Debug, PartialEq)]
 pub struct WindowConfig {
+    /// Title-bar text. [`Default`] uses `rndr`.
     pub title: String,
+    /// Inner size in logical points. [`Default`] is 800 by 600.
     pub size: LogicalSize,
     /// Smallest inner size, in logical points. `None` leaves the platform minimum.
     pub min_size: Option<LogicalSize>,
+    /// Where the window opens. [`Default`] is [`Position::Platform`].
     pub position: Position,
+    /// When false, the inner size stays fixed. [`Default`] is resizable.
     pub resizable: bool,
     /// `false` is a frameless window.
     pub decorations: bool,
@@ -139,6 +153,7 @@ pub struct WindowConfig {
     /// Keep the window off the taskbar where the platform has one.
     /// On macOS there is no taskbar; set [`Self::accessory`] to leave the Dock.
     pub skip_taskbar: bool,
+    /// Ordinary window or floating panel. [`Default`] is [`WindowKind::Normal`].
     pub kind: WindowKind,
     /// After the window has been focused once, a blur that stays hides it.
     /// The blur is recorded immediately. The hide waits until the blur
@@ -148,6 +163,7 @@ pub struct WindowConfig {
     /// before the first focus is ignored, so a panel does not dismiss itself
     /// while it is opening. The hide does not emit a second blur.
     pub hide_on_blur: bool,
+    /// What a bare Escape does. [`Default`] is [`Dismiss::Ignore`].
     pub dismiss: Dismiss,
     /// macOS only: run as an accessory app (no Dock icon) and do not activate
     /// over whatever was in front at launch. Ignored on other platforms.
@@ -202,10 +218,15 @@ pub enum Availability {
 /// composite. [`platform_support`] is the table the runner documents.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WindowSupport {
+    /// Opening [`Position`], including center and an explicit origin.
     pub position: Availability,
+    /// [`hide`], including a tray that starts the window hidden.
     pub hide: Availability,
+    /// [`focus`] on a visible window.
     pub focus: Availability,
+    /// [`WindowConfig::always_on_top`].
     pub always_on_top: Availability,
+    /// [`WindowConfig::skip_taskbar`].
     pub skip_taskbar: Availability,
     /// Pop-up window level that sits over full-screen spaces.
     pub panel_above_fullscreen: Availability,
@@ -267,7 +288,9 @@ pub fn platform_support(platform: Platform) -> WindowSupport {
 /// Logical visibility. The runner mirrors this onto the OS window.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WindowPhase {
+    /// Logical visibility. [`Default`] starts visible.
     pub visible: bool,
+    /// Logical key focus. [`Default`] starts unfocused.
     pub focused: bool,
     /// Set after the first real focus. Earlier blur events are ignored.
     pub armed: bool,
@@ -297,9 +320,13 @@ impl WindowPhase {
 /// Something that moves [`WindowPhase`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WindowSignal {
+    /// Show the window when it is hidden. A visible window is left as it is.
     Show,
+    /// Hide the window. A focused window also records [`WindowFocus::Blurred`].
     Hide,
+    /// Request key focus. A hidden or already-focused window is left as it is.
     Focus,
+    /// Hide a visible window, or show and focus a hidden one.
     Toggle,
     /// The platform reported key focus.
     GainedFocus,
@@ -310,7 +337,9 @@ pub enum WindowSignal {
 /// Focus and blur, in the order they were applied.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WindowFocus {
+    /// Key focus was gained.
     Focused,
+    /// Key focus was lost. Hiding a focused window records this too.
     Blurred,
 }
 
@@ -319,16 +348,22 @@ impl Event for WindowFocus {}
 /// What the runner should do to the OS window. The GPU surface stays.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WindowEffect {
+    /// Make the OS window visible.
     Show,
+    /// Make the OS window invisible. The process keeps running.
     Hide,
+    /// Give the OS window key focus.
     Focus,
 }
 
 /// Result of applying one [`WindowSignal`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WindowTransition {
+    /// Phase after this signal. Store it back over the previous phase.
     pub phase: WindowPhase,
+    /// Focus and blur events from this step, in the order they were recorded.
     pub events: Vec<WindowFocus>,
+    /// OS calls for this step. Empty when the signal changed nothing visible.
     pub effects: Vec<WindowEffect>,
 }
 
@@ -417,8 +452,11 @@ fn request_focus(
 /// Last logical size and scale published from the OS window.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct WindowMetrics {
+    /// Logical width. A 0×0 physical report keeps the previous value.
     pub width: f32,
+    /// Logical height. A 0×0 physical report keeps the previous value.
     pub height: f32,
+    /// Physical pixels per point, after [`finite_scale`].
     pub scale: f32,
 }
 
@@ -435,8 +473,11 @@ impl Default for WindowMetrics {
 /// Difference between two published metrics.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MetricsChange {
+    /// Metrics after the step.
     pub metrics: WindowMetrics,
+    /// True when the scale moved by more than `0.001`.
     pub scale_changed: bool,
+    /// True when the logical width or height moved by more than `0.001`.
     pub resized: bool,
 }
 
@@ -469,6 +510,7 @@ pub fn advance_metrics(
 /// The window's scale factor changed. Layout also reads [`Viewport::scale`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ScaleChanged {
+    /// New physical pixels per logical point.
     pub scale: f32,
 }
 
@@ -477,8 +519,11 @@ impl Event for ScaleChanged {}
 /// The logical size changed. `scale` is the factor used to compute it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Resized {
+    /// New logical width.
     pub width: f32,
+    /// New logical height.
     pub height: f32,
+    /// Scale used to turn the physical size into `width` and `height`.
     pub scale: f32,
 }
 
@@ -560,18 +605,22 @@ pub struct WindowHandle {
 }
 
 impl WindowHandle {
+    /// Queue [`WindowSignal::Show`] and wake the frame.
     pub fn show(&self) {
         self.push(WindowSignal::Show);
     }
 
+    /// Queue [`WindowSignal::Hide`] and wake the frame.
     pub fn hide(&self) {
         self.push(WindowSignal::Hide);
     }
 
+    /// Queue [`WindowSignal::Focus`] and wake the frame.
     pub fn focus(&self) {
         self.push(WindowSignal::Focus);
     }
 
+    /// Queue [`WindowSignal::Toggle`] and wake the frame.
     pub fn toggle(&self) {
         self.push(WindowSignal::Toggle);
     }
@@ -583,6 +632,9 @@ impl WindowHandle {
 }
 
 /// Handle for [`show`], [`hide`], [`focus`], and [`toggle`] from a task.
+///
+/// Panics when the window inbox or the runtime is missing. [`crate::App`]
+/// installs both before systems run.
 pub fn handle(world: &World) -> WindowHandle {
     let inbox = world
         .resource::<WindowInbox>()
@@ -625,6 +677,10 @@ pub fn platform_blurred(world: &World) {
     handle(world).push(WindowSignal::LostFocus);
 }
 
+/// Whether the applied phase says the window is visible.
+///
+/// True when no [`WindowPhase`] has been stored. [`hide`] only queues a
+/// signal, so this stays true until that signal is applied.
 pub fn is_visible(world: &World) -> bool {
     world
         .resource::<WindowPhase>()
@@ -632,6 +688,10 @@ pub fn is_visible(world: &World) -> bool {
         .unwrap_or(true)
 }
 
+/// Whether the applied phase says the window has key focus.
+///
+/// False when no [`WindowPhase`] has been stored. [`focus`] only queues a
+/// signal, so this stays false until that signal is applied.
 pub fn is_focused(world: &World) -> bool {
     world
         .resource::<WindowPhase>()

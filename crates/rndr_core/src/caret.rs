@@ -19,23 +19,36 @@ impl Component for Caret {}
 impl Component for Field {}
 
 /// Which pane field the caret is bound to.
+///
+/// Tab in [`apply_caret`] swaps the two. Enter on the title moves to the body.
+/// The body takes newlines and vertical motion. The title does not.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum EditField {
+    /// Pane title. [`set_editing`] selects this when you pass a node.
     #[default]
     Title,
+    /// Pane body. Enter inserts a newline. Up and Down move one visual line.
     Body,
 }
 
 /// Marks a pane row as the title or body field.
+///
+/// [`apply_caret`] searches rows spawned by a [`crate::Pane`] for this marker.
 #[derive(Clone, Copy, Debug)]
 pub struct Field {
+    /// Title or body slot this row edits.
     pub kind: EditField,
 }
 
 /// Tree node whose pane title or body is being edited.
+///
+/// `source` is that node. `None` means the pane is idle. [`apply_caret`]
+/// treats a dead `source` the same way and clears it.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Editing {
+    /// Node that owns the pane text. `None` leaves the pane idle.
     pub source: Option<Entity>,
+    /// Title or body currently receiving keys.
     pub field: EditField,
 }
 
@@ -43,10 +56,18 @@ pub struct Editing {
 /// `anchor` equals `index` when the range is empty.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Caret {
+    /// Byte offset of the insertion point. [`apply_caret`] clamps it to the label.
     pub index: usize,
+    /// Byte offset where the selection started. Equals [`Caret::index`] when
+    /// the range is empty.
     pub anchor: usize,
 }
 
+/// Point [`Editing`] at `source` and select the title.
+///
+/// Pass `None` to leave the pane idle. The field is left unchanged in that
+/// case. Returns without writing when the [`Editing`] resource is missing. A
+/// dead `source` is kept until [`apply_caret`] drops it.
 pub fn set_editing(world: &mut World, source: Option<Entity>) {
     if let Some(editing) = world.resource_mut::<Editing>() {
         editing.source = source;
@@ -56,6 +77,10 @@ pub fn set_editing(world: &mut World, source: Option<Entity>) {
     }
 }
 
+/// Point [`Editing`] at `source` and `field`.
+///
+/// Returns without writing when the [`Editing`] resource is missing. A dead
+/// `source` is kept until [`apply_caret`] drops it.
 pub fn set_editing_field(world: &mut World, source: Entity, field: EditField) {
     if let Some(editing) = world.resource_mut::<Editing>() {
         editing.source = Some(source);
@@ -70,6 +95,43 @@ pub fn is_editing(world: &World) -> bool {
 }
 
 /// Bind or move the pane-field caret from [`Editing`] and [`Input`].
+///
+/// [`crate::Shell`] runs this on Update, after the pane has spawned its rows.
+/// A missing [`Editing`] resource, a `None` source, or a dead source takes
+/// the idle path: carets are removed except on a [`crate::CapturesKeys`]
+/// entity, and `source` is cleared when the resource exists.
+///
+/// With a live source, a non-empty [`Input::keys`] queue is applied in order
+/// and [`Input::chars`] is not read. Tab, Enter, Up, and Down steer the field
+/// unless Ctrl, Alt, Super, or an [`crate::EditAction`] chord is held.
+/// Tab swaps title and body. Enter on the title moves to the body. Up and
+/// Down move one visual line in the body. Other events edit the row,
+/// including [`crate::EditAction`] chords. Changing field parks the caret
+/// at the end of that label. The pointer is placed before those events.
+///
+/// When the queue is empty, the legacy [`Input::key`] is used. Tab and Enter
+/// on the title behave as above and return before the pointer is read. Up and
+/// Down move one visual line in the body. The title ignores vertical motion.
+/// Other keys go through [`edit_string`], with newlines enabled on the body.
+/// If the pane has no row for that field, the key stays and this returns.
+///
+/// Shift on a vertical move keeps the anchor. Without Shift, a selection
+/// collapses to the edge in that direction, and a caret moves with its anchor.
+/// A pointer press that hits the active field sets [`Caret::index`] from the
+/// glyph under the cursor. Shift keeps that anchor only when the caret already
+/// existed this frame.
+///
+/// An edit of the title is written to the source's first labeled child, or to
+/// the source when that entity itself has the [`Label`]. An edit of the body
+/// is written to [`Body`]. When the text changes on a node that has
+/// [`crate::FsPath`], [`crate::Dirty`] is inserted. A caret is scrolled into
+/// its nearest [`crate::Scroll`] ancestor so its line and row stay inside
+/// the clip.
+///
+/// Handling a live source clears [`Input::chars`] and [`Input::keys`], except
+/// the legacy path with no field row. The idle path clears them unless focus
+/// has [`crate::CapturesKeys`]. Whenever input is cleared, the legacy
+/// [`Input::key`] is cleared only for arrows, Enter, Tab, and Backspace.
 pub fn apply_caret(world: &mut World) {
     let (source, field) = match world.resource::<Editing>().copied() {
         Some(editing) => (editing.source, editing.field),
@@ -451,11 +513,17 @@ fn place_caret_from_pointer(world: &mut World, row: Entity, existed: bool) {
 }
 
 /// Line and column of a byte `index`. Column is a byte offset on that line.
+///
+/// Only hard newlines break lines. An index past the end sits on the last
+/// line, at that line's end. Empty text returns `(0, 0)`.
 pub fn caret_line_col(text: &str, index: usize) -> (usize, usize) {
     visual_pos(&wrap_lines(text, usize::MAX), index)
 }
 
 /// Selected runs as `(line, start_col, end_col)` in paint order. No soft wrap.
+///
+/// Columns are byte offsets from the start of that hard line. An empty range
+/// returns an empty vec. A blank line inside the range is `(line, 0, 0)`.
 pub fn selection_spans(text: &str, anchor: usize, index: usize) -> Vec<(usize, usize, usize)> {
     visual_selection_spans(&wrap_lines(text, usize::MAX), anchor, index)
 }

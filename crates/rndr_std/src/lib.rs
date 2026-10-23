@@ -1,11 +1,38 @@
-//! Desktop [`rndr_core::Fs`] backed by [`std::fs`].
+//! [`std::fs`] backend for [`rndr_core::Fs`].
+//!
+//! [`StdFsPlugin`] inserts [`StdFs`] as the [`rndr_core::Files`] resource.
+//! Headless tests that must not touch the disk use [`rndr_core::MemoryFs`]
+//! instead.
+//!
+//! # Example
+//!
+//! ```
+//! use rndr_core::{App, Files};
+//! use rndr_std::StdFsPlugin;
+//!
+//! let mut app = App::new();
+//! app.add_plugin(StdFsPlugin);
+//! assert!(app.world().has_resource::<Files>());
+//! ```
+
+#![deny(missing_docs)]
 
 use std::fs;
 use std::path::Path;
 
 use rndr_core::{App, DirEntry, Files, Fs, Plugin};
 
-/// [`std::fs`] backend.
+/// [`std::fs`] backend for [`Fs`].
+///
+/// Insert it with [`StdFsPlugin`] or [`Files::new`]. Calls use the process
+/// filesystem and keep no state. A missing path, a permission error, or a
+/// failed write comes back as `false`, `None`, or an empty list.
+/// [`Fs::is_dir`], [`Fs::exists`], and [`Fs::len`] follow symlinks.
+/// [`Fs::list`] records each directory entry itself: a symlink sets
+/// [`DirEntry::symlink`] and leaves [`DirEntry::dir`] false, and an entry
+/// whose file type cannot be read is skipped. [`Fs::create_dir`] creates
+/// one directory. [`Fs::remove_dir`] removes an empty directory. This
+/// does not panic.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct StdFs;
 
@@ -72,6 +99,10 @@ impl Fs for StdFs {
 }
 
 /// Inserts [`StdFs`] as the [`Files`] resource.
+///
+/// Pass it to [`App::add_plugin`] before a frame reads the disk. An
+/// existing [`Files`] resource is replaced. The plugin stores the backend
+/// and creates no directories.
 pub struct StdFsPlugin;
 
 impl Plugin for StdFsPlugin {

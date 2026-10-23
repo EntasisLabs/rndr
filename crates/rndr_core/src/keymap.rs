@@ -15,10 +15,12 @@ impl Component for Context {}
 /// One layer of the keymap context stack.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Context {
+    /// Name matched against a binding path. Compared as a whole string.
     pub name: String,
 }
 
 impl Context {
+    /// One stack layer named `name`.
     pub fn new(name: impl Into<String>) -> Self {
         Self { name: name.into() }
     }
@@ -27,12 +29,15 @@ impl Context {
 /// Milliseconds since an arbitrary origin. Tests advance this to expire chords.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Clock {
+    /// Milliseconds since the origin the app chose. [`Keymap::dispatch`]
+    /// expires a partial chord against this.
     pub millis: u64,
 }
 
 /// Actions fired by [`apply_keymap`] this frame, in order.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct KeymapFired {
+    /// Action names in the order [`Keymap::dispatch`] produced them.
     pub actions: Vec<String>,
 }
 
@@ -66,12 +71,16 @@ pub fn context_stack(world: &World, entity: crate::entity::Entity) -> Vec<String
 /// One binding. An empty context matches every stack.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct KeyBinding {
+    /// Name recorded on [`KeymapFired`] when the strokes match.
     pub action: String,
+    /// Chord in order. Empty strokes never match.
     pub strokes: Vec<Keystroke>,
+    /// Contiguous context slice. Empty matches every stack.
     pub context: Vec<String>,
 }
 
 impl KeyBinding {
+    /// Binding with an empty context, so it matches every stack.
     pub fn new(action: impl Into<String>, strokes: impl IntoIterator<Item = Keystroke>) -> Self {
         Self {
             action: action.into(),
@@ -80,6 +89,7 @@ impl KeyBinding {
         }
     }
 
+    /// Replace the context with [`context_path`] of `path`.
     pub fn context(mut self, path: &str) -> Self {
         self.context = context_path(path);
         self
@@ -108,14 +118,20 @@ struct Win {
 /// What [`Keymap::dispatch`] did with one batch of events.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Dispatch {
+    /// Actions that completed this call, including a chord that timed out.
     pub actions: Vec<String>,
     /// Indexes into the event slice that were eaten as a chord or a prefix.
     pub consumed: Vec<usize>,
 }
 
 /// Bindings plus the chord waiting for its next key.
+///
+/// A binding matches when its context is a contiguous slice of the focus
+/// stack. The longest slice wins. At the same length, the later binding wins.
 #[derive(Clone, Debug)]
 pub struct Keymap {
+    /// Candidates in registration order. A later binding wins a tie at the
+    /// same context depth.
     pub bindings: Vec<KeyBinding>,
     /// How long a partial chord stays armed, in milliseconds.
     pub timeout_ms: u64,
@@ -138,11 +154,13 @@ impl Default for Keymap {
 }
 
 impl Keymap {
+    /// Append `binding`. A later binding wins a tie at the same context depth.
     pub fn bind(&mut self, binding: KeyBinding) -> &mut Self {
         self.bindings.push(binding);
         self
     }
 
+    /// Strokes held for a partial chord. Zero when nothing is armed.
     pub fn pending_len(&self) -> usize {
         self.pending.len()
     }

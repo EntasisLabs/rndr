@@ -6,6 +6,17 @@ use crate::input::Key;
 /// Left, Right, and Backspace step by grapheme cluster, so a flag emoji or
 /// `e` plus a combining mark is one caret stop. `newline` inserts a line break
 /// on Enter.
+///
+/// Returns the new `(index, anchor)`. Offsets past `text.len()` are clamped.
+/// Left and Right ignore `chars` and leave the string unchanged. Shift keeps
+/// `anchor` and moves `index`. Without Shift, a non-empty range collapses to
+/// the edge in the key's direction, and a caret steps both offsets together.
+/// Backspace, Enter when `newline` is set, and `chars` delete a non-empty
+/// range first, widened to grapheme boundaries. That delete runs once, so
+/// Backspace does not also remove the previous cluster. Control characters
+/// in `chars` are skipped. With `chars` empty, Backspace at the start, Enter
+/// when `newline` is false, and every key other than Left and Right leave
+/// the string unchanged. `index` is then snapped to a character boundary.
 pub fn edit_string(
     text: &mut String,
     index: usize,

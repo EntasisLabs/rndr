@@ -7,9 +7,14 @@ use crate::world::{Component, World};
 impl Component for Splitter {}
 
 /// Drag handle between two siblings. Not [`crate::Focusable`].
+///
+/// Defaults are 120 points of leading pane and 160 of trailing pane.
+/// [`apply_split`] writes the leading sibling's size and then clamps it.
 #[derive(Clone, Copy, Debug)]
 pub struct Splitter {
+    /// Minimum size of the previous sibling, in logical points.
     pub min_leading: f32,
+    /// Minimum size of the next sibling, in logical points.
     pub min_trailing: f32,
 }
 
@@ -23,13 +28,31 @@ impl Default for Splitter {
 }
 
 /// One captured splitter drag. Cleared when the pointer is released.
+///
+/// [`crate::Shell`] inserts this resource. [`apply_split`] ignores the
+/// pointer when it is absent and still reclamps.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Drag {
+    /// Handle being dragged. `None` while the pointer is up.
     pub entity: Option<Entity>,
+    /// Pointer position from the previous move, in logical points.
     pub last: [f32; 2],
 }
 
 /// Resize the sibling before a [`Splitter`] from pointer drag, then reclamp.
+///
+/// A press on the handle, or on a descendant of it, stores that entity in
+/// [`Drag`] and clears the press. Movement along the parent [`Axis`] is
+/// added to the leading sibling: [`Layout`] width on a row, height on a
+/// column, stored as [`Size::Px`]. The handle has to sit after that sibling.
+/// Release clears [`Drag::entity`].
+///
+/// Every handle is then clamped to at least [`Splitter::min_leading`]. The
+/// trailing sibling keeps [`Splitter::min_trailing`] when the parent is
+/// large enough. Gaps and padding come out of the parent's span. A root
+/// whose size on that axis is [`Size::Fill`] uses the viewport content
+/// span. When the parent is smaller than both minimums, the leading side
+/// stays at `min_leading`. A missing [`crate::Input`] only reclamps.
 pub fn apply_split(world: &mut World) {
     let Some(input) = world.resource::<Input>().cloned() else {
         reclamp_all(world);

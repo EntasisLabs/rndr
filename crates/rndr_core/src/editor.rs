@@ -19,19 +19,34 @@ impl Component for Editor {}
 impl Component for Gutter {}
 
 /// Gap buffer plus a line-start index. Indices are byte offsets.
+///
+/// Put this on the same entity as [`Editor`]. The editor pass copies the
+/// visible line window into that entity's [`crate::Label`] and publishes a
+/// window-relative [`crate::Caret`]. That caret component is removed when the
+/// document caret sits outside the window. [`Buffer::caret`] and
+/// [`Buffer::anchor`] stay document offsets. [`Buffer::from_str`] places both
+/// at the end.
 #[derive(Clone, Debug)]
 pub struct Buffer {
     data: Vec<u8>,
     gap_start: usize,
     gap_end: usize,
     lines: Vec<usize>,
+    /// Document caret, in bytes. Not a char index, and not the window-relative
+    /// [`crate::Caret`] published for drawing.
     pub caret: usize,
+    /// Selection anchor, in bytes. Equal to [`Self::caret`] when the range is
+    /// empty. The selected span is the half-open range between the two, in
+    /// either order.
     pub anchor: usize,
 }
 
 impl Buffer {
     /// Infallible document constructor. This is not `FromStr`: a gap buffer
     /// accepts any `&str`, and a `Result` would only change every call site.
+    ///
+    /// [`Buffer::caret`] and [`Buffer::anchor`] start at the end of `text`,
+    /// as a byte length.
     #[allow(clippy::should_implement_trait)]
     pub fn from_str(text: &str) -> Self {
         let mut data = text.as_bytes().to_vec();
@@ -49,26 +64,46 @@ impl Buffer {
         buffer
     }
 
+    /// Logical length in bytes. The gap is not counted. This is not a char
+    /// or grapheme count.
     pub fn len(&self) -> usize {
         self.data.len() - (self.gap_end - self.gap_start)
     }
 
+    /// `true` when [`Self::len`] is 0. An empty buffer still reports one line.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
+    /// Number of line starts. Always at least 1, including an empty buffer.
+    ///
+    /// A newline starts another line only when a byte follows it, so a
+    /// trailing `\n` does not add an empty row.
     pub fn line_count(&self) -> u32 {
         self.lines.len() as u32
     }
 
+    /// Byte offset where 0-based `line` starts.
+    ///
+    /// Returns [`Self::len`] when `line` is past the last line. Does not panic.
     pub fn line_start(&self, line: u32) -> usize {
         self.lines.get(line as usize).copied().unwrap_or(self.len())
     }
 
+    /// The whole document as a `String`.
+    ///
+    /// Valid UTF-8 round-trips. Bytes left invalid by an edit that splits a
+    /// codepoint are substituted, so the result is not a raw dump of the gap
+    /// buffer. Other methods still count those stored bytes.
     pub fn text(&self) -> String {
         self.slice(0, self.len())
     }
 
+    /// Bytes in `[start, end)`, clamped to the document.
+    ///
+    /// `start` and `end` are byte offsets. An end past [`Self::len`] shrinks,
+    /// and a reversed pair becomes empty. A split codepoint is substituted, so
+    /// the string's length can differ from the byte span. Does not panic.
     pub fn slice(&self, start: usize, end: usize) -> String {
         let end = end.min(self.len());
         let start = start.min(end);
@@ -79,6 +114,11 @@ impl Buffer {
         String::from_utf8_lossy(&bytes).into_owned()
     }
 
+    /// Insert `text` at byte `index`, clamped to [`Self::len`].
+    ///
+    /// An empty `text` returns without moving the gap or rebuilding lines.
+    /// Does not move [`Self::caret`] or [`Self::anchor`]. A mid-codepoint
+    /// index splits that scalar. The line index is rebuilt.
     pub fn insert_str(&mut self, index: usize, text: &str) {
         if text.is_empty() {
             return;
@@ -91,6 +131,11 @@ impl Buffer {
         self.rebuild_lines();
     }
 
+    /// Delete bytes in `[start, end)`, clamped into order inside the document.
+    ///
+    /// An empty span returns immediately. Does not move [`Self::caret`] or
+    /// [`Self::anchor`], so those indices can sit past the new end until the
+    /// caller updates them. Not snapped to a char boundary.
     pub fn delete_range(&mut self, start: usize, end: usize) {
         let start = start.min(self.len());
         let end = end.min(self.len()).max(start);
@@ -150,9 +195,15 @@ impl Buffer {
     }
 }
 
-/// Scroll offset, in points, for a [`Buffer`] on the same entity.
+/// Vertical scroll, in logical points, for a [`Buffer`] on the same entity.
+///
+/// The editor pass reads [`Editor::offset`] and does not write it. The first
+/// visible line is `floor(offset.max(0.0) / line_height)`, using the text
+/// engine's line height. A larger offset shows later lines.
 #[derive(Clone, Copy, Debug)]
 pub struct Editor {
+    /// Distance from the top of the document, in logical points. Negative
+    /// values count as zero when the first visible line is chosen.
     pub offset: f32,
 }
 
@@ -163,6 +214,10 @@ impl Default for Editor {
 }
 
 /// Sibling column that shows line numbers for the visible window.
+///
+/// Marker with no data. The editor pass finds a [`Gutter`] under the same
+/// parent as the [`Editor`] and writes 1-based line numbers for the visible
+/// rows into that sibling's [`crate::Label`].
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Gutter;
 
@@ -515,36 +570,66 @@ fn gutter_for(world: &World, entity: crate::entity::Entity) -> Option<crate::ent
 impl Component for Decorations {}
 impl Component for DecorationMarks {}
 
+/// How a [`Decoration`] is painted over the visible text.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DecorationKind {
+    /// Quad covering each selection box of the span.
     Find,
+    /// Two-point bar along the bottom of the span.
     Diagnostic,
 }
 
+/// Byte range to mark on an entity that also has [`Decorations`].
+///
+/// With a [`Buffer`], `start` and `end` are document offsets. Without one,
+/// they are offsets into the [`crate::Label`]. The span is clipped to the
+/// visible window, and a range wholly outside it produces no
+/// [`DecorationMark`]. Either order paints; `start == end` paints nothing.
 #[derive(Clone, Copy, Debug)]
 pub struct Decoration {
+    /// One end of the span, in bytes.
     pub start: usize,
+    /// The other end of the span, in bytes. Exclusive after the ends are
+    /// ordered.
     pub end: usize,
+    /// Paint style for this range.
     pub kind: DecorationKind,
 }
 
+/// Ranges turned into [`DecorationMarks`] after text layout.
+///
+/// [`crate::App::update`] rebuilds the marks for every entity that has this
+/// component. An entity with no text layout gets an empty mark list.
 #[derive(Clone, Debug, Default)]
 pub struct Decorations {
+    /// Ranges in paint order. One range can yield several marks, one per
+    /// visible fragment.
     pub list: Vec<Decoration>,
 }
 
 /// Quads relative to the text origin. Empty when the range is offscreen.
+///
+/// Coordinates are logical points from the label's text origin, not from the
+/// entity rectangle. A mix of ranges keeps only the fragments that intersect
+/// the visible window.
 #[derive(Clone, Debug, Default)]
 pub struct DecorationMarks {
+    /// One quad per visible fragment, in [`Decorations::list`] order.
     pub marks: Vec<DecorationMark>,
 }
 
+/// One painted fragment of a [`Decoration`], in logical points.
 #[derive(Clone, Copy, Debug)]
 pub struct DecorationMark {
+    /// Left edge, relative to the text origin.
     pub x: f32,
+    /// Top edge, relative to the text origin.
     pub y: f32,
+    /// Width. At least 1 point.
     pub w: f32,
+    /// Height of the fragment. A [`DecorationKind::Diagnostic`] is 2 points.
     pub h: f32,
+    /// Which decoration produced this quad.
     pub kind: DecorationKind,
 }
 

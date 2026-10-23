@@ -100,7 +100,9 @@ impl std::error::Error for HotkeyError {}
 /// as an event on the next frame, so startup and Update can both show it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HotkeyRejected {
+    /// Text passed to [`note_unregistered`]. It is stored as given.
     pub binding: String,
+    /// Why the chord was not grabbed.
     pub error: HotkeyError,
 }
 
@@ -124,6 +126,24 @@ pub struct HotkeyBinding {
 }
 
 impl HotkeyBinding {
+    /// Parse one chord in keymap vocabulary.
+    ///
+    /// The text is trimmed and split on `+`. Earlier tokens are modifiers and
+    /// the last token is the key. Modifiers are `primary`, `ctrl`, `control`,
+    /// `alt`, `option`, `opt`, `shift`, `super`, `cmd`, `command`, `win`,
+    /// `windows`, `meta`, and `logo`. A key is one ASCII letter, one digit,
+    /// `F1` through `F24`, a named key, or punctuation. Named keys include
+    /// `Space`, `Enter`, `Tab`, `Escape`, `Backspace`, `Delete`, `Insert`,
+    /// `Home`, `End`, `PageUp`, `PageDown`, and the four arrows, with short
+    /// aliases such as `Esc`, `Bksp`, `Del`, `PgUp`, and `ArrowUp`.
+    /// Punctuation is a US glyph (`-`, `=`, `[`, `]`, backslash, `;`, `'`,
+    /// `,`, `.`, `/`, or the grave accent) or a name (`minus`, `equal`,
+    /// `plus`, `comma`, `grave`, and the rest). Tokens are case-insensitive.
+    ///
+    /// Returns [`HotkeyError::InvalidBinding`] for an empty string, an empty
+    /// side of `+`, an unknown token, or a key that cannot be encoded.
+    /// `primary` stays on the [`Keystroke`] until [`platform_accel`] folds it.
+    /// `F21` through `F24` parse here and fail later on macOS.
     pub fn parse(text: &str) -> Result<Self, HotkeyError> {
         let text = text.trim();
         if text.is_empty() {
@@ -141,11 +161,18 @@ impl HotkeyBinding {
         Self::from_keystroke(stroke)
     }
 
+    /// Wrap `stroke` when its trigger maps to an [`AccelKey`].
+    ///
+    /// Returns [`HotkeyError::InvalidBinding`] when the trigger is
+    /// unidentified, is a character outside ASCII letters, digits, and US
+    /// punctuation, or is a function key outside `F1` through `F24`.
+    /// Modifiers, including `primary`, are stored unchanged.
     pub fn from_keystroke(stroke: Keystroke) -> Result<Self, HotkeyError> {
         accel::accel_key(stroke.trigger)?;
         Ok(Self { stroke })
     }
 
+    /// The chord, still carrying `primary` when the binding set it.
     pub fn keystroke(self) -> Keystroke {
         self.stroke
     }
@@ -161,6 +188,12 @@ impl std::str::FromStr for HotkeyBinding {
 
 /// Anything [`register`] accepts.
 pub trait IntoHotkey {
+    /// Resolve `self` into one chord.
+    ///
+    /// [`HotkeyBinding`] returns itself. [`Keystroke`] uses
+    /// [`HotkeyBinding::from_keystroke`]. [`str`] and [`String`] use
+    /// [`HotkeyBinding::parse`]. The error is [`HotkeyError::InvalidBinding`]
+    /// when the text or trigger cannot be encoded.
     fn into_hotkey(self) -> Result<HotkeyBinding, HotkeyError>;
 }
 
@@ -206,7 +239,9 @@ pub fn register(world: &World, binding: impl IntoHotkey) -> Result<HotkeyHandle,
 /// Grab `binding` and toggle the window on each press.
 ///
 /// A hidden window is shown and focused. A visible window is hidden. The
-/// press is also a [`GlobalHotkey`] on that frame.
+/// press is also a [`GlobalHotkey`] on that frame. The first registration of
+/// a chord decides whether presses toggle. A later handle for that same
+/// chord keeps the earlier choice and does not grab a second time.
 pub fn toggle_window(world: &World, binding: impl IntoHotkey) -> Result<HotkeyHandle, HotkeyError> {
     registry::register(world, binding, true)
 }

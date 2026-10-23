@@ -9,22 +9,40 @@ impl Component for TabPanel {}
 impl Component for Hidden {}
 
 /// Parent of [`Tab`] headers. `selected` is the visible [`Tab::id`].
+///
+/// [`crate::Chrome`] writes `selected` from a press on a header and hides
+/// the other panels. A press whose hit sits inside a [`TabPanel`] leaves
+/// `selected` alone. Each [`Tab`] is a child of this entity, and each
+/// [`TabPanel`] is a child of its [`Tab`].
 #[derive(Clone, Copy, Debug)]
 pub struct Tabs {
+    /// [`Tab::id`] of the panel that stays visible.
     pub selected: u64,
 }
 
 /// Clickable header. Its [`TabPanel`] children hide when this id is not selected.
+///
+/// [`crate::Chrome`] inserts [`Hidden`] on each direct [`TabPanel`] child
+/// while this id differs from [`Tabs::selected`], and removes [`Hidden`]
+/// when they match.
 #[derive(Clone, Copy, Debug)]
 pub struct Tab {
+    /// Compared with [`Tabs::selected`].
     pub id: u64,
 }
 
 /// Body shown only while the parent [`Tab`] is selected.
+///
+/// Place it as a direct child of that [`Tab`]. [`Hidden`] covers the panel
+/// and its descendants while another tab is selected.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct TabPanel;
 
 /// Skipped by layout, hit-testing, and paint.
+///
+/// Descendants are skipped with the node. [`crate::Chrome`] clears the rect
+/// and clip of a hidden [`TabPanel`]. Remove [`Hidden`] and the next layout
+/// pass places the subtree again.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Hidden;
 

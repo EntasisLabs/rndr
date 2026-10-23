@@ -10,6 +10,19 @@ use crate::overlay::apply_overlay;
 use crate::tabs::apply_tabs;
 
 /// Opt-in widget systems. The file-tree [`crate::Shell`] does not register these.
+///
+/// [`Plugin::build`] inserts [`Actions`], [`Fired`], [`Clipboard`],
+/// [`crate::Keymap`], and [`crate::KeymapFired`] when those resources are
+/// missing, then appends a consuming binding for [`crate::COPY`],
+/// [`crate::CUT`], and [`crate::PASTE`]. Installing twice appends a second
+/// copy of each binding.
+///
+/// Input installs list navigation, resolves the keymap, moves the list
+/// selection, then edits the focused text field. Events this Input pass sends
+/// are merged before Update. The Update system is inserted at the front, so
+/// actions, overlays, buttons, and tabs run before Update systems already
+/// registered. PostUpdate rebuilds virtual lists, applies editor decorations,
+/// and applies copy, cut, and paste on the focused [`crate::TextField`].
 pub struct Chrome;
 
 impl Plugin for Chrome {

@@ -6,13 +6,21 @@ use crate::world::{Component, World};
 impl Component for Button {}
 
 /// Click or Enter target. `action` is the name written into [`Fired`].
+///
+/// [`crate::Chrome`] does this on Update. A pointer press on this entity, or
+/// on a descendant, activates it. Enter activates it when focus is here or
+/// on a descendant, and that key is then cleared. An `enabled` value of
+/// `false` skips both, and Enter stays in [`Input`].
 #[derive(Clone, Debug)]
 pub struct Button {
+    /// Name copied into [`Fired`] when this button activates.
     pub action: String,
+    /// When `false`, press and Enter leave [`Fired`] and the key unchanged.
     pub enabled: bool,
 }
 
 impl Button {
+    /// Enabled button that writes `action` into [`Fired`] when activated.
     pub fn new(action: impl Into<String>) -> Self {
         Self {
             action: action.into(),

@@ -68,9 +68,17 @@ const DOUBLE_CLICK_MS: u64 = 400;
 /// `clicked` is the item index pressed this frame, not the pool slot.
 #[derive(Clone, Copy, Debug)]
 pub struct List {
+    /// Number of data rows. Changing it resets [`Self::offset`] and clamps
+    /// [`Self::selected`]. Set this from Update.
     pub count: u32,
+    /// Uniform stride in points. The list layout should use a gap of 0.
+    /// A non-positive value builds an empty window.
     pub row_height: f32,
+    /// Content scroll in points. The first pooled row is
+    /// `floor(offset / row_height)`.
     pub offset: f32,
+    /// Data index pressed this frame, not the pool slot. `None` when the
+    /// pointer did not press a row.
     pub clicked: Option<u32>,
     /// Selected data index. `None` when `count` is 0.
     pub selected: Option<u32>,
@@ -88,6 +96,7 @@ pub struct List {
 }
 
 impl List {
+    /// `count` rows of `row_height` points. Selects index 0 when `count` > 0.
     pub fn new(count: u32, row_height: f32) -> Self {
         Self {
             count,
@@ -110,7 +119,9 @@ impl List {
 /// Data index currently bound to a pooled row.
 #[derive(Clone, Copy, Debug)]
 pub struct ListItem {
+    /// Data index bound to this pool slot for the frame.
     pub index: u32,
+    /// This index is [`List::selected`].
     pub selected: bool,
 }
 
@@ -123,12 +134,17 @@ pub struct ListKeys;
 /// Called for every visible row, every frame. The row entity is stable for a
 /// pool slot; spawn children once and then update them.
 #[derive(Clone, Copy)]
-pub struct ListRows(pub fn(&mut World, Entity, u32));
+pub struct ListRows(
+    /// Called as `build(world, row, index)` for each visible row, every frame.
+    pub fn(&mut World, Entity, u32),
+);
 
 /// Enter or a double-click on a row. Sent during Input.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ListActivated {
+    /// List that owns the row.
     pub list: Entity,
+    /// Data index that was activated.
     pub index: u32,
 }
 

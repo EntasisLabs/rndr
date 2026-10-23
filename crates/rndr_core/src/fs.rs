@@ -18,23 +18,41 @@ impl Component for DirtyMark {}
 /// One child returned by [`Fs::list`]. Core skips hidden names and symlinks.
 #[derive(Clone, Debug)]
 pub struct DirEntry {
+    /// Full path of the child.
     pub path: PathBuf,
+    /// This child is a directory.
     pub dir: bool,
+    /// This child is a symlink. Core skips those when building the tree.
     pub symlink: bool,
 }
 
 /// Byte store behind [`FsPath`]. A plugin inserts this as [`Files`].
 pub trait Fs: Any + Send + Sync {
+    /// True when `path` is a directory. Files and missing paths are false.
     fn is_dir(&self, path: &Path) -> bool;
+    /// True when `path` names a file or directory.
     fn exists(&self, path: &Path) -> bool;
+    /// Size in bytes. `None` when `path` is missing or the size cannot be read.
     fn len(&self, path: &Path) -> Option<u64>;
+    /// Immediate children of `path`. Empty when `path` is not a directory.
+    /// Include hidden names and symlinks; the tree builder skips both.
     fn list(&self, path: &Path) -> Vec<DirEntry>;
+    /// File bytes. `None` for a directory, a missing path, or a read error.
     fn read(&self, path: &Path) -> Option<Vec<u8>>;
+    /// Store `bytes` at `path`, replacing a file. False when `path` is a
+    /// directory or the write fails.
     fn write(&mut self, path: &Path, bytes: &[u8]) -> bool;
+    /// Create one directory and not its parents. False when it already exists
+    /// or the create fails.
     fn create_dir(&mut self, path: &Path) -> bool;
+    /// Move `from` onto `to`. False when the move fails. Core does not call
+    /// this when `to` already exists.
     fn rename(&mut self, from: &Path, to: &Path) -> bool;
+    /// Delete a file. False for a directory or a missing path.
     fn remove_file(&mut self, path: &Path) -> bool;
+    /// Delete an empty directory. False when `path` is not an empty directory.
     fn remove_dir(&mut self, path: &Path) -> bool;
+    /// True when `path` is a directory with no children. A file is false.
     fn is_empty_dir(&self, path: &Path) -> bool;
 }
 
@@ -44,56 +62,69 @@ pub struct Files {
 }
 
 impl Files {
+    /// Box `fs` as the app file store.
     pub fn new(fs: impl Fs + 'static) -> Self {
         Self {
             inner: Box::new(fs),
         }
     }
 
+    /// [`Fs::is_dir`] on the inner store.
     pub fn is_dir(&self, path: &Path) -> bool {
         self.inner.is_dir(path)
     }
 
+    /// [`Fs::exists`] on the inner store.
     pub fn exists(&self, path: &Path) -> bool {
         self.inner.exists(path)
     }
 
+    /// [`Fs::len`] on the inner store.
     pub fn len(&self, path: &Path) -> Option<u64> {
         self.inner.len(path)
     }
 
+    /// [`Fs::list`] on the inner store.
     pub fn list(&self, path: &Path) -> Vec<DirEntry> {
         self.inner.list(path)
     }
 
+    /// [`Fs::read`] on the inner store.
     pub fn read(&self, path: &Path) -> Option<Vec<u8>> {
         self.inner.read(path)
     }
 
+    /// [`Fs::write`] on the inner store.
     pub fn write(&mut self, path: &Path, bytes: &[u8]) -> bool {
         self.inner.write(path, bytes)
     }
 
+    /// [`Fs::create_dir`] on the inner store.
     pub fn create_dir(&mut self, path: &Path) -> bool {
         self.inner.create_dir(path)
     }
 
+    /// [`Fs::rename`] on the inner store.
     pub fn rename(&mut self, from: &Path, to: &Path) -> bool {
         self.inner.rename(from, to)
     }
 
+    /// [`Fs::remove_file`] on the inner store.
     pub fn remove_file(&mut self, path: &Path) -> bool {
         self.inner.remove_file(path)
     }
 
+    /// [`Fs::remove_dir`] on the inner store.
     pub fn remove_dir(&mut self, path: &Path) -> bool {
         self.inner.remove_dir(path)
     }
 
+    /// [`Fs::is_empty_dir`] on the inner store.
     pub fn is_empty_dir(&self, path: &Path) -> bool {
         self.inner.is_empty_dir(path)
     }
 
+    /// Borrow the inner store as `T` when it was inserted as that type.
     pub fn downcast_ref<T: Fs + 'static>(&self) -> Option<&T> {
         (self.inner.as_ref() as &dyn Any).downcast_ref()
     }
@@ -117,9 +148,16 @@ const FILE_COLOR: Color = Color {
 /// Disk path for a tree node. Nodes without this stay in-memory [`crate::NodeSpec`] trees.
 #[derive(Clone, Debug)]
 pub struct FsPath {
+    /// Path this node edits.
     pub path: PathBuf,
+    /// Directory node. A file is false.
     pub dir: bool,
+    /// The body has been read, or the node was just created empty.
+    /// [`apply_fs_load`] skips a node once this is set.
     pub loaded: bool,
+    /// The body may be written back. False after a missing file, a read
+    /// error, a NUL byte, text that is not UTF-8, or more than 256 KiB.
+    /// A node just created is true.
     pub readable: bool,
 }
 
@@ -208,6 +246,10 @@ pub(crate) fn spawn_fs_children(world: &mut World, parent: Entity) -> Vec<Entity
 }
 
 /// Load the selected file into [`Body`] before the pane spawns.
+///
+/// Directories and nodes with [`FsPath::loaded`] set are left alone. A missing
+/// file, a read error, a NUL byte, text that is not UTF-8, or more than 256 KiB
+/// stores an empty [`Body`] and sets [`FsPath::readable`] false.
 pub fn apply_fs_load(world: &mut World) {
     let Some(selected) = world
         .resource::<Selection>()
@@ -235,6 +277,13 @@ pub fn apply_fs_load(world: &mut World) {
 }
 
 /// Write or rename the selected path on [`Key::Save`].
+///
+/// The key is consumed either way. A header that differs from the file name
+/// is renamed first. An empty name, a slash, a backslash, a NUL, an existing
+/// destination, or a failed rename restores the header and leaves the file
+/// untouched.
+/// The body is written only when [`FsPath::readable`] is set and the node is
+/// not a directory. [`Dirty`] is cleared after success.
 pub fn apply_fs_save(world: &mut World) {
     let save = world
         .resource::<Input>()

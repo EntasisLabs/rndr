@@ -10,10 +10,13 @@ impl Entity {
         Self { index, generation }
     }
 
+    /// Recycled slot number. Pair it with [`Entity::generation`].
     pub fn index(self) -> u32 {
         self.index
     }
 
+    /// Generation stored in this id. [`crate::World::is_alive`] accepts it only
+    /// while the slot still holds this generation.
     pub fn generation(self) -> u32 {
         self.generation
     }

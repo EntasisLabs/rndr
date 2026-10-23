@@ -31,14 +31,19 @@ use crate::font::{
 use crate::world::World;
 
 /// Regular and bold weights. A run can override these per range.
+/// This value is 400.
 pub const FONT_WEIGHT_REGULAR: u16 = 400;
+/// Bold weight, 700. A run can store this in [`crate::TextSpan::weight`].
 pub const FONT_WEIGHT_BOLD: u16 = 700;
 
 /// Upright or italic. The builtin atlas has no italic master; the value is
 /// still part of the cache key so a later engine can.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum FontStyle {
+    /// Upright.
     Normal,
+    /// Italic. [`BuiltinText`] has no italic outlines. The flag is still
+    /// stored in the line cache key.
     Italic,
 }
 
@@ -46,9 +51,14 @@ pub enum FontStyle {
 /// the font request.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextStyle {
+    /// Family name passed to the engine. The default is `"bitmap"`.
     pub family: String,
+    /// Em size in logical points. The default is `16.0`.
     pub size: f32,
+    /// `400` is regular and `700` is bold. The default is
+    /// [`FONT_WEIGHT_REGULAR`].
     pub weight: u16,
+    /// Upright or italic. The default is [`FontStyle::Normal`].
     pub style: FontStyle,
 }
 
@@ -64,6 +74,8 @@ impl Default for TextStyle {
 }
 
 impl TextStyle {
+    /// Family and em size from `font`, at [`FONT_WEIGHT_REGULAR`] and
+    /// [`FontStyle::Normal`].
     pub fn from_face(font: &dyn Font) -> Self {
         Self {
             family: font.family_name().to_string(),
@@ -83,11 +95,19 @@ pub fn style_of(world: &World) -> TextStyle {
 /// builtin. [`ensure_text_engine`] installs [`BuiltinText`] when the world has
 /// none.
 pub trait TextEngine: Send + Sync + 'static {
+    /// Type-erased view for downcasting.
+    ///
+    /// [`text_engine`] downcasts to [`BuiltinText`] so it can follow
+    /// [`crate::TextFace`].
     fn as_any(&self) -> &dyn Any;
 
     /// Shape `text` into positioned glyphs, line metrics, and highlight rects.
     /// [`TextLayout::index_at`] and [`TextLayout::caret_xy`] are the hit test
     /// and caret. Lines are cached; unchanged text is not reshaped.
+    ///
+    /// `style` is the font request. `runs` are styled byte ranges.
+    /// `max_width` is the wrap width in logical points. [`BuiltinText`] keeps
+    /// a newline-separated piece on one line when `max_width` is non-finite.
     fn layout(
         &self,
         text: &str,
@@ -96,6 +116,7 @@ pub trait TextEngine: Send + Sync + 'static {
         max_width: f32,
     ) -> TextLayout;
 
+    /// Width, height, and line count for the same wrap as [`layout`](Self::layout).
     fn measure(
         &self,
         text: &str,
@@ -104,9 +125,15 @@ pub trait TextEngine: Send + Sync + 'static {
         max_width: f32,
     ) -> TextMeasure;
 
+    /// Height of one line box for `style`, in logical points.
     fn line_height(&self, style: &TextStyle) -> f32;
     /// Advance of `0`, used as the floor for a field's inner width.
     fn unit_advance(&self, style: &TextStyle) -> f32;
+    /// Coverage-atlas UV of a white texel for `style`'s family.
+    ///
+    /// Solid quads sample it so they share the glyph atlas. [`BuiltinText`]
+    /// asks the first face in that family, or the bitmap face when the
+    /// family has no faces.
     fn solid_uv(&self, style: &TextStyle) -> [f32; 4];
 
     /// Coverage atlas for the default family. `None` means the 8×8 bitmap.
@@ -116,7 +143,12 @@ pub trait TextEngine: Send + Sync + 'static {
 
     /// Ordered face names for `family`. Missing glyphs try the next name.
     fn fallbacks(&self, family: &str) -> Vec<String>;
+    /// Replace the ordered fallback names for `family`.
+    ///
+    /// [`fallbacks`](Self::fallbacks) returns this list. Missing glyphs try
+    /// the next name.
     fn set_fallbacks(&self, family: &str, faces: &[String]);
+    /// Make `font` available under `name` for later layouts.
     fn register_font(&self, name: &str, font: Arc<dyn Font>);
 
     /// Start a frame. Lines used in the new frame and the one before it stay;
@@ -137,6 +169,9 @@ pub trait TextEngine: Send + Sync + 'static {
 }
 
 /// The engine the world is using, creating the builtin one if needed.
+///
+/// A stored [`BuiltinText`] is pointed at the current [`crate::TextFace`].
+/// The fresh engine is not inserted. [`ensure_text_engine`] stores one.
 pub fn text_engine(world: &World) -> Arc<dyn TextEngine> {
     if let Some(engine) = world.resource::<Arc<dyn TextEngine>>() {
         if let Some(builtin) = engine.as_any().downcast_ref::<BuiltinText>() {
@@ -149,6 +184,8 @@ pub fn text_engine(world: &World) -> Arc<dyn TextEngine> {
 
 /// Install [`BuiltinText`] if the world has no engine, and point it at the
 /// current [`crate::TextFace`].
+///
+/// An engine other than [`BuiltinText`] stays installed and is left alone.
 pub fn ensure_text_engine(world: &mut World) {
     if !world.has_resource::<Arc<dyn TextEngine>>() {
         let engine: Arc<dyn TextEngine> = Arc::new(BuiltinText::new());
@@ -205,6 +242,7 @@ pub struct BuiltinText {
 }
 
 impl BuiltinText {
+    /// Bitmap face, family `"bitmap"`, and an empty two-frame line cache.
     pub fn new() -> Self {
         let mut fonts = HashMap::new();
         fonts.insert("bitmap".to_string(), shared_bitmap());
@@ -224,12 +262,18 @@ impl BuiltinText {
         }
     }
 
+    /// [`new`](Self::new), then [`sync_face`](Self::sync_face).
     pub fn with_face(face: Arc<dyn Font>) -> Self {
         let engine = Self::new();
         engine.sync_face(face);
         engine
     }
 
+    /// Register `face` under its family name and make that the default family.
+    ///
+    /// A new name other than `"bitmap"` falls back to itself, then
+    /// `"bitmap"`. An existing fallback list is left in place. A face already
+    /// stored under that name is replaced.
     pub fn sync_face(&self, face: Arc<dyn Font>) {
         let name = face.family_name().to_string();
         self.register_font(&name, face);

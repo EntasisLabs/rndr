@@ -5,7 +5,9 @@ pub const GLYPH_W: u32 = 8;
 pub const GLYPH_H: u32 = 8;
 pub const ATLAS_COLS: u32 = 16;
 pub const ATLAS_ROWS: u32 = 7;
+/// Pixel width of the builtin coverage atlas from [`atlas_r8`].
 pub const ATLAS_W: u32 = GLYPH_W * ATLAS_COLS;
+/// Pixel height of [`atlas_r8`], including the white row [`solid_uv`] samples.
 pub const ATLAS_H: u32 = GLYPH_H * ATLAS_ROWS;
 
 pub const GLYPHS: [[u8; 8]; 96] = [
@@ -116,6 +118,10 @@ pub fn glyph(ch: u8) -> [u8; 8] {
 }
 
 /// R8 atlas: 16 columns × 6 rows of 8×8 glyphs.
+///
+/// Codes 32 through 127, one byte per pixel, `0` or `255`. The last row is
+/// a solid white strip for [`solid_uv`]. The buffer length is [`ATLAS_W`]
+/// times [`ATLAS_H`].
 pub fn atlas_r8() -> Vec<u8> {
     let mut pixels = vec![0u8; (ATLAS_W * ATLAS_H) as usize];
     for code in 32u8..128 {
@@ -140,6 +146,10 @@ pub fn atlas_r8() -> Vec<u8> {
     pixels
 }
 
+/// Coverage-atlas rectangle for one byte, as `(u0, v0, u1, v1)`.
+///
+/// Bytes from 32 through 127 map to their cell. Any other byte uses `?`.
+/// Coordinates are fractions of [`ATLAS_W`] and [`ATLAS_H`].
 pub fn glyph_uv(ch: u8) -> [f32; 4] {
     let code = if (32..128).contains(&ch) { ch } else { b'?' };
     let idx = (code - 32) as u32;
@@ -152,6 +162,10 @@ pub fn glyph_uv(ch: u8) -> [f32; 4] {
     [u0, v0, u1, v1]
 }
 
+/// One white texel on the last row of [`atlas_r8`], as `(u, v, u, v)`.
+///
+/// Both corners are the center of the leftmost pixel of that row, which
+/// [`atlas_r8`] stores as 255. A solid quad samples coverage 1 there.
 pub fn solid_uv() -> [f32; 4] {
     let w = ATLAS_W as f32;
     let h = ATLAS_H as f32;

@@ -12,26 +12,39 @@ impl Component for Rect {}
 impl Component for Clip {}
 impl Component for Scroll {}
 
+/// Main axis children stack along.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Axis {
+    /// Children left to right. Width is the main size.
     Row,
+    /// Children top to bottom. Height is the main size.
     Column,
 }
 
+/// How one side of a [`Layout`] is measured.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Size {
+    /// Fixed length in points.
     Px(f32),
+    /// Fit the children, or the label when there are none.
     Hug,
+    /// Share leftover space on the parent's main axis, or take the parent's
+    /// inner size on the cross axis.
     Fill,
 }
 
 /// Intent for how a node sizes and stacks its children.
 #[derive(Clone, Copy, Debug)]
 pub struct Layout {
+    /// Stack direction.
     pub axis: Axis,
+    /// Space between children, in points. Not an outer margin.
     pub gap: f32,
+    /// Inset on every side, in points. The content box shrinks by twice this.
     pub padding: f32,
+    /// Horizontal measure. [`Size::Fill`] is resolved while placing.
     pub width: Size,
+    /// Vertical measure. [`Size::Fill`] is resolved while placing.
     pub height: Size,
     /// Floor on the measured or filled width, in points.
     pub min_width: f32,
@@ -40,6 +53,7 @@ pub struct Layout {
 }
 
 impl Layout {
+    /// Hug both axes, no gap or padding, [`Axis::Column`].
     pub fn column() -> Self {
         Self {
             axis: Axis::Column,
@@ -52,6 +66,7 @@ impl Layout {
         }
     }
 
+    /// Hug both axes, no gap or padding, [`Axis::Row`].
     pub fn row() -> Self {
         Self {
             axis: Axis::Row,
@@ -68,13 +83,18 @@ impl Layout {
 /// Placed rectangle in logical points, origin top-left.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Rect {
+    /// Left edge in logical points.
     pub x: f32,
+    /// Top edge in logical points.
     pub y: f32,
+    /// Width in logical points.
     pub w: f32,
+    /// Height in logical points.
     pub h: f32,
 }
 
 impl Rect {
+    /// `x` and `y` lie inside. The right and bottom edges are excluded.
     pub fn contains(self, x: f32, y: f32) -> bool {
         x >= self.x && y >= self.y && x < self.x + self.w && y < self.y + self.h
     }
@@ -83,13 +103,19 @@ impl Rect {
 /// Visible rectangle after ancestor intersection. Origin top-left.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Clip {
+    /// Left edge in logical points.
     pub x: f32,
+    /// Top edge in logical points.
     pub y: f32,
+    /// Width in logical points. A non-positive width contains nothing.
     pub w: f32,
+    /// Height in logical points. A non-positive height contains nothing.
     pub h: f32,
 }
 
 impl Clip {
+    /// `x` and `y` lie inside a positive area. The right and bottom edges
+    /// are excluded.
     pub fn contains(self, x: f32, y: f32) -> bool {
         self.w > 0.0
             && self.h > 0.0
@@ -99,6 +125,7 @@ impl Clip {
             && y < self.y + self.h
     }
 
+    /// Overlap of the two rectangles. Width and height are never negative.
     pub fn intersect(self, other: Self) -> Self {
         let x1 = self.x.max(other.x);
         let y1 = self.y.max(other.y);
@@ -112,6 +139,7 @@ impl Clip {
         }
     }
 
+    /// Same edges as `rect`, including a zero size.
     pub fn from_rect(rect: Rect) -> Self {
         Self {
             x: rect.x,
@@ -125,7 +153,12 @@ impl Clip {
 /// Bounded port whose children may overflow. Offset is how far content has moved.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Scroll {
+    /// Content translation in points, x then y. Zero shows the top-left.
+    /// [`layout_propagate`] adds this to the child origin. [`Self::clamp_to`]
+    /// keeps each component at most zero.
     pub offset: [f32; 2],
+    /// Content size in points, width then height, padding included.
+    /// [`layout_propagate`] writes this from the children.
     pub content: [f32; 2],
 }
 
@@ -145,13 +178,19 @@ pub const SCROLL_DRAG_SLOP: f32 = 4.0;
 /// A press that starts on a [`Splitter`] does not capture.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ScrollDrag {
+    /// Scrollport captured by the press. `None` when the press missed one.
     pub entity: Option<Entity>,
+    /// Pointer position at the press, in logical points.
     pub origin: [f32; 2],
+    /// Pointer position at the previous move, in logical points.
     pub last: [f32; 2],
+    /// The pointer has moved at least [`SCROLL_DRAG_SLOP`] from [`Self::origin`].
     pub active: bool,
 }
 
 impl Scroll {
+    /// Keep [`Self::offset`] inside the port. Content smaller than the port
+    /// pins the offset at zero.
     pub fn clamp_to(&mut self, port_w: f32, port_h: f32) {
         let min_x = (port_w - self.content[0]).min(0.0);
         let min_y = (port_h - self.content[1]).min(0.0);
