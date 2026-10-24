@@ -7,11 +7,12 @@
 //! the edges are multisampled instead of drawn as a coverage fringe: one
 //! tessellation, no halos on joins, and the swapchain stays single-sample.
 //!
-//! A drop shadow resamples the group into a target padded by the blur radius,
-//! in device pixels, then runs a separable Gaussian on that grid and samples
-//! it back with a linear filter. The grid stays fine enough that a zoomed
-//! view does not stretch the falloff into flat blocks, and the padding keeps
-//! the tail from being clamped to the layer rectangle.
+//! A drop shadow is drawn into the shape's own pixel grid, expanded by the
+//! blur kernel, then a separable Gaussian runs on that grid and the result is
+//! sampled with a linear filter. The grid stays fine enough that a zoomed
+//! view does not stretch the falloff into flat blocks. The texture moves with
+//! the shape, so a pan does not rebuild the blur, and the viewport clips the
+//! shadow only when the quad is composited.
 
 use std::collections::HashMap;
 
@@ -38,7 +39,7 @@ const BLUR_MAX_RADIUS: i32 = 80;
 const BLUR_MAX_SPACING: f32 = 4.0;
 
 const PATH_SHADER: &str = r#"
-struct Viewport { size: vec2<f32> }
+struct Viewport { size: vec2<f32>, origin: vec2<f32> }
 @group(0) @binding(0) var<uniform> viewport: Viewport;
 struct Vin {
     @location(0) pos: vec2<f32>,
@@ -51,7 +52,8 @@ struct Vout {
 @vertex
 fn vs(in: Vin) -> Vout {
     var out: Vout;
-    let ndc = vec2<f32>(in.pos.x / viewport.size.x * 2.0 - 1.0, 1.0 - in.pos.y / viewport.size.y * 2.0);
+    let local = in.pos - viewport.origin;
+    let ndc = vec2<f32>(local.x / viewport.size.x * 2.0 - 1.0, 1.0 - local.y / viewport.size.y * 2.0);
     out.clip = vec4<f32>(ndc, 0.0, 1.0);
     out.color = in.color;
     return out;
@@ -61,7 +63,7 @@ fn fs(in: Vout) -> @location(0) vec4<f32> { return in.color; }
 "#;
 
 const SPRITE_SHADER: &str = r#"
-struct Viewport { size: vec2<f32> }
+struct Viewport { size: vec2<f32>, origin: vec2<f32> }
 @group(0) @binding(0) var<uniform> viewport: Viewport;
 @group(0) @binding(1) var tex: texture_2d<f32>;
 @group(0) @binding(2) var tex_samp: sampler;
@@ -84,7 +86,8 @@ struct Vout {
 @vertex
 fn vs(in: Vin) -> Vout {
     var out: Vout;
-    let ndc = vec2<f32>(in.pos.x / viewport.size.x * 2.0 - 1.0, 1.0 - in.pos.y / viewport.size.y * 2.0);
+    let local = in.pos - viewport.origin;
+    let ndc = vec2<f32>(local.x / viewport.size.x * 2.0 - 1.0, 1.0 - local.y / viewport.size.y * 2.0);
     out.clip = vec4<f32>(ndc, 0.0, 1.0);
     out.uv = in.uv;
     out.color = in.color;
@@ -111,7 +114,9 @@ fn cover(local: vec2<f32>, extra: vec4<f32>) -> f32 {
 }
 @fragment
 fn fs(in: Vout) -> @location(0) vec4<f32> {
-    let px = in.clip.xy;
+    // `clip` is the target's framebuffer position. Scissors are device pixels,
+    // so a shadow target whose origin is not the screen origin adds it back.
+    let px = in.clip.xy + viewport.origin;
     let box = in.scissor;
     if (box.z >= 0.0 && (px.x < box.x || px.y < box.y || px.x >= box.x + box.z || px.y >= box.y + box.w)) {
         discard;
@@ -136,7 +141,20 @@ fn fs(in: Vout) -> @location(0) vec4<f32> {
         a = sample.r * in.color.a;
     } else if (mode > 3.5) {
         rgb = in.color.rgb;
-        a = sample.a * in.color.a;
+        // A 1:1 shadow quad is one texel per device pixel. Load that texel.
+        // Interpolated UVs shift by a fraction when the rasterizer clips the
+        // quad to the viewport, and that shift rounds a few texels off.
+        // `scissor.xy` is the quad origin in device pixels; a negative width
+        // still means "no mask".
+        let dims_i = textureDimensions(tex);
+        let dims = vec2<f32>(dims_i);
+        if (abs(in.extra.y - dims.x) < 0.5 && abs(in.extra.z - dims.y) < 0.5) {
+            let texel = vec2<i32>(floor(px - in.scissor.xy));
+            let clamped = clamp(texel, vec2<i32>(0), vec2<i32>(dims_i) - vec2<i32>(1));
+            a = textureLoad(tex, clamped, 0).a * in.color.a;
+        } else {
+            a = sample.a * in.color.a;
+        }
     }
     a = a * cover(in.local, in.extra);
     return vec4<f32>(rgb, a);
@@ -264,9 +282,16 @@ struct BlitDraw {
     opacity: f32,
     shadow_color: [f32; 4],
     offset: [f32; 2],
-    /// Device pixels of transparent padding around the shadow texture.
+    /// Device pixels of transparent padding around a viewport-sized shadow.
     /// The shadow quad grows by this on every side. Zero draws the layer rect.
+    /// Ignored when [`Self::shadow_place`] is set.
     shadow_pad: f32,
+    /// Device-pixel rect of a bounds-local shadow texture: x, y, width, height.
+    /// The quad is this rect plus `offset`. `None` uses the viewport rect.
+    shadow_place: Option<[f32; 4]>,
+    /// Device-pixel bounds of the composited layer, min x/y then max x/y.
+    /// A parent shadow uses this instead of the viewport-sized blit quad.
+    extent: Option<[f32; 4]>,
 }
 
 enum Drawn {
@@ -275,6 +300,7 @@ enum Drawn {
     Blit(BlitDraw),
 }
 
+#[derive(Clone)]
 enum Cmd {
     Paths {
         offset: u64,
@@ -293,6 +319,9 @@ struct GeomPass {
     clip_offset: Option<u64>,
     clip_verts: u32,
     cmds: Vec<Cmd>,
+    /// Replaces the frame viewport for this pass, then the frame viewport is
+    /// copied back. `None` draws in the screen viewport (origin zero).
+    viewport: Option<wgpu::Buffer>,
 }
 
 struct BlurJob {
@@ -323,12 +352,17 @@ struct Plan {
 }
 
 /// Path meshes, image textures, and offscreen layers for one device.
+///
+/// Resources are declared before `queue` and `device`. Drop runs in field
+/// order, and the queue waits for the device to go idle, so textures and
+/// buffers have to be gone before that wait.
 pub(crate) struct SceneGpu {
-    device: wgpu::Device,
-    queue: wgpu::Queue,
     format: wgpu::TextureFormat,
     max_dim: u32,
     uniform: wgpu::Buffer,
+    /// Screen viewport (origin zero). Copied back over `uniform` after a
+    /// shadow pass that borrowed it.
+    viewport_frame: wgpu::Buffer,
     path_layout: wgpu::BindGroupLayout,
     sprite_layout: wgpu::BindGroupLayout,
     blur_layout: wgpu::BindGroupLayout,
@@ -356,6 +390,19 @@ pub(crate) struct SceneGpu {
     frame: u64,
     uploaded: Vec<u64>,
     kept: Vec<wgpu::Buffer>,
+    /// After the resources above. Drop waits for submitted work.
+    queue: wgpu::Queue,
+    /// After `queue`, so the idle wait still has a device.
+    device: wgpu::Device,
+}
+
+impl Drop for SceneGpu {
+    fn drop(&mut self) {
+        // The window path does not take the headless lock. Drain submitted
+        // work while the device is still alive; field drop then releases
+        // textures before the queue's idle wait.
+        let _ = self.device.poll(wgpu::PollType::wait_indefinitely());
+    }
 }
 
 impl SceneGpu {
@@ -371,6 +418,12 @@ impl SceneGpu {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
+        let viewport_frame = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("scene-viewport-frame"),
+            size: 16,
+            usage: wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         let path_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("path-bg"),
             entries: &[buffer_entry(0, wgpu::ShaderStages::VERTEX)],
@@ -378,7 +431,7 @@ impl SceneGpu {
         let sprite_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("sprite-bg"),
             entries: &[
-                buffer_entry(0, wgpu::ShaderStages::VERTEX),
+                buffer_entry(0, wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT),
                 texture_entry(1, wgpu::ShaderStages::FRAGMENT),
                 sampler_entry(2, wgpu::ShaderStages::FRAGMENT),
             ],
@@ -505,11 +558,10 @@ impl SceneGpu {
         let path_buffer = empty_vertex(&device, "paths", 256);
         let sprite_buffer = empty_vertex(&device, "sprites", 256);
         Self {
-            device,
-            queue,
             format,
             max_dim,
             uniform,
+            viewport_frame,
             path_layout,
             sprite_layout,
             blur_layout,
@@ -537,6 +589,8 @@ impl SceneGpu {
             frame: 0,
             uploaded: Vec::new(),
             kept: Vec::new(),
+            queue,
+            device,
         }
     }
 
@@ -564,10 +618,9 @@ impl SceneGpu {
         for (id, image) in images {
             self.ensure_image(*id, image, budget);
         }
-        let mut viewport = [0u8; 16];
-        viewport[0..4].copy_from_slice(&(width.max(1) as f32).to_le_bytes());
-        viewport[4..8].copy_from_slice(&(height.max(1) as f32).to_le_bytes());
+        let viewport = viewport_bytes([width.max(1) as f32, height.max(1) as f32], [0.0, 0.0]);
         self.queue.write_buffer(&self.uniform, 0, &viewport);
+        self.queue.write_buffer(&self.viewport_frame, 0, &viewport);
         let glyph = self.glyph_sampler.clone();
         let glyph_linear = self.glyph_sampler_linear.clone();
         let coverage_bind = self.sprite_bind(coverage, &glyph);
@@ -1017,7 +1070,9 @@ impl SceneGpu {
             Some(ClipShape::Path(path)) => self.clip_bytes(plan, path, base, scale),
             _ => (None, 0),
         };
+        let extent = content_extent(&drawn);
         let cmds = pack_cmds(plan, drawn, width, height);
+        let replay = layer.effect.is_some().then(|| cmds.clone());
         let bind = target.bind.clone();
         plan.passes.push(Pass::Geom(GeomPass {
             target,
@@ -1025,16 +1080,49 @@ impl SceneGpu {
             clip_offset,
             clip_verts,
             cmds,
+            viewport: None,
         }));
-        let (shadow, shadow_color, offset, shadow_pad) =
-            self.shadow(plan, layer, base, scale, width, height, &bind);
+        let shadow = self.shadow(
+            plan,
+            layer,
+            base,
+            scale,
+            width,
+            height,
+            &bind,
+            replay,
+            clip_offset,
+            clip_verts,
+            extent,
+        );
+        let mut published = extent;
+        if let Some(place) = shadow.place {
+            let x = place[0] + shadow.offset[0];
+            let y = place[1] + shadow.offset[1];
+            union_box(&mut published, [x, y, x + place[2], y + place[3]]);
+        } else if shadow.bind.is_some() {
+            let pad = shadow.pad;
+            let x = shadow.offset[0] - pad;
+            let y = shadow.offset[1] - pad;
+            union_box(
+                &mut published,
+                [
+                    x,
+                    y,
+                    x + width as f32 + pad * 2.0,
+                    y + height as f32 + pad * 2.0,
+                ],
+            );
+        }
         BlitDraw {
             bind,
-            shadow,
+            shadow: shadow.bind,
             opacity: layer.opacity.clamp(0.0, 1.0),
-            shadow_color,
-            offset,
-            shadow_pad,
+            shadow_color: shadow.color,
+            offset: shadow.offset,
+            shadow_pad: shadow.pad,
+            shadow_place: shadow.place,
+            extent: published,
         }
     }
 
@@ -1048,31 +1136,154 @@ impl SceneGpu {
         width: u32,
         height: u32,
         color_bind: &wgpu::BindGroup,
-    ) -> (Option<wgpu::BindGroup>, [f32; 4], [f32; 2], f32) {
+        replay: Option<Vec<Cmd>>,
+        clip_offset: Option<u64>,
+        clip_verts: u32,
+        extent: Option<[f32; 4]>,
+    ) -> ShadowBlit {
         let Some(Effect::DropShadow {
             offset,
             blur,
             color,
         }) = layer.effect
         else {
-            return (None, [0.0; 4], [0.0; 2], 0.0);
+            return ShadowBlit::none();
         };
         let px = base.uniform_scale() * scale;
         let offset_px = [offset[0] * px, offset[1] * px];
         let sigma = (blur * px).max(0.0);
         let tint = color_for_surface(color, self.format);
         if tint[3] <= 0.0 || width == 0 || height == 0 {
-            return (None, tint, offset_px, 0.0);
+            return ShadowBlit::solid(None, tint, offset_px, 0.0);
         }
+        let pad = if sigma < 0.5 { 0.0 } else { blur_pad(sigma) };
+        if let (Some(replay), Some(extent)) = (replay, extent) {
+            if let Some((x0, y0, tw, th)) =
+                snapped_shadow_rect(extent[0], extent[1], extent[2], extent[3], pad)
+            {
+                if tw >= 1 && th >= 1 && tw <= self.max_dim && th <= self.max_dim {
+                    return self.shadow_bounds(
+                        plan,
+                        replay,
+                        clip_offset,
+                        clip_verts,
+                        sigma,
+                        tint,
+                        offset_px,
+                        pad,
+                        x0,
+                        y0,
+                        tw,
+                        th,
+                    );
+                }
+            }
+        }
+        self.shadow_viewport(plan, color_bind, width, height, sigma, tint, offset_px)
+    }
+
+    /// Rasterize `replay` into a texture that covers the shape plus the kernel,
+    /// then blur there. `x0` and `y0` are the texture's device-pixel origin.
+    #[allow(clippy::too_many_arguments)]
+    fn shadow_bounds(
+        &mut self,
+        plan: &mut Plan,
+        replay: Vec<Cmd>,
+        clip_offset: Option<u64>,
+        clip_verts: u32,
+        sigma: f32,
+        tint: [f32; 4],
+        offset_px: [f32; 2],
+        _pad: f32,
+        x0: f32,
+        y0: f32,
+        tw: u32,
+        th: u32,
+    ) -> ShadowBlit {
+        let samples = self.msaa.as_ref().map(|set| set.samples).unwrap_or(1);
+        let target = self.alloc(tw, th, samples);
+        let source = target.color.clone();
+        let colored = target.bind.clone();
+        // Device positions are `mesh + translation`. Adding a large translation
+        // rounds the fraction, so `device - origin` is not the same bits after
+        // an integer pan. Re-encode in the texture grid with the origin removed
+        // first, and draw that texture with a zero origin.
+        let replay = retarget_shadow_cmds(plan, &replay, [x0, y0]);
+        let (clip_offset, clip_verts) =
+            retarget_shadow_clip(plan, clip_offset, clip_verts, [x0, y0]);
+        let viewport = self.viewport_buffer([tw as f32, th as f32], [0.0, 0.0]);
+        // No screen scissor: the viewport clip belongs on the composite, not
+        // on the blur source. A rounded-rect or path clip is part of the shape.
+        plan.passes.push(Pass::Geom(GeomPass {
+            target,
+            scissor: None,
+            clip_offset,
+            clip_verts,
+            cmds: replay,
+            viewport: Some(viewport),
+        }));
+        let place = [x0, y0, tw as f32, th as f32];
         if sigma < 0.5 {
-            return (Some(color_bind.clone()), tint, offset_px, 0.0);
+            return ShadowBlit {
+                bind: Some(colored),
+                color: tint,
+                offset: offset_px,
+                pad: 0.0,
+                place: Some(place),
+            };
         }
-        let mut source_view = plan_color_view(plan);
-        // The geometry pass just pushed is the layer. Its color view is the blur source.
-        if source_view.is_none() {
-            return (Some(color_bind.clone()), tint, offset_px, 0.0);
+        let (bw, bh, sigma_texel) = blur_dims(sigma, tw, th, 0.0, self.max_dim);
+        let mut source = source;
+        let mut result = colored;
+        // A 1:1 copy would quantize sRGB again. The texture is already padded.
+        if bw != tw || bh != th {
+            let resampled = self.alloc(bw, bh, 1);
+            let resample = self.blur_bind(&source, false, 0.0, bw, bh, 1.0, [0.0, 0.0, 1.0, 1.0]);
+            source = resampled.color.clone();
+            plan.passes.push(Pass::Blur(BlurJob {
+                view: source.clone(),
+                bind: resample,
+            }));
+            result = resampled.bind.clone();
         }
-        let source = source_view.take().unwrap();
+        for horizontal in [true, false] {
+            let blur_target = self.alloc(bw, bh, 1);
+            let bind = self.blur_bind(&source, horizontal, sigma_texel, bw, bh, 0.0, [0.0; 4]);
+            let view = blur_target.color.clone();
+            plan.passes.push(Pass::Blur(BlurJob {
+                view: view.clone(),
+                bind,
+            }));
+            result = blur_target.bind;
+            source = view;
+        }
+        ShadowBlit {
+            bind: Some(result),
+            color: tint,
+            offset: offset_px,
+            pad: 0.0,
+            place: Some(place),
+        }
+    }
+
+    /// Viewport-sized blur, used when the shape does not fit in one texture.
+    #[allow(clippy::too_many_arguments)]
+    fn shadow_viewport(
+        &mut self,
+        plan: &mut Plan,
+        color_bind: &wgpu::BindGroup,
+        width: u32,
+        height: u32,
+        sigma: f32,
+        tint: [f32; 4],
+        offset_px: [f32; 2],
+    ) -> ShadowBlit {
+        if sigma < 0.5 {
+            return ShadowBlit::solid(Some(color_bind.clone()), tint, offset_px, 0.0);
+        }
+        let Some(source) = plan_color_view(plan) else {
+            return ShadowBlit::solid(Some(color_bind.clone()), tint, offset_px, 0.0);
+        };
         let pad = blur_pad(sigma);
         let (bw, bh, sigma_texel) = blur_dims(sigma, width, height, pad, self.max_dim);
         let expanded_w = width as f32 + pad * 2.0;
@@ -1104,7 +1315,20 @@ impl SceneGpu {
             result = target.bind;
             source = view;
         }
-        (Some(result), tint, offset_px, pad)
+        ShadowBlit::solid(Some(result), tint, offset_px, pad)
+    }
+
+    fn viewport_buffer(&mut self, size: [f32; 2], origin: [f32; 2]) -> wgpu::Buffer {
+        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("shadow-viewport"),
+            size: 16,
+            usage: wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        self.queue
+            .write_buffer(&buffer, 0, &viewport_bytes(size, origin));
+        self.kept.push(buffer.clone());
+        buffer
     }
 
     fn clip_bytes(
@@ -1146,6 +1370,9 @@ impl SceneGpu {
     }
 
     fn run_geom(&self, encoder: &mut wgpu::CommandEncoder, pass: &GeomPass) {
+        if let Some(viewport) = &pass.viewport {
+            encoder.copy_buffer_to_buffer(viewport, 0, &self.uniform, 0, 16);
+        }
         let pipes = if pass.target.samples > 1 {
             self.msaa.as_ref().unwrap_or(&self.plain)
         } else {
@@ -1154,69 +1381,74 @@ impl SceneGpu {
         let color_view = pass.target.msaa.as_ref().unwrap_or(&pass.target.color);
         let resolve = pass.target.msaa.as_ref().map(|_| &pass.target.color);
         let path_bind = self.path_bind();
-        let mut render = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("layer"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: color_view,
-                depth_slice: None,
-                resolve_target: resolve,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &pass.target.stencil,
-                depth_ops: None,
-                stencil_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(0),
-                    store: wgpu::StoreOp::Discard,
+        {
+            let mut render = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("layer"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: color_view,
+                    depth_slice: None,
+                    resolve_target: resolve,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &pass.target.stencil,
+                    depth_ops: None,
+                    stencil_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(0),
+                        store: wgpu::StoreOp::Discard,
+                    }),
                 }),
-            }),
-            timestamp_writes: None,
-            occlusion_query_set: None,
-            multiview_mask: None,
-        });
-        if let Some((x, y, w, h)) = pass.scissor {
-            render.set_scissor_rect(x, y, w, h);
-        }
-        if let Some(offset) = pass.clip_offset {
-            render.set_pipeline(&pipes.path_clip);
-            render.set_stencil_reference(1);
-            render.set_bind_group(0, &path_bind, &[]);
-            let end = offset + pass.clip_verts as u64 * PATH_STRIDE as u64;
-            render.set_vertex_buffer(0, self.path_buffer.slice(offset..end));
-            render.draw(0..pass.clip_verts, 0..1);
-        }
-        let inside = pass.clip_offset.is_some();
-        for cmd in &pass.cmds {
-            match cmd {
-                Cmd::Paths { offset, verts } if *verts > 0 => {
-                    render.set_pipeline(if inside { &pipes.path_in } else { &pipes.path });
-                    render.set_stencil_reference(1);
-                    render.set_bind_group(0, &path_bind, &[]);
-                    let end = *offset + *verts as u64 * PATH_STRIDE as u64;
-                    render.set_vertex_buffer(0, self.path_buffer.slice(*offset..end));
-                    render.draw(0..*verts, 0..1);
-                }
-                Cmd::Sprite {
-                    offset,
-                    verts,
-                    bind,
-                } if *verts > 0 => {
-                    render.set_pipeline(if inside {
-                        &pipes.sprite_in
-                    } else {
-                        &pipes.sprite
-                    });
-                    render.set_stencil_reference(1);
-                    render.set_bind_group(0, bind, &[]);
-                    let end = *offset + *verts as u64 * SPRITE_STRIDE as u64;
-                    render.set_vertex_buffer(0, self.sprite_buffer.slice(*offset..end));
-                    render.draw(0..*verts, 0..1);
-                }
-                _ => {}
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            if let Some((x, y, w, h)) = pass.scissor {
+                render.set_scissor_rect(x, y, w, h);
             }
+            if let Some(offset) = pass.clip_offset {
+                render.set_pipeline(&pipes.path_clip);
+                render.set_stencil_reference(1);
+                render.set_bind_group(0, &path_bind, &[]);
+                let end = offset + pass.clip_verts as u64 * PATH_STRIDE as u64;
+                render.set_vertex_buffer(0, self.path_buffer.slice(offset..end));
+                render.draw(0..pass.clip_verts, 0..1);
+            }
+            let inside = pass.clip_offset.is_some();
+            for cmd in &pass.cmds {
+                match cmd {
+                    Cmd::Paths { offset, verts } if *verts > 0 => {
+                        render.set_pipeline(if inside { &pipes.path_in } else { &pipes.path });
+                        render.set_stencil_reference(1);
+                        render.set_bind_group(0, &path_bind, &[]);
+                        let end = *offset + *verts as u64 * PATH_STRIDE as u64;
+                        render.set_vertex_buffer(0, self.path_buffer.slice(*offset..end));
+                        render.draw(0..*verts, 0..1);
+                    }
+                    Cmd::Sprite {
+                        offset,
+                        verts,
+                        bind,
+                    } if *verts > 0 => {
+                        render.set_pipeline(if inside {
+                            &pipes.sprite_in
+                        } else {
+                            &pipes.sprite
+                        });
+                        render.set_stencil_reference(1);
+                        render.set_bind_group(0, bind, &[]);
+                        let end = *offset + *verts as u64 * SPRITE_STRIDE as u64;
+                        render.set_vertex_buffer(0, self.sprite_buffer.slice(*offset..end));
+                        render.draw(0..*verts, 0..1);
+                    }
+                    _ => {}
+                }
+            }
+        }
+        if pass.viewport.is_some() {
+            encoder.copy_buffer_to_buffer(&self.viewport_frame, 0, &self.uniform, 0, 16);
         }
     }
 
@@ -1736,15 +1968,61 @@ fn blit_sprites(blit: BlitDraw, width: u32, height: u32) -> Vec<SpriteDraw> {
     if let Some(shadow) = blit.shadow {
         if blit.shadow_color[3] > 0.0 {
             let mut bytes = Vec::new();
-            push_screen_padded(
-                &mut bytes,
-                blit.offset,
-                blit.shadow_pad,
-                width,
-                height,
-                blit.shadow_color,
-                4.0,
-            );
+            if let Some(place) = blit.shadow_place {
+                push_quad(
+                    &mut bytes,
+                    Affine::translate(place[0] + blit.offset[0], place[1] + blit.offset[1]),
+                    1.0,
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    place[2],
+                    place[3],
+                    [0.0, 0.0, 1.0, 1.0],
+                    blit.shadow_color,
+                    0.0,
+                    place[2],
+                    place[3],
+                    4.0,
+                    [
+                        place[0] + blit.offset[0],
+                        place[1] + blit.offset[1],
+                        -1.0,
+                        0.0,
+                    ],
+                );
+            } else {
+                let pad = if blit.shadow_pad.is_finite() && blit.shadow_pad > 0.0 {
+                    blit.shadow_pad
+                } else {
+                    0.0
+                };
+                let ox = blit.offset[0] - pad;
+                let oy = blit.offset[1] - pad;
+                let w = width as f32 + pad * 2.0;
+                let h = height as f32 + pad * 2.0;
+                push_quad(
+                    &mut bytes,
+                    Affine::translate(ox, oy),
+                    1.0,
+                    1.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    w,
+                    h,
+                    [0.0, 0.0, 1.0, 1.0],
+                    blit.shadow_color,
+                    0.0,
+                    w,
+                    h,
+                    4.0,
+                    [ox, oy, -1.0, 0.0],
+                );
+            }
             out.push(SpriteDraw {
                 bytes,
                 bind: shadow,
@@ -1962,6 +2240,252 @@ fn push_screen_padded(
         mode,
         NO_SCISSOR,
     );
+}
+
+struct ShadowBlit {
+    bind: Option<wgpu::BindGroup>,
+    color: [f32; 4],
+    offset: [f32; 2],
+    pad: f32,
+    place: Option<[f32; 4]>,
+}
+
+impl ShadowBlit {
+    fn none() -> Self {
+        Self {
+            bind: None,
+            color: [0.0; 4],
+            offset: [0.0; 2],
+            pad: 0.0,
+            place: None,
+        }
+    }
+
+    fn solid(bind: Option<wgpu::BindGroup>, color: [f32; 4], offset: [f32; 2], pad: f32) -> Self {
+        Self {
+            bind,
+            color,
+            offset,
+            pad,
+            place: None,
+        }
+    }
+}
+
+/// Device-pixel bounds of `drawn`, min x/y then max x/y.
+///
+/// Blit quads are the size of the viewport they were baked into. Their
+/// `extent` is the content, so a parent shadow does not grow to the screen.
+fn content_extent(drawn: &[Drawn]) -> Option<[f32; 4]> {
+    let mut acc = None;
+    for item in drawn {
+        match item {
+            Drawn::Paths(bytes) => union_positions(&mut acc, bytes, PATH_STRIDE),
+            Drawn::Sprite(sprite) => union_positions(&mut acc, &sprite.bytes, SPRITE_STRIDE),
+            Drawn::Blit(blit) => {
+                if let Some(extent) = blit.extent {
+                    union_box(&mut acc, extent);
+                }
+            }
+        }
+    }
+    acc
+}
+
+fn union_positions(acc: &mut Option<[f32; 4]>, bytes: &[u8], stride: usize) {
+    if stride < 8 {
+        return;
+    }
+    let mut offset = 0;
+    while offset + 8 <= bytes.len() {
+        let x = f32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
+        let y = f32::from_le_bytes(bytes[offset + 4..offset + 8].try_into().unwrap());
+        if x.is_finite() && y.is_finite() {
+            union_point(acc, x, y);
+        }
+        offset += stride;
+    }
+}
+
+fn union_point(acc: &mut Option<[f32; 4]>, x: f32, y: f32) {
+    match acc {
+        Some(box_) => {
+            box_[0] = box_[0].min(x);
+            box_[1] = box_[1].min(y);
+            box_[2] = box_[2].max(x);
+            box_[3] = box_[3].max(y);
+        }
+        None => *acc = Some([x, y, x, y]),
+    }
+}
+
+fn union_box(acc: &mut Option<[f32; 4]>, rect: [f32; 4]) {
+    if !rect.iter().all(|value| value.is_finite()) {
+        return;
+    }
+    union_point(acc, rect[0], rect[1]);
+    union_point(acc, rect[2], rect[3]);
+}
+
+/// Texture rect covering `min`..`max` expanded by `pad`, snapped so an integer
+/// translation of the box moves the origin by that integer and keeps the size.
+///
+/// Returns origin x, origin y, width, height. `None` when the box is empty
+/// or not finite.
+fn snapped_shadow_rect(
+    min_x: f32,
+    min_y: f32,
+    max_x: f32,
+    max_y: f32,
+    pad: f32,
+) -> Option<(f32, f32, u32, u32)> {
+    if ![min_x, min_y, max_x, max_y, pad]
+        .iter()
+        .all(|value| value.is_finite())
+        || max_x <= min_x
+        || max_y <= min_y
+    {
+        return None;
+    }
+    let x0 = (min_x - pad).floor();
+    let y0 = (min_y - pad).floor();
+    let x1 = (max_x + pad).ceil();
+    let y1 = (max_y + pad).ceil();
+    let width = (x1 - x0).round();
+    let height = (y1 - y0).round();
+    if width < 1.0 || height < 1.0 || width > u32::MAX as f32 || height > u32::MAX as f32 {
+        return None;
+    }
+    Some((x0, y0, width as u32, height as u32))
+}
+
+/// Copy shadow geometry into texture space.
+///
+/// `device - origin` is not stable across an integer pan: the translation is
+/// added before the origin is removed, and the fraction rounds differently.
+/// Positions are quantized to 1/256 px, which is coarser than that rounding
+/// and much finer than a coverage sample, so both pans land on the same bits.
+fn retarget_shadow_cmds(plan: &mut Plan, cmds: &[Cmd], origin: [f32; 2]) -> Vec<Cmd> {
+    cmds.iter()
+        .map(|cmd| match cmd {
+            Cmd::Paths { offset, verts } => {
+                let new_offset = plan.path_bytes.len() as u64;
+                copy_retarget(
+                    &mut plan.path_bytes,
+                    *offset,
+                    *verts,
+                    PATH_STRIDE,
+                    origin,
+                    false,
+                );
+                Cmd::Paths {
+                    offset: new_offset,
+                    verts: *verts,
+                }
+            }
+            Cmd::Sprite {
+                offset,
+                verts,
+                bind,
+            } => {
+                let new_offset = plan.sprite_bytes.len() as u64;
+                copy_retarget(
+                    &mut plan.sprite_bytes,
+                    *offset,
+                    *verts,
+                    SPRITE_STRIDE,
+                    origin,
+                    true,
+                );
+                Cmd::Sprite {
+                    offset: new_offset,
+                    verts: *verts,
+                    bind: bind.clone(),
+                }
+            }
+        })
+        .collect()
+}
+
+fn retarget_shadow_clip(
+    plan: &mut Plan,
+    offset: Option<u64>,
+    verts: u32,
+    origin: [f32; 2],
+) -> (Option<u64>, u32) {
+    let Some(offset) = offset else {
+        return (None, 0);
+    };
+    if verts == 0 {
+        return (None, 0);
+    }
+    let new_offset = plan.path_bytes.len() as u64;
+    copy_retarget(
+        &mut plan.path_bytes,
+        offset,
+        verts,
+        PATH_STRIDE,
+        origin,
+        false,
+    );
+    (Some(new_offset), verts)
+}
+
+fn copy_retarget(
+    dest: &mut Vec<u8>,
+    offset: u64,
+    verts: u32,
+    stride: usize,
+    origin: [f32; 2],
+    sprite: bool,
+) {
+    let start = offset as usize;
+    let bytes = verts as usize * stride;
+    let end = start + bytes;
+    if end > dest.len() || stride < 8 {
+        return;
+    }
+    let copied = dest[start..end].to_vec();
+    let base = dest.len();
+    dest.extend_from_slice(&copied);
+    let mut at = base;
+    while at + 8 <= base + bytes {
+        let x = f32::from_le_bytes(dest[at..at + 4].try_into().unwrap());
+        let y = f32::from_le_bytes(dest[at + 4..at + 8].try_into().unwrap());
+        let x = stable_shadow_local(x, origin[0]);
+        let y = stable_shadow_local(y, origin[1]);
+        dest[at..at + 4].copy_from_slice(&x.to_le_bytes());
+        dest[at + 4..at + 8].copy_from_slice(&y.to_le_bytes());
+        if sprite && at + 64 <= base + bytes {
+            // Scissor xy is in device pixels. Width stays; a negative width
+            // is "no mask" and the xy are ignored.
+            let sx = f32::from_le_bytes(dest[at + 56..at + 60].try_into().unwrap());
+            let sy = f32::from_le_bytes(dest[at + 60..at + 64].try_into().unwrap());
+            let sx = stable_shadow_local(sx, origin[0]);
+            let sy = stable_shadow_local(sy, origin[1]);
+            dest[at + 56..at + 60].copy_from_slice(&sx.to_le_bytes());
+            dest[at + 60..at + 64].copy_from_slice(&sy.to_le_bytes());
+        }
+        at += stride;
+    }
+}
+
+fn stable_shadow_local(device: f32, origin: f32) -> f32 {
+    let local = device - origin;
+    if !local.is_finite() {
+        return 0.0;
+    }
+    const QUANTUM: f32 = 1.0 / 256.0;
+    (local / QUANTUM).round() * QUANTUM
+}
+
+fn viewport_bytes(size: [f32; 2], origin: [f32; 2]) -> [u8; 16] {
+    let mut out = [0u8; 16];
+    out[0..4].copy_from_slice(&size[0].to_le_bytes());
+    out[4..8].copy_from_slice(&size[1].to_le_bytes());
+    out[8..12].copy_from_slice(&origin[0].to_le_bytes());
+    out[12..16].copy_from_slice(&origin[1].to_le_bytes());
+    out
 }
 
 /// Device pixels of padding on every side of a blur whose sigma is `sigma_px`.
@@ -2497,5 +3021,25 @@ mod tests {
         );
         assert!(blur_factor(2.0) == 1.0);
         assert!(blur_pad(0.0) == 0.0);
+    }
+
+    #[test]
+    fn an_integer_pan_slides_the_shadow_texture_without_resizing_it() {
+        let pad = blur_pad(8.0);
+        let (x0, y0, w, h) = snapped_shadow_rect(68.0, 262.0, 238.0, 362.0, pad).unwrap();
+        let (x1, y1, w1, h1) = snapped_shadow_rect(108.0, 282.0, 278.0, 382.0, pad).unwrap();
+        assert_eq!((w, h), (w1, h1));
+        assert_eq!((x1 - x0, y1 - y0), (40.0, 20.0));
+        assert!(x0 <= 68.0 - pad);
+        assert!(y0 <= 262.0 - pad);
+        assert!(x0 + w as f32 >= 238.0 + pad);
+        assert!(y0 + h as f32 >= 362.0 + pad);
+        // An integer pan rounds `mesh + translation` before the origin is
+        // removed. Both results have to quantize to the same texture position.
+        let on_screen = stable_shadow_local(f32::from_bits(0x429b_265c), 39.0);
+        let clipped = stable_shadow_local(f32::from_bits(0xc01b_3490), -41.0);
+        assert_eq!(on_screen.to_bits(), clipped.to_bits());
+        assert!(snapped_shadow_rect(1.0, 1.0, 1.0, 2.0, 0.0).is_none());
+        assert!(snapped_shadow_rect(0.0, 0.0, f32::NAN, 1.0, 1.0).is_none());
     }
 }

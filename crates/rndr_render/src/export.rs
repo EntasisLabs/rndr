@@ -10,6 +10,7 @@
 //! export camera. Device pixels are world units times `scale`.
 
 use std::fmt;
+use std::sync::{Mutex, MutexGuard};
 
 use rndr_core::{text_engine, Rect, World};
 use rndr_paint::{atlas_r8, Affine, Frame, Op, Placed, Scene, ATLAS_H, ATLAS_W};
@@ -71,11 +72,19 @@ impl fmt::Display for ExportError {
 impl std::error::Error for ExportError {}
 
 /// Headless renderer. Reuse one for several exports so pipelines stay compiled.
+///
+/// Lavapipe faults when several threads create, submit, and destroy wgpu
+/// devices at the same time. Every headless export takes one process-wide
+/// lock around device creation, submission, and destruction, and the queue is
+/// drained before the device is dropped.
 pub struct Exporter {
-    /// Kept alive for the device.
-    _instance: wgpu::Instance,
-    device: wgpu::Device,
-    queue: wgpu::Queue,
+    inner: Option<ExporterGpu>,
+}
+
+/// Device resources. Drop order is declaration order: the scene and the atlas
+/// textures go first, then the queue waits for idle, then the device, then
+/// the instance.
+struct ExporterGpu {
     scene: SceneGpu,
     format: wgpu::TextureFormat,
     name: String,
@@ -86,12 +95,22 @@ pub struct Exporter {
     color_view: wgpu::TextureView,
     color_size: (u32, u32),
     color_format: wgpu::TextureFormat,
+    queue: wgpu::Queue,
+    device: wgpu::Device,
+    /// Kept alive for the device.
+    _instance: wgpu::Instance,
+}
+
+fn headless_gpu_lock() -> MutexGuard<'static, ()> {
+    static HEADLESS: Mutex<()> = Mutex::new(());
+    HEADLESS.lock().unwrap_or_else(|err| err.into_inner())
 }
 
 impl Exporter {
     /// Open a device with no window. Fails with [`ExportError::NoAdapter`] when
     /// the process has no graphics adapter.
     pub fn new() -> Result<Self, ExportError> {
+        let _guard = headless_gpu_lock();
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             compatible_surface: None,
@@ -115,25 +134,34 @@ impl Exporter {
         let (color_tex, color_view) = atlas_texture(&device, 1, 1, color_format);
         let name = adapter.get_info().name;
         Ok(Self {
-            _instance: instance,
-            device,
-            queue,
-            scene,
-            format,
-            name,
-            coverage,
-            coverage_view,
-            coverage_size: (1, 1),
-            color_tex,
-            color_view,
-            color_size: (1, 1),
-            color_format,
+            inner: Some(ExporterGpu {
+                scene,
+                format,
+                name,
+                coverage,
+                coverage_view,
+                coverage_size: (1, 1),
+                color_tex,
+                color_view,
+                color_size: (1, 1),
+                color_format,
+                queue,
+                device,
+                _instance: instance,
+            }),
         })
     }
 
     /// Adapter name, for a benchmark line.
     pub fn adapter_name(&self) -> &str {
-        &self.name
+        self.inner
+            .as_ref()
+            .map(|gpu| gpu.name.as_str())
+            .unwrap_or("")
+    }
+
+    fn gpu(&mut self) -> &mut ExporterGpu {
+        self.inner.as_mut().expect("exporter still open")
     }
 
     /// Draw `frame` at `scale` device pixels per logical point.
@@ -148,6 +176,7 @@ impl Exporter {
         height: u32,
         scale: f32,
     ) -> Result<RgbaImage, ExportError> {
+        let _guard = headless_gpu_lock();
         check_size(width, height)?;
         if let Some(world) = world {
             self.sync_atlases(world);
@@ -186,7 +215,8 @@ impl Exporter {
         height: u32,
         scale: f32,
     ) -> Result<RgbaImage, ExportError> {
-        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+        let gpu = self.gpu();
+        let texture = gpu.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("export"),
             size: wgpu::Extent3d {
                 width,
@@ -196,24 +226,24 @@ impl Exporter {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: self.format,
+            format: gpu.format,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
             view_formats: &[],
         });
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = self
+        let mut encoder = gpu
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("export"),
             });
-        self.scene.render(
+        gpu.scene.render(
             &mut encoder,
             &view,
             frame,
             images,
             budget,
-            &self.coverage_view,
-            &self.color_view,
+            &gpu.coverage_view,
+            &gpu.color_view,
             width,
             height,
             scale,
@@ -221,7 +251,7 @@ impl Exporter {
             world,
         );
         let padded = row_stride(width);
-        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+        let buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("export-read"),
             size: u64::from(padded) * u64::from(height),
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
@@ -248,13 +278,13 @@ impl Exporter {
                 depth_or_array_layers: 1,
             },
         );
-        self.queue.submit(Some(encoder.finish()));
+        gpu.queue.submit(Some(encoder.finish()));
         let slice = buffer.slice(..);
         let (send, recv) = std::sync::mpsc::channel();
         slice.map_async(wgpu::MapMode::Read, move |result| {
             let _ = send.send(result);
         });
-        self.device
+        gpu.device
             .poll(wgpu::PollType::wait_indefinitely())
             .map_err(|_| ExportError::Device)?;
         recv.recv()
@@ -296,26 +326,39 @@ impl Exporter {
     fn ensure_coverage(&mut self, width: u32, height: u32, pixels: &[u8]) {
         let width = width.max(1);
         let height = height.max(1);
-        if self.coverage_size != (width, height) {
+        let gpu = self.gpu();
+        if gpu.coverage_size != (width, height) {
             let (texture, view) =
-                atlas_texture(&self.device, width, height, wgpu::TextureFormat::R8Unorm);
-            self.coverage = texture;
-            self.coverage_view = view;
-            self.coverage_size = (width, height);
+                atlas_texture(&gpu.device, width, height, wgpu::TextureFormat::R8Unorm);
+            gpu.coverage = texture;
+            gpu.coverage_view = view;
+            gpu.coverage_size = (width, height);
         }
-        write_atlas(&self.queue, &self.coverage, width, height, 1, pixels);
+        write_atlas(&gpu.queue, &gpu.coverage, width, height, 1, pixels);
     }
 
     fn ensure_color(&mut self, width: u32, height: u32, pixels: &[u8]) {
         let width = width.max(1);
         let height = height.max(1);
-        if self.color_size != (width, height) {
-            let (texture, view) = atlas_texture(&self.device, width, height, self.color_format);
-            self.color_tex = texture;
-            self.color_view = view;
-            self.color_size = (width, height);
+        let gpu = self.gpu();
+        if gpu.color_size != (width, height) {
+            let (texture, view) = atlas_texture(&gpu.device, width, height, gpu.color_format);
+            gpu.color_tex = texture;
+            gpu.color_view = view;
+            gpu.color_size = (width, height);
         }
-        write_atlas(&self.queue, &self.color_tex, width, height, 4, pixels);
+        write_atlas(&gpu.queue, &gpu.color_tex, width, height, 4, pixels);
+    }
+}
+
+impl Drop for Exporter {
+    fn drop(&mut self) {
+        let _guard = headless_gpu_lock();
+        let Some(inner) = self.inner.take() else {
+            return;
+        };
+        let _ = inner.device.poll(wgpu::PollType::wait_indefinitely());
+        drop(inner);
     }
 }
 

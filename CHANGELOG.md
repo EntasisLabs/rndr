@@ -4,6 +4,8 @@
 
 ### 0.3.0
 
+- Headless export takes one process-wide lock around device creation, submission, and destruction. Lavapipe faults when several threads create and destroy wgpu devices together. The queue is drained before the device is dropped.
+- A drop shadow is blurred on the shape's own pixel grid, over the shape bounds plus the kernel. Panning, including a pan that clips the shape, does not change the shadow. The viewport clips it only when the shadow is composited.
 - Several windows on one event loop. `Session` holds one app per window, each with its own world and surface. `Desktop` sends and broadcasts `WindowMsg`, and can open another window after the loop has started. Closing the first window exits the process. Closing a later window removes only that window. Panel mode is unchanged. `examples/windows` is two windows that tell each other about a save.
 - `Pointers` stores every contact for the frame: kind (mouse, touch, pen, eraser), position, optional pressure, tilt, and twist, buttons, a timestamp, and the coalesced samples since the last frame. `Input.pointer` stays the primary contact, so existing widgets do not change. The mouse stays primary while that contact exists. An app calls `Pointers::set_primary` when a pen should drive those widgets. Palm rejection stays in the app.
 - winit touch events write a touch contact. `Touch.force`, where the platform provides it, is pressure. Two touch contacts that are down synthesize pinch, pan, and rotation `Gesture` events. On macOS, `PinchGesture` and `RotationGesture` are the same event. A platform magnification of `0` is stored as scale `1`.
