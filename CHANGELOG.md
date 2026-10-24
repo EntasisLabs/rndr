@@ -1,12 +1,10 @@
 # Changelog
 
-## Unreleased
-
-### 0.3.0
+## 0.3.0
 
 - Headless export takes one process-wide lock around device creation, submission, and destruction. Lavapipe faults when several threads create and destroy wgpu devices together. The queue is drained before the device is dropped.
-- A drop shadow is blurred on the shape's own pixel grid, over the shape bounds plus the kernel. Panning, including a pan that clips the shape, does not change the shadow. The viewport clips it only when the shadow is composited.
-- Several windows on one event loop. `Session` holds one app per window, each with its own world and surface. `Desktop` sends and broadcasts `WindowMsg`, and can open another window after the loop has started. Closing the first window exits the process. Closing a later window removes only that window. Panel mode is unchanged. `examples/windows` is two windows that tell each other about a save.
+- A drop shadow is blurred on the shape's own pixel grid, over the shape bounds plus the kernel. The grid stays fine when the view is zoomed, so the falloff does not stretch into blocks. Panning, including a pan that clips the shape, does not change the shadow. The viewport clips it only when the shadow is composited.
+- Several windows on one event loop. `Session` holds one app per window, each with its own world and surface. `Desktop` sends and broadcasts `WindowMsg`, and can open another window after the loop has started. Closing the first window exits the process. Closing a later window removes only that window. Panel mode is unchanged. `examples/windows` is two windows that tell each other about a save. They sit side by side with a gap.
 - `Pointers` stores every contact for the frame: kind (mouse, touch, pen, eraser), position, optional pressure, tilt, and twist, buttons, a timestamp, and the coalesced samples since the last frame. `Input.pointer` stays the primary contact, so existing widgets do not change. The mouse stays primary while that contact exists. An app calls `Pointers::set_primary` when a pen should drive those widgets. Palm rejection stays in the app.
 - winit touch events write a touch contact. `Touch.force`, where the platform provides it, is pressure. Two touch contacts that are down synthesize pinch, pan, and rotation `Gesture` events. On macOS, `PinchGesture` and `RotationGesture` are the same event. A platform magnification of `0` is stored as scale `1`.
 - IME preedit and commit are resolved once per frame in the field, the prompt, and the editor, so a commit is inserted once. A focused text widget allows the platform input method.
@@ -17,10 +15,10 @@
 - Custom cursor images. `CursorStyle::Image` uses the `CursorImage` resource. `rotate_cursor` rotates pixels and the hotspot clockwise in screen space.
 - `examples/pen-probe` logs pen and touch pressure. On macOS a local `NSEvent` monitor copies tablet pressure, tilt, and twist onto `PEN_ID`. On Windows a pen arrives as touch and `Touch.force` is the pressure; the kind stays touch. Neither path is verified without a tablet or a digitizer. Trackpad pressure is not a pen.
 - Display list beside the quad list: paths, images, glyphs, transforms, and layers. Quads stay the fast path, and a frame with no commands presents the same way it did before.
-- Vector paths. Fills use non-zero and even-odd rules. Strokes take a width, caps, joins, a dash array, and a hairline that stays one device pixel wide. Ellipse, polygon, line, and rounded-rect helpers build the path. Tessellation runs on the CPU and is cached by geometry and zoom bucket.
+- Vector paths. Fills use non-zero and even-odd rules. Strokes take a width, caps, joins, a dash array, and a hairline that stays one device pixel wide. Ellipse, polygon, line, and rounded-rect helpers build the path. Tessellation runs on the CPU and is cached by geometry and zoom bucket. An open subpath stays open: the next `move_to` does not close it, so a dashed gap is not filled.
 - Edges of paths and layers are 4× multisampled on the offscreen target, then resolved before a blur, an opacity composite, or the quad pass. UI quads keep their signed-distance edges. A device that cannot resolve 4× draws the same mesh at one sample.
-- 2D affine transforms per command, plus a root camera. Device pixels are world units times the camera scale times the viewport scale.
-- PNG, JPEG, and WebP decode off the UI thread. A GPU texture cache evicts least-recently-used images to a byte budget, builds mipmaps, tiles past the device texture limit, and crops with a UV rect and rounded corners. List rows can show an image with `ImageView`.
+- 2D affine transforms per command, plus a root camera. Device pixels are world units times the camera scale times the viewport scale. A local map is applied before the camera, so a rotated child stays put under zoom and pan.
+- PNG, JPEG, and WebP decode off the UI thread. A GPU texture cache evicts least-recently-used images to a byte budget, builds mipmaps, tiles past the device texture limit, and crops with a UV rect and rounded corners. List rows can show an image with `ImageView`. The icon is centered on the row's cross axis and clipped to the row. Samples sit on texel centers, so a linear filter does not darken the fringe.
 - Group opacity, rounded-rect and path clips, and a separable Gaussian drop shadow. The shadow is two filter passes, so another effect is another pass.
 - A canvas painter draws inside a `SurfaceSlot`, under the widgets in that slot.
 - Offscreen export renders a world rectangle at a chosen scale to RGBA and PNG. A side longer than 8192 pixels, or an image over 32 megapixels, is rejected.
@@ -35,6 +33,11 @@
 - Canvas underlines use the font's underline thickness, at least one device pixel, snapped to the pixel grid.
 - An ink ribbon closes with the same rounded cap at both ends.
 - A chevron marker is one stroke with a miter join at the tip, so the two arms meet.
+- `rndr_paint`'s `highlight` feature forwards `rndr_core`'s fenced-code token colors. The markdown paint snapshot keeps a second file when that feature is on.
+- A press and a release in the same frame both stay set, so a click with no gap still activates a button.
+- A wheel over a list scrolls the rows and leaves the selection where it is.
+- Palette row icons use the same left inset as the label, and the icon is solid through its edge.
+- A rounded frame clips a child that crosses the corner.
 
 ## 0.2.0
 
