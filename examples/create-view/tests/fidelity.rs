@@ -10,11 +10,14 @@
 use std::fs;
 use std::path::PathBuf;
 
+use std::collections::BTreeMap;
+
 use create_view::{
     export_scene, fixture_dir, fixture_paths, install_images, install_text, load_project,
-    pixel_rect, scene_bounds, scene_svg, CreativeNode,
+    paint_scene, pixel_rect, scene_bounds, scene_svg, CreativeNode, Project,
 };
 use rndr_core::{Rect, World};
+use rndr_paint::{Affine, Canvas, Scene, ZoomCamera};
 use rndr_render::{encode_png, ExportError, Exporter, RgbaImage};
 
 struct Report {
@@ -208,6 +211,224 @@ fn a_rounded_frame_corner_clips_its_child() {
         near(svg_in, gpu_in),
         "interior pixel renderer {gpu_in:?} svg {svg_in:?}"
     );
+}
+
+/// The shadow card in `layers.json`. World axis-aligned box, before blur.
+const SHADOW_CARD: Rect = Rect {
+    x: 36.0,
+    y: 230.0,
+    w: 170.0,
+    h: 100.0,
+};
+
+#[test]
+fn a_drop_shadow_does_not_change_when_the_view_pans() {
+    let project = load_project(&fixture_dir().join("layers.json")).unwrap();
+    let mut world = World::new();
+    install_text(&mut world);
+    let images = install_images(&mut world, &project).unwrap();
+    let mut exporter = match Exporter::new() {
+        Ok(exporter) => exporter,
+        Err(ExportError::NoAdapter) => panic!("no graphics adapter"),
+        Err(err) => panic!("{err}"),
+    };
+    // The viewer opens at 800×600 with the camera at (32, 32). Both of these
+    // pans keep the shadow card on screen. The third slides it off the bottom
+    // and the left, which is where a viewport-sized blur used to change.
+    let view = Rect {
+        x: 0.0,
+        y: 0.0,
+        w: 800.0,
+        h: 600.0,
+    };
+    let base = [32.0, 32.0];
+    let shifted = [72.0, 52.0];
+    let clipped = [-48.0, 340.0];
+    let base_image = render_panned(&mut exporter, &world, &project, &images, base, view);
+    let shifted_image = render_panned(&mut exporter, &world, &project, &images, shifted, view);
+    let clipped_image = render_panned(&mut exporter, &world, &project, &images, clipped, view);
+
+    let shifted_delta = overlap_delta(&base_image, base, &shifted_image, shifted);
+    assert!(
+        shifted_delta.compared > 100_000,
+        "overlap {} is too small",
+        shifted_delta.compared
+    );
+    assert_eq!(
+        shifted_delta.max_channel,
+        0,
+        "integer pan changed {} of {} overlap pixels, worst {} at world {:?}",
+        shifted_delta.changed,
+        shifted_delta.compared,
+        shifted_delta.max_channel,
+        shifted_delta.worst
+    );
+
+    let clipped_delta = overlap_delta(&base_image, base, &clipped_image, clipped);
+    assert!(
+        card_crosses_the_edge(clipped, view),
+        "the clipped pan should cut the shadow card"
+    );
+    assert!(
+        clipped_delta.compared > 10_000,
+        "clipped overlap {} is too small",
+        clipped_delta.compared
+    );
+    assert_eq!(
+        clipped_delta.max_channel,
+        0,
+        "pan off the edge changed {} of {} overlap pixels, worst {} at world {:?}",
+        clipped_delta.changed,
+        clipped_delta.compared,
+        clipped_delta.max_channel,
+        clipped_delta.worst
+    );
+
+    // Ten notches in and ten out restore the camera bit-for-bit, and the
+    // picture with them.
+    let mut camera = ZoomCamera::new(base);
+    let cursor = [400.0, 300.0];
+    for _ in 0..10 {
+        camera.apply_wheel(cursor, 32.0);
+    }
+    for _ in 0..10 {
+        camera.apply_wheel(cursor, -32.0);
+    }
+    assert_eq!(camera.pan(), base);
+    assert_eq!(camera.scale().to_bits(), 1.0f32.to_bits());
+    let round_trip = render_panned(&mut exporter, &world, &project, &images, camera.pan(), view);
+    assert_eq!(round_trip.rgba, base_image.rgba);
+
+    // `--export` is the scene bounds at 1:1. A window aimed at that same rect
+    // is the same picture.
+    let (scene, rect) = export_scene(&world, &project.scene, &images);
+    let exported = exporter
+        .render_scene(&world, &scene, rect, 1.0)
+        .unwrap_or_else(|err| panic!("{err}"));
+    let screen = render_panned(
+        &mut exporter,
+        &world,
+        &project,
+        &images,
+        [-rect.x, -rect.y],
+        Rect {
+            x: 0.0,
+            y: 0.0,
+            w: rect.w,
+            h: rect.h,
+        },
+    );
+    assert_eq!(exported.width, screen.width);
+    assert_eq!(exported.height, screen.height);
+    // The window wraps the scene in one more full-frame layer than `--export`.
+    // Resolving that layer moves a few edge pixels by one level (7 on lavapipe).
+    let mut changed = 0u32;
+    let mut max_channel = 0u8;
+    for (a, b) in exported.rgba.chunks(4).zip(screen.rgba.chunks(4)) {
+        let delta = a
+            .iter()
+            .zip(b)
+            .map(|(a, b)| a.abs_diff(*b))
+            .max()
+            .unwrap_or(0);
+        if delta > 0 {
+            changed += 1;
+        }
+        max_channel = max_channel.max(delta);
+    }
+    assert!(
+        max_channel <= 1 && changed <= 64,
+        "export and the window differ in {changed} pixels, worst {max_channel}"
+    );
+}
+
+fn card_crosses_the_edge(pan: [f32; 2], view: Rect) -> bool {
+    let x0 = SHADOW_CARD.x + pan[0];
+    let y0 = SHADOW_CARD.y + pan[1];
+    let x1 = x0 + SHADOW_CARD.w;
+    let y1 = y0 + SHADOW_CARD.h;
+    let on = x0 < view.w && y0 < view.h && x1 > view.x && y1 > view.y;
+    let off = x0 < view.x || y0 < view.y || x1 > view.x + view.w || y1 > view.y + view.h;
+    on && off
+}
+
+fn render_panned(
+    exporter: &mut Exporter,
+    world: &World,
+    project: &Project,
+    images: &BTreeMap<String, u64>,
+    pan: [f32; 2],
+    view: Rect,
+) -> RgbaImage {
+    let mut canvas = Canvas::new();
+    canvas.set_camera(Affine::translate(pan[0], pan[1]));
+    paint_scene(&mut canvas, world, &project.scene, images);
+    let scene = Scene {
+        camera: Affine::IDENTITY,
+        commands: canvas.finish_clipped(view),
+    };
+    exporter
+        .render_scene(world, &scene, view, 1.0)
+        .unwrap_or_else(|err| panic!("{err}"))
+}
+
+struct Overlap {
+    compared: u32,
+    changed: u32,
+    max_channel: u8,
+    worst: [f32; 2],
+}
+
+/// World pixels that land on an integer sample in both images.
+fn overlap_delta(a: &RgbaImage, pan_a: [f32; 2], b: &RgbaImage, pan_b: [f32; 2]) -> Overlap {
+    let (ax0, ax1) = world_span(pan_a[0], a.width);
+    let (ay0, ay1) = world_span(pan_a[1], a.height);
+    let (bx0, bx1) = world_span(pan_b[0], b.width);
+    let (by0, by1) = world_span(pan_b[1], b.height);
+    let x0 = ax0.max(bx0);
+    let y0 = ay0.max(by0);
+    let x1 = ax1.min(bx1);
+    let y1 = ay1.min(by1);
+    let mut compared = 0u32;
+    let mut changed = 0u32;
+    let mut max_channel = 0u8;
+    let mut worst = [0.0, 0.0];
+    for y in y0..y1 {
+        for x in x0..x1 {
+            let pa = pixel_at(a, x, y, pan_a);
+            let pb = pixel_at(b, x, y, pan_b);
+            let mut delta = 0u8;
+            for channel in 0..4 {
+                delta = delta.max(pa[channel].abs_diff(pb[channel]));
+            }
+            if delta > 0 {
+                changed += 1;
+            }
+            if delta > max_channel {
+                max_channel = delta;
+                worst = [x as f32, y as f32];
+            }
+            compared += 1;
+        }
+    }
+    Overlap {
+        compared,
+        changed,
+        max_channel,
+        worst,
+    }
+}
+
+fn world_span(pan: f32, size: u32) -> (i32, i32) {
+    let start = (-pan).ceil() as i32;
+    let end = (-pan + size as f32).floor() as i32;
+    (start, end)
+}
+
+fn pixel_at(image: &RgbaImage, world_x: i32, world_y: i32, pan: [f32; 2]) -> [u8; 4] {
+    let x = world_x as f32 + pan[0];
+    let y = world_y as f32 + pan[1];
+    pixel(image, x.round() as u32, y.round() as u32)
 }
 
 fn covers(node: &CreativeNode, parent_origin: [f32; 2], world: [f32; 2]) -> bool {
