@@ -20,7 +20,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/EntasisLabs/rndr"
@@ -30,12 +30,12 @@ homepage = "https://github.com/EntasisLabs/rndr"
 rust-version = "1.95"
 
 [workspace.dependencies]
-rndr = { path = "crates/rndr", version = "0.3.0" }
-rndr_core = { path = "crates/rndr_core", version = "0.3.0" }
-rndr_paint = { path = "crates/rndr_paint", version = "0.3.0" }
-rndr_render = { path = "crates/rndr_render", version = "0.3.0" }
-rndr_std = { path = "crates/rndr_std", version = "0.3.0" }
-rndr_term = { path = "crates/rndr_term", version = "0.3.0" }
+rndr = { path = "crates/rndr", version = "0.3.1" }
+rndr_core = { path = "crates/rndr_core", version = "0.3.1" }
+rndr_paint = { path = "crates/rndr_paint", version = "0.3.1" }
+rndr_render = { path = "crates/rndr_render", version = "0.3.1" }
+rndr_std = { path = "crates/rndr_std", version = "0.3.1" }
+rndr_term = { path = "crates/rndr_term", version = "0.3.1" }
 wgpu = "30"
 winit = "0.30"
 pollster = "0.4"
