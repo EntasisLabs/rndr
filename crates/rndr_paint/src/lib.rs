@@ -157,14 +157,16 @@ fn surface_slots(world: &World) -> Vec<SurfaceRect> {
     slots
 }
 
-/// Paint every colored rect in the world, parents before children.
+/// Paint backgrounds and text in the world, parents before children.
 ///
 /// Walks [`rndr_core::layered_roots`], so a higher layer is later in the
 /// vec. A dead entity or a [`rndr_core::Hidden`] entity is skipped with
 /// its children. A [`rndr_core::SurfaceSlot`] adds no quad; its children
 /// still walk. An entity is filled only when it has both a
-/// [`rndr_core::Rect`] and a [`rndr_core::Color`]. Children of an entity
-/// that has neither still walk. The clip is that entity's
+/// [`rndr_core::Rect`] and a [`rndr_core::Color`]. Text and its marks need
+/// a rect but no background color. A label uses [`Label::color`] or
+/// [`Theme::text`], independently of the background's alpha. Children of
+/// an entity that has neither still walk. The clip is that entity's
 /// [`rndr_core::Clip`], or the rect when the clip is absent.
 ///
 /// The fill moves 25% of the way toward white when the entity is
@@ -224,7 +226,7 @@ fn paint_visited(
     solid: [f32; 4],
     theme: &Theme,
     rect: Rect,
-    color: Color,
+    color: Option<Color>,
     clip: Clip,
     label: Option<&Label>,
     caret: Option<&Caret>,
@@ -247,7 +249,9 @@ fn paint_visited(
     } else {
         clip
     };
-    push(out, rect, color, solid, clip, radius, 0);
+    if let Some(color) = color {
+        push(out, rect, color, solid, clip, radius, 0);
+    }
     if dirty {
         push_dirty_mark(out, rect, clip, solid, theme.dirty);
     }
@@ -416,7 +420,7 @@ fn walk(
         }
         return;
     }
-    if let (Some(rect), Some(color)) = (world.get::<Rect>(entity), world.get::<Color>(entity)) {
+    if let Some(rect) = world.get::<Rect>(entity) {
         let clip = world
             .get::<Clip>(entity)
             .copied()
@@ -427,7 +431,11 @@ fn walk(
                 .get::<Parent>(entity)
                 .is_some_and(|parent| focused == Some(parent.entity))
             || world.has::<Caret>(entity);
-        let color = if highlight { lighten(*color) } else { *color };
+        let color =
+            world
+                .get::<Color>(entity)
+                .copied()
+                .map(|color| if highlight { lighten(color) } else { color });
         let dirty = world.has::<DirtyMark>(entity);
         let radius = world
             .get::<Radius>(entity)
@@ -437,7 +445,7 @@ fn walk(
             world.get::<Label>(entity).is_some() && world.get::<TextLayout>(entity).is_none();
         let mut guard = quads.borrow_mut();
         let mut paint = |rect: Rect,
-                         color: Color,
+                         color: Option<Color>,
                          clip: Clip,
                          label: Option<&Label>,
                          caret: Option<&Caret>,
@@ -705,14 +713,14 @@ fn emit(
     world: &World,
     entity: rndr_core::Entity,
     rect: Rect,
-    color: Color,
+    color: Option<Color>,
     clip: Clip,
     dirty: bool,
     layout: Option<&TextLayout>,
     radius: f32,
     visit: &mut impl FnMut(
         Rect,
-        Color,
+        Option<Color>,
         Clip,
         Option<&Label>,
         Option<&Caret>,

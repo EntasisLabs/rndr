@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1
+
+- Text no longer needs a background `Color` to be painted. Labels and styled text with a `Rect` now emit glyphs and text decorations even when their entity has no background. A missing `Color` leaves the background unfilled; an explicit transparent color stays transparent.
+- Headless regressions cover uncolored labels through fallback and frame layout, transparent and opaque backgrounds, label and theme text colors, hidden and clipped text, text marks and caret geometry, and uncolored containers.
+
 ## 0.3.0
 
 - Headless export takes one process-wide lock around device creation, submission, and destruction. Lavapipe faults when several threads create and destroy wgpu devices together. The queue is drained before the device is dropped.

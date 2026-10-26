@@ -135,7 +135,8 @@ wait_for_index() {
 if [[ "$dry_run" -eq 1 ]]; then
     echo "packaging publishable crates without uploading"
     cargo package --workspace --locked --no-verify \
-        --exclude expand --exclude idle --exclude overlay --exclude palette --exclude terminal --exclude stream
+        --exclude expand --exclude idle --exclude overlay --exclude palette --exclude terminal --exclude stream \
+        --exclude two-windows --exclude pen-probe --exclude canvas-scene --exclude create-view
 fi
 
 for index in "${!CRATES[@]}"; do
