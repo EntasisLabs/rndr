@@ -9,8 +9,7 @@ use crate::input::{Focus, Input, Key};
 use crate::keys::{platform_of, KeyEvent, LogicalKey, Modifiers};
 use crate::layout::{ancestor_with, hit_test, Rect};
 use crate::style::{Label, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
-use crate::text::{style_of, text_engine};
-use crate::typing::{apply_text_event, EditHistory, EditSurface};
+use crate::typing::{apply_text_event, steer, EditHistory, EditSurface, Steer};
 use crate::world::{Component, World};
 use crate::wrap::with_text_layout;
 
@@ -19,6 +18,14 @@ impl Component for Editor {}
 impl Component for Gutter {}
 
 /// Gap buffer plus a line-start index. Indices are byte offsets.
+///
+/// Focused editors accept Up/Down on both the legacy key and queued native
+/// key paths. Movement follows visual rows and preserves the preferred x
+/// across short rows. Shift extends selection; an unshifted vertical key
+/// collapses a selection toward that direction. Carets and anchors are
+/// clamped to document grapheme boundaries by the editor pass. [`crate::Spans`]
+/// on an editor use document byte offsets; publication clips and rebases them
+/// for the visible label without changing the source spans.
 ///
 /// Put this on the same entity as [`Editor`]. The editor pass copies the
 /// visible line window into that entity's [`crate::Label`] and publishes a
@@ -196,10 +203,13 @@ impl Buffer {
 }
 
 /// Vertical scroll, in logical points, for a [`Buffer`] on the same entity.
+/// Editors soft-wrap at their rectangle's inner text width, using the same
+/// text engine and entity style as painting and hit testing.
 ///
-/// The editor pass reads [`Editor::offset`] and does not write it. The first
-/// visible line is `floor(offset.max(0.0) / line_height)`, using the text
-/// engine's line height. A larger offset shows later lines.
+/// The offset chooses the first visible visual row (soft wraps included).
+/// Editing or navigating the focused buffer reveals its caret by updating
+/// this offset. An idle editor preserves explicit scrolling. Offsets snap to
+/// row tops; negative and non-finite values are treated as zero.
 #[derive(Clone, Copy, Debug)]
 pub struct Editor {
     /// Distance from the top of the document, in logical points. Negative
@@ -221,6 +231,155 @@ impl Default for Editor {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Gutter;
 
+#[derive(Clone, Copy, Debug, Default)]
+struct EditorWindow {
+    base: usize,
+    first: usize,
+}
+impl Component for EditorWindow {}
+
+// Keep row geometry, not document glyph quads. Only the visible Label is
+// published for painting. An idle editor must not reshape the whole document.
+struct DocumentRows {
+    key: u64,
+    layout: std::sync::Arc<crate::TextLayout>,
+}
+impl Component for DocumentRows {}
+
+fn document_rows(
+    world: &mut World,
+    entity: crate::entity::Entity,
+    text: &str,
+) -> std::sync::Arc<crate::TextLayout> {
+    let style = crate::text::style_for(world, entity);
+    let engine = crate::text::text_engine(world);
+    let width = world.get::<Rect>(entity).map_or(f32::INFINITY, |rect| {
+        crate::font::field_text_width(rect.w, engine.unit_advance(&style))
+    });
+    let spans = world
+        .get::<crate::Spans>(entity)
+        .map(|spans| spans.runs.as_slice())
+        .unwrap_or(&[]);
+    let font = crate::font::text_face(world);
+    let mut key = crate::font::layout_cache_key(font.as_ref(), text, width, spans, "", 0);
+    key ^= crate::text::style_key(&style);
+    key ^= (std::sync::Arc::as_ptr(&engine) as *const () as usize as u64).rotate_left(17);
+    key ^= engine.cache_epoch().wrapping_mul(0x9E37_79B9_7F4A_7C15);
+    if let Some(rows) = world
+        .get::<DocumentRows>(entity)
+        .filter(|rows| rows.key == key)
+    {
+        return std::sync::Arc::clone(&rows.layout);
+    }
+    let mut layout = engine.layout(text, &style, spans, width);
+    world.remove::<VerticalGoal>(entity);
+    layout.glyphs = Vec::new();
+    layout.highlights = Vec::new();
+    let layout = std::sync::Arc::new(layout);
+    world.insert(
+        entity,
+        DocumentRows {
+            key,
+            layout: std::sync::Arc::clone(&layout),
+        },
+    );
+    layout
+}
+
+#[derive(Clone, Copy, Debug)]
+struct VerticalGoal {
+    x: f32,
+    index: usize,
+    row: usize,
+}
+impl Component for VerticalGoal {}
+
+fn row_contains(layout: &crate::TextLayout, row: usize, index: usize) -> bool {
+    layout
+        .lines
+        .get(row)
+        .is_some_and(|line| index >= line.start && index <= line.end)
+}
+
+fn move_vertical(
+    world: &mut World,
+    entity: crate::entity::Entity,
+    text: &str,
+    index: usize,
+    anchor: usize,
+    delta: isize,
+    shift: bool,
+) -> (usize, usize) {
+    let index = floor_grapheme(text, index.min(text.len()));
+    let anchor = floor_grapheme(text, anchor.min(text.len()));
+    if !shift && anchor != index {
+        let edge = if delta < 0 {
+            anchor.min(index)
+        } else {
+            anchor.max(index)
+        };
+        world.remove::<VerticalGoal>(entity);
+        return (edge, edge);
+    }
+    let layout = document_rows(world, entity, text);
+    let previous = world.get::<VerticalGoal>(entity).copied();
+    let (next, x, next_row) = {
+        let (x, y) = layout.caret_xy(index);
+        let previous =
+            previous.filter(|goal| goal.index == index && row_contains(&layout, goal.row, index));
+        let x = previous.map_or(x, |goal| goal.x);
+        let row = previous.map_or_else(
+            || {
+                layout
+                    .lines
+                    .iter()
+                    .position(|line| line.y == y)
+                    .unwrap_or(0)
+            },
+            |goal| goal.row,
+        );
+        let next_row =
+            (row as isize + delta).clamp(0, layout.lines.len().saturating_sub(1) as isize) as usize;
+        let next = if row == next_row {
+            index
+        } else {
+            layout.index_on_line(next_row, x)
+        };
+        let mut next = floor_grapheme(text, next.min(text.len()));
+        // Some engines wrap between scalars of one grapheme. Never park a
+        // caret inside that cluster or attach its preceding stop to a row
+        // that does not contain it. Down skips to the next whole cluster.
+        if delta > 0
+            && layout
+                .lines
+                .get(next_row)
+                .is_some_and(|line| next < line.start)
+        {
+            next = next_grapheme(text, next);
+        }
+        let next_row = if row_contains(&layout, next_row, next) {
+            next_row
+        } else {
+            let (_, y) = layout.caret_xy(next);
+            layout
+                .lines
+                .iter()
+                .position(|line| line.y == y)
+                .unwrap_or(0)
+        };
+        (next, x, next_row)
+    };
+    world.insert(
+        entity,
+        VerticalGoal {
+            x,
+            index: next,
+            row: next_row,
+        },
+    );
+    (next, if shift { anchor } else { next })
+}
+
 pub fn apply_editor(world: &mut World) {
     let editors = world.entities_with::<Editor>();
     for entity in editors {
@@ -228,11 +387,51 @@ pub fn apply_editor(world: &mut World) {
             continue;
         }
         let focused = world.resource::<Focus>().and_then(|focus| focus.entity) == Some(entity);
+        let reveal = focused
+            && world.resource::<Input>().is_some_and(|input| {
+                let frame = crate::ime::text_frame(input);
+                !frame.commit.is_empty()
+                    || input.pointer.pressed
+                    || if frame.keys.is_empty() {
+                        !frame.chars.is_empty()
+                            || matches!(
+                                frame.legacy_key,
+                                Some(
+                                    Key::Up
+                                        | Key::Down
+                                        | Key::Left
+                                        | Key::Right
+                                        | Key::Enter
+                                        | Key::Backspace
+                                )
+                            )
+                    } else {
+                        frame.keys.iter().any(|event| {
+                            !event.released
+                                && !event.synthetic
+                                && (event.text.as_ref().is_some_and(|text| !text.is_empty())
+                                    || !matches!(steer(event, platform_of(world)), Steer::Edit)
+                                    || crate::keys::standard_action(platform_of(world), event)
+                                        .is_some()
+                                    || matches!(
+                                        event.logical,
+                                        LogicalKey::Named(
+                                            crate::NamedKey::ArrowLeft
+                                                | crate::NamedKey::ArrowRight
+                                                | crate::NamedKey::Backspace
+                                                | crate::NamedKey::Delete
+                                        )
+                                    ))
+                        })
+                    }
+            });
         if focused {
             edit_focused(world, entity);
             place_from_pointer(world, entity);
+        } else {
+            world.remove::<VerticalGoal>(entity);
         }
-        publish_window(world, entity);
+        publish_window(world, entity, reveal);
         if focused {
             sync_ime_preview(world, entity);
         } else {
@@ -254,13 +453,43 @@ fn edit_focused(world: &mut World, entity: crate::entity::Entity) {
     let shift = frame.shift;
     let chars = frame.chars;
     let commit = frame.commit;
+    if matches!(key, Some(Key::Up | Key::Down)) {
+        if let Some(history) = world.get_mut::<EditHistory>(entity) {
+            history.break_run();
+        }
+        let Some(buffer) = world.get::<Buffer>(entity) else {
+            return;
+        };
+        let (index, anchor) = move_vertical(
+            world,
+            entity,
+            &buffer.text(),
+            buffer.caret,
+            buffer.anchor,
+            if key == Some(Key::Up) { -1 } else { 1 },
+            shift,
+        );
+        if let Some(buffer) = world.get_mut::<Buffer>(entity) {
+            buffer.caret = index;
+            buffer.anchor = anchor;
+        }
+        if let Some(input) = world.resource_mut::<Input>() {
+            input.key = None;
+        }
+        if chars.is_empty() && commit.is_empty() {
+            return;
+        }
+    }
+    if key.is_some() || !chars.is_empty() || !commit.is_empty() {
+        world.remove::<VerticalGoal>(entity);
+    }
     let Some(buffer) = world.get_mut::<Buffer>(entity) else {
         return;
     };
     let snapshot = buffer.text();
     let len = buffer.len();
-    let mut index = buffer.caret.min(len);
-    let mut anchor = buffer.anchor.min(len);
+    let mut index = floor_grapheme(&snapshot, buffer.caret.min(len));
+    let mut anchor = floor_grapheme(&snapshot, buffer.anchor.min(len));
     if matches!(key, Some(Key::Left | Key::Right)) {
         let next = match key {
             Some(Key::Left) => prev_grapheme(&snapshot, index),
@@ -356,6 +585,27 @@ fn edit_queue(world: &mut World, entity: crate::entity::Entity, keys: &[KeyEvent
     let mut clipboard_action = false;
     let now = crate::typing::frame_now(world);
     for event in keys {
+        if !event.released && !event.synthetic {
+            let delta = match steer(event, platform) {
+                Steer::Up => Some(-1),
+                Steer::Down => Some(1),
+                _ => None,
+            };
+            if let Some(delta) = delta {
+                history.break_run();
+                (index, anchor) = move_vertical(
+                    world,
+                    entity,
+                    &text,
+                    index,
+                    anchor,
+                    delta,
+                    event.modifiers.shift,
+                );
+                continue;
+            }
+            world.remove::<VerticalGoal>(entity);
+        }
         let step = apply_text_event(
             &mut EditSurface {
                 text: &mut text,
@@ -461,58 +711,149 @@ fn place_from_pointer(world: &mut World, entity: crate::entity::Entity) {
     let Some(rect) = world.get::<Rect>(entity).copied() else {
         return;
     };
+    world.remove::<VerticalGoal>(entity);
     let text = world
         .get::<Label>(entity)
         .map(|label| label.text.clone())
         .unwrap_or_default();
     let base = window_base(world, entity);
-    let index = with_text_layout(world, entity, &text, |layout| {
-        layout.index_at(
-            input.pointer.position[0] - rect.x - TEXT_ORIGIN_X,
-            input.pointer.position[1] - rect.y - TEXT_ORIGIN_Y,
-        )
-    }) + base;
+    let (index, row, x) = with_text_layout(world, entity, &text, |layout| {
+        let x = input.pointer.position[0] - rect.x - TEXT_ORIGIN_X;
+        let y = input.pointer.position[1] - rect.y - TEXT_ORIGIN_Y;
+        let row = layout
+            .lines
+            .iter()
+            .position(|line| y < line.y + line.h.max(0.001))
+            .unwrap_or(layout.lines.len().saturating_sub(1));
+        let index = layout.index_at(x, y);
+        (index + base, row, layout.caret_xy_on_line(index, row).0)
+    });
+    let first = world
+        .get::<EditorWindow>(entity)
+        .map_or(0, |window| window.first);
     if let Some(buffer) = world.get_mut::<Buffer>(entity) {
-        let index = index.min(buffer.len());
+        let index = floor_grapheme(&buffer.text(), index.min(buffer.len()));
         buffer.caret = index;
         if !input.shift {
             buffer.anchor = index;
         }
+        let index = buffer.caret;
+        world.insert(
+            entity,
+            VerticalGoal {
+                x,
+                index,
+                row: first + row,
+            },
+        );
     }
 }
 
-fn publish_window(world: &mut World, entity: crate::entity::Entity) {
+fn publish_window(world: &mut World, entity: crate::entity::Entity, reveal: bool) {
     let height = world.get::<Rect>(entity).map(|rect| rect.h).unwrap_or(0.0);
     let offset = world
         .get::<Editor>(entity)
         .map(|editor| editor.offset)
         .unwrap_or(0.0);
-    let line_h = text_engine(world).line_height(&style_of(world)).max(1.0);
     let Some(buffer) = world.get::<Buffer>(entity) else {
         return;
     };
-    let count = buffer.line_count();
-    let (first, last, base, end) = if count == 0 || height <= 0.0 {
-        (0, 0, 0, 0)
-    } else {
-        let first = ((offset.max(0.0) / line_h).floor() as u32).min(count - 1);
-        let rows = ((height / line_h).ceil() as u32).max(1);
-        let last = first.saturating_add(rows).min(count);
-        let base = buffer.line_start(first);
-        let end = if last >= count {
-            buffer.len()
+    let text = buffer.text();
+    let layout = document_rows(world, entity, &text);
+    let buffer = world.get::<Buffer>(entity).expect("buffer exists");
+    let caret = floor_grapheme(&text, buffer.caret.min(text.len()));
+    let anchor = floor_grapheme(&text, buffer.anchor.min(text.len()));
+    let available = (height - 2.0 * TEXT_ORIGIN_Y).max(1.0);
+    let affinity = world
+        .get::<VerticalGoal>(entity)
+        .filter(|goal| goal.index == caret && row_contains(&layout, goal.row, caret));
+    let (base, end, top, visible, numbers, first, caret_row) = {
+        let offset = if offset.is_finite() {
+            offset.max(0.0)
         } else {
-            buffer.line_start(last)
+            0.0
         };
-        (first, last, base, end)
+        let mut first = layout
+            .lines
+            .iter()
+            .rposition(|line| line.y <= offset)
+            .unwrap_or(0);
+        let (_, caret_y) = layout.caret_xy(caret);
+        let caret_row = affinity.map_or_else(
+            || {
+                layout
+                    .lines
+                    .iter()
+                    .position(|line| line.y == caret_y)
+                    .unwrap_or(0)
+            },
+            |goal| goal.row,
+        );
+        if reveal && height > 0.0 {
+            if caret_row < first {
+                first = caret_row;
+            }
+            while first < caret_row
+                && layout.lines[caret_row].y + layout.lines[caret_row].h
+                    > layout.lines[first].y + available
+            {
+                first += 1;
+            }
+        }
+        let top = layout.lines.get(first).map_or(0.0, |line| line.y);
+        let last = layout
+            .lines
+            .iter()
+            .rposition(|line| line.y < top + available)
+            .unwrap_or(first);
+        let base = layout.lines.get(first).map_or(0, |line| line.start);
+        let end = layout
+            .lines
+            .get(last + 1)
+            .map_or(text.len(), |line| line.start);
+        let visible = height > 0.0
+            && caret_row >= first
+            && caret_row <= last
+            && caret >= base
+            && caret <= end;
+        let mut numbers = String::new();
+        for row in first..=last {
+            if row > first {
+                numbers.push('\n');
+            }
+            if let Some(line) = layout.lines.get(row) {
+                let logical = buffer
+                    .lines
+                    .partition_point(|start| *start <= line.start)
+                    .max(1)
+                    + usize::from(line.start == text.len() && text.ends_with('\n'));
+                if row == 0 || text.as_bytes().get(line.start.wrapping_sub(1)) == Some(&b'\n') {
+                    numbers.push_str(&logical.to_string());
+                }
+            }
+        }
+        (base, end, top, visible, numbers, first, caret_row)
     };
-    let window = buffer.slice(base, end);
-    let caret = buffer.caret;
-    let anchor = buffer.anchor;
+    let window = text[base..end].to_string();
+    if let Some(editor) = world.get_mut::<Editor>(entity) {
+        editor.offset = top;
+    }
+    if let Some(buffer) = world.get_mut::<Buffer>(entity) {
+        buffer.caret = caret;
+        buffer.anchor = anchor;
+    }
+    world.insert(entity, EditorWindow { base, first });
     if let Some(label) = world.get_mut::<Label>(entity) {
         label.text = window;
     }
-    if height > 0.0 && caret >= base && caret <= end {
+    if visible {
+        world.insert(
+            entity,
+            crate::CaretRow {
+                index: caret - base,
+                row: caret_row - first,
+            },
+        );
         world.insert(
             entity,
             Caret {
@@ -522,15 +863,9 @@ fn publish_window(world: &mut World, entity: crate::entity::Entity) {
         );
     } else {
         world.remove::<Caret>(entity);
+        world.remove::<crate::CaretRow>(entity);
     }
     if let Some(gutter) = gutter_for(world, entity) {
-        let mut numbers = String::new();
-        for line in first..last {
-            if !numbers.is_empty() {
-                numbers.push('\n');
-            }
-            numbers.push_str(&(line + 1).to_string());
-        }
         if let Some(label) = world.get_mut::<Label>(gutter) {
             label.text = numbers;
         }
@@ -538,21 +873,48 @@ fn publish_window(world: &mut World, entity: crate::entity::Entity) {
 }
 
 pub(crate) fn window_base(world: &World, entity: crate::entity::Entity) -> usize {
-    let height = world.get::<Rect>(entity).map(|rect| rect.h).unwrap_or(0.0);
-    let offset = world
-        .get::<Editor>(entity)
-        .map(|editor| editor.offset)
-        .unwrap_or(0.0);
-    let line_h = text_engine(world).line_height(&style_of(world)).max(1.0);
-    let Some(buffer) = world.get::<Buffer>(entity) else {
-        return 0;
-    };
-    let count = buffer.line_count();
-    if count == 0 || height <= 0.0 {
-        return 0;
+    world
+        .get::<EditorWindow>(entity)
+        .map_or(0, |window| window.base)
+}
+
+/// Copy the entity's styled spans for shaping or painting `text`.
+///
+/// On a [`Buffer`] + [`Editor`] entity, spans use document byte offsets. When
+/// `text` is the published [`Label`] window this clips and rebases those spans
+/// into label-relative offsets. For full document text or a non-editor entity
+/// it returns the source spans unchanged. Source components are never mutated.
+pub fn spans_for_text(
+    world: &World,
+    entity: crate::entity::Entity,
+    text: &str,
+) -> Vec<crate::TextSpan> {
+    let spans = world
+        .get::<crate::Spans>(entity)
+        .map(|spans| spans.runs.as_slice())
+        .unwrap_or(&[]);
+    if !world.has::<Editor>(entity)
+        || !world.has::<Buffer>(entity)
+        || !world
+            .get::<Label>(entity)
+            .is_some_and(|label| label.text == text)
+    {
+        return spans.to_vec();
     }
-    let first = ((offset.max(0.0) / line_h).floor() as u32).min(count - 1);
-    buffer.line_start(first)
+    let base = window_base(world, entity);
+    let end = base.saturating_add(text.len());
+    spans
+        .iter()
+        .filter_map(|span| {
+            if span.start >= end || span.end <= base {
+                return None;
+            }
+            let mut span = span.clone();
+            span.start = span.start.max(base) - base;
+            span.end = span.end.min(end) - base;
+            Some(span)
+        })
+        .collect()
 }
 
 fn gutter_for(world: &World, entity: crate::entity::Entity) -> Option<crate::entity::Entity> {
@@ -678,4 +1040,54 @@ fn decoration_marks(world: &World, entity: crate::entity::Entity) -> Vec<Decorat
         }
     }
     marks
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    #[test]
+    fn document_rows_cache_geometry_and_invalidate_for_text_width_style_and_engine() {
+        let mut world = World::new();
+        crate::text::ensure_text_engine(&mut world);
+        let entity = world.spawn((
+            Editor::default(),
+            Label::new(""),
+            Rect {
+                x: 0.0,
+                y: 0.0,
+                w: 280.0,
+                h: 80.0,
+            },
+        ));
+        let text = "a".repeat(100);
+        let original = document_rows(&mut world, entity, &text);
+        assert!(original.glyphs.is_empty());
+        assert!(original.lines.len() > 4);
+        for _ in 0..3 {
+            crate::text::text_engine(&world).begin_frame();
+            let cached = document_rows(&mut world, entity, &text);
+            assert!(Arc::ptr_eq(&original, &cached));
+        }
+        let changed = document_rows(&mut world, entity, &(text.clone() + "x"));
+        assert!(!Arc::ptr_eq(&original, &changed));
+        world.get_mut::<Rect>(entity).unwrap().w = 100.0;
+        let narrow = document_rows(&mut world, entity, &text);
+        assert!(narrow.lines.len() > original.lines.len());
+        world.insert(
+            entity,
+            crate::TextStyle {
+                size: 8.0,
+                ..crate::TextStyle::default()
+            },
+        );
+        let styled = document_rows(&mut world, entity, &text);
+        assert!(!Arc::ptr_eq(&narrow, &styled));
+        assert_ne!(narrow.lines[0].h, styled.lines[0].h);
+        let replacement: Arc<dyn crate::TextEngine> = Arc::new(crate::BuiltinText::new());
+        world.insert_resource(replacement);
+        let replaced = document_rows(&mut world, entity, &text);
+        assert!(!Arc::ptr_eq(&styled, &replaced));
+    }
 }

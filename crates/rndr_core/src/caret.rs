@@ -16,6 +16,7 @@ use crate::wrap::{
 };
 
 impl Component for Caret {}
+impl Component for CaretRow {}
 impl Component for TextSelection {}
 impl Component for Field {}
 
@@ -62,6 +63,21 @@ pub struct Caret {
     /// Byte offset where the selection started. Equals [`Caret::index`] when
     /// the range is empty.
     pub anchor: usize,
+}
+
+/// Optional visual-row affinity for a [`Caret`] at a soft-wrap boundary.
+///
+/// A shared byte offset can be either the end of one visual row or the start
+/// of the next. Without this component painting uses downstream affinity.
+/// [`crate::Editor`] publishes this hint with its window-relative caret.
+/// It is ignored when `index` no longer matches the caret, or during IME
+/// preedit. Other text widgets may publish the same hint after hit testing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CaretRow {
+    /// Label-relative byte offset this hint describes.
+    pub index: usize,
+    /// Zero-based row in the label's [`crate::TextLayout`].
+    pub row: usize,
 }
 
 /// Highlighted byte range with no caret and no focus chrome.

@@ -238,6 +238,7 @@ fn paint_visited(
     marks: &[rndr_core::DecorationMark],
     shift_y: f32,
     clip_text: bool,
+    caret_row: Option<&rndr_core::CaretRow>,
 ) {
     let text_clip = if clip_text {
         clip.intersect(Clip {
@@ -389,6 +390,7 @@ fn paint_visited(
             scale,
             theme.caret,
             shift_y,
+            caret_row,
         );
     }
 }
@@ -458,8 +460,24 @@ fn walk(
                          shift_y: f32,
                          clip_text: bool| {
             paint_visited(
-                &mut guard, scale, solid, theme, rect, color, clip, label, caret, selection, spans,
-                dirty, layout, radius, marks, shift_y, clip_text,
+                &mut guard,
+                scale,
+                solid,
+                theme,
+                rect,
+                color,
+                clip,
+                label,
+                caret,
+                selection,
+                spans,
+                dirty,
+                layout,
+                radius,
+                marks,
+                shift_y,
+                clip_text,
+                world.get::<rndr_core::CaretRow>(entity),
             );
         };
         if needs_fallback {
@@ -741,7 +759,16 @@ fn emit(
         .unwrap_or(empty);
     let prompt = world.get::<rndr_core::Prompt>(entity);
     let shift_y = -prompt.map(|prompt| prompt.scroll).unwrap_or(0.0);
-    let clip_text = prompt.is_some();
+    let clip_text = prompt.is_some() || world.has::<rndr_core::Editor>(entity);
+    let spans = world.get::<Spans>(entity).map(|_| Spans {
+        runs: rndr_core::spans_for_text(
+            world,
+            entity,
+            world
+                .get::<Label>(entity)
+                .map_or("", |label| label.text.as_str()),
+        ),
+    });
     visit(
         rect,
         color,
@@ -749,7 +776,7 @@ fn emit(
         world.get::<Label>(entity),
         world.get::<Caret>(entity),
         world.get::<TextSelection>(entity),
-        world.get::<Spans>(entity),
+        spans.as_ref(),
         dirty,
         layout,
         radius,
@@ -842,6 +869,9 @@ fn push_dirty_mark(out: &mut Vec<Quad>, rect: Rect, clip: Clip, solid: [f32; 4],
 }
 
 fn measured(world: &World, entity: rndr_core::Entity, text: &str, rect: Rect) -> TextLayout {
+    if world.has::<rndr_core::Editor>(entity) {
+        return rndr_core::layout_of(world, entity, text);
+    }
     let style = style_for(world, entity);
     let engine = text_engine(world);
     let wrap = world
@@ -984,15 +1014,22 @@ fn push_caret(
     scale: f32,
     color: Color,
     shift_y: f32,
+    caret_row: Option<&rndr_core::CaretRow>,
 ) {
     let (x, y, h) = layout
         .map(|layout| {
             let index = layout.ime_cursor.unwrap_or(caret.index);
-            let (x, y) = layout.caret_xy(index);
+            let row = caret_row.filter(|hint| {
+                layout.ime_cursor.is_none() && hint.index == index && hint.row < layout.lines.len()
+            });
+            let (x, y) = row.map_or_else(
+                || layout.caret_xy(index),
+                |hint| layout.caret_xy_on_line(index, hint.row),
+            );
             let h = layout
                 .lines
                 .iter()
-                .find(|line| index >= line.start && index <= line.end)
+                .find(|line| line.y == y)
                 .map(|line| line.h)
                 .or_else(|| layout.lines.first().map(|line| line.h))
                 .unwrap_or(CELL_H);

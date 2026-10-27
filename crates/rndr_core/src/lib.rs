@@ -125,8 +125,8 @@ pub use action::{apply_actions, Actions, Binding, Chord, Fired, COPY, CUT, PASTE
 pub use app::{App, Plugin, Schedule, System};
 pub use button::Button;
 pub use caret::{
-    apply_caret, caret_line_col, selection_spans, set_editing, set_editing_field, Caret, EditField,
-    Editing, Field, TextSelection,
+    apply_caret, caret_line_col, selection_spans, set_editing, set_editing_field, Caret, CaretRow,
+    EditField, Editing, Field, TextSelection,
 };
 pub use chrome::Chrome;
 pub use clipboard::{Clipboard, ClipboardImage};
@@ -145,8 +145,8 @@ pub use disclosure::{
 };
 pub use edit::edit_string;
 pub use editor::{
-    Buffer, Decoration, DecorationKind, DecorationMark, DecorationMarks, Decorations, Editor,
-    Gutter,
+    spans_for_text, Buffer, Decoration, DecorationKind, DecorationMark, DecorationMarks,
+    Decorations, Editor, Gutter,
 };
 pub use entity::Entity;
 pub use event::{events, send, Event, Events};

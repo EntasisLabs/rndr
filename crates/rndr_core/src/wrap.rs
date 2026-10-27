@@ -138,8 +138,8 @@ pub fn index_at_pointer(text: &str, cols: usize, rect: Rect, x: f32, y: f32) -> 
 /// Fresh layout of `text` on `entity`. Body fields wrap to the row width.
 /// Uses the world's [`crate::TextFace`] when one is set.
 ///
-/// A [`crate::Field`] of kind [`crate::EditField::Body`] wraps to the row.
-/// Other fields get an unbounded width. [`crate::Spans`] on the entity are
+/// An [`crate::Editor`], a body [`crate::Field`], or a wrapping label wraps
+/// to the row. Other fields get an unbounded width. [`crate::Spans`] on the entity are
 /// passed through. The engine may reuse a cached line. The layout is
 /// returned and is not written onto the entity.
 pub fn layout_of(world: &World, entity: Entity, text: &str) -> TextLayout {
@@ -153,11 +153,15 @@ pub(crate) fn with_text_layout<R>(
     text: &str,
     f: impl FnOnce(&TextLayout) -> R,
 ) -> R {
-    let style = style_of(world);
+    let style = crate::text::style_for(world, entity);
     let engine = text_engine(world);
-    let wrap = world
-        .get::<Field>(entity)
-        .is_some_and(|field| field.kind == EditField::Body);
+    let wrap = world.has::<crate::Editor>(entity)
+        || world
+            .get::<Field>(entity)
+            .is_some_and(|field| field.kind == EditField::Body)
+        || world
+            .get::<Label>(entity)
+            .is_some_and(|label| label.overflow == crate::TextOverflow::Wrap);
     let max_width = if wrap {
         world
             .get::<Rect>(entity)
@@ -166,10 +170,7 @@ pub(crate) fn with_text_layout<R>(
     } else {
         f32::INFINITY
     };
-    let spans = world
-        .get::<crate::font::Spans>(entity)
-        .map(|spans| spans.runs.clone())
-        .unwrap_or_default();
+    let spans = crate::editor::spans_for_text(world, entity, text);
     let layout = engine.layout(text, &style, &spans, max_width);
     f(&layout)
 }

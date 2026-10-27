@@ -681,8 +681,17 @@ impl TextLayout {
             return (0.0, 0.0);
         }
         let (line, col) = line_col(&self.line_ranges(), index);
-        let span = &self.lines[line];
-        let byte = span.start + col;
+        self.caret_xy_on_line(self.lines[line].start + col, line)
+    }
+
+    /// Pen position on an explicit visual row, preserving upstream affinity
+    /// at a shared soft-wrap boundary. An out-of-range row uses the last row.
+    /// An empty layout returns `(0, 0)`.
+    pub fn caret_xy_on_line(&self, index: usize, line: usize) -> (f32, f32) {
+        let Some(span) = self.lines.get(line.min(self.lines.len().saturating_sub(1))) else {
+            return (0.0, 0.0);
+        };
+        let byte = index.clamp(span.start, span.end);
         let mut best: Option<(usize, f32)> = None;
         for &(i, ex) in &span.edges {
             if i <= byte && best.is_none_or(|(at, _)| i >= at) {
@@ -818,9 +827,10 @@ pub fn apply_text_layout(world: &mut World) {
     for entity in labels {
         let style = crate::text::style_for(world, entity);
         let unit = engine.unit_advance(&style);
-        let wrap = world
-            .get::<Field>(entity)
-            .is_some_and(|field| field.kind == EditField::Body);
+        let wrap = world.has::<crate::Editor>(entity)
+            || world
+                .get::<Field>(entity)
+                .is_some_and(|field| field.kind == EditField::Body);
         let Some(label) = world.get::<crate::style::Label>(entity) else {
             continue;
         };
@@ -856,10 +866,7 @@ pub fn apply_text_layout(world: &mut World) {
             .get::<crate::caret::Caret>(entity)
             .map(|caret| caret.index.min(label.text.len()))
             .unwrap_or(label.text.len());
-        let mut spans = world
-            .get::<Spans>(entity)
-            .map(|spans| spans.runs.clone())
-            .unwrap_or_default();
+        let mut spans = crate::editor::spans_for_text(world, entity, &label.text);
         let mut source = label.text.clone();
         let mut preview = preview;
         let mut at = at;
