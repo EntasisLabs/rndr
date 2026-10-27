@@ -777,7 +777,9 @@ fn place_from_pointer(world: &mut World, entity: crate::entity::Entity) -> bool 
             .position(|line| y < line.y + line.h.max(0.001))
             .unwrap_or(layout.lines.len() - 1);
         let index = floor_grapheme(&text, layout.index_at(x, y).min(text.len()));
-        (index, row, x)
+        // Preserve B001's preferred-column contract: subsequent Up/Down
+        // starts at the actual caret stop, not a distant off-text pointer x.
+        (index, row, layout.caret_xy_on_line(index, row).0)
     };
     let anchor = if starting {
         if shift {

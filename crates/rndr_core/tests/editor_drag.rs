@@ -278,6 +278,22 @@ fn rejected_press_does_not_reveal_an_unrelated_offscreen_caret() {
 }
 
 #[test]
+fn pointer_placement_preserves_snapped_caret_column_for_subsequent_vertical_navigation() {
+    let text = "abcdef\nx\nabcdef";
+    let (mut app, e) = boot(text);
+    let full = rndr_core::layout_of(app.world(), e, text);
+    let end_of_short_row = point(&app, e, 250.0, full.lines[1].y + 1.0);
+    frame(&mut app, end_of_short_row, true, false, true);
+    assert_eq!(selection(&app, e), (8, 8));
+    let input = app.world_mut().resource_mut::<Input>().unwrap();
+    input.pointer.pressed = false;
+    input.pointer.released = false;
+    input.key = Some(rndr_core::Key::Down);
+    app.update();
+    assert_eq!(selection(&app, e), (10, 10));
+}
+
+#[test]
 fn empty_document_and_nonfinite_motion_are_safe_and_cancel_capture() {
     let (mut app, e) = boot("");
     let left = point(&app, e, 0.0, 1.0);
