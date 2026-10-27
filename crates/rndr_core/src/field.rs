@@ -297,15 +297,24 @@ fn focus_pressed_field(world: &mut World) {
     if !input.pointer.pressed || world.resource::<Focus>().is_none() {
         return;
     }
-    let position = input.pointer.position;
+    // A press can be followed by motion/release before this frame. Focus
+    // belongs to its origin, matching the editor's logical drag capture.
+    let position = input.pointer.press_at.unwrap_or(input.pointer.position);
     let Some(hit) = hit_test(world, position[0], position[1]) else {
         return;
     };
-    let Some(field) = ancestor_editor(world, hit) else {
+    let target = ancestor_editor(world, hit).or_else(|| {
+        if input.pointer.button != PointerButton::Left {
+            return None;
+        }
+        crate::layout::ancestor_with::<crate::Editor>(world, hit)
+            .filter(|entity| world.has::<crate::Buffer>(*entity))
+    });
+    let Some(target) = target else {
         return;
     };
     if let Some(focus) = world.resource_mut::<Focus>() {
-        focus.entity = Some(field);
+        focus.entity = Some(target);
     }
 }
 

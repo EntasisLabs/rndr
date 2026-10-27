@@ -11,7 +11,6 @@ use crate::layout::{ancestor_with, hit_test, Rect};
 use crate::style::{Label, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
 use crate::typing::{apply_text_event, steer, EditHistory, EditSurface, Steer};
 use crate::world::{Component, World};
-use crate::wrap::with_text_layout;
 
 impl Component for Buffer {}
 impl Component for Editor {}
@@ -210,6 +209,14 @@ impl Buffer {
 /// Editing or navigating the focused buffer reveals its caret by updating
 /// this offset. An idle editor preserves explicit scrolling. Offsets snap to
 /// row tops; negative and non-finite values are treated as zero.
+///
+/// Primary-button presses start a selection (Shift preserves the old anchor).
+/// Held and release frames extend it, even outside the editor rectangle, while
+/// focus and pointer identity remain unchanged. Vertical off-editor dragging
+/// scrolls at most one visual row per delivered update, not per elapsed time.
+/// Release, lost focus, a changed contact/button, or a missing held state ends
+/// this logical capture. Native capture outside the window and stationary-drag
+/// frame scheduling remain the platform runner's responsibility.
 #[derive(Clone, Copy, Debug)]
 pub struct Editor {
     /// Distance from the top of the document, in logical points. Negative
@@ -234,9 +241,17 @@ pub struct Gutter;
 #[derive(Clone, Copy, Debug, Default)]
 struct EditorWindow {
     base: usize,
-    first: usize,
 }
 impl Component for EditorWindow {}
+
+// Logical capture only: the desktop backend must still deliver held/release
+// frames. No global/native window capture is requested here.
+#[derive(Clone, Copy)]
+struct EditorDrag {
+    id: u64,
+    anchor: usize,
+}
+impl Component for EditorDrag {}
 
 // Keep row geometry, not document glyph quads. Only the visible Label is
 // published for painting. An idle editor must not reshape the whole document.
@@ -384,14 +399,14 @@ pub fn apply_editor(world: &mut World) {
     let editors = world.entities_with::<Editor>();
     for entity in editors {
         if !world.has::<Buffer>(entity) {
+            world.remove::<EditorDrag>(entity);
             continue;
         }
         let focused = world.resource::<Focus>().and_then(|focus| focus.entity) == Some(entity);
-        let reveal = focused
+        let mut reveal = focused
             && world.resource::<Input>().is_some_and(|input| {
                 let frame = crate::ime::text_frame(input);
                 !frame.commit.is_empty()
-                    || input.pointer.pressed
                     || if frame.keys.is_empty() {
                         !frame.chars.is_empty()
                             || matches!(
@@ -427,9 +442,10 @@ pub fn apply_editor(world: &mut World) {
             });
         if focused {
             edit_focused(world, entity);
-            place_from_pointer(world, entity);
+            reveal |= place_from_pointer(world, entity);
         } else {
             world.remove::<VerticalGoal>(entity);
+            world.remove::<EditorDrag>(entity);
         }
         publish_window(world, entity, reveal);
         if focused {
@@ -695,58 +711,114 @@ fn sync_ime_preview(world: &mut World, entity: crate::entity::Entity) {
     }
 }
 
-fn place_from_pointer(world: &mut World, entity: crate::entity::Entity) {
-    let Some(input) = world.resource::<Input>().cloned() else {
-        return;
+// Returns whether a successful press needs the usual caret reveal (including
+// grapheme repair at scalar-wrap edges). Held/release frames use bounded scroll.
+fn place_from_pointer(world: &mut World, entity: crate::entity::Entity) -> bool {
+    let Some(input) = world.resource::<Input>() else {
+        world.remove::<EditorDrag>(entity);
+        return false;
     };
-    if !input.pointer.pressed {
-        return;
+    let pointer = input.pointer;
+    let shift = input.shift;
+    let previous = world.remove::<EditorDrag>(entity);
+    if pointer.button != crate::PointerButton::Left
+        || !pointer.position.iter().all(|v| v.is_finite())
+    {
+        return false;
     }
-    let Some(hit) = hit_test(world, input.pointer.position[0], input.pointer.position[1]) else {
-        return;
+    let Some(rect) = world.get::<Rect>(entity).copied().filter(|r| r.h > 0.0) else {
+        return false;
     };
-    if ancestor_with::<Editor>(world, hit) != Some(entity) {
-        return;
+    let start = pointer.press_at.unwrap_or(pointer.position);
+    let starting = pointer.pressed
+        && start.iter().all(|v| v.is_finite())
+        && hit_test(world, start[0], start[1])
+            .is_some_and(|hit| ancestor_with::<Editor>(world, hit) == Some(entity));
+    let continuing = !pointer.pressed
+        && previous.is_some_and(|drag| drag.id == pointer.id)
+        && (pointer.down || pointer.released);
+    if !starting && !continuing {
+        return false;
     }
-    let Some(rect) = world.get::<Rect>(entity).copied() else {
-        return;
+    let Some(buffer) = world.get::<Buffer>(entity) else {
+        return false;
     };
+    let text = buffer.text();
+    let old_anchor = buffer.anchor;
+    let layout = document_rows(world, entity, &text);
+    if layout.lines.is_empty() {
+        return false;
+    }
     world.remove::<VerticalGoal>(entity);
-    let text = world
-        .get::<Label>(entity)
-        .map(|label| label.text.clone())
-        .unwrap_or_default();
-    let base = window_base(world, entity);
-    let (index, row, x) = with_text_layout(world, entity, &text, |layout| {
-        let x = input.pointer.position[0] - rect.x - TEXT_ORIGIN_X;
-        let y = input.pointer.position[1] - rect.y - TEXT_ORIGIN_Y;
+    if let Some(history) = world.get_mut::<EditHistory>(entity) {
+        history.break_run();
+    }
+    let offset = world
+        .get::<Editor>(entity)
+        .map_or(0.0, |editor| editor.offset);
+    let offset = if offset.is_finite() {
+        offset.max(0.0)
+    } else {
+        0.0
+    };
+    let mut first = layout
+        .lines
+        .iter()
+        .rposition(|line| line.y <= offset)
+        .unwrap_or(0);
+    let available = (rect.h - 2.0 * TEXT_ORIGIN_Y).max(1.0);
+    let map = |position: [f32; 2], first: usize| {
+        let x = position[0] - rect.x - TEXT_ORIGIN_X;
+        let y = (position[1] - rect.y - TEXT_ORIGIN_Y).clamp(0.0, (available - 0.001).max(0.0))
+            + layout.lines[first].y;
         let row = layout
             .lines
             .iter()
             .position(|line| y < line.y + line.h.max(0.001))
-            .unwrap_or(layout.lines.len().saturating_sub(1));
-        let index = layout.index_at(x, y);
-        (index + base, row, layout.caret_xy_on_line(index, row).0)
-    });
-    let first = world
-        .get::<EditorWindow>(entity)
-        .map_or(0, |window| window.first);
-    if let Some(buffer) = world.get_mut::<Buffer>(entity) {
-        let index = floor_grapheme(&buffer.text(), index.min(buffer.len()));
-        buffer.caret = index;
-        if !input.shift {
-            buffer.anchor = index;
+            .unwrap_or(layout.lines.len() - 1);
+        let index = floor_grapheme(&text, layout.index_at(x, y).min(text.len()));
+        (index, row, x)
+    };
+    let anchor = if starting {
+        if shift {
+            floor_grapheme(&text, old_anchor.min(text.len()))
+        } else {
+            map(start, first).0
         }
-        let index = buffer.caret;
+    } else {
+        floor_grapheme(
+            &text,
+            previous.expect("continuing drag").anchor.min(text.len()),
+        )
+    };
+    // Never let a distant coordinate jump to a distant document row. Release
+    // applies its final position but does not add another autoscroll step.
+    if continuing && pointer.down && !pointer.released {
+        if pointer.position[1] < rect.y {
+            first = first.saturating_sub(1);
+        } else if pointer.position[1] >= rect.y + rect.h {
+            first = (first + 1).min(layout.lines.len() - 1);
+        }
+    }
+    if let Some(editor) = world.get_mut::<Editor>(entity) {
+        editor.offset = layout.lines[first].y;
+    }
+    let (index, row, x) = map(pointer.position, first);
+    if let Some(buffer) = world.get_mut::<Buffer>(entity) {
+        buffer.caret = index;
+        buffer.anchor = anchor;
+    }
+    world.insert(entity, VerticalGoal { x, index, row });
+    if pointer.down && !pointer.released {
         world.insert(
             entity,
-            VerticalGoal {
-                x,
-                index,
-                row: first + row,
+            EditorDrag {
+                id: pointer.id,
+                anchor,
             },
         );
     }
+    starting
 }
 
 fn publish_window(world: &mut World, entity: crate::entity::Entity, reveal: bool) {
@@ -842,7 +914,7 @@ fn publish_window(world: &mut World, entity: crate::entity::Entity, reveal: bool
         buffer.caret = caret;
         buffer.anchor = anchor;
     }
-    world.insert(entity, EditorWindow { base, first });
+    world.insert(entity, EditorWindow { base });
     if let Some(label) = world.get_mut::<Label>(entity) {
         label.text = window;
     }
