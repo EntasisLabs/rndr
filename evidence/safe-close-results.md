@@ -1,5 +1,12 @@
 # rndr safe-close implementation evidence
 
+> Historical report for candidate `7cf316074774fdc60a3fb6d4d76a363ec165f18c`.
+> Independent review subsequently **failed P1 queued-window admission**; the
+> original claim about new windows was not established by manual-slot tests.
+> See [safe-close-correction.md](safe-close-correction.md) for the correction,
+> durable failing reproduction, real event-loop old/new comparison and reruns.
+> Neither report is independent acceptance or integration approval.
+
 ## Exact scope / revision
 
 - Implementation baseline: `a3a3c70bc1038eefc24bfc71265a092d19077c10`.

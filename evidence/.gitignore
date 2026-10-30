@@ -6,3 +6,9 @@ native-review/
 tests.log
 native-results.log
 native-final-results.log
+# Correction logs are durable; generated synthetic files remain local.
+native-correction/*/
+queued-native-correction/*/
+queued-review/old-*/
+native-correction-final/*/
+queued-native-final/*/

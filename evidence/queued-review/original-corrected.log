@@ -1,0 +1,8 @@
+OPEN_QUEUED_IN_PENDING_FRAME
+LATE_WINDOW_BUILT
+LATE_GUARD_STATE Pending(CloseRequest(2))
+LATE_GUARD_STATE Pending(CloseRequest(2))
+LATE_GUARD_STATE Pending(CloseRequest(2))
+
+PASS: still alive at 3s with late guard Pending; no draft drop or run return.
+Harness now terminates ONLY this synthetic probe (it has no authorization path).

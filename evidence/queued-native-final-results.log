@@ -1,0 +1,13 @@
+PASS visible-leaf-protect: exact draft retained through failure, then protect
+PASS visible-leaf-discard: exact draft retained through failure, then discard
+PASS visible-recursive-build-protect: exact draft retained through failure, then protect
+PASS visible-recursive-build-discard: exact draft retained through failure, then discard
+PASS visible-recursive-frame-protect: exact draft retained through failure, then protect
+PASS visible-recursive-frame-discard: exact draft retained through failure, then discard
+PASS hidden-leaf-protect: exact draft retained through failure, then protect
+PASS hidden-leaf-discard: exact draft retained through failure, then discard
+PASS hidden-recursive-build-protect: exact draft retained through failure, then protect
+PASS hidden-recursive-build-discard: exact draft retained through failure, then discard
+PASS hidden-recursive-frame-protect: exact draft retained through failure, then protect
+PASS hidden-recursive-frame-discard: exact draft retained through failure, then discard
+12 real event-loop queued-open scenarios passed; no visual acceptance.

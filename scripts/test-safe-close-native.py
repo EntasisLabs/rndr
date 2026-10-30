@@ -29,6 +29,11 @@ def scenario(name, first='native-close', decision='retry', ordinary=False, ax=Fa
             temporary = scratch / 'command.next'
             temporary.write_text(f'{seq}:{action}')
             temporary.replace(scratch / 'command')
+            if not ordinary:
+                expected = f'{seq}:{action}'
+                ack = scratch / 'ack'
+                wait(lambda: ack.exists() and ack.read_text() == expected,
+                     f'command acknowledgment {expected}')
 
         def state():
             p = scratch / 'state'
@@ -76,7 +81,6 @@ def scenario(name, first='native-close', decision='retry', ordinary=False, ax=Fa
                 failed = state()
                 assert proc.poll() is None and not (scratch / 'recovery').exists()
                 command(first)  # native double-close must not discard or retry failure
-                time.sleep(.3)
                 assert proc.poll() is None and state() == failed
                 assert 'draft_exact=true' in logpath.read_text()
                 command('discard' if decision in ('cancel', 'discard') else 'retry')

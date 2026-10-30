@@ -1,0 +1,8 @@
+FINAL_COMPLETION_QUEUED_OPEN hidden=false
+DRAFT_DROP authorized=false exact=true
+
+thread 'main' (12513820) panicked at crates/rndr_render/examples/queued_close.rs:107:5:
+queued draft destroyed without authorization
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+exit=101

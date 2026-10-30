@@ -1,0 +1,8 @@
+AX close-button pid=24808 status=0
+PASS ax-close-retry: pending/failure retained exact draft; retry
+PASS native-close-discard: pending/failure retained exact draft; discard
+PASS native-close-cancel: pending/failure retained exact draft; cancel
+PASS native-quit-retry: pending/failure retained exact draft; retry
+PASS hidden-close-retry: pending/failure retained exact draft; retry
+PASS ordinary-close: ordinary native close; unguarded failure/loss control reproduced
+Native behavior checks passed. UI appearance/real-editor integration NOT accepted.

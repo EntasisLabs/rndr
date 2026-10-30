@@ -45,10 +45,16 @@ struct OpenRequest {
     build: Box<dyn FnOnce(&mut App) + Send>,
 }
 
+#[derive(Default)]
+struct OpenQueue {
+    requests: Vec<OpenRequest>,
+    committed: bool,
+}
+
 struct Hub {
     next: AtomicU64,
     mail: Mutex<Vec<Delivery>>,
-    opens: Mutex<Vec<OpenRequest>>,
+    opens: Mutex<OpenQueue>,
     wake: Mutex<Option<Arc<dyn Wake>>>,
 }
 
@@ -57,7 +63,7 @@ impl Hub {
         Arc::new(Self {
             next: AtomicU64::new(1),
             mail: Mutex::new(Vec::new()),
-            opens: Mutex::new(Vec::new()),
+            opens: Mutex::new(OpenQueue::default()),
             wake: Mutex::new(None),
         })
     }
@@ -127,11 +133,18 @@ impl Desktop {
     /// `build` runs on the event-loop thread after the runner has inserted this
     /// session's [`Desktop`] and `config`. It does not run in a headless test.
     /// The new window's first frame is later, after the OS window exists.
+    /// Requests made after the runner commits process exit are ignored. Requests
+    /// queued before that commitment must be admitted before exit can proceed.
     pub fn open(&self, config: WindowConfig, build: impl FnOnce(&mut App) + Send + 'static) {
-        lock(&self.hub.opens).push(OpenRequest {
+        let mut opens = lock(&self.hub.opens);
+        if opens.committed {
+            return;
+        }
+        opens.requests.push(OpenRequest {
             config,
             build: Box::new(build),
         });
+        drop(opens);
         self.wake();
     }
 
@@ -226,9 +239,22 @@ impl WindowHub {
         *lock(&self.hub.wake) = Some(wake);
     }
 
+    /// Atomically close admission only if there are no queued participants.
+    /// The runner calls this after checking every admitted world's close guard,
+    /// with no application updates between that check and this commitment.
+    pub fn try_commit_exit(&self) -> bool {
+        let mut opens = lock(&self.hub.opens);
+        if !opens.requests.is_empty() {
+            return false;
+        }
+        opens.committed = true;
+        true
+    }
+
     /// Open requests queued since the last call, in order.
     pub fn take_opens(&self) -> Vec<OpenWindow> {
         lock(&self.hub.opens)
+            .requests
             .drain(..)
             .map(|request| OpenWindow {
                 config: request.config,

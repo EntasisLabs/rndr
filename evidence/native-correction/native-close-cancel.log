@@ -1,0 +1,22 @@
+probe ready ordinary=false
+state=Idle draft_exact=true
+command native-close
+ack 1:native-close
+state=Pending(CloseRequest(1)) draft_exact=true
+command native-close
+ack 2:native-close
+command cancel
+ack 3:cancel
+state=Idle draft_exact=true
+completion CloseRequest(1) accepted=false
+command native-close
+ack 4:native-close
+state=Pending(CloseRequest(2)) draft_exact=true
+completion CloseRequest(2) accepted=true
+state=Failed(CloseRequest(2), "Not a directory (os error 20)") draft_exact=true
+command native-close
+ack 5:native-close
+command discard
+ack 6:discard
+state=Ready(CloseRequest(2)) draft_exact=true
+run returned

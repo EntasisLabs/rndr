@@ -1,0 +1,3 @@
+unguarded control: recovery failed; draft in memory only; native close is unprotected
+probe ready ordinary=true
+run returned

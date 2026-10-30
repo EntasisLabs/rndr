@@ -1,0 +1,8 @@
+OPEN_QUEUED_IN_PENDING_FRAME
+LATE_WINDOW_BUILT
+QUEUED_DRAFT_DROPPED synthetic unsaved late window bytes
+RUN_RETURNED late_built=true queued_draft_dropped=true
+
+thread 'main' (12507367) panicked at /tmp/rndr-queued-open-review.rs:31:5:
+BUG: run returned although late guard never authorized closure
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

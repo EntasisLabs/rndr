@@ -1,0 +1,8 @@
+FINAL_COMPLETION_QUEUED_OPEN hidden=false
+FAILED_RETAINED exact=true hidden=false
+FAILED_RETAINED exact=true hidden=false
+AUTHORIZED discard=false exact=true
+AUTHORIZED discard=false exact=true
+DRAFT_DROP authorized=true exact=true
+DRAFT_DROP authorized=true exact=true
+PASS queued native built=2 authorized=2 dropped=2

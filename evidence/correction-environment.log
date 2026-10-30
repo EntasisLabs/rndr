@@ -1,0 +1,9 @@
+Fri Oct 30 23:25:37 UTC 2026
+7cf316074774fdc60a3fb6d4d76a363ec165f18c
+worktree/rndr-draft-safe-window-closing
+Filesystem      Size    Used   Avail Capacity iused ifree %iused  Mounted on
+/dev/disk3s5   228Gi   190Gi    12Gi    94%    1.8M  128M    1%   /System/Volumes/Data
+2.1G	target
+5221c37532ce7ffb292fa1e5e930e44e4ecfef986a3188c0559a7683cd5036ef  evidence/queued-review/original-repro.rs
+5221c37532ce7ffb292fa1e5e930e44e4ecfef986a3188c0559a7683cd5036ef  /tmp/rndr-queued-open-review.rs
+0546d9d4a1c9d87d54ec35fd02a5685dc4fe67e46ceecfa96d4d875b9be1b014  target/debug/examples/queued_close_old

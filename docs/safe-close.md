@@ -14,6 +14,16 @@ including hidden windows and windows opened during drain. Closing a secondary
 alone drains only that window. No participating app/world is dropped while any
 gate is Pending or Failed. A cancel in any participant cancels process exit.
 
+Queued `Desktop::open` requests are participants too, even when queued by the
+frame completing the last guard or by a hidden update. Before checking guards,
+the runner admits a batch of queued windows. Opens recursively queued by builders
+prevent exit and are admitted on a later bounded event-loop pass; every admitted
+guard is rechecked. Exit commits only when all guards authorize and an atomic
+queue check closes admission. Requests racing that commitment either join the
+drain or occur after shutdown is committed (post-commit opens are ignored).
+No application update/build callbacks run after commitment. An endless stream of
+new windows can keep shutdown pending; it cannot authorize losing their drafts.
+
 | State | App responsibility | Runner behavior |
 |---|---|---|
 | Idle | Normal editing | No active protection attempt |
@@ -132,8 +142,9 @@ cargo fmt --all -- --check
 cargo test --locked --offline -p rndr_core -p rndr_render -p rndr
 cargo clippy --locked --offline -p rndr_core -p rndr_render -p rndr --all-targets -- -D warnings
 cargo test --locked --offline -p rndr_core -p rndr_render --no-default-features
-cargo build --locked --offline -p rndr_render --example safe_close
+cargo build --locked --offline -p rndr_render --example safe_close --example queued_close
 python3 scripts/test-safe-close-native.py evidence/native-review
+python3 scripts/test-queued-close-native.py evidence/queued-native-review
 ```
 
 The native script refuses to reuse a scenario directory. Supply a fresh evidence
@@ -149,6 +160,15 @@ window drain and ordinary-app close. The unguarded ordinary-app negative control
 also injects a real recovery failure and intentionally closes with synthetic
 bytes only in memory, reproducing the loss mechanism without running or modifying
 the preserved Blooey app. It is not a human failure-dialog usability check. It writes only its fresh synthetic scratch directories.
+
+The single-window driver waits for an exact sequence acknowledgment after each
+command, so duplicate close is executed before Cancel rather than overwritten.
+The queued-open driver runs 12 real event-loop scenarios: visible/hidden final
+completion opens, recursive build/update opens, real IO failure retention, then
+exact-byte protection or explicit synthetic discard. No manual slot insertion is
+used. The original independent P1 reproduction and failing log are retained in
+`evidence/queued-review/`; see `evidence/safe-close-correction.md` for the old/new
+comparison and exact correction results.
 
 Core tests cover token/state rules; renderer tests exercise the same close
 coordinator used by the actual event loop, including injected IO failure,

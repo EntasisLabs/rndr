@@ -106,6 +106,11 @@ fn update(world: &mut World) {
             }
             _ => {}
         }
+        // Publish the sequence only after execution. The driver must not
+        // overwrite a duplicate close with Cancel before this frame reads it.
+        std::fs::write(p.root.join("ack.next"), &command).unwrap();
+        std::fs::rename(p.root.join("ack.next"), p.root.join("ack")).unwrap();
+        eprintln!("ack {}", command.trim());
     }
     let state = world.resource::<CloseGuard>().unwrap().state().clone();
     if let CloseState::Pending(r) = state {

@@ -1,0 +1,7 @@
+FINAL_COMPLETION_QUEUED_OPEN hidden=false
+
+thread 'main' (12513792) panicked at crates/rndr_render/examples/queued_close.rs:106:5:
+queued draft must be built
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+exit=101

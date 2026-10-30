@@ -1526,13 +1526,24 @@ struct Running {
 
 impl Running {
     fn reconcile_close(&mut self, event_loop: &ActiveEventLoop) {
+        // Updates (including hidden frames) and build closures may queue opens.
+        // Admit one batch before checking guards. Recursive opens stay queued
+        // and prevent commitment; their wake schedules another bounded pass.
+        self.spawn_windows(event_loop);
         let exit = self.close.step(
             self.slots
                 .iter_mut()
                 .map(|slot| (slot.app.world_mut(), &mut slot.close, slot.primary)),
         );
         if exit {
-            event_loop.exit();
+            // No application code may run between guard validation and the
+            // atomic queue/admission commitment. An open racing this check
+            // either joins the drain or occurs after shutdown was committed.
+            if self.hub.try_commit_exit() {
+                event_loop.exit();
+            } else {
+                self.wake.wake();
+            }
             return;
         }
         for slot in &mut self.slots {
@@ -1547,7 +1558,7 @@ impl Running {
             }
         }
         self.slots.retain(|slot| !slot.close.closed);
-        if self.slots.is_empty() {
+        if self.slots.is_empty() && self.hub.try_commit_exit() {
             event_loop.exit();
         }
     }
@@ -1624,10 +1635,16 @@ impl ApplicationHandler<RunnerEvent> for Running {
     }
 
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        if event_loop.exiting() {
+            return;
+        }
         self.spawn_windows(event_loop);
     }
 
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: RunnerEvent) {
+        if event_loop.exiting() {
+            return;
+        }
         #[cfg(target_os = "macos")]
         if matches!(event, RunnerEvent::Quit) {
             if let Some(slot) = self.slots.first_mut() {
@@ -1664,6 +1681,11 @@ impl ApplicationHandler<RunnerEvent> for Running {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        // winit can finish dispatching a batch after exit() is called. Once
+        // committed, no later callback may update a Ready world or build opens.
+        if event_loop.exiting() {
+            return;
+        }
         self.spawn_windows(event_loop);
         for slot in &mut self.slots {
             let hidden = !rndr_core::window::is_visible(slot.app.world());
@@ -1682,6 +1704,9 @@ impl ApplicationHandler<RunnerEvent> for Running {
         window_id: WindowId,
         event: WindowEvent,
     ) {
+        if event_loop.exiting() {
+            return;
+        }
         if let Some(slot) = self
             .slots
             .iter_mut()
