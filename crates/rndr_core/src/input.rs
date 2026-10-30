@@ -126,11 +126,13 @@ pub struct Input {
     pub alt: bool,
     /// Super / Command / Windows key, held this frame.
     pub super_key: bool,
-    /// Ask the shell to exit. The desktop loop stops while this stays true.
+    /// Ask the shell to exit. The desktop runner consumes this request and
+    /// drains every opted-in [`crate::CloseGuard`] before exiting.
     ///
     /// Focus sets it from Escape when the tree cannot collapse further. A
     /// window dismiss of [`crate::Dismiss::Close`] and a tray item that quits
-    /// set it too. Nothing in core clears it.
+    /// set it too. Core does not clear it; the desktop runner does, so cancelling
+    /// a protected close does not immediately request another one.
     pub quit: bool,
 }
 

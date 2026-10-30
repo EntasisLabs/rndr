@@ -1,0 +1,8 @@
+# Local synthetic scratch and superseded first-pass logs; final logs are tracked.
+native/
+native-final/
+native-verified/*/
+native-review/
+tests.log
+native-results.log
+native-final-results.log

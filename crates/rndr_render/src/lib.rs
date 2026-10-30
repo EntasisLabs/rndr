@@ -32,6 +32,7 @@
 #[cfg(feature = "accesskit")]
 mod a11y;
 mod clipboard;
+mod close;
 mod color;
 mod decode;
 #[cfg(feature = "dialog")]
@@ -41,6 +42,8 @@ mod gpu;
 #[cfg(feature = "hotkey")]
 mod hotkey;
 mod images;
+#[cfg(target_os = "macos")]
+mod native_quit;
 mod outline;
 mod pen;
 mod platform;
@@ -97,6 +100,8 @@ pub use images::{
 #[derive(Debug)]
 enum RunnerEvent {
     Wake,
+    #[cfg(target_os = "macos")]
+    Quit,
     #[cfg(feature = "tray")]
     Tray(rndr_core::TrayReport),
     #[cfg(feature = "accesskit")]
@@ -208,6 +213,8 @@ pub fn toggle_window(
 /// app, with its own world and surface. [`rndr_core::Desktop::open`] can add more after
 /// the loop has started. Closing the first window exits. Closing a later
 /// window removes only that window. [`Input::quit`] on any window exits.
+/// An opt-in [`rndr_core::CloseGuard`] delays either path until protection is
+/// ready. Process exit drains every window, including hidden/secondary windows.
 ///
 /// # Panics
 ///
@@ -302,8 +309,11 @@ fn run_apps(apps: Vec<App>) {
         proxy,
         pen,
         executor: pool,
+        close: close::CloseDrain::default(),
     };
     event_loop.run_app(&mut session).expect("run");
+    #[cfg(target_os = "macos")]
+    native_quit::clear();
 }
 
 fn install_text_engine(app: &mut App) {
@@ -373,7 +383,7 @@ struct Handler {
     cursor_cache: Option<(u64, CustomCursor)>,
     pen_seen: u64,
     accepts_pen: bool,
-    closed: bool,
+    close: close::CloseSlot,
     started: Instant,
     pen: pen::PenFeed,
     /// Cloned into the accessibility adapter when that feature is enabled.
@@ -428,7 +438,7 @@ impl Handler {
             cursor_cache: None,
             pen_seen: 0,
             accepts_pen: true,
-            closed: false,
+            close: close::CloseSlot::default(),
             started: Instant::now(),
             pen,
             proxy,
@@ -1139,25 +1149,14 @@ impl Handler {
         event_loop.set_control_flow(idle_control_flow(self.app.next_deadline(), now));
     }
 
-    fn should_exit(&self) -> bool {
-        self.app
-            .world()
-            .resource::<Input>()
-            .is_some_and(|input| input.quit)
-    }
-
     /// Step the world without presenting. Tray clicks and timers still run,
     /// and a quit item exits, while the window is hidden.
-    fn run_hidden_frame(&mut self, event_loop: &ActiveEventLoop) {
+    fn run_hidden_frame(&mut self, _event_loop: &ActiveEventLoop) {
         deliver(self.app.world_mut(), self.desktop_id);
         for _ in 0..8 {
             self.app.update();
             self.apply_effects();
             self.apply_tray();
-            if self.should_exit() {
-                event_loop.exit();
-                return;
-            }
             if !self.app.wants_frame() && !rndr_core::tray::pending(self.app.world()) {
                 break;
             }
@@ -1232,10 +1231,6 @@ impl ApplicationHandler<RunnerEvent> for Handler {
         let hidden = !rndr_core::window::is_visible(self.app.world());
         if hidden && (self.app.wants_frame() || rndr_core::tray::pending(self.app.world())) {
             self.run_hidden_frame(event_loop);
-        }
-        if self.should_exit() {
-            event_loop.exit();
-            return;
         }
         self.sync_flow(event_loop);
     }
@@ -1329,11 +1324,9 @@ impl ApplicationHandler<RunnerEvent> for Handler {
         self.process_access(&event);
         match event {
             WindowEvent::CloseRequested => {
-                if self.primary {
-                    event_loop.exit();
-                } else {
-                    self.closed = true;
-                }
+                // Running coordinates this after native dispatch; never destroy
+                // an app here, including unguarded primaries with guarded siblings.
+                self.close.requested = true;
             }
             WindowEvent::Focused(focused) => {
                 if focused {
@@ -1515,9 +1508,6 @@ impl ApplicationHandler<RunnerEvent> for Handler {
                 }
                 self.apply_effects();
                 self.apply_tray();
-                if self.should_exit() {
-                    event_loop.exit();
-                }
             }
             _ => {}
         }
@@ -1531,9 +1521,37 @@ struct Running {
     proxy: EventLoopProxy<RunnerEvent>,
     pen: pen::PenFeed,
     executor: Arc<dyn rndr_core::Executor>,
+    close: close::CloseDrain,
 }
 
 impl Running {
+    fn reconcile_close(&mut self, event_loop: &ActiveEventLoop) {
+        let exit = self.close.step(
+            self.slots
+                .iter_mut()
+                .map(|slot| (slot.app.world_mut(), &mut slot.close, slot.primary)),
+        );
+        if exit {
+            event_loop.exit();
+            return;
+        }
+        for slot in &mut self.slots {
+            if std::mem::take(&mut slot.close.needs_frame) {
+                if rndr_core::window::is_visible(slot.app.world()) {
+                    slot.request_redraw();
+                } else {
+                    // A newly requested hidden gate still needs a system pass,
+                    // even with no queued task or redraw to wake it.
+                    slot.run_hidden_frame(event_loop);
+                }
+            }
+        }
+        self.slots.retain(|slot| !slot.close.closed);
+        if self.slots.is_empty() {
+            event_loop.exit();
+        }
+    }
+
     fn spawn_windows(&mut self, event_loop: &ActiveEventLoop) {
         self.pen.install();
         for open in self.hub.take_opens() {
@@ -1556,6 +1574,13 @@ impl Running {
                 self.proxy.clone(),
             ));
         }
+        #[cfg(target_os = "macos")]
+        native_quit::configure(
+            self.slots
+                .iter()
+                .any(|slot| slot.app.world().has_resource::<rndr_core::CloseGuard>()),
+            &self.proxy,
+        );
         for slot in &mut self.slots {
             if slot.gpu.is_none() {
                 slot.resumed(event_loop);
@@ -1603,6 +1628,16 @@ impl ApplicationHandler<RunnerEvent> for Running {
     }
 
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: RunnerEvent) {
+        #[cfg(target_os = "macos")]
+        if matches!(event, RunnerEvent::Quit) {
+            if let Some(slot) = self.slots.first_mut() {
+                slot.app
+                    .world_mut()
+                    .resource_mut::<Input>()
+                    .expect("input")
+                    .quit = true;
+            }
+        }
         #[cfg(not(any(feature = "tray", feature = "accesskit")))]
         let _ = &event;
         #[cfg(feature = "accesskit")]
@@ -1637,15 +1672,7 @@ impl ApplicationHandler<RunnerEvent> for Running {
                 slot.run_hidden_frame(event_loop);
             }
         }
-        if self.slots.is_empty() || self.slots.iter().any(Handler::should_exit) {
-            event_loop.exit();
-            return;
-        }
-        self.slots.retain(|slot| !slot.closed);
-        if self.slots.is_empty() {
-            event_loop.exit();
-            return;
-        }
+        self.reconcile_close(event_loop);
         self.sync_flow(event_loop);
     }
 
@@ -1662,10 +1689,7 @@ impl ApplicationHandler<RunnerEvent> for Running {
         {
             slot.window_event(event_loop, window_id, event);
         }
-        self.slots.retain(|slot| !slot.closed);
-        if self.slots.is_empty() {
-            event_loop.exit();
-        }
+        self.reconcile_close(event_loop);
     }
 }
 

@@ -1,0 +1,14 @@
+Upstream baseline: a3a3c70bc1038eefc24bfc71265a092d19077c10
+
+Blooey main root (read-only; initializer has no source files):
+99fd1a666cf88be0c596160e65a490c9ac8717aa
+
+Preserved Blooey source and clean status (read-only):
+b38b370a5e28fa51930e75550e798ce60b005fe6
+
+Existing rndr worktree refs (read-only):
+/Users/theelevators/rndr                                                                                                                       a3a3c70 [main]
+/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-blooey-native-editor-navigation-and-caret-visibility a3a3c70 [worktree/rndr-blooey-native-editor-navigation-and-caret-visibility]
+/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-default-text-visibility-and-regression-coverage      8845207 [worktree/rndr-default-text-visibility-and-regression-coverage]
+/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-desktop-app-readiness-foundation                     f58c91b [worktree/rndr-desktop-app-readiness-foundation]
+/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-draft-safe-window-closing                            a3a3c70 [worktree/rndr-draft-safe-window-closing]

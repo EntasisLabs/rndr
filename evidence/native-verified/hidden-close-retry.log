@@ -1,0 +1,13 @@
+probe ready ordinary=false
+state=Idle draft_exact=true
+command hide
+command native-close
+state=Pending(CloseRequest(1)) draft_exact=true
+command native-close
+completion CloseRequest(1) accepted=true
+state=Failed(CloseRequest(1), "Not a directory (os error 20)") draft_exact=true
+command native-close
+command retry
+state=Pending(CloseRequest(2)) draft_exact=true
+completion CloseRequest(2) accepted=true
+run returned

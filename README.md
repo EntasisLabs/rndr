@@ -101,6 +101,15 @@ Insert a `WindowConfig` before `run`. Omit it and the window stays what it was: 
 
 A macOS panel is an `NSWindow` (winit 0.30 does not build an `NSPanel`) with the non-activating style bit, pop-up window level, and collection behavior for every Space including full-screen. Focusing it does not call `activateIgnoringOtherApps`. `accessory` sets the accessory activation policy and skips launch-time activation. On Wayland, winit 0.30 ignores position, `set_visible`, `focus_window`, and window levels; the logical phase still updates.
 
+### Safe closing
+
+Apps that own unsaved state can insert `CloseGuard::default()` before `run`.
+The runner then waits for explicit protection success, keeps the app open on
+failure, and supports app-owned retry, cancel, and informed discard. Primary
+close or Quit drains all protected windows; ordinary apps without a guard retain
+their normal behavior. See [the close API and integration recipe](docs/safe-close.md)
+for asynchronous completion, edit invalidation, native macOS Quit, and safety tests.
+
 ## Several windows
 
 `Session::new(app).window(other).run()` opens two apps on one event loop. Each has its own world and surface. `run(app)` is the one-window case and is the same as `Session::new(app).run()`. Closing the first window exits the process. Closing a later window removes only that window. `Input.quit` on any window exits. Hiding a window leaves its surface in place.

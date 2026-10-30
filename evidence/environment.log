@@ -1,0 +1,11 @@
+2026-10-30T22:52:15Z
+ProductName:		macOS
+ProductVersion:		27.0.1
+BuildVersion:		26A434
+arm64
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+cargo 1.98.0 (797e8a9bc 2026-08-05)
+Filesystem      Size    Used   Avail Capacity iused ifree %iused  Mounted on
+/dev/disk3s5   228Gi   191Gi    11Gi    95%    1.8M  117M    2%   /System/Volumes/Data
+1.8G	target
+AXTrusted=true screenCapture=false
