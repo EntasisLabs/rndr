@@ -135,6 +135,11 @@ On macOS, `PinchGesture` and `RotationGesture` are also `Gesture` events and are
 
 ## Text input
 
+For app-owned source-range edits that must share keyboard Undo/Redo, use
+`edit_buffer` rather than the history-free `Buffer` mutations. See the
+[source-backed editing contract and example](docs/source-backed-editing.md),
+including the separate boundary for hidden-markup rich/live projections.
+
 A focused field, prompt, or editor calls `set_ime_allowed(true)` on its window. Preedit, commit, and the keys of that frame are resolved together. A commit replaces key text that the same frame also reported, so the character is inserted once. A nonempty preedit drops composition keys. `Input.ime_enabled` records whether the platform has enabled an input method. A preedit with no caret range places the caret at the end of the preedit string.
 
 ## Accessibility

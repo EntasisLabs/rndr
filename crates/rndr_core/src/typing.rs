@@ -39,6 +39,16 @@ pub struct EditHistory {
 }
 
 impl EditHistory {
+    /// Record a validated external source edit in the keyboard history.
+    pub(crate) fn record_source_edit(&mut self, text: String, index: usize, anchor: usize) {
+        self.push_undo(Snap {
+            text,
+            index,
+            anchor,
+        });
+        self.break_run();
+    }
+
     fn push_undo(&mut self, snap: Snap) {
         self.undo.push(snap);
         if self.undo.len() > 100 {

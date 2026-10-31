@@ -124,7 +124,8 @@ impl Buffer {
     ///
     /// An empty `text` returns without moving the gap or rebuilding lines.
     /// Does not move [`Self::caret`] or [`Self::anchor`]. A mid-codepoint
-    /// index splits that scalar. The line index is rebuilt.
+    /// index splits that scalar. The line index is rebuilt. This is history-free;
+    /// use [`edit_buffer`] for undoable app-owned source operations.
     pub fn insert_str(&mut self, index: usize, text: &str) {
         if text.is_empty() {
             return;
@@ -141,7 +142,8 @@ impl Buffer {
     ///
     /// An empty span returns immediately. Does not move [`Self::caret`] or
     /// [`Self::anchor`], so those indices can sit past the new end until the
-    /// caller updates them. Not snapped to a char boundary.
+    /// caller updates them. Not snapped to a char boundary. This is history-free;
+    /// use [`edit_buffer`] for undoable app-owned source operations.
     pub fn delete_range(&mut self, start: usize, end: usize) {
         let start = start.min(self.len());
         let end = end.min(self.len()).max(start);
@@ -199,6 +201,125 @@ impl Buffer {
             }
         }
     }
+}
+
+/// A refused [`edit_buffer`] operation. Refusal leaves text, selection, and
+/// history unchanged.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BufferEditError {
+    /// The entity has no [`Buffer`].
+    MissingBuffer,
+    /// The range is reversed, out of bounds, or splits a UTF-8 scalar.
+    InvalidRange,
+    /// The target has an active IME preedit. Retry after composition ends.
+    Composing,
+}
+
+impl std::fmt::Display for BufferEditError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::MissingBuffer => "entity has no Buffer",
+            Self::InvalidRange => "range is not an in-bounds UTF-8 byte range",
+            Self::Composing => "buffer has an active IME composition",
+        })
+    }
+}
+
+impl std::error::Error for BufferEditError {}
+
+/// Replace a current-source byte range as one keyboard undo/redo step.
+///
+/// For app-owned source operations (for example a task toggle), use this
+/// instead of the history-free [`Buffer::delete_range`]/[`Buffer::insert_str`].
+/// The range must be ordered, in bounds, and on UTF-8 scalar boundaries; it is
+/// never silently clamped. `Ok(false)` means identical bytes (no history or
+/// selection change). A changed edit clears redo and ends typing coalescence.
+///
+/// Selection endpoints before the range stay put, endpoints at/after its end
+/// move by the byte delta, and endpoints inside it move to the replacement end.
+/// Insertion is right-affine: endpoints at the insertion move after it. The
+/// resulting endpoints snap backward to grapheme boundaries. Undo restores
+/// the original text and selection; redo restores the remapped selection.
+///
+/// Does not steal focus, consume queued input, modify clipboard, or cancel
+/// composition. Active preedit on the target refuses the operation. Call from
+/// an app system on the UI thread, using ranges derived from the current source
+/// (not stale parser results). Chrome publishes the visible label/caret on its
+/// next editor pass. Derived spans/decorations/projections remain app-owned and
+/// must be rebuilt after text changes, including undo/redo. This is not a
+/// hidden-markup display projection or a parser/serializer.
+///
+/// ```
+/// use rndr_core::{edit_buffer, App, Buffer, Chrome, Editor, Label};
+/// let mut app = App::new();
+/// app.add_plugin(Chrome);
+/// let note = app.world_mut().spawn((
+///     Buffer::from_str("- [ ] task"), Editor::default(), Label::new(""),
+/// ));
+/// // The app locates the exact current-source range; rndr interprets no markup.
+/// assert_eq!(edit_buffer(app.world_mut(), note, 3..4, "x"), Ok(true));
+/// assert_eq!(app.world().get::<Buffer>(note).unwrap().text(), "- [x] task");
+/// // Standard focused-editor Undo will restore the unchecked bytes.
+/// ```
+pub fn edit_buffer(
+    world: &mut World,
+    entity: crate::Entity,
+    range: std::ops::Range<usize>,
+    replacement: &str,
+) -> Result<bool, BufferEditError> {
+    let buffer = world
+        .get::<Buffer>(entity)
+        .ok_or(BufferEditError::MissingBuffer)?;
+    let text = buffer.text();
+    if range.start > range.end
+        || range.end > text.len()
+        || !text.is_char_boundary(range.start)
+        || !text.is_char_boundary(range.end)
+    {
+        return Err(BufferEditError::InvalidRange);
+    }
+    let focused = world.resource::<Focus>().and_then(|focus| focus.entity) == Some(entity);
+    if world
+        .get::<crate::ImePreview>(entity)
+        .is_some_and(|ime| !ime.text.is_empty())
+        || (focused
+            && world
+                .resource::<Input>()
+                .is_some_and(|input| !input.ime_preedit.is_empty()))
+    {
+        return Err(BufferEditError::Composing);
+    }
+    if &text[range.clone()] == replacement {
+        return Ok(false);
+    }
+    let caret = buffer.caret;
+    let anchor = buffer.anchor;
+    let mut next = text.clone();
+    next.replace_range(range.clone(), replacement);
+    let remap = |at: usize| {
+        let at = at.min(text.len());
+        let at = if at < range.start {
+            at
+        } else if at >= range.end {
+            at - (range.end - range.start) + replacement.len()
+        } else {
+            range.start + replacement.len()
+        };
+        floor_grapheme(&next, at)
+    };
+    let (next_caret, next_anchor) = (remap(caret), remap(anchor));
+    let mut history = world.remove::<EditHistory>(entity).unwrap_or_default();
+    history.record_source_edit(text, caret, anchor);
+    replace_buffer(
+        world.get_mut::<Buffer>(entity).expect("validated buffer"),
+        &next,
+        next_caret,
+        next_anchor,
+    );
+    world.insert(entity, history);
+    world.remove::<VerticalGoal>(entity);
+    world.remove::<EditorDrag>(entity);
+    Ok(true)
 }
 
 /// Vertical scroll, in logical points, for a [`Buffer`] on the same entity.
@@ -461,7 +582,12 @@ fn edit_focused(world: &mut World, entity: crate::entity::Entity) {
         Some(input) => crate::ime::text_frame(input),
         None => return,
     };
-    if !frame.keys.is_empty() {
+    // A native IME may commit without a key event. Route that standalone
+    // commit through the same selection replacement and history as queued
+    // input; leave explicitly mixed legacy key/chars frames on their path.
+    if !frame.keys.is_empty()
+        || (!frame.commit.is_empty() && frame.legacy_key.is_none() && frame.chars.is_empty())
+    {
         edit_queue(world, entity, &frame.keys, &frame.commit);
         return;
     }
@@ -642,6 +768,7 @@ fn edit_queue(world: &mut World, entity: crate::entity::Entity, keys: &[KeyEvent
         clipboard_action |= step.clipboard_action;
     }
     if !commit.is_empty() {
+        history.break_run();
         let commit_event = KeyEvent {
             logical: LogicalKey::Unidentified,
             text: Some(commit.to_string()),
@@ -665,6 +792,7 @@ fn edit_queue(world: &mut World, entity: crate::entity::Entity, keys: &[KeyEvent
             &mut history,
             &clip,
         );
+        history.break_run();
     }
     if let Some(buffer) = world.get_mut::<Buffer>(entity) {
         replace_buffer(buffer, &text, index, anchor);
