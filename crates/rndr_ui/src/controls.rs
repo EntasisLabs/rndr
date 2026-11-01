@@ -851,7 +851,9 @@ pub(crate) fn resolve_toolbars(world: &mut World) {
             .into_iter()
             .filter(|e| !world.has::<Hidden>(*e))
             .collect();
-        let mut required = 8.0 * children.len().saturating_sub(1) as f32;
+        let gaps = 8.0 * children.len().saturating_sub(1) as f32;
+        let padding = world.get::<Layout>(root).unwrap().padding * 2.0;
+        let share = (node.available - padding - gaps).max(0.0) / children.len().max(1) as f32;
         let mut known = true;
         for child in &children {
             if let Some(c) = world.get::<Control>(*child) {
@@ -870,22 +872,26 @@ pub(crate) fn resolve_toolbars(world: &mut World) {
                     .get::<TextStyle>(c.label)
                     .cloned()
                     .unwrap_or_else(|| theme.typography(Typography::Label));
-                required += (engine
+                // Core gives every direct Fill control the same row share, not
+                // its natural width. Check each label against that allocation.
+                // Include the actual nested ring/gap/border/face/label insets
+                // rather than a sum-width estimate or a magic safety margin.
+                let insets: f32 = [*child, c.gap, c.border, c.face, c.label]
+                    .iter()
+                    .map(|e| world.get::<Layout>(*e).unwrap().padding * 2.0)
+                    .sum();
+                let natural = engine
                     .measure(&label.text, &style, &[], f32::INFINITY)
-                    .width
-                    + 52.0)
-                    .max(theme.target_min());
+                    .width;
+                let required = (natural + insets).max(theme.target_min());
+                known &= required.is_finite() && required <= share;
             } else {
                 known = false;
             }
         }
         if let Some(l) = world.get_mut::<Layout>(root) {
             l.width = Size::Px(node.available);
-            l.axis = if known && required <= node.available {
-                Axis::Row
-            } else {
-                Axis::Column
-            };
+            l.axis = if known { Axis::Row } else { Axis::Column };
             l.gap = 8.0;
         }
     }
