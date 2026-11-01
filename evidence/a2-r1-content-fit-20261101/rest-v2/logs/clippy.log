@@ -1,0 +1,22 @@
+    Checking rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core)
+    Checking rndr_paint v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_paint)
+    Checking rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui)
+warning: the borrowed expression implements the required traits
+  --> crates/rndr_core/tests/a1_wrapped_hug.rs:79:24
+   |
+79 | ...ew(&"Nested reading content wraps without clipping. ".repeat(8))
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: change this to: `"Nested reading content wraps without clipping. ".repeat(8)`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#needless_borrows_for_generic_args
+   = note: `#[warn(clippy::needless_borrows_for_generic_args)]` on by default
+
+warning: the borrowed expression implements the required traits
+   --> crates/rndr_core/tests/a1_wrapped_hug.rs:125:28
+    |
+125 | ...Label::new(&"Long wrapping row content. ".repeat(10)).overflow(TextO...
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: change this to: `"Long wrapping row content. ".repeat(10)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#needless_borrows_for_generic_args
+
+warning: `rndr_core` (test "a1_wrapped_hug") generated 2 warnings (run `cargo clippy --fix --test "a1_wrapped_hug" -p rndr_core -- ` to apply 2 suggestions)
+    Finished `dev` profile [unoptimized] target(s) in 2.85s

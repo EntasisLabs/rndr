@@ -1,0 +1,7 @@
+A2 R1 continuation correction evidence seal
+Tested implementation 91c008bdc1054f42f67dcd5d45729290ddb4ffa4
+Clean start 92e98004d886a9ccfc3d2d05eaf090b591e10cc9
+Source unchanged after final verification. No acceptance/integration/native certification.
+MANIFEST.sha256 covers every file in this directory except itself, including nested original inventories as preserved data.
+Original artifacts retained at /tmp/rndr-a2-content-fit-UJYjbC; build artifact hashes verified before seal.
+Verify from repository root: python3 evidence/a2-r1-content-fit-20261101/check-seal.py

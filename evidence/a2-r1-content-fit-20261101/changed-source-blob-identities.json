@@ -1,0 +1,55 @@
+{
+  "start": "92e98004d886a9ccfc3d2d05eaf090b591e10cc9",
+  "implementation": "91c008bdc1054f42f67dcd5d45729290ddb4ffa4",
+  "changes": {
+    "crates/rndr_ui/src/controls.rs": {
+      "before": {
+        "git_blob": "b473f08aaa22396f7e361442b526e24e6821d000",
+        "sha256": "97be79009fb6d5d66990a0a7282e83e95f9c5efb34fb16a208abc4b6cd4f233b"
+      },
+      "after": {
+        "git_blob": "ea7dcc7ad3f882fa9130393efdd503e847044fa0",
+        "sha256": "c6e1f40662eb5105ac265b5748ffc07ef2a1ba2b387a5aab093f973256c76182"
+      }
+    },
+    "crates/rndr_ui/tests/a2_toolbar_allocation.rs": {
+      "before": {
+        "git_blob": "c7c4edd9d8ca1d72c5e0be778782c5b6c44cccd8",
+        "sha256": "b878e44c2fc0c650601085f739ca14ee2b00005c3ea74976b1a56aa77badeffc"
+      },
+      "after": {
+        "git_blob": "2a3379950e3993db019775dd61e582a1efe7dbda",
+        "sha256": "348fcb4c829db35b98a403988f249b477b0e4f004e790af049505cb093e6cf4e"
+      }
+    },
+    "crates/rndr_ui/tests/a2_toolbar_content_fit.rs": {
+      "before": {
+        "absent": true
+      },
+      "after": {
+        "git_blob": "ba4949dceb0199feb314270f787dc317cea3b4b1",
+        "sha256": "ae5f2b18dcfde1a8ce63a60048115c62a73d08caaab132bf8aa593da9c6f6ddd"
+      }
+    },
+    "docs/design/A2-components.md": {
+      "before": {
+        "git_blob": "d8e5d1185a72a36db28c15357b654778b6bb04a7",
+        "sha256": "c39c8839d0b8e4c0581706b24ba1f06623bba5d05fc9fad53a2246257ae9f9e8"
+      },
+      "after": {
+        "git_blob": "3192a26ce002021408a0bea420ca7f2cbcb9bb3c",
+        "sha256": "260cfe9a98eadf80a52dd88fbf8d772b1a86ceaa027860fc66b3edb3a58556ee"
+      }
+    },
+    "docs/design/implementation-tracking.md": {
+      "before": {
+        "git_blob": "942fe14310d4ca0b3e0762d1352934e8deed8d5c",
+        "sha256": "341591adfaa538745477f2ad93674ae4375ebc6320ef3c749d095039b8a6031e"
+      },
+      "after": {
+        "git_blob": "917548743a38cba86f09c477fe4be38a7281d44c",
+        "sha256": "f31f754c7bf0fbf645495ae057525e717f6dab6f27f687d9b1e1deb9dfcf510b"
+      }
+    }
+  }
+}

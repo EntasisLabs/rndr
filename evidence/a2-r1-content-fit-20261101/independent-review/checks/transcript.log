@@ -1,0 +1,248 @@
+++ pwd
++ root='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library'
++ deps='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps'
++ export CARGO_BUILD_JOBS=2 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0 INSTA_UPDATE=no 'INSTA_WORKSPACE_ROOT=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library'
++ CARGO_BUILD_JOBS=2
++ CARGO_PROFILE_DEV_DEBUG=0
++ CARGO_PROFILE_TEST_DEBUG=0
++ CARGO_INCREMENTAL=0
++ INSTA_UPDATE=no
++ INSTA_WORKSPACE_ROOT='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library'
++ export CARGO_PKG_VERSION=0.3.1 CARGO_PKG_NAME=rndr_ui 'CARGO_MANIFEST_DIR=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui'
++ CARGO_PKG_VERSION=0.3.1
++ CARGO_PKG_NAME=rndr_ui
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui'
++ git rev-parse HEAD
++ df -h .
+Filesystem      Size    Used   Avail Capacity iused ifree %iused  Mounted on
+/dev/disk3s5   228Gi   201Gi   3.1Gi    99%    1.8M   32M    5%   /System/Volumes/Data
++ du -sh target
+1.3G	target
++ python3 - /tmp/rndr-a2-independent-SQwoYo/exact /tmp/rndr-a2-fresh-review-4TfleE/exact-ui
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_cancellation_edges
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_cancellation_edges
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_hotkey_ownership
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_hotkey_ownership
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_interaction
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_interaction
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_lifecycle
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_lifecycle
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_logical_only
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_logical_only
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_relation_lifecycle
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_relation_lifecycle
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_reproductions
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_reproductions
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_review_corrections
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_review_corrections
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_wrapped_hug
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_wrapped_hug
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a2_core_contracts
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a2_core_contracts
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a2_nested_focus
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a2_nested_focus
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-actions
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-actions
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-body
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-body
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-button
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-button
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-caret
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-caret
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-click_caret
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-click_caret
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-clipboard
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-clipboard
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-decorations
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-decorations
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-desktop_exit
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-desktop_exit
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-ecs
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-ecs
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-edit
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-edit
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-editor
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-editor
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-editor_drag
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-editor_drag
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-editor_navigation
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-editor_navigation
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-feed
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-feed
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-field
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-field
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-focus
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-focus
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-font
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-font
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-fs
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-fs
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-hotkey
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-hotkey
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-ime
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-ime
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-input_platform
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-input_platform
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-keyboard
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-keyboard
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-layout
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-layout
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-list
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-list
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-markdown
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-markdown
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-mono
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-mono
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-overlay
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-overlay
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-pane
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-pane
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-pointers
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-pointers
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-prompt
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-prompt
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-runtime
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-runtime
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-source_edit
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-source_edit
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-split
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-split
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-tabs
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-tabs
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-text_engine
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-text_engine
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-tray
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-tray
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-unit
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-unit
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-window
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-window
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-wrap
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-wrap
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-a2_resolved_color
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-a2_resolved_color
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-editor
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-editor
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-list
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-list
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-markdown
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-markdown
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-paint
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-paint
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-pattern
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-pattern
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-slot
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-slot
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-text_snapshot
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-text_snapshot
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-uncolored_text
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-uncolored_text
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-unit
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-unit
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/actual-adapter
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/actual-adapter
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/probe-independent
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/probe-independent
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/probe-original4
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/probe-original4
++ for binary in '"$base"/bin/core-*' '"$base"/bin/paint-*' '"$base"/bin/actual-adapter' '"$base"/bin/probe-*'
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/probe-tab_release
+++ basename /tmp/rndr-a2-independent-SQwoYo/exact/bin/probe-tab_release
++ cargo test --offline --locked -p rndr_core -p rndr_paint -p rndr_ui
++ cargo test --offline --locked -p rndr_render --no-default-features --features accesskit --lib
++ cargo check --offline --locked -p rndr --all-targets --no-default-features
++ cargo check --offline --locked -p rndr --example ui_gallery --no-default-features --features accesskit
++ cargo tree --offline --locked -p rndr_ui --edges normal
++ for name in adversarial geometry
++ compile --test '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/evidence/a2-r1-20261101/independent-review/adversarial.rs' -o /tmp/rndr-a2-fresh-review-4TfleE/checks/bin/adversarial
++ rustc --edition=2021 -C debuginfo=0 -L dependency=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_ui=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --test '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/evidence/a2-r1-20261101/independent-review/adversarial.rs' -o /tmp/rndr-a2-fresh-review-4TfleE/checks/bin/adversarial
++ /tmp/rndr-a2-fresh-review-4TfleE/checks/bin/adversarial --nocapture
++ for name in adversarial geometry
++ compile --test '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/evidence/a2-r1-20261101/independent-review/geometry.rs' -o /tmp/rndr-a2-fresh-review-4TfleE/checks/bin/geometry
++ rustc --edition=2021 -C debuginfo=0 -L dependency=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_ui=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --test '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/evidence/a2-r1-20261101/independent-review/geometry.rs' -o /tmp/rndr-a2-fresh-review-4TfleE/checks/bin/geometry
++ /tmp/rndr-a2-fresh-review-4TfleE/checks/bin/geometry --nocapture
++ compile --test crates/rndr_ui/tests/a2_toolbar_allocation.rs -o /tmp/rndr-a2-fresh-review-4TfleE/checks/bin/final-regressions
++ rustc --edition=2021 -C debuginfo=0 -L dependency=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_ui=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --test crates/rndr_ui/tests/a2_toolbar_allocation.rs -o /tmp/rndr-a2-fresh-review-4TfleE/checks/bin/final-regressions
++ /tmp/rndr-a2-fresh-review-4TfleE/checks/bin/final-regressions --nocapture
++ compile crates/rndr_ui/examples/passive_gallery.rs -o /tmp/rndr-a2-fresh-review-4TfleE/checks/bin/passive-generator
++ rustc --edition=2021 -C debuginfo=0 -L dependency=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_ui=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib crates/rndr_ui/examples/passive_gallery.rs -o /tmp/rndr-a2-fresh-review-4TfleE/checks/bin/passive-generator
++ /tmp/rndr-a2-fresh-review-4TfleE/checks/bin/passive-generator /tmp/rndr-a2-fresh-review-4TfleE/checks/passive-gallery
+light-wide: quads=1147 glyphs=1135 labels=26
+dark-wide: quads=1147 glyphs=1135 labels=26
+light-narrow-200: quads=1147 glyphs=1135 labels=26
+dark-compact-200: quads=1147 glyphs=1135 labels=26
+high-light-200: quads=1147 glyphs=1135 labels=26
+high-dark-200: quads=1147 glyphs=1135 labels=26
++ diff -ru evidence/ui-gallery /tmp/rndr-a2-fresh-review-4TfleE/checks/passive-gallery
++ rustfmt --check --edition 2021 crates/rndr_ui/src/controls.rs crates/rndr_ui/tests/a2_toolbar_allocation.rs
++ shasum -a 256 /tmp/rndr-a2-fresh-review-4TfleE/checks/bin/adversarial /tmp/rndr-a2-fresh-review-4TfleE/checks/bin/final-regressions /tmp/rndr-a2-fresh-review-4TfleE/checks/bin/geometry /tmp/rndr-a2-fresh-review-4TfleE/checks/bin/passive-generator
++ git diff --exit-code HEAD -- crates Cargo.lock
++ df -h .
+Filesystem      Size    Used   Avail Capacity iused ifree %iused  Mounted on
+/dev/disk3s5   228Gi   201Gi   3.0Gi    99%    1.8M   32M    5%   /System/Volumes/Data
++ du -sh target
+1.3G	target
++ printf 'PASS: unchanged binaries rerun, Cargo suites/checks, independent5+geometry1, final regression5, passive6 identical\n'

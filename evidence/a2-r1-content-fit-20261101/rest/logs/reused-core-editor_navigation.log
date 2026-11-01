@@ -1,0 +1,25 @@
+
+running 20 tests
+test queued_release_synthetic_and_alt_arrows_do_not_navigate ... ok
+test blooey_b001_legacy_up ... ok
+test blooey_b001_queued_up ... ok
+test queued_native_events_preserve_order_shift_repeat_and_single_consumption ... ok
+test composition_owns_vertical_keys_until_commit ... ok
+test legacy_typing_at_a_split_utf8_index_repairs_bounds_without_corrupting_text ... ok
+test a_scalar_wrap_inside_a_grapheme_never_publishes_an_out_of_window_caret ... ok
+test shift_extends_selection_and_unshifted_arrows_collapse_directionally ... ok
+test resizing_and_entity_line_height_keep_mapping_and_reveal_consistent ... ok
+test right_edge_alias_does_not_trap_up_on_the_same_visual_row ... ok
+test soft_wrapped_rows_navigate_and_reveal_without_newlines ... ok
+test unrelated_release_and_synthetic_input_do_not_cancel_explicit_scrolling ... ok
+test queued_typing_and_ime_commit_reveal_eof ... ok
+test idle_scroll_is_not_overridden_and_top_navigation_reveals_again ... ok
+test up_at_hard_wrap_start_must_reach_the_previous_visual_row ... ok
+test blooey_b002_typing_reveals_caret ... ok
+test vertical_goal_survives_short_lines_but_horizontal_motion_resets_it ... ok
+test empty_blank_trailing_newline_and_document_edges_are_stable ... ok
+test unicode_indices_are_clamped_and_never_split_graphemes_during_navigation ... ok
+test scrolled_wrapped_pointer_maps_to_document_bytes_and_decorations ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

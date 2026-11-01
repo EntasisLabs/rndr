@@ -1,0 +1,122 @@
+++ pwd
++ root='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library'
++ deps='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps'
++ evidence='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/evidence/a2-20261101-mZVyJv'
++ export CARGO_BUILD_JOBS=2 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0
++ CARGO_BUILD_JOBS=2
++ CARGO_PROFILE_DEV_DEBUG=0
++ CARGO_PROFILE_TEST_DEBUG=0
++ CARGO_INCREMENTAL=0
++ export CARGO_PKG_VERSION=0.3.1 CARGO_PKG_NAME=rndr_ui 'CARGO_MANIFEST_DIR=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui'
++ CARGO_PKG_VERSION=0.3.1
++ CARGO_PKG_NAME=rndr_ui
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui'
++ export INSTA_UPDATE=no 'INSTA_WORKSPACE_ROOT=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library'
++ INSTA_UPDATE=no
++ INSTA_WORKSPACE_ROOT='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library'
++ git diff --exit-code HEAD -- crates Cargo.lock
++ git rev-parse HEAD
++ rustc -Vv
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+binary: rustc
+commit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea
+commit-date: 2026-08-18
+host: aarch64-apple-darwin
+release: 1.98.0
+LLVM version: 22.1.8
++ shasum -a 256 /tmp/rndr-a2-fresh-review-4TfleE/verify-ui.sh
++ python3 - /tmp/rndr-a2-independent-SQwoYo/exact /tmp/rndr-a2-fresh-review-4TfleE/exact-ui
++ hash_ui
++ git ls-files -z crates/rndr_ui
++ xargs -0 shasum -a 256
++ ui --crate-name rndr_ui --crate-type rlib crates/rndr_ui/src/lib.rs -o /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_handoff_ui_exact -L dependency=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --crate-name rndr_ui --crate-type rlib crates/rndr_ui/src/lib.rs -o /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib
++ shasum -a 256 /tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib /tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib
++ ui --test --crate-name rndr_ui crates/rndr_ui/src/lib.rs -o /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-unit
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_handoff_ui_exact -L dependency=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name rndr_ui crates/rndr_ui/src/lib.rs -o /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-unit
++ /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-unit
++ for f in 'crates/rndr_ui/tests/*.rs'
+++ basename crates/rndr_ui/tests/a2_adoption_boundary.rs .rs
++ name=a2_adoption_boundary
++ ui --test --crate-name a2_adoption_boundary crates/rndr_ui/tests/a2_adoption_boundary.rs --extern rndr_ui=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-a2_adoption_boundary
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_handoff_ui_exact -L dependency=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name a2_adoption_boundary crates/rndr_ui/tests/a2_adoption_boundary.rs --extern rndr_ui=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-a2_adoption_boundary
++ /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-a2_adoption_boundary
++ for f in 'crates/rndr_ui/tests/*.rs'
+++ basename crates/rndr_ui/tests/a2_malformed_controls.rs .rs
++ name=a2_malformed_controls
++ ui --test --crate-name a2_malformed_controls crates/rndr_ui/tests/a2_malformed_controls.rs --extern rndr_ui=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-a2_malformed_controls
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_handoff_ui_exact -L dependency=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name a2_malformed_controls crates/rndr_ui/tests/a2_malformed_controls.rs --extern rndr_ui=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-a2_malformed_controls
++ /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-a2_malformed_controls
++ for f in 'crates/rndr_ui/tests/*.rs'
+++ basename crates/rndr_ui/tests/a2_nested_paint.rs .rs
++ name=a2_nested_paint
++ ui --test --crate-name a2_nested_paint crates/rndr_ui/tests/a2_nested_paint.rs --extern rndr_ui=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-a2_nested_paint
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_handoff_ui_exact -L dependency=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name a2_nested_paint crates/rndr_ui/tests/a2_nested_paint.rs --extern rndr_ui=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-a2_nested_paint
++ /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-a2_nested_paint
++ for f in 'crates/rndr_ui/tests/*.rs'
+++ basename crates/rndr_ui/tests/a2_operating.rs .rs
++ name=a2_operating
++ ui --test --crate-name a2_operating crates/rndr_ui/tests/a2_operating.rs --extern rndr_ui=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-a2_operating
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_handoff_ui_exact -L dependency=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name a2_operating crates/rndr_ui/tests/a2_operating.rs --extern rndr_ui=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-a2_operating
++ /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-a2_operating
++ for f in 'crates/rndr_ui/tests/*.rs'
+++ basename crates/rndr_ui/tests/a2_states.rs .rs
++ name=a2_states
++ ui --test --crate-name a2_states crates/rndr_ui/tests/a2_states.rs --extern rndr_ui=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-a2_states
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_handoff_ui_exact -L dependency=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name a2_states crates/rndr_ui/tests/a2_states.rs --extern rndr_ui=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-a2_states
++ /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-a2_states
++ for f in 'crates/rndr_ui/tests/*.rs'
+++ basename crates/rndr_ui/tests/a2_toolbar_allocation.rs .rs
++ name=a2_toolbar_allocation
++ ui --test --crate-name a2_toolbar_allocation crates/rndr_ui/tests/a2_toolbar_allocation.rs --extern rndr_ui=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-a2_toolbar_allocation
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_handoff_ui_exact -L dependency=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name a2_toolbar_allocation crates/rndr_ui/tests/a2_toolbar_allocation.rs --extern rndr_ui=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-a2_toolbar_allocation
++ /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-a2_toolbar_allocation
++ for f in 'crates/rndr_ui/tests/*.rs'
+++ basename crates/rndr_ui/tests/a2_toolbar_type_update.rs .rs
++ name=a2_toolbar_type_update
++ ui --test --crate-name a2_toolbar_type_update crates/rndr_ui/tests/a2_toolbar_type_update.rs --extern rndr_ui=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-a2_toolbar_type_update
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_handoff_ui_exact -L dependency=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name a2_toolbar_type_update crates/rndr_ui/tests/a2_toolbar_type_update.rs --extern rndr_ui=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-a2_toolbar_type_update
++ /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-a2_toolbar_type_update
++ for f in 'crates/rndr_ui/tests/*.rs'
+++ basename crates/rndr_ui/tests/complete_gallery.rs .rs
++ name=complete_gallery
++ ui --test --crate-name complete_gallery crates/rndr_ui/tests/complete_gallery.rs --extern rndr_ui=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-complete_gallery
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_handoff_ui_exact -L dependency=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name complete_gallery crates/rndr_ui/tests/complete_gallery.rs --extern rndr_ui=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-complete_gallery
++ /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-complete_gallery
++ for f in 'crates/rndr_ui/tests/*.rs'
+++ basename crates/rndr_ui/tests/foundations.rs .rs
++ name=foundations
++ ui --test --crate-name foundations crates/rndr_ui/tests/foundations.rs --extern rndr_ui=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-foundations
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_handoff_ui_exact -L dependency=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name foundations crates/rndr_ui/tests/foundations.rs --extern rndr_ui=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-foundations
++ /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-foundations
++ for f in 'crates/rndr_ui/tests/*.rs'
+++ basename crates/rndr_ui/tests/malformed_lifecycle.rs .rs
++ name=malformed_lifecycle
++ ui --test --crate-name malformed_lifecycle crates/rndr_ui/tests/malformed_lifecycle.rs --extern rndr_ui=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-malformed_lifecycle
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_handoff_ui_exact -L dependency=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name malformed_lifecycle crates/rndr_ui/tests/malformed_lifecycle.rs --extern rndr_ui=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-malformed_lifecycle
++ /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-malformed_lifecycle
++ for f in 'crates/rndr_ui/tests/*.rs'
+++ basename crates/rndr_ui/tests/paint_evidence.rs .rs
++ name=paint_evidence
++ ui --test --crate-name paint_evidence crates/rndr_ui/tests/paint_evidence.rs --extern rndr_ui=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-paint_evidence
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_handoff_ui_exact -L dependency=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name paint_evidence crates/rndr_ui/tests/paint_evidence.rs --extern rndr_ui=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-paint_evidence
++ /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-paint_evidence
++ ui --crate-name operating_gallery crates/rndr_ui/examples/operating_gallery.rs --extern rndr_ui=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/operating-gallery
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_handoff_ui_exact -L dependency=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --crate-name operating_gallery crates/rndr_ui/examples/operating_gallery.rs --extern rndr_ui=/tmp/rndr-a2-fresh-review-4TfleE/exact-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/operating-gallery
++ /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/operating-gallery /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/gallery-one
++ /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/operating-gallery /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/gallery-two
++ diff -r /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/gallery-one /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/gallery-two
++ set +e
++ diff -r '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/evidence/a2-20261101-mZVyJv/gallery-a2-final' /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/gallery-one
++ code=1
++ set -e
++ test 1 -le 1
++ printf '%s\n' 1
++ test '!' -s /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/gallery-repeat.diff
++ hash_ui
++ git ls-files -z crates/rndr_ui
++ xargs -0 shasum -a 256
++ cmp /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/ui-source-before-sha256.txt /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/ui-source-after-sha256.txt
++ shasum -a 256 /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/operating-gallery /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-a2_adoption_boundary /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-a2_malformed_controls /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-a2_nested_paint /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-a2_operating /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-a2_states /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-a2_toolbar_allocation /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-a2_toolbar_type_update /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-complete_gallery /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-foundations /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-malformed_lifecycle /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-paint_evidence /tmp/rndr-a2-fresh-review-4TfleE/exact-ui/bin/ui-unit
++ python3 - /tmp/rndr-a2-fresh-review-4TfleE/exact-ui
++ printf 'ALL CORRECTED UI37 TESTS AND TWO COMPLETE GALLERY PROCESSES PASS; CORE/PAINT/ADAPTER IDENTITIES UNCHANGED\n'

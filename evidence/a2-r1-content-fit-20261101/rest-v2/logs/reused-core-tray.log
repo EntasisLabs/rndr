@@ -1,0 +1,11 @@
+
+running 6 tests
+test icon_bytes_are_checked ... ok
+test platform_support_matches_the_documented_table ... ok
+test menu_ids_updates_and_nested_submenus ... ok
+test fake_backend_maps_clicks_and_drops_hover ... ok
+test tray_only_stays_running_until_quit ... ok
+test left_click_toggles_the_hidden_window ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

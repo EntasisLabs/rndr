@@ -1,0 +1,17 @@
+{
+  "timestamp_utc": "2026-11-01T11:57:06.242257+00:00",
+  "tested_implementation": "91c008bdc1054f42f67dcd5d45729290ddb4ffa4",
+  "clean_start": "92e98004d886a9ccfc3d2d05eaf090b591e10cc9",
+  "tested_ui_source_rows": 23,
+  "historical_evidence_files_unchanged": 961,
+  "retained_build_artifacts_verified": 66,
+  "original_review_manifest_verified": 216,
+  "new_fixture_baseline": "0/4 pass, runtime exit101",
+  "new_fixture_final": "4/4 pass, exit0",
+  "unchanged_fresh_probes": "2/4->4/4",
+  "fractional_survey": "diagnostic175 configs,13->0 mismatches",
+  "galleries": "8 cases, two processes, all17 files identical to92e98004",
+  "no_source_change_after_testing": true,
+  "acceptance": "A2 unaccepted; owner fresh independent review next",
+  "native": "UNVERIFIED"
+}

@@ -1,0 +1,15 @@
+
+running 10 tests
+test pointer_button_other_codes_fit_in_sixteen_bits ... ok
+test rotate_zero_is_identity_and_a_quarter_turn_swaps_extents ... ok
+test resolve_ime_strips_the_keys_that_built_a_commit ... ok
+test text_frame_drops_composition_keys_and_a_duplicate_commit ... ok
+test file_dialog_request_is_replaced_until_taken ... ok
+test a_direct_message_reaches_the_named_window ... ok
+test windows_exchange_a_saved_message ... ok
+test access_tree_names_a_button_and_activation_fires_it ... ok
+test a_field_inserts_a_commit_once ... ok
+test a_list_without_a_context_moves_from_the_keyboard ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

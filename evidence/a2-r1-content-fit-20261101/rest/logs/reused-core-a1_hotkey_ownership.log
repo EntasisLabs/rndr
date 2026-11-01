@@ -1,0 +1,16 @@
+
+running 11 tests
+test nonmatching_enter_same_frame ... ok
+test active_guard_owns_release_before_clear_then_allows_fresh_gesture ... ok
+test nonmatching_registration_does_not_validate_synthetic_or_repeated_releases ... ok
+test nonmatching_registration_survives_traversal_and_focus_cancellation ... ok
+test nonmatching_enter_split_frame ... ok
+test nonmatching_registration_preserves_legacy_enter_and_editor_space ... ok
+test matching_chords_and_matching_release_cancel_stale_arm ... ok
+test nonmatching_space_same_frame ... ok
+test no_registration_enter_controls ... ok
+test no_registration_space_controls ... ok
+test nonmatching_space_split_frame ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

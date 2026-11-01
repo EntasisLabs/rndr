@@ -1,0 +1,16 @@
+
+running 11 tests
+test a_burst_wakes_once_and_keeps_order ... ok
+test cancelled_future_completes_after_drop ... ok
+test latest_keeps_the_newest_value ... ok
+test stale_epoch_is_dropped_and_does_not_wake ... ok
+test reject_does_not_grow_or_wake ... ok
+test spawn_task_delivers_on_the_ui_thread ... ok
+test a_worker_burst_stays_in_order ... ok
+test drop_oldest_discards_the_front ... ok
+test spawn_thread_stops_when_the_feed_is_dropped ... ok
+test drop_cancels_and_unblocks_a_sender ... ok
+test wait_blocks_until_the_frame_drains ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+

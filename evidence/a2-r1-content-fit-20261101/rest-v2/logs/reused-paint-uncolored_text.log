@@ -1,0 +1,12 @@
+
+running 7 tests
+test fallback_label_without_background_emits_real_glyph_geometry ... ok
+test explicit_background_alpha_does_not_control_glyph_alpha ... ok
+test label_color_and_theme_work_without_background ... ok
+test frame_lays_out_and_paints_an_uncolored_label ... ok
+test uncolored_containers_do_not_fill_or_block_children ... ok
+test hidden_and_clipped_uncolored_labels_stay_hidden ... ok
+test text_marks_keep_their_geometry_and_order_without_a_background ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

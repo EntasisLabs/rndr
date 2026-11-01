@@ -1,0 +1,4 @@
+First seal preflight exited1 before creating SEAL.txt, seal-validation.json or the new MANIFEST.sha256.
+Failure: FileNotFoundError for independent-review/MANIFEST.sha256 at the exact-copy comparison.
+Cause: original standard manifests omit themselves; the initial compact-copy loop copied all selected original manifest-listed text files, but did not separately copy the original manifest file.
+Correction: copied the exact original MANIFEST.sha256 separately from /tmp/rndr-a2-fresh-review-4TfleE after original216/216 validation and expected manifest-hash checks. No original evidence or tested implementation changed. Final preflight revalidates all exact original copies and all source/artifact identities before sealing.

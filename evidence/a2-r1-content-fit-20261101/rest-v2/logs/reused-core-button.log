@@ -1,0 +1,10 @@
+
+running 5 tests
+test click_outside_does_not_fire ... ok
+test a_press_and_release_in_one_frame_fires ... ok
+test enter_fires_the_focused_button ... ok
+test click_fires_once ... ok
+test disabled_button_does_not_fire ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

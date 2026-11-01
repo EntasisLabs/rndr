@@ -1,0 +1,32 @@
+{
+  "light-wide": {
+    "access_nodes_unchanged_except_bounds": 28,
+    "button_target_examples": [
+      "access AccessNode { id: 5, role: Button, name: \"Add\", value: \"\", bounds: Rect { x: 12.0, y: 120.0, w: 976.0, h: 54.0 }, children: [], focusable: true, focused: false, selected: false, enabled: true, expanded: None }",
+      "access AccessNode { id: 10, role: Button, name: \"Secondary\", value: \"\", bounds: Rect { x: 12.0, y: 182.0, w: 976.0, h: 54.0 }, children: [], focusable: true, focused: false, selected: false, enabled: true, expanded: None }",
+      "access AccessNode { id: 15, role: Button, name: \"Quiet\", value: \"\", bounds: Rect { x: 12.0, y: 244.0, w: 976.0, h: 54.0 }, children: [], focusable: true, focused: false, selected: false, enabled: true, expanded: None }",
+      "access AccessNode { id: 20, role: Button, name: \"Reset demo count\", value: \"\", bounds: Rect { x: 12.0, y: 306.0, w: 976.0, h: 54.0 }, children: [], focusable: true, focused: false, selected: false, enabled: true, expanded: None }",
+      "access AccessNode { id: 25, role: Button, name: \"Add one synthetic item\", value: \"\", bounds: Rect { x: 12.0, y: 368.0, w: 976.0, h: 54.0 }, children: [], focusable: true, focused: false, selected: false, enabled: true, expanded: None }"
+    ]
+  },
+  "dark-wide-preview": {
+    "access_nodes_unchanged_except_bounds": 28,
+    "button_target_examples": [
+      "access AccessNode { id: 5, role: Button, name: \"Add\", value: \"\", bounds: Rect { x: 12.0, y: 120.0, w: 976.0, h: 54.0 }, children: [], focusable: true, focused: false, selected: false, enabled: true, expanded: None }",
+      "access AccessNode { id: 10, role: Button, name: \"Secondary\", value: \"\", bounds: Rect { x: 12.0, y: 182.0, w: 976.0, h: 54.0 }, children: [], focusable: true, focused: false, selected: false, enabled: true, expanded: None }",
+      "access AccessNode { id: 15, role: Button, name: \"Quiet\", value: \"\", bounds: Rect { x: 12.0, y: 244.0, w: 976.0, h: 54.0 }, children: [], focusable: true, focused: false, selected: false, enabled: true, expanded: None }",
+      "access AccessNode { id: 20, role: Button, name: \"Reset demo count\", value: \"\", bounds: Rect { x: 12.0, y: 306.0, w: 976.0, h: 54.0 }, children: [], focusable: true, focused: false, selected: false, enabled: true, expanded: None }",
+      "access AccessNode { id: 25, role: Button, name: \"Add one synthetic item\", value: \"\", bounds: Rect { x: 12.0, y: 368.0, w: 976.0, h: 54.0 }, children: [], focusable: true, focused: false, selected: false, enabled: true, expanded: None }"
+    ]
+  },
+  "high-dark-compact": {
+    "access_nodes_unchanged_except_bounds": 28,
+    "button_target_examples": [
+      "access AccessNode { id: 5, role: Button, name: \"Add\", value: \"\", bounds: Rect { x: 12.0, y: 148.0, w: 776.0, h: 54.0 }, children: [], focusable: true, focused: false, selected: false, enabled: true, expanded: None }",
+      "access AccessNode { id: 10, role: Button, name: \"Secondary\", value: \"\", bounds: Rect { x: 12.0, y: 210.0, w: 776.0, h: 54.0 }, children: [], focusable: true, focused: false, selected: false, enabled: true, expanded: None }",
+      "access AccessNode { id: 15, role: Button, name: \"Quiet\", value: \"\", bounds: Rect { x: 12.0, y: 272.0, w: 776.0, h: 54.0 }, children: [], focusable: true, focused: false, selected: false, enabled: true, expanded: None }",
+      "access AccessNode { id: 20, role: Button, name: \"Reset demo count\", value: \"\", bounds: Rect { x: 12.0, y: 334.0, w: 776.0, h: 54.0 }, children: [], focusable: true, focused: false, selected: false, enabled: true, expanded: None }",
+      "access AccessNode { id: 25, role: Button, name: \"Add one synthetic item\", value: \"\", bounds: Rect { x: 12.0, y: 396.0, w: 776.0, h: 54.0 }, children: [], focusable: true, focused: false, selected: false, enabled: true, expanded: None }"
+    ]
+  }
+}

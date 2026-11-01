@@ -1,0 +1,11 @@
+
+running 5 tests
+test malformed_panel_reparent_rejected_without_partial_destroy ... ok
+test transient_payload_change_invalidates_previously_drained_request ... ok
+axis=Column natural_label_width=826 actual_label_rect=Rect { x: 9.0, y: 9.0, w: 982.0, h: 36.0 }
+test unequal_toolbar_labels_must_fit_each_row_share ... ok
+test same_update_disable_reenable_cancels_space_arm ... ok
+test disabled_active_roving_entry_and_hidden_nested_target ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

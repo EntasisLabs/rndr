@@ -1,0 +1,11 @@
+
+running 6 tests
+test click_sets_focus_without_opening ... ok
+test tab_walks_without_opening ... ok
+test enter_does_not_toggle_the_tree ... ok
+test down_then_right_opens_alpha ... ok
+test focus_below_port_adjusts_scroll ... ok
+test tree_walk_and_escape ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

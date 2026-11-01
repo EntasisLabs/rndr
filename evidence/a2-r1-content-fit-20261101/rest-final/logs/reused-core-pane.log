@@ -1,0 +1,9 @@
+
+running 4 tests
+test click_selects_without_opening_and_fills_the_pane ... ok
+test enter_on_alpha_fills_the_pane ... ok
+test escape_clears_selection_and_keeps_tree_focus ... ok
+test enter_on_beta_replaces_the_pane_body ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

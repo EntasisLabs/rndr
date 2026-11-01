@@ -1,0 +1,8 @@
+
+running 3 tests
+test escape_removes_only_the_top_layer ... ok
+test modal_swallows_the_click ... ok
+test popover_click_does_not_focus_the_row ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

@@ -1,0 +1,5 @@
+Filesystem      Size    Used   Avail Capacity iused ifree %iused  Mounted on
+/dev/disk3s5   228Gi   201Gi   2.6Gi    99%    1.8M   27M    6%   /System/Volumes/Data
+/dev/disk3s5   228Gi   201Gi   2.6Gi    99%    1.8M   27M    6%   /System/Volumes/Data
+1.3G	target
+332M	/tmp/rndr-a2-content-fit-UJYjbC

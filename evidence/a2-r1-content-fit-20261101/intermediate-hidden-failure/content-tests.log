@@ -1,0 +1,18 @@
+
+running 4 tests
+
+thread 'hidden_ancestor_malformed_and_scroll_rejected_measurement_are_safe' (615222) panicked at crates/rndr_ui/src/controls.rs:933:55:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test hidden_ancestor_malformed_and_scroll_rejected_measurement_are_safe ... FAILED
+test integer_inner_text_reproduction_and_exact_pixel_boundaries ... ok
+test same_update_label_type_width_both_ways_uses_final_line_geometry ... ok
+test fractional_content_boundaries_with_nested_origin_and_updates ... ok
+
+failures:
+
+failures:
+    hidden_ancestor_malformed_and_scroll_rejected_measurement_are_safe
+
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.74s
+

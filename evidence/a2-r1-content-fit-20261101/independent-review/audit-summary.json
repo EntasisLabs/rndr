@@ -1,0 +1,20 @@
+{
+  "historical_evidence_blobs_unchanged": 504,
+  "original_UI_tests_unchanged": 32,
+  "seal_additions_only": 457,
+  "galleries_changed": [
+    "dark-wide-preview.display-list.txt",
+    "dark-wide-preview.semantics-geometry.txt",
+    "high-dark-compact.display-list.txt",
+    "high-dark-compact.semantics-geometry.txt",
+    "light-wide.display-list.txt",
+    "light-wide.semantics-geometry.txt"
+  ],
+  "independent_rerun_counts": {
+    "cargo-libraries": 520,
+    "cargo-render": 24,
+    "adversarial": 5,
+    "geometry": 1,
+    "final-regressions": 5
+  }
+}

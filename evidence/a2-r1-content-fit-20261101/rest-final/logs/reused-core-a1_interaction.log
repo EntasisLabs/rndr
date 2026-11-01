@@ -1,0 +1,12 @@
+
+running 7 tests
+test allowed_matrix_names_readonly_hidden_unsupported_and_safe_setvalue ... ok
+test generic_tab_focus_no_shell_side_effects_editor_keeps_keys ... ok
+test real_panel_relations_manual_focus_and_inactive_exclusion ... ok
+test cardinality_order_overflow_revalidation_and_generation ... ok
+test space_release_enter_down_repeat_synthetic_and_focus_loss ... ok
+test mixed_press_and_release_and_at_share_canonical_route ... ok
+test pointer_cancel_outside_escape_blur_capture_disable_and_destroy ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

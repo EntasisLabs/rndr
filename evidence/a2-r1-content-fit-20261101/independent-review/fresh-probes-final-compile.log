@@ -1,0 +1,40 @@
+error[E0603]: module `font` is private
+  --> /tmp/rndr-a2-fresh-review-4TfleE/fresh-probes.rs:39:196
+   |
+39 | ...t inner=rndr_core::font::field_text_width(r.w,unit);let natural=width...
+   |                       ^^^^  ---------------- function `field_text_width` is not publicly re-exported
+   |                       |
+   |                       private module
+   |
+note: the module `font` is defined here
+  --> crates/rndr_core/src/lib.rs:86:1
+   |
+86 | mod font;
+   | ^^^^^^^^
+
+error[E0599]: no method named `sample_advance` found for struct `Arc<dyn rndr_core::TextEngine>` in the current scope
+  --> /tmp/rndr-a2-fresh-review-4TfleE/fresh-probes.rs:39:153
+   |
+39 | ...d());let unit=engine.sample_advance(style);let inner=rndr_core::font:...
+   |                         ^^^^^^^^^^^^^^ method not found in `Arc<dyn rndr_core::TextEngine>`
+
+error[E0609]: no field `line_count` on type `&rndr_core::TextLayout`
+  --> /tmp/rndr-a2-fresh-review-4TfleE/fresh-probes.rs:40:151
+   |
+40 | ...={} height={}",layout.line_count,layout.height);
+   |                          ^^^^^^^^^^ unknown field
+   |
+   = note: available fields are: `glyphs`, `lines`, `highlights`, `width`, `height` ... and 2 others
+
+error[E0609]: no field `line_count` on type `&rndr_core::TextLayout`
+  --> /tmp/rndr-a2-fresh-review-4TfleE/fresh-probes.rs:41:160
+   |
+41 | ...al}; lines={}",layout.line_count);
+   |                          ^^^^^^^^^^ unknown field
+   |
+   = note: available fields are: `glyphs`, `lines`, `highlights`, `width`, `height` ... and 2 others
+
+error: aborting due to 4 previous errors
+
+Some errors have detailed explanations: E0599, E0603, E0609.
+For more information about an error, try `rustc --explain E0599`.

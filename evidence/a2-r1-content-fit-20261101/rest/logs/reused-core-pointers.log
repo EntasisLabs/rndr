@@ -1,0 +1,15 @@
+
+running 10 tests
+test a_press_mirrors_into_the_primary_pointer ... ok
+test a_press_and_release_in_one_frame_keeps_both_edges ... ok
+test lifting_a_finger_ends_and_a_cancel_cancels ... ok
+test platform_pinch_and_rotation_convert_units ... ok
+test mouse_hover_is_not_down_and_samples_accumulate ... ok
+test rotation_is_counterclockwise_positive ... ok
+test two_touches_pinch_and_pan ... ok
+test set_primary_prefers_the_pen_when_it_exists ... ok
+test touch_ids_do_not_collide_and_end_frame_drops_them ... ok
+test two_touches_translate_without_scaling ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

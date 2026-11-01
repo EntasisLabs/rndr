@@ -1,0 +1,416 @@
+{
+  "exact-ui-v2/logs": {
+    "ui-a2_adoption_boundary.log": [
+      1,
+      0,
+      0
+    ],
+    "ui-a2_malformed_controls.log": [
+      2,
+      0,
+      0
+    ],
+    "ui-a2_nested_paint.log": [
+      1,
+      0,
+      0
+    ],
+    "ui-a2_operating.log": [
+      11,
+      0,
+      0
+    ],
+    "ui-a2_states.log": [
+      2,
+      0,
+      0
+    ],
+    "ui-a2_toolbar_allocation.log": [
+      5,
+      0,
+      0
+    ],
+    "ui-a2_toolbar_content_fit.log": [
+      4,
+      0,
+      0
+    ],
+    "ui-a2_toolbar_type_update.log": [
+      1,
+      0,
+      0
+    ],
+    "ui-complete_gallery.log": [
+      1,
+      0,
+      0
+    ],
+    "ui-foundations.log": [
+      8,
+      0,
+      0
+    ],
+    "ui-malformed_lifecycle.log": [
+      1,
+      0,
+      0
+    ],
+    "ui-paint_evidence.log": [
+      4,
+      0,
+      0
+    ],
+    "ui-unit.log": [
+      0,
+      0,
+      0
+    ]
+  },
+  "rest-v2/logs": {
+    "adversarial.log": [
+      5,
+      0,
+      0
+    ],
+    "cargo-libraries.log": [
+      524,
+      0,
+      0
+    ],
+    "cargo-render.log": [
+      24,
+      0,
+      0
+    ],
+    "final-regressions.log": [
+      5,
+      0,
+      0
+    ],
+    "geometry.log": [
+      1,
+      0,
+      0
+    ],
+    "reused-actual-adapter.log": [
+      2,
+      0,
+      0
+    ],
+    "reused-core-a1_cancellation_edges.log": [
+      3,
+      0,
+      0
+    ],
+    "reused-core-a1_hotkey_ownership.log": [
+      11,
+      0,
+      0
+    ],
+    "reused-core-a1_interaction.log": [
+      7,
+      0,
+      0
+    ],
+    "reused-core-a1_lifecycle.log": [
+      4,
+      0,
+      0
+    ],
+    "reused-core-a1_logical_only.log": [
+      3,
+      0,
+      0
+    ],
+    "reused-core-a1_relation_lifecycle.log": [
+      1,
+      0,
+      0
+    ],
+    "reused-core-a1_reproductions.log": [
+      3,
+      0,
+      0
+    ],
+    "reused-core-a1_review_corrections.log": [
+      14,
+      0,
+      0
+    ],
+    "reused-core-a1_wrapped_hug.log": [
+      2,
+      0,
+      0
+    ],
+    "reused-core-a2_core_contracts.log": [
+      3,
+      0,
+      0
+    ],
+    "reused-core-a2_nested_focus.log": [
+      1,
+      0,
+      0
+    ],
+    "reused-core-actions.log": [
+      4,
+      0,
+      0
+    ],
+    "reused-core-body.log": [
+      8,
+      0,
+      0
+    ],
+    "reused-core-button.log": [
+      5,
+      0,
+      0
+    ],
+    "reused-core-caret.log": [
+      11,
+      0,
+      0
+    ],
+    "reused-core-click_caret.log": [
+      4,
+      0,
+      0
+    ],
+    "reused-core-clipboard.log": [
+      1,
+      0,
+      0
+    ],
+    "reused-core-decorations.log": [
+      2,
+      0,
+      0
+    ],
+    "reused-core-desktop_exit.log": [
+      2,
+      0,
+      0
+    ],
+    "reused-core-ecs.log": [
+      3,
+      0,
+      0
+    ],
+    "reused-core-edit.log": [
+      5,
+      0,
+      0
+    ],
+    "reused-core-editor.log": [
+      6,
+      0,
+      0
+    ],
+    "reused-core-editor_drag.log": [
+      12,
+      0,
+      0
+    ],
+    "reused-core-editor_navigation.log": [
+      20,
+      0,
+      0
+    ],
+    "reused-core-feed.log": [
+      11,
+      0,
+      0
+    ],
+    "reused-core-field.log": [
+      5,
+      0,
+      0
+    ],
+    "reused-core-focus.log": [
+      6,
+      0,
+      0
+    ],
+    "reused-core-font.log": [
+      8,
+      0,
+      0
+    ],
+    "reused-core-fs.log": [
+      16,
+      0,
+      0
+    ],
+    "reused-core-hotkey.log": [
+      28,
+      0,
+      0
+    ],
+    "reused-core-ime.log": [
+      3,
+      0,
+      0
+    ],
+    "reused-core-input_platform.log": [
+      10,
+      0,
+      0
+    ],
+    "reused-core-keyboard.log": [
+      17,
+      0,
+      0
+    ],
+    "reused-core-layout.log": [
+      16,
+      0,
+      0
+    ],
+    "reused-core-list.log": [
+      13,
+      0,
+      0
+    ],
+    "reused-core-markdown.log": [
+      12,
+      0,
+      0
+    ],
+    "reused-core-mono.log": [
+      1,
+      0,
+      0
+    ],
+    "reused-core-overlay.log": [
+      3,
+      0,
+      0
+    ],
+    "reused-core-pane.log": [
+      4,
+      0,
+      0
+    ],
+    "reused-core-pointers.log": [
+      10,
+      0,
+      0
+    ],
+    "reused-core-prompt.log": [
+      17,
+      0,
+      0
+    ],
+    "reused-core-runtime.log": [
+      15,
+      0,
+      0
+    ],
+    "reused-core-source_edit.log": [
+      8,
+      0,
+      0
+    ],
+    "reused-core-split.log": [
+      7,
+      0,
+      0
+    ],
+    "reused-core-tabs.log": [
+      2,
+      0,
+      0
+    ],
+    "reused-core-text_engine.log": [
+      11,
+      0,
+      0
+    ],
+    "reused-core-tray.log": [
+      6,
+      0,
+      0
+    ],
+    "reused-core-unit.log": [
+      14,
+      0,
+      0
+    ],
+    "reused-core-window.log": [
+      27,
+      0,
+      0
+    ],
+    "reused-core-wrap.log": [
+      6,
+      0,
+      0
+    ],
+    "reused-paint-a2_resolved_color.log": [
+      1,
+      0,
+      0
+    ],
+    "reused-paint-editor.log": [
+      4,
+      0,
+      0
+    ],
+    "reused-paint-list.log": [
+      2,
+      0,
+      0
+    ],
+    "reused-paint-markdown.log": [
+      2,
+      0,
+      0
+    ],
+    "reused-paint-paint.log": [
+      13,
+      0,
+      0
+    ],
+    "reused-paint-pattern.log": [
+      1,
+      0,
+      0
+    ],
+    "reused-paint-slot.log": [
+      2,
+      0,
+      0
+    ],
+    "reused-paint-text_snapshot.log": [
+      3,
+      0,
+      0
+    ],
+    "reused-paint-uncolored_text.log": [
+      7,
+      0,
+      0
+    ],
+    "reused-paint-unit.log": [
+      27,
+      0,
+      0
+    ],
+    "reused-probe-independent.log": [
+      8,
+      0,
+      0
+    ],
+    "reused-probe-original4.log": [
+      4,
+      0,
+      0
+    ],
+    "reused-probe-tab_release.log": [
+      1,
+      0,
+      0
+    ]
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "original32_test_files_unchanged": [
+    "crates/rndr_ui/tests/a2_adoption_boundary.rs",
+    "crates/rndr_ui/tests/a2_malformed_controls.rs",
+    "crates/rndr_ui/tests/a2_nested_paint.rs",
+    "crates/rndr_ui/tests/a2_operating.rs",
+    "crates/rndr_ui/tests/a2_states.rs",
+    "crates/rndr_ui/tests/a2_toolbar_type_update.rs",
+    "crates/rndr_ui/tests/complete_gallery.rs",
+    "crates/rndr_ui/tests/foundations.rs",
+    "crates/rndr_ui/tests/malformed_lifecycle.rs",
+    "crates/rndr_ui/tests/paint_evidence.rs",
+    "crates/rndr_ui/tests/support/gallery.rs"
+  ],
+  "historical_evidence_files_unchanged": 961,
+  "all8_gallery_cases_unchanged_from92e98004": true,
+  "direct_source_unchanged_after_tests": true
+}

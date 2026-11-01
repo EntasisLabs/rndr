@@ -1,0 +1,9 @@
+
+running 4 tests
+test stale_row_hint_is_ignored_and_ime_cursor_wins_over_affinity ... ok
+test up_at_wrap_endpoint_paints_the_exact_upper_row_end ... ok
+test scrolled_document_spans_rebase_glyph_colors_highlights_and_underlines ... ok
+test eof_typing_emits_a_caret_quad_inside_the_editor_content_clip ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

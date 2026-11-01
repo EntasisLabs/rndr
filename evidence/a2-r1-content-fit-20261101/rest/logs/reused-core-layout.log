@@ -1,0 +1,21 @@
+
+running 16 tests
+test insets_place_the_root_inside_the_safe_rect ... ok
+test overflowed_child_clip_is_intersection_with_port ... ok
+test hit_test_prefers_the_deepest_rect ... ok
+test later_sibling_wins_hit_test ... ok
+test hit_test_ignores_rect_outside_clip ... ok
+test fill_respects_min_height ... ok
+test column_with_padding_and_nested_row ... ok
+test cascade_despawn_closes_the_gap ... ok
+test hug_label_uses_the_face_line_height ... ok
+test scale_does_not_change_point_layout ... ok
+test expand_then_collapse_rewrites_layout ... ok
+test scale_snaps_edges_to_physical_pixels ... ok
+test scrollport_offsets_hug_children_and_records_content ... ok
+test pointer_drag_scrolls_after_slop_and_stops_on_release ... ok
+test pointer_drag_selects_the_pressed_row ... ok
+test wheel_clamps_and_collapse_resets_offset ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

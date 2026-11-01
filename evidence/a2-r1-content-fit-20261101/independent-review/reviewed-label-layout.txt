@@ -1,0 +1,17 @@
+
+/// Hug a leaf against `field_w`, the width place is committing.
+fn label_hug_at(
+    world: &World,
+    entity: Entity,
+    layout: &Layout,
+    field_w: f32,
+) -> Option<(f32, f32)> {
+    let wrap_w = match layout.width {
+        Size::Px(px) => px,
+        Size::Hug => f32::INFINITY,
+        Size::Fill => field_w,
+    };
+    label_hug_width(world, entity, layout, wrap_w)
+}
+
+fn label_hug_width(

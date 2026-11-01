@@ -1,0 +1,16 @@
+
+running 11 tests
+test malformed_owned_slots_fail_before_update_or_destroy ... ok
+test host_validation_rejects_queued_payload_replacement_and_stale_generation ... ok
+test lifecycle_keys_stale_generations_and_borrowed_state_survive ... ok
+test controls_share_canonical_pointer_keyboard_at_and_fifo_without_fanout ... ok
+test toolbar_wide_row_narrow_stack_and_destroy_never_hides_actions ... ok
+test cancellation_disabled_readonly_and_action_update_do_not_commit_stale_gestures ... ok
+test manual_modes_have_roving_entry_real_relations_and_full_inactive_exclusion ... ok
+test nested_scroll_paints_real_clip_and_focus_reveal_without_rebuilding ... ok
+test source_is_visible_named_keyboard_reachable_and_host_validates_locator ... ok
+test mode_and_theme_updates_preserve_editor_content_focus_selection_history_and_scroll ... ok
+test actual_gallery_matrix_has_real_glyphs_wrap_targets_and_narrow_reflow ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+

@@ -1,0 +1,8 @@
+
+running 3 tests
+test selected_state_is_independent_and_not_implicitly_mutated ... ok
+test modern_tab_descendant_pointer_release_is_canonical ... ok
+test manual_orientation_roving_entry_exclusion_and_activation ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

@@ -1,0 +1,22 @@
+
+running 17 tests
+test placeholder_is_drawn_and_is_not_part_of_the_buffer ... ok
+test enter_submits_and_shift_enter_inserts_a_newline ... ok
+test enter_inserts_a_newline_when_submit_is_off ... ok
+test press_at_the_left_edge_of_a_line_anchors_that_line ... ok
+test repeated_enter_does_not_submit_again_and_a_chord_is_ignored ... ok
+test a_pause_starts_a_new_undo_step ... ok
+test ctrl_shift_z_redoes_and_does_not_insert ... ok
+test ime_preedit_stays_out_of_the_label_until_commit ... ok
+test mouse_selection_sets_the_primary_and_middle_click_pastes_it ... ok
+test shift_and_drag_select ... ok
+test keyboard_selection_sets_the_primary ... ok
+test history_recalls_submissions_and_editing_abandons_the_browse ... ok
+test typed_runs_share_one_undo_step ... ok
+test up_inside_a_line_does_not_recall ... ok
+test undo_redo_and_clipboard_round_trip ... ok
+test the_row_grows_then_scrolls_and_soft_wraps ... ok
+test word_line_and_document_motion_follows_the_platform ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

@@ -1,0 +1,17 @@
+
+running 12 tests
+test empty_document_and_nonfinite_motion_are_safe_and_cancel_capture ... ok
+test capture_tracks_off_editor_and_ignores_presses_that_started_elsewhere ... ok
+test press_at_keeps_start_anchor_when_motion_and_release_are_coalesced ... ok
+test pointer_placement_preserves_snapped_caret_column_for_subsequent_vertical_navigation ... ok
+test capture_does_not_transfer_to_another_editor_and_coalesced_press_focus_uses_origin ... ok
+test shift_press_preserves_old_anchor_and_new_unshifted_press_resets_it ... ok
+test secondary_press_and_hover_do_not_select ... ok
+test rejected_press_does_not_reveal_an_unrelated_offscreen_caret ... ok
+test held_motion_reverses_across_stable_anchor_and_release_applies_final_position ... ok
+test capture_cancels_on_focus_loss_contact_change_button_change_or_missing_down ... ok
+test scrolled_soft_wrap_drag_maps_document_graphemes_not_label_bytes ... ok
+test autoscroll_is_one_row_per_update_clamps_at_edges_and_stops_on_release ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

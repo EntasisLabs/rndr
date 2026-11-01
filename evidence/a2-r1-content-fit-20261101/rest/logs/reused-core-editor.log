@@ -1,0 +1,11 @@
+
+running 6 tests
+test insert_and_delete_in_the_middle ... ok
+test click_maps_to_a_buffer_offset ... ok
+test backspace_removes_one_precomposed_scalar ... ok
+test backspace_and_left_treat_a_flag_as_one_grapheme ... ok
+test gutter_follows_the_scrolled_window ... ok
+test visible_window_does_not_place_every_line ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+

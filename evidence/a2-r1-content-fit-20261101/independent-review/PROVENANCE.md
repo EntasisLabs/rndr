@@ -1,0 +1,1 @@
+Copied compact text evidence only from /tmp/rndr-a2-fresh-review-4TfleE after verification of every original manifest row. Original directory and all binary artifacts remain untouched. Original HEAD 92e98004d886a9ccfc3d2d05eaf090b591e10cc9. REVIEW and MANIFEST match owner-requested hashes. No review acceptance implied.

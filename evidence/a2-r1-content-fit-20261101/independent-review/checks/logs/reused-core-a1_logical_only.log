@@ -1,0 +1,8 @@
+
+running 3 tests
+test physical_binding_and_registration_drop_do_not_own_logical_release ... ok
+test true_logical_focus_roundtrip_repeat_and_modified_up_cancel ... ok
+test true_logical_only_nonmatching_registration_matrix_80 ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

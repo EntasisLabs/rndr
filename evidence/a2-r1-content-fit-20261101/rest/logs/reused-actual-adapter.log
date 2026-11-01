@@ -1,0 +1,7 @@
+
+running 2 tests
+test actual_adapter::tests::manual_orientation_selected_and_disabled_matrix_reaches_accesskit ... ok
+test actual_adapter::tests::actions_descriptions_and_real_panel_relations_match_dispatch ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

@@ -1,0 +1,17 @@
+
+running 12 tests
+test drag_past_the_end_of_a_line_does_not_copy_a_leading_blank_line ... ok
+test link_click_sends_the_destination ... ok
+test block_height_tracks_the_width_in_the_same_update ... ok
+test append_keeps_the_prefix_entity_and_parses_the_tail ... ok
+test select_all_and_copy_write_the_clipboard ... ok
+test list_markers_share_a_column_and_checks_read_apart ... ok
+test press_in_the_left_padding_anchors_the_first_line ... ok
+test wrapped_paragraph_press_still_anchors_the_line_under_the_pointer ... ok
+test select_all_copies_markdown_structure ... ok
+test wrapped_list_and_quote_press_anchors_the_line_under_the_pointer ... ok
+test stream_stays_pinned_until_the_wheel_leaves_the_bottom ... ok
+test gutter_press_selects_the_nearest_line_and_does_not_scroll ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

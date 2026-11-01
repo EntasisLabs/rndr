@@ -1,0 +1,13 @@
+
+running 8 tests
+test enter_on_alpha_starts_on_the_title ... ok
+test escape_leaves_the_body_caret ... ok
+test typing_in_the_body_writes_back ... ok
+test enter_in_the_body_inserts_a_newline ... ok
+test tab_moves_the_caret_to_the_body ... ok
+test click_body_starts_edit_click_tree_does_not ... ok
+test click_second_line_places_the_caret_there ... ok
+test down_then_type_starts_the_next_line ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

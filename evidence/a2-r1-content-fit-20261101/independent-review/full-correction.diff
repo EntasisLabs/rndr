@@ -1,0 +1,345 @@
+diff --git a/crates/rndr_ui/src/controls.rs b/crates/rndr_ui/src/controls.rs
+index 467572e..b473f08 100644
+--- a/crates/rndr_ui/src/controls.rs
++++ b/crates/rndr_ui/src/controls.rs
+@@ -851,7 +851,13 @@ pub(crate) fn resolve_toolbars(world: &mut World) {
+             .into_iter()
+             .filter(|e| !world.has::<Hidden>(*e))
+             .collect();
+-        let mut required = 8.0 * children.len().saturating_sub(1) as f32;
++        let gaps = 8.0 * children.len().saturating_sub(1) as f32;
++        let padding = world.get::<Layout>(root).unwrap().padding * 2.0;
++        let share = (node.available - padding - gaps).max(0.0) / children.len().max(1) as f32;
++        // Preserve the existing conservative row budget (including its extra
++        // breathing room). Passing that budget alone is not sufficient: each
++        // Fill share must also fit the real label and nested insets below.
++        let mut row_budget = gaps;
+         let mut known = true;
+         for child in &children {
+             if let Some(c) = world.get::<Control>(*child) {
+@@ -870,18 +876,27 @@ pub(crate) fn resolve_toolbars(world: &mut World) {
+                     .get::<TextStyle>(c.label)
+                     .cloned()
+                     .unwrap_or_else(|| theme.typography(Typography::Label));
+-                required += (engine
++                // Core gives every direct Fill control the same row share, not
++                // its natural width. Check each label against that allocation.
++                // Include the actual nested ring/gap/border/face/label insets
++                // rather than a sum-width estimate or a magic safety margin.
++                let insets: f32 = [*child, c.gap, c.border, c.face, c.label]
++                    .iter()
++                    .map(|e| world.get::<Layout>(*e).unwrap().padding * 2.0)
++                    .sum();
++                let natural = engine
+                     .measure(&label.text, &style, &[], f32::INFINITY)
+-                    .width
+-                    + 52.0)
+-                    .max(theme.target_min());
++                    .width;
++                let required = (natural + insets).max(theme.target_min());
++                row_budget += (natural + 52.0).max(theme.target_min());
++                known &= required.is_finite() && required <= share;
+             } else {
+                 known = false;
+             }
+         }
+         if let Some(l) = world.get_mut::<Layout>(root) {
+             l.width = Size::Px(node.available);
+-            l.axis = if known && required <= node.available {
++            l.axis = if known && row_budget <= node.available {
+                 Axis::Row
+             } else {
+                 Axis::Column
+diff --git a/crates/rndr_ui/tests/a2_toolbar_allocation.rs b/crates/rndr_ui/tests/a2_toolbar_allocation.rs
+new file mode 100644
+index 0000000..c7c4edd
+--- /dev/null
++++ b/crates/rndr_ui/tests/a2_toolbar_allocation.rs
+@@ -0,0 +1,273 @@
++use rndr_core::*;
++use rndr_ui::{
++    controls::{self, *},
++    *,
++};
++
++const LONG: &str = "This is a very long but valid command label with many words";
++fn base(width: f32) -> (App, Entity, ToolbarHandle) {
++    let mut a = App::new();
++    a.add_plugin(UiPlugin);
++    a.world_mut().insert_resource(Viewport::new(4000., 8000.));
++    let p = a.world_mut().spawn((Layout {
++        width: Size::Px(width),
++        ..Layout::column()
++    },));
++    let t = Toolbar::mount(a.world_mut(), p, UiId(1), width).unwrap();
++    (a, p, t)
++}
++fn button(a: &mut App, t: ToolbarHandle, id: u64, label: &str) -> ControlHandle {
++    controls::Button::mount(
++        a.world_mut(),
++        t.root,
++        UiId(id),
++        ButtonProps::new(label, HostIntent::Command(id)),
++    )
++    .unwrap()
++}
++fn natural(a: &App, h: ControlHandle) -> f32 {
++    text_engine(a.world())
++        .measure(
++            &a.world().get::<Label>(h.label).unwrap().text,
++            a.world().get::<TextStyle>(h.label).unwrap(),
++            &[],
++            f32::INFINITY,
++        )
++        .width
++}
++// Derive the exact boundary from the real owned layout chain, not the old
++// summed-width heuristic or a duplicate hardcoded estimate of its padding.
++fn needed(a: &App, h: ControlHandle) -> f32 {
++    let mut e = h.label;
++    let mut insets = 0.;
++    loop {
++        insets += 2. * a.world().get::<Layout>(e).unwrap().padding;
++        if e == h.root {
++            break;
++        }
++        e = a.world().get::<Parent>(e).unwrap().entity;
++    }
++    (natural(a, h) + insets).max(a.world().get::<Layout>(h.root).unwrap().min_width)
++}
++fn axis(a: &App, t: ToolbarHandle) -> Axis {
++    a.world().get::<Layout>(t.root).unwrap().axis
++}
++fn resize(a: &mut App, p: Entity, t: ToolbarHandle, width: f32) {
++    a.world_mut().get_mut::<Layout>(p).unwrap().width = Size::Px(width);
++    assert_eq!(Toolbar::mount(a.world_mut(), p, UiId(1), width).unwrap(), t);
++}
++fn fitted(a: &App, t: ToolbarHandle, handles: &[ControlHandle]) {
++    assert_eq!(axis(a, t), Axis::Row);
++    for h in handles {
++        let r = a.world().get::<Rect>(h.label).unwrap();
++        assert!(r.w + 0.001 >= natural(a, *h), "{r:?} < {}", natural(a, *h));
++    }
++}
++
++// Promoted unchanged assertion from the independent R1 failing probe.
++#[test]
++fn unequal_toolbar_labels_must_fit_each_row_share() {
++    let (mut a, _, t) = base(1000.);
++    let long = button(&mut a, t, 2, LONG);
++    button(&mut a, t, 3, "Go");
++    a.update();
++    let natural = natural(&a, long);
++    let r = *a.world().get::<Rect>(long.label).unwrap();
++    let axis = axis(&a, t);
++    println!("axis={axis:?} natural_label_width={natural} actual_label_rect={r:?}");
++    assert!(
++        axis == Axis::Column || r.w + 0.01 >= natural,
++        "row selected even though longest label does not fit its allocated width"
++    );
++}
++
++#[test]
++fn equal_share_boundary_both_densities_and_type_scales() {
++    for density in [Density::Comfortable, Density::Compact] {
++        for scale in [1., 2.] {
++            let (mut a, p, t) = base(4000.);
++            a.world_mut().insert_resource(UiTheme {
++                density,
++                text_scale: scale,
++                ..UiTheme::default()
++            });
++            let long = button(&mut a, t, 2, LONG);
++            let short = button(&mut a, t, 3, "Go");
++            a.update();
++            let boundary = 2. * needed(&a, long).max(needed(&a, short)) + 8.;
++            // Immediately below, exactly at, and above fit; both directions.
++            for (width, expected) in [
++                (boundary - 0.25, Axis::Column),
++                (boundary, Axis::Row),
++                (boundary + 0.25, Axis::Row),
++                (boundary - 0.25, Axis::Column),
++                (boundary, Axis::Row),
++            ] {
++                resize(&mut a, p, t, width);
++                a.update();
++                assert_eq!(
++                    axis(&a, t),
++                    expected,
++                    "density={density:?} scale={scale} width={width}"
++                );
++                if expected == Axis::Row {
++                    fitted(&a, t, &[long, short]);
++                }
++            }
++        }
++    }
++}
++
++#[test]
++fn same_update_width_scale_and_label_changes_preserve_identity_and_actions() {
++    for density in [Density::Comfortable, Density::Compact] {
++        let (mut a, p, t) = base(1000.);
++        a.world_mut().insert_resource(UiTheme {
++            density,
++            ..UiTheme::default()
++        });
++        let h = button(&mut a, t, 2, "Go");
++        let other = button(&mut a, t, 3, "OK");
++        a.update();
++        assert!(request_focus(a.world_mut(), h.root));
++        for (width, scale, label, expected) in [
++            (1000., 1., LONG, Axis::Column), // label row -> stack
++            (1000., 1., "Go", Axis::Row),    // label stack -> row
++            (1000., 1., "MMMMMMMMMMMMMMMMMMMM", Axis::Row),
++            (1000., 2., "MMMMMMMMMMMMMMMMMMMM", Axis::Column), // font row -> stack
++            (1000., 1., "MMMMMMMMMMMMMMMMMMMM", Axis::Row),    // font stack -> row
++            (200., 1., "MMMMMMMMMMMMMMMMMMMM", Axis::Column),  // width row -> stack
++            (1000., 1., "MMMMMMMMMMMMMMMMMMMM", Axis::Row),    // width stack -> row
++            (32., 2., LONG, Axis::Column),                     // combined/narrow finite geometry
++            (2000., 1., LONG, Axis::Row),                      // combined stack -> row
++        ] {
++            resize(&mut a, p, t, width);
++            a.world_mut().insert_resource(UiTheme {
++                density,
++                text_scale: scale,
++                ..UiTheme::default()
++            });
++            assert_eq!(button(&mut a, t, 2, label), h);
++            a.update();
++            assert_eq!(axis(&a, t), expected, "{width} {scale} {label}");
++            assert_eq!(a.world().resource::<Focus>().unwrap().entity, Some(h.root));
++            assert_eq!(a.world().get::<Label>(h.label).unwrap().text, label);
++            assert_eq!(
++                a.world().get::<Semantics>(h.root).unwrap().name.as_deref(),
++                Some(label)
++            );
++            if expected == Axis::Row {
++                fitted(&a, t, &[h, other]);
++            }
++            for control in [h, other] {
++                let r = a.world().get::<Rect>(control.root).unwrap();
++                assert!(r.x.is_finite() && r.y.is_finite() && r.w.is_finite() && r.h.is_finite());
++                assert!(r.w >= 28. && r.h >= 28.);
++                assert_eq!(
++                    try_activate(a.world_mut(), control.root),
++                    ActivationResult::Accepted
++                );
++                let request = take_action_intents(a.world_mut()).remove(0);
++                let id = if control == h { 2 } else { 3 };
++                assert_eq!(
++                    host_intent(a.world(), &request),
++                    Some(HostIntent::Command(id))
++                );
++            }
++        }
++    }
++}
++
++#[test]
++fn mixed_icon_and_source_actions_use_their_actual_label_styles() {
++    for density in [Density::Comfortable, Density::Compact] {
++        for scale in [1., 2.] {
++            let (mut a, p, t) = base(4000.);
++            a.world_mut().insert_resource(UiTheme {
++                density,
++                text_scale: scale,
++                ..UiTheme::default()
++            });
++            let long = button(&mut a, t, 2, LONG);
++            let icon = IconButton::mount(
++                a.world_mut(),
++                t.root,
++                UiId(3),
++                "+",
++                "Add",
++                ButtonProps::new("ignored", HostIntent::Command(3)),
++            )
++            .unwrap();
++            let source = SourceAction::mount(
++                a.world_mut(),
++                t.root,
++                UiId(4),
++                SourceLocator {
++                    document: 1,
++                    revision: 2,
++                    anchor: 3,
++                },
++                true,
++            )
++            .unwrap();
++            a.update();
++            let boundary = 3.
++                * needed(&a, long)
++                    .max(needed(&a, icon))
++                    .max(needed(&a, source))
++                + 16.;
++            for (w, expected) in [(boundary - 0.25, Axis::Column), (boundary, Axis::Row)] {
++                resize(&mut a, p, t, w);
++                a.update();
++                assert_eq!(axis(&a, t), expected);
++                if expected == Axis::Row {
++                    fitted(&a, t, &[long, icon, source]);
++                }
++                assert_eq!(
++                    a.world()
++                        .get::<Semantics>(icon.root)
++                        .unwrap()
++                        .name
++                        .as_deref(),
++                    Some("Add")
++                );
++                assert_eq!(
++                    a.world().get::<Label>(source.label).unwrap().text,
++                    "Show source"
++                );
++            }
++        }
++    }
++}
++
++#[test]
++fn empty_single_hidden_unknown_policy_and_toolbar_padding() {
++    let (mut a, p, t) = base(1000.);
++    a.update();
++    assert_eq!(axis(&a, t), Axis::Row);
++    let long = button(&mut a, t, 2, LONG);
++    a.update();
++    fitted(&a, t, &[long]);
++    let short = button(&mut a, t, 3, "Go");
++    a.world_mut().insert(long.root, Hidden);
++    a.update();
++    fitted(&a, t, &[short]);
++    let unknown = a.world_mut().spawn((Layout::column(),));
++    set_parent(a.world_mut(), unknown, t.root);
++    a.update();
++    assert_eq!(axis(&a, t), Axis::Column);
++    a.world_mut().insert(unknown, Hidden);
++    a.update();
++    fitted(&a, t, &[short]);
++    a.world_mut().remove::<Hidden>(long.root);
++    a.world_mut().get_mut::<Layout>(t.root).unwrap().padding = 7.;
++    let boundary = 2. * needed(&a, long) + 8. + 14.;
++    for (w, expected) in [(boundary - 0.25, Axis::Column), (boundary, Axis::Row)] {
++        resize(&mut a, p, t, w);
++        a.update();
++        assert_eq!(axis(&a, t), expected);
++        if expected == Axis::Row {
++            fitted(&a, t, &[long, short]);
++        }
++    }
++}
+diff --git a/docs/design/A2-components.md b/docs/design/A2-components.md
+index e299072..d8e5d11 100644
+--- a/docs/design/A2-components.md
++++ b/docs/design/A2-components.md
+@@ -92,3 +92,9 @@ Final commands, exact implementation SHA/source/rlib identities, suite counts, n
+ | Linux X11 / Wayland | Platform-enum ownership tests only; shared headless component contracts | Each backend's native build/window/input capture/blur, AT bridge/reader, theme/preferences, fonts/shaping/IME/scaling |
+ 
+ No cross-platform/platform-accessibility readiness is asserted. Native windows, screenshots, actual capture/blur, OS AT/preferences/fonts/shaping and physical DPI remain **UNVERIFIED**. This is a reviewable bounded A2 implementation result, not whole-project satisfaction or native certification.
++
++## Bounded R1 correction after independent A2 REVISE
++
++The independent review of `31006f0dfb834ea90e8b20ebac3b41d10dcdf88d` found that summed natural widths did not prove fit in core's equal-share Fill row. The correction checks **each** resolved label's unwrapped width plus its actual nested layout insets against `(available - toolbar padding - gaps) / visible children`, including target minima. The existing conservative total-width budget is retained as an additional veto, preserving established narrow-toolbar behavior; a budget fit is never sufficient without each actual share fitting. Exact per-share fits pass the new check; otherwise all actions stack. No measured-width allocation, hidden-action policy, style scheduling, activation or core change is introduced. Unknown visible children still force stacking; hidden children do not consume shares. Empty/single behavior is retained.
++
++Permanent `a2_toolbar_allocation.rs` promotes the independent unequal-label probe and covers mixed icon/source commands, same-update width/font-scale/label changes in both directions, comfortable/compact and 100%/200% type, boundary fits, finite narrow geometry, focus/identity/names/actions, hidden/unknown children and toolbar padding. New R1 evidence is separate under `evidence/a2-r1-20261101/`; old sealed receipts and all six passive goldens remain historical and unchanged. A fresh independent exact-candidate re-review is required before owner A2 acceptance. No native certification or integration is implied.

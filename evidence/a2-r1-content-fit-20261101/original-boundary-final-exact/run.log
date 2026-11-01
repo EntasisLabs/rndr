@@ -1,0 +1,34 @@
+
+running 5 tests
+axis=Column natural_label_width=826 actual_label_rect=Rect { x: 9.0, y: 9.0, w: 982.0, h: 36.0 }
+test unequal_toolbar_labels_must_fit_each_row_share ... ok
+
+thread 'equal_share_boundary_both_densities_and_type_scales' (623979) panicked at /tmp/rndr-a2-content-fit-UJYjbC/original-allocation.rs:108:17:
+assertion `left == right` failed: density=Comfortable scale=1 width=1696
+  left: Column
+ right: Row
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test equal_share_boundary_both_densities_and_type_scales ... FAILED
+
+thread 'mixed_icon_and_source_actions_use_their_actual_label_styles' (623980) panicked at /tmp/rndr-a2-content-fit-UJYjbC/original-allocation.rs:222:17:
+assertion `left == right` failed
+  left: Column
+ right: Row
+test mixed_icon_and_source_actions_use_their_actual_label_styles ... FAILED
+
+thread 'empty_single_hidden_unknown_policy_and_toolbar_padding' (623978) panicked at /tmp/rndr-a2-content-fit-UJYjbC/original-allocation.rs:268:9:
+assertion `left == right` failed
+  left: Column
+ right: Row
+test empty_single_hidden_unknown_policy_and_toolbar_padding ... FAILED
+test same_update_width_scale_and_label_changes_preserve_identity_and_actions ... ok
+
+failures:
+
+failures:
+    empty_single_hidden_unknown_policy_and_toolbar_padding
+    equal_share_boundary_both_densities_and_type_scales
+    mixed_icon_and_source_actions_use_their_actual_label_styles
+
+test result: FAILED. 2 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+

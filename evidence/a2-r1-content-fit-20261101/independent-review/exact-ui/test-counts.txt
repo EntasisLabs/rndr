@@ -1,0 +1,1 @@
+Current corrected-source UI:37 PASS (32 existing +5 new regression tests). Repeated Cargo coverage, not additive. Unchanged core/paint/adapter inputs and rlibs verified against independent receipt.

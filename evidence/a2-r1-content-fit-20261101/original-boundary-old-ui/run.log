@@ -1,0 +1,11 @@
+
+running 5 tests
+axis=Column natural_label_width=826 actual_label_rect=Rect { x: 9.0, y: 9.0, w: 982.0, h: 36.0 }
+test unequal_toolbar_labels_must_fit_each_row_share ... ok
+test empty_single_hidden_unknown_policy_and_toolbar_padding ... ok
+test mixed_icon_and_source_actions_use_their_actual_label_styles ... ok
+test equal_share_boundary_both_densities_and_type_scales ... ok
+test same_update_width_scale_and_label_changes_preserve_identity_and_actions ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+

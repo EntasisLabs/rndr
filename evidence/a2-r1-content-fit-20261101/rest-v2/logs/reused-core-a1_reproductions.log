@@ -1,0 +1,8 @@
+
+running 3 tests
+test at_set_value_must_not_bypass_editor_history ... ok
+test folded_button_child_label_is_name ... ok
+test advertised_tab_activation_selects_panel ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

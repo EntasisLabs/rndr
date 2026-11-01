@@ -1,0 +1,13 @@
+
+running 8 tests
+test selection_mapping_insertion_deletion_and_grapheme_join ... ok
+test composition_refuses_edit_without_consuming_commit_or_clipboard ... ok
+test unicode_bytes_and_reversed_selection_round_trip_exactly ... ok
+test edits_to_other_note_do_not_steal_focus_or_consume_input ... ok
+test rejected_and_identical_edits_preserve_selection_and_redo ... ok
+test source_range_edit_shares_keyboard_undo ... ok
+test source_operations_break_typing_runs_and_invalidate_redo ... ok
+test ime_commit_replaces_selection_and_is_a_separate_step_with_or_without_keys ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
