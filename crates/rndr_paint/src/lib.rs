@@ -433,11 +433,13 @@ fn walk(
                 .get::<Parent>(entity)
                 .is_some_and(|parent| focused == Some(parent.entity))
             || world.has::<Caret>(entity);
-        let color =
-            world
-                .get::<Color>(entity)
-                .copied()
-                .map(|color| if highlight { lighten(color) } else { color });
+        let color = world.get::<Color>(entity).copied().map(|color| {
+            if highlight && !world.has::<rndr_core::ResolvedColor>(entity) {
+                lighten(color)
+            } else {
+                color
+            }
+        });
         let dirty = world.has::<DirtyMark>(entity);
         let radius = world
             .get::<Radius>(entity)
