@@ -692,7 +692,10 @@ impl Handler {
                 capture,
                 gpu.observed.take().unwrap_or(Err("surface_unavailable")),
                 presented,
-                gpu.observation_provenance(!painted.draws.is_empty()),
+                gpu.observation_provenance(
+                    !painted.draws.is_empty(),
+                    observe::text_engine_kind(self.app.world()),
+                ),
             );
             gpu.observe_armed = false;
         }

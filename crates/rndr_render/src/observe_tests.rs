@@ -133,6 +133,7 @@ fn invalid_and_oversized_viewports_are_denied_before_allocation() {
 #[test]
 fn semantics_reuse_actions_states_focus_and_unflattened_scroll() {
     let (mut app, send) = fixture();
+    assert_eq!(text_engine_kind(app.world()), "builtin_atlas");
     app.add_plugin(GenericInteraction);
     app.world_mut().insert_resource(ObservationContent::Public);
     let button = app.world_mut().spawn((
@@ -294,6 +295,56 @@ fn foreign_surface_and_oversized_node_tree_are_denied() {
     let recv = request(&send, 0);
     assert!(begin(app.world(), 2, 2, 1.).is_none());
     assert_error(recv, "semantic_limit");
+}
+#[test]
+fn supplemental_description_and_action_changes_cannot_escape_frame_binding() {
+    for readonly in [false, true] {
+        let (mut app, send) = fixture();
+        app.add_plugin(GenericInteraction);
+        app.world_mut().insert_resource(ObservationContent::Public);
+        let button = app.world_mut().spawn((
+            Button::new("save"),
+            Semantics {
+                name: Some("Save".into()),
+                ..Semantics::default()
+            },
+        ));
+        let recv = request(&send, 0);
+        let capture = begin(app.world(), 2, 2, 1.).unwrap();
+        let semantics = app.world_mut().get_mut::<Semantics>(button).unwrap();
+        if readonly {
+            semantics.readonly = true;
+        } else {
+            semantics.description = "new help".into();
+        }
+        assert!(validate(app.world(), capture, 1.).is_none());
+        assert_error(recv, "post_paint_mutation");
+    }
+}
+#[test]
+fn shutdown_revokes_pending_capture_and_never_restarts_implicitly() {
+    let (mut app, send) = fixture();
+    app.world_mut().insert_resource(ObservationContent::Public);
+    let recv = request(&send, 0);
+    let capture = begin(app.world(), 2, 2, 1.).unwrap();
+    let session = app.world().resource::<ObservationSession>().unwrap();
+    let directory = session.directory.clone();
+    session.shutdown();
+    session.shutdown();
+    assert!(!directory.exists());
+    assert!(validate(app.world(), capture, 1.).is_none());
+    assert_error(recv, "session_revoked");
+    assert!(begin(app.world(), 2, 2, 1.).is_none());
+}
+#[test]
+fn render_stall_expiry_is_denied_before_gpu_allocation() {
+    let (mut app, send) = fixture();
+    app.world_mut().insert_resource(ObservationContent::Public);
+    let recv = request(&send, 0);
+    let mut capture = begin(app.world(), 2, 2, 1.).unwrap();
+    capture.request.deadline = Instant::now() - Duration::from_secs(1);
+    assert!(validate(app.world(), capture, 1.).is_none());
+    assert_error(recv, "expired");
 }
 #[test]
 fn metadata_limit_denies_without_exposing_large_or_sensitive_strings() {

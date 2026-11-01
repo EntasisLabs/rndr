@@ -429,8 +429,12 @@ impl Gpu {
     }
 
     #[cfg(feature = "observe")]
-    pub(crate) fn observation_provenance(&self, scene: bool) -> serde_json::Value {
-        serde_json::json!({"surface_format":format!("{:?}",self.config.format),"alpha_mode":format!("{:?}",self.config.alpha_mode),"present_mode":format!("{:?}",self.config.present_mode),"transparent_clear":self.clear_transparent,"adapter":self.observation_adapter.0,"backend":self.observation_adapter.1,"scene_samples":self.observation_adapter.2,"path":if scene {"scene"}else{"quads"},"text_engine":if cfg!(feature="parley") {"parley"} else {"builtin_atlas"}})
+    pub(crate) fn observation_provenance(
+        &self,
+        scene: bool,
+        text_engine: &str,
+    ) -> serde_json::Value {
+        serde_json::json!({"surface_format":format!("{:?}",self.config.format),"alpha_mode":format!("{:?}",self.config.alpha_mode),"present_mode":format!("{:?}",self.config.present_mode),"transparent_clear":self.clear_transparent,"adapter":self.observation_adapter.0,"backend":self.observation_adapter.1,"scene_samples":self.observation_adapter.2,"path":if scene {"scene"}else{"quads"},"text_engine":text_engine,"parley_feature":cfg!(feature="parley")})
     }
 
     #[cfg(feature = "observe")]

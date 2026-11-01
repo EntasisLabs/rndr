@@ -104,8 +104,14 @@ impl ObservationSession {
                     while !stopping.load(Ordering::Acquire) {
                         match listener.accept() {
                             Ok((mut stream, _)) => {
-                                let _ = stream.set_read_timeout(Some(Duration::from_millis(50)));
-                                let _ = stream.set_write_timeout(Some(Duration::from_millis(500)));
+                                // A timeout-configuration failure must not turn
+                                // a local slow client into an unbounded read.
+                                if stream
+                                    .set_read_timeout(Some(Duration::from_millis(50)))
+                                    .is_err()
+                                {
+                                    continue;
+                                }
                                 let result = read_request(&mut stream)
                                     .and_then(|line| authenticate(&line, &token));
                                 let packet = match result {
@@ -164,6 +170,8 @@ impl ObservationSession {
             }
         }
     }
+    /// This transport is unavailable on non-Unix hosts and returns Unsupported;
+    /// it never falls back to a network or unauthenticated transport.
     #[cfg(not(unix))]
     pub fn enable(_: &mut World, _: &str) -> io::Result<PathBuf> {
         Err(io::Error::new(
@@ -172,8 +180,11 @@ impl ObservationSession {
         ))
     }
 }
-impl Drop for ObservationSession {
-    fn drop(&mut self) {
+impl ObservationSession {
+    /// Revoke this session, stop its worker and remove its exact private files.
+    /// Safe to call repeatedly. The resource remains disabled until world drop;
+    /// this v1 API does not silently rotate or restart a revoked session.
+    pub fn shutdown(&self) {
         self.stop.store(true, Ordering::Release);
         if let Some(worker) = self.worker.lock().unwrap().take() {
             let _ = worker.join();
@@ -181,6 +192,11 @@ impl Drop for ObservationSession {
         let _ = std::fs::remove_file(self.directory.join("observe.sock"));
         let _ = std::fs::remove_file(self.directory.join("session.json"));
         let _ = std::fs::remove_dir(&self.directory);
+    }
+}
+impl Drop for ObservationSession {
+    fn drop(&mut self) {
+        self.shutdown();
     }
 }
 #[cfg(test)]
@@ -289,7 +305,35 @@ pub(crate) struct Capture {
     request: Request,
     metadata: Value,
     tree: rndr_core::AccessTree,
+    details: Vec<(u64, rndr_core::AccessDetails)>,
     scroll: Vec<(u64, rndr_core::Scroll, rndr_core::Rect)>,
+}
+pub(crate) fn text_engine_kind(world: &World) -> &'static str {
+    let engine = rndr_core::text_engine(world);
+    if engine.as_any().is::<rndr_core::BuiltinText>() {
+        return "builtin_atlas";
+    }
+    #[cfg(feature = "parley")]
+    if engine.as_any().is::<crate::text::ParleyText>() {
+        return "parley";
+    }
+    "custom"
+}
+fn semantic_details(
+    world: &World,
+    tree: &rndr_core::AccessTree,
+) -> Vec<(u64, rndr_core::AccessDetails)> {
+    tree.nodes
+        .iter()
+        .map(|node| {
+            (
+                node.id,
+                rndr_core::entity_from_access_id(node.id)
+                    .map(|e| rndr_core::access_details(world, e))
+                    .unwrap_or_default(),
+            )
+        })
+        .collect()
 }
 fn scroll_state(world: &World) -> Vec<(u64, rndr_core::Scroll, rndr_core::Rect)> {
     let mut ports: Vec<_> = world
@@ -326,11 +370,19 @@ fn theme(world: &World) -> &str {
 /// Refuse Render-stage changes rather than combine old paint with new semantics
 /// or newly sensitive data. Snapshot and validation both run on the UI thread.
 pub(crate) fn validate(world: &World, capture: Capture, scale: f32) -> Option<Capture> {
-    let error_code = if !public(world) {
+    let error_code = if world
+        .resource::<ObservationSession>()
+        .is_none_or(|s| s.stop.load(Ordering::Acquire))
+    {
+        Some("session_revoked")
+    } else if capture.request.deadline <= Instant::now() {
+        Some("expired")
+    } else if !public(world) {
         Some("sensitive_frame")
     } else if !world.entities_with::<rndr_core::SurfaceSlot>().is_empty() {
         Some("foreign_surface_unsupported")
     } else if capture.tree != rndr_core::access_tree(world)
+        || capture.details != semantic_details(world, &capture.tree)
         || capture.scroll != scroll_state(world)
         || capture.metadata["device_scale"] != json!(scale)
         || capture.metadata["theme"] != json!(theme(world))
@@ -349,6 +401,9 @@ pub(crate) fn validate(world: &World, capture: Capture, scale: f32) -> Option<Ca
 /// Called after the world's layout/paint pass, before submitting its surface.
 pub(crate) fn begin(world: &World, width: u32, height: u32, scale: f32) -> Option<Capture> {
     let session = world.resource::<ObservationSession>()?;
+    if session.stop.load(Ordering::Acquire) {
+        return None;
+    }
     let revision = session.revision.fetch_add(1, Ordering::Relaxed) + 1;
     let request = session.requests.lock().unwrap().try_recv().ok()?;
     let deny = if request.deadline <= Instant::now() {
@@ -406,6 +461,7 @@ pub(crate) fn begin(world: &World, width: u32, height: u32, scale: f32) -> Optio
     Some(Capture {
         request,
         metadata,
+        details: semantic_details(world, &binding_tree),
         tree: binding_tree,
         scroll: scroll_state(world),
     })
