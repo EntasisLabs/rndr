@@ -4,7 +4,7 @@ use crate::entity::Entity;
 use crate::fs::FsPath;
 use crate::hierarchy::{children_of, roots, Parent};
 use crate::input::{Focus, Input, Key};
-use crate::layout::{ancestor_with, hit_test, Clip, Rect, Scroll};
+use crate::layout::{ancestor_with, hit_test, Rect, Scroll};
 use crate::pane::{set_selection, Selection};
 use crate::style::Label;
 use crate::world::World;
@@ -272,38 +272,38 @@ pub(crate) fn ensure_focus_visible(world: &mut World) {
     let Some(entity) = current_focus(world) else {
         return;
     };
-    let Some(rect) = focus_rect(world, entity) else {
+    let Some(mut rect) = focus_rect(world, entity) else {
         return;
     };
-    let Some(scroll_entity) = ancestor_with::<Scroll>(world, entity) else {
-        return;
-    };
-    let Some(port) = world.get::<Clip>(scroll_entity).copied().or_else(|| {
-        world
-            .get::<Rect>(scroll_entity)
-            .copied()
-            .map(Clip::from_rect)
-    }) else {
-        return;
-    };
-    let mut dy = 0.0f32;
-    if rect.y < port.y {
-        dy = port.y - rect.y;
-    } else if rect.y + rect.h > port.y + port.h {
-        dy = (port.y + port.h) - (rect.y + rect.h);
-    }
-    let mut dx = 0.0f32;
-    if rect.x < port.x {
-        dx = port.x - rect.x;
-    } else if rect.x + rect.w > port.x + port.w {
-        dx = (port.x + port.w) - (rect.x + rect.w);
-    }
-    if dx == 0.0 && dy == 0.0 {
-        return;
-    }
-    if let Some(scroll) = world.get_mut::<Scroll>(scroll_entity) {
-        scroll.offset[0] += dx;
-        scroll.offset[1] += dy;
+    // A clipped (possibly entirely offscreen) inner viewport cannot reveal its
+    // own ancestors. Resolve each local viewport inside-out, carrying the actual
+    // target translation forward until the outermost scroll container is reached.
+    let mut current = Some(entity);
+    while let Some(scroll_entity) = current.and_then(|e| ancestor_with::<Scroll>(world, e)) {
+        let Some(port) = world.get::<Rect>(scroll_entity).copied() else {
+            break;
+        };
+        let dy = if rect.y < port.y {
+            port.y - rect.y
+        } else if rect.y + rect.h > port.y + port.h {
+            port.y + port.h - rect.y - rect.h
+        } else {
+            0.0
+        };
+        let dx = if rect.x < port.x {
+            port.x - rect.x
+        } else if rect.x + rect.w > port.x + port.w {
+            port.x + port.w - rect.x - rect.w
+        } else {
+            0.0
+        };
+        if let Some(scroll) = world.get_mut::<Scroll>(scroll_entity) {
+            scroll.offset[0] += dx;
+            scroll.offset[1] += dy;
+            rect.x += dx;
+            rect.y += dy;
+        }
+        current = world.get::<Parent>(scroll_entity).map(|p| p.entity);
     }
 }
 
