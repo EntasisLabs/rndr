@@ -1,0 +1,257 @@
+{
+  "baseline_commit": "6e1f1d2630ce94f6fd7ee4b1088b584645b2865c",
+  "implementation_commit": "a299e3aa09c6200f3b52cbb6a91cf398acc9640f",
+  "actual_image_inspection": "blocked: no local PNG-to-vision tool in admitted turn",
+  "os_visible_screenshot": "not obtained",
+  "runs": {
+    "before-light": {
+      "command": [
+        "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-evidence-driven-visual-polish/target/debug/examples/ui_gallery",
+        "--observe",
+        "--observe-exit-after-15s"
+      ],
+      "binary_sha256": "728c18e2ae06e16650be805e5081fc84083903a1a4492b933cae9ffef6149de9",
+      "source_commit": "6e1f1d2630ce94f6fd7ee4b1088b584645b2865c",
+      "note": "live application-surface capture; no OS compositor proof",
+      "provenance": {
+        "adapter": "Apple M4",
+        "alpha_mode": "Auto",
+        "backend": "Metal",
+        "parley_feature": true,
+        "path": "quads",
+        "present_mode": "AutoVsync",
+        "scene_samples": 4,
+        "surface_format": "Bgra8UnormSrgb",
+        "text_engine": "builtin_atlas",
+        "transparent_clear": false
+      },
+      "frames": [
+        {
+          "png": "evidence/visual-polish/before-light/frame-1.png",
+          "metadata": "evidence/visual-polish/before-light/frame-1.json",
+          "png_sha256": "8e38bf06d85104d44d11ca48a5449d668784d2480cbb482df55ab1b59598bb63",
+          "metadata_sha256": "21c5e27044bc39933439feba022049940e33ff43683b97620957b9594afb0ebf",
+          "width": 1000,
+          "height": 700,
+          "device_scale": 1.0,
+          "frame_revision": "3"
+        },
+        {
+          "png": "evidence/visual-polish/before-light/frame-2.png",
+          "metadata": "evidence/visual-polish/before-light/frame-2.json",
+          "png_sha256": "8e38bf06d85104d44d11ca48a5449d668784d2480cbb482df55ab1b59598bb63",
+          "metadata_sha256": "1b36c6190c81a8ca9157d3404eb50f6d66ecd82cf80bcfaab0c5574b1b1bfc71",
+          "width": 1000,
+          "height": 700,
+          "device_scale": 1.0,
+          "frame_revision": "4"
+        }
+      ]
+    },
+    "engine-only-light": {
+      "command": [
+        "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-evidence-driven-visual-polish/target/debug/examples/ui_gallery",
+        "--observe",
+        "--observe-exit-after-15s"
+      ],
+      "binary_sha256": "827c7d786f4c228f367c56bc08b904d2acf402378d06afacedef9c73e991c39a",
+      "source_commit": null,
+      "note": "diagnostic intermediate before glyph-cache correction; not final review evidence",
+      "provenance": {
+        "adapter": "Apple M4",
+        "alpha_mode": "Auto",
+        "backend": "Metal",
+        "parley_feature": true,
+        "path": "quads",
+        "present_mode": "AutoVsync",
+        "scene_samples": 4,
+        "surface_format": "Bgra8UnormSrgb",
+        "text_engine": "parley",
+        "transparent_clear": false
+      },
+      "frames": [
+        {
+          "png": "evidence/visual-polish/engine-only-light/frame-1.png",
+          "metadata": "evidence/visual-polish/engine-only-light/frame-1.json",
+          "png_sha256": "896116dcc081914d13492380f87b96f6a0235c34006ffbd70d088607293e1a7b",
+          "metadata_sha256": "53f16325f479d9c08c1da944bfa4335a366a4270f1efeaa5356aa7af3bd1f9d9",
+          "width": 1000,
+          "height": 700,
+          "device_scale": 1.0,
+          "frame_revision": "3"
+        },
+        {
+          "png": "evidence/visual-polish/engine-only-light/frame-2.png",
+          "metadata": "evidence/visual-polish/engine-only-light/frame-2.json",
+          "png_sha256": "896116dcc081914d13492380f87b96f6a0235c34006ffbd70d088607293e1a7b",
+          "metadata_sha256": "acbf96f8d552c8d0e9b317bd498f87697d8c68d85f5d8dfd3c9029aba560b6d2",
+          "width": 1000,
+          "height": 700,
+          "device_scale": 1.0,
+          "frame_revision": "4"
+        }
+      ]
+    },
+    "after-light": {
+      "command": [
+        "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-evidence-driven-visual-polish/target/debug/examples/ui_gallery",
+        "--observe",
+        "--observe-exit-after-15s"
+      ],
+      "binary_sha256": "bf70f469000b76960277a313b75be3767ac8b44412219fc7c22d1a3fb40cd9ef",
+      "source_commit": "a299e3aa09c6200f3b52cbb6a91cf398acc9640f",
+      "note": "live application-surface capture; no OS compositor proof",
+      "provenance": {
+        "adapter": "Apple M4",
+        "alpha_mode": "Auto",
+        "backend": "Metal",
+        "parley_feature": true,
+        "path": "quads",
+        "present_mode": "AutoVsync",
+        "scene_samples": 4,
+        "surface_format": "Bgra8UnormSrgb",
+        "text_engine": "parley",
+        "transparent_clear": false
+      },
+      "frames": [
+        {
+          "png": "evidence/visual-polish/after-light/frame-1.png",
+          "metadata": "evidence/visual-polish/after-light/frame-1.json",
+          "png_sha256": "35a3bc6764f1f39e842e973d0964eff57b8bb64835484ea2335cad513099a709",
+          "metadata_sha256": "1aef7e57eed3108de338dbb474e54f2c1bcf85b98046362909c4ed746f56606c",
+          "width": 1000,
+          "height": 700,
+          "device_scale": 1.0,
+          "frame_revision": "3"
+        },
+        {
+          "png": "evidence/visual-polish/after-light/frame-2.png",
+          "metadata": "evidence/visual-polish/after-light/frame-2.json",
+          "png_sha256": "35a3bc6764f1f39e842e973d0964eff57b8bb64835484ea2335cad513099a709",
+          "metadata_sha256": "13d2b9e3527b63d20d2c0f53fa1d22ef36ae018bf4abe0d22ef339c396235769",
+          "width": 1000,
+          "height": 700,
+          "device_scale": 1.0,
+          "frame_revision": "4"
+        }
+      ]
+    },
+    "after-dark": {
+      "command": [
+        "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-evidence-driven-visual-polish/target/debug/examples/ui_gallery",
+        "--observe",
+        "--observe-exit-after-15s",
+        "--dark"
+      ],
+      "binary_sha256": "bf70f469000b76960277a313b75be3767ac8b44412219fc7c22d1a3fb40cd9ef",
+      "source_commit": "a299e3aa09c6200f3b52cbb6a91cf398acc9640f",
+      "note": "live application-surface capture; no OS compositor proof",
+      "provenance": {
+        "adapter": "Apple M4",
+        "alpha_mode": "Auto",
+        "backend": "Metal",
+        "parley_feature": true,
+        "path": "quads",
+        "present_mode": "AutoVsync",
+        "scene_samples": 4,
+        "surface_format": "Bgra8UnormSrgb",
+        "text_engine": "parley",
+        "transparent_clear": false
+      },
+      "frames": [
+        {
+          "png": "evidence/visual-polish/after-dark/frame-1.png",
+          "metadata": "evidence/visual-polish/after-dark/frame-1.json",
+          "png_sha256": "d47f25fcdeaf51d3fb6037642a6bd503bfd5a0ed91627509099b02b4dd0968a0",
+          "metadata_sha256": "cc489e495b18324ea7b287bea7374ce489d0cd641625acefd2b08c7571a16a0f",
+          "width": 1000,
+          "height": 700,
+          "device_scale": 1.0,
+          "frame_revision": "3"
+        },
+        {
+          "png": "evidence/visual-polish/after-dark/frame-2.png",
+          "metadata": "evidence/visual-polish/after-dark/frame-2.json",
+          "png_sha256": "d47f25fcdeaf51d3fb6037642a6bd503bfd5a0ed91627509099b02b4dd0968a0",
+          "metadata_sha256": "23d9fa7c978bf6c474af15718b616e89e29b3584027697c6696b13d8aadd4870",
+          "width": 1000,
+          "height": 700,
+          "device_scale": 1.0,
+          "frame_revision": "4"
+        }
+      ]
+    },
+    "after-stress": {
+      "command": [
+        "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-evidence-driven-visual-polish/target/debug/examples/ui_gallery",
+        "--observe",
+        "--observe-exit-after-15s",
+        "--dark",
+        "--hc",
+        "--compact",
+        "--narrow",
+        "--200",
+        "--long"
+      ],
+      "binary_sha256": "bf70f469000b76960277a313b75be3767ac8b44412219fc7c22d1a3fb40cd9ef",
+      "source_commit": "a299e3aa09c6200f3b52cbb6a91cf398acc9640f",
+      "note": "live application-surface capture; no OS compositor proof",
+      "provenance": {
+        "adapter": "Apple M4",
+        "alpha_mode": "Auto",
+        "backend": "Metal",
+        "parley_feature": true,
+        "path": "quads",
+        "present_mode": "AutoVsync",
+        "scene_samples": 4,
+        "surface_format": "Bgra8UnormSrgb",
+        "text_engine": "parley",
+        "transparent_clear": false
+      },
+      "frames": [
+        {
+          "png": "evidence/visual-polish/after-stress/frame-1.png",
+          "metadata": "evidence/visual-polish/after-stress/frame-1.json",
+          "png_sha256": "85e17c53835b07fc2868956361b717a228d6e7090f41b7e12ca799df6a82f637",
+          "metadata_sha256": "a5ed7b349ebf250a58a96b2b0e3e6aacb36275a563fffc89f6365a7194b2d1a4",
+          "width": 320,
+          "height": 700,
+          "device_scale": 1.0,
+          "frame_revision": "4"
+        },
+        {
+          "png": "evidence/visual-polish/after-stress/frame-2.png",
+          "metadata": "evidence/visual-polish/after-stress/frame-2.json",
+          "png_sha256": "85e17c53835b07fc2868956361b717a228d6e7090f41b7e12ca799df6a82f637",
+          "metadata_sha256": "5c1c5fdd1888d8689e7b4ecb15d21bf98096cb2a07ae009233709aa5f0bc0a13",
+          "width": 320,
+          "height": 700,
+          "device_scale": 1.0,
+          "frame_revision": "5"
+        }
+      ]
+    }
+  },
+  "tests": {
+    "test-ui": {
+      "passed": 44,
+      "includes_doctests": true,
+      "failed": 0
+    },
+    "test-core-paint": {
+      "passed": 483,
+      "includes_doctests": true,
+      "failed": 0
+    },
+    "test-render-parley": {
+      "passed": 70,
+      "includes_doctests": true,
+      "failed": 0
+    },
+    "test-render-builtin": {
+      "passed": 53,
+      "includes_doctests": true,
+      "failed": 0
+    }
+  }
+}
