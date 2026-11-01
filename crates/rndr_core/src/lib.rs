@@ -247,10 +247,13 @@ pub use wrap::{
     TEXT_INSET_Y,
 };
 
+mod manual_tabs;
+pub use manual_tabs::{ControlDisabled, ManualTabs, ResolvedColor, SelectedState, TabOrientation};
+
 pub use interaction::{
-    access_details, cancel_activation, interaction_visible, request_focus, take_action_intents,
-    try_activate, AccessDetails, ActionIntent, ActionIntents, ActivationResult, GenericInteraction,
-    ReleaseActivation, Semantics, TabRelation,
+    access_details, cancel_activation, interaction_pressed, interaction_visible, request_focus,
+    take_action_intents, try_activate, AccessDetails, ActionIntent, ActionIntents,
+    ActivationResult, GenericInteraction, ReleaseActivation, Semantics, TabRelation,
 };
 
 pub use interaction::{

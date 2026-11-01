@@ -91,6 +91,12 @@ fn platform_node(world: &World, node: &rndr_core::AccessNode) -> Node {
     if let Some(id) = details.labelled_by {
         out.set_labelled_by(vec![NodeId(id)]);
     }
+    if let Some(orientation) = details.orientation {
+        out.set_orientation(match orientation {
+            rndr_core::TabOrientation::Horizontal => accesskit::Orientation::Horizontal,
+            rndr_core::TabOrientation::Vertical => accesskit::Orientation::Vertical,
+        });
+    }
     if !node.enabled {
         out.set_disabled();
     }
@@ -184,5 +190,50 @@ mod tests {
         assert_eq!(node(panel).role(), Role::TabPanel);
         assert_eq!(node(tab).controls(), &[NodeId(access_id(panel))]);
         assert_eq!(node(panel).labelled_by(), &[NodeId(access_id(tab))]);
+    }
+    #[test]
+    fn manual_orientation_selected_and_disabled_matrix_reaches_accesskit() {
+        use rndr_core::*;
+        let mut app = App::new();
+        app.add_plugin(GenericInteraction);
+        let group = app.world_mut().spawn((
+            Layout::row(),
+            Tabs { selected: 0 },
+            ManualTabs(TabOrientation::Vertical),
+            Semantics {
+                name: Some("Reading mode".into()),
+                ..Semantics::default()
+            },
+        ));
+        let row = app.world_mut().spawn((
+            Layout::column(),
+            Button::new("row"),
+            ReleaseActivation,
+            SelectedState(true),
+            ControlDisabled,
+            Semantics {
+                name: Some("Draft, unsaved".into()),
+                ..Semantics::default()
+            },
+        ));
+        app.update();
+        let tree = tree_update(app.world());
+        let node = |e| {
+            &tree
+                .nodes
+                .iter()
+                .find(|(id, _)| *id == NodeId(access_id(e)))
+                .unwrap()
+                .1
+        };
+        assert_eq!(
+            node(group).orientation(),
+            Some(accesskit::Orientation::Vertical)
+        );
+        assert_eq!(node(row).is_selected(), Some(true));
+        assert!(node(row).is_disabled());
+        assert!(!node(row).supports_action(accesskit::Action::Focus));
+        assert!(!node(row).supports_action(accesskit::Action::Click));
+        assert_eq!(node(row).label(), Some("Draft, unsaved"));
     }
 }

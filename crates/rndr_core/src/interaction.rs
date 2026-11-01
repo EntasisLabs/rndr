@@ -56,6 +56,8 @@ pub struct AccessDetails {
     pub controls: Option<u64>,
     /// Panel is labelled by this tab's access id.
     pub labelled_by: Option<u64>,
+    /// Explicit orientation for opted-in manual tablists.
+    pub orientation: Option<TabOrientation>,
 }
 
 /// Validate generation and every ancestor's visibility.
@@ -89,7 +91,8 @@ pub fn access_details(world: &World, entity: Entity) -> AccessDetails {
         return AccessDetails::default();
     }
     let semantics = world.get::<Semantics>(entity).cloned().unwrap_or_default();
-    let enabled = world.get::<Button>(entity).is_none_or(|b| b.enabled);
+    let enabled = !world.has::<ControlDisabled>(entity)
+        && world.get::<Button>(entity).is_none_or(|b| b.enabled);
     let relation = valid_tab_relation(world, entity);
     let valid_row = valid_list_row(world, entity);
     AccessDetails {
@@ -119,6 +122,7 @@ pub fn access_details(world: &World, entity: Entity) -> AccessDetails {
                         crate::tabs::tab_group(world, entity).is_some()
                     }))),
         set_value: false,
+        orientation: world.get::<ManualTabs>(entity).map(|p| p.0),
         panel: world.has::<TabPanel>(entity),
         controls: relation.map(|r| access_id(r.panel)),
         labelled_by: world
@@ -370,12 +374,21 @@ pub fn cancel_activation(world: &mut World) {
     }
 }
 
+/// Read-only view of canonical armed state for visuals, not another input path.
+/// Cancellation, disabled/readonly and visibility are revalidated on every query.
+pub fn interaction_pressed(world: &World, entity: Entity) -> bool {
+    access_details(world, entity).activate
+        && world
+            .resource::<InteractionState>()
+            .is_some_and(|s| s.space == Some(entity) || s.pointer.is_some_and(|(e, _)| e == entity))
+}
+
 fn focus_order(world: &World) -> Vec<Entity> {
     fn walk(world: &World, entity: Entity, out: &mut Vec<Entity>) {
         if !interaction_visible(world, entity) {
             return;
         }
-        if access_details(world, entity).focus {
+        if access_details(world, entity).focus && crate::manual_tabs::roving_stop(world, entity) {
             out.push(entity);
         }
         for child in children_of(world, entity) {
@@ -512,7 +525,8 @@ pub(crate) fn apply_generic_input(world: &mut World) {
                 )
                 .is_some_and(|hit| {
                     hit == entity
-                        || crate::layout::ancestor_with::<Button>(world, hit) == Some(entity)
+                        || crate::layout::ancestor_with::<ReleaseActivation>(world, hit)
+                            == Some(entity)
                 });
                 if inside {
                     try_activate(world, entity);
@@ -580,6 +594,8 @@ pub(crate) fn apply_generic_input(world: &mut World) {
                     cancel_activation(world);
                     request_focus(world, order[index]);
                 }
+                consumed = true;
+            } else if crate::manual_tabs::manual_tab_key(world, focus, &event) {
                 consumed = true;
             } else if event.logical == LogicalKey::Named(NamedKey::Escape) {
                 cancel_activation(world);

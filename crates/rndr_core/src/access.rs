@@ -319,10 +319,11 @@ fn collect(
             ),
         focused: focus.is_some_and(|focus| focus == entity || focus_inside(world, entity, focus)),
         selected: selected(world, entity, role),
-        enabled: world
-            .get::<Button>(entity)
-            .map(|button| button.enabled)
-            .unwrap_or(true),
+        enabled: !world.has::<crate::ControlDisabled>(entity)
+            && world
+                .get::<Button>(entity)
+                .map(|button| button.enabled)
+                .unwrap_or(true),
         expanded: world
             .get::<Disclosure>(entity)
             .map(|disclosure| disclosure.open),
@@ -369,6 +370,9 @@ fn role_of(world: &World, entity: Entity) -> Option<AccessRole> {
 }
 
 fn selected(world: &World, entity: Entity, role: AccessRole) -> bool {
+    if let Some(state) = world.get::<crate::SelectedState>(entity) {
+        return state.0;
+    }
     match role {
         AccessRole::ListItem => world
             .get::<ListItem>(entity)
