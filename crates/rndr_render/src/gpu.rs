@@ -92,6 +92,12 @@ fn round_rect(px: vec2<f32>, rect: vec4<f32>, radius: f32) -> f32 {
 "#;
 
 pub struct Gpu {
+    #[cfg(feature = "observe")]
+    pub(crate) observe_armed: bool,
+    #[cfg(feature = "observe")]
+    pub(crate) observed: Option<Result<crate::RgbaImage, &'static str>>,
+    #[cfg(feature = "observe")]
+    observation_adapter: (String, String, u32),
     window: Arc<Window>,
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -141,6 +147,7 @@ impl Gpu {
         coverage_atlas: AtlasBytes<'_>,
         color_atlas: AtlasBytes<'_>,
         transparent: bool,
+        #[cfg(feature = "observe")] observe: bool,
     ) -> Self {
         let atlas_w = coverage_atlas.width;
         let atlas_h = coverage_atlas.height;
@@ -175,6 +182,15 @@ impl Gpu {
             .get_default_config(&adapter, width, height)
             .expect("surface config");
         config.present_mode = wgpu::PresentMode::AutoVsync;
+        #[cfg(feature = "observe")]
+        if observe
+            && surface
+                .get_capabilities(&adapter)
+                .usages
+                .contains(wgpu::TextureUsages::COPY_SRC)
+        {
+            config.usage |= wgpu::TextureUsages::COPY_SRC;
+        }
         let clear_transparent = if transparent {
             let caps = surface.get_capabilities(&adapter);
             let mode = [
@@ -397,9 +413,137 @@ impl Gpu {
             instances,
             instance_capacity: INITIAL_INSTANCES,
             staging: Vec::new(),
+            #[cfg(feature = "observe")]
+            observe_armed: false,
+            #[cfg(feature = "observe")]
+            observed: None,
+            #[cfg(feature = "observe")]
+            observation_adapter: (
+                adapter.get_info().name.chars().take(256).collect(),
+                format!("{:?}", adapter.get_info().backend),
+                samples,
+            ),
             clear_transparent,
             scene,
         }
+    }
+
+    #[cfg(feature = "observe")]
+    pub(crate) fn observation_provenance(&self, scene: bool) -> serde_json::Value {
+        serde_json::json!({"surface_format":format!("{:?}",self.config.format),"alpha_mode":format!("{:?}",self.config.alpha_mode),"present_mode":format!("{:?}",self.config.present_mode),"transparent_clear":self.clear_transparent,"adapter":self.observation_adapter.0,"backend":self.observation_adapter.1,"scene_samples":self.observation_adapter.2,"path":if scene {"scene"}else{"quads"},"text_engine":if cfg!(feature="parley") {"parley"} else {"builtin_atlas"}})
+    }
+
+    #[cfg(feature = "observe")]
+    fn observation_copy(
+        &mut self,
+        encoder: &mut wgpu::CommandEncoder,
+        texture: &wgpu::Texture,
+        width: u32,
+        height: u32,
+    ) -> Option<wgpu::Buffer> {
+        if !self.observe_armed {
+            return None;
+        }
+        self.observed = None;
+        if !self.config.usage.contains(wgpu::TextureUsages::COPY_SRC)
+            || !matches!(
+                self.config.format,
+                wgpu::TextureFormat::Bgra8Unorm
+                    | wgpu::TextureFormat::Bgra8UnormSrgb
+                    | wgpu::TextureFormat::Rgba8Unorm
+                    | wgpu::TextureFormat::Rgba8UnormSrgb
+            )
+        {
+            self.observed = Some(Err("surface_copy_unsupported"));
+            return None;
+        }
+        if texture.width() != width || texture.height() != height {
+            self.observed = Some(Err("surface_size_mismatch"));
+            return None;
+        }
+        if width == 0
+            || height == 0
+            || width > crate::observe::MAX_SIDE
+            || height > crate::observe::MAX_SIDE
+            || u64::from(width) * u64::from(height) > crate::observe::MAX_PIXELS
+        {
+            self.observed = Some(Err("size_limit"));
+            return None;
+        }
+        let stride = (width * 4).div_ceil(256) * 256;
+        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("observe-live-surface"),
+            size: u64::from(stride) * u64::from(height),
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: &buffer,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(stride),
+                    rows_per_image: Some(height),
+                },
+            },
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+        );
+        Some(buffer)
+    }
+
+    #[cfg(feature = "observe")]
+    fn observation_read(&mut self, buffer: Option<wgpu::Buffer>, width: u32, height: u32) {
+        let Some(buffer) = buffer else {
+            return;
+        };
+        let result = (|| {
+            let slice = buffer.slice(..);
+            let (send, recv) = std::sync::mpsc::channel();
+            slice.map_async(wgpu::MapMode::Read, move |r| {
+                let _ = send.send(r);
+            });
+            self.device
+                .poll(wgpu::PollType::Wait {
+                    submission_index: None,
+                    timeout: Some(std::time::Duration::from_millis(500)),
+                })
+                .map_err(|_| "gpu_timeout")?;
+            recv.recv_timeout(std::time::Duration::from_millis(50))
+                .map_err(|_| "gpu_timeout")?
+                .map_err(|_| "gpu_readback")?;
+            let mapped = slice.get_mapped_range().map_err(|_| "gpu_readback")?;
+            let mut rgba = Vec::with_capacity(width as usize * height as usize * 4);
+            let stride = (width as usize * 4).div_ceil(256) * 256;
+            for row in mapped.chunks(stride).take(height as usize) {
+                rgba.extend_from_slice(&row[..width as usize * 4]);
+            }
+            if matches!(
+                self.config.format,
+                wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb
+            ) {
+                for pixel in rgba.chunks_exact_mut(4) {
+                    pixel.swap(0, 2);
+                }
+            }
+            drop(mapped);
+            buffer.unmap();
+            Ok(crate::RgbaImage {
+                width,
+                height,
+                rgba,
+            })
+        })();
+        self.observed = Some(result);
     }
 
     /// Replace atlas texels. A size change recreates the texture and rebinds it.
@@ -556,7 +700,11 @@ impl Gpu {
                 pass.draw(0..4, 0..needed as u32);
             }
         }
+        #[cfg(feature = "observe")]
+        let readback = self.observation_copy(&mut encoder, &texture.texture, width, height);
         self.queue.submit(Some(encoder.finish()));
+        #[cfg(feature = "observe")]
+        self.observation_read(readback, width, height);
         self.queue.present(texture);
         true
     }
@@ -617,7 +765,11 @@ impl Gpu {
             clear,
             world,
         );
+        #[cfg(feature = "observe")]
+        let readback = self.observation_copy(&mut encoder, &texture.texture, width, height);
         self.queue.submit(Some(encoder.finish()));
+        #[cfg(feature = "observe")]
+        self.observation_read(readback, width, height);
         self.queue.present(texture);
         (true, uploaded)
     }

@@ -44,6 +44,8 @@ mod hotkey;
 mod images;
 #[cfg(target_os = "macos")]
 mod native_quit;
+#[cfg(feature = "observe")]
+pub mod observe;
 mod outline;
 mod pen;
 mod platform;
@@ -71,7 +73,9 @@ use rndr_core::{
     Viewport, Wake, WindowConfig, WindowEffect, WindowHub, WindowKind, MOUSE_ID, PEN_ID,
     TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
-use rndr_paint::{atlas_r8, frame, ATLAS_H, ATLAS_W};
+#[cfg(not(feature = "observe"))]
+use rndr_paint::frame;
+use rndr_paint::{atlas_r8, ATLAS_H, ATLAS_W};
 use winit::application::ApplicationHandler;
 use winit::event::{
     ElementState, Ime, MouseButton, MouseScrollDelta, StartCause, TouchPhase, WindowEvent,
@@ -638,7 +642,16 @@ impl Handler {
                 board.pull(clipboard);
             }
         }
+        #[cfg(not(feature = "observe"))]
         let painted = frame(&mut self.app);
+        #[cfg(feature = "observe")]
+        let (painted, observation) = rndr_paint::frame_with_snapshot(&mut self.app, |world| {
+            let scale = world
+                .resource::<Viewport>()
+                .map(|v| v.pixels_per_point())
+                .unwrap_or(1.0);
+            observe::begin(world, raw_width, raw_height, scale)
+        });
         {
             let board = &mut self.os_clipboard;
             if let Some(clipboard) = self.app.world_mut().resource_mut::<Clipboard>() {
@@ -658,11 +671,31 @@ impl Handler {
             .resource::<Viewport>()
             .map(|viewport| viewport.pixels_per_point())
             .unwrap_or(1.0);
+        #[cfg(feature = "observe")]
+        let observation =
+            observation.and_then(|capture| observe::validate(self.app.world(), capture, scale));
+        #[cfg(feature = "observe")]
+        {
+            let gpu = self.gpu.as_mut().expect("surface");
+            gpu.observe_armed = observation.is_some();
+            gpu.observed = None;
+        }
         let (presented, uploaded) = {
             let gpu = self.gpu.as_mut().expect("surface");
             let world = self.app.world();
             gpu.present_frame(&painted, &images, budget, width, height, scale, Some(world))
         };
+        #[cfg(feature = "observe")]
+        if let Some(capture) = observation {
+            let gpu = self.gpu.as_mut().expect("surface");
+            observe::complete(
+                capture,
+                gpu.observed.take().unwrap_or(Err("surface_unavailable")),
+                presented,
+                gpu.observation_provenance(!painted.draws.is_empty()),
+            );
+            gpu.observe_armed = false;
+        }
         if !uploaded.is_empty() {
             crate::images::release_cpu(self.app.world_mut(), &uploaded);
         }
@@ -1303,6 +1336,11 @@ impl ApplicationHandler<RunnerEvent> for Handler {
                 pixels: &color_pixels,
             },
             self.config.transparent,
+            #[cfg(feature = "observe")]
+            self.app
+                .world()
+                .resource::<observe::ObservationSession>()
+                .is_some(),
         ));
         self.gpu = Some(gpu);
         if rndr_core::window::is_visible(self.app.world()) {

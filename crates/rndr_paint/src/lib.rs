@@ -132,15 +132,28 @@ pub struct SurfaceRect {
 /// before Update, PostUpdate runs before Layout, and the render
 /// schedule runs after paint. This does not open a window.
 pub fn frame(app: &mut App) -> Frame {
+    frame_with_snapshot(app, |_| ()).0
+}
+
+/// Run the normal frame path, taking an immutable snapshot at the paint boundary
+/// before application Render systems can mutate the world. This is not a second
+/// reconstruction or update; the returned frame and snapshot share one world.
+/// Consumers that depend on resources used during GPU submission must also
+/// validate those resources after Render systems run.
+pub fn frame_with_snapshot<T>(app: &mut App, snapshot: impl FnOnce(&World) -> T) -> (Frame, T) {
     app.update();
     let (quads, draws) = paint_parts(app.world());
     let slots = surface_slots(app.world());
+    let snapshot = snapshot(app.world());
     app.render();
-    Frame {
-        quads,
-        slots,
-        draws,
-    }
+    (
+        Frame {
+            quads,
+            slots,
+            draws,
+        },
+        snapshot,
+    )
 }
 
 fn surface_slots(world: &World) -> Vec<SurfaceRect> {

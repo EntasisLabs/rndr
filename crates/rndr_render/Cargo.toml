@@ -16,6 +16,8 @@ categories = ["gui", "graphics", "rendering"]
 exclude = ["**/*.snap.new"]
 
 [features]
+# Read-only per-session native surface observation. No listener without app opt-in.
+observe = ["dep:serde_json", "dep:getrandom"]
 default = ["hotkey", "tray", "parley", "accesskit"]
 # System-wide hotkeys. Off skips Carbon, Win32, X11, and the portal client.
 hotkey = [
@@ -59,6 +61,8 @@ parley = { version = "0.12", optional = true, features = ["complex-scripts"] }
 swash = { version = "0.2.10", optional = true }
 etagere = { version = "0.3", optional = true }
 tray-icon = { version = "0.26.1", optional = true, default-features = false, features = ["ksni"] }
+serde_json = { version = "1", optional = true }
+getrandom = { version = "0.3", optional = true }
 png = "0.18"
 jpeg-decoder = "0.3"
 image-webp = "0.2"
