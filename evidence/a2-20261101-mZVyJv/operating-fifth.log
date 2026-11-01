@@ -1,0 +1,14 @@
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui)
+error[E0425]: cannot find type `EditHistory` in this scope
+   --> crates/rndr_ui/tests/a2_operating.rs:109:121
+    |
+109 | ...a.world().has::<EditHistory>(d.editor));
+    |                    ^^^^^^^^^^^ not found in this scope
+    |
+help: you might be missing a type parameter
+    |
+104 | fn mode_and_theme_updates_preserve_editor_content_focus_selection_history_and_scroll<EditHistory>() {
+    |                                                                                     +++++++++++++
+
+For more information about this error, try `rustc --explain E0425`.
+error: could not compile `rndr_ui` (test "a2_operating") due to 1 previous error

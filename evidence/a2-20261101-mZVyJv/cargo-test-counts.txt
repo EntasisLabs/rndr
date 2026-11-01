@@ -1,0 +1,7 @@
+rndr_core tests: 411
+rndr_paint tests: 62
+rndr_ui tests: 28
+rndr_core docs: 9
+rndr_paint docs: 1
+rndr_ui docs: 0
+rndr_render lib with AccessKit:24, comprising actual adapter2 + other renderer22

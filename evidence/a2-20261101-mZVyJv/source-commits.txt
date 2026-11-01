@@ -1,0 +1,11 @@
+4d7d256207fb11629963d27a35a6dc5a9fa8a777 docs(ui): expose current A2 scope and safe gallery entry points
+84060dc41f8d7dbbcc07f3fa60f7cd843b9cf173 fix(ui): sort gallery semantic inventory for cross-process determinism
+4c8726f9789c4487c33abdc413b0ce2b97e7fa68 fix(ui): validate required layouts and safely measure malformed borrowed controls
+dfca99886033706af4292a8c300475cec547e4da feat(ui): implement contracted A2 controls and operating gallery
+db8023d0bd2ca0143da7e35620fd122b007ff36f test(core): label promoted logical-only matrix cardinality accurately
+5c211fefbcec4229acd92208358f2088bf136abe docs(ui): preserve owner-scoped A1 acceptance and independent review
+96d12b61f6fbd42cee15daf0b831e27e8811fd05 fix(core): reveal focused target through nested scroll ancestors
+da1a7cf202ccb993201a4bac1949c53539b06b0b fix(paint): preserve opted-in resolved focus colors
+f79a7e4f3b26839307a12f6625e32ba9ffa43b1c feat(core): add opt-in manual tabs and supplemental control state
+71b342bdfb65421ecbc411284ba0e99fcd64990d test(core): promote independent true logical-only ownership probes
+04a6026f33c3d93c7b4db5d084ee50676e7ef676 test(core): distinguish logical-only hotkey ownership edges

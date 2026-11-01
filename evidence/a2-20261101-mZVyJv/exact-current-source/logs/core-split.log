@@ -1,0 +1,12 @@
+
+running 7 tests
+test column_splitter_changes_leading_height ... ok
+test insets_shrink_the_drag_clamp ... ok
+test seam_drag_inside_a_scrollport_does_not_scroll ... ok
+test drag_clamps_to_min_leading_and_trailing ... ok
+test drag_grows_leading_and_shrinks_trailing ... ok
+test release_stops_the_drag ... ok
+test press_on_seam_does_not_focus_or_toggle ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

@@ -1,0 +1,10 @@
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui)
+    Finished `test` profile [unoptimized] target(s) in 0.35s
+     Running tests/a2_malformed_controls.rs (target/debug/deps/a2_malformed_controls-cc32fcb5dc1178ac)
+
+running 2 tests
+test toolbar_measurement_tolerates_malformed_borrowed_control_and_checks_own_layout ... ok
+test removed_root_group_or_panel_layout_is_stale_not_a_partial_update ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

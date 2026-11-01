@@ -1,0 +1,24 @@
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui)
+    Finished `test` profile [unoptimized] target(s) in 0.18s
+     Running tests/a2_toolbar_type_update.rs (target/debug/deps/a2_toolbar_type_update-e954aabfdd83eb26)
+
+running 1 test
+test toolbar_reflows_using_current_resolved_type_in_the_same_update ... FAILED
+
+failures:
+
+---- toolbar_reflows_using_current_resolved_type_in_the_same_update stdout ----
+
+thread 'toolbar_reflows_using_current_resolved_type_in_the_same_update' (500481) panicked at crates/rndr_ui/tests/a2_toolbar_type_update.rs:7:16:
+assertion `left == right` failed
+  left: Column
+ right: Row
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    toolbar_reflows_using_current_resolved_type_in_the_same_update
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p rndr_ui --test a2_toolbar_type_update`

@@ -1,0 +1,33 @@
+   Compiling rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core)
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui)
+   Compiling rndr_paint v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_paint)
+    Finished `test` profile [unoptimized] target(s) in 2.42s
+     Running tests/a2_malformed_controls.rs (target/debug/deps/a2_malformed_controls-cc32fcb5dc1178ac)
+
+running 2 tests
+test removed_root_group_or_panel_layout_is_stale_not_a_partial_update ... FAILED
+test toolbar_measurement_tolerates_malformed_borrowed_control_and_checks_own_layout ... FAILED
+
+failures:
+
+---- removed_root_group_or_panel_layout_is_stale_not_a_partial_update stdout ----
+
+thread 'removed_root_group_or_panel_layout_is_stale_not_a_partial_update' (474808) panicked at crates/rndr_ui/tests/a2_malformed_controls.rs:7:5:
+assertion `left == right` failed
+  left: Ok(())
+ right: Err(Stale)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- toolbar_measurement_tolerates_malformed_borrowed_control_and_checks_own_layout stdout ----
+
+thread 'toolbar_measurement_tolerates_malformed_borrowed_control_and_checks_own_layout' (474809) panicked at crates/rndr_ui/src/controls.rs:833:57:
+called `Option::unwrap()` on a `None` value
+
+
+failures:
+    removed_root_group_or_panel_layout_is_stale_not_a_partial_update
+    toolbar_measurement_tolerates_malformed_borrowed_control_and_checks_own_layout
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p rndr_ui --test a2_malformed_controls`

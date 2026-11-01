@@ -1,0 +1,6 @@
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui'
++ CARGO_PKG_NAME=rndr_ui
++ CARGO_PKG_VERSION=0.3.1
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_current_exact --crate-name operating_gallery crates/rndr_ui/examples/operating_gallery.rs -L dependency=/tmp/rndr-a2-identity-final.HC9fLT/current-source/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-identity-final.HC9fLT/current-source/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-identity-final.HC9fLT/current-source/current/librndr_paint.rlib --extern rndr_ui=/tmp/rndr-a2-identity-final.HC9fLT/current-source/current/librndr_ui.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' -o /tmp/rndr-a2-gallery-final.iK389v/operating-gallery
++ /tmp/rndr-a2-gallery-final.iK389v/operating-gallery /tmp/rndr-a2-gallery-final.iK389v/direct-one
++ /tmp/rndr-a2-gallery-final.iK389v/operating-gallery /tmp/rndr-a2-gallery-final.iK389v/direct-two

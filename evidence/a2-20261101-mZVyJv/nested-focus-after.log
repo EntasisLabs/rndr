@@ -1,0 +1,18 @@
+   Compiling rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core)
+warning: unused import: `Clip`
+ --> crates/rndr_core/src/focus.rs:7:46
+  |
+7 | use crate::layout::{ancestor_with, hit_test, Clip, Rect, Scroll};
+  |                                              ^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `rndr_core` (lib) generated 1 warning (run `cargo fix --lib -p rndr_core` to apply 1 suggestion)
+    Finished `test` profile [unoptimized] target(s) in 1.63s
+     Running tests/a2_nested_focus.rs (target/debug/deps/a2_nested_focus-e6eb0427bfd7f303)
+
+running 1 test
+test nested_scroll_reveals_focused_target_through_each_ancestor ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

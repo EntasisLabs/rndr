@@ -1,0 +1,14 @@
+    Checking uuid v1.28.0
+    Checking rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core)
+    Checking accesskit v0.25.1
+    Checking objc2-app-kit v0.2.2
+    Checking accesskit_consumer v0.39.1
+    Checking rndr_paint v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_paint)
+    Checking rndr_std v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_std)
+    Checking rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui)
+    Checking winit v0.30.13
+    Checking accesskit_macos v0.27.1
+    Checking accesskit_winit v0.34.1
+    Checking rndr_render v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_render)
+    Checking rndr v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr)
+    Finished `dev` profile [unoptimized] target(s) in 2.58s

@@ -1,0 +1,9 @@
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui)
+    Finished `test` profile [unoptimized] target(s) in 0.37s
+     Running tests/a2_adoption_boundary.rs (target/debug/deps/a2_adoption_boundary-ef50ef65f6223102)
+
+running 1 test
+test passive_adoption_rejects_all_operating_ownership_and_plain_transfer_still_works ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

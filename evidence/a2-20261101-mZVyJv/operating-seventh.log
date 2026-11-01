@@ -1,0 +1,31 @@
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui)
+error[E0425]: cannot find type `TextColor` in this scope
+  --> crates/rndr_ui/tests/a2_states.rs:16:81
+   |
+16 | ...k=a.world().get::<TextColor>(h.label).unwrap().0;
+   |                      ^^^^^^^^^ not found in this scope
+   |
+help: you might be missing a type parameter
+   |
+ 5 | fn actual_resolved_control_states_contrast_focus_geometry_and_glyph_scale<TextColor>() {
+   |                                                                          +++++++++++
+
+error[E0277]: the trait bound `UiColor: From<rndr_core::Color>` is not satisfied
+  --> crates/rndr_ui/tests/a2_states.rs:35:99
+   |
+35 | ...e{background:Some(custom.into()),..UiStyle::default()});a.update();as...
+   |                             ^^^^ the trait `From<rndr_core::Color>` is not implemented for `UiColor`
+   |
+help: the trait `From<rndr_core::Color>` is not implemented for `UiColor`
+      but trait `From<rndr_ui::Token>` is implemented for it
+  --> crates/rndr_ui/src/style.rs:13:1
+   |
+13 | impl From<Token> for UiColor {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = help: for that trait implementation, expected `rndr_ui::Token`, found `rndr_core::Color`
+   = note: required for `rndr_core::Color` to implement `Into<UiColor>`
+
+Some errors have detailed explanations: E0277, E0425.
+For more information about an error, try `rustc --explain E0277`.
+error: could not compile `rndr_ui` (test "a2_states") due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...

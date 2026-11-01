@@ -1,0 +1,33 @@
+
+running 28 tests
+test a_dropped_id_does_not_deliver ... ok
+test a_press_is_an_event_on_the_waking_frame ... ok
+test alt_space_encodes_every_platform ... ok
+test a_letter_hotkey_suppresses_that_letter_until_release ... ok
+test backend_errors_map_and_do_not_stick ... ok
+test a_key_up_queued_with_the_hotkey_releases_the_guard ... ok
+test a_registered_hotkey_and_its_repeats_do_not_type ... ok
+test a_stale_synthetic_space_up_does_not_type_on_show ... ok
+test f21_is_invalid_on_macos_only ... ok
+test a_fired_hotkey_suppresses_its_own_key_and_repeats ... ok
+test a_held_hotkey_repeat_stays_suppressed ... ok
+test a_real_space_after_the_guard_releases_is_inserted ... ok
+test invalid_text_is_rejected_before_a_backend ... ok
+test letter_chord_uses_physical_codes ... ok
+test a_backend_release_clears_the_guard_without_a_window_key_up ... ok
+test note_unregistered_keeps_the_error_for_the_app ... ok
+test an_older_queued_key_up_does_not_release_when_the_clock_has_moved_on ... ok
+test primary_follows_the_platform ... ok
+test primary_is_not_the_same_grab_on_macos ... ok
+test register_without_a_backend_is_unsupported ... ok
+test hotkey_show_inserts_a_later_space_without_a_window_key_up ... ok
+test registry_is_idempotent_and_releases_on_the_last_drop ... ok
+test the_same_key_parses_from_text_and_a_keystroke ... ok
+test esc_hide_after_a_hotkey_show_lets_the_tray_show_insert_space ... ok
+test press_then_release_on_the_fire_frame_types_nothing ... ok
+test toggle_window_hides_then_shows_and_focuses ... ok
+test release_then_press_in_one_frame_types_after_the_hotkey_was_armed ... ok
+test hotkey_toggle_off_drops_the_guard_before_the_next_show ... ok
+
+test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

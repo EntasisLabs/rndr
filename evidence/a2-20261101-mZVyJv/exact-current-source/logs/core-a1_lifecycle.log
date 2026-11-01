@@ -1,0 +1,9 @@
+
+running 4 tests
+test unarmed_escape_still_reaches_legacy_overlay ... ok
+test generic_install_preserves_focused_legacy_list_rows ... ok
+test destroyed_semantic_tab_cannot_leave_an_exposed_orphan_panel ... ok
+test readonly_preserves_field_and_editor_text_ime_and_history ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

@@ -1,0 +1,18 @@
+
+running 1 test
+test nested_scroll_reveals_focused_target_through_each_ancestor ... FAILED
+
+failures:
+
+---- nested_scroll_reveals_focused_target_through_each_ancestor stdout ----
+
+thread 'nested_scroll_reveals_focused_target_through_each_ancestor' (483441) panicked at crates/rndr_core/tests/a2_nested_focus.rs:53:5:
+outer ancestor must also reveal target
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    nested_scroll_reveals_focused_target_through_each_ancestor
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

@@ -1,0 +1,21 @@
+   Compiling rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core)
+   Compiling rndr_paint v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_paint)
+error[E0599]: no associated function or constant named `hex` found for struct `rndr_core::Color` in the current scope
+  --> crates/rndr_paint/tests/a2_resolved_color.rs:5:24
+   |
+ 5 |     let color = Color::hex(0x285DA8);
+   |                        ^^^ associated function or constant not found in `rndr_core::Color`
+   |
+note: if you're trying to build a new `rndr_core::Color` consider using one of the following associated functions:
+      rndr_core::Color::rgba
+      rndr_core::Color::rgb
+  --> crates/rndr_core/src/style.rs:32:5
+   |
+32 |     pub const fn rgba(r: f32, g: f32, b: f32, a: f32) -> Self {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+37 |     pub const fn rgb(r: f32, g: f32, b: f32) -> Self {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `rndr_paint` (test "a2_resolved_color") due to 1 previous error

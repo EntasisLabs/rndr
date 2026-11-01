@@ -1,0 +1,348 @@
+diff -r evidence/a2-20261101-mZVyJv/gallery-a2/dark-compact-200-long.semantics-geometry.txt /tmp/rndr-a2-identity-final.HC9fLT/current-source/direct-gallery/dark-compact-200-long.semantics-geometry.txt
+30,32c30
+< label Entity { index: 52, generation: 0 } Some(Rect { x: 171.0, y: 3075.0, w: 128.0, h: 176.0 }) "| Preview"
+< label Entity { index: 13, generation: 0 } Some(Rect { x: 21.0, y: 1383.0, w: 278.0, h: 336.0 }) "Secondary with a deliberately very long wrapped command label"
+< label Entity { index: 61, generation: 0 } Some(Rect { x: 24.0, y: 4414.0, w: 272.0, h: 736.0 }) "Borrowed content and actions have explicit slots. The card itself is not clickable."
+---
+> label Entity { index: 1, generation: 0 } Some(Rect { x: 12.0, y: 12.0, w: 296.0, h: 520.0 }) "rndr A2 operating gallery (synthetic host)"
+34,35c32,39
+< label Entity { index: 66, generation: 0 } Some(Rect { x: 33.0, y: 5165.0, w: 254.0, h: 80.0 }) "Show source"
+< label Entity { index: 73, generation: 0 } Some(Rect { x: 24.0, y: 5996.0, w: 272.0, h: 736.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+---
+> label Entity { index: 8, generation: 0 } Some(Rect { x: 21.0, y: 1021.0, w: 278.0, h: 336.0 }) "Add with a deliberately very long wrapped command label"
+> label Entity { index: 61, generation: 0 } Some(Rect { x: 24.0, y: 4414.0, w: 272.0, h: 736.0 }) "Borrowed content and actions have explicit slots. The card itself is not clickable."
+> label Entity { index: 74, generation: 0 } Some(Rect { x: 24.0, y: 6732.0, w: 272.0, h: 736.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+> label Entity { index: 75, generation: 0 } Some(Rect { x: 24.0, y: 7468.0, w: 272.0, h: 736.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+> label Entity { index: 76, generation: 0 } Some(Rect { x: 24.0, y: 8204.0, w: 272.0, h: 736.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+> label Entity { index: 28, generation: 0 } Some(Rect { x: 21.0, y: 2549.0, w: 278.0, h: 56.0 }) "+"
+> label Entity { index: 23, generation: 0 } Some(Rect { x: 21.0, y: 2107.0, w: 278.0, h: 416.0 }) "Reset demo count with a deliberately very long wrapped command label"
+> label Entity { index: 33, generation: 0 } Some(Rect { x: 21.0, y: 2631.0, w: 278.0, h: 216.0 }) "| Draft note — Demo folder (unsaved)"
+38,39c42,43
+< label Entity { index: 72, generation: 0 } Some(Rect { x: 24.0, y: 5260.0, w: 272.0, h: 736.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+< label Entity { index: 1, generation: 0 } Some(Rect { x: 12.0, y: 12.0, w: 296.0, h: 520.0 }) "rndr A2 operating gallery (synthetic host)"
+---
+> label Entity { index: 13, generation: 0 } Some(Rect { x: 21.0, y: 1383.0, w: 278.0, h: 336.0 }) "Secondary with a deliberately very long wrapped command label"
+> label Entity { index: 77, generation: 0 } Some(Rect { x: 12.0, y: 6418.0, w: 296.0, h: 176.0 }) "Requests: 1; source reveals: 0; rejected: 0"
+41,45d44
+< label Entity { index: 38, generation: 0 } Some(Rect { x: 21.0, y: 2873.0, w: 278.0, h: 176.0 }) "Reference note — Read-only fixture"
+< label Entity { index: 23, generation: 0 } Some(Rect { x: 21.0, y: 2107.0, w: 278.0, h: 416.0 }) "Reset demo count with a deliberately very long wrapped command label"
+< label Entity { index: 8, generation: 0 } Some(Rect { x: 21.0, y: 1021.0, w: 278.0, h: 336.0 }) "Add with a deliberately very long wrapped command label"
+< label Entity { index: 28, generation: 0 } Some(Rect { x: 21.0, y: 2549.0, w: 278.0, h: 56.0 }) "+"
+< label Entity { index: 18, generation: 0 } Some(Rect { x: 21.0, y: 1745.0, w: 278.0, h: 336.0 }) "Quiet with a deliberately very long wrapped command label"
+47,49c46,48
+< label Entity { index: 75, generation: 0 } Some(Rect { x: 24.0, y: 7468.0, w: 272.0, h: 736.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+< label Entity { index: 77, generation: 0 } Some(Rect { x: 12.0, y: 6418.0, w: 296.0, h: 176.0 }) "Requests: 1; source reveals: 0; rejected: 0"
+< label Entity { index: 33, generation: 0 } Some(Rect { x: 21.0, y: 2631.0, w: 278.0, h: 216.0 }) "| Draft note — Demo folder (unsaved)"
+---
+> label Entity { index: 73, generation: 0 } Some(Rect { x: 24.0, y: 5996.0, w: 272.0, h: 736.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+> label Entity { index: 66, generation: 0 } Some(Rect { x: 33.0, y: 5165.0, w: 254.0, h: 80.0 }) "Show source"
+> label Entity { index: 18, generation: 0 } Some(Rect { x: 21.0, y: 1745.0, w: 278.0, h: 336.0 }) "Quiet with a deliberately very long wrapped command label"
+51,52c50,52
+< label Entity { index: 74, generation: 0 } Some(Rect { x: 24.0, y: 6732.0, w: 272.0, h: 736.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+< label Entity { index: 76, generation: 0 } Some(Rect { x: 24.0, y: 8204.0, w: 272.0, h: 736.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+---
+> label Entity { index: 38, generation: 0 } Some(Rect { x: 21.0, y: 2873.0, w: 278.0, h: 176.0 }) "Reference note — Read-only fixture"
+> label Entity { index: 72, generation: 0 } Some(Rect { x: 24.0, y: 5260.0, w: 272.0, h: 736.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+> label Entity { index: 52, generation: 0 } Some(Rect { x: 171.0, y: 3075.0, w: 128.0, h: 176.0 }) "| Preview"
+diff -r evidence/a2-20261101-mZVyJv/gallery-a2/dark-wide-preview.semantics-geometry.txt /tmp/rndr-a2-identity-final.HC9fLT/current-source/direct-gallery/dark-wide-preview.semantics-geometry.txt
+30,34d29
+< label Entity { index: 28, generation: 0 } Some(Rect { x: 808.0, y: 129.0, w: 171.0, h: 36.0 }) "+"
+< label Entity { index: 75, generation: 0 } Some(Rect { x: 28.0, y: 974.0, w: 944.0, h: 64.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+< label Entity { index: 13, generation: 0 } Some(Rect { x: 218.0, y: 129.0, w: 171.0, h: 36.0 }) "Secondary"
+< label Entity { index: 70, generation: 0 } Some(Rect { x: 28.0, y: 974.0, w: 944.0, h: 64.0 }) "Warnings stay visible. This is not a recovery or saving implementation."
+< label Entity { index: 52, generation: 0 } Some(Rect { x: 511.0, y: 335.0, w: 468.0, h: 36.0 }) "| Preview"
+36,38c31
+< label Entity { index: 74, generation: 0 } Some(Rect { x: 28.0, y: 910.0, w: 944.0, h: 64.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+< label Entity { index: 8, generation: 0 } Some(Rect { x: 21.0, y: 129.0, w: 171.0, h: 36.0 }) "Add"
+< label Entity { index: 2, generation: 0 } Some(Rect { x: 12.0, y: 64.0, w: 976.0, h: 48.0 }) "Tab/Shift-Tab navigate. Enter or Space activates. Mode arrows focus only. No real documents, saves or deletion."
+---
+> label Entity { index: 76, generation: 0 } Some(Rect { x: 28.0, y: 1038.0, w: 944.0, h: 64.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+40,42d32
+< label Entity { index: 73, generation: 0 } Some(Rect { x: 28.0, y: 846.0, w: 944.0, h: 64.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+< label Entity { index: 1, generation: 0 } Some(Rect { x: 12.0, y: 12.0, w: 976.0, h: 44.0 }) "rndr A2 operating gallery (synthetic host)"
+< label Entity { index: 46, generation: 0 } Some(Rect { x: 21.0, y: 335.0, w: 468.0, h: 36.0 }) "Source"
+44,49d33
+< label Entity { index: 66, generation: 0 } Some(Rect { x: 37.0, y: 729.0, w: 926.0, h: 36.0 }) "Show source"
+< label Entity { index: 33, generation: 0 } Some(Rect { x: 21.0, y: 211.0, w: 958.0, h: 36.0 }) "| Draft note — Demo folder (unsaved)"
+< label Entity { index: 76, generation: 0 } Some(Rect { x: 28.0, y: 1038.0, w: 944.0, h: 64.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+< label Entity { index: 68, generation: 0 } Some(Rect { x: 28.0, y: 922.0, w: 944.0, h: 44.0 }) "Warning: Synthetic unsaved state"
+< label Entity { index: 57, generation: 0 } Some(Rect { x: 36.0, y: 412.0, w: 520.0, h: 136.0 }) "Preview is inert content. Switching mode preserves the same source field, selection and history. Nothing parses or executes the text."
+< label Entity { index: 18, generation: 0 } Some(Rect { x: 415.0, y: 129.0, w: 170.0, h: 36.0 }) "Quiet"
+50a35,36
+> label Entity { index: 73, generation: 0 } Some(Rect { x: 28.0, y: 846.0, w: 944.0, h: 64.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+> label Entity { index: 66, generation: 0 } Some(Rect { x: 37.0, y: 729.0, w: 926.0, h: 36.0 }) "Show source"
+51a38,40
+> label Entity { index: 8, generation: 0 } Some(Rect { x: 21.0, y: 129.0, w: 171.0, h: 36.0 }) "Add"
+> label Entity { index: 75, generation: 0 } Some(Rect { x: 28.0, y: 974.0, w: 944.0, h: 64.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+> label Entity { index: 57, generation: 0 } Some(Rect { x: 36.0, y: 412.0, w: 520.0, h: 136.0 }) "Preview is inert content. Switching mode preserves the same source field, selection and history. Nothing parses or executes the text."
+52a42,52
+> label Entity { index: 1, generation: 0 } Some(Rect { x: 12.0, y: 12.0, w: 976.0, h: 44.0 }) "rndr A2 operating gallery (synthetic host)"
+> label Entity { index: 18, generation: 0 } Some(Rect { x: 415.0, y: 129.0, w: 170.0, h: 36.0 }) "Quiet"
+> label Entity { index: 2, generation: 0 } Some(Rect { x: 12.0, y: 64.0, w: 976.0, h: 48.0 }) "Tab/Shift-Tab navigate. Enter or Space activates. Mode arrows focus only. No real documents, saves or deletion."
+> label Entity { index: 68, generation: 0 } Some(Rect { x: 28.0, y: 922.0, w: 944.0, h: 44.0 }) "Warning: Synthetic unsaved state"
+> label Entity { index: 70, generation: 0 } Some(Rect { x: 28.0, y: 974.0, w: 944.0, h: 64.0 }) "Warnings stay visible. This is not a recovery or saving implementation."
+> label Entity { index: 13, generation: 0 } Some(Rect { x: 218.0, y: 129.0, w: 171.0, h: 36.0 }) "Secondary"
+> label Entity { index: 74, generation: 0 } Some(Rect { x: 28.0, y: 910.0, w: 944.0, h: 64.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+> label Entity { index: 28, generation: 0 } Some(Rect { x: 808.0, y: 129.0, w: 171.0, h: 36.0 }) "+"
+> label Entity { index: 33, generation: 0 } Some(Rect { x: 21.0, y: 211.0, w: 958.0, h: 36.0 }) "| Draft note — Demo folder (unsaved)"
+> label Entity { index: 46, generation: 0 } Some(Rect { x: 21.0, y: 335.0, w: 468.0, h: 36.0 }) "Source"
+> label Entity { index: 52, generation: 0 } Some(Rect { x: 511.0, y: 335.0, w: 468.0, h: 36.0 }) "| Preview"
+diff -r evidence/a2-20261101-mZVyJv/gallery-a2/high-dark-compact.semantics-geometry.txt /tmp/rndr-a2-identity-final.HC9fLT/current-source/direct-gallery/high-dark-compact.semantics-geometry.txt
+30,32d29
+< label Entity { index: 52, generation: 0 } Some(Rect { x: 411.0, y: 383.0, w: 368.0, h: 36.0 }) "| Preview"
+< label Entity { index: 70, generation: 0 } Some(Rect { x: 24.0, y: 990.0, w: 752.0, h: 64.0 }) "Warnings stay visible. This is not a recovery or saving implementation."
+< label Entity { index: 23, generation: 0 } Some(Rect { x: 491.0, y: 157.0, w: 131.0, h: 76.0 }) "Reset demo count"
+34,35c31,33
+< label Entity { index: 8, generation: 0 } Some(Rect { x: 21.0, y: 157.0, w: 131.0, h: 36.0 }) "Add"
+< label Entity { index: 74, generation: 0 } Some(Rect { x: 24.0, y: 984.0, w: 752.0, h: 88.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+---
+> label Entity { index: 2, generation: 0 } Some(Rect { x: 12.0, y: 92.0, w: 776.0, h: 48.0 }) "Tab/Shift-Tab navigate. Enter or Space activates. Mode arrows focus only. No real documents, saves or deletion."
+> label Entity { index: 57, generation: 0 } Some(Rect { x: 30.0, y: 454.0, w: 520.0, h: 136.0 }) "Preview is inert content. Switching mode preserves the same source field, selection and history. Nothing parses or executes the text."
+> label Entity { index: 68, generation: 0 } Some(Rect { x: 24.0, y: 940.0, w: 752.0, h: 44.0 }) "Warning: Synthetic unsaved state"
+36a35,36
+> label Entity { index: 8, generation: 0 } Some(Rect { x: 21.0, y: 157.0, w: 131.0, h: 36.0 }) "Add"
+> label Entity { index: 38, generation: 0 } Some(Rect { x: 21.0, y: 321.0, w: 758.0, h: 36.0 }) "Reference note — Read-only fixture"
+38a39,43
+> label Entity { index: 76, generation: 0 } Some(Rect { x: 24.0, y: 1160.0, w: 752.0, h: 88.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+> label Entity { index: 66, generation: 0 } Some(Rect { x: 33.0, y: 757.0, w: 734.0, h: 36.0 }) "Show source"
+> label Entity { index: 70, generation: 0 } Some(Rect { x: 24.0, y: 990.0, w: 752.0, h: 64.0 }) "Warnings stay visible. This is not a recovery or saving implementation."
+> label Entity { index: 74, generation: 0 } Some(Rect { x: 24.0, y: 984.0, w: 752.0, h: 88.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+> label Entity { index: 23, generation: 0 } Some(Rect { x: 491.0, y: 157.0, w: 131.0, h: 76.0 }) "Reset demo count"
+39a45,49
+> label Entity { index: 33, generation: 0 } Some(Rect { x: 21.0, y: 259.0, w: 758.0, h: 36.0 }) "| Draft note — Demo folder (unsaved)"
+> label Entity { index: 61, generation: 0 } Some(Rect { x: 24.0, y: 678.0, w: 752.0, h: 64.0 }) "Borrowed content and actions have explicit slots. The card itself is not clickable."
+> label Entity { index: 77, generation: 0 } Some(Rect { x: 12.0, y: 1074.0, w: 776.0, h: 36.0 }) "Requests: 1; source reveals: 0; rejected: 0"
+> label Entity { index: 52, generation: 0 } Some(Rect { x: 411.0, y: 383.0, w: 368.0, h: 36.0 }) "| Preview"
+> label Entity { index: 46, generation: 0 } Some(Rect { x: 21.0, y: 383.0, w: 368.0, h: 36.0 }) "Source"
+42d51
+< label Entity { index: 61, generation: 0 } Some(Rect { x: 24.0, y: 678.0, w: 752.0, h: 64.0 }) "Borrowed content and actions have explicit slots. The card itself is not clickable."
+44,52d52
+< label Entity { index: 66, generation: 0 } Some(Rect { x: 33.0, y: 757.0, w: 734.0, h: 36.0 }) "Show source"
+< label Entity { index: 46, generation: 0 } Some(Rect { x: 21.0, y: 383.0, w: 368.0, h: 36.0 }) "Source"
+< label Entity { index: 77, generation: 0 } Some(Rect { x: 12.0, y: 1074.0, w: 776.0, h: 36.0 }) "Requests: 1; source reveals: 0; rejected: 0"
+< label Entity { index: 38, generation: 0 } Some(Rect { x: 21.0, y: 321.0, w: 758.0, h: 36.0 }) "Reference note — Read-only fixture"
+< label Entity { index: 57, generation: 0 } Some(Rect { x: 30.0, y: 454.0, w: 520.0, h: 136.0 }) "Preview is inert content. Switching mode preserves the same source field, selection and history. Nothing parses or executes the text."
+< label Entity { index: 68, generation: 0 } Some(Rect { x: 24.0, y: 940.0, w: 752.0, h: 44.0 }) "Warning: Synthetic unsaved state"
+< label Entity { index: 76, generation: 0 } Some(Rect { x: 24.0, y: 1160.0, w: 752.0, h: 88.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+< label Entity { index: 33, generation: 0 } Some(Rect { x: 21.0, y: 259.0, w: 758.0, h: 36.0 }) "| Draft note — Demo folder (unsaved)"
+< label Entity { index: 2, generation: 0 } Some(Rect { x: 12.0, y: 92.0, w: 776.0, h: 48.0 }) "Tab/Shift-Tab navigate. Enter or Space activates. Mode arrows focus only. No real documents, saves or deletion."
+diff -r evidence/a2-20261101-mZVyJv/gallery-a2/high-light-200.semantics-geometry.txt /tmp/rndr-a2-identity-final.HC9fLT/current-source/direct-gallery/high-light-200.semantics-geometry.txt
+30c30,34
+< label Entity { index: 33, generation: 0 } Some(Rect { x: 21.0, y: 775.0, w: 758.0, h: 96.0 }) "| Draft note — Demo folder (unsaved)"
+---
+> label Entity { index: 75, generation: 0 } Some(Rect { x: 28.0, y: 2554.0, w: 744.0, h: 304.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+> label Entity { index: 38, generation: 0 } Some(Rect { x: 21.0, y: 897.0, w: 758.0, h: 96.0 }) "Reference note — Read-only fixture"
+> label Entity { index: 73, generation: 0 } Some(Rect { x: 28.0, y: 1946.0, w: 744.0, h: 304.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+> label Entity { index: 18, generation: 0 } Some(Rect { x: 21.0, y: 529.0, w: 758.0, h: 56.0 }) "Quiet"
+> label Entity { index: 66, generation: 0 } Some(Rect { x: 37.0, y: 1577.0, w: 726.0, h: 48.0 }) "Show source"
+32c36,37
+< label Entity { index: 52, generation: 0 } Some(Rect { x: 411.0, y: 1019.0, w: 368.0, h: 56.0 }) "Preview"
+---
+> label Entity { index: 8, generation: 0 } Some(Rect { x: 21.0, y: 365.0, w: 758.0, h: 56.0 }) "Add"
+> label Entity { index: 33, generation: 0 } Some(Rect { x: 21.0, y: 775.0, w: 758.0, h: 96.0 }) "| Draft note — Demo folder (unsaved)"
+34,35d38
+< label Entity { index: 38, generation: 0 } Some(Rect { x: 21.0, y: 897.0, w: 758.0, h: 96.0 }) "Reference note — Read-only fixture"
+< label Entity { index: 59, generation: 0 } Some(Rect { x: 28.0, y: 1224.0, w: 744.0, h: 72.0 }) "Content card"
+37c40,44
+< label Entity { index: 61, generation: 0 } Some(Rect { x: 28.0, y: 1304.0, w: 744.0, h: 256.0 }) "Borrowed content and actions have explicit slots. The card itself is not clickable."
+---
+> label Entity { index: 52, generation: 0 } Some(Rect { x: 411.0, y: 1019.0, w: 368.0, h: 56.0 }) "Preview"
+> label Entity { index: 59, generation: 0 } Some(Rect { x: 28.0, y: 1224.0, w: 744.0, h: 72.0 }) "Content card"
+> label Entity { index: 74, generation: 0 } Some(Rect { x: 28.0, y: 2250.0, w: 744.0, h: 304.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+> label Entity { index: 76, generation: 0 } Some(Rect { x: 28.0, y: 2858.0, w: 744.0, h: 304.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+> label Entity { index: 23, generation: 0 } Some(Rect { x: 21.0, y: 611.0, w: 758.0, h: 56.0 }) "Reset demo count"
+39d45
+< label Entity { index: 66, generation: 0 } Some(Rect { x: 37.0, y: 1577.0, w: 726.0, h: 48.0 }) "Show source"
+42c48
+< label Entity { index: 76, generation: 0 } Some(Rect { x: 28.0, y: 2858.0, w: 744.0, h: 304.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+---
+> label Entity { index: 61, generation: 0 } Some(Rect { x: 28.0, y: 1304.0, w: 744.0, h: 256.0 }) "Borrowed content and actions have explicit slots. The card itself is not clickable."
+44,49d49
+< label Entity { index: 72, generation: 0 } Some(Rect { x: 28.0, y: 1642.0, w: 744.0, h: 304.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+< label Entity { index: 73, generation: 0 } Some(Rect { x: 28.0, y: 1946.0, w: 744.0, h: 304.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+< label Entity { index: 8, generation: 0 } Some(Rect { x: 21.0, y: 365.0, w: 758.0, h: 56.0 }) "Add"
+< label Entity { index: 13, generation: 0 } Some(Rect { x: 21.0, y: 447.0, w: 758.0, h: 56.0 }) "Secondary"
+< label Entity { index: 74, generation: 0 } Some(Rect { x: 28.0, y: 2250.0, w: 744.0, h: 304.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+< label Entity { index: 23, generation: 0 } Some(Rect { x: 21.0, y: 611.0, w: 758.0, h: 56.0 }) "Reset demo count"
+51,52c51,52
+< label Entity { index: 75, generation: 0 } Some(Rect { x: 28.0, y: 2554.0, w: 744.0, h: 304.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+< label Entity { index: 18, generation: 0 } Some(Rect { x: 21.0, y: 529.0, w: 758.0, h: 56.0 }) "Quiet"
+---
+> label Entity { index: 13, generation: 0 } Some(Rect { x: 21.0, y: 447.0, w: 758.0, h: 56.0 }) "Secondary"
+> label Entity { index: 72, generation: 0 } Some(Rect { x: 28.0, y: 1642.0, w: 744.0, h: 304.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+diff -r evidence/a2-20261101-mZVyJv/gallery-a2/light-narrow-200-long.semantics-geometry.txt /tmp/rndr-a2-identity-final.HC9fLT/current-source/direct-gallery/light-narrow-200-long.semantics-geometry.txt
+30,34c30,32
+< label Entity { index: 77, generation: 0 } Some(Rect { x: 12.0, y: 5518.0, w: 296.0, h: 176.0 }) "Requests: 1; source reveals: 0; rejected: 0"
+< label Entity { index: 23, generation: 0 } Some(Rect { x: 21.0, y: 2107.0, w: 278.0, h: 416.0 }) "Reset demo count with a deliberately very long wrapped command label"
+< label Entity { index: 61, generation: 0 } Some(Rect { x: 28.0, y: 3496.0, w: 264.0, h: 736.0 }) "Borrowed content and actions have explicit slots. The card itself is not clickable."
+< label Entity { index: 74, generation: 0 } Some(Rect { x: 28.0, y: 5818.0, w: 264.0, h: 736.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+< label Entity { index: 2, generation: 0 } Some(Rect { x: 12.0, y: 540.0, w: 296.0, h: 464.0 }) "Tab/Shift-Tab navigate. Enter or Space activates. Mode arrows focus only. No real documents, saves or deletion."
+---
+> label Entity { index: 18, generation: 0 } Some(Rect { x: 21.0, y: 1745.0, w: 278.0, h: 336.0 }) "Quiet with a deliberately very long wrapped command label"
+> label Entity { index: 70, generation: 0 } Some(Rect { x: 28.0, y: 4902.0, w: 264.0, h: 592.0 }) "Warnings stay visible. This is not a recovery or saving implementation."
+> label Entity { index: 72, generation: 0 } Some(Rect { x: 28.0, y: 4346.0, w: 264.0, h: 736.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+35a34,40
+> label Entity { index: 75, generation: 0 } Some(Rect { x: 28.0, y: 6554.0, w: 264.0, h: 736.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+> label Entity { index: 68, generation: 0 } Some(Rect { x: 28.0, y: 4486.0, w: 264.0, h: 408.0 }) "Warning: Synthetic unsaved state"
+> label Entity { index: 38, generation: 0 } Some(Rect { x: 21.0, y: 2873.0, w: 278.0, h: 176.0 }) "Reference note — Read-only fixture"
+> label Entity { index: 73, generation: 0 } Some(Rect { x: 28.0, y: 5082.0, w: 264.0, h: 736.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+> label Entity { index: 77, generation: 0 } Some(Rect { x: 12.0, y: 5518.0, w: 296.0, h: 176.0 }) "Requests: 1; source reveals: 0; rejected: 0"
+> label Entity { index: 53, generation: 0 } Some(Rect { x: 12.0, y: 3228.0, w: 296.0, h: 108.0 }) "Synthetic editable source. Type here; Undo/Redo remain core-owned."
+> label Entity { index: 59, generation: 0 } Some(Rect { x: 28.0, y: 3360.0, w: 264.0, h: 128.0 }) "Content card"
+37,38c42
+< label Entity { index: 18, generation: 0 } Some(Rect { x: 21.0, y: 1745.0, w: 278.0, h: 336.0 }) "Quiet with a deliberately very long wrapped command label"
+< label Entity { index: 13, generation: 0 } Some(Rect { x: 21.0, y: 1383.0, w: 278.0, h: 336.0 }) "Secondary with a deliberately very long wrapped command label"
+---
+> label Entity { index: 74, generation: 0 } Some(Rect { x: 28.0, y: 5818.0, w: 264.0, h: 736.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+39a44,45
+> label Entity { index: 23, generation: 0 } Some(Rect { x: 21.0, y: 2107.0, w: 278.0, h: 416.0 }) "Reset demo count with a deliberately very long wrapped command label"
+> label Entity { index: 13, generation: 0 } Some(Rect { x: 21.0, y: 1383.0, w: 278.0, h: 336.0 }) "Secondary with a deliberately very long wrapped command label"
+41d46
+< label Entity { index: 75, generation: 0 } Some(Rect { x: 28.0, y: 6554.0, w: 264.0, h: 736.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+42a48
+> label Entity { index: 2, generation: 0 } Some(Rect { x: 12.0, y: 540.0, w: 296.0, h: 464.0 }) "Tab/Shift-Tab navigate. Enter or Space activates. Mode arrows focus only. No real documents, saves or deletion."
+44d49
+< label Entity { index: 70, generation: 0 } Some(Rect { x: 28.0, y: 4902.0, w: 264.0, h: 592.0 }) "Warnings stay visible. This is not a recovery or saving implementation."
+46d50
+< label Entity { index: 68, generation: 0 } Some(Rect { x: 28.0, y: 4486.0, w: 264.0, h: 408.0 }) "Warning: Synthetic unsaved state"
+48,52c52
+< label Entity { index: 73, generation: 0 } Some(Rect { x: 28.0, y: 5082.0, w: 264.0, h: 736.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+< label Entity { index: 53, generation: 0 } Some(Rect { x: 12.0, y: 3228.0, w: 296.0, h: 108.0 }) "Synthetic editable source. Type here; Undo/Redo remain core-owned."
+< label Entity { index: 38, generation: 0 } Some(Rect { x: 21.0, y: 2873.0, w: 278.0, h: 176.0 }) "Reference note — Read-only fixture"
+< label Entity { index: 59, generation: 0 } Some(Rect { x: 28.0, y: 3360.0, w: 264.0, h: 128.0 }) "Content card"
+< label Entity { index: 72, generation: 0 } Some(Rect { x: 28.0, y: 4346.0, w: 264.0, h: 736.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+---
+> label Entity { index: 61, generation: 0 } Some(Rect { x: 28.0, y: 3496.0, w: 264.0, h: 736.0 }) "Borrowed content and actions have explicit slots. The card itself is not clickable."
+diff -r evidence/a2-20261101-mZVyJv/gallery-a2/light-wide.semantics-geometry.txt /tmp/rndr-a2-identity-final.HC9fLT/current-source/direct-gallery/light-wide.semantics-geometry.txt
+30c30,31
+< label Entity { index: 23, generation: 0 } Some(Rect { x: 611.0, y: 129.0, w: 171.0, h: 56.0 }) "Reset demo count"
+---
+> label Entity { index: 8, generation: 0 } Some(Rect { x: 21.0, y: 129.0, w: 171.0, h: 36.0 }) "Add"
+> label Entity { index: 38, generation: 0 } Some(Rect { x: 21.0, y: 273.0, w: 958.0, h: 36.0 }) "Reference note — Read-only fixture"
+33,41d33
+< label Entity { index: 33, generation: 0 } Some(Rect { x: 21.0, y: 211.0, w: 958.0, h: 36.0 }) "| Draft note — Demo folder (unsaved)"
+< label Entity { index: 53, generation: 0 } Some(Rect { x: 12.0, y: 388.0, w: 976.0, h: 108.0 }) "Synthetic editable source. Type here; Undo/Redo remain core-owned."
+< label Entity { index: 59, generation: 0 } Some(Rect { x: 28.0, y: 520.0, w: 944.0, h: 44.0 }) "Content card"
+< label Entity { index: 2, generation: 0 } Some(Rect { x: 12.0, y: 64.0, w: 976.0, h: 48.0 }) "Tab/Shift-Tab navigate. Enter or Space activates. Mode arrows focus only. No real documents, saves or deletion."
+< label Entity { index: 46, generation: 0 } Some(Rect { x: 21.0, y: 335.0, w: 468.0, h: 36.0 }) "| Source"
+< label Entity { index: 8, generation: 0 } Some(Rect { x: 21.0, y: 129.0, w: 171.0, h: 36.0 }) "Add"
+< label Entity { index: 61, generation: 0 } Some(Rect { x: 28.0, y: 572.0, w: 944.0, h: 64.0 }) "Borrowed content and actions have explicit slots. The card itself is not clickable."
+< label Entity { index: 74, generation: 0 } Some(Rect { x: 28.0, y: 834.0, w: 944.0, h: 64.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+< label Entity { index: 75, generation: 0 } Some(Rect { x: 28.0, y: 898.0, w: 944.0, h: 64.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+43,45d34
+< label Entity { index: 52, generation: 0 } Some(Rect { x: 511.0, y: 335.0, w: 468.0, h: 36.0 }) "Preview"
+< label Entity { index: 72, generation: 0 } Some(Rect { x: 28.0, y: 706.0, w: 944.0, h: 64.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+< label Entity { index: 76, generation: 0 } Some(Rect { x: 28.0, y: 962.0, w: 944.0, h: 64.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+47,48c36,38
+< label Entity { index: 38, generation: 0 } Some(Rect { x: 21.0, y: 273.0, w: 958.0, h: 36.0 }) "Reference note — Read-only fixture"
+< label Entity { index: 66, generation: 0 } Some(Rect { x: 37.0, y: 653.0, w: 926.0, h: 36.0 }) "Show source"
+---
+> label Entity { index: 75, generation: 0 } Some(Rect { x: 28.0, y: 898.0, w: 944.0, h: 64.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+> label Entity { index: 23, generation: 0 } Some(Rect { x: 611.0, y: 129.0, w: 171.0, h: 56.0 }) "Reset demo count"
+> label Entity { index: 76, generation: 0 } Some(Rect { x: 28.0, y: 962.0, w: 944.0, h: 64.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+50c40,41
+< label Entity { index: 1, generation: 0 } Some(Rect { x: 12.0, y: 12.0, w: 976.0, h: 44.0 }) "rndr A2 operating gallery (synthetic host)"
+---
+> label Entity { index: 66, generation: 0 } Some(Rect { x: 37.0, y: 653.0, w: 926.0, h: 36.0 }) "Show source"
+> label Entity { index: 61, generation: 0 } Some(Rect { x: 28.0, y: 572.0, w: 944.0, h: 64.0 }) "Borrowed content and actions have explicit slots. The card itself is not clickable."
+51a43,45
+> label Entity { index: 1, generation: 0 } Some(Rect { x: 12.0, y: 12.0, w: 976.0, h: 44.0 }) "rndr A2 operating gallery (synthetic host)"
+> label Entity { index: 46, generation: 0 } Some(Rect { x: 21.0, y: 335.0, w: 468.0, h: 36.0 }) "| Source"
+> label Entity { index: 2, generation: 0 } Some(Rect { x: 12.0, y: 64.0, w: 976.0, h: 48.0 }) "Tab/Shift-Tab navigate. Enter or Space activates. Mode arrows focus only. No real documents, saves or deletion."
+52a47,52
+> label Entity { index: 33, generation: 0 } Some(Rect { x: 21.0, y: 211.0, w: 958.0, h: 36.0 }) "| Draft note — Demo folder (unsaved)"
+> label Entity { index: 52, generation: 0 } Some(Rect { x: 511.0, y: 335.0, w: 468.0, h: 36.0 }) "Preview"
+> label Entity { index: 72, generation: 0 } Some(Rect { x: 28.0, y: 706.0, w: 944.0, h: 64.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+> label Entity { index: 59, generation: 0 } Some(Rect { x: 28.0, y: 520.0, w: 944.0, h: 44.0 }) "Content card"
+> label Entity { index: 74, generation: 0 } Some(Rect { x: 28.0, y: 834.0, w: 944.0, h: 64.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+> label Entity { index: 53, generation: 0 } Some(Rect { x: 12.0, y: 388.0, w: 976.0, h: 108.0 }) "Synthetic editable source. Type here; Undo/Redo remain core-owned."
+diff -r evidence/a2-20261101-mZVyJv/gallery-a2/reflow-400-equivalent.semantics-geometry.txt /tmp/rndr-a2-identity-final.HC9fLT/current-source/direct-gallery/reflow-400-equivalent.semantics-geometry.txt
+30,33d29
+< label Entity { index: 28, generation: 0 } Some(Rect { x: 21.0, y: 813.0, w: 278.0, h: 36.0 }) "+"
+< label Entity { index: 18, generation: 0 } Some(Rect { x: 21.0, y: 549.0, w: 278.0, h: 96.0 }) "Quiet with a deliberately very long wrapped command label"
+< label Entity { index: 13, generation: 0 } Some(Rect { x: 21.0, y: 427.0, w: 278.0, h: 96.0 }) "Secondary with a deliberately very long wrapped command label"
+< label Entity { index: 76, generation: 0 } Some(Rect { x: 28.0, y: 2402.0, w: 264.0, h: 208.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+35,36c31,39
+< label Entity { index: 70, generation: 0 } Some(Rect { x: 28.0, y: 1846.0, w: 264.0, h: 160.0 }) "Warnings stay visible. This is not a recovery or saving implementation."
+< label Entity { index: 59, generation: 0 } Some(Rect { x: 28.0, y: 1264.0, w: 264.0, h: 44.0 }) "Content card"
+---
+> label Entity { index: 52, generation: 0 } Some(Rect { x: 171.0, y: 1059.0, w: 128.0, h: 36.0 }) "Preview"
+> label Entity { index: 77, generation: 0 } Some(Rect { x: 12.0, y: 2030.0, w: 296.0, h: 64.0 }) "Requests: 1; source reveals: 0; rejected: 0"
+> label Entity { index: 1, generation: 0 } Some(Rect { x: 12.0, y: 12.0, w: 296.0, h: 156.0 }) "rndr A2 operating gallery (synthetic host)"
+> label Entity { index: 2, generation: 0 } Some(Rect { x: 12.0, y: 176.0, w: 296.0, h: 112.0 }) "Tab/Shift-Tab navigate. Enter or Space activates. Mode arrows focus only. No real documents, saves or deletion."
+> label Entity { index: 18, generation: 0 } Some(Rect { x: 21.0, y: 549.0, w: 278.0, h: 96.0 }) "Quiet with a deliberately very long wrapped command label"
+> label Entity { index: 68, generation: 0 } Some(Rect { x: 28.0, y: 1710.0, w: 264.0, h: 128.0 }) "Warning: Synthetic unsaved state"
+> label Entity { index: 75, generation: 0 } Some(Rect { x: 28.0, y: 2194.0, w: 264.0, h: 208.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+> label Entity { index: 38, generation: 0 } Some(Rect { x: 21.0, y: 977.0, w: 278.0, h: 56.0 }) "Reference note — Read-only fixture"
+> label Entity { index: 73, generation: 0 } Some(Rect { x: 28.0, y: 1778.0, w: 264.0, h: 208.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+37a41
+> label Entity { index: 70, generation: 0 } Some(Rect { x: 28.0, y: 1846.0, w: 264.0, h: 160.0 }) "Warnings stay visible. This is not a recovery or saving implementation."
+38a43,45
+> label Entity { index: 61, generation: 0 } Some(Rect { x: 28.0, y: 1316.0, w: 264.0, h: 184.0 }) "Borrowed content and actions have explicit slots. The card itself is not clickable."
+> label Entity { index: 59, generation: 0 } Some(Rect { x: 28.0, y: 1264.0, w: 264.0, h: 44.0 }) "Content card"
+> label Entity { index: 13, generation: 0 } Some(Rect { x: 21.0, y: 427.0, w: 278.0, h: 96.0 }) "Secondary with a deliberately very long wrapped command label"
+39a47,48
+> label Entity { index: 28, generation: 0 } Some(Rect { x: 21.0, y: 813.0, w: 278.0, h: 36.0 }) "+"
+> label Entity { index: 66, generation: 0 } Some(Rect { x: 37.0, y: 1517.0, w: 246.0, h: 36.0 }) "Show source"
+41,46c50
+< label Entity { index: 1, generation: 0 } Some(Rect { x: 12.0, y: 12.0, w: 296.0, h: 156.0 }) "rndr A2 operating gallery (synthetic host)"
+< label Entity { index: 52, generation: 0 } Some(Rect { x: 171.0, y: 1059.0, w: 128.0, h: 36.0 }) "Preview"
+< label Entity { index: 38, generation: 0 } Some(Rect { x: 21.0, y: 977.0, w: 278.0, h: 56.0 }) "Reference note — Read-only fixture"
+< label Entity { index: 61, generation: 0 } Some(Rect { x: 28.0, y: 1316.0, w: 264.0, h: 184.0 }) "Borrowed content and actions have explicit slots. The card itself is not clickable."
+< label Entity { index: 68, generation: 0 } Some(Rect { x: 28.0, y: 1710.0, w: 264.0, h: 128.0 }) "Warning: Synthetic unsaved state"
+< label Entity { index: 75, generation: 0 } Some(Rect { x: 28.0, y: 2194.0, w: 264.0, h: 208.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+---
+> label Entity { index: 76, generation: 0 } Some(Rect { x: 28.0, y: 2402.0, w: 264.0, h: 208.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+48,50d51
+< label Entity { index: 77, generation: 0 } Some(Rect { x: 12.0, y: 2030.0, w: 296.0, h: 64.0 }) "Requests: 1; source reveals: 0; rejected: 0"
+< label Entity { index: 2, generation: 0 } Some(Rect { x: 12.0, y: 176.0, w: 296.0, h: 112.0 }) "Tab/Shift-Tab navigate. Enter or Space activates. Mode arrows focus only. No real documents, saves or deletion."
+< label Entity { index: 66, generation: 0 } Some(Rect { x: 37.0, y: 1517.0, w: 246.0, h: 36.0 }) "Show source"
+52d52
+< label Entity { index: 73, generation: 0 } Some(Rect { x: 28.0, y: 1778.0, w: 264.0, h: 208.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+diff -r evidence/a2-20261101-mZVyJv/gallery-a2/wide-long.semantics-geometry.txt /tmp/rndr-a2-identity-final.HC9fLT/current-source/direct-gallery/wide-long.semantics-geometry.txt
+30c30,31
+< label Entity { index: 28, generation: 0 } Some(Rect { x: 21.0, y: 397.0, w: 958.0, h: 36.0 }) "+"
+---
+> label Entity { index: 13, generation: 0 } Some(Rect { x: 21.0, y: 191.0, w: 958.0, h: 36.0 }) "Secondary with a deliberately very long wrapped command label"
+> label Entity { index: 46, generation: 0 } Some(Rect { x: 21.0, y: 583.0, w: 468.0, h: 36.0 }) "| Source"
+33,35c34,35
+< label Entity { index: 66, generation: 0 } Some(Rect { x: 37.0, y: 901.0, w: 926.0, h: 36.0 }) "Show source"
+< label Entity { index: 77, generation: 0 } Some(Rect { x: 12.0, y: 1234.0, w: 976.0, h: 36.0 }) "Requests: 1; source reveals: 0; rejected: 0"
+< label Entity { index: 52, generation: 0 } Some(Rect { x: 511.0, y: 583.0, w: 468.0, h: 36.0 }) "Preview"
+---
+> label Entity { index: 53, generation: 0 } Some(Rect { x: 12.0, y: 636.0, w: 976.0, h: 108.0 }) "Synthetic editable source. Type here; Undo/Redo remain core-owned."
+> label Entity { index: 28, generation: 0 } Some(Rect { x: 21.0, y: 397.0, w: 958.0, h: 36.0 }) "+"
+37,38c37,39
+< label Entity { index: 74, generation: 0 } Some(Rect { x: 28.0, y: 1082.0, w: 944.0, h: 64.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+< label Entity { index: 73, generation: 0 } Some(Rect { x: 28.0, y: 1018.0, w: 944.0, h: 64.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+---
+> label Entity { index: 52, generation: 0 } Some(Rect { x: 511.0, y: 583.0, w: 468.0, h: 36.0 }) "Preview"
+> label Entity { index: 68, generation: 0 } Some(Rect { x: 28.0, y: 1094.0, w: 944.0, h: 44.0 }) "Warning: Synthetic unsaved state"
+> label Entity { index: 70, generation: 0 } Some(Rect { x: 28.0, y: 1146.0, w: 944.0, h: 64.0 }) "Warnings stay visible. This is not a recovery or saving implementation."
+40,41c41
+< label Entity { index: 8, generation: 0 } Some(Rect { x: 21.0, y: 129.0, w: 958.0, h: 36.0 }) "Add with a deliberately very long wrapped command label"
+< label Entity { index: 76, generation: 0 } Some(Rect { x: 28.0, y: 1210.0, w: 944.0, h: 64.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+---
+> label Entity { index: 73, generation: 0 } Some(Rect { x: 28.0, y: 1018.0, w: 944.0, h: 64.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+43,44c43,45
+< label Entity { index: 13, generation: 0 } Some(Rect { x: 21.0, y: 191.0, w: 958.0, h: 36.0 }) "Secondary with a deliberately very long wrapped command label"
+< label Entity { index: 46, generation: 0 } Some(Rect { x: 21.0, y: 583.0, w: 468.0, h: 36.0 }) "| Source"
+---
+> label Entity { index: 74, generation: 0 } Some(Rect { x: 28.0, y: 1082.0, w: 944.0, h: 64.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+> label Entity { index: 75, generation: 0 } Some(Rect { x: 28.0, y: 1146.0, w: 944.0, h: 64.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+> label Entity { index: 77, generation: 0 } Some(Rect { x: 12.0, y: 1234.0, w: 976.0, h: 36.0 }) "Requests: 1; source reveals: 0; rejected: 0"
+46,49c47
+< label Entity { index: 70, generation: 0 } Some(Rect { x: 28.0, y: 1146.0, w: 944.0, h: 64.0 }) "Warnings stay visible. This is not a recovery or saving implementation."
+< label Entity { index: 38, generation: 0 } Some(Rect { x: 21.0, y: 521.0, w: 958.0, h: 36.0 }) "Reference note — Read-only fixture"
+< label Entity { index: 68, generation: 0 } Some(Rect { x: 28.0, y: 1094.0, w: 944.0, h: 44.0 }) "Warning: Synthetic unsaved state"
+< label Entity { index: 23, generation: 0 } Some(Rect { x: 21.0, y: 315.0, w: 958.0, h: 56.0 }) "Reset demo count with a deliberately very long wrapped command label"
+---
+> label Entity { index: 66, generation: 0 } Some(Rect { x: 37.0, y: 901.0, w: 926.0, h: 36.0 }) "Show source"
+51,52c49,52
+< label Entity { index: 75, generation: 0 } Some(Rect { x: 28.0, y: 1146.0, w: 944.0, h: 64.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+< label Entity { index: 53, generation: 0 } Some(Rect { x: 12.0, y: 636.0, w: 976.0, h: 108.0 }) "Synthetic editable source. Type here; Undo/Redo remain core-owned."
+---
+> label Entity { index: 8, generation: 0 } Some(Rect { x: 21.0, y: 129.0, w: 958.0, h: 36.0 }) "Add with a deliberately very long wrapped command label"
+> label Entity { index: 76, generation: 0 } Some(Rect { x: 28.0, y: 1210.0, w: 944.0, h: 64.0 }) "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only."
+> label Entity { index: 23, generation: 0 } Some(Rect { x: 21.0, y: 315.0, w: 958.0, h: 56.0 }) "Reset demo count with a deliberately very long wrapped command label"
+> label Entity { index: 38, generation: 0 } Some(Rect { x: 21.0, y: 521.0, w: 958.0, h: 36.0 }) "Reference note — Read-only fixture"

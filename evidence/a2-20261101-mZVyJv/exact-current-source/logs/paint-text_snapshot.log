@@ -1,0 +1,8 @@
+
+running 3 tests
+test latin_caret_tracks_the_pen_not_the_cell_grid ... ok
+test latin_memory_uses_real_advances_and_rn_kerning ... ok
+test styled_label_snapshot_has_two_colors_and_a_highlight ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

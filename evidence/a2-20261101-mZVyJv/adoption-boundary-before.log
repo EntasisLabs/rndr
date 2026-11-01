@@ -1,0 +1,24 @@
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui)
+    Finished `test` profile [unoptimized] target(s) in 0.16s
+     Running tests/a2_adoption_boundary.rs (target/debug/deps/a2_adoption_boundary-ef50ef65f6223102)
+
+running 1 test
+test passive_adoption_rejects_all_operating_ownership_and_plain_transfer_still_works ... FAILED
+
+failures:
+
+---- passive_adoption_rejects_all_operating_ownership_and_plain_transfer_still_works stdout ----
+
+thread 'passive_adoption_rejects_all_operating_ownership_and_plain_transfer_still_works' (494427) panicked at crates/rndr_ui/tests/a2_adoption_boundary.rs:9:56:
+assertion `left == right` failed: cannot adopt existing operating ownership Entity { index: 4, generation: 0 }
+  left: Ok(())
+ right: Err(InvalidAdoption)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    passive_adoption_rejects_all_operating_ownership_and_plain_transfer_still_works
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p rndr_ui --test a2_adoption_boundary`

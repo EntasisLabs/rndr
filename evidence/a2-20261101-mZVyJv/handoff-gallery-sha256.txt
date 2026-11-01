@@ -1,0 +1,17 @@
+bb47cd004f03e34e362f543a1b6ceece375dd8380fc34e610c578286c7383a2f evidence/a2-20261101-mZVyJv/gallery-a2-final/dark-compact-200-long.display-list.txt
+ba3811150e42916ed538315de028c12a360ec8b7dde88b906ae654fe370bd37a evidence/a2-20261101-mZVyJv/gallery-a2-final/dark-compact-200-long.semantics-geometry.txt
+073b507ff5d1b5431bed9b4bfe532b3f946210f0bae6797c0a0bf62be9869723 evidence/a2-20261101-mZVyJv/gallery-a2-final/dark-wide-preview.display-list.txt
+b8f8aa71188019b660f4cb9706af17e60397c8a82867e75dabf94926136ab965 evidence/a2-20261101-mZVyJv/gallery-a2-final/dark-wide-preview.semantics-geometry.txt
+72d19bf04bc8f120aacc17a1aeb3bb4522dd5918b5e72081fd7fd0a93f3cfb29 evidence/a2-20261101-mZVyJv/gallery-a2-final/high-dark-compact.display-list.txt
+c64b7ded975b558bbf988d0e7157e398de945910da1a955cf26f21fb6fcf53a0 evidence/a2-20261101-mZVyJv/gallery-a2-final/high-dark-compact.semantics-geometry.txt
+e7594178b2df9a75873bda417f4f61661b662eebca312f870a594ca59d54661f evidence/a2-20261101-mZVyJv/gallery-a2-final/high-light-200.display-list.txt
+2b04d28ff7c86847277e8ebbbe09d5e58aa0ada78cc85deb40dec2d819c38469 evidence/a2-20261101-mZVyJv/gallery-a2-final/high-light-200.semantics-geometry.txt
+4893b9eb477ea79d7b504406b85384b666b7184bcb4a1c30f1e63a3afd9add48 evidence/a2-20261101-mZVyJv/gallery-a2-final/inventory.txt
+3c57747faccd529f689ed4082b3ee46d6ca11a8e667b055a66d6720425b98318 evidence/a2-20261101-mZVyJv/gallery-a2-final/light-narrow-200-long.display-list.txt
+66458a7e07782104d8af0ad9d36abb381db789bdc2b297c47d2cc3428e1ef198 evidence/a2-20261101-mZVyJv/gallery-a2-final/light-narrow-200-long.semantics-geometry.txt
+2442149f0b3dc810081833c8271d8150aebf30f247f50e8aa445115a3eb2c30c evidence/a2-20261101-mZVyJv/gallery-a2-final/light-wide.display-list.txt
+13b44c48e9d3022ef77d74da6128157494aad2c5dda13674d13fc4ebd557612c evidence/a2-20261101-mZVyJv/gallery-a2-final/light-wide.semantics-geometry.txt
+c739af6a9586e7ee3a00b71d616b2a26549902be9121affc5157168c540b5364 evidence/a2-20261101-mZVyJv/gallery-a2-final/reflow-400-equivalent.display-list.txt
+b66024fe3a37593c1e3b8317b8cab37110e139a7b899247320d28219af1583a8 evidence/a2-20261101-mZVyJv/gallery-a2-final/reflow-400-equivalent.semantics-geometry.txt
+fc39d957739ee866a5cb308317f6c4453f7dad08dcbef725be23871ccc7cc8ba evidence/a2-20261101-mZVyJv/gallery-a2-final/wide-long.display-list.txt
+b60fd817755a7d082fdf0091c75758b114dc56a40921e49ec3c0b5ad41540042 evidence/a2-20261101-mZVyJv/gallery-a2-final/wide-long.semantics-geometry.txt

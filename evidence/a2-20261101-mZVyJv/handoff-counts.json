@@ -1,0 +1,22 @@
+{
+  "rndr_core tests": 411,
+  "rndr_paint tests": 62,
+  "rndr_ui tests": 32,
+  "rndr_core docs": 9,
+  "rndr_paint docs": 1,
+  "rndr_ui docs": 0,
+  "source_head": "71328489e435e0dc8ad1e678a10b2a6dfd9b57b4",
+  "core_total": 420,
+  "paint_total": 63,
+  "ui_total": 32,
+  "actual_accesskit_adapter": 2,
+  "baseline_category_total": 517,
+  "other_renderer": 22,
+  "full_cargo_total": 539,
+  "direct_library_tests": 507,
+  "extra_direct_core_probes": 13,
+  "a2_gallery_cases": 8,
+  "geometry_configs": 32,
+  "resolved_states": 96,
+  "promoted_logical_cases": 80
+}

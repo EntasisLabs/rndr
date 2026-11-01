@@ -1,0 +1,36 @@
+   Compiling rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core)
+    Finished `test` profile [unoptimized] target(s) in 0.20s
+     Running tests/a1_logical_only.rs (target/debug/deps/a1_logical_only-8514734217998fad)
+
+running 3 tests
+test physical_binding_and_registration_drop_do_not_own_logical_release ... FAILED
+test true_logical_focus_roundtrip_repeat_and_modified_up_cancel ... FAILED
+test true_logical_only_nonmatching_registration_matrix_160 ... FAILED
+
+failures:
+
+---- physical_binding_and_registration_drop_do_not_own_logical_release stdout ----
+
+thread 'physical_binding_and_registration_drop_do_not_own_logical_release' (435386) panicked at crates/rndr_core/tests/a1_logical_only.rs:17:158:
+called `Result::unwrap()` on an `Err` value: Unsupported
+
+---- true_logical_focus_roundtrip_repeat_and_modified_up_cancel stdout ----
+
+thread 'true_logical_focus_roundtrip_repeat_and_modified_up_cancel' (435387) panicked at crates/rndr_core/tests/a1_logical_only.rs:23:81:
+called `Result::unwrap()` on an `Err` value: Unsupported
+
+---- true_logical_only_nonmatching_registration_matrix_160 stdout ----
+
+thread 'true_logical_only_nonmatching_registration_matrix_160' (435388) panicked at crates/rndr_core/tests/a1_logical_only.rs:10:114:
+called `Result::unwrap()` on an `Err` value: Unsupported
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    physical_binding_and_registration_drop_do_not_own_logical_release
+    true_logical_focus_roundtrip_repeat_and_modified_up_cancel
+    true_logical_only_nonmatching_registration_matrix_160
+
+test result: FAILED. 0 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p rndr_core --test a1_logical_only`

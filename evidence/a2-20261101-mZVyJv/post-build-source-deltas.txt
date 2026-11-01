@@ -1,0 +1,3 @@
+Production libraries, all tests, Cargo inputs and existing snapshots are unchanged from exact direct rebuild4c8726f9789c4487c33abdc413b0ce2b97e7fa68. The ONLY subsequent changes within rebuilt inventory are:
+1. crates/rndr_ui/README.md: current scope/entry documentation, old README archived.
+2. crates/rndr_ui/examples/operating_gallery.rs: sort hash-backed label inventory before evidence output. This evidence generator was explicitly recompiled against the same exact current-source rlibs; Cargo and two fresh direct processes produce byte-identical complete final gallery files. All original/final display-list files are byte-identical; original metadata-order-only diff is retained.

@@ -1,0 +1,19 @@
+
+running 14 tests
+test repeated_enter_and_at_are_distinct_before_drain ... ok
+test legacy_to_modern_traversal_preserves_space_pair ... ok
+test subsequent_unmatched_release_cannot_commit_stale_traversal_arm ... ok
+test rejected_requests_and_drain_validation_preserve_survivor_order ... ok
+test modified_release_resolves_arm_without_later_activation ... ok
+test pointer_focus_then_keyboard_and_pointer_release_are_distinct ... ok
+test modern_edges_do_not_leak_to_legacy_and_repeat_is_not_new_activation ... ok
+test registered_hotkey_cancels_arm_in_order_and_never_leaks_to_legacy ... ok
+test traversal_then_legacy_enter ... ok
+test traversal_space_pair_then_unmatched_release ... ok
+test traversal_into_field_keeps_remaining_edit_order_and_no_dual_shim ... ok
+test same_target_capacity_is_64_requests_not_targets ... ok
+test traversal_into_editor_keeps_remaining_edit_order ... ok
+test space_cancel_focus_blur_synthetic_escape_and_modifiers ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

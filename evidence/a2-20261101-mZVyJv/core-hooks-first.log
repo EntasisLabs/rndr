@@ -1,0 +1,11 @@
+   Compiling rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core)
+error[E0560]: struct `rndr_core::Semantics` has no field named `disabled`
+  --> crates/rndr_core/tests/a2_core_contracts.rs:39:53
+   |
+39 | ...ics { disabled: true, ..Semantics::default() });
+   |          ^^^^^^^^ `rndr_core::Semantics` does not have this field
+   |
+   = note: available fields are: `name`, `description`, `readonly`
+
+For more information about this error, try `rustc --explain E0560`.
+error: could not compile `rndr_core` (test "a2_core_contracts") due to 1 previous error

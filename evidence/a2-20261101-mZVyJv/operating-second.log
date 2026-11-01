@@ -1,0 +1,45 @@
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui)
+error[E0599]: no variant, associated function, or constant named `Accepted` found for enum `rndr_core::AccessCommandResult` in the current scope
+  --> crates/rndr_ui/tests/a2_operating.rs:13:101
+   |
+13 | ...t)),AccessCommandResult::Accepted); a.update();
+   |                             ^^^^^^^^ variant, associated function, or constant not found in `rndr_core::AccessCommandResult`
+
+error[E0308]: mismatched types
+  --> crates/rndr_ui/tests/a2_operating.rs:62:63
+   |
+62 | ...s[1].root).panel,Some(access_id(h.panels[1])));assert_eq!(access_deta...
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `bool`, found `Option<u64>`
+   |
+   = note: expected type `bool`
+              found enum `Option<u64>`
+help: use `Option::is_some` to test if the `Option` has a value
+   |
+62 |     assert_eq!(access_details(a.world(),h.tabs[1].root).panel,Some(access_id(h.panels[1])).is_some());assert_eq!(access_details(a.world(),h.panels[1]).labelled_by,Some(access_id(h.tabs[1].root)));
+   |                                                                                           ++++++++++
+
+error[E0560]: struct `rndr_ui::UiTheme` has no field named `ui_scale`
+  --> crates/rndr_ui/tests/a2_operating.rs:83:55
+   |
+83 | ...density,ui_scale:scale,reading_scale:scale,..UiTheme::default()};let ...
+   |            ^^^^^^^^ `rndr_ui::UiTheme` does not have this field
+   |
+   = note: available fields are: `text_scale`, `ui_family`, `reading_family`, `code_family`
+
+error[E0560]: struct `rndr_ui::UiTheme` has no field named `ui_scale`
+   --> crates/rndr_ui/tests/a2_operating.rs:105:95
+    |
+105 | ...t::High,ui_scale:2.0,..UiTheme::default()});a.update();assert_eq!(a....
+    |            ^^^^^^^^ `rndr_ui::UiTheme` does not have this field
+    |
+    = note: available fields are: `density`, `text_scale`, `reading_scale`, `ui_family`, `reading_family`, `code_family`
+
+error[E0599]: no method named `is_some` found for struct `Clip` in the current scope
+   --> crates/rndr_ui/tests/a2_operating.rs:110:426
+    |
+110 | ...lid_uv()&&q.clip.is_some()));
+    |                     ^^^^^^^ method not found in `Clip`
+
+Some errors have detailed explanations: E0308, E0560, E0599.
+For more information about an error, try `rustc --explain E0308`.
+error: could not compile `rndr_ui` (test "a2_operating") due to 5 previous errors

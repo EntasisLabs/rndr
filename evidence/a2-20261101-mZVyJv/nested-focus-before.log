@@ -1,0 +1,22 @@
+   Compiling rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core)
+    Finished `test` profile [unoptimized] target(s) in 3.30s
+     Running tests/a2_nested_focus.rs (target/debug/deps/a2_nested_focus-e6eb0427bfd7f303)
+
+running 1 test
+test nested_scroll_reveals_focused_target_through_each_ancestor ... FAILED
+
+failures:
+
+---- nested_scroll_reveals_focused_target_through_each_ancestor stdout ----
+
+thread 'nested_scroll_reveals_focused_target_through_each_ancestor' (452027) panicked at crates/rndr_core/tests/a2_nested_focus.rs:13:5:
+outer ancestor must also reveal target
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    nested_scroll_reveals_focused_target_through_each_ancestor
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p rndr_core --test a2_nested_focus`

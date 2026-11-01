@@ -1,0 +1,17 @@
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui)
+   Compiling rndr_paint v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_paint)
+error[E0308]: mismatched types
+   --> crates/rndr_ui/src/controls.rs:250:97
+    |
+250 | ...bs { selected: initial });
+    |                   ^^^^^^^ expected `u64`, found `usize`
+
+error[E0308]: mismatched types
+   --> crates/rndr_ui/src/controls.rs:255:50
+    |
+255 | ...b.root, Tab { id: i }); link_tab_panel(world, tab.root, group, panel...
+    |                      ^ expected `u64`, found `usize`
+
+For more information about this error, try `rustc --explain E0308`.
+error: could not compile `rndr_ui` (lib) due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...

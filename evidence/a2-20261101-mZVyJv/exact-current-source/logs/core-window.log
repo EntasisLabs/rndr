@@ -1,0 +1,32 @@
+
+running 27 tests
+test a_zero_physical_size_keeps_the_logical_size ... ok
+test defaults_match_the_hard_coded_window ... ok
+test blur_before_the_first_focus_is_ignored ... ok
+test dismiss_close_sets_quit ... ok
+test escape_is_left_alone_unless_dismiss_is_set ... ok
+test focus_and_blur_stay_in_order_without_hiding ... ok
+test a_system_can_hide_and_the_blur_follows ... ok
+test dismiss_runs_before_other_input_systems ... ok
+test dismiss_hide_consumes_escape_before_systems ... ok
+test a_focus_return_in_the_same_batch_does_not_hide ... ok
+test blur_during_the_show_grace_waits_until_the_grace_ends ... ok
+test a_task_can_hide_after_await ... ok
+test another_thread_can_toggle ... ok
+test focus_while_hidden_does_nothing ... ok
+test focus_returning_before_the_settle_cancels_the_hide ... ok
+test hide_on_blur_records_the_blur_without_hiding_immediately ... ok
+test logical_size_constructor ... ok
+test hide_on_blur_reaches_app_code_as_one_blur ... ok
+test platform_support_matches_the_documented_table ... ok
+test modified_escape_does_not_dismiss ... ok
+test platform_focus_is_readable_in_input ... ok
+test queued_focus_blur_focus_arrive_in_one_queue ... ok
+test show_and_focus_are_idempotent ... ok
+test publishing_the_same_size_is_quiet ... ok
+test scale_and_resize_are_visible_to_layout ... ok
+test toggle_hides_then_shows_and_focuses ... ok
+test scale_is_readable_in_input ... ok
+
+test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

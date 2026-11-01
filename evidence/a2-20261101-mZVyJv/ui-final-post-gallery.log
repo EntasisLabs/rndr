@@ -1,0 +1,92 @@
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui)
+    Finished `test` profile [unoptimized] target(s) in 0.84s
+     Running unittests src/lib.rs (target/debug/deps/rndr_ui-be434b2df1868d91)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/a2_malformed_controls.rs (target/debug/deps/a2_malformed_controls-cc32fcb5dc1178ac)
+
+running 2 tests
+test toolbar_measurement_tolerates_malformed_borrowed_control_and_checks_own_layout ... ok
+test removed_root_group_or_panel_layout_is_stale_not_a_partial_update ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/a2_nested_paint.rs (target/debug/deps/a2_nested_paint-23ccc8e7dfa97eb2)
+
+running 1 test
+test nested_source_focus_real_glyph_clip_and_hit_geometry_agree ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/a2_operating.rs (target/debug/deps/a2_operating-988c99130288a5d0)
+
+running 11 tests
+test malformed_owned_slots_fail_before_update_or_destroy ... ok
+test host_validation_rejects_queued_payload_replacement_and_stale_generation ... ok
+test lifecycle_keys_stale_generations_and_borrowed_state_survive ... ok
+test cancellation_disabled_readonly_and_action_update_do_not_commit_stale_gestures ... ok
+test toolbar_wide_row_narrow_stack_and_destroy_never_hides_actions ... ok
+test controls_share_canonical_pointer_keyboard_at_and_fifo_without_fanout ... ok
+test manual_modes_have_roving_entry_real_relations_and_full_inactive_exclusion ... ok
+test nested_scroll_paints_real_clip_and_focus_reveal_without_rebuilding ... ok
+test source_is_visible_named_keyboard_reachable_and_host_validates_locator ... ok
+test mode_and_theme_updates_preserve_editor_content_focus_selection_history_and_scroll ... ok
+test actual_gallery_matrix_has_real_glyphs_wrap_targets_and_narrow_reflow ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s
+
+     Running tests/a2_states.rs (target/debug/deps/a2_states-5fcc1f126dd3d348)
+
+running 2 tests
+test style_override_detach_and_theme_changes_do_not_reconstruct_controls ... ok
+test actual_resolved_control_states_contrast_focus_geometry_and_glyph_scale ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/complete_gallery.rs (target/debug/deps/complete_gallery-6825cc5c07f11771)
+
+running 1 test
+test full_gallery_has_no_unintentional_nested_hug_clipping_in_any_a0_state ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+
+     Running tests/foundations.rs (target/debug/deps/foundations-bff31284ef787389)
+
+running 8 tests
+test resolved_documented_pairs_have_required_contrast ... ok
+test density_does_not_shrink_type_scaling_and_invalid_preferences_are_bounded ... ok
+test stable_lifecycle_borrowed_and_adopted_ownership_stale_handles ... ok
+test owned_teardown_cleans_only_owned_focus_capture_queue_and_access_nodes ... ok
+test install_and_unopted_legacy_appearance_are_unchanged ... ok
+test existing_primitives_win_and_property_reattach_is_fresh ... ok
+test theme_override_ownership_transparency_takeover_and_detach ... ok
+test headless_gallery_emits_real_glyphs_fills_wrapped_layout_at_200_percent ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+
+     Running tests/malformed_lifecycle.rs (target/debug/deps/malformed_lifecycle-7a549aa2a9fed27a)
+
+running 1 test
+test malformed_title_is_rejected_before_any_recipe_update ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/paint_evidence.rs (target/debug/deps/paint_evidence-32139013fdbab284)
+
+running 4 tests
+test passive_title_toggle_separator_and_adjustable_measure ... ok
+test actual_glyph_geometry_scales_and_device_scale_keeps_logical_layout ... ok
+test deterministic_actual_display_list_matches_saved_headless_artifacts ... ok
+test nested_scroll_uses_real_paint_scissors_and_owned_updates_preserve_scroll ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+   Doc-tests rndr_ui
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
