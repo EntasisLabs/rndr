@@ -1,0 +1,29 @@
+   Compiling rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core)
+    Finished `test` profile [unoptimized] target(s) in 0.16s
+     Running tests/a1_wrapped_hug.rs (target/debug/deps/a1_wrapped_hug-6ad10ae5f671f174)
+
+running 2 tests
+test nested_wrapped_hug_heights_are_correct_on_first_frame_resize_and_scale ... FAILED
+test row_fill_widths_determine_hug_cross_height_before_clipping ... FAILED
+
+failures:
+
+---- nested_wrapped_hug_heights_are_correct_on_first_frame_resize_and_scale stdout ----
+
+thread 'nested_wrapped_hug_heights_are_correct_on_first_frame_resize_and_scale' (198458) panicked at crates/rndr_core/tests/a1_wrapped_hug.rs:8:13:
+Entity { index: 1, generation: 0 } Rect { x: 0.0, y: 0.0, w: 280.0, h: 116.0 } clips Entity { index: 2, generation: 0 } Rect { x: 16.0, y: 16.0, w: 248.0, h: 184.0 }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- row_fill_widths_determine_hug_cross_height_before_clipping stdout ----
+
+thread 'row_fill_widths_determine_hug_cross_height_before_clipping' (198459) panicked at crates/rndr_core/tests/a1_wrapped_hug.rs:8:13:
+Entity { index: 3, generation: 0 } Rect { x: 124.0, y: 0.0, w: 116.0, h: 52.0 } clips Entity { index: 4, generation: 0 } Rect { x: 132.0, y: 8.0, w: 100.0, h: 1216.0 }
+
+
+failures:
+    nested_wrapped_hug_heights_are_correct_on_first_frame_resize_and_scale
+    row_fill_widths_determine_hug_cross_height_before_clipping
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p rndr_core --test a1_wrapped_hug`

@@ -213,6 +213,9 @@ pub fn layout_propagate(world: &mut World) {
         h: viewport.height,
     };
     for root in roots::<Layout>(world) {
+        // Fill widths are unknown during the intrinsic measure. Resolve those
+        // widths and wrapped Hug heights before committing any ancestor clip.
+        refine_wrapped_heights(world, root, viewport.content_width(), viewport.insets.left);
         place(
             world,
             root,
@@ -423,6 +426,104 @@ fn measure(world: &mut World, entity: Entity) -> Rect {
         w,
         h,
     };
+    world.insert(entity, rect);
+    rect
+}
+
+// One top-down width / bottom-up height refinement, using the same Fill
+// allocation rules as placement. This avoids a frame-late parent height and
+// never asks a UI recipe to duplicate the layout engine. Each node is visited
+// once; fixed sizes, Fill-height policy, min sizes and explicit colors are unchanged.
+fn refine_wrapped_heights(world: &mut World, entity: Entity, available_w: f32, x: f32) -> Rect {
+    let Some(layout) = world.get::<Layout>(entity).copied() else {
+        return world.get::<Rect>(entity).copied().unwrap_or_default();
+    };
+    let mut rect = world.get::<Rect>(entity).copied().unwrap_or_default();
+    let width = if layout.width == Size::Fill {
+        available_w
+    } else {
+        rect.w
+    };
+    let scale = world
+        .resource::<Viewport>()
+        .map(|v| v.pixels_per_point())
+        .unwrap_or(1.0);
+    let (x, width) = snap_span(x, width.max(layout.min_width), scale);
+    rect.w = width;
+    let kids = shown_children(world, entity);
+    if kids.is_empty() {
+        if layout.height == Size::Hug {
+            if let Some((_, height)) = label_hug_at(world, entity, &layout, width) {
+                rect.h = height.max(layout.min_height);
+            }
+        }
+        world.insert(entity, rect);
+        return rect;
+    }
+    let pad = layout.padding * 2.0;
+    let inner_w = (width - pad).max(0.0);
+    let gaps = layout.gap * kids.len().saturating_sub(1) as f32;
+    let mut fixed_w = gaps;
+    let mut fills = 0;
+    if layout.axis == Axis::Row {
+        for child in &kids {
+            if world
+                .get::<Layout>(*child)
+                .is_some_and(|l| l.width == Size::Fill)
+            {
+                fills += 1;
+            } else {
+                fixed_w += world.get::<Rect>(*child).map(|r| r.w).unwrap_or(0.0);
+            }
+        }
+    }
+    let share = if fills == 0 {
+        0.0
+    } else {
+        (inner_w - fixed_w).max(0.0) / fills as f32
+    };
+    let offset_x = world
+        .get::<Scroll>(entity)
+        .map(|s| s.offset[0])
+        .unwrap_or(0.0);
+    let mut child_x = x + layout.padding + offset_x;
+    let mut content_w = 0.0f32;
+    let mut content_h = 0.0f32;
+    for child in kids {
+        let child_layout = world.get::<Layout>(child).copied();
+        let intrinsic_w = world.get::<Rect>(child).map(|r| r.w).unwrap_or(0.0);
+        let child_width = if child_layout.is_some_and(|l| l.width == Size::Fill) {
+            if layout.axis == Axis::Row {
+                share
+            } else {
+                inner_w
+            }
+        } else {
+            intrinsic_w
+        };
+        let size = refine_wrapped_heights(world, child, child_width, child_x);
+        match layout.axis {
+            Axis::Column => {
+                content_w = content_w.max(size.w);
+                content_h += size.h;
+            }
+            Axis::Row => {
+                content_w += size.w;
+                content_h = content_h.max(size.h);
+                child_x += size.w + layout.gap;
+            }
+        }
+    }
+    match layout.axis {
+        Axis::Column => content_h += gaps,
+        Axis::Row => content_w += gaps,
+    }
+    if layout.height == Size::Hug {
+        rect.h = (content_h + pad).max(layout.min_height);
+    }
+    if let Some(scroll) = world.get_mut::<Scroll>(entity) {
+        scroll.content = [content_w + pad, content_h + pad];
+    }
     world.insert(entity, rect);
     rect
 }

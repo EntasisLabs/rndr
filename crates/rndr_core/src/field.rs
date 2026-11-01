@@ -100,7 +100,9 @@ pub fn apply_fields(world: &mut World) {
             world.remove::<Caret>(entity);
             continue;
         }
-        if world.has::<crate::prompt::Prompt>(entity) {
+        if world.has::<crate::prompt::Prompt>(entity)
+            && !crate::interaction::readonly(world, entity)
+        {
             crate::prompt::edit_focused(world, entity);
             continue;
         }

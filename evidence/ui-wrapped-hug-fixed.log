@@ -1,0 +1,10 @@
+   Compiling rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core)
+    Finished `test` profile [unoptimized] target(s) in 2.54s
+     Running tests/a1_wrapped_hug.rs (target/debug/deps/a1_wrapped_hug-6ad10ae5f671f174)
+
+running 2 tests
+test row_fill_widths_determine_hug_cross_height_before_clipping ... ok
+test nested_wrapped_hug_heights_are_correct_on_first_frame_resize_and_scale ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
