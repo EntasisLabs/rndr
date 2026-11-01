@@ -46,7 +46,7 @@ fn count(a: &mut App, n: usize) {
     assert!(a.world().resource::<Fired>().unwrap().name.is_none());
 }
 #[test]
-fn true_logical_only_nonmatching_registration_matrix_160() {
+fn true_logical_only_nonmatching_registration_matrix_80() {
     for p in [
         Platform::Mac,
         Platform::Windows,
