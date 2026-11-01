@@ -1,0 +1,20 @@
+
+running 15 tests
+test query_result_arrives_as_event ... ok
+test repeating_timer_stops_when_dropped ... ok
+test dropping_handle_drops_stale_result ... ok
+test detach_still_delivers ... ok
+test cancel_drops_result_before_poll ... ok
+test foreground_task_holds_non_send_state_across_await ... ok
+test idle_sim_has_no_deadline_until_a_timer_is_armed ... ok
+test debounce_coalesces_rapid_keystrokes ... ok
+test repeating_timer_stops_when_cancelled ... ok
+test kept_handle_delivers_after_sleep ... ok
+test system_sends_are_visible_next_frame ... ok
+test timer_fires_at_fake_time ... ok
+test task_handle_lives_in_a_resource ... ok
+test update_system_observes_query_event ... ok
+test seeded_ready_order_is_deterministic ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

@@ -1,0 +1,7 @@
+
+running 2 tests
+test selected_link_text_uses_the_label_color ... ok
+test markdown_document_paints_heading_list_quote_rule_and_code ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

@@ -1,0 +1,18 @@
+
+running 13 tests
+test rows_exist_on_the_first_frame ... ok
+test a_fractional_offset_shifts_the_first_row_up ... ok
+test pool_tracks_the_visible_window ... ok
+test offset_maps_to_the_first_index ... ok
+test selection_scrolls_into_view ... ok
+test click_reports_the_item_index ... ok
+test hover_selects_the_row_under_the_pointer ... ok
+test row_builder_supplies_text_and_rows_follow_width ... ok
+test wheel_scrolls_without_moving_the_selection ... ok
+test shrinking_the_count_clamps_selection_and_resets_scroll ... ok
+test enter_and_double_click_activate_the_row ... ok
+test arrows_page_home_and_end_move_the_selection ... ok
+test selection_stays_fully_visible_past_a_partial_row ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

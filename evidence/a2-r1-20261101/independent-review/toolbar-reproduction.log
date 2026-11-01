@@ -1,0 +1,16 @@
+
+running 1 test
+axis=Row natural_label_width=826 actual_label_rect=Rect { x: 9.0, y: 9.0, w: 478.0, h: 56.0 }
+
+thread 'unequal_toolbar_labels_must_fit_each_row_share' (539111) panicked at /tmp/rndr-a2-independent-SQwoYo/adversarial.rs:13:2:
+row selected even though longest label does not fit its allocated width
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test unequal_toolbar_labels_must_fit_each_row_share ... FAILED
+
+failures:
+
+failures:
+    unequal_toolbar_labels_must_fit_each_row_share
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.00s
+

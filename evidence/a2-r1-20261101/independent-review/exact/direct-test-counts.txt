@@ -1,0 +1,6 @@
+actual: 2
+core: 411
+paint: 62
+probe: 13
+ui: 32
+Cargo separately verifies9core+1paint doctests. Two exact A1 baseline reproductions fail as expected.

@@ -1,0 +1,676 @@
+++ pwd
++ root='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library'
++ evidence='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/evidence/a2-20261101-mZVyJv'
++ deps='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps'
++ export CARGO_BUILD_JOBS=2 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0
++ CARGO_BUILD_JOBS=2
++ CARGO_PROFILE_DEV_DEBUG=0
++ CARGO_PROFILE_TEST_DEBUG=0
++ CARGO_INCREMENTAL=0
++ export CARGO_PKG_VERSION=0.3.1 INSTA_UPDATE=no 'INSTA_WORKSPACE_ROOT=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library'
++ CARGO_PKG_VERSION=0.3.1
++ INSTA_UPDATE=no
++ INSTA_WORKSPACE_ROOT='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library'
++ git diff --exit-code HEAD -- crates/rndr_core crates/rndr_paint crates/rndr_ui crates/rndr_render crates/rndr Cargo.lock
++ rustc -Vv
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+binary: rustc
+commit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea
+commit-date: 2026-08-18
+host: aarch64-apple-darwin
+release: 1.98.0
+LLVM version: 22.1.8
++ git rev-parse HEAD
++ shasum -a 256 evidence/a2-20261101-mZVyJv/verify-current.sh '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/evidence/a2-20261101-mZVyJv/tab-release-repro.rs'
++ cmark='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib'
++ unicode='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib'
++ lyon='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/liblyon-37185680a94e4faa.rlib'
++ insta='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib'
++ accesskit='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libaccesskit-46f958fdc5b7a499.rlib'
++ shasum -a 256 '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/liblyon-37185680a94e4faa.rlib' '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libaccesskit-46f958fdc5b7a499.rlib'
++ hash_sources
++ git ls-files -z crates/rndr_core crates/rndr_paint crates/rndr_ui crates/rndr_render/src/a11y.rs crates/rndr/examples/ui_gallery.rs crates/rndr/Cargo.toml Cargo.lock
++ xargs -0 shasum -a 256
++ core --crate-name rndr_core --crate-type rlib crates/rndr_core/src/lib.rs -o /tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --crate-name rndr_core --crate-type rlib crates/rndr_core/src/lib.rs -o /tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib
++ paint --crate-name rndr_paint --crate-type rlib crates/rndr_paint/src/lib.rs -o /tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_paint'
++ CARGO_PKG_NAME=rndr_paint
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern 'lyon=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/liblyon-37185680a94e4faa.rlib' --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --crate-name rndr_paint --crate-type rlib crates/rndr_paint/src/lib.rs -o /tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib
++ ui --crate-name rndr_ui --crate-type rlib crates/rndr_ui/src/lib.rs -o /tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_ui.rlib
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui'
++ CARGO_PKG_NAME=rndr_ui
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --crate-name rndr_ui --crate-type rlib crates/rndr_ui/src/lib.rs -o /tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_ui.rlib
++ shasum -a 256 /tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib /tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib /tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_ui.rlib
++ core --test --crate-name rndr_core crates/rndr_core/src/lib.rs -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-unit
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name rndr_core crates/rndr_core/src/lib.rs -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-unit
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-unit
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/a1_cancellation_edges.rs .rs
++ name=a1_cancellation_edges
++ core --test --crate-name a1_cancellation_edges crates/rndr_core/tests/a1_cancellation_edges.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_cancellation_edges
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name a1_cancellation_edges crates/rndr_core/tests/a1_cancellation_edges.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_cancellation_edges
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_cancellation_edges
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/a1_hotkey_ownership.rs .rs
++ name=a1_hotkey_ownership
++ core --test --crate-name a1_hotkey_ownership crates/rndr_core/tests/a1_hotkey_ownership.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_hotkey_ownership
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name a1_hotkey_ownership crates/rndr_core/tests/a1_hotkey_ownership.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_hotkey_ownership
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_hotkey_ownership
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/a1_interaction.rs .rs
++ name=a1_interaction
++ core --test --crate-name a1_interaction crates/rndr_core/tests/a1_interaction.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_interaction
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name a1_interaction crates/rndr_core/tests/a1_interaction.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_interaction
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_interaction
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/a1_lifecycle.rs .rs
++ name=a1_lifecycle
++ core --test --crate-name a1_lifecycle crates/rndr_core/tests/a1_lifecycle.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_lifecycle
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name a1_lifecycle crates/rndr_core/tests/a1_lifecycle.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_lifecycle
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_lifecycle
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/a1_logical_only.rs .rs
++ name=a1_logical_only
++ core --test --crate-name a1_logical_only crates/rndr_core/tests/a1_logical_only.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_logical_only
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name a1_logical_only crates/rndr_core/tests/a1_logical_only.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_logical_only
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_logical_only
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/a1_relation_lifecycle.rs .rs
++ name=a1_relation_lifecycle
++ core --test --crate-name a1_relation_lifecycle crates/rndr_core/tests/a1_relation_lifecycle.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_relation_lifecycle
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name a1_relation_lifecycle crates/rndr_core/tests/a1_relation_lifecycle.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_relation_lifecycle
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_relation_lifecycle
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/a1_reproductions.rs .rs
++ name=a1_reproductions
++ core --test --crate-name a1_reproductions crates/rndr_core/tests/a1_reproductions.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_reproductions
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name a1_reproductions crates/rndr_core/tests/a1_reproductions.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_reproductions
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_reproductions
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/a1_review_corrections.rs .rs
++ name=a1_review_corrections
++ core --test --crate-name a1_review_corrections crates/rndr_core/tests/a1_review_corrections.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_review_corrections
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name a1_review_corrections crates/rndr_core/tests/a1_review_corrections.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_review_corrections
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_review_corrections
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/a1_wrapped_hug.rs .rs
++ name=a1_wrapped_hug
++ core --test --crate-name a1_wrapped_hug crates/rndr_core/tests/a1_wrapped_hug.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_wrapped_hug
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name a1_wrapped_hug crates/rndr_core/tests/a1_wrapped_hug.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_wrapped_hug
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_wrapped_hug
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/a2_core_contracts.rs .rs
++ name=a2_core_contracts
++ core --test --crate-name a2_core_contracts crates/rndr_core/tests/a2_core_contracts.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a2_core_contracts
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name a2_core_contracts crates/rndr_core/tests/a2_core_contracts.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a2_core_contracts
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a2_core_contracts
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/a2_nested_focus.rs .rs
++ name=a2_nested_focus
++ core --test --crate-name a2_nested_focus crates/rndr_core/tests/a2_nested_focus.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a2_nested_focus
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name a2_nested_focus crates/rndr_core/tests/a2_nested_focus.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a2_nested_focus
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a2_nested_focus
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/actions.rs .rs
++ name=actions
++ core --test --crate-name actions crates/rndr_core/tests/actions.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-actions
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name actions crates/rndr_core/tests/actions.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-actions
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-actions
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/body.rs .rs
++ name=body
++ core --test --crate-name body crates/rndr_core/tests/body.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-body
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name body crates/rndr_core/tests/body.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-body
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-body
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/button.rs .rs
++ name=button
++ core --test --crate-name button crates/rndr_core/tests/button.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-button
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name button crates/rndr_core/tests/button.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-button
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-button
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/caret.rs .rs
++ name=caret
++ core --test --crate-name caret crates/rndr_core/tests/caret.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-caret
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name caret crates/rndr_core/tests/caret.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-caret
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-caret
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/click_caret.rs .rs
++ name=click_caret
++ core --test --crate-name click_caret crates/rndr_core/tests/click_caret.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-click_caret
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name click_caret crates/rndr_core/tests/click_caret.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-click_caret
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-click_caret
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/clipboard.rs .rs
++ name=clipboard
++ core --test --crate-name clipboard crates/rndr_core/tests/clipboard.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-clipboard
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name clipboard crates/rndr_core/tests/clipboard.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-clipboard
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-clipboard
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/decorations.rs .rs
++ name=decorations
++ core --test --crate-name decorations crates/rndr_core/tests/decorations.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-decorations
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name decorations crates/rndr_core/tests/decorations.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-decorations
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-decorations
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/desktop_exit.rs .rs
++ name=desktop_exit
++ core --test --crate-name desktop_exit crates/rndr_core/tests/desktop_exit.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-desktop_exit
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name desktop_exit crates/rndr_core/tests/desktop_exit.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-desktop_exit
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-desktop_exit
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/ecs.rs .rs
++ name=ecs
++ core --test --crate-name ecs crates/rndr_core/tests/ecs.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-ecs
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name ecs crates/rndr_core/tests/ecs.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-ecs
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-ecs
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/edit.rs .rs
++ name=edit
++ core --test --crate-name edit crates/rndr_core/tests/edit.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-edit
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name edit crates/rndr_core/tests/edit.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-edit
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-edit
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/editor_drag.rs .rs
++ name=editor_drag
++ core --test --crate-name editor_drag crates/rndr_core/tests/editor_drag.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-editor_drag
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name editor_drag crates/rndr_core/tests/editor_drag.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-editor_drag
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-editor_drag
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/editor_navigation.rs .rs
++ name=editor_navigation
++ core --test --crate-name editor_navigation crates/rndr_core/tests/editor_navigation.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-editor_navigation
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name editor_navigation crates/rndr_core/tests/editor_navigation.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-editor_navigation
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-editor_navigation
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/editor.rs .rs
++ name=editor
++ core --test --crate-name editor crates/rndr_core/tests/editor.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-editor
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name editor crates/rndr_core/tests/editor.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-editor
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-editor
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/feed.rs .rs
++ name=feed
++ core --test --crate-name feed crates/rndr_core/tests/feed.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-feed
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name feed crates/rndr_core/tests/feed.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-feed
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-feed
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/field.rs .rs
++ name=field
++ core --test --crate-name field crates/rndr_core/tests/field.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-field
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name field crates/rndr_core/tests/field.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-field
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-field
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/focus.rs .rs
++ name=focus
++ core --test --crate-name focus crates/rndr_core/tests/focus.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-focus
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name focus crates/rndr_core/tests/focus.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-focus
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-focus
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/font.rs .rs
++ name=font
++ core --test --crate-name font crates/rndr_core/tests/font.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-font
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name font crates/rndr_core/tests/font.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-font
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-font
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/fs.rs .rs
++ name=fs
++ core --test --crate-name fs crates/rndr_core/tests/fs.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-fs
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name fs crates/rndr_core/tests/fs.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-fs
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-fs
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/hotkey.rs .rs
++ name=hotkey
++ core --test --crate-name hotkey crates/rndr_core/tests/hotkey.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-hotkey
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name hotkey crates/rndr_core/tests/hotkey.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-hotkey
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-hotkey
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/ime.rs .rs
++ name=ime
++ core --test --crate-name ime crates/rndr_core/tests/ime.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-ime
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name ime crates/rndr_core/tests/ime.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-ime
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-ime
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/input_platform.rs .rs
++ name=input_platform
++ core --test --crate-name input_platform crates/rndr_core/tests/input_platform.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-input_platform
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name input_platform crates/rndr_core/tests/input_platform.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-input_platform
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-input_platform
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/keyboard.rs .rs
++ name=keyboard
++ core --test --crate-name keyboard crates/rndr_core/tests/keyboard.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-keyboard
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name keyboard crates/rndr_core/tests/keyboard.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-keyboard
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-keyboard
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/layout.rs .rs
++ name=layout
++ core --test --crate-name layout crates/rndr_core/tests/layout.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-layout
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name layout crates/rndr_core/tests/layout.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-layout
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-layout
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/list.rs .rs
++ name=list
++ core --test --crate-name list crates/rndr_core/tests/list.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-list
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name list crates/rndr_core/tests/list.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-list
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-list
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/markdown.rs .rs
++ name=markdown
++ core --test --crate-name markdown crates/rndr_core/tests/markdown.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-markdown
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name markdown crates/rndr_core/tests/markdown.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-markdown
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-markdown
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/mono.rs .rs
++ name=mono
++ core --test --crate-name mono crates/rndr_core/tests/mono.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-mono
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name mono crates/rndr_core/tests/mono.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-mono
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-mono
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/overlay.rs .rs
++ name=overlay
++ core --test --crate-name overlay crates/rndr_core/tests/overlay.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-overlay
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name overlay crates/rndr_core/tests/overlay.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-overlay
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-overlay
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/pane.rs .rs
++ name=pane
++ core --test --crate-name pane crates/rndr_core/tests/pane.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-pane
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name pane crates/rndr_core/tests/pane.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-pane
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-pane
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/pointers.rs .rs
++ name=pointers
++ core --test --crate-name pointers crates/rndr_core/tests/pointers.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-pointers
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name pointers crates/rndr_core/tests/pointers.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-pointers
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-pointers
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/prompt.rs .rs
++ name=prompt
++ core --test --crate-name prompt crates/rndr_core/tests/prompt.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-prompt
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name prompt crates/rndr_core/tests/prompt.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-prompt
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-prompt
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/runtime.rs .rs
++ name=runtime
++ core --test --crate-name runtime crates/rndr_core/tests/runtime.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-runtime
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name runtime crates/rndr_core/tests/runtime.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-runtime
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-runtime
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/source_edit.rs .rs
++ name=source_edit
++ core --test --crate-name source_edit crates/rndr_core/tests/source_edit.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-source_edit
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name source_edit crates/rndr_core/tests/source_edit.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-source_edit
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-source_edit
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/split.rs .rs
++ name=split
++ core --test --crate-name split crates/rndr_core/tests/split.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-split
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name split crates/rndr_core/tests/split.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-split
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-split
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/tabs.rs .rs
++ name=tabs
++ core --test --crate-name tabs crates/rndr_core/tests/tabs.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-tabs
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name tabs crates/rndr_core/tests/tabs.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-tabs
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-tabs
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/text_engine.rs .rs
++ name=text_engine
++ core --test --crate-name text_engine crates/rndr_core/tests/text_engine.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-text_engine
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name text_engine crates/rndr_core/tests/text_engine.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-text_engine
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-text_engine
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/tray.rs .rs
++ name=tray
++ core --test --crate-name tray crates/rndr_core/tests/tray.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-tray
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name tray crates/rndr_core/tests/tray.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-tray
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-tray
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/window.rs .rs
++ name=window
++ core --test --crate-name window crates/rndr_core/tests/window.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-window
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name window crates/rndr_core/tests/window.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-window
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-window
++ for f in 'crates/rndr_core/tests/*.rs'
+++ basename crates/rndr_core/tests/wrap.rs .rs
++ name=wrap
++ core --test --crate-name wrap crates/rndr_core/tests/wrap.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-wrap
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name wrap crates/rndr_core/tests/wrap.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-wrap
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-wrap
++ paint --test --crate-name rndr_paint crates/rndr_paint/src/lib.rs -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-unit
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_paint'
++ CARGO_PKG_NAME=rndr_paint
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern 'lyon=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/liblyon-37185680a94e4faa.rlib' --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name rndr_paint crates/rndr_paint/src/lib.rs -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-unit
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-unit
++ for f in 'crates/rndr_paint/tests/*.rs'
+++ basename crates/rndr_paint/tests/a2_resolved_color.rs .rs
++ name=a2_resolved_color
++ paint --test --crate-name a2_resolved_color crates/rndr_paint/tests/a2_resolved_color.rs --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-a2_resolved_color
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_paint'
++ CARGO_PKG_NAME=rndr_paint
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern 'lyon=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/liblyon-37185680a94e4faa.rlib' --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name a2_resolved_color crates/rndr_paint/tests/a2_resolved_color.rs --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-a2_resolved_color
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-a2_resolved_color
++ for f in 'crates/rndr_paint/tests/*.rs'
+++ basename crates/rndr_paint/tests/editor.rs .rs
++ name=editor
++ paint --test --crate-name editor crates/rndr_paint/tests/editor.rs --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-editor
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_paint'
++ CARGO_PKG_NAME=rndr_paint
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern 'lyon=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/liblyon-37185680a94e4faa.rlib' --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name editor crates/rndr_paint/tests/editor.rs --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-editor
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-editor
++ for f in 'crates/rndr_paint/tests/*.rs'
+++ basename crates/rndr_paint/tests/list.rs .rs
++ name=list
++ paint --test --crate-name list crates/rndr_paint/tests/list.rs --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-list
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_paint'
++ CARGO_PKG_NAME=rndr_paint
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern 'lyon=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/liblyon-37185680a94e4faa.rlib' --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name list crates/rndr_paint/tests/list.rs --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-list
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-list
++ for f in 'crates/rndr_paint/tests/*.rs'
+++ basename crates/rndr_paint/tests/markdown.rs .rs
++ name=markdown
++ paint --test --crate-name markdown crates/rndr_paint/tests/markdown.rs --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-markdown
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_paint'
++ CARGO_PKG_NAME=rndr_paint
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern 'lyon=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/liblyon-37185680a94e4faa.rlib' --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name markdown crates/rndr_paint/tests/markdown.rs --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-markdown
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-markdown
++ for f in 'crates/rndr_paint/tests/*.rs'
+++ basename crates/rndr_paint/tests/paint.rs .rs
++ name=paint
++ paint --test --crate-name paint crates/rndr_paint/tests/paint.rs --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-paint
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_paint'
++ CARGO_PKG_NAME=rndr_paint
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern 'lyon=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/liblyon-37185680a94e4faa.rlib' --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name paint crates/rndr_paint/tests/paint.rs --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-paint
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-paint
++ for f in 'crates/rndr_paint/tests/*.rs'
+++ basename crates/rndr_paint/tests/pattern.rs .rs
++ name=pattern
++ paint --test --crate-name pattern crates/rndr_paint/tests/pattern.rs --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-pattern
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_paint'
++ CARGO_PKG_NAME=rndr_paint
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern 'lyon=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/liblyon-37185680a94e4faa.rlib' --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name pattern crates/rndr_paint/tests/pattern.rs --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-pattern
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-pattern
++ for f in 'crates/rndr_paint/tests/*.rs'
+++ basename crates/rndr_paint/tests/slot.rs .rs
++ name=slot
++ paint --test --crate-name slot crates/rndr_paint/tests/slot.rs --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-slot
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_paint'
++ CARGO_PKG_NAME=rndr_paint
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern 'lyon=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/liblyon-37185680a94e4faa.rlib' --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name slot crates/rndr_paint/tests/slot.rs --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-slot
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-slot
++ for f in 'crates/rndr_paint/tests/*.rs'
+++ basename crates/rndr_paint/tests/text_snapshot.rs .rs
++ name=text_snapshot
++ paint --test --crate-name text_snapshot crates/rndr_paint/tests/text_snapshot.rs --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-text_snapshot
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_paint'
++ CARGO_PKG_NAME=rndr_paint
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern 'lyon=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/liblyon-37185680a94e4faa.rlib' --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name text_snapshot crates/rndr_paint/tests/text_snapshot.rs --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-text_snapshot
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-text_snapshot
++ for f in 'crates/rndr_paint/tests/*.rs'
+++ basename crates/rndr_paint/tests/uncolored_text.rs .rs
++ name=uncolored_text
++ paint --test --crate-name uncolored_text crates/rndr_paint/tests/uncolored_text.rs --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-uncolored_text
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_paint'
++ CARGO_PKG_NAME=rndr_paint
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern 'lyon=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/liblyon-37185680a94e4faa.rlib' --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name uncolored_text crates/rndr_paint/tests/uncolored_text.rs --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-uncolored_text
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-uncolored_text
++ ui --test --crate-name rndr_ui crates/rndr_ui/src/lib.rs -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-unit
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui'
++ CARGO_PKG_NAME=rndr_ui
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name rndr_ui crates/rndr_ui/src/lib.rs -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-unit
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-unit
++ for f in 'crates/rndr_ui/tests/*.rs'
+++ basename crates/rndr_ui/tests/a2_adoption_boundary.rs .rs
++ name=a2_adoption_boundary
++ ui --test --crate-name a2_adoption_boundary crates/rndr_ui/tests/a2_adoption_boundary.rs --extern rndr_ui=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_ui.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-a2_adoption_boundary
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui'
++ CARGO_PKG_NAME=rndr_ui
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name a2_adoption_boundary crates/rndr_ui/tests/a2_adoption_boundary.rs --extern rndr_ui=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_ui.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-a2_adoption_boundary
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-a2_adoption_boundary
++ for f in 'crates/rndr_ui/tests/*.rs'
+++ basename crates/rndr_ui/tests/a2_malformed_controls.rs .rs
++ name=a2_malformed_controls
++ ui --test --crate-name a2_malformed_controls crates/rndr_ui/tests/a2_malformed_controls.rs --extern rndr_ui=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_ui.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-a2_malformed_controls
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui'
++ CARGO_PKG_NAME=rndr_ui
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name a2_malformed_controls crates/rndr_ui/tests/a2_malformed_controls.rs --extern rndr_ui=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_ui.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-a2_malformed_controls
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-a2_malformed_controls
++ for f in 'crates/rndr_ui/tests/*.rs'
+++ basename crates/rndr_ui/tests/a2_nested_paint.rs .rs
++ name=a2_nested_paint
++ ui --test --crate-name a2_nested_paint crates/rndr_ui/tests/a2_nested_paint.rs --extern rndr_ui=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_ui.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-a2_nested_paint
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui'
++ CARGO_PKG_NAME=rndr_ui
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name a2_nested_paint crates/rndr_ui/tests/a2_nested_paint.rs --extern rndr_ui=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_ui.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-a2_nested_paint
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-a2_nested_paint
++ for f in 'crates/rndr_ui/tests/*.rs'
+++ basename crates/rndr_ui/tests/a2_operating.rs .rs
++ name=a2_operating
++ ui --test --crate-name a2_operating crates/rndr_ui/tests/a2_operating.rs --extern rndr_ui=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_ui.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-a2_operating
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui'
++ CARGO_PKG_NAME=rndr_ui
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name a2_operating crates/rndr_ui/tests/a2_operating.rs --extern rndr_ui=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_ui.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-a2_operating
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-a2_operating
++ for f in 'crates/rndr_ui/tests/*.rs'
+++ basename crates/rndr_ui/tests/a2_states.rs .rs
++ name=a2_states
++ ui --test --crate-name a2_states crates/rndr_ui/tests/a2_states.rs --extern rndr_ui=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_ui.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-a2_states
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui'
++ CARGO_PKG_NAME=rndr_ui
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name a2_states crates/rndr_ui/tests/a2_states.rs --extern rndr_ui=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_ui.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-a2_states
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-a2_states
++ for f in 'crates/rndr_ui/tests/*.rs'
+++ basename crates/rndr_ui/tests/a2_toolbar_type_update.rs .rs
++ name=a2_toolbar_type_update
++ ui --test --crate-name a2_toolbar_type_update crates/rndr_ui/tests/a2_toolbar_type_update.rs --extern rndr_ui=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_ui.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-a2_toolbar_type_update
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui'
++ CARGO_PKG_NAME=rndr_ui
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name a2_toolbar_type_update crates/rndr_ui/tests/a2_toolbar_type_update.rs --extern rndr_ui=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_ui.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-a2_toolbar_type_update
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-a2_toolbar_type_update
++ for f in 'crates/rndr_ui/tests/*.rs'
+++ basename crates/rndr_ui/tests/complete_gallery.rs .rs
++ name=complete_gallery
++ ui --test --crate-name complete_gallery crates/rndr_ui/tests/complete_gallery.rs --extern rndr_ui=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_ui.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-complete_gallery
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui'
++ CARGO_PKG_NAME=rndr_ui
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name complete_gallery crates/rndr_ui/tests/complete_gallery.rs --extern rndr_ui=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_ui.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-complete_gallery
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-complete_gallery
++ for f in 'crates/rndr_ui/tests/*.rs'
+++ basename crates/rndr_ui/tests/foundations.rs .rs
++ name=foundations
++ ui --test --crate-name foundations crates/rndr_ui/tests/foundations.rs --extern rndr_ui=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_ui.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-foundations
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui'
++ CARGO_PKG_NAME=rndr_ui
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name foundations crates/rndr_ui/tests/foundations.rs --extern rndr_ui=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_ui.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-foundations
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-foundations
++ for f in 'crates/rndr_ui/tests/*.rs'
+++ basename crates/rndr_ui/tests/malformed_lifecycle.rs .rs
++ name=malformed_lifecycle
++ ui --test --crate-name malformed_lifecycle crates/rndr_ui/tests/malformed_lifecycle.rs --extern rndr_ui=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_ui.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-malformed_lifecycle
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui'
++ CARGO_PKG_NAME=rndr_ui
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name malformed_lifecycle crates/rndr_ui/tests/malformed_lifecycle.rs --extern rndr_ui=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_ui.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-malformed_lifecycle
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-malformed_lifecycle
++ for f in 'crates/rndr_ui/tests/*.rs'
+++ basename crates/rndr_ui/tests/paint_evidence.rs .rs
++ name=paint_evidence
++ ui --test --crate-name paint_evidence crates/rndr_ui/tests/paint_evidence.rs --extern rndr_ui=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_ui.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-paint_evidence
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui'
++ CARGO_PKG_NAME=rndr_ui
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name paint_evidence crates/rndr_ui/tests/paint_evidence.rs --extern rndr_ui=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_ui.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-paint_evidence
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-paint_evidence
++ printf '#[path = "%s/crates/rndr_render/src/a11y.rs"] mod actual_adapter;\n' '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library'
++ rustc --edition=2021 --test --crate-name actual_adapter /tmp/rndr-a2-independent-SQwoYo/exact/adapter-wrapper.rs -C debuginfo=0 -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern 'accesskit=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libaccesskit-46f958fdc5b7a499.rlib' -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/actual-adapter
+warning: function `command` is never used
+  --> /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_render/src/a11y.rs:29:15
+   |
+29 | pub(crate) fn command(request: &accesskit::ActionRequest) -> Option<Acce...
+   |               ^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: 1 warning emitted
+
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/actual-adapter
++ for name in independent original4 tab_release
++ case "$name" in
++ f='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/evidence/a2-20261101-mZVyJv/accepted-a1-review/independent.rs'
++ core --test --crate-name independent '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/evidence/a2-20261101-mZVyJv/accepted-a1-review/independent.rs' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/probe-independent
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name independent '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/evidence/a2-20261101-mZVyJv/accepted-a1-review/independent.rs' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/probe-independent
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/probe-independent
++ for name in independent original4 tab_release
++ case "$name" in
++ f=evidence/a1-ownership-20261101-2t23Vj/reviewer/adversarial.rs
++ core --test --crate-name original4 evidence/a1-ownership-20261101-2t23Vj/reviewer/adversarial.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/probe-original4
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name original4 evidence/a1-ownership-20261101-2t23Vj/reviewer/adversarial.rs --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/probe-original4
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/probe-original4
++ for name in independent original4 tab_release
++ case "$name" in
++ f='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/evidence/a2-20261101-mZVyJv/tab-release-repro.rs'
++ core --test --crate-name tab_release '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/evidence/a2-20261101-mZVyJv/tab-release-repro.rs' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/probe-tab_release
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core'
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' --test --crate-name tab_release '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/evidence/a2-20261101-mZVyJv/tab-release-repro.rs' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/probe-tab_release
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/probe-tab_release
++ ui --crate-name operating_gallery crates/rndr_ui/examples/operating_gallery.rs --extern rndr_ui=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_ui.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/operating-gallery
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui'
++ CARGO_PKG_NAME=rndr_ui
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_current_exact -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --crate-name operating_gallery crates/rndr_ui/examples/operating_gallery.rs --extern rndr_ui=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_ui.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/operating-gallery
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/operating-gallery /tmp/rndr-a2-independent-SQwoYo/exact/direct-gallery
++ git archive 04642fe03f7603f228eaf9b83611641a95676e8d crates/rndr_core
++ tar -xf - -C /tmp/rndr-a2-independent-SQwoYo/exact/baseline
++ python3 - /tmp/rndr-a2-independent-SQwoYo/exact
++ CARGO_MANIFEST_DIR=/tmp/rndr-a2-independent-SQwoYo/exact/baseline/crates/rndr_core
++ CARGO_PKG_NAME=rndr_core
++ rustc --edition=2021 --cfg 'feature="default"' --crate-name rndr_core --crate-type rlib /tmp/rndr-a2-independent-SQwoYo/exact/baseline/crates/rndr_core/src/lib.rs -C debuginfo=0 -C metadata=a1_baseline_exact -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib' -o /tmp/rndr-a2-independent-SQwoYo/exact/baseline/librndr_core.rlib
++ for name in tab_release nested_focus
++ case "$name" in
++ f='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/evidence/a2-20261101-mZVyJv/tab-release-repro.rs'
++ rustc --edition=2021 --test --crate-name tab_release '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/evidence/a2-20261101-mZVyJv/tab-release-repro.rs' -C debuginfo=0 -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/baseline -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/baseline/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/baseline-tab_release
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/baseline-tab_release
++ code=101
++ test 101 = 101
++ for name in tab_release nested_focus
++ case "$name" in
++ f=crates/rndr_core/tests/a2_nested_focus.rs
++ rustc --edition=2021 --test --crate-name nested_focus crates/rndr_core/tests/a2_nested_focus.rs -C debuginfo=0 -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/baseline -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/baseline/librndr_core.rlib -o /tmp/rndr-a2-independent-SQwoYo/exact/bin/baseline-nested_focus
++ /tmp/rndr-a2-independent-SQwoYo/exact/bin/baseline-nested_focus
++ code=101
++ test 101 = 101
++ grep -q 'must select that tab' /tmp/rndr-a2-independent-SQwoYo/exact/logs/baseline-tab_release.expected-failure.log
++ grep -q 'outer ancestor must also reveal target' /tmp/rndr-a2-independent-SQwoYo/exact/logs/baseline-nested_focus.expected-failure.log
++ shasum -a 256 /tmp/rndr-a2-independent-SQwoYo/exact/baseline/librndr_core.rlib /tmp/rndr-a2-independent-SQwoYo/exact/bin/actual-adapter /tmp/rndr-a2-independent-SQwoYo/exact/bin/baseline-nested_focus /tmp/rndr-a2-independent-SQwoYo/exact/bin/baseline-tab_release /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_cancellation_edges /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_hotkey_ownership /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_interaction /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_lifecycle /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_logical_only /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_relation_lifecycle /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_reproductions /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_review_corrections /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a1_wrapped_hug /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a2_core_contracts /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-a2_nested_focus /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-actions /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-body /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-button /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-caret /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-click_caret /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-clipboard /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-decorations /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-desktop_exit /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-ecs /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-edit /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-editor /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-editor_drag /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-editor_navigation /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-feed /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-field /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-focus /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-font /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-fs /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-hotkey /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-ime /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-input_platform /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-keyboard /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-layout /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-list /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-markdown /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-mono /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-overlay /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-pane /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-pointers /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-prompt /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-runtime /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-source_edit /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-split /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-tabs /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-text_engine /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-tray /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-unit /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-window /tmp/rndr-a2-independent-SQwoYo/exact/bin/core-wrap /tmp/rndr-a2-independent-SQwoYo/exact/bin/operating-gallery /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-a2_resolved_color /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-editor /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-list /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-markdown /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-paint /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-pattern /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-slot /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-text_snapshot /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-uncolored_text /tmp/rndr-a2-independent-SQwoYo/exact/bin/paint-unit /tmp/rndr-a2-independent-SQwoYo/exact/bin/probe-independent /tmp/rndr-a2-independent-SQwoYo/exact/bin/probe-original4 /tmp/rndr-a2-independent-SQwoYo/exact/bin/probe-tab_release /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-a2_adoption_boundary /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-a2_malformed_controls /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-a2_nested_paint /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-a2_operating /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-a2_states /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-a2_toolbar_type_update /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-complete_gallery /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-foundations /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-malformed_lifecycle /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-paint_evidence /tmp/rndr-a2-independent-SQwoYo/exact/bin/ui-unit
++ hash_sources
++ git ls-files -z crates/rndr_core crates/rndr_paint crates/rndr_ui crates/rndr_render/src/a11y.rs crates/rndr/examples/ui_gallery.rs crates/rndr/Cargo.toml Cargo.lock
++ xargs -0 shasum -a 256
++ cmp /tmp/rndr-a2-independent-SQwoYo/exact/source-before-sha256.txt /tmp/rndr-a2-independent-SQwoYo/exact/source-after-sha256.txt
++ python3 - /tmp/rndr-a2-independent-SQwoYo/exact
++ printf 'ALL DIRECT CURRENT-SOURCE SUITES AND EXPECTED BASELINE REPRODUCTIONS PASS\n'

@@ -1,0 +1,19 @@
+
+running 14 tests
+test close::tests::cancel_invalidate_and_foreign_tokens ... ok
+test close::tests::discard_requires_current_failure ... ok
+test close::tests::failure_duplicate_retry_and_stale_completions ... ok
+test font::tests::left_edge_alias_of_the_next_line_stays_on_this_line ... ok
+test font::tests::rtl_selection_follows_visual_edges ... ok
+test markdown::tests::partial_fence_and_emphasis_leave_the_paragraph_above_them ... ok
+test markdown::tests::copied_selection_keeps_markdown_structure ... ok
+test markdown::tests::parses_headings_emphasis_code_links_lists_quotes_and_rules ... ok
+test markdown::tests::partial_inline_constructs_do_not_show_raw_markers ... ok
+test markdown::tests::adjacent_lists_keep_the_blank_line_and_a_past_end_start_does_not ... ok
+test markdown::tests::copied_inline_markers_and_nested_numbers_round_trip ... ok
+test markdown::tests::partial_task_markers_draw_as_checkboxes ... ok
+test editor::tests::document_rows_cache_geometry_and_invalidate_for_text_width_style_and_engine ... ok
+test markdown::tests::streamed_prefixes_match_a_full_parse ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

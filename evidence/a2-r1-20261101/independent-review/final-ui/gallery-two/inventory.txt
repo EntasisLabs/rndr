@@ -1,0 +1,8 @@
+light-wide: quads=691 glyphs=647 accepted=1 preview=false
+dark-wide-preview: quads=746 glyphs=702 accepted=1 preview=true
+light-narrow-200-long: quads=747 glyphs=703 accepted=1 preview=false
+dark-compact-200-long: quads=802 glyphs=758 accepted=1 preview=true
+high-light-200: quads=579 glyphs=535 accepted=1 preview=false
+high-dark-compact: quads=695 glyphs=651 accepted=1 preview=true
+reflow-400-equivalent: quads=780 glyphs=736 accepted=1 preview=false
+wide-long: quads=867 glyphs=823 accepted=1 preview=false

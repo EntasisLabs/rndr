@@ -1,0 +1,16 @@
+
+running 11 tests
+test selection_spans_cover_each_line ... ok
+test click_fills_the_pane_without_a_caret ... ok
+test left_while_editing_does_not_open_alpha ... ok
+test typing_writes_back_to_the_tree ... ok
+test shift_left_then_type_replaces_the_selection ... ok
+test escape_leaves_the_caret_and_keeps_selection ... ok
+test enter_on_alpha_starts_edit ... ok
+test backspace_deletes_the_selection ... ok
+test click_places_the_caret_on_that_cell ... ok
+test shift_click_extends_the_selection ... ok
+test left_then_type_inserts_in_the_middle ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

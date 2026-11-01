@@ -1,0 +1,61 @@
+++ pwd
++ root='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library'
++ deps='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps'
++ evidence='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/evidence/a2-20261101-mZVyJv'
++ export CARGO_BUILD_JOBS=2 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0
++ CARGO_BUILD_JOBS=2
++ CARGO_PROFILE_DEV_DEBUG=0
++ CARGO_PROFILE_TEST_DEBUG=0
++ CARGO_INCREMENTAL=0
++ export CARGO_PKG_VERSION=0.3.1 CARGO_PKG_NAME=rndr_ui 'CARGO_MANIFEST_DIR=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui'
++ CARGO_PKG_VERSION=0.3.1
++ CARGO_PKG_NAME=rndr_ui
++ CARGO_MANIFEST_DIR='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui'
++ export INSTA_UPDATE=no 'INSTA_WORKSPACE_ROOT=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library'
++ INSTA_UPDATE=no
++ INSTA_WORKSPACE_ROOT='/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library'
++ git diff --exit-code HEAD -- crates Cargo.lock
++ git rev-parse HEAD
++ rustc -Vv
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+binary: rustc
+commit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea
+commit-date: 2026-08-18
+host: aarch64-apple-darwin
+release: 1.98.0
+LLVM version: 22.1.8
++ shasum -a 256 evidence/a2-r1-20261101/verify-ui.sh
++ python3 - /tmp/rndr-a2-independent-SQwoYo/exact /tmp/rndr-a2-r1-final-ui
++ hash_ui
++ git ls-files -z crates/rndr_ui
++ xargs -0 shasum -a 256
++ ui --crate-name rndr_ui --crate-type rlib crates/rndr_ui/src/lib.rs -o /tmp/rndr-a2-r1-final-ui/current/librndr_ui.rlib
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_handoff_ui_exact -L dependency=/tmp/rndr-a2-r1-final-ui/current -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --crate-name rndr_ui --crate-type rlib crates/rndr_ui/src/lib.rs -o /tmp/rndr-a2-r1-final-ui/current/librndr_ui.rlib
++ shasum -a 256 /tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib /tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib /tmp/rndr-a2-r1-final-ui/current/librndr_ui.rlib
++ ui --test --crate-name rndr_ui crates/rndr_ui/src/lib.rs -o /tmp/rndr-a2-r1-final-ui/bin/ui-unit
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_handoff_ui_exact -L dependency=/tmp/rndr-a2-r1-final-ui/current -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name rndr_ui crates/rndr_ui/src/lib.rs -o /tmp/rndr-a2-r1-final-ui/bin/ui-unit
++ /tmp/rndr-a2-r1-final-ui/bin/ui-unit
++ for f in 'crates/rndr_ui/tests/*.rs'
+++ basename crates/rndr_ui/tests/a2_adoption_boundary.rs .rs
++ name=a2_adoption_boundary
++ ui --test --crate-name a2_adoption_boundary crates/rndr_ui/tests/a2_adoption_boundary.rs --extern rndr_ui=/tmp/rndr-a2-r1-final-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-r1-final-ui/bin/ui-a2_adoption_boundary
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_handoff_ui_exact -L dependency=/tmp/rndr-a2-r1-final-ui/current -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name a2_adoption_boundary crates/rndr_ui/tests/a2_adoption_boundary.rs --extern rndr_ui=/tmp/rndr-a2-r1-final-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-r1-final-ui/bin/ui-a2_adoption_boundary
++ /tmp/rndr-a2-r1-final-ui/bin/ui-a2_adoption_boundary
++ for f in 'crates/rndr_ui/tests/*.rs'
+++ basename crates/rndr_ui/tests/a2_malformed_controls.rs .rs
++ name=a2_malformed_controls
++ ui --test --crate-name a2_malformed_controls crates/rndr_ui/tests/a2_malformed_controls.rs --extern rndr_ui=/tmp/rndr-a2-r1-final-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-r1-final-ui/bin/ui-a2_malformed_controls
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_handoff_ui_exact -L dependency=/tmp/rndr-a2-r1-final-ui/current -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name a2_malformed_controls crates/rndr_ui/tests/a2_malformed_controls.rs --extern rndr_ui=/tmp/rndr-a2-r1-final-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-r1-final-ui/bin/ui-a2_malformed_controls
++ /tmp/rndr-a2-r1-final-ui/bin/ui-a2_malformed_controls
++ for f in 'crates/rndr_ui/tests/*.rs'
+++ basename crates/rndr_ui/tests/a2_nested_paint.rs .rs
++ name=a2_nested_paint
++ ui --test --crate-name a2_nested_paint crates/rndr_ui/tests/a2_nested_paint.rs --extern rndr_ui=/tmp/rndr-a2-r1-final-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-r1-final-ui/bin/ui-a2_nested_paint
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_handoff_ui_exact -L dependency=/tmp/rndr-a2-r1-final-ui/current -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name a2_nested_paint crates/rndr_ui/tests/a2_nested_paint.rs --extern rndr_ui=/tmp/rndr-a2-r1-final-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-r1-final-ui/bin/ui-a2_nested_paint
++ /tmp/rndr-a2-r1-final-ui/bin/ui-a2_nested_paint
++ for f in 'crates/rndr_ui/tests/*.rs'
+++ basename crates/rndr_ui/tests/a2_operating.rs .rs
++ name=a2_operating
++ ui --test --crate-name a2_operating crates/rndr_ui/tests/a2_operating.rs --extern rndr_ui=/tmp/rndr-a2-r1-final-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-r1-final-ui/bin/ui-a2_operating
++ rustc --edition=2021 -C debuginfo=0 -C metadata=a2_handoff_ui_exact -L dependency=/tmp/rndr-a2-r1-final-ui/current -L dependency=/tmp/rndr-a2-independent-SQwoYo/exact/current -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern rndr_core=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_core.rlib --extern rndr_paint=/tmp/rndr-a2-independent-SQwoYo/exact/current/librndr_paint.rlib --extern 'insta=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libinsta-ceeb3b5188bdb88b.rlib' --test --crate-name a2_operating crates/rndr_ui/tests/a2_operating.rs --extern rndr_ui=/tmp/rndr-a2-r1-final-ui/current/librndr_ui.rlib -o /tmp/rndr-a2-r1-final-ui/bin/ui-a2_operating
++ /tmp/rndr-a2-r1-final-ui/bin/ui-a2_operating

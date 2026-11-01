@@ -1,0 +1,16 @@
+
+running 11 tests
+test kerning_moves_the_caret_and_the_hit_test ... ok
+test fallback_list_tries_the_next_face ... ok
+test line_height_multiplier_sets_the_line_box ... ok
+test caret_hit_test_uses_advances ... ok
+test alignment_shifts_a_finite_line_and_leaves_an_unwrapped_line ... ok
+test letter_spacing_moves_only_later_clusters ... ok
+test paragraph_spacing_follows_a_newline_and_skips_soft_wraps ... ok
+test layout_cache_reuses_a_line_and_drops_it_after_two_idle_frames ... ok
+test an_idle_line_is_evicted_while_a_touched_line_stays ... ok
+test styled_run_sets_weight_and_a_highlight ... ok
+test a_field_click_hit_tests_through_the_engine ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

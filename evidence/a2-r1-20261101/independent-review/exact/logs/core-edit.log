@@ -1,0 +1,10 @@
+
+running 5 tests
+test backspace_inside_a_scalar_removes_the_whole_scalar ... ok
+test backspace_deletes_a_combining_grapheme ... ok
+test arrows_and_backspace_step_by_scalar ... ok
+test backspace_and_arrows_treat_a_flag_as_one_grapheme ... ok
+test ascii_caret_still_moves_one_byte ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

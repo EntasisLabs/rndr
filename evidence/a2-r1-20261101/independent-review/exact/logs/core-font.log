@@ -1,0 +1,13 @@
+
+running 8 tests
+test bitmap_places_glyphs_on_the_cell_grid ... ok
+test text_face_is_what_layout_measures ... ok
+test wrap_inside_a_span_keeps_every_glyph ... ok
+test proportional_face_wraps_on_advances ... ok
+test measure_matches_layout_width_and_line_count ... ok
+test wrap_keeps_every_line_inside_the_label ... ok
+test ellipsis_stays_on_one_line_inside_the_label ... ok
+test an_ellipsis_label_hugs_a_single_line ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

@@ -1,0 +1,12 @@
+{
+  "cargo_libraries": 520,
+  "cargo_render": 24,
+  "exact_ui": 37,
+  "rerun_core": 411,
+  "rerun_paint": 62,
+  "rerun_actual-adapter": 2,
+  "rerun_probe": 13,
+  "adversarial": 5,
+  "geometry_tests": 1,
+  "geometry_configurations": 64
+}

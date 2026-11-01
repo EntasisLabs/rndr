@@ -1,0 +1,7 @@
+Evidence-only seal parent: aba338dfa77a50cd92b6b182fe78074584a20841
+Starting clean HEAD:31006f0dfb834ea90e8b20ebac3b41d10dcdf88d
+Allowed seal delta: additions under evidence/a2-r1-20261101/ ONLY.
+All final source and all504 older evidence file SHA256 rows rechecked before sealing.
+No source change after verified implementation; old evidence untouched; no acceptance/integration.
+Manifest format: SHA256, two spaces, repository-root-relative path. Excludes only this manifest itself.
+Exact seal/report/manifest hashes returned by terminal handoff after commit.

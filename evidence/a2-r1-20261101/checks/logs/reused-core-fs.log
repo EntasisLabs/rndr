@@ -1,0 +1,21 @@
+
+running 16 tests
+test delete_fs_root_is_noop ... ok
+test expand_lists_dir_and_skips_hidden ... ok
+test delete_nonempty_dir_is_noop ... ok
+test binary_file_does_not_save ... ok
+test nodespec_tree_ignores_save ... ok
+test nodespec_tree_ignores_new_and_delete ... ok
+test delete_clean_file ... ok
+test new_creates_untitled_file ... ok
+test enter_file_loads_body ... ok
+test collapse_flushes_dirty_child ... ok
+test shift_new_creates_untitled_dir ... ok
+test save_writes_disk_and_clears_dirty ... ok
+test edit_marks_the_tree_row_until_save ... ok
+test collapse_and_reopen_reads_saved_text ... ok
+test delete_saves_dirty_then_unlinks ... ok
+test save_renames_the_file ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

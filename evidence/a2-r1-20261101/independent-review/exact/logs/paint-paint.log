@@ -1,0 +1,18 @@
+
+running 13 tests
+test latin_i_is_narrower_than_m ... ok
+test frame_runs_startup_once_then_paints ... ok
+test glyphs_outside_the_clip_are_dropped ... ok
+test caret_sits_on_the_glyph_column ... ok
+test prompt_scroll_shifts_the_caret ... ok
+test an_image_past_the_parent_is_clipped ... ok
+test an_image_view_is_centered_and_keeps_its_radius ... ok
+test prompt_text_is_clipped_to_the_content_band ... ok
+test an_image_view_records_a_command_and_does_not_add_a_fill ... ok
+test radius_is_on_the_solid_and_not_the_glyphs ... ok
+test two_spans_paint_two_colors ... ok
+test labeled_rect_paints_a_solid_quad_then_glyphs ... ok
+test find_on_line_50_paints_only_when_visible ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

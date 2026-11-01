@@ -1,0 +1,20 @@
+
+running 1 test
+test tab_release_on_its_label_descendant_must_select ... FAILED
+
+failures:
+
+---- tab_release_on_its_label_descendant_must_select stdout ----
+
+thread 'tab_release_on_its_label_descendant_must_select' (527457) panicked at /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/evidence/a2-20261101-mZVyJv/tab-release-repro.rs:12:5:
+assertion `left == right` failed: release over the tab label descendant must select that tab
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    tab_release_on_its_label_descendant_must_select
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

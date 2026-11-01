@@ -1,0 +1,1 @@
+CURRENT source direct UI:32 PASS. Unchanged full direct core411+paint62+actual adapter2 also PASS (source/artifact identities verified). Aggregate507 direct library tests; Cargo separately verifies9core+1paint doctests, total517 baseline categories. Extra core probes13 are preserved separately.

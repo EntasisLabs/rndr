@@ -1,0 +1,3496 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index a021d5d..6cd1320 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -3115,6 +3115,7 @@ dependencies = [
+  "rndr_render",
+  "rndr_std",
+  "rndr_term",
++ "rndr_ui",
+ ]
+ 
+ [[package]]
+diff --git a/crates/rndr/Cargo.toml b/crates/rndr/Cargo.toml
+index 4f17cdf..9ef0c91 100644
+--- a/crates/rndr/Cargo.toml
++++ b/crates/rndr/Cargo.toml
+@@ -41,6 +41,10 @@ rndr_std = { workspace = true }
+ rndr_render = { path = "../rndr_render", version = "0.3.1", default-features = false }
+ rndr_term = { workspace = true, optional = true }
+ 
++[dev-dependencies]
++# Operating gallery only: default/legacy applications do not adopt rndr_ui.
++rndr_ui = { path = "../rndr_ui" }
++
+ [package.metadata.docs.rs]
+ # docs.rs uses the crates-build-env image, which includes libfontconfig1-dev,
+ # libxkbcommon, Wayland, and Vulkan. `parley` links fontconfig on Linux.
+diff --git a/crates/rndr/examples/ui_gallery.rs b/crates/rndr/examples/ui_gallery.rs
+new file mode 100644
+index 0000000..8666373
+--- /dev/null
++++ b/crates/rndr/examples/ui_gallery.rs
+@@ -0,0 +1,40 @@
++//! Native launcher for the same synthetic, headless-tested operating gallery.
++//! This does not adopt UI components in a legacy/default application.
++#[path = "../../rndr_ui/examples/support/operating.rs"]
++mod operating;
++use rndr_core::{LogicalSize, WindowConfig};
++use rndr_ui::*;
++fn main() {
++    let args: Vec<_> = std::env::args().collect();
++    let has = |s: &str| args.iter().any(|a| a == s);
++    let width = if has("--narrow") { 320.0 } else { 1000.0 };
++    let scale = if has("--200") { 2.0 } else { 1.0 };
++    let theme = UiTheme {
++        appearance: if has("--dark") {
++            Appearance::Dark
++        } else {
++            Appearance::Light
++        },
++        contrast: if has("--hc") {
++            Contrast::High
++        } else {
++            Contrast::Standard
++        },
++        density: if has("--compact") {
++            Density::Compact
++        } else {
++            Density::Comfortable
++        },
++        text_scale: scale,
++        reading_scale: scale,
++        ..UiTheme::default()
++    };
++    let mut app = operating::create(width, 700.0, theme, has("--long"));
++    app.world_mut().insert_resource(WindowConfig {
++        title: "rndr A2 — synthetic host (not Blooey)".into(),
++        size: LogicalSize::new(width, 700.0),
++        min_size: Some(LogicalSize::new(280.0, 240.0)),
++        ..WindowConfig::default()
++    });
++    rndr::run(app);
++}
+diff --git a/crates/rndr_core/src/access.rs b/crates/rndr_core/src/access.rs
+index a39cd29..0ca9926 100644
+--- a/crates/rndr_core/src/access.rs
++++ b/crates/rndr_core/src/access.rs
+@@ -319,10 +319,11 @@ fn collect(
+             ),
+         focused: focus.is_some_and(|focus| focus == entity || focus_inside(world, entity, focus)),
+         selected: selected(world, entity, role),
+-        enabled: world
+-            .get::<Button>(entity)
+-            .map(|button| button.enabled)
+-            .unwrap_or(true),
++        enabled: !world.has::<crate::ControlDisabled>(entity)
++            && world
++                .get::<Button>(entity)
++                .map(|button| button.enabled)
++                .unwrap_or(true),
+         expanded: world
+             .get::<Disclosure>(entity)
+             .map(|disclosure| disclosure.open),
+@@ -369,6 +370,9 @@ fn role_of(world: &World, entity: Entity) -> Option<AccessRole> {
+ }
+ 
+ fn selected(world: &World, entity: Entity, role: AccessRole) -> bool {
++    if let Some(state) = world.get::<crate::SelectedState>(entity) {
++        return state.0;
++    }
+     match role {
+         AccessRole::ListItem => world
+             .get::<ListItem>(entity)
+diff --git a/crates/rndr_core/src/focus.rs b/crates/rndr_core/src/focus.rs
+index d421b6e..df772eb 100644
+--- a/crates/rndr_core/src/focus.rs
++++ b/crates/rndr_core/src/focus.rs
+@@ -4,7 +4,7 @@ use crate::entity::Entity;
+ use crate::fs::FsPath;
+ use crate::hierarchy::{children_of, roots, Parent};
+ use crate::input::{Focus, Input, Key};
+-use crate::layout::{ancestor_with, hit_test, Clip, Rect, Scroll};
++use crate::layout::{ancestor_with, hit_test, Rect, Scroll};
+ use crate::pane::{set_selection, Selection};
+ use crate::style::Label;
+ use crate::world::World;
+@@ -272,38 +272,38 @@ pub(crate) fn ensure_focus_visible(world: &mut World) {
+     let Some(entity) = current_focus(world) else {
+         return;
+     };
+-    let Some(rect) = focus_rect(world, entity) else {
++    let Some(mut rect) = focus_rect(world, entity) else {
+         return;
+     };
+-    let Some(scroll_entity) = ancestor_with::<Scroll>(world, entity) else {
+-        return;
+-    };
+-    let Some(port) = world.get::<Clip>(scroll_entity).copied().or_else(|| {
+-        world
+-            .get::<Rect>(scroll_entity)
+-            .copied()
+-            .map(Clip::from_rect)
+-    }) else {
+-        return;
+-    };
+-    let mut dy = 0.0f32;
+-    if rect.y < port.y {
+-        dy = port.y - rect.y;
+-    } else if rect.y + rect.h > port.y + port.h {
+-        dy = (port.y + port.h) - (rect.y + rect.h);
+-    }
+-    let mut dx = 0.0f32;
+-    if rect.x < port.x {
+-        dx = port.x - rect.x;
+-    } else if rect.x + rect.w > port.x + port.w {
+-        dx = (port.x + port.w) - (rect.x + rect.w);
+-    }
+-    if dx == 0.0 && dy == 0.0 {
+-        return;
+-    }
+-    if let Some(scroll) = world.get_mut::<Scroll>(scroll_entity) {
+-        scroll.offset[0] += dx;
+-        scroll.offset[1] += dy;
++    // A clipped (possibly entirely offscreen) inner viewport cannot reveal its
++    // own ancestors. Resolve each local viewport inside-out, carrying the actual
++    // target translation forward until the outermost scroll container is reached.
++    let mut current = Some(entity);
++    while let Some(scroll_entity) = current.and_then(|e| ancestor_with::<Scroll>(world, e)) {
++        let Some(port) = world.get::<Rect>(scroll_entity).copied() else {
++            break;
++        };
++        let dy = if rect.y < port.y {
++            port.y - rect.y
++        } else if rect.y + rect.h > port.y + port.h {
++            port.y + port.h - rect.y - rect.h
++        } else {
++            0.0
++        };
++        let dx = if rect.x < port.x {
++            port.x - rect.x
++        } else if rect.x + rect.w > port.x + port.w {
++            port.x + port.w - rect.x - rect.w
++        } else {
++            0.0
++        };
++        if let Some(scroll) = world.get_mut::<Scroll>(scroll_entity) {
++            scroll.offset[0] += dx;
++            scroll.offset[1] += dy;
++            rect.x += dx;
++            rect.y += dy;
++        }
++        current = world.get::<Parent>(scroll_entity).map(|p| p.entity);
+     }
+ }
+ 
+diff --git a/crates/rndr_core/src/interaction.rs b/crates/rndr_core/src/interaction.rs
+index 5d79962..dabd55b 100644
+--- a/crates/rndr_core/src/interaction.rs
++++ b/crates/rndr_core/src/interaction.rs
+@@ -56,6 +56,8 @@ pub struct AccessDetails {
+     pub controls: Option<u64>,
+     /// Panel is labelled by this tab's access id.
+     pub labelled_by: Option<u64>,
++    /// Explicit orientation for opted-in manual tablists.
++    pub orientation: Option<TabOrientation>,
+ }
+ 
+ /// Validate generation and every ancestor's visibility.
+@@ -89,7 +91,8 @@ pub fn access_details(world: &World, entity: Entity) -> AccessDetails {
+         return AccessDetails::default();
+     }
+     let semantics = world.get::<Semantics>(entity).cloned().unwrap_or_default();
+-    let enabled = world.get::<Button>(entity).is_none_or(|b| b.enabled);
++    let enabled = !world.has::<ControlDisabled>(entity)
++        && world.get::<Button>(entity).is_none_or(|b| b.enabled);
+     let relation = valid_tab_relation(world, entity);
+     let valid_row = valid_list_row(world, entity);
+     AccessDetails {
+@@ -119,6 +122,7 @@ pub fn access_details(world: &World, entity: Entity) -> AccessDetails {
+                         crate::tabs::tab_group(world, entity).is_some()
+                     }))),
+         set_value: false,
++        orientation: world.get::<ManualTabs>(entity).map(|p| p.0),
+         panel: world.has::<TabPanel>(entity),
+         controls: relation.map(|r| access_id(r.panel)),
+         labelled_by: world
+@@ -370,12 +374,21 @@ pub fn cancel_activation(world: &mut World) {
+     }
+ }
+ 
++/// Read-only view of canonical armed state for visuals, not another input path.
++/// Cancellation, disabled/readonly and visibility are revalidated on every query.
++pub fn interaction_pressed(world: &World, entity: Entity) -> bool {
++    access_details(world, entity).activate
++        && world
++            .resource::<InteractionState>()
++            .is_some_and(|s| s.space == Some(entity) || s.pointer.is_some_and(|(e, _)| e == entity))
++}
++
+ fn focus_order(world: &World) -> Vec<Entity> {
+     fn walk(world: &World, entity: Entity, out: &mut Vec<Entity>) {
+         if !interaction_visible(world, entity) {
+             return;
+         }
+-        if access_details(world, entity).focus {
++        if access_details(world, entity).focus && crate::manual_tabs::roving_stop(world, entity) {
+             out.push(entity);
+         }
+         for child in children_of(world, entity) {
+@@ -512,7 +525,8 @@ pub(crate) fn apply_generic_input(world: &mut World) {
+                 )
+                 .is_some_and(|hit| {
+                     hit == entity
+-                        || crate::layout::ancestor_with::<Button>(world, hit) == Some(entity)
++                        || crate::layout::ancestor_with::<ReleaseActivation>(world, hit)
++                            == Some(entity)
+                 });
+                 if inside {
+                     try_activate(world, entity);
+@@ -581,6 +595,8 @@ pub(crate) fn apply_generic_input(world: &mut World) {
+                     request_focus(world, order[index]);
+                 }
+                 consumed = true;
++            } else if crate::manual_tabs::manual_tab_key(world, focus, &event) {
++                consumed = true;
+             } else if event.logical == LogicalKey::Named(NamedKey::Escape) {
+                 cancel_activation(world);
+                 consumed = had_armed;
+diff --git a/crates/rndr_core/src/lib.rs b/crates/rndr_core/src/lib.rs
+index aa45fd2..ec70fc3 100644
+--- a/crates/rndr_core/src/lib.rs
++++ b/crates/rndr_core/src/lib.rs
+@@ -247,10 +247,13 @@ pub use wrap::{
+     TEXT_INSET_Y,
+ };
+ 
++mod manual_tabs;
++pub use manual_tabs::{ControlDisabled, ManualTabs, ResolvedColor, SelectedState, TabOrientation};
++
+ pub use interaction::{
+-    access_details, cancel_activation, interaction_visible, request_focus, take_action_intents,
+-    try_activate, AccessDetails, ActionIntent, ActionIntents, ActivationResult, GenericInteraction,
+-    ReleaseActivation, Semantics, TabRelation,
++    access_details, cancel_activation, interaction_pressed, interaction_visible, request_focus,
++    take_action_intents, try_activate, AccessDetails, ActionIntent, ActionIntents,
++    ActivationResult, GenericInteraction, ReleaseActivation, Semantics, TabRelation,
+ };
+ 
+ pub use interaction::{
+diff --git a/crates/rndr_core/src/manual_tabs.rs b/crates/rndr_core/src/manual_tabs.rs
+new file mode 100644
+index 0000000..ee2a27a
+--- /dev/null
++++ b/crates/rndr_core/src/manual_tabs.rs
+@@ -0,0 +1,88 @@
++//! Additive policies consumed by the existing generic interaction pass.
++use crate::*;
++
++/// Native tab-list orientation. Unannotated legacy groups keep their behavior.
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum TabOrientation {
++    /// Left/Right move focus; Up/Down remain unconsumed.
++    Horizontal,
++    /// Up/Down move focus; Left/Right remain unconsumed.
++    Vertical,
++}
++/// Opt-in manual tab behavior and one roving Tab stop per group.
++/// Entry uses the active enabled tab, or first available. While focus is in the
++/// group, its focused tab is the stop, so Tab/Shift-Tab leave the group.
++/// Arrows wrap; Home/End choose endpoints; Enter/Space alone activate.
++#[derive(Clone, Copy, Debug)]
++pub struct ManualTabs(pub TabOrientation);
++impl Component for ManualTabs {}
++
++/// Supplemental selected state for a command/navigation row, independent of focus.
++/// Does not toggle on activation: selection remains host-owned.
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub struct SelectedState(pub bool);
++impl Component for SelectedState {}
++
++/// Explicit disabled state for non-Button controls (not inherited by children).
++/// Disabled targets advertise neither Focus nor Activate; readonly still focuses.
++#[derive(Clone, Copy, Debug, Default)]
++pub struct ControlDisabled;
++impl Component for ControlDisabled {}
++
++/// Preserve fully resolved semantic colors instead of legacy focus brightening.
++/// Add to each styled primitive that owns its focus treatment. Legacy colors
++/// without this marker retain the renderer's historic brightening policy.
++#[derive(Clone, Copy, Debug, Default)]
++pub struct ResolvedColor;
++impl Component for ResolvedColor {}
++
++pub(crate) fn roving_stop(world: &World, tab: Entity) -> bool {
++    let Some(r) = crate::interaction::valid_tab_relation(world, tab) else {
++        return true;
++    };
++    if !world.has::<ManualTabs>(r.group) {
++        return true;
++    }
++    let tabs: Vec<_> = children_of(world, r.group)
++        .into_iter()
++        .filter(|e| {
++            crate::interaction::valid_tab_relation(world, *e).is_some_and(|v| v.group == r.group)
++                && access_details(world, *e).focus
++        })
++        .collect();
++    let focused = world
++        .resource::<Focus>()
++        .and_then(|f| f.entity)
++        .filter(|e| tabs.contains(e));
++    let active = world.get::<Tabs>(r.group).and_then(|g| {
++        tabs.iter()
++            .copied()
++            .find(|e| world.get::<Tab>(*e).is_some_and(|t| t.id == g.selected))
++    });
++    focused.or(active).or_else(|| tabs.first().copied()) == Some(tab)
++}
++
++pub(crate) fn manual_tab_key(world: &mut World, focus: Option<Entity>, event: &KeyEvent) -> bool {
++    let Some(r) = focus.and_then(|f| crate::interaction::valid_tab_relation(world, f)) else {
++        return false;
++    };
++    let Some(policy) = world.get::<ManualTabs>(r.group).copied() else {
++        return false;
++    };
++    if event.released || event.synthetic || event.modifiers.shift {
++        return false;
++    }
++    let movement = match (policy.0, &event.logical) {
++        (TabOrientation::Horizontal, LogicalKey::Named(NamedKey::ArrowRight))
++        | (TabOrientation::Vertical, LogicalKey::Named(NamedKey::ArrowDown)) => TabFocusMove::Next,
++        (TabOrientation::Horizontal, LogicalKey::Named(NamedKey::ArrowLeft))
++        | (TabOrientation::Vertical, LogicalKey::Named(NamedKey::ArrowUp)) => {
++            TabFocusMove::Previous
++        }
++        (_, LogicalKey::Named(NamedKey::Home)) => TabFocusMove::First,
++        (_, LogicalKey::Named(NamedKey::End)) => TabFocusMove::Last,
++        _ => return false,
++    };
++    move_tab_focus(world, r.group, movement);
++    true
++}
+diff --git a/crates/rndr_core/tests/a1_hotkey_ownership.rs b/crates/rndr_core/tests/a1_hotkey_ownership.rs
+index 5635f30..d54b827 100644
+--- a/crates/rndr_core/tests/a1_hotkey_ownership.rs
++++ b/crates/rndr_core/tests/a1_hotkey_ownership.rs
+@@ -64,7 +64,11 @@ fn ordinary(same_frame: bool, registered: bool, k: NamedKey) {
+                 } else {
+                     KeyCode::Enter
+                 });
++            } else {
++                down.code = None;
+             }
++            assert_eq!(down.code.is_some(), physical);
++            assert_eq!(down.code == key(k).code, physical);
+             let up = down.clone().released();
+             if same_frame {
+                 frame(&mut a, vec![down, up]);
+diff --git a/crates/rndr_core/tests/a1_logical_only.rs b/crates/rndr_core/tests/a1_logical_only.rs
+new file mode 100644
+index 0000000..0eb8aa4
+--- /dev/null
++++ b/crates/rndr_core/tests/a1_logical_only.rs
+@@ -0,0 +1,137 @@
++//! Promoted missing code=None cases from independent04642 review.
++use rndr_core::*;
++struct Backend;
++impl hotkey::HotkeyBackend for Backend {
++    fn register(
++        &mut self,
++        _: hotkey::HotkeyId,
++        _: &hotkey::PlatformAccel,
++    ) -> Result<(), hotkey::HotkeyFailure> {
++        Ok(())
++    }
++    fn unregister(&mut self, _: hotkey::HotkeyId) {}
++    fn poll(&mut self) -> Vec<hotkey::HotkeyId> {
++        vec![]
++    }
++}
++fn logical(k: NamedKey) -> KeyEvent {
++    let mut e = KeyEvent::named(k, Modifiers::new());
++    e.code = None;
++    assert!(e.code.is_none());
++    e
++}
++fn fixture() -> (App, Entity) {
++    let mut a = App::new();
++    a.add_plugin(GenericInteraction);
++    hotkey::install_backend(a.world_mut(), Backend);
++    let b = a
++        .world_mut()
++        .spawn((Layout::column(), Button::new("go"), ReleaseActivation));
++    a.update();
++    assert!(request_focus(a.world_mut(), b));
++    (a, b)
++}
++fn frame(a: &mut App, events: Vec<KeyEvent>) {
++    a.world_mut().insert_resource(Input::default());
++    for e in events {
++        a.world_mut()
++            .resource_mut::<Input>()
++            .unwrap()
++            .push_key(e, Platform::Mac);
++    }
++    a.update();
++}
++fn count(a: &mut App, n: usize) {
++    assert_eq!(take_action_intents(a.world_mut()).len(), n);
++    assert!(a.world().resource::<Fired>().unwrap().name.is_none());
++}
++#[test]
++fn true_logical_only_nonmatching_registration_matrix_80() {
++    for p in [
++        Platform::Mac,
++        Platform::Windows,
++        Platform::X11,
++        Platform::Wayland,
++    ] {
++        for k in [NamedKey::Space, NamedKey::Enter] {
++            for split in [false, true] {
++                for chord in [
++                    "Alt+Space",
++                    "Ctrl+Space",
++                    "Alt+Enter",
++                    "Ctrl+Enter",
++                    "primary+Space",
++                ] {
++                    let (mut a, _) = fixture();
++                    a.world_mut().insert_resource(p);
++                    let _h = hotkey::register(a.world(), chord).unwrap();
++                    let d = logical(k);
++                    if split {
++                        frame(&mut a, vec![d.clone()]);
++                        frame(&mut a, vec![d.released()]);
++                    } else {
++                        frame(&mut a, vec![d.clone(), d.released()]);
++                    }
++                    count(&mut a, 1);
++                }
++            }
++        }
++    }
++}
++#[test]
++fn physical_binding_and_registration_drop_do_not_own_logical_release() {
++    for k in [NamedKey::Space, NamedKey::Enter] {
++        let (mut a, _) = fixture();
++        let h = hotkey::register(
++            a.world(),
++            Keystroke::code(if k == NamedKey::Space {
++                KeyCode::Space
++            } else {
++                KeyCode::Enter
++            })
++            .alt(),
++        )
++        .unwrap();
++        frame(&mut a, vec![logical(k)]);
++        drop(h);
++        frame(&mut a, vec![logical(k).released()]);
++        count(&mut a, 1);
++    }
++}
++#[test]
++fn true_logical_focus_roundtrip_repeat_and_modified_up_cancel() {
++    let (mut a, b) = fixture();
++    let _h = hotkey::register(a.world(), "Alt+Space").unwrap();
++    let other = a
++        .world_mut()
++        .spawn((Layout::column(), Button::new("other"), ReleaseActivation));
++    frame(&mut a, vec![logical(NamedKey::Space)]);
++    request_focus(a.world_mut(), other);
++    request_focus(a.world_mut(), b);
++    frame(&mut a, vec![logical(NamedKey::Space).released()]);
++    count(&mut a, 0);
++    frame(
++        &mut a,
++        vec![
++            logical(NamedKey::Space),
++            logical(NamedKey::Space).released().repeating(),
++        ],
++    );
++    count(&mut a, 0);
++    frame(&mut a, vec![logical(NamedKey::Space).released()]);
++    count(&mut a, 0);
++    frame(&mut a, vec![logical(NamedKey::Space)]);
++    let mut up = logical(NamedKey::Space).released();
++    up.modifiers.ctrl = true;
++    frame(&mut a, vec![up]);
++    frame(&mut a, vec![logical(NamedKey::Space).released()]);
++    count(&mut a, 0);
++    frame(
++        &mut a,
++        vec![
++            logical(NamedKey::Space),
++            logical(NamedKey::Space).released(),
++        ],
++    );
++    count(&mut a, 1);
++}
+diff --git a/crates/rndr_core/tests/a2_core_contracts.rs b/crates/rndr_core/tests/a2_core_contracts.rs
+new file mode 100644
+index 0000000..1224656
+--- /dev/null
++++ b/crates/rndr_core/tests/a2_core_contracts.rs
+@@ -0,0 +1,173 @@
++use rndr_core::*;
++fn key(app: &mut App, n: NamedKey) {
++    app.world_mut()
++        .resource_mut::<Input>()
++        .unwrap()
++        .push_key(KeyEvent::named(n, Modifiers::new()), Platform::Mac);
++    app.update();
++    app.world_mut().insert_resource(Input::default());
++}
++fn fixture(orientation: TabOrientation) -> (App, Entity, [Entity; 3], [Entity; 3], Entity) {
++    let mut app = App::new();
++    app.add_plugin(GenericInteraction);
++    let root = app.world_mut().spawn((Layout {
++        width: Size::Px(300.0),
++        ..Layout::column()
++    },));
++    let group =
++        app.world_mut()
++            .spawn((Layout::row(), Tabs { selected: 0 }, ManualTabs(orientation)));
++    set_parent(app.world_mut(), group, root);
++    let mut tabs = vec![];
++    let mut panels = vec![];
++    for id in 0..3 {
++        let tab = app.world_mut().spawn((
++            Layout {
++                width: Size::Px(80.0),
++                height: Size::Px(45.0),
++                ..Layout::column()
++            },
++            Tab { id },
++            Focusable,
++            ReleaseActivation,
++        ));
++        set_parent(app.world_mut(), tab, group);
++        let label = app.world_mut().spawn((
++            Layout {
++                width: Size::Fill,
++                height: Size::Fill,
++                ..Layout::column()
++            },
++            Label::new(format!("tab{id}")),
++        ));
++        set_parent(app.world_mut(), label, tab);
++        let panel = app.world_mut().spawn((Layout::column(), TabPanel));
++        set_parent(app.world_mut(), panel, root);
++        link_tab_panel(app.world_mut(), tab, group, panel).unwrap();
++        tabs.push(tab);
++        panels.push(panel);
++    }
++    let after = app.world_mut().spawn((
++        Layout::column(),
++        Button::new("after"),
++        Focusable,
++        ReleaseActivation,
++    ));
++    set_parent(app.world_mut(), after, root);
++    app.update();
++    (
++        app,
++        group,
++        tabs.try_into().unwrap(),
++        panels.try_into().unwrap(),
++        after,
++    )
++}
++#[test]
++fn manual_orientation_roving_entry_exclusion_and_activation() {
++    for (orientation, next, irrelevant) in [
++        (
++            TabOrientation::Horizontal,
++            NamedKey::ArrowRight,
++            NamedKey::ArrowDown,
++        ),
++        (
++            TabOrientation::Vertical,
++            NamedKey::ArrowDown,
++            NamedKey::ArrowRight,
++        ),
++    ] {
++        let (mut app, group, tabs, panels, after) = fixture(orientation);
++        key(&mut app, NamedKey::Tab);
++        assert_eq!(
++            app.world().resource::<Focus>().unwrap().entity,
++            Some(tabs[0])
++        );
++        key(&mut app, irrelevant);
++        assert_eq!(
++            app.world().resource::<Focus>().unwrap().entity,
++            Some(tabs[0])
++        );
++        key(&mut app, next);
++        assert_eq!(
++            app.world().resource::<Focus>().unwrap().entity,
++            Some(tabs[1])
++        );
++        assert_eq!(app.world().get::<Tabs>(group).unwrap().selected, 0);
++        assert!(!interaction_visible(app.world(), panels[1]));
++        key(&mut app, NamedKey::Enter);
++        assert_eq!(app.world().get::<Tabs>(group).unwrap().selected, 1);
++        assert!(interaction_visible(app.world(), panels[1]));
++        assert!(!interaction_visible(app.world(), panels[0]));
++        key(&mut app, NamedKey::End);
++        assert_eq!(
++            app.world().resource::<Focus>().unwrap().entity,
++            Some(tabs[2])
++        );
++        key(&mut app, NamedKey::Tab);
++        assert_eq!(app.world().resource::<Focus>().unwrap().entity, Some(after));
++        key(&mut app, NamedKey::Tab);
++        assert_eq!(
++            app.world().resource::<Focus>().unwrap().entity,
++            Some(tabs[1])
++        );
++        app.world_mut().insert(tabs[1], ControlDisabled);
++        request_focus(app.world_mut(), after);
++        key(&mut app, NamedKey::Tab);
++        assert_eq!(
++            app.world().resource::<Focus>().unwrap().entity,
++            Some(tabs[0])
++        );
++        assert_eq!(
++            access_details(app.world(), group).orientation,
++            Some(orientation)
++        );
++        let tree = access_tree(app.world());
++        assert!(!tree.nodes.iter().any(|n| n.id == access_id(panels[0])));
++    }
++}
++#[test]
++fn modern_tab_descendant_pointer_release_is_canonical() {
++    let (mut app, group, tabs, _, _) = fixture(TabOrientation::Horizontal);
++    let r = *app.world().get::<Rect>(tabs[1]).unwrap();
++    for (press, release) in [(true, false), (false, true)] {
++        let p = &mut app.world_mut().resource_mut::<Input>().unwrap().pointer;
++        p.position = [r.x + 12.0, r.y + 12.0];
++        p.press_at = Some(p.position);
++        p.pressed = press;
++        p.released = release;
++        p.down = press;
++        app.update();
++        assert_eq!(interaction_pressed(app.world(), tabs[1]), press);
++    }
++    assert_eq!(app.world().get::<Tabs>(group).unwrap().selected, 1);
++    assert!(take_action_intents(app.world_mut()).is_empty());
++    assert!(app.world().resource::<Fired>().unwrap().name.is_none());
++}
++#[test]
++fn selected_state_is_independent_and_not_implicitly_mutated() {
++    let mut app = App::new();
++    app.add_plugin(GenericInteraction);
++    let row = app.world_mut().spawn((
++        Layout::column(),
++        Button::new("nav"),
++        Focusable,
++        ReleaseActivation,
++        SelectedState(true),
++    ));
++    assert!(
++        access_tree(app.world())
++            .nodes
++            .iter()
++            .find(|n| n.id == access_id(row))
++            .unwrap()
++            .selected
++    );
++    assert_ne!(app.world().resource::<Focus>().unwrap().entity, Some(row));
++    assert_eq!(
++        try_activate(app.world_mut(), row),
++        ActivationResult::Accepted
++    );
++    assert!(app.world().get::<SelectedState>(row).unwrap().0);
++    assert_eq!(take_action_intents(app.world_mut()).len(), 1);
++}
+diff --git a/crates/rndr_core/tests/a2_nested_focus.rs b/crates/rndr_core/tests/a2_nested_focus.rs
+new file mode 100644
+index 0000000..0ed8995
+--- /dev/null
++++ b/crates/rndr_core/tests/a2_nested_focus.rs
+@@ -0,0 +1,66 @@
++use rndr_core::*;
++#[test]
++fn nested_scroll_reveals_focused_target_through_each_ancestor() {
++    let mut a = App::new();
++    a.add_plugin(GenericInteraction);
++    let outer = a.world_mut().spawn((
++        Layout {
++            width: Size::Px(300.0),
++            height: Size::Px(140.0),
++            ..Layout::column()
++        },
++        Scroll::default(),
++    ));
++    let spacer = a.world_mut().spawn((Layout {
++        width: Size::Fill,
++        height: Size::Px(220.0),
++        ..Layout::column()
++    },));
++    set_parent(a.world_mut(), spacer, outer);
++    let inner = a.world_mut().spawn((
++        Layout {
++            width: Size::Fill,
++            height: Size::Px(80.0),
++            ..Layout::column()
++        },
++        Scroll::default(),
++    ));
++    set_parent(a.world_mut(), inner, outer);
++    let filler = a.world_mut().spawn((Layout {
++        width: Size::Fill,
++        height: Size::Px(300.0),
++        ..Layout::column()
++    },));
++    set_parent(a.world_mut(), filler, inner);
++    let target = a.world_mut().spawn((
++        Layout {
++            width: Size::Fill,
++            height: Size::Px(40.0),
++            ..Layout::column()
++        },
++        Button::new("nested"),
++        ReleaseActivation,
++        Focusable,
++    ));
++    set_parent(a.world_mut(), target, inner);
++    a.update();
++    assert!(request_focus(a.world_mut(), target));
++    a.update();
++    let t = *a.world().get::<Rect>(target).unwrap();
++    let o = *a.world().get::<Rect>(outer).unwrap();
++    let i = *a.world().get::<Rect>(inner).unwrap();
++    assert!(a.world().get::<Scroll>(inner).unwrap().offset[1] < 0.0);
++    assert!(
++        a.world().get::<Scroll>(outer).unwrap().offset[1] < 0.0,
++        "outer ancestor must also reveal target"
++    );
++    assert!(
++        t.y >= o.y && t.y + t.h <= o.y + o.h + 0.01,
++        "target must be inside outer viewport: {t:?}"
++    );
++    assert!(
++        t.y >= i.y && t.y + t.h <= i.y + i.h + 0.01,
++        "target must be inside inner viewport: {t:?}"
++    );
++    assert_eq!(hit_test(a.world(), t.x + 12.0, t.y + 12.0), Some(target));
++}
+diff --git a/crates/rndr_paint/src/lib.rs b/crates/rndr_paint/src/lib.rs
+index c868caa..22a0435 100644
+--- a/crates/rndr_paint/src/lib.rs
++++ b/crates/rndr_paint/src/lib.rs
+@@ -433,11 +433,13 @@ fn walk(
+                 .get::<Parent>(entity)
+                 .is_some_and(|parent| focused == Some(parent.entity))
+             || world.has::<Caret>(entity);
+-        let color =
+-            world
+-                .get::<Color>(entity)
+-                .copied()
+-                .map(|color| if highlight { lighten(color) } else { color });
++        let color = world.get::<Color>(entity).copied().map(|color| {
++            if highlight && !world.has::<rndr_core::ResolvedColor>(entity) {
++                lighten(color)
++            } else {
++                color
++            }
++        });
+         let dirty = world.has::<DirtyMark>(entity);
+         let radius = world
+             .get::<Radius>(entity)
+diff --git a/crates/rndr_paint/tests/a2_resolved_color.rs b/crates/rndr_paint/tests/a2_resolved_color.rs
+new file mode 100644
+index 0000000..94b342b
+--- /dev/null
++++ b/crates/rndr_paint/tests/a2_resolved_color.rs
+@@ -0,0 +1,44 @@
++use rndr_core::*;
++#[test]
++fn resolved_color_preserves_focus_pair_and_legacy_still_brightens() {
++    let mut app = App::new();
++    app.add_plugin(GenericInteraction);
++    let color = Color::rgb(40.0 / 255.0, 93.0 / 255.0, 168.0 / 255.0);
++    let root = app.world_mut().spawn((Layout {
++        width: Size::Px(180.0),
++        ..Layout::column()
++    },));
++    let legacy = app.world_mut().spawn((
++        Layout {
++            width: Size::Px(80.0),
++            height: Size::Px(40.0),
++            ..Layout::column()
++        },
++        Button::new("legacy"),
++        color,
++    ));
++    set_parent(app.world_mut(), legacy, root);
++    let modern = app.world_mut().spawn((
++        Layout {
++            width: Size::Px(80.0),
++            height: Size::Px(40.0),
++            ..Layout::column()
++        },
++        Button::new("modern"),
++        color,
++        ResolvedColor,
++    ));
++    set_parent(app.world_mut(), modern, root);
++    app.update();
++    for (e, unchanged) in [(legacy, false), (modern, true)] {
++        request_focus(app.world_mut(), e);
++        let frame = rndr_paint::frame(&mut app);
++        let r = *app.world().get::<Rect>(e).unwrap();
++        let q = frame
++            .quads
++            .iter()
++            .find(|q| q.rect == r && q.uv == rndr_paint::solid_uv())
++            .unwrap();
++        assert_eq!(q.color == color, unchanged);
++    }
++}
+diff --git a/crates/rndr_render/src/a11y.rs b/crates/rndr_render/src/a11y.rs
+index 9aebf5e..58a9779 100644
+--- a/crates/rndr_render/src/a11y.rs
++++ b/crates/rndr_render/src/a11y.rs
+@@ -91,6 +91,12 @@ fn platform_node(world: &World, node: &rndr_core::AccessNode) -> Node {
+     if let Some(id) = details.labelled_by {
+         out.set_labelled_by(vec![NodeId(id)]);
+     }
++    if let Some(orientation) = details.orientation {
++        out.set_orientation(match orientation {
++            rndr_core::TabOrientation::Horizontal => accesskit::Orientation::Horizontal,
++            rndr_core::TabOrientation::Vertical => accesskit::Orientation::Vertical,
++        });
++    }
+     if !node.enabled {
+         out.set_disabled();
+     }
+@@ -185,4 +191,49 @@ mod tests {
+         assert_eq!(node(tab).controls(), &[NodeId(access_id(panel))]);
+         assert_eq!(node(panel).labelled_by(), &[NodeId(access_id(tab))]);
+     }
++    #[test]
++    fn manual_orientation_selected_and_disabled_matrix_reaches_accesskit() {
++        use rndr_core::*;
++        let mut app = App::new();
++        app.add_plugin(GenericInteraction);
++        let group = app.world_mut().spawn((
++            Layout::row(),
++            Tabs { selected: 0 },
++            ManualTabs(TabOrientation::Vertical),
++            Semantics {
++                name: Some("Reading mode".into()),
++                ..Semantics::default()
++            },
++        ));
++        let row = app.world_mut().spawn((
++            Layout::column(),
++            Button::new("row"),
++            ReleaseActivation,
++            SelectedState(true),
++            ControlDisabled,
++            Semantics {
++                name: Some("Draft, unsaved".into()),
++                ..Semantics::default()
++            },
++        ));
++        app.update();
++        let tree = tree_update(app.world());
++        let node = |e| {
++            &tree
++                .nodes
++                .iter()
++                .find(|(id, _)| *id == NodeId(access_id(e)))
++                .unwrap()
++                .1
++        };
++        assert_eq!(
++            node(group).orientation(),
++            Some(accesskit::Orientation::Vertical)
++        );
++        assert_eq!(node(row).is_selected(), Some(true));
++        assert!(node(row).is_disabled());
++        assert!(!node(row).supports_action(accesskit::Action::Focus));
++        assert!(!node(row).supports_action(accesskit::Action::Click));
++        assert_eq!(node(row).label(), Some("Draft, unsaved"));
++    }
+ }
+diff --git a/crates/rndr_ui/README.md b/crates/rndr_ui/README.md
+index 2ece3b7..ea30e5f 100644
+--- a/crates/rndr_ui/README.md
++++ b/crates/rndr_ui/README.md
+@@ -1,6 +1,6 @@
+-# rndr_ui — A0/A1 checkpoint
++# rndr_ui — foundations and contracted A2 components
+ 
+-An additive, opt-in, GPU-free library above `rndr_core`. This checkpoint contains **passive A0 foundations and reusable A1 prerequisites only**. It is not the completed A0→A1→A2 undertaking. No operating A2 controls should be added until independent review accepts `docs/design/A1-api-decisions.md`.
++An additive, opt-in, GPU-free library above `rndr_core`. The owner accepted exact04642's **HEADLESS A0/A1 core-contract checkpoint** and lifted the A2 gate. Operating A2 controls and a synthetic-host gallery are now implemented for fresh independent review. This is **not** native certification, integration or whole-project acceptance. Historical checkpoints/proposals remain unchanged; see `docs/design/implementation-tracking.md` and `docs/design/A2-components.md` for the current boundary.
+ 
+ ## Install and compose
+ 
+@@ -16,7 +16,7 @@ card.adopt(app.world_mut(), paragraph).unwrap(); // explicit transfer of lifetim
+ app.update();
+ ```
+ 
+-`UiTheme` is explicit Light/Dark plus Standard/High contrast, independent UI/reading text scales and Comfortable/Compact density. Density does not reduce type size. Colors are semantic sRGB roles; only documented tested foreground/background pairs have a contrast guarantee. Strong/subtle strokes are distinct. Focus width **and gap** are independent tokens, not selection/accent; A2 still owns the focus rendering/state components. Opaque surfaces first; no native materials.
++`UiTheme` is explicit Light/Dark plus Standard/High contrast, independent UI/reading text scales and Comfortable/Compact density. Density does not reduce type size. Colors are semantic sRGB roles; only documented tested foreground/background pairs have a contrast guarantee. Strong/subtle strokes are distinct. Focus width **and gap** are independent tokens, not selection/accent; A2 operating controls now render a distinct reserved focus ring/gap and independent selected marker; native focus/capture behavior remains unverified. Opaque surfaces first; no native materials.
+ 
+ `reading_layout` / `reading_layout_at_measure` return ordinary core Layout values, with a nominal adjustable 55–75 character reading measure and narrow-width padding. Hosts supply available width on resize. These are passive recipes, not a second layout engine or window lifecycle. All text heights hug real wrapped content. Separator is decorative, not the sole boundary for a future interactive control.
+ 
+@@ -42,12 +42,15 @@ From the isolated worktree, using the existing local cache:
+ 
+ ```sh
+ export CARGO_BUILD_JOBS=2 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0
+-cargo run --offline -p rndr_ui --example passive_gallery -- evidence/ui-gallery
+-cargo test --offline -p rndr_ui
++# NEW nonexistent output only: the A2 generator refuses an existing directory.
++cargo run --offline --locked -p rndr_ui --example operating_gallery -- /tmp/rndr-a2-gallery-CHOOSE-A-NEW-NAME
++cargo test --offline --locked -p rndr_ui
+ ```
+ 
+-The gallery creates passive surfaces, Card/Callout, separators, typography, long text and localization fixtures. It writes full-document **actual rndr paint display lists, glyph UVs, colors, clips and layout rectangles** for six representative states. These are not native screenshots, an alternative renderer, or world-only style assertions. Golden tests compare the real paint output. A 32-state test matrix checks every visible Hug parent's containment and complete ASCII glyph coverage; nested scroll tests inspect actual paint scissors. Glyph geometry is checked at 100%/200% text and fractional/2× device scales.
++The new operating gallery includes all four Button variants, a named IconButton, NavigationRow selection/metadata, real manual tab/panel relations, responsive toolbar, reading content, passive Card/Callout, visible labelled source action, nested scroll and the existing Buffer editor. Its host consumes only core FIFO64 typed requests and uses synthetic command/locator validation; it never adopts Blooey or opens real documents. Native launch instructions and the per-platform matrix are in `docs/design/A2-components.md`.
++
++The **preserved passive gallery** creates surfaces, Card/Callout, separators, typography, long text and localization fixtures. It writes full-document **actual rndr paint display lists, glyph UVs, colors, clips and layout rectangles** for six representative states. These are not native screenshots, an alternative renderer, or world-only style assertions. Golden tests compare the real paint output. A 32-state test matrix checks every visible Hug parent's containment and complete ASCII glyph coverage; nested scroll tests inspect actual paint scissors. Glyph geometry is checked at 100%/200% text and fractional/2× device scales.
+ 
+ The first display-list audit exposed a real nested wrapped-Hug clipping defect despite simpler world tests passing. The reproduced core fix resolves width-constrained heights before ancestor clips. Baseline/fixed logs and separate core commits preserve that evidence rather than silently blessing incomplete gallery output.
+ 
+-See `docs/design/A0-A1-checkpoint.md` for exact verification commands, checkpoint checklist and remaining A2/native matrix.
++See historical `docs/design/A0-A1-checkpoint.md` for its exact checkpoint evidence. Current control purpose/props/slots, keyboard/pointer/AT behavior, overflow, lifecycle/state/unsupported contracts and native launch matrix are in `docs/design/A2-components.md`. New A2 display-list evidence is separate from all six old passive goldens and historical reports. Native windows/screenshots/capture-blur/OS AT/preferences/fonts/shaping/physical DPI remain **UNVERIFIED**.
+diff --git a/crates/rndr_ui/examples/operating_gallery.rs b/crates/rndr_ui/examples/operating_gallery.rs
+new file mode 100644
+index 0000000..64cdcac
+--- /dev/null
++++ b/crates/rndr_ui/examples/operating_gallery.rs
+@@ -0,0 +1,158 @@
++//! Deterministic full-document display-list evidence, NOT native screenshots.
++#[path = "support/operating.rs"]
++mod operating;
++use rndr_core::*;
++use rndr_ui::*;
++use std::{fs, path::PathBuf};
++fn main() {
++    let out = PathBuf::from(
++        std::env::args()
++            .nth(1)
++            .expect("new, nonexistent output directory"),
++    );
++    fs::create_dir(&out).expect("refuse existing output; preserve old evidence");
++    let mut inventory = String::new();
++    for (name, appearance, contrast, density, width, scale, long, preview) in [
++        (
++            "light-wide",
++            Appearance::Light,
++            Contrast::Standard,
++            Density::Comfortable,
++            1000.0,
++            1.0,
++            false,
++            false,
++        ),
++        (
++            "dark-wide-preview",
++            Appearance::Dark,
++            Contrast::Standard,
++            Density::Comfortable,
++            1000.0,
++            1.0,
++            false,
++            true,
++        ),
++        (
++            "light-narrow-200-long",
++            Appearance::Light,
++            Contrast::Standard,
++            Density::Comfortable,
++            320.0,
++            2.0,
++            true,
++            false,
++        ),
++        (
++            "dark-compact-200-long",
++            Appearance::Dark,
++            Contrast::Standard,
++            Density::Compact,
++            320.0,
++            2.0,
++            true,
++            true,
++        ),
++        (
++            "high-light-200",
++            Appearance::Light,
++            Contrast::High,
++            Density::Comfortable,
++            800.0,
++            2.0,
++            false,
++            false,
++        ),
++        (
++            "high-dark-compact",
++            Appearance::Dark,
++            Contrast::High,
++            Density::Compact,
++            800.0,
++            1.0,
++            false,
++            true,
++        ),
++        (
++            "reflow-400-equivalent",
++            Appearance::Light,
++            Contrast::Standard,
++            Density::Comfortable,
++            320.0,
++            1.0,
++            true,
++            false,
++        ),
++        (
++            "wide-long",
++            Appearance::Dark,
++            Contrast::Standard,
++            Density::Comfortable,
++            1000.0,
++            1.0,
++            true,
++            false,
++        ),
++    ] {
++        let theme = UiTheme {
++            appearance,
++            contrast,
++            density,
++            text_scale: scale,
++            reading_scale: scale,
++            ..UiTheme::default()
++        };
++        let mut app = operating::create(width, 30000.0, theme, long);
++        let demo = app.world().resource::<operating::Demo>().unwrap().clone();
++        request_focus(app.world_mut(), demo.commands[0].root);
++        app.world_mut().resource_mut::<Input>().unwrap().push_key(
++            KeyEvent::named(NamedKey::Enter, Modifiers::new()),
++            Platform::Mac,
++        );
++        app.update();
++        app.world_mut().insert_resource(Input::default());
++        assert_eq!(
++            app.world().resource::<operating::Demo>().unwrap().accepted,
++            1
++        );
++        if preview {
++            assert_eq!(
++                try_activate(app.world_mut(), demo.selector.tabs[1].root),
++                ActivationResult::Accepted
++            );
++        }
++        request_focus(app.world_mut(), demo.nav[0].root);
++        let f = rndr_paint::frame(&mut app);
++        let snapshot = rndr_paint::quads_snapshot(&f);
++        let again = rndr_paint::frame(&mut app);
++        assert_eq!(snapshot, rndr_paint::quads_snapshot(&again));
++        fs::write(out.join(format!("{name}.display-list.txt")), snapshot).unwrap();
++        let mut meta=format!("HEADLESS actual paint; full document height=30000 logical points; width={width} type={scale}; 320=1280/4 reflow (not physical DPI).\n");
++        for node in access_tree(app.world()).nodes {
++            meta.push_str(&format!("access {:?}\n", node));
++        }
++        // ECS component storage is hash-backed; evidence order is not input order.
++        let mut labels = app.world().entities_with::<Label>();
++        labels.sort_by_key(|e| (e.index(), e.generation()));
++        for e in labels {
++            if interaction_visible(app.world(), e) {
++                meta.push_str(&format!(
++                    "label {:?} {:?} {:?}\n",
++                    e,
++                    app.world().get::<Rect>(e),
++                    app.world().get::<Label>(e).unwrap().text
++                ));
++            }
++        }
++        fs::write(out.join(format!("{name}.semantics-geometry.txt")), meta).unwrap();
++        inventory.push_str(&format!(
++            "{name}: quads={} glyphs={} accepted=1 preview={preview}\n",
++            f.quads.len(),
++            f.quads
++                .iter()
++                .filter(|q| q.uv != rndr_paint::solid_uv())
++                .count()
++        ));
++    }
++    fs::write(out.join("inventory.txt"), inventory).unwrap();
++}
+diff --git a/crates/rndr_ui/examples/support/operating.rs b/crates/rndr_ui/examples/support/operating.rs
+new file mode 100644
+index 0000000..70dd719
+--- /dev/null
++++ b/crates/rndr_ui/examples/support/operating.rs
+@@ -0,0 +1,286 @@
++//! Shared operating gallery: synthetic host only, no files/parser/app adoption.
++#![allow(dead_code)]
++use rndr_core::*;
++use rndr_ui::{
++    controls::{self, *},
++    *,
++};
++#[derive(Clone)]
++pub struct Demo {
++    pub root: Entity,
++    pub toolbar: ToolbarHandle,
++    pub commands: Vec<ControlHandle>,
++    pub nav: [ControlHandle; 2],
++    pub selector: ModeHandle,
++    pub source: ControlHandle,
++    pub card: UiHandle,
++    pub callout: UiHandle,
++    pub editor: Entity,
++    pub status: Entity,
++    pub nested: Entity,
++    pub reading: Entity,
++    pub accepted: u64,
++    pub reveals: u64,
++    pub rejected: u64,
++    pub locator: SourceLocator,
++    pub selection: usize,
++}
++
++pub fn create(width: f32, height: f32, theme: UiTheme, long: bool) -> App {
++    let mut app = App::new();
++    app.add_plugin(UiPlugin);
++    app.world_mut()
++        .insert_resource(Viewport::new(width, height));
++    app.world_mut().insert_resource(theme);
++    let w = app.world_mut();
++    let root = w.spawn((
++        Layout {
++            width: Size::Fill,
++            height: Size::Fill,
++            padding: 12.0,
++            gap: 8.0,
++            ..Layout::column()
++        },
++        Scroll::default(),
++        UiRecipe(UiStyle {
++            background: Some(Token::Canvas.into()),
++            ..UiStyle::default()
++        }),
++    ));
++    text(
++        w,
++        root,
++        "rndr A2 operating gallery (synthetic host)",
++        Typography::Heading,
++    )
++    .unwrap();
++    text(w, root, "Tab/Shift-Tab navigate. Enter or Space activates. Mode arrows focus only. No real documents, saves or deletion.", Typography::Secondary).unwrap();
++    let toolbar = Toolbar::mount(w, root, UiId(1), (width - 24.0).max(32.0)).unwrap();
++    w.insert(
++        toolbar.root,
++        Semantics {
++            name: Some("Gallery command toolbar".into()),
++            ..Semantics::default()
++        },
++    );
++    let mut commands = vec![];
++    for (i, label, variant) in [
++        (0, "Add", ButtonVariant::Primary),
++        (1, "Secondary", ButtonVariant::Secondary),
++        (2, "Quiet", ButtonVariant::Quiet),
++        (3, "Reset demo count", ButtonVariant::Destructive),
++    ] {
++        let label = if long {
++            format!("{label} with a deliberately very long wrapped command label")
++        } else {
++            label.into()
++        };
++        let mut p = ButtonProps::new(label, HostIntent::Command(i));
++        p.variant = variant;
++        commands.push(controls::Button::mount(w, toolbar.root, UiId(10 + i), p).unwrap());
++    }
++    commands.push(
++        IconButton::mount(
++            w,
++            toolbar.root,
++            UiId(14),
++            "+",
++            "Add one synthetic item",
++            ButtonProps::new("+", HostIntent::Command(0)),
++        )
++        .unwrap(),
++    );
++    let nav = [
++        NavigationRow::mount(
++            w,
++            root,
++            UiId(20),
++            ButtonProps::new("Draft note", HostIntent::Command(20)),
++            NavigationMeta {
++                selected: true,
++                secondary: Some("Demo folder".into()),
++                dirty: true,
++            },
++        )
++        .unwrap(),
++        NavigationRow::mount(
++            w,
++            root,
++            UiId(21),
++            ButtonProps::new("Reference note", HostIntent::Command(21)),
++            NavigationMeta {
++                secondary: Some("Read-only fixture".into()),
++                ..NavigationMeta::default()
++            },
++        )
++        .unwrap(),
++    ];
++    let selector = ModeSelector::mount(
++        w,
++        root,
++        UiId(30),
++        "Document mode",
++        &["Source", "Preview"],
++        TabOrientation::Horizontal,
++        0,
++    )
++    .unwrap();
++    let editor = w.spawn((
++        Layout {
++            width: Size::Fill,
++            height: Size::Px(108.0),
++            ..Layout::column()
++        },
++        Editor::default(),
++        CapturesKeys,
++        Label::new(""),
++        Buffer::from_str("Synthetic editable source. Type here; Undo/Redo remain core-owned."),
++        Semantics {
++            name: Some("Synthetic source editor".into()),
++            ..Semantics::default()
++        },
++    ));
++    set_parent(w, editor, selector.panels[0]);
++    let reading = Surface::Content
++        .mount(w, selector.panels[1], UiId(1))
++        .unwrap();
++    let reading_theme = w.resource::<UiTheme>().unwrap().clone();
++    w.insert(
++        reading.root,
++        reading_layout((width - 24.0).max(32.0), &reading_theme),
++    );
++    text(w, reading.content, "Preview is inert content. Switching mode preserves the same source field, selection and history. Nothing parses or executes the text.", Typography::Reading).unwrap();
++    let card = Card::mount(w, root, UiId(40), "Content card").unwrap();
++    text(
++        w,
++        card.content,
++        "Borrowed content and actions have explicit slots. The card itself is not clickable.",
++        Typography::Reading,
++    )
++    .unwrap();
++    let locator = SourceLocator {
++        document: 7,
++        revision: 3,
++        anchor: 11,
++    };
++    let source = SourceAction::mount(w, card.content, UiId(1), locator, true).unwrap();
++    let callout = Callout::mount(
++        w,
++        root,
++        UiId(41),
++        Feedback::Warning,
++        "Synthetic unsaved state",
++    )
++    .unwrap();
++    text(
++        w,
++        callout.content,
++        "Warnings stay visible. This is not a recovery or saving implementation.",
++        Typography::Reading,
++    )
++    .unwrap();
++    let nested = w.spawn((
++        Layout {
++            width: Size::Fill,
++            height: Size::Px(100.0),
++            ..Layout::column()
++        },
++        Scroll::default(),
++    ));
++    set_parent(w, nested, card.content);
++    for _ in 0..5 {
++        text(w, nested, "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only.", Typography::Reading).unwrap();
++    }
++    let status = text(
++        w,
++        root,
++        "Requests: 0; source reveals: 0",
++        Typography::Secondary,
++    )
++    .unwrap();
++    w.insert_resource(Demo {
++        root,
++        toolbar,
++        commands,
++        nav,
++        selector,
++        source,
++        card,
++        callout,
++        editor,
++        status,
++        nested,
++        reading: reading.root,
++        accepted: 0,
++        reveals: 0,
++        rejected: 0,
++        locator,
++        selection: 0,
++    });
++    app.add_system(Schedule::Update, consume);
++    app.add_system(Schedule::Update, resize);
++    app.update();
++    app
++}
++fn resize(w: &mut World) {
++    let Some(d) = w.resource::<Demo>().cloned() else {
++        return;
++    };
++    let width = w.resource::<Viewport>().unwrap().content_width();
++    Toolbar::mount(w, d.root, UiId(1), (width - 24.0).max(32.0)).unwrap();
++    let theme = w.resource::<UiTheme>().unwrap().clone();
++    w.insert(d.reading, reading_layout((width - 24.0).max(32.0), &theme));
++}
++/// Normal host test double: drains only the reviewed queue, retains multiplicity,
++/// validates current UI payload plus independent host document/revision/anchor.
++/// Overflow remains observable on ActionIntents; no dedup or alternate producer.
++pub fn consume(w: &mut World) {
++    let Some(mut d) = w.resource::<Demo>().cloned() else {
++        return;
++    };
++    for request in take_action_intents(w) {
++        match host_intent(w, &request) {
++            Some(HostIntent::Command(n @ 0..=3)) => {
++                d.accepted += 1;
++                if n == 3 {
++                    d.accepted = 0;
++                }
++            }
++            Some(HostIntent::Command(n @ 20..=21)) => {
++                d.selection = (n - 20) as usize;
++                d.accepted += 1;
++            }
++            Some(HostIntent::RevealSource(locator)) if locator == d.locator => {
++                d.reveals += 1;
++            }
++            _ => d.rejected += 1,
++        }
++    }
++    for (i, label) in ["Draft note", "Reference note"].into_iter().enumerate() {
++        let meta = NavigationMeta {
++            selected: d.selection == i,
++            secondary: Some(
++                if i == 0 {
++                    "Demo folder"
++                } else {
++                    "Read-only fixture"
++                }
++                .into(),
++            ),
++            dirty: i == 0,
++        };
++        NavigationRow::mount(
++            w,
++            d.root,
++            UiId(20 + i as u64),
++            ButtonProps::new(label, HostIntent::Command(20 + i as u64)),
++            meta,
++        )
++        .unwrap();
++    }
++    w.get_mut::<Label>(d.status).unwrap().text = format!(
++        "Requests: {}; source reveals: {}; rejected: {}",
++        d.accepted, d.reveals, d.rejected
++    );
++    w.insert_resource(d);
++}
+diff --git a/crates/rndr_ui/src/controls.rs b/crates/rndr_ui/src/controls.rs
+new file mode 100644
+index 0000000..467572e
+--- /dev/null
++++ b/crates/rndr_ui/src/controls.rs
+@@ -0,0 +1,892 @@
++//! Operating controls on core's canonical input/intent path. See README contracts.
++use crate::{Token, Typography, UiError, UiId, UiRecipe, UiStyle, UiTheme};
++use rndr_core::{Button as CoreButton, *};
++
++/// Emphasis, not an additional action or checked state.
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum ButtonVariant {
++    /// Accent command.
++    Primary,
++    /// Bordered neutral command.
++    Secondary,
++    /// Quiet neutral command.
++    Quiet,
++    /// Explicitly named destructive command; no confirmation is implied.
++    Destructive,
++}
++/// Opaque host-owned source location. The UI never interprets text or offsets.
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub struct SourceLocator {
++    /// Host document identity.
++    pub document: u64,
++    /// Host revision token.
++    pub revision: u64,
++    /// Host anchor token, not an executable string or assumed byte offset.
++    pub anchor: u64,
++}
++/// Typed request only. Hosts validate identity/revision/permission before use.
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum HostIntent {
++    /// Application-local command token; no dispatch implementation in the UI.
++    Command(u64),
++    /// Request source reveal, never mutation or executable Liquid.
++    RevealSource(SourceLocator),
++}
++/// Button properties, updated in place. Busy/validation/checked are unsupported.
++#[derive(Clone, Debug, PartialEq)]
++pub struct ButtonProps {
++    /// Visible wrapped label (must not be blank).
++    pub label: String,
++    /// Persistent accessible name; otherwise the full visible label is used.
++    pub name: Option<String>,
++    /// Supplementary description.
++    pub description: String,
++    /// Opaque request carried through the reviewed core FIFO64.
++    pub intent: HostIntent,
++    /// Visual emphasis only.
++    pub variant: ButtonVariant,
++    /// Disabled controls cannot focus or activate.
++    pub enabled: bool,
++    /// Readonly controls can focus, but cannot activate.
++    pub readonly: bool,
++}
++impl ButtonProps {
++    /// Enabled secondary command with a visible name.
++    pub fn new(label: impl Into<String>, intent: HostIntent) -> Self {
++        Self {
++            label: label.into(),
++            name: None,
++            description: String::new(),
++            intent,
++            variant: ButtonVariant::Secondary,
++            enabled: true,
++            readonly: false,
++        }
++    }
++}
++/// Optional navigation metadata, part of the persistent accessible name.
++#[derive(Clone, Debug, Default, PartialEq)]
++pub struct NavigationMeta {
++    /// Host-selected state; activation does not silently change selection.
++    pub selected: bool,
++    /// Optional secondary label, retained visibly and accessibly.
++    pub secondary: Option<String>,
++    /// Explicit textual unsaved marker; no claim about a real save journal.
++    pub dirty: bool,
++}
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++enum Kind {
++    Button,
++    Icon,
++    Navigation,
++    Source,
++    Tab,
++}
++#[derive(Clone)]
++struct Control {
++    id: UiId,
++    kind: Kind,
++    props: ButtonProps,
++    meta: NavigationMeta,
++    gap: Entity,
++    border: Entity,
++    face: Entity,
++    label: Entity,
++}
++impl Component for Control {}
++#[derive(Clone, Copy)]
++struct OwnedBy(Entity);
++impl Component for OwnedBy {}
++
++/// Stable generation-checked root and visible-label slot. No interactive children.
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub struct ControlHandle {
++    /// Canonical Button or Tab entity, not a wrapper activation target.
++    pub root: Entity,
++    /// Owned wrapped Label. Do not remove/reparent; use mount to update.
++    pub label: Entity,
++}
++/// Primary/secondary/quiet/destructive command.
++pub struct Button;
++/// Icon command requiring a persistent nonempty accessible name.
++pub struct IconButton;
++/// Navigation command with host-owned selected and textual metadata.
++pub struct NavigationRow;
++/// Compact visible labelled source request; Tab then Enter/Space is its key route.
++pub struct SourceAction;
++impl Button {
++    /// Mount/update under a caller-stable key; never replaces focus or history.
++    pub fn mount(
++        world: &mut World,
++        parent: Entity,
++        id: UiId,
++        props: ButtonProps,
++    ) -> Result<ControlHandle, UiError> {
++        mount_control(
++            world,
++            parent,
++            id,
++            Kind::Button,
++            props,
++            NavigationMeta::default(),
++        )
++    }
++}
++impl IconButton {
++    /// `glyph` is caller-provided text/art, not a licensed OS-symbol asset.
++    /// Name is required; no generic icon fallback is silently announced.
++    pub fn mount(
++        world: &mut World,
++        parent: Entity,
++        id: UiId,
++        glyph: &str,
++        name: &str,
++        mut props: ButtonProps,
++    ) -> Result<ControlHandle, UiError> {
++        if name.trim().is_empty() {
++            return Err(UiError::InvalidProps);
++        }
++        props.label = glyph.into();
++        props.name = Some(name.into());
++        mount_control(
++            world,
++            parent,
++            id,
++            Kind::Icon,
++            props,
++            NavigationMeta::default(),
++        )
++    }
++}
++impl NavigationRow {
++    /// Selected and focused are independent. Metadata is visible and announced.
++    pub fn mount(
++        world: &mut World,
++        parent: Entity,
++        id: UiId,
++        mut props: ButtonProps,
++        meta: NavigationMeta,
++    ) -> Result<ControlHandle, UiError> {
++        props.variant = ButtonVariant::Quiet;
++        mount_control(world, parent, id, Kind::Navigation, props, meta)
++    }
++}
++impl SourceAction {
++    /// Visible "Show source" label; host validates every locator at consumption.
++    pub fn mount(
++        world: &mut World,
++        parent: Entity,
++        id: UiId,
++        locator: SourceLocator,
++        enabled: bool,
++    ) -> Result<ControlHandle, UiError> {
++        let mut props = ButtonProps::new("Show source", HostIntent::RevealSource(locator));
++        props.variant = ButtonVariant::Quiet;
++        props.enabled = enabled;
++        props.description = "Tab to Show source; Enter or Space requests source reveal".into();
++        mount_control(
++            world,
++            parent,
++            id,
++            Kind::Source,
++            props,
++            NavigationMeta::default(),
++        )
++    }
++}
++fn action(props: &ButtonProps) -> String {
++    format!("rndr-ui:{:?}", props.intent)
++}
++fn parent_valid(world: &World, parent: Entity) -> Result<(), UiError> {
++    if world.is_alive(parent) && world.has::<Layout>(parent) {
++        Ok(())
++    } else {
++        Err(UiError::Stale)
++    }
++}
++/// Ownership guard shared with passive adoption; includes all internal slots,
++/// not just keyed component roots. Borrowed caller subtrees remain unmarked.
++pub(crate) fn owns_entity(world: &World, entity: Entity) -> bool {
++    world.has::<OwnedBy>(entity)
++}
++
++/// Shared identity check also used by passive surfaces; no global registry.
++pub(crate) fn key_at(world: &World, entity: Entity) -> Option<UiId> {
++    world
++        .get::<Control>(entity)
++        .map(|c| c.id)
++        .or_else(|| world.get::<Selector>(entity).map(|s| s.id))
++        .or_else(|| world.get::<ToolbarNode>(entity).map(|s| s.id))
++}
++fn find(world: &World, parent: Entity, id: UiId) -> Option<Entity> {
++    children_of(world, parent)
++        .into_iter()
++        .find(|e| key_at(world, *e).or_else(|| crate::surfaces::key_at(world, *e)) == Some(id))
++}
++fn primitive(world: &mut World, parent: Entity, owner: Entity, padding: f32) -> Entity {
++    let e = world.spawn((
++        Layout {
++            width: Size::Fill,
++            padding,
++            ..Layout::column()
++        },
++        OwnedBy(owner),
++        ResolvedColor,
++    ));
++    set_parent(world, e, parent);
++    e
++}
++fn mount_control(
++    world: &mut World,
++    parent: Entity,
++    id: UiId,
++    kind: Kind,
++    props: ButtonProps,
++    meta: NavigationMeta,
++) -> Result<ControlHandle, UiError> {
++    parent_valid(world, parent)?;
++    if props.label.trim().is_empty() || props.name.as_ref().is_some_and(|n| n.trim().is_empty()) {
++        return Err(UiError::InvalidProps);
++    }
++    let h = if let Some(root) = find(world, parent, id) {
++        let c = world
++            .get::<Control>(root)
++            .ok_or(UiError::IdentityConflict)?;
++        if c.kind != kind {
++            return Err(UiError::IdentityConflict);
++        }
++        let h = ControlHandle {
++            root,
++            label: c.label,
++        };
++        h.validate(world)?;
++        h
++    } else {
++        let root = world.spawn((
++            Layout {
++                width: Size::Fill,
++                padding: 2.0,
++                ..Layout::column()
++            },
++            Focusable,
++            ReleaseActivation,
++            ResolvedColor,
++        ));
++        world.insert(root, OwnedBy(root));
++        set_parent(world, root, parent);
++        let gap = primitive(world, root, root, 2.0);
++        let border = primitive(world, gap, root, 1.0);
++        let face = primitive(world, border, root, 4.0);
++        let label = primitive(world, face, root, 0.0);
++        world.insert(label, Label::new(&props.label).overflow(TextOverflow::Wrap));
++        world.insert(
++            root,
++            Control {
++                id,
++                kind,
++                props: props.clone(),
++                meta: meta.clone(),
++                gap,
++                border,
++                face,
++                label,
++            },
++        );
++        ControlHandle { root, label }
++    };
++    // Changing action or availability cancels an in-flight gesture before update.
++    let old = world.get::<Control>(h.root).unwrap();
++    if (old.props.intent != props.intent
++        || old.props.enabled != props.enabled
++        || old.props.readonly != props.readonly)
++        && interaction_pressed(world, h.root)
++    {
++        cancel_activation(world);
++    }
++    let c = world.get_mut::<Control>(h.root).unwrap();
++    c.props = props.clone();
++    c.meta = meta.clone();
++    if kind != Kind::Tab {
++        world.insert(
++            h.root,
++            CoreButton {
++                action: action(&props),
++                enabled: props.enabled,
++            },
++        );
++    }
++    if props.enabled {
++        world.remove::<ControlDisabled>(h.root);
++    } else {
++        world.insert(h.root, ControlDisabled);
++    }
++    let mut name = props.name.clone().unwrap_or_else(|| props.label.clone());
++    if kind == Kind::Navigation {
++        if let Some(v) = &meta.secondary {
++            name.push_str(&format!(", {v}"));
++        }
++        if meta.dirty {
++            name.push_str(", unsaved");
++        }
++        world.insert(h.root, SelectedState(meta.selected));
++    }
++    world.insert(
++        h.root,
++        Semantics {
++            name: Some(name),
++            description: props.description,
++            readonly: props.readonly,
++        },
++    );
++    Ok(h)
++}
++impl ControlHandle {
++    /// Reject stale generations, removed primitives and reparented owned slots.
++    pub fn validate(self, world: &World) -> Result<(), UiError> {
++        let c = world.get::<Control>(self.root).ok_or(UiError::Stale)?;
++        if c.label != self.label
++            || !world.has::<Layout>(self.root)
++            || world.get::<OwnedBy>(self.root).map(|o| o.0) != Some(self.root)
++            || !world.has::<ReleaseActivation>(self.root)
++            || !world.has::<Label>(self.label)
++        {
++            return Err(UiError::Stale);
++        }
++        if c.kind == Kind::Tab {
++            if !world.has::<Tab>(self.root) {
++                return Err(UiError::Stale);
++            }
++        } else if !world.has::<CoreButton>(self.root) {
++            return Err(UiError::Stale);
++        }
++        for (child, parent) in [
++            (c.gap, self.root),
++            (c.border, c.gap),
++            (c.face, c.border),
++            (c.label, c.face),
++        ] {
++            if world.get::<OwnedBy>(child).map(|o| o.0) != Some(self.root)
++                || world.get::<Parent>(child).map(|p| p.entity) != Some(parent)
++                || !world.has::<Layout>(child)
++            {
++                return Err(UiError::Stale);
++            }
++        }
++        Ok(())
++    }
++    /// Destroy owned primitives only; any borrowed subtree is detached, alive.
++    pub fn destroy(self, world: &mut World) -> Result<(), UiError> {
++        self.validate(world)?;
++        destroy_owned(world, self.root);
++        Ok(())
++    }
++}
++fn destroy_owned(world: &mut World, root: Entity) {
++    fn collect(world: &mut World, e: Entity, root: Entity, out: &mut Vec<Entity>) {
++        out.push(e);
++        for child in children_of(world, e) {
++            if world.get::<OwnedBy>(child).map(|o| o.0) == Some(root) {
++                collect(world, child, root, out);
++            } else {
++                world.remove::<Parent>(child);
++                if let Some(c) = world.get_mut::<Children>(e) {
++                    c.list.retain(|v| *v != child);
++                }
++            }
++        }
++    }
++    let mut owned = vec![];
++    collect(world, root, root, &mut owned);
++    forget_interaction_targets(world, &owned);
++    despawn(world, root);
++}
++/// Validate a core request against its current UI identity and typed payload.
++/// This consumes no queue and executes nothing. Drain only `take_action_intents`;
++/// preserve order/multiplicity and apply host permission/revision checks next.
++pub fn host_intent(world: &World, request: &ActionIntent) -> Option<HostIntent> {
++    let c = world.get::<Control>(request.entity)?;
++    let h = ControlHandle {
++        root: request.entity,
++        label: c.label,
++    };
++    (h.validate(world).is_ok()
++        && access_details(world, h.root).activate
++        && request.name == action(&c.props)
++        && c.kind != Kind::Tab)
++        .then_some(c.props.intent)
++}
++
++#[derive(Clone)]
++struct Selector {
++    id: UiId,
++    group: Entity,
++    tabs: Vec<ControlHandle>,
++    panels: Vec<Entity>,
++}
++impl Component for Selector {}
++/// Manual selector with actual panels; content is borrowed unless caller-owned
++/// components are independently destroyed. No buffer or selection copying.
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub struct ModeHandle {
++    /// Stable component root.
++    pub root: Entity,
++    /// Named native tablist with explicit orientation.
++    pub group: Entity,
++    /// Canonical Tab targets in hierarchy order.
++    pub tabs: Vec<ControlHandle>,
++    /// Stable panel content slots, hidden/excluded while inactive.
++    pub panels: Vec<Entity>,
++}
++/// Manual Source/Preview-style tabs; arrows focus, Enter/Space activate.
++pub struct ModeSelector;
++impl ModeSelector {
++    /// Mount/update names without resetting active tab or document state.
++    /// `initial` is used only at creation. Count changes require explicit destroy
++    /// and remount; no silent content loss or heuristic reconciliation.
++    pub fn mount(
++        world: &mut World,
++        parent: Entity,
++        id: UiId,
++        name: &str,
++        labels: &[&str],
++        orientation: TabOrientation,
++        initial: usize,
++    ) -> Result<ModeHandle, UiError> {
++        parent_valid(world, parent)?;
++        if name.trim().is_empty()
++            || labels.is_empty()
++            || initial >= labels.len()
++            || labels.iter().any(|s| s.trim().is_empty())
++        {
++            return Err(UiError::InvalidProps);
++        }
++        let h = if let Some(root) = find(world, parent, id) {
++            let s = world
++                .get::<Selector>(root)
++                .ok_or(UiError::IdentityConflict)?;
++            let h = ModeHandle {
++                root,
++                group: s.group,
++                tabs: s.tabs.clone(),
++                panels: s.panels.clone(),
++            };
++            h.validate(world)?;
++            if h.tabs.len() != labels.len() {
++                return Err(UiError::IdentityConflict);
++            }
++            h
++        } else {
++            let root = world.spawn((Layout {
++                width: Size::Fill,
++                gap: 8.0,
++                ..Layout::column()
++            },));
++            world.insert(root, OwnedBy(root));
++            set_parent(world, root, parent);
++            let group = primitive(world, root, root, 0.0);
++            world.insert(
++                group,
++                Tabs {
++                    selected: initial as u64,
++                },
++            );
++            let mut tabs = vec![];
++            let mut panels = vec![];
++            for (i, label) in labels.iter().enumerate() {
++                let panel = primitive(world, root, root, 0.0);
++                world.insert(panel, TabPanel);
++                let tab = mount_control(
++                    world,
++                    group,
++                    UiId(i as u64),
++                    Kind::Tab,
++                    ButtonProps::new(*label, HostIntent::Command(0)),
++                    NavigationMeta::default(),
++                )?;
++                world.insert(tab.root, Tab { id: i as u64 });
++                link_tab_panel(world, tab.root, group, panel).map_err(|_| UiError::Stale)?;
++                tabs.push(tab);
++                panels.push(panel);
++            }
++            world.insert(
++                root,
++                Selector {
++                    id,
++                    group,
++                    tabs: tabs.clone(),
++                    panels: panels.clone(),
++                },
++            );
++            ModeHandle {
++                root,
++                group,
++                tabs,
++                panels,
++            }
++        };
++        world.insert(h.group, ManualTabs(orientation));
++        world.insert(
++            h.group,
++            Semantics {
++                name: Some(name.into()),
++                ..Semantics::default()
++            },
++        );
++        let layout = world.get_mut::<Layout>(h.group).unwrap();
++        layout.axis = if orientation == TabOrientation::Horizontal {
++            Axis::Row
++        } else {
++            Axis::Column
++        };
++        layout.gap = 4.0;
++        for (i, label) in labels.iter().enumerate() {
++            let previous = world.get::<Control>(h.tabs[i].root).unwrap().props.clone();
++            let props = ButtonProps {
++                label: (*label).into(),
++                ..previous
++            };
++            mount_control(
++                world,
++                h.group,
++                UiId(i as u64),
++                Kind::Tab,
++                props,
++                NavigationMeta::default(),
++            )?;
++        }
++        Ok(h)
++    }
++}
++impl ModeHandle {
++    /// Validate all generations, direct-parent relations and owned content slots.
++    pub fn validate(&self, world: &World) -> Result<(), UiError> {
++        let s = world.get::<Selector>(self.root).ok_or(UiError::Stale)?;
++        if self.group != s.group
++            || !world.has::<Layout>(self.root)
++            || !world.has::<Layout>(self.group)
++            || self.tabs != s.tabs
++            || self.panels != s.panels
++            || world.get::<OwnedBy>(self.root).map(|o| o.0) != Some(self.root)
++            || world.get::<OwnedBy>(self.group).map(|o| o.0) != Some(self.root)
++            || world.get::<Parent>(self.group).map(|p| p.entity) != Some(self.root)
++            || !world.has::<Tabs>(self.group)
++        {
++            return Err(UiError::Stale);
++        }
++        for (tab, panel) in self.tabs.iter().zip(&self.panels) {
++            tab.validate(world)?;
++            if world.get::<Parent>(tab.root).map(|p| p.entity) != Some(self.group)
++                || world.get::<Parent>(*panel).map(|p| p.entity) != Some(self.root)
++                || world.get::<OwnedBy>(*panel).map(|o| o.0) != Some(self.root)
++                || !world.has::<Layout>(*panel)
++                || !world.has::<TabPanel>(*panel)
++                || world
++                    .get::<TabRelation>(tab.root)
++                    .is_none_or(|r| r.panel != *panel || r.group != self.group)
++            {
++                return Err(UiError::Stale);
++            }
++        }
++        Ok(())
++    }
++    /// Update availability/readonly without changing active panel or content.
++    pub fn set_available(
++        &self,
++        world: &mut World,
++        index: usize,
++        enabled: bool,
++        readonly: bool,
++    ) -> Result<(), UiError> {
++        self.validate(world)?;
++        let h = *self.tabs.get(index).ok_or(UiError::InvalidProps)?;
++        let c = world.get::<Control>(h.root).unwrap().clone();
++        let mut props = c.props;
++        props.enabled = enabled;
++        props.readonly = readonly;
++        mount_control(
++            world,
++            self.group,
++            UiId(index as u64),
++            Kind::Tab,
++            props,
++            c.meta,
++        )?;
++        Ok(())
++    }
++    /// Remove owned tabs/panels, detaching all borrowed panel children alive.
++    pub fn destroy(self, world: &mut World) -> Result<(), UiError> {
++        self.validate(world)?;
++        for tab in self.tabs {
++            tab.destroy(world)?;
++        }
++        destroy_owned(world, self.root);
++        Ok(())
++    }
++}
++
++#[derive(Clone, Copy)]
++struct ToolbarNode {
++    id: UiId,
++    available: f32,
++}
++impl Component for ToolbarNode {}
++/// Responsive toolbar recipe, not a menu. Controls stay visible in order.
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub struct ToolbarHandle {
++    /// Layout/content slot. Children are borrowed, not destroyed by teardown.
++    pub root: Entity,
++}
++/// Fits a row only if every direct control's unwrapped measured label fits;
++/// otherwise stacks every action vertically. No fake overflow button or hiding.
++pub struct Toolbar;
++impl Toolbar {
++    /// Host supplies logical available width on resize, in place.
++    pub fn mount(
++        world: &mut World,
++        parent: Entity,
++        id: UiId,
++        available: f32,
++    ) -> Result<ToolbarHandle, UiError> {
++        parent_valid(world, parent)?;
++        if !available.is_finite() || available < 32.0 {
++            return Err(UiError::InvalidProps);
++        }
++        let root = if let Some(root) = find(world, parent, id) {
++            if !world.has::<ToolbarNode>(root) {
++                return Err(UiError::IdentityConflict);
++            }
++            ToolbarHandle { root }.validate(world)?;
++            root
++        } else {
++            let e = world.spawn((Layout::column(),));
++            world.insert(e, OwnedBy(e));
++            set_parent(world, e, parent);
++            e
++        };
++        world.insert(root, ToolbarNode { id, available });
++        if !world.has::<Semantics>(root) {
++            world.insert(
++                root,
++                Semantics {
++                    name: Some("Commands".into()),
++                    ..Semantics::default()
++                },
++            );
++        }
++        Ok(ToolbarHandle { root })
++    }
++}
++impl ToolbarHandle {
++    /// Validate the toolbar's own root, not ownership of its borrowed children.
++    pub fn validate(self, world: &World) -> Result<(), UiError> {
++        if !world.has::<ToolbarNode>(self.root)
++            || !world.has::<Layout>(self.root)
++            || world.get::<OwnedBy>(self.root).map(|o| o.0) != Some(self.root)
++        {
++            return Err(UiError::Stale);
++        }
++        Ok(())
++    }
++    /// Remove toolbar only; controls and caller subtrees detach intact.
++    pub fn destroy(self, world: &mut World) -> Result<(), UiError> {
++        self.validate(world)?;
++        destroy_owned(world, self.root);
++        Ok(())
++    }
++}
++fn background(world: &mut World, entity: Entity, token: Token) {
++    world.insert(
++        entity,
++        UiRecipe(UiStyle {
++            background: Some(token.into()),
++            ..UiStyle::default()
++        }),
++    );
++}
++/// Recipe resolution runs before the existing style resolver/Layout/paint.
++/// No input processing, queue draining or host command dispatch occurs here.
++pub(crate) fn resolve_controls(world: &mut World) {
++    let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
++    let focused = world.resource::<Focus>().and_then(|f| f.entity);
++    let pointer = world.resource::<Input>().map(|i| i.pointer.position);
++    let hovered = pointer
++        .and_then(|p| hit_test(world, p[0], p[1]))
++        .and_then(|e| {
++            if world.has::<Control>(e) {
++                Some(e)
++            } else {
++                ancestor_with::<Control>(world, e)
++            }
++        });
++    for root in world.entities_with::<Control>() {
++        let c = world.get::<Control>(root).unwrap().clone();
++        if (ControlHandle {
++            root,
++            label: c.label,
++        })
++        .validate(world)
++        .is_err()
++        {
++            continue;
++        }
++        let selected = if c.kind == Kind::Tab {
++            world
++                .get::<Tab>(root)
++                .zip(world.get::<TabRelation>(root))
++                .is_some_and(|(t, r)| {
++                    world
++                        .get::<Tabs>(r.group)
++                        .is_some_and(|g| g.selected == t.id)
++                })
++        } else {
++            c.meta.selected
++        };
++        let pressed = interaction_pressed(world, root);
++        let hover = hovered == Some(root) && access_details(world, root).activate;
++        let (fill, ink) = if !c.props.enabled {
++            (Token::Navigation, Token::Disabled)
++        } else if pressed && theme.contrast == crate::Contrast::High {
++            (Token::Text, Token::Canvas)
++        } else if selected {
++            (Token::Selected, Token::Text)
++        } else {
++            match c.props.variant {
++                ButtonVariant::Primary => (
++                    if pressed {
++                        Token::Pressed
++                    } else if hover {
++                        Token::Hover
++                    } else {
++                        Token::Accent
++                    },
++                    Token::OnAccent,
++                ),
++                ButtonVariant::Destructive => {
++                    if pressed {
++                        (Token::DangerText, Token::DangerFill)
++                    } else {
++                        (Token::DangerFill, Token::DangerText)
++                    }
++                }
++                _ => (
++                    if pressed {
++                        Token::Selected
++                    } else if hover {
++                        Token::Navigation
++                    } else {
++                        Token::Content
++                    },
++                    Token::Text,
++                ),
++            }
++        };
++        background(
++            world,
++            root,
++            if focused == Some(root) {
++                Token::Focus
++            } else {
++                Token::Canvas
++            },
++        );
++        background(world, c.gap, Token::Canvas);
++        background(
++            world,
++            c.border,
++            if pressed || hover {
++                Token::Focus
++            } else if c.props.variant == ButtonVariant::Destructive {
++                Token::DangerStroke
++            } else if c.props.variant == ButtonVariant::Quiet && !hover && !selected {
++                fill
++            } else {
++                Token::StrongStroke
++            },
++        );
++        background(world, c.face, fill);
++        let mut label = c.props.label.clone();
++        if c.kind == Kind::Navigation {
++            if let Some(v) = &c.meta.secondary {
++                label.push_str(&format!(" — {v}"));
++            }
++            if c.meta.dirty {
++                label.push_str(" (unsaved)");
++            }
++        }
++        if selected {
++            label = format!("| {label}");
++        }
++        if c.props.readonly {
++            label.push_str(" (read only)");
++        }
++        world.get_mut::<Label>(c.label).unwrap().text = label;
++        world.insert(
++            c.label,
++            UiRecipe(UiStyle {
++                foreground: Some(ink.into()),
++                typography: Some(if c.kind == Kind::Source {
++                    Typography::Secondary
++                } else {
++                    Typography::Label
++                }),
++                ..UiStyle::default()
++            }),
++        );
++        let l = world.get_mut::<Layout>(root).unwrap();
++        l.min_height = theme.target_min();
++        l.min_width = theme.target_min();
++    }
++}
++
++/// Measure only after the current cascade/type scale has resolved. This stays
++/// before core layout, avoiding a frame of horizontal overflow on type changes.
++pub(crate) fn resolve_toolbars(world: &mut World) {
++    let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
++    // Measure with the actual installed text engine and resolved type style.
++    // Unknown borrowed children force stacking rather than assuming a fake menu.
++    let engine = text_engine(world);
++    for root in world.entities_with::<ToolbarNode>() {
++        let node = *world.get::<ToolbarNode>(root).unwrap();
++        let children: Vec<_> = children_of(world, root)
++            .into_iter()
++            .filter(|e| !world.has::<Hidden>(*e))
++            .collect();
++        let mut required = 8.0 * children.len().saturating_sub(1) as f32;
++        let mut known = true;
++        for child in &children {
++            if let Some(c) = world.get::<Control>(*child) {
++                if (ControlHandle {
++                    root: *child,
++                    label: c.label,
++                })
++                .validate(world)
++                .is_err()
++                {
++                    known = false;
++                    continue;
++                }
++                let label = world.get::<Label>(c.label).unwrap();
++                let style = world
++                    .get::<TextStyle>(c.label)
++                    .cloned()
++                    .unwrap_or_else(|| theme.typography(Typography::Label));
++                required += (engine
++                    .measure(&label.text, &style, &[], f32::INFINITY)
++                    .width
++                    + 52.0)
++                    .max(theme.target_min());
++            } else {
++                known = false;
++            }
++        }
++        if let Some(l) = world.get_mut::<Layout>(root) {
++            l.width = Size::Px(node.available);
++            l.axis = if known && required <= node.available {
++                Axis::Row
++            } else {
++                Axis::Column
++            };
++            l.gap = 8.0;
++        }
++    }
++}
+diff --git a/crates/rndr_ui/src/lib.rs b/crates/rndr_ui/src/lib.rs
+index 03decca..9292016 100644
+--- a/crates/rndr_ui/src/lib.rs
++++ b/crates/rndr_ui/src/lib.rs
+@@ -1,7 +1,8 @@
+-//! GPU-free, opt-in A0/A1 UI foundations above rndr_core.
+-//! No A2 operating controls are included before independent A1 API review.
++//! GPU-free, opt-in A0/A1 foundations and operating A2 components above rndr_core.
++//! Core contract acceptance is scoped; native platform acceptance remains separate.
+ //! See docs/design/A1-api-decisions.md for the bounded interaction contract.
+ #![warn(missing_docs)]
++pub mod controls;
+ pub mod style;
+ pub mod surfaces;
+ pub mod tokens;
+@@ -25,7 +26,9 @@ impl Plugin for UiPlugin {
+             app.world_mut().insert_resource(UiTheme::default());
+         }
+         app.world_mut().insert_resource(Installed);
++        app.add_system(Schedule::Layout, controls::resolve_controls);
+         app.add_system(Schedule::Layout, resolve_styles);
++        app.add_system(Schedule::Layout, controls::resolve_toolbars);
+     }
+ }
+ 
+diff --git a/crates/rndr_ui/src/surfaces.rs b/crates/rndr_ui/src/surfaces.rs
+index e35c26e..b836ab8 100644
+--- a/crates/rndr_ui/src/surfaces.rs
++++ b/crates/rndr_ui/src/surfaces.rs
+@@ -88,6 +88,11 @@ pub struct UiHandle {
+     /// Stable content slot. Directly attached caller children remain borrowed.
+     pub content: Entity,
+ }
++/// Parent-scoped identity used by passive and operating components alike.
++pub(crate) fn key_at(world: &World, entity: Entity) -> Option<UiId> {
++    world.get::<Node>(entity).map(|n| n.id)
++}
++
+ /// Lifecycle operation error; no partial update is performed.
+ #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+ pub enum UiError {
+@@ -97,6 +102,8 @@ pub enum UiError {
+     IdentityConflict,
+     /// Invalid adoption (cycles, existing UI component or stale entity).
+     InvalidAdoption,
++    /// Empty required name/label, invalid dimensions or unsupported property shape.
++    InvalidProps,
+ }
+ 
+ /// Passive content Card, not a clickable control.
+@@ -150,6 +157,12 @@ fn mount(
+     if !world.is_alive(parent) || !world.has::<Layout>(parent) {
+         return Err(UiError::Stale);
+     }
++    if children_of(world, parent)
++        .into_iter()
++        .any(|e| crate::controls::key_at(world, e) == Some(id))
++    {
++        return Err(UiError::IdentityConflict);
++    }
+     let existing = children_of(world, parent)
+         .into_iter()
+         .find(|e| world.get::<Node>(*e).is_some_and(|n| n.id == id));
+@@ -292,6 +305,7 @@ impl UiHandle {
+                 || out.contains(&entity)
+                 || world.has::<Node>(entity)
+                 || world.has::<Owned>(entity)
++                || crate::controls::owns_entity(world, entity)
+             {
+                 return false;
+             }
+diff --git a/crates/rndr_ui/tests/a2_adoption_boundary.rs b/crates/rndr_ui/tests/a2_adoption_boundary.rs
+new file mode 100644
+index 0000000..7fb7206
+--- /dev/null
++++ b/crates/rndr_ui/tests/a2_adoption_boundary.rs
+@@ -0,0 +1,88 @@
++use rndr_core::*;
++use rndr_ui::{
++    controls::{self, *},
++    *,
++};
++#[test]
++fn passive_adoption_rejects_all_operating_ownership_and_plain_transfer_still_works() {
++    let mut a = App::new();
++    a.add_plugin(UiPlugin);
++    let w = a.world_mut();
++    let root = w.spawn((Layout {
++        width: Size::Px(320.0),
++        ..Layout::column()
++    },));
++    let card = Card::mount(w, root, UiId(1), "Owner").unwrap();
++    let button = controls::Button::mount(
++        w,
++        root,
++        UiId(2),
++        ButtonProps::new("Command", HostIntent::Command(1)),
++    )
++    .unwrap();
++    let source = SourceAction::mount(
++        w,
++        root,
++        UiId(3),
++        SourceLocator {
++            document: 1,
++            revision: 2,
++            anchor: 3,
++        },
++        true,
++    )
++    .unwrap();
++    let mode = ModeSelector::mount(
++        w,
++        root,
++        UiId(4),
++        "Mode",
++        &["Source", "Preview"],
++        TabOrientation::Horizontal,
++        0,
++    )
++    .unwrap();
++    let toolbar = Toolbar::mount(w, root, UiId(5), 320.0).unwrap();
++    for e in [
++        button.root,
++        button.label,
++        source.root,
++        source.label,
++        mode.root,
++        mode.group,
++        mode.tabs[0].root,
++        mode.tabs[0].label,
++        mode.panels[0],
++        toolbar.root,
++    ] {
++        let parent = w.get::<Parent>(e).map(|p| p.entity);
++        assert_eq!(
++            card.adopt(w, e),
++            Err(UiError::InvalidAdoption),
++            "cannot adopt existing operating ownership {e:?}"
++        );
++        assert_eq!(w.get::<Parent>(e).map(|p| p.entity), parent);
++    }
++    let wrapper = w.spawn((Layout::column(),));
++    set_parent(w, wrapper, root);
++    let nested = controls::Button::mount(
++        w,
++        wrapper,
++        UiId(1),
++        ButtonProps::new("Nested", HostIntent::Command(2)),
++    )
++    .unwrap();
++    assert_eq!(card.adopt(w, wrapper), Err(UiError::InvalidAdoption));
++    assert_eq!(w.get::<Parent>(wrapper).unwrap().entity, root);
++    nested.validate(w).unwrap();
++    let plain = w.spawn((Layout::column(), Label::new("Explicit plain transfer")));
++    card.adopt(w, plain).unwrap();
++    set_parent(w, button.root, card.content);
++    card.destroy(w).unwrap();
++    assert!(!w.is_alive(plain));
++    assert!(w.get::<Parent>(button.root).is_none());
++    button.validate(w).unwrap();
++    source.validate(w).unwrap();
++    mode.validate(w).unwrap();
++    toolbar.validate(w).unwrap();
++}
+diff --git a/crates/rndr_ui/tests/a2_malformed_controls.rs b/crates/rndr_ui/tests/a2_malformed_controls.rs
+new file mode 100644
+index 0000000..0875143
+--- /dev/null
++++ b/crates/rndr_ui/tests/a2_malformed_controls.rs
+@@ -0,0 +1,91 @@
++use rndr_core::*;
++use rndr_ui::{
++    controls::{self, *},
++    *,
++};
++fn app() -> (App, Entity) {
++    let mut a = App::new();
++    a.add_plugin(UiPlugin);
++    let root = a.world_mut().spawn((Layout {
++        width: Size::Px(320.0),
++        ..Layout::column()
++    },));
++    (a, root)
++}
++#[test]
++fn removed_root_group_or_panel_layout_is_stale_not_a_partial_update() {
++    let (mut a, root) = app();
++    let h = controls::Button::mount(
++        a.world_mut(),
++        root,
++        UiId(1),
++        ButtonProps::new("old", HostIntent::Command(1)),
++    )
++    .unwrap();
++    a.world_mut().remove::<Layout>(h.root);
++    assert_eq!(h.validate(a.world()), Err(UiError::Stale));
++    assert_eq!(
++        controls::Button::mount(
++            a.world_mut(),
++            root,
++            UiId(1),
++            ButtonProps::new("new", HostIntent::Command(2))
++        ),
++        Err(UiError::Stale)
++    );
++    assert_eq!(h.destroy(a.world_mut()), Err(UiError::Stale));
++    a.update();
++    for part in 0..3 {
++        let (mut a, root) = app();
++        let h = ModeSelector::mount(
++            a.world_mut(),
++            root,
++            UiId(1),
++            "Mode",
++            &["Source", "Preview"],
++            TabOrientation::Horizontal,
++            0,
++        )
++        .unwrap();
++        let target = [h.root, h.group, h.panels[0]][part];
++        a.world_mut().remove::<Layout>(target);
++        assert_eq!(h.validate(a.world()), Err(UiError::Stale));
++        assert_eq!(
++            ModeSelector::mount(
++                a.world_mut(),
++                root,
++                UiId(1),
++                "Changed",
++                &["Other", "Names"],
++                TabOrientation::Vertical,
++                0
++            ),
++            Err(UiError::Stale)
++        );
++        assert_eq!(h.destroy(a.world_mut()), Err(UiError::Stale));
++        a.update();
++    }
++}
++#[test]
++fn toolbar_measurement_tolerates_malformed_borrowed_control_and_checks_own_layout() {
++    let (mut a, root) = app();
++    let t = Toolbar::mount(a.world_mut(), root, UiId(1), 320.0).unwrap();
++    let h = controls::Button::mount(
++        a.world_mut(),
++        t.root,
++        UiId(1),
++        ButtonProps::new("Action", HostIntent::Command(1)),
++    )
++    .unwrap();
++    a.update();
++    a.world_mut().remove::<Label>(h.label);
++    a.update();
++    assert_eq!(h.validate(a.world()), Err(UiError::Stale));
++    assert_eq!(a.world().get::<Layout>(t.root).unwrap().axis, Axis::Column);
++    a.world_mut().remove::<Layout>(t.root);
++    assert_eq!(
++        Toolbar::mount(a.world_mut(), root, UiId(1), 160.0),
++        Err(UiError::Stale)
++    );
++    assert_eq!(t.destroy(a.world_mut()), Err(UiError::Stale));
++}
+diff --git a/crates/rndr_ui/tests/a2_nested_paint.rs b/crates/rndr_ui/tests/a2_nested_paint.rs
+new file mode 100644
+index 0000000..42562b9
+--- /dev/null
++++ b/crates/rndr_ui/tests/a2_nested_paint.rs
+@@ -0,0 +1,88 @@
++use rndr_core::*;
++use rndr_ui::{controls::*, *};
++#[test]
++fn nested_source_focus_real_glyph_clip_and_hit_geometry_agree() {
++    let mut a = App::new();
++    a.add_plugin(UiPlugin);
++    let outer = a.world_mut().spawn((
++        Layout {
++            width: Size::Px(300.0),
++            height: Size::Px(140.0),
++            ..Layout::column()
++        },
++        Scroll::default(),
++    ));
++    let spacer = a.world_mut().spawn((Layout {
++        width: Size::Fill,
++        height: Size::Px(220.0),
++        ..Layout::column()
++    },));
++    set_parent(a.world_mut(), spacer, outer);
++    let inner = a.world_mut().spawn((
++        Layout {
++            width: Size::Fill,
++            height: Size::Px(80.0),
++            ..Layout::column()
++        },
++        Scroll::default(),
++    ));
++    set_parent(a.world_mut(), inner, outer);
++    let filler = a.world_mut().spawn((Layout {
++        width: Size::Fill,
++        height: Size::Px(300.0),
++        ..Layout::column()
++    },));
++    set_parent(a.world_mut(), filler, inner);
++    let h = SourceAction::mount(
++        a.world_mut(),
++        inner,
++        UiId(1),
++        SourceLocator {
++            document: 1,
++            revision: 2,
++            anchor: 3,
++        },
++        true,
++    )
++    .unwrap();
++    a.update();
++    assert!(request_focus(a.world_mut(), h.root));
++    let frame = rndr_paint::frame(&mut a);
++    let r = *a.world().get::<Rect>(h.root).unwrap();
++    let lr = *a.world().get::<Rect>(h.label).unwrap();
++    let outer = *a.world().get::<Rect>(outer).unwrap();
++    let inner = *a.world().get::<Rect>(inner).unwrap();
++    assert!(r.y >= outer.y && r.y + r.h <= outer.y + outer.h + 0.01);
++    assert!(r.y >= inner.y && r.y + r.h <= inner.y + inner.h + 0.01);
++    let glyphs: Vec<_> = frame
++        .quads
++        .iter()
++        .filter(|q| {
++            q.uv != rndr_paint::solid_uv()
++                && q.rect.x >= lr.x
++                && q.rect.y >= lr.y
++                && q.rect.x + q.rect.w <= lr.x + lr.w + 0.01
++                && q.rect.y + q.rect.h <= lr.y + lr.h + 0.01
++        })
++        .collect();
++    assert_eq!(
++        glyphs.len(),
++        10,
++        "actual complete Show source glyphs, no World-only visibility claim"
++    );
++    for q in glyphs {
++        for port in [outer, inner] {
++            assert!(
++                q.clip.x >= port.x
++                    && q.clip.y >= port.y
++                    && q.clip.x + q.clip.w <= port.x + port.w + 0.01
++                    && q.clip.y + q.clip.h <= port.y + port.h + 0.01
++            );
++        }
++    }
++    let hit = hit_test(a.world(), lr.x + 12.0, lr.y + 12.0).unwrap();
++    assert_eq!(
++        ancestor_with::<rndr_core::Button>(a.world(), hit),
++        Some(h.root)
++    );
++}
+diff --git a/crates/rndr_ui/tests/a2_operating.rs b/crates/rndr_ui/tests/a2_operating.rs
+new file mode 100644
+index 0000000..42094aa
+--- /dev/null
++++ b/crates/rndr_ui/tests/a2_operating.rs
+@@ -0,0 +1,587 @@
++use rndr_core::*;
++use rndr_ui::{
++    controls::{self, *},
++    *,
++};
++#[path = "../examples/support/operating.rs"]
++mod operating;
++fn fixture(width: f32) -> (App, Entity) {
++    let mut a = App::new();
++    a.add_plugin(UiPlugin);
++    a.world_mut().insert_resource(Viewport::new(width, 1000.0));
++    let root = a.world_mut().spawn((Layout {
++        width: Size::Px(width),
++        ..Layout::column()
++    },));
++    (a, root)
++}
++fn key(a: &mut App, n: NamedKey) {
++    a.world_mut().insert_resource(Input::default());
++    a.world_mut()
++        .resource_mut::<Input>()
++        .unwrap()
++        .push_key(KeyEvent::named(n, Modifiers::new()), Platform::Mac);
++    a.update();
++    a.world_mut().insert_resource(Input::default());
++}
++fn pointer(a: &mut App, e: Entity, down: bool, inside: bool) {
++    let r = *a.world().get::<Rect>(e).unwrap();
++    let p = &mut a.world_mut().resource_mut::<Input>().unwrap().pointer;
++    p.position = if inside {
++        [r.x + 12.0, r.y + 12.0]
++    } else {
++        [r.x + r.w + 20.0, r.y + r.h + 20.0]
++    };
++    p.pressed = down;
++    p.released = !down;
++    p.down = down;
++    p.press_at = Some([r.x + 12.0, r.y + 12.0]);
++    a.update();
++    a.world_mut().insert_resource(Input::default());
++}
++fn contains(outer: Rect, inner: Rect) -> bool {
++    inner.x >= outer.x - 0.02
++        && inner.y >= outer.y - 0.02
++        && inner.x + inner.w <= outer.x + outer.w + 0.02
++        && inner.y + inner.h <= outer.y + outer.h + 0.02
++}
++#[test]
++fn controls_share_canonical_pointer_keyboard_at_and_fifo_without_fanout() {
++    let (mut a, root) = fixture(320.0);
++    let h = controls::Button::mount(
++        a.world_mut(),
++        root,
++        UiId(1),
++        ButtonProps::new("Run", HostIntent::Command(9)),
++    )
++    .unwrap();
++    a.update();
++    pointer(&mut a, h.root, true, true);
++    assert!(interaction_pressed(a.world(), h.root));
++    assert!(take_action_intents(a.world_mut()).is_empty());
++    pointer(&mut a, h.root, false, true);
++    key(&mut a, NamedKey::Enter);
++    assert_eq!(
++        try_apply_access(a.world_mut(), AccessCommand::Activate(h.root)),
++        AccessCommandResult::Activation(ActivationResult::Accepted)
++    );
++    a.update();
++    let q = take_action_intents(a.world_mut());
++    assert_eq!(q.len(), 3);
++    assert!(q
++        .iter()
++        .all(|r| host_intent(a.world(), r) == Some(HostIntent::Command(9))));
++    assert!(a.world().resource::<Fired>().unwrap().name.is_none());
++    for _ in 0..64 {
++        assert_eq!(
++            try_activate(a.world_mut(), h.root),
++            ActivationResult::Accepted
++        );
++    }
++    assert_eq!(
++        try_activate(a.world_mut(), h.root),
++        ActivationResult::Overflow
++    );
++    assert_eq!(a.world().resource::<ActionIntents>().unwrap().overflow, 1);
++    assert_eq!(take_action_intents(a.world_mut()).len(), 64);
++    let legacy = a
++        .world_mut()
++        .spawn((Layout::column(), rndr_core::Button::new("old")));
++    set_parent(a.world_mut(), legacy, root);
++    request_focus(a.world_mut(), legacy);
++    key(&mut a, NamedKey::Enter);
++    assert_eq!(
++        a.world().resource::<Fired>().unwrap().name.as_deref(),
++        Some("old")
++    );
++    assert!(take_action_intents(a.world_mut()).is_empty());
++}
++#[test]
++fn cancellation_disabled_readonly_and_action_update_do_not_commit_stale_gestures() {
++    let (mut a, root) = fixture(320.0);
++    let mut props = ButtonProps::new("Run", HostIntent::Command(1));
++    let h = controls::Button::mount(a.world_mut(), root, UiId(1), props.clone()).unwrap();
++    a.update();
++    pointer(&mut a, h.root, true, true);
++    pointer(&mut a, h.root, false, false);
++    assert!(take_action_intents(a.world_mut()).is_empty());
++    pointer(&mut a, h.root, true, true);
++    cancel_activation(a.world_mut());
++    pointer(&mut a, h.root, false, true);
++    assert!(take_action_intents(a.world_mut()).is_empty());
++    pointer(&mut a, h.root, true, true);
++    props.intent = HostIntent::Command(2);
++    controls::Button::mount(a.world_mut(), root, UiId(1), props.clone()).unwrap();
++    pointer(&mut a, h.root, false, true);
++    assert!(take_action_intents(a.world_mut()).is_empty());
++    for (enabled, readonly, focus, activate) in [
++        (false, false, false, false),
++        (true, true, true, false),
++        (true, false, true, true),
++    ] {
++        props.enabled = enabled;
++        props.readonly = readonly;
++        controls::Button::mount(a.world_mut(), root, UiId(1), props.clone()).unwrap();
++        a.update();
++        let d = access_details(a.world(), h.root);
++        assert_eq!((d.focus, d.activate), (focus, activate));
++        let node = access_tree(a.world())
++            .nodes
++            .into_iter()
++            .find(|n| n.id == access_id(h.root))
++            .unwrap();
++        assert_eq!(node.enabled, enabled);
++        assert_eq!(
++            try_activate(a.world_mut(), h.root) == ActivationResult::Accepted,
++            activate
++        );
++        take_action_intents(a.world_mut());
++    }
++}
++#[test]
++fn lifecycle_keys_stale_generations_and_borrowed_state_survive() {
++    let (mut a, root) = fixture(320.0);
++    let p = ButtonProps::new("Before", HostIntent::Command(1));
++    let h = controls::Button::mount(a.world_mut(), root, UiId(1), p).unwrap();
++    a.update();
++    request_focus(a.world_mut(), h.root);
++    let h2 = controls::Button::mount(
++        a.world_mut(),
++        root,
++        UiId(1),
++        ButtonProps::new("After", HostIntent::Command(1)),
++    )
++    .unwrap();
++    assert_eq!(h, h2);
++    assert_eq!(a.world().resource::<Focus>().unwrap().entity, Some(h.root));
++    assert_eq!(
++        Card::mount(a.world_mut(), root, UiId(1), "conflict"),
++        Err(UiError::IdentityConflict)
++    );
++    let card = Card::mount(a.world_mut(), root, UiId(2), "Passive").unwrap();
++    assert_eq!(
++        controls::Button::mount(
++            a.world_mut(),
++            root,
++            UiId(2),
++            ButtonProps::new("No", HostIntent::Command(1))
++        ),
++        Err(UiError::IdentityConflict)
++    );
++    assert!(!access_details(a.world(), card.root).activate);
++    let borrowed = a
++        .world_mut()
++        .spawn((Layout::column(), Label::new("caller"), Scroll::default()));
++    set_parent(a.world_mut(), borrowed, h.label);
++    try_activate(a.world_mut(), h.root);
++    h.destroy(a.world_mut()).unwrap();
++    assert!(a.world().is_alive(borrowed));
++    assert!(a.world().get::<Parent>(borrowed).is_none());
++    assert!(take_action_intents(a.world_mut()).is_empty());
++    let new = controls::Button::mount(
++        a.world_mut(),
++        root,
++        UiId(1),
++        ButtonProps::new("New", HostIntent::Command(1)),
++    )
++    .unwrap();
++    assert_ne!(new.root, h.root);
++    assert_eq!(h.validate(a.world()), Err(UiError::Stale));
++}
++#[test]
++fn malformed_owned_slots_fail_before_update_or_destroy() {
++    let (mut a, root) = fixture(320.0);
++    let h = controls::Button::mount(
++        a.world_mut(),
++        root,
++        UiId(1),
++        ButtonProps::new("Original", HostIntent::Command(1)),
++    )
++    .unwrap();
++    a.world_mut().remove::<Label>(h.label);
++    assert_eq!(
++        controls::Button::mount(
++            a.world_mut(),
++            root,
++            UiId(1),
++            ButtonProps::new("Changed", HostIntent::Command(2))
++        ),
++        Err(UiError::Stale)
++    );
++    assert_eq!(h.destroy(a.world_mut()), Err(UiError::Stale));
++    assert_eq!(
++        a.world().get::<rndr_core::Button>(h.root).unwrap().action,
++        "rndr-ui:Command(1)"
++    );
++    assert!(IconButton::mount(
++        a.world_mut(),
++        root,
++        UiId(2),
++        "+",
++        "",
++        ButtonProps::new("+", HostIntent::Command(1))
++    )
++    .is_err());
++}
++#[test]
++fn manual_modes_have_roving_entry_real_relations_and_full_inactive_exclusion() {
++    let (mut a, root) = fixture(320.0);
++    let h = ModeSelector::mount(
++        a.world_mut(),
++        root,
++        UiId(1),
++        "Mode",
++        &["Source", "Preview"],
++        TabOrientation::Horizontal,
++        0,
++    )
++    .unwrap();
++    let mut descendants = vec![];
++    for panel in &h.panels {
++        let b = controls::Button::mount(
++            a.world_mut(),
++            *panel,
++            UiId(1),
++            ButtonProps::new("Panel action", HostIntent::Command(7)),
++        )
++        .unwrap();
++        descendants.push(b);
++    }
++    a.update();
++    key(&mut a, NamedKey::Tab);
++    assert_eq!(
++        a.world().resource::<Focus>().unwrap().entity,
++        Some(h.tabs[0].root)
++    );
++    key(&mut a, NamedKey::ArrowRight);
++    assert_eq!(
++        a.world().resource::<Focus>().unwrap().entity,
++        Some(h.tabs[1].root)
++    );
++    assert_eq!(a.world().get::<Tabs>(h.group).unwrap().selected, 0);
++    assert!(!request_focus(a.world_mut(), descendants[1].root));
++    assert_eq!(
++        try_activate(a.world_mut(), descendants[1].root),
++        ActivationResult::Rejected
++    );
++    assert!(
++        a.world().get::<Rect>(descendants[1].root).is_none(),
++        "inactive panel is excluded from layout, not just painted over"
++    );
++    let r = *a.world().get::<Rect>(descendants[0].root).unwrap();
++    assert_ne!(
++        hit_test(a.world(), r.x + 12.0, r.y + 12.0),
++        Some(descendants[1].root)
++    );
++    key(&mut a, NamedKey::Space);
++    assert_eq!(a.world().get::<Tabs>(h.group).unwrap().selected, 0);
++    let e = KeyEvent::named(NamedKey::Space, Modifiers::new()).released();
++    a.world_mut()
++        .resource_mut::<Input>()
++        .unwrap()
++        .push_key(e, Platform::Mac);
++    a.update();
++    a.world_mut().insert_resource(Input::default());
++    assert_eq!(a.world().get::<Tabs>(h.group).unwrap().selected, 1);
++    assert!(take_action_intents(a.world_mut()).is_empty());
++    let tree = access_tree(a.world());
++    assert!(!tree
++        .nodes
++        .iter()
++        .any(|n| n.id == access_id(descendants[0].root)));
++    assert!(tree
++        .nodes
++        .iter()
++        .any(|n| n.id == access_id(descendants[1].root)));
++    assert_eq!(
++        access_details(a.world(), h.tabs[1].root).controls,
++        Some(access_id(h.panels[1]))
++    );
++    assert_eq!(
++        access_details(a.world(), h.panels[1]).labelled_by,
++        Some(access_id(h.tabs[1].root))
++    );
++    let copy = ModeSelector::mount(
++        a.world_mut(),
++        root,
++        UiId(1),
++        "Renamed",
++        &["Source label", "Preview label"],
++        TabOrientation::Vertical,
++        0,
++    )
++    .unwrap();
++    assert_eq!(h, copy);
++    assert_eq!(a.world().get::<Tabs>(h.group).unwrap().selected, 1);
++    h.set_available(a.world_mut(), 1, true, true).unwrap();
++    assert!(!access_details(a.world(), h.tabs[1].root).activate);
++    assert!(access_details(a.world(), h.tabs[1].root).focus);
++    h.set_available(a.world_mut(), 1, false, false).unwrap();
++    assert!(!access_details(a.world(), h.tabs[1].root).focus);
++    let borrowed = a.world_mut().spawn((Layout::column(), Label::new("keep")));
++    set_parent(a.world_mut(), borrowed, h.panels[1]);
++    h.destroy(a.world_mut()).unwrap();
++    assert!(a.world().is_alive(borrowed));
++    assert!(a.world().get::<Parent>(borrowed).is_none());
++}
++#[test]
++fn source_is_visible_named_keyboard_reachable_and_host_validates_locator() {
++    let mut a = operating::create(800.0, 600.0, UiTheme::default(), false);
++    let d = a.world().resource::<operating::Demo>().unwrap().clone();
++    assert!(a
++        .world()
++        .get::<Label>(d.source.label)
++        .unwrap()
++        .text
++        .contains("Show source"));
++    request_focus(a.world_mut(), d.source.root);
++    key(&mut a, NamedKey::Enter);
++    assert_eq!(a.world().resource::<operating::Demo>().unwrap().reveals, 1);
++    a.world_mut()
++        .resource_mut::<operating::Demo>()
++        .unwrap()
++        .locator
++        .revision += 1;
++    key(&mut a, NamedKey::Enter);
++    let d = a.world().resource::<operating::Demo>().unwrap();
++    assert_eq!((d.reveals, d.rejected), (1, 1));
++}
++#[test]
++fn host_validation_rejects_queued_payload_replacement_and_stale_generation() {
++    let (mut a, root) = fixture(320.0);
++    let l = SourceLocator {
++        document: 1,
++        revision: 2,
++        anchor: 3,
++    };
++    let h = SourceAction::mount(a.world_mut(), root, UiId(1), l, true).unwrap();
++    a.update();
++    try_activate(a.world_mut(), h.root);
++    let q = take_action_intents(a.world_mut()).pop().unwrap();
++    assert_eq!(
++        host_intent(a.world(), &q),
++        Some(HostIntent::RevealSource(l))
++    );
++    SourceAction::mount(
++        a.world_mut(),
++        root,
++        UiId(1),
++        SourceLocator { revision: 4, ..l },
++        true,
++    )
++    .unwrap();
++    assert_eq!(host_intent(a.world(), &q), None);
++    h.destroy(a.world_mut()).unwrap();
++    SourceAction::mount(a.world_mut(), root, UiId(1), l, true).unwrap();
++    assert_eq!(host_intent(a.world(), &q), None);
++}
++#[test]
++fn actual_gallery_matrix_has_real_glyphs_wrap_targets_and_narrow_reflow() {
++    // 1280/4=320 logical-point 400%-equivalent reflow, distinct from 200% type.
++    for appearance in [Appearance::Light, Appearance::Dark] {
++        for contrast in [Contrast::Standard, Contrast::High] {
++            for density in [Density::Comfortable, Density::Compact] {
++                for scale in [1.0, 2.0] {
++                    for width in [320.0, 1000.0] {
++                        let theme = UiTheme {
++                            appearance,
++                            contrast,
++                            density,
++                            text_scale: scale,
++                            reading_scale: scale,
++                            ..UiTheme::default()
++                        };
++                        let mut a = operating::create(width, 30000.0, theme.clone(), true);
++                        let d = a.world().resource::<operating::Demo>().unwrap().clone();
++                        request_focus(a.world_mut(), d.nav[0].root);
++                        let f = rndr_paint::frame(&mut a);
++                        assert!(f.quads.iter().any(|q| q.uv != rndr_paint::solid_uv()));
++                        assert_eq!(
++                            a.world().get::<Layout>(d.toolbar.root).unwrap().axis,
++                            Axis::Column
++                        );
++                        for h in d
++                            .commands
++                            .iter()
++                            .chain(d.nav.iter())
++                            .chain(d.selector.tabs.iter())
++                            .chain([d.source].iter())
++                        {
++                            let r = *a.world().get::<Rect>(h.root).unwrap();
++                            let lr = *a.world().get::<Rect>(h.label).unwrap();
++                            let t = a.world().get::<TextLayout>(h.label).unwrap();
++                            assert!(
++                                r.w >= theme.target_min() - 0.01
++                                    && r.h >= theme.target_min() - 0.01
++                            );
++                            assert!(
++                                r.x >= 0.0 && r.x + r.w <= width + 0.02,
++                                "horizontal overflow {r:?} at {width}/{scale}"
++                            );
++                            assert!(contains(r, lr), "label outside target");
++                            assert!(t.height <= lr.h + 0.02);
++                            assert!(!t.glyphs.is_empty());
++                            let expected: String = a
++                                .world()
++                                .get::<Label>(h.label)
++                                .unwrap()
++                                .text
++                                .chars()
++                                .filter(|c| c.is_ascii_graphic())
++                                .collect();
++                            let actual: String = t
++                                .glyphs
++                                .iter()
++                                .map(|g| g.ch)
++                                .filter(|c| c.is_ascii_graphic())
++                                .collect();
++                            assert_eq!(
++                                actual, expected,
++                                "complete ASCII glyph coverage, not just World text"
++                            );
++                            assert!(f.quads.iter().any(|q|q.uv!=rndr_paint::solid_uv()&&contains(lr,q.rect)),"no actual glyph in target");
++                        }
++                        let nav = d.nav[0];
++                        let r = *a.world().get::<Rect>(nav.root).unwrap();
++                        assert!(f
++                            .quads
++                            .iter()
++                            .any(|q| q.rect == r && q.color == theme.color(Token::Focus)));
++                        assert!(a
++                            .world()
++                            .get::<Label>(nav.label)
++                            .unwrap()
++                            .text
++                            .starts_with("| "));
++                        let n = access_tree(a.world())
++                            .nodes
++                            .into_iter()
++                            .find(|n| n.id == access_id(nav.root))
++                            .unwrap();
++                        assert!(n.focused && n.selected);
++                        assert!(n.name.contains("unsaved"));
++                    }
++                }
++            }
++        }
++    }
++}
++#[test]
++fn toolbar_wide_row_narrow_stack_and_destroy_never_hides_actions() {
++    let (mut a, root) = fixture(1000.0);
++    let t = Toolbar::mount(a.world_mut(), root, UiId(1), 1000.0).unwrap();
++    let mut controls = vec![];
++    for i in 0..3 {
++        controls.push(
++            controls::Button::mount(
++                a.world_mut(),
++                t.root,
++                UiId(i),
++                ButtonProps::new("Go", HostIntent::Command(i)),
++            )
++            .unwrap(),
++        );
++    }
++    a.update();
++    assert_eq!(a.world().get::<Layout>(t.root).unwrap().axis, Axis::Row);
++    Toolbar::mount(a.world_mut(), root, UiId(1), 160.0).unwrap();
++    a.update();
++    assert_eq!(a.world().get::<Layout>(t.root).unwrap().axis, Axis::Column);
++    for h in &controls {
++        assert!(interaction_visible(a.world(), h.root));
++        assert!(access_details(a.world(), h.root).activate);
++    }
++    t.destroy(a.world_mut()).unwrap();
++    for h in controls {
++        h.validate(a.world()).unwrap();
++        assert!(a.world().get::<Parent>(h.root).is_none());
++    }
++}
++#[test]
++fn mode_and_theme_updates_preserve_editor_content_focus_selection_history_and_scroll() {
++    let mut a = operating::create(800.0, 600.0, UiTheme::default(), false);
++    let d = a.world().resource::<operating::Demo>().unwrap().clone();
++    request_focus(a.world_mut(), d.editor);
++    a.world_mut().insert_resource(Platform::Windows);
++    let before = a.world().get::<Buffer>(d.editor).unwrap().text();
++    a.world_mut().resource_mut::<Input>().unwrap().push_key(
++        KeyEvent::character('!', Modifiers::new()),
++        Platform::Windows,
++    );
++    a.update();
++    a.world_mut().insert_resource(Input::default());
++    let source = a.world().get::<Buffer>(d.editor).unwrap().text();
++    assert_ne!(source, before);
++    {
++        let b = a.world_mut().get_mut::<Buffer>(d.editor).unwrap();
++        b.anchor = 1;
++        b.caret = 3;
++    }
++    let caret = (3, 1);
++    a.world_mut().get_mut::<Scroll>(d.nested).unwrap().offset = [0.0, -20.0];
++    let h = ModeSelector::mount(
++        a.world_mut(),
++        d.root,
++        UiId(30),
++        "Mode",
++        &["Source", "Preview"],
++        TabOrientation::Horizontal,
++        1,
++    )
++    .unwrap();
++    assert_eq!(h, d.selector);
++    assert_eq!(
++        a.world().resource::<Focus>().unwrap().entity,
++        Some(d.editor)
++    );
++    assert_eq!(a.world().get::<Tabs>(h.group).unwrap().selected, 0);
++    a.world_mut().insert_resource(UiTheme {
++        appearance: Appearance::Dark,
++        contrast: Contrast::High,
++        text_scale: 2.0,
++        ..UiTheme::default()
++    });
++    a.update();
++    assert_eq!(a.world().get::<Buffer>(d.editor).unwrap().text(), source);
++    assert_eq!(
++        a.world().get::<Scroll>(d.nested).unwrap().offset,
++        [0.0, -20.0]
++    );
++    request_focus(a.world_mut(), h.tabs[1].root);
++    key(&mut a, NamedKey::Enter);
++    request_focus(a.world_mut(), h.tabs[0].root);
++    key(&mut a, NamedKey::Enter);
++    assert_eq!(a.world().get::<Buffer>(d.editor).unwrap().text(), source);
++    let after = a.world().get::<Buffer>(d.editor).unwrap();
++    assert_eq!((after.caret, after.anchor), caret);
++    request_focus(a.world_mut(), d.editor);
++    let mut mods = Modifiers::new();
++    mods.ctrl = true;
++    for (ch, expected) in [('z', before), ('y', source)] {
++        a.world_mut()
++            .resource_mut::<Input>()
++            .unwrap()
++            .push_key(KeyEvent::character(ch, mods), Platform::Windows);
++        a.update();
++        a.world_mut().insert_resource(Input::default());
++        assert_eq!(
++            a.world().get::<Buffer>(d.editor).unwrap().text(),
++            expected,
++            "same history survives mode and theme changes"
++        );
++    }
++}
++#[test]
++fn nested_scroll_paints_real_clip_and_focus_reveal_without_rebuilding() {
++    let mut a = operating::create(320.0, 240.0, UiTheme::default(), true);
++    let d = a.world().resource::<operating::Demo>().unwrap().clone();
++    request_focus(a.world_mut(), d.source.root);
++    let f = rndr_paint::frame(&mut a);
++    assert!(a.world().get::<Scroll>(d.root).unwrap().offset[1] < 0.0);
++    let r = *a.world().get::<Rect>(d.source.root).unwrap();
++    assert!(r.y >= 0.0 && r.y + r.h <= 240.1);
++    assert!(f
++        .quads
++        .iter()
++        .any(|q| q.uv != rndr_paint::solid_uv() && q.clip.h <= 240.0));
++}
+diff --git a/crates/rndr_ui/tests/a2_states.rs b/crates/rndr_ui/tests/a2_states.rs
+new file mode 100644
+index 0000000..7700ef1
+--- /dev/null
++++ b/crates/rndr_ui/tests/a2_states.rs
+@@ -0,0 +1,178 @@
++use rndr_core::*;
++use rndr_ui::{
++    controls::{self, *},
++    *,
++};
++fn ratio(a: Color, b: Color) -> f32 {
++    fn l(c: Color) -> f32 {
++        fn f(v: f32) -> f32 {
++            if v <= 0.04045 {
++                v / 12.92
++            } else {
++                ((v + 0.055) / 1.055).powf(2.4)
++            }
++        }
++        0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b)
++    }
++    let a = l(a);
++    let b = l(b);
++    (a.max(b) + 0.05) / (a.min(b) + 0.05)
++}
++#[test]
++fn actual_resolved_control_states_contrast_focus_geometry_and_glyph_scale() {
++    for appearance in [Appearance::Light, Appearance::Dark] {
++        for contrast in [Contrast::Standard, Contrast::High] {
++            for variant in [
++                ButtonVariant::Primary,
++                ButtonVariant::Secondary,
++                ButtonVariant::Quiet,
++                ButtonVariant::Destructive,
++            ] {
++                for state in 0..6 {
++                    let theme = UiTheme {
++                        appearance,
++                        contrast,
++                        ..UiTheme::default()
++                    };
++                    let mut a = App::new();
++                    a.add_plugin(UiPlugin);
++                    a.world_mut().insert_resource(theme.clone());
++                    let root = a.world_mut().spawn((Layout {
++                        width: Size::Px(240.0),
++                        ..Layout::column()
++                    },));
++                    let mut p = ButtonProps::new("Operate", HostIntent::Command(1));
++                    p.variant = variant;
++                    p.enabled = state != 4;
++                    p.readonly = state == 5;
++                    let h = controls::Button::mount(a.world_mut(), root, UiId(1), p).unwrap();
++                    a.update();
++                    let r = *a.world().get::<Rect>(h.root).unwrap();
++                    if state == 1 || state == 2 {
++                        let i = a.world_mut().resource_mut::<Input>().unwrap();
++                        i.pointer.position = [r.x + 12.0, r.y + 12.0];
++                        if state == 2 {
++                            i.pointer.pressed = true;
++                            i.pointer.down = true;
++                            i.pointer.press_at = Some(i.pointer.position);
++                        }
++                    }
++                    if state == 3 {
++                        assert!(request_focus(a.world_mut(), h.root));
++                    }
++                    let f = rndr_paint::frame(&mut a);
++                    let face = a.world().get::<Parent>(h.label).unwrap().entity;
++                    let border = a.world().get::<Parent>(face).unwrap().entity;
++                    let gap = a.world().get::<Parent>(border).unwrap().entity;
++                    let fill = *a.world().get::<Color>(face).unwrap();
++                    let ink = a.world().get::<Label>(h.label).unwrap().color.unwrap();
++                    assert!(
++                        ratio(fill, ink) >= 4.5,
++                        "actual resolved {appearance:?} {contrast:?} {variant:?} state{state}: {}",
++                        ratio(fill, ink)
++                    );
++                    assert!(f
++                        .quads
++                        .iter()
++                        .any(|q| q.uv == rndr_paint::solid_uv() && q.color == fill));
++                    assert!(f
++                        .quads
++                        .iter()
++                        .any(|q| q.uv != rndr_paint::solid_uv() && q.color == ink));
++                    if state == 3 {
++                        let gr = *a.world().get::<Rect>(gap).unwrap();
++                        let br = *a.world().get::<Rect>(border).unwrap();
++                        assert!((gr.x - r.x - 2.0).abs() < 0.01);
++                        assert!((br.x - gr.x - 2.0).abs() < 0.01);
++                        assert!(f
++                            .quads
++                            .iter()
++                            .any(|q| q.rect == r && q.color == theme.color(Token::Focus)));
++                        assert!(f
++                            .quads
++                            .iter()
++                            .any(|q| q.rect == gr && q.color == theme.color(Token::Canvas)));
++                        assert!(
++                            ratio(theme.color(Token::Focus), theme.color(Token::Canvas)) >= 3.0
++                        );
++                    }
++                    assert_eq!(interaction_pressed(a.world(), h.root), state == 2);
++                }
++            }
++        }
++    }
++    let mut heights = vec![];
++    for scale in [1.0, 2.0] {
++        let mut a = App::new();
++        a.add_plugin(UiPlugin);
++        a.world_mut().insert_resource(UiTheme {
++            text_scale: scale,
++            ..UiTheme::default()
++        });
++        let root = a.world_mut().spawn((Layout {
++            width: Size::Px(400.0),
++            ..Layout::column()
++        },));
++        controls::Button::mount(
++            a.world_mut(),
++            root,
++            UiId(1),
++            ButtonProps::new("MMMM", HostIntent::Command(1)),
++        )
++        .unwrap();
++        let f = rndr_paint::frame(&mut a);
++        heights.push(
++            f.quads
++                .iter()
++                .find(|q| q.uv != rndr_paint::solid_uv())
++                .unwrap()
++                .rect
++                .h,
++        );
++    }
++    assert!((heights[1] - heights[0] * 2.0).abs() < 0.01);
++}
++#[test]
++fn style_override_detach_and_theme_changes_do_not_reconstruct_controls() {
++    let mut a = App::new();
++    a.add_plugin(UiPlugin);
++    let root = a.world_mut().spawn((Layout {
++        width: Size::Px(320.0),
++        ..Layout::column()
++    },));
++    let h = controls::Button::mount(
++        a.world_mut(),
++        root,
++        UiId(1),
++        ButtonProps::new("Action", HostIntent::Command(1)),
++    )
++    .unwrap();
++    let custom = Color::rgb(0.2, 0.3, 0.4);
++    a.world_mut().insert(
++        h.root,
++        UiStyle {
++            background: Some(UiColor::Explicit(custom)),
++            ..UiStyle::default()
++        },
++    );
++    a.update();
++    assert_eq!(a.world().get::<Color>(h.root), Some(&custom));
++    a.world_mut().insert_resource(UiTheme {
++        appearance: Appearance::Dark,
++        ..UiTheme::default()
++    });
++    a.update();
++    assert_eq!(a.world().get::<Color>(h.root), Some(&custom));
++    h.validate(a.world()).unwrap();
++    a.world_mut().remove::<UiStyle>(h.root);
++    a.update();
++    assert_eq!(
++        *a.world().get::<Color>(h.root).unwrap(),
++        a.world()
++            .resource::<UiTheme>()
++            .unwrap()
++            .color(Token::Canvas)
++    );
++    h.destroy(a.world_mut()).unwrap();
++    assert_eq!(h.validate(a.world()), Err(UiError::Stale));
++}
+diff --git a/crates/rndr_ui/tests/a2_toolbar_type_update.rs b/crates/rndr_ui/tests/a2_toolbar_type_update.rs
+new file mode 100644
+index 0000000..ab1cf7f
+--- /dev/null
++++ b/crates/rndr_ui/tests/a2_toolbar_type_update.rs
+@@ -0,0 +1,38 @@
++use rndr_core::*;
++use rndr_ui::{
++    controls::{self, *},
++    *,
++};
++#[test]
++fn toolbar_reflows_using_current_resolved_type_in_the_same_update() {
++    let mut a = App::new();
++    a.add_plugin(UiPlugin);
++    let root = a.world_mut().spawn((Layout {
++        width: Size::Px(400.0),
++        ..Layout::column()
++    },));
++    let t = Toolbar::mount(a.world_mut(), root, UiId(1), 400.0).unwrap();
++    for i in 0..3 {
++        controls::Button::mount(
++            a.world_mut(),
++            t.root,
++            UiId(i),
++            ButtonProps::new("MMMM", HostIntent::Command(i)),
++        )
++        .unwrap();
++    }
++    a.update();
++    assert_eq!(a.world().get::<Layout>(t.root).unwrap().axis, Axis::Row);
++    a.world_mut().insert_resource(UiTheme {
++        text_scale: 2.0,
++        ..UiTheme::default()
++    });
++    a.update();
++    assert_eq!(
++        a.world().get::<Layout>(t.root).unwrap().axis,
++        Axis::Column,
++        "do not measure previous-frame TextStyle and overflow for a frame"
++    );
++    let frame = rndr_paint::frame(&mut a);
++    assert!(frame.quads.iter().any(|q| q.uv != rndr_paint::solid_uv()));
++}

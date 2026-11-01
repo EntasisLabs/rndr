@@ -1,0 +1,42 @@
+[
+  {
+    "command": "cargo test --offline --locked -p rndr_core -p rndr_paint -p rndr_ui",
+    "passed": 515,
+    "failed": 0,
+    "ignored": 0,
+    "result_lines": 74,
+    "error_lines": []
+  },
+  {
+    "command": "cargo test --offline --locked -p rndr_render --no-default-features --features accesskit --lib",
+    "passed": 24,
+    "failed": 0,
+    "ignored": 0,
+    "result_lines": 1,
+    "error_lines": []
+  },
+  {
+    "command": "cargo check --offline --locked -p rndr --all-targets --no-default-features",
+    "passed": 0,
+    "failed": 0,
+    "ignored": 0,
+    "result_lines": 0,
+    "error_lines": []
+  },
+  {
+    "command": "cargo check --offline --locked -p rndr --example ui_gallery --no-default-features --features accesskit",
+    "passed": 0,
+    "failed": 0,
+    "ignored": 0,
+    "result_lines": 0,
+    "error_lines": []
+  },
+  {
+    "command": "cargo tree --offline --locked -p rndr_ui --edges normal",
+    "passed": 0,
+    "failed": 0,
+    "ignored": 0,
+    "result_lines": 0,
+    "error_lines": []
+  }
+]

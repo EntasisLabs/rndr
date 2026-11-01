@@ -1,0 +1,22 @@
+
+running 17 tests
+test shift_selects_without_changing_a_motion ... ok
+test copy_matches_the_physical_c_key_on_a_cyrillic_layout ... ok
+test primary_chord_is_not_copy_on_the_other_platform ... ok
+test multi_stroke_waits_and_times_out ... ok
+test keymap_prefers_the_deepest_context_then_the_later_binding ... ok
+test reverse_lookup_returns_the_winning_strokes ... ok
+test shim_keeps_only_the_first_key ... ok
+test shortcut_text_uses_symbols_on_mac_and_words_elsewhere ... ok
+test standard_actions_resolve_on_mac_and_windows ... ok
+test keymap_context_comes_from_the_focused_stack ... ok
+test editor_deletes_the_previous_word_on_windows ... ok
+test shortcut_modifier_does_not_insert_text ... ok
+test field_uses_platform_line_start_and_undo ... ok
+test unbound_ctrl_and_alt_chords_do_not_insert_the_key_character ... ok
+test unicode_text_is_inserted ... ok
+test two_backspaces_in_one_frame_delete_two_chars ... ok
+test modifier_chords_insert_only_platform_text ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

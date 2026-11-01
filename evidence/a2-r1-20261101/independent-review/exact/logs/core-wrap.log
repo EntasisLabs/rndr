@@ -1,0 +1,11 @@
+
+running 6 tests
+test space_break_keeps_the_word ... ok
+test newline_stays_two_lines_on_a_wide_field ... ok
+test hard_break_splits_a_long_word ... ok
+test narrow_body_wraps_without_inserting_newlines ... ok
+test narrower_viewport_rewraps_on_that_frame ... ok
+test down_then_up_walks_visual_lines ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
