@@ -1,0 +1,7 @@
+rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui)
+└── rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core)
+    ├── pulldown-cmark v0.13.5
+    │   ├── bitflags v2.13.2
+    │   ├── memchr v2.8.3
+    │   └── unicase v2.10.0
+    └── unicode-segmentation v1.13.3

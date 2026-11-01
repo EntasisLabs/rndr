@@ -145,3 +145,31 @@ Durable evidence: `evidence/a1-ownership-20261101-2t23Vj/README.md`, `run.sh`, `
 | Native materials, menus/dialogs, parser changes, networking/actions, Blooey adoption | Out of scope; no changes |
 
 Exact current review source/evidence paths are listed in `evidence/a1-ownership-20261101-2t23Vj/baseline-changed-files.txt` (focused delta from 01da in `correction-changed-files.txt` there); historical `evidence/ui-changed-files.txt` is preserved. Commits are reported in the handoff and can be reproduced with `git log --reverse 291ab05493a59732f891dd762bf90c64e79a48d0..HEAD`. Review core prerequisites separately from the A0 library commit. Owner alone decides review acceptance and continuation.
+
+## Current reconciliation — sender accepted scoped R1 review, not all A2 (2026-11-01)
+
+The sender accepted the complete independent scoped HEADLESS R1 review of exact
+`f427b7474dad99a983115edfad14c5084c9cb253` (implementation
+`91c008bdc1054f42f67dcd5d45729290ddb4ffa4`). Prior P2 actual-content/snapping finding is resolved.
+This supersedes historical “fresh R1 review required” wording only: it is NOT owner full-A2
+acceptance, native certification, integration or project completion. Earlier A1-blocked/A2-not-started
+paragraphs remain historical; accepted04642 already lifted the A1→A2 gate.
+
+Complete independent report/commands/scripts/logs/negative controls/source identities and original
+267-entry standard manifest are now durably preserved, without changing their provenance, under
+[`evidence/a2-gate-reconciliation-20261101`](../../evidence/a2-gate-reconciliation-20261101/REPORT.md).
+238 payload files are retained byte-for-byte;29 large compiled artifacts stay at their external
+locations with bounded hashes/identities. The original /tmp directory and prior evidence are untouched.
+
+The [current exact remaining-gate matrix](A2-remaining-gates.md) reconciles all A2 components,
+Specification §8 numbered evidence gates, platform/manual cells, saved goals and previous reviews,
+with executable next steps. No additional implementation defect is established in the latest scoped
+review; this is not an exhaustive full-A2 review. Preserve the extra whole-world layout/text cost caveat
+(100 unrelated-label calls→200/300; native responsiveness unverified) and the two pre-existing strict
+core-test lint warnings at a1_wrapped_hug.rs79/125. No lint/performance/source fixes are made here.
+
+Next concrete native gate: owner-authorized macOS synthetic operating-gallery keyboard/pointer/resize
+and responsiveness, followed by real VoiceOver/IME/fonts/DPI checks; separate Windows/X11/Wayland
+capabilities remain unavailable to this no-launch task. All native cells remain UNVERIFIED.
+Owner/sender retains full A2 disposition and every project lifecycle decision. This reconciliation is
+evidence/doc-only: no new build artifacts, launches, grants, source changes, approval, integration or push.

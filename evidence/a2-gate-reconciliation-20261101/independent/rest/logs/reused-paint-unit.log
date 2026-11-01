@@ -1,0 +1,32 @@
+
+running 27 tests
+test affine::tests::buckets_are_stable_inside_an_octave ... ok
+test affine::tests::size_buckets_stop_at_the_outline_threshold ... ok
+test affine::tests::inverse_round_trips ... ok
+test affine::tests::translate_then_rotate_matches_the_point ... ok
+test affine::tests::uniform_scale_is_the_geometric_mean ... ok
+test path::tests::polygon_rejects_a_degenerate_input ... ok
+test path::tests::ellipse_bounds_cover_the_radii ... ok
+test display::tests::extra_pop_does_not_unwind_the_root ... ok
+test path::tests::hairline_width_shrinks_as_the_scale_grows ... ok
+test display::tests::clipped_finish_wraps_the_camera ... ok
+test snapshot::tests::geometry_rounds_to_the_nearest_half_point ... ok
+test tess::tests::a_chevron_tip_meets_without_a_notch ... ok
+test tess::tests::hairline_mesh_thins_when_the_bucket_jumps ... ok
+test tess::tests::a_chevron_marker_is_solid_unless_asked_to_dash ... ok
+test tess::tests::dashed_stroke_breaks_into_separated_runs ... ok
+test zoom::tests::a_drag_drops_the_zoom_anchor ... ok
+test tess::tests::square_fill_covers_the_center_and_not_the_outside ... ok
+test tess::tests::a_following_move_to_does_not_fill_dash_gaps ... ok
+test tess::tests::a_dashed_shaft_keeps_its_arrowhead_solid ... ok
+test tess::tests::even_odd_punches_a_hole_nonzero_does_not ... ok
+test zoom::tests::a_fast_drag_keeps_the_press_delta ... ok
+test tess::tests::cache_reuses_a_bucket_and_rebuilds_across_it ... ok
+test zoom::tests::a_press_move_and_release_before_the_next_frame_pans_fully ... ok
+test zoom::tests::a_release_applies_a_move_that_arrived_with_it ... ok
+test zoom::tests::a_slow_drag_follows_each_sample_and_the_release ... ok
+test zoom::tests::one_notch_keeps_the_point_under_the_cursor ... ok
+test zoom::tests::ten_notches_each_way_restore_pan_and_scale ... ok
+
+test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

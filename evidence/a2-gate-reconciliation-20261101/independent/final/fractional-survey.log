@@ -1,0 +1,209 @@
+
+running 4 tests
+test conservative_veto_and_toolbar_detach_preserve_commands ... ok
+ISOLATED dpi=1 w=1696 pass=0 axis=Column rect=Rect { x: 9.0, y: 9.0, w: 1678.0, h: 36.0 } natural=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } constrained=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } glyph_max=826
+dpi=1 type=1 width=1696 axis=Column natural=826 rect=Rect { x: 9.0, y: 9.0, w: 1678.0, h: 36.0 } textheight=20
+ISOLATED dpi=1 w=1696 pass=1 axis=Column rect=Rect { x: 9.0, y: 9.0, w: 1678.0, h: 36.0 } natural=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } constrained=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } glyph_max=826
+dpi=1 type=1 width=1696.01 axis=Column natural=826 rect=Rect { x: 9.0, y: 9.0, w: 1678.0, h: 36.0 } textheight=20
+ISOLATED dpi=1 w=1696 pass=2 axis=Column rect=Rect { x: 9.0, y: 9.0, w: 1678.0, h: 36.0 } natural=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } constrained=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } glyph_max=826
+dpi=1 type=1 width=1696.25 axis=Column natural=826 rect=Rect { x: 9.0, y: 9.0, w: 1678.0, h: 36.0 } textheight=20
+ISOLATED dpi=1 w=1697 pass=0 axis=Column rect=Rect { x: 9.0, y: 9.0, w: 1679.0, h: 36.0 } natural=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } constrained=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } glyph_max=826
+dpi=1 type=1 width=1696.5 axis=Column natural=826 rect=Rect { x: 9.0, y: 9.0, w: 1679.0, h: 36.0 } textheight=20
+ISOLATED dpi=1 w=1697 pass=1 axis=Column rect=Rect { x: 9.0, y: 9.0, w: 1679.0, h: 36.0 } natural=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } constrained=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } glyph_max=826
+dpi=1 type=1 width=1697 axis=Column natural=826 rect=Rect { x: 9.0, y: 9.0, w: 1679.0, h: 36.0 } textheight=20
+ISOLATED dpi=1 w=1697 pass=2 axis=Column rect=Rect { x: 9.0, y: 9.0, w: 1679.0, h: 36.0 } natural=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } constrained=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } glyph_max=826
+dpi=1 type=1 width=1698 axis=Column natural=826 rect=Rect { x: 9.0, y: 9.0, w: 1680.0, h: 36.0 } textheight=20
+test rejected_nonfinite_resize_is_atomic_and_malformed_child_stacks ... ok
+ISOLATED dpi=1 w=1700 pass=0 axis=Column rect=Rect { x: 9.0, y: 9.0, w: 1682.0, h: 36.0 } natural=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } constrained=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } glyph_max=826
+dpi=1 type=1 width=1700 axis=Column natural=826 rect=Rect { x: 9.0, y: 9.0, w: 1682.0, h: 36.0 } textheight=20
+ISOLATED dpi=1 w=1700 pass=1 axis=Column rect=Rect { x: 9.0, y: 9.0, w: 1682.0, h: 36.0 } natural=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } constrained=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } glyph_max=826
+ISOLATED dpi=1 w=1700 pass=2 axis=Column rect=Rect { x: 9.0, y: 9.0, w: 1682.0, h: 36.0 } natural=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } constrained=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } glyph_max=826
+dpi=1 type=1.1 width=1861.2009 axis=Column natural=908.60046 rect=Rect { x: 9.0, y: 9.0, w: 1843.0, h: 38.0 } textheight=22.000002
+ISOLATED dpi=1 w=2000 pass=0 axis=Row rect=Rect { x: 9.0, y: 9.0, w: 978.0, h: 36.0 } natural=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } constrained=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } glyph_max=826
+dpi=1 type=1.1 width=1861.2109 axis=Column natural=908.60046 rect=Rect { x: 9.0, y: 9.0, w: 1843.0, h: 38.0 } textheight=22.000002
+ISOLATED dpi=1 w=2000 pass=1 axis=Row rect=Rect { x: 9.0, y: 9.0, w: 978.0, h: 36.0 } natural=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } constrained=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } glyph_max=826
+dpi=1 type=1.1 width=1861.4509 axis=Column natural=908.60046 rect=Rect { x: 9.0, y: 9.0, w: 1843.0, h: 38.0 } textheight=22.000002
+ISOLATED dpi=1 w=2000 pass=2 axis=Row rect=Rect { x: 9.0, y: 9.0, w: 978.0, h: 36.0 } natural=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } constrained=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } glyph_max=826
+dpi=1 type=1.1 width=1861.7009 axis=Column natural=908.60046 rect=Rect { x: 9.0, y: 9.0, w: 1844.0, h: 38.0 } textheight=22.000002
+ISOLATED dpi=1.75 w=1696 pass=0 axis=Column rect=Rect { x: 9.714286, y: 9.714286, w: 1677.7144, h: 36.0 } natural=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } constrained=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } glyph_max=826
+dpi=1 type=1.1 width=1862.2009 axis=Column natural=908.60046 rect=Rect { x: 9.0, y: 9.0, w: 1844.0, h: 38.0 } textheight=22.000002
+ISOLATED dpi=1.75 w=1696 pass=1 axis=Column rect=Rect { x: 9.714286, y: 9.714286, w: 1677.7144, h: 36.0 } natural=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } constrained=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } glyph_max=826
+dpi=1 type=1.1 width=1863.2009 axis=Column natural=908.60046 rect=Rect { x: 9.0, y: 9.0, w: 1845.0, h: 38.0 } textheight=22.000002
+ISOLATED dpi=1.75 w=1696 pass=2 axis=Column rect=Rect { x: 9.714286, y: 9.714286, w: 1677.7144, h: 36.0 } natural=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } constrained=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } glyph_max=826
+dpi=1 type=1.1 width=1865.2009 axis=Column natural=908.60046 rect=Rect { x: 9.0, y: 9.0, w: 1847.0, h: 38.0 } textheight=22.000002
+ISOLATED dpi=1.75 w=1697 pass=0 axis=Column rect=Rect { x: 9.714286, y: 9.714286, w: 1678.8572, h: 36.0 } natural=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } constrained=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } glyph_max=826
+ISOLATED dpi=1.75 w=1697 pass=1 axis=Column rect=Rect { x: 9.714286, y: 9.714286, w: 1678.8572, h: 36.0 } natural=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } constrained=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } glyph_max=826
+dpi=1 type=1.25 width=2109 axis=Column natural=1032.5 rect=Rect { x: 9.0, y: 9.0, w: 2091.0, h: 41.0 } textheight=25
+ISOLATED dpi=1.75 w=1697 pass=2 axis=Column rect=Rect { x: 9.714286, y: 9.714286, w: 1678.8572, h: 36.0 } natural=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } constrained=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } glyph_max=826
+dpi=1 type=1.25 width=2109.01 axis=Column natural=1032.5 rect=Rect { x: 9.0, y: 9.0, w: 2091.0, h: 41.0 } textheight=25
+ISOLATED dpi=1.75 w=1700 pass=0 axis=Column rect=Rect { x: 9.714286, y: 9.714286, w: 1681.7144, h: 36.0 } natural=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } constrained=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } glyph_max=826
+dpi=1 type=1.25 width=2109.25 axis=Column natural=1032.5 rect=Rect { x: 9.0, y: 9.0, w: 2091.0, h: 41.0 } textheight=25
+ISOLATED dpi=1.75 w=1700 pass=1 axis=Column rect=Rect { x: 9.714286, y: 9.714286, w: 1681.7144, h: 36.0 } natural=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } constrained=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } glyph_max=826
+dpi=1 type=1.25 width=2109.5 axis=Column natural=1032.5 rect=Rect { x: 9.0, y: 9.0, w: 2092.0, h: 41.0 } textheight=25
+ISOLATED dpi=1.75 w=1700 pass=2 axis=Column rect=Rect { x: 9.714286, y: 9.714286, w: 1681.7144, h: 36.0 } natural=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } constrained=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } glyph_max=826
+dpi=1 type=1.25 width=2110 axis=Column natural=1032.5 rect=Rect { x: 9.0, y: 9.0, w: 2092.0, h: 41.0 } textheight=25
+ISOLATED dpi=1.75 w=2000 pass=0 axis=Row rect=Rect { x: 9.714286, y: 9.714286, w: 977.7143, h: 36.0 } natural=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } constrained=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } glyph_max=826
+dpi=1 type=1.25 width=2111 axis=Column natural=1032.5 rect=Rect { x: 9.0, y: 9.0, w: 2093.0, h: 41.0 } textheight=25
+ISOLATED dpi=1.75 w=2000 pass=1 axis=Row rect=Rect { x: 9.714286, y: 9.714286, w: 977.7143, h: 36.0 } natural=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } constrained=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } glyph_max=826
+dpi=1 type=1.25 width=2113 axis=Column natural=1032.5 rect=Rect { x: 9.0, y: 9.0, w: 2095.0, h: 41.0 } textheight=25
+ISOLATED dpi=1.75 w=2000 pass=2 axis=Row rect=Rect { x: 9.714286, y: 9.714286, w: 977.7143, h: 36.0 } natural=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } constrained=TextMeasure { width: 826.0, height: 20.0, line_count: 1 } glyph_max=826
+test isolated_fractional_reproduction ... ok
+dpi=1 type=1.5 width=2522 axis=Column natural=1239 rect=Rect { x: 9.0, y: 9.0, w: 2504.0, h: 46.0 } textheight=30
+dpi=1 type=1.5 width=2522.01 axis=Column natural=1239 rect=Rect { x: 9.0, y: 9.0, w: 2504.0, h: 46.0 } textheight=30
+dpi=1 type=1.5 width=2522.25 axis=Column natural=1239 rect=Rect { x: 9.0, y: 9.0, w: 2504.0, h: 46.0 } textheight=30
+dpi=1 type=1.5 width=2522.5 axis=Column natural=1239 rect=Rect { x: 9.0, y: 9.0, w: 2505.0, h: 46.0 } textheight=30
+dpi=1 type=1.5 width=2523 axis=Column natural=1239 rect=Rect { x: 9.0, y: 9.0, w: 2505.0, h: 46.0 } textheight=30
+dpi=1 type=1.5 width=2524 axis=Column natural=1239 rect=Rect { x: 9.0, y: 9.0, w: 2506.0, h: 46.0 } textheight=30
+dpi=1 type=1.5 width=2526 axis=Column natural=1239 rect=Rect { x: 9.0, y: 9.0, w: 2508.0, h: 46.0 } textheight=30
+dpi=1 type=2 width=3348 axis=Column natural=1652 rect=Rect { x: 9.0, y: 9.0, w: 3330.0, h: 56.0 } textheight=40
+dpi=1 type=2 width=3348.01 axis=Column natural=1652 rect=Rect { x: 9.0, y: 9.0, w: 3330.0, h: 56.0 } textheight=40
+dpi=1 type=2 width=3348.25 axis=Column natural=1652 rect=Rect { x: 9.0, y: 9.0, w: 3330.0, h: 56.0 } textheight=40
+dpi=1 type=2 width=3348.5 axis=Column natural=1652 rect=Rect { x: 9.0, y: 9.0, w: 3331.0, h: 56.0 } textheight=40
+dpi=1 type=2 width=3349 axis=Column natural=1652 rect=Rect { x: 9.0, y: 9.0, w: 3331.0, h: 56.0 } textheight=40
+dpi=1 type=2 width=3350 axis=Column natural=1652 rect=Rect { x: 9.0, y: 9.0, w: 3332.0, h: 56.0 } textheight=40
+dpi=1 type=2 width=3352 axis=Column natural=1652 rect=Rect { x: 9.0, y: 9.0, w: 3334.0, h: 56.0 } textheight=40
+dpi=1.25 type=1 width=1696 axis=Column natural=826 rect=Rect { x: 9.6, y: 9.6, w: 1678.4, h: 36.0 } textheight=20
+dpi=1.25 type=1 width=1696.01 axis=Column natural=826 rect=Rect { x: 9.6, y: 9.6, w: 1678.4, h: 36.0 } textheight=20
+dpi=1.25 type=1 width=1696.25 axis=Column natural=826 rect=Rect { x: 9.6, y: 9.6, w: 1678.4, h: 36.0 } textheight=20
+dpi=1.25 type=1 width=1696.5 axis=Column natural=826 rect=Rect { x: 9.6, y: 9.6, w: 1679.2001, h: 36.0 } textheight=20
+dpi=1.25 type=1 width=1697 axis=Column natural=826 rect=Rect { x: 9.6, y: 9.6, w: 1679.2001, h: 36.0 } textheight=20
+dpi=1.25 type=1 width=1698 axis=Column natural=826 rect=Rect { x: 9.6, y: 9.6, w: 1680.8, h: 36.0 } textheight=20
+dpi=1.25 type=1 width=1700 axis=Column natural=826 rect=Rect { x: 9.6, y: 9.6, w: 1682.4, h: 36.0 } textheight=20
+dpi=1.25 type=1.1 width=1861.2009 axis=Column natural=908.60046 rect=Rect { x: 9.6, y: 9.6, w: 1844.0, h: 38.4 } textheight=22.000002
+dpi=1.25 type=1.1 width=1861.2109 axis=Column natural=908.60046 rect=Rect { x: 9.6, y: 9.6, w: 1844.0, h: 38.4 } textheight=22.000002
+dpi=1.25 type=1.1 width=1861.4509 axis=Column natural=908.60046 rect=Rect { x: 9.6, y: 9.6, w: 1844.0, h: 38.4 } textheight=22.000002
+dpi=1.25 type=1.1 width=1861.7009 axis=Column natural=908.60046 rect=Rect { x: 9.6, y: 9.6, w: 1844.0, h: 38.4 } textheight=22.000002
+dpi=1.25 type=1.1 width=1862.2009 axis=Column natural=908.60046 rect=Rect { x: 9.6, y: 9.6, w: 1844.8, h: 38.4 } textheight=22.000002
+dpi=1.25 type=1.1 width=1863.2009 axis=Column natural=908.60046 rect=Rect { x: 9.6, y: 9.6, w: 1845.6, h: 38.4 } textheight=22.000002
+dpi=1.25 type=1.1 width=1865.2009 axis=Column natural=908.60046 rect=Rect { x: 9.6, y: 9.6, w: 1848.0, h: 38.4 } textheight=22.000002
+dpi=1.25 type=1.25 width=2109 axis=Column natural=1032.5 rect=Rect { x: 9.6, y: 9.6, w: 2091.2, h: 40.800003 } textheight=25
+dpi=1.25 type=1.25 width=2109.01 axis=Column natural=1032.5 rect=Rect { x: 9.6, y: 9.6, w: 2091.2, h: 40.800003 } textheight=25
+dpi=1.25 type=1.25 width=2109.25 axis=Column natural=1032.5 rect=Rect { x: 9.6, y: 9.6, w: 2092.0, h: 40.800003 } textheight=25
+dpi=1.25 type=1.25 width=2109.5 axis=Column natural=1032.5 rect=Rect { x: 9.6, y: 9.6, w: 2092.0, h: 40.800003 } textheight=25
+dpi=1.25 type=1.25 width=2110 axis=Column natural=1032.5 rect=Rect { x: 9.6, y: 9.6, w: 2092.7998, h: 40.800003 } textheight=25
+dpi=1.25 type=1.25 width=2111 axis=Column natural=1032.5 rect=Rect { x: 9.6, y: 9.6, w: 2093.5999, h: 40.800003 } textheight=25
+dpi=1.25 type=1.25 width=2113 axis=Column natural=1032.5 rect=Rect { x: 9.6, y: 9.6, w: 2095.2, h: 40.800003 } textheight=25
+dpi=1.25 type=1.5 width=2522 axis=Column natural=1239 rect=Rect { x: 9.6, y: 9.6, w: 2504.7998, h: 46.4 } textheight=30
+dpi=1.25 type=1.5 width=2522.01 axis=Column natural=1239 rect=Rect { x: 9.6, y: 9.6, w: 2504.7998, h: 46.4 } textheight=30
+dpi=1.25 type=1.5 width=2522.25 axis=Column natural=1239 rect=Rect { x: 9.6, y: 9.6, w: 2504.7998, h: 46.4 } textheight=30
+dpi=1.25 type=1.5 width=2522.5 axis=Column natural=1239 rect=Rect { x: 9.6, y: 9.6, w: 2504.7998, h: 46.4 } textheight=30
+dpi=1.25 type=1.5 width=2523 axis=Column natural=1239 rect=Rect { x: 9.6, y: 9.6, w: 2505.5999, h: 46.4 } textheight=30
+dpi=1.25 type=1.5 width=2524 axis=Column natural=1239 rect=Rect { x: 9.6, y: 9.6, w: 2506.4, h: 46.4 } textheight=30
+dpi=1.25 type=1.5 width=2526 axis=Column natural=1239 rect=Rect { x: 9.6, y: 9.6, w: 2508.7998, h: 46.4 } textheight=30
+dpi=1.25 type=2 width=3348 axis=Column natural=1652 rect=Rect { x: 9.6, y: 9.6, w: 3330.4, h: 56.0 } textheight=40
+dpi=1.25 type=2 width=3348.01 axis=Column natural=1652 rect=Rect { x: 9.6, y: 9.6, w: 3330.4, h: 56.0 } textheight=40
+dpi=1.25 type=2 width=3348.25 axis=Column natural=1652 rect=Rect { x: 9.6, y: 9.6, w: 3330.4, h: 56.0 } textheight=40
+dpi=1.25 type=2 width=3348.5 axis=Column natural=1652 rect=Rect { x: 9.6, y: 9.6, w: 3331.2, h: 56.0 } textheight=40
+dpi=1.25 type=2 width=3349 axis=Column natural=1652 rect=Rect { x: 9.6, y: 9.6, w: 3331.2, h: 56.0 } textheight=40
+dpi=1.25 type=2 width=3350 axis=Column natural=1652 rect=Rect { x: 9.6, y: 9.6, w: 3332.7998, h: 56.0 } textheight=40
+dpi=1.25 type=2 width=3352 axis=Column natural=1652 rect=Rect { x: 9.6, y: 9.6, w: 3334.4, h: 56.0 } textheight=40
+dpi=1.5 type=1 width=1696 axis=Column natural=826 rect=Rect { x: 9.333333, y: 9.333333, w: 1678.0, h: 36.0 } textheight=20
+dpi=1.5 type=1 width=1696.01 axis=Column natural=826 rect=Rect { x: 9.333333, y: 9.333333, w: 1678.0, h: 36.0 } textheight=20
+dpi=1.5 type=1 width=1696.25 axis=Column natural=826 rect=Rect { x: 9.333333, y: 9.333333, w: 1678.0, h: 36.0 } textheight=20
+dpi=1.5 type=1 width=1696.5 axis=Column natural=826 rect=Rect { x: 9.333333, y: 9.333333, w: 1678.6666, h: 36.0 } textheight=20
+dpi=1.5 type=1 width=1697 axis=Column natural=826 rect=Rect { x: 9.333333, y: 9.333333, w: 1679.3333, h: 36.0 } textheight=20
+dpi=1.5 type=1 width=1698 axis=Column natural=826 rect=Rect { x: 9.333333, y: 9.333333, w: 1680.0, h: 36.0 } textheight=20
+dpi=1.5 type=1 width=1700 axis=Column natural=826 rect=Rect { x: 9.333333, y: 9.333333, w: 1682.0, h: 36.0 } textheight=20
+dpi=1.5 type=1.1 width=1861.2009 axis=Column natural=908.60046 rect=Rect { x: 9.333333, y: 9.333333, w: 1843.3333, h: 38.0 } textheight=22.000002
+dpi=1.5 type=1.1 width=1861.2109 axis=Column natural=908.60046 rect=Rect { x: 9.333333, y: 9.333333, w: 1843.3333, h: 38.0 } textheight=22.000002
+dpi=1.5 type=1.1 width=1861.4509 axis=Column natural=908.60046 rect=Rect { x: 9.333333, y: 9.333333, w: 1843.3333, h: 38.0 } textheight=22.000002
+dpi=1.5 type=1.1 width=1861.7009 axis=Column natural=908.60046 rect=Rect { x: 9.333333, y: 9.333333, w: 1844.0, h: 38.0 } textheight=22.000002
+dpi=1.5 type=1.1 width=1862.2009 axis=Column natural=908.60046 rect=Rect { x: 9.333333, y: 9.333333, w: 1844.0, h: 38.0 } textheight=22.000002
+dpi=1.5 type=1.1 width=1863.2009 axis=Column natural=908.60046 rect=Rect { x: 9.333333, y: 9.333333, w: 1845.3333, h: 38.0 } textheight=22.000002
+dpi=1.5 type=1.1 width=1865.2009 axis=Column natural=908.60046 rect=Rect { x: 9.333333, y: 9.333333, w: 1847.3333, h: 38.0 } textheight=22.000002
+dpi=1.5 type=1.25 width=2109 axis=Column natural=1032.5 rect=Rect { x: 9.333333, y: 9.333333, w: 2091.3335, h: 41.333336 } textheight=25
+dpi=1.5 type=1.25 width=2109.01 axis=Column natural=1032.5 rect=Rect { x: 9.333333, y: 9.333333, w: 2091.3335, h: 41.333336 } textheight=25
+dpi=1.5 type=1.25 width=2109.25 axis=Column natural=1032.5 rect=Rect { x: 9.333333, y: 9.333333, w: 2091.3335, h: 41.333336 } textheight=25
+dpi=1.5 type=1.25 width=2109.5 axis=Column natural=1032.5 rect=Rect { x: 9.333333, y: 9.333333, w: 2091.3335, h: 41.333336 } textheight=25
+dpi=1.5 type=1.25 width=2110 axis=Column natural=1032.5 rect=Rect { x: 9.333333, y: 9.333333, w: 2092.0, h: 41.333336 } textheight=25
+dpi=1.5 type=1.25 width=2111 axis=Column natural=1032.5 rect=Rect { x: 9.333333, y: 9.333333, w: 2093.3335, h: 41.333336 } textheight=25
+dpi=1.5 type=1.25 width=2113 axis=Column natural=1032.5 rect=Rect { x: 9.333333, y: 9.333333, w: 2095.3335, h: 41.333336 } textheight=25
+dpi=1.5 type=1.5 width=2522 axis=Column natural=1239 rect=Rect { x: 9.333333, y: 9.333333, w: 2504.0, h: 46.0 } textheight=30
+dpi=1.5 type=1.5 width=2522.01 axis=Column natural=1239 rect=Rect { x: 9.333333, y: 9.333333, w: 2504.0, h: 46.0 } textheight=30
+dpi=1.5 type=1.5 width=2522.25 axis=Column natural=1239 rect=Rect { x: 9.333333, y: 9.333333, w: 2504.0, h: 46.0 } textheight=30
+dpi=1.5 type=1.5 width=2522.5 axis=Column natural=1239 rect=Rect { x: 9.333333, y: 9.333333, w: 2504.6667, h: 46.0 } textheight=30
+dpi=1.5 type=1.5 width=2523 axis=Column natural=1239 rect=Rect { x: 9.333333, y: 9.333333, w: 2505.3335, h: 46.0 } textheight=30
+dpi=1.5 type=1.5 width=2524 axis=Column natural=1239 rect=Rect { x: 9.333333, y: 9.333333, w: 2506.0, h: 46.0 } textheight=30
+dpi=1.5 type=1.5 width=2526 axis=Column natural=1239 rect=Rect { x: 9.333333, y: 9.333333, w: 2508.0, h: 46.0 } textheight=30
+dpi=1.5 type=2 width=3348 axis=Column natural=1652 rect=Rect { x: 9.333333, y: 9.333333, w: 3330.0, h: 56.000004 } textheight=40
+dpi=1.5 type=2 width=3348.01 axis=Column natural=1652 rect=Rect { x: 9.333333, y: 9.333333, w: 3330.0, h: 56.000004 } textheight=40
+dpi=1.5 type=2 width=3348.25 axis=Column natural=1652 rect=Rect { x: 9.333333, y: 9.333333, w: 3330.0, h: 56.000004 } textheight=40
+dpi=1.5 type=2 width=3348.5 axis=Column natural=1652 rect=Rect { x: 9.333333, y: 9.333333, w: 3330.6667, h: 56.000004 } textheight=40
+dpi=1.5 type=2 width=3349 axis=Column natural=1652 rect=Rect { x: 9.333333, y: 9.333333, w: 3331.3335, h: 56.000004 } textheight=40
+dpi=1.5 type=2 width=3350 axis=Column natural=1652 rect=Rect { x: 9.333333, y: 9.333333, w: 3332.0, h: 56.000004 } textheight=40
+dpi=1.5 type=2 width=3352 axis=Column natural=1652 rect=Rect { x: 9.333333, y: 9.333333, w: 3334.0, h: 56.000004 } textheight=40
+dpi=1.75 type=1 width=1696 axis=Column natural=826 rect=Rect { x: 9.714286, y: 9.714286, w: 1677.7144, h: 36.0 } textheight=20
+dpi=1.75 type=1 width=1696.01 axis=Column natural=826 rect=Rect { x: 9.714286, y: 9.714286, w: 1677.7144, h: 36.0 } textheight=20
+dpi=1.75 type=1 width=1696.25 axis=Column natural=826 rect=Rect { x: 9.714286, y: 9.714286, w: 1677.7144, h: 36.0 } textheight=20
+dpi=1.75 type=1 width=1696.5 axis=Column natural=826 rect=Rect { x: 9.714286, y: 9.714286, w: 1678.2858, h: 36.0 } textheight=20
+dpi=1.75 type=1 width=1697 axis=Column natural=826 rect=Rect { x: 9.714286, y: 9.714286, w: 1678.8572, h: 36.0 } textheight=20
+dpi=1.75 type=1 width=1698 axis=Column natural=826 rect=Rect { x: 9.714286, y: 9.714286, w: 1680.0, h: 36.0 } textheight=20
+dpi=1.75 type=1 width=1700 axis=Column natural=826 rect=Rect { x: 9.714286, y: 9.714286, w: 1681.7144, h: 36.0 } textheight=20
+dpi=1.75 type=1.1 width=1861.2009 axis=Column natural=908.60046 rect=Rect { x: 9.714286, y: 9.714286, w: 1842.8572, h: 38.285713 } textheight=22.000002
+dpi=1.75 type=1.1 width=1861.2109 axis=Column natural=908.60046 rect=Rect { x: 9.714286, y: 9.714286, w: 1842.8572, h: 38.285713 } textheight=22.000002
+dpi=1.75 type=1.1 width=1861.4509 axis=Column natural=908.60046 rect=Rect { x: 9.714286, y: 9.714286, w: 1843.4286, h: 38.285713 } textheight=22.000002
+dpi=1.75 type=1.1 width=1861.7009 axis=Column natural=908.60046 rect=Rect { x: 9.714286, y: 9.714286, w: 1843.4286, h: 38.285713 } textheight=22.000002
+dpi=1.75 type=1.1 width=1862.2009 axis=Column natural=908.60046 rect=Rect { x: 9.714286, y: 9.714286, w: 1844.0, h: 38.285713 } textheight=22.000002
+dpi=1.75 type=1.1 width=1863.2009 axis=Column natural=908.60046 rect=Rect { x: 9.714286, y: 9.714286, w: 1845.143, h: 38.285713 } textheight=22.000002
+dpi=1.75 type=1.1 width=1865.2009 axis=Column natural=908.60046 rect=Rect { x: 9.714286, y: 9.714286, w: 1846.8572, h: 38.285713 } textheight=22.000002
+dpi=1.75 type=1.25 width=2109 axis=Column natural=1032.5 rect=Rect { x: 9.714286, y: 9.714286, w: 2090.2856, h: 41.142857 } textheight=25
+dpi=1.75 type=1.25 width=2109.01 axis=Column natural=1032.5 rect=Rect { x: 9.714286, y: 9.714286, w: 2090.2856, h: 41.142857 } textheight=25
+dpi=1.75 type=1.25 width=2109.25 axis=Column natural=1032.5 rect=Rect { x: 9.714286, y: 9.714286, w: 2090.2856, h: 41.142857 } textheight=25
+dpi=1.75 type=1.25 width=2109.5 axis=Column natural=1032.5 rect=Rect { x: 9.714286, y: 9.714286, w: 2091.4285, h: 41.142857 } textheight=25
+dpi=1.75 type=1.25 width=2110 axis=Column natural=1032.5 rect=Rect { x: 9.714286, y: 9.714286, w: 2092.0, h: 41.142857 } textheight=25
+dpi=1.75 type=1.25 width=2111 axis=Column natural=1032.5 rect=Rect { x: 9.714286, y: 9.714286, w: 2092.5713, h: 41.142857 } textheight=25
+dpi=1.75 type=1.25 width=2113 axis=Column natural=1032.5 rect=Rect { x: 9.714286, y: 9.714286, w: 2094.2856, h: 41.142857 } textheight=25
+dpi=1.75 type=1.5 width=2522 axis=Column natural=1239 rect=Rect { x: 9.714286, y: 9.714286, w: 2504.0, h: 46.285713 } textheight=30
+dpi=1.75 type=1.5 width=2522.01 axis=Column natural=1239 rect=Rect { x: 9.714286, y: 9.714286, w: 2504.0, h: 46.285713 } textheight=30
+dpi=1.75 type=1.5 width=2522.25 axis=Column natural=1239 rect=Rect { x: 9.714286, y: 9.714286, w: 2504.0, h: 46.285713 } textheight=30
+dpi=1.75 type=1.5 width=2522.5 axis=Column natural=1239 rect=Rect { x: 9.714286, y: 9.714286, w: 2504.0, h: 46.285713 } textheight=30
+dpi=1.75 type=1.5 width=2523 axis=Column natural=1239 rect=Rect { x: 9.714286, y: 9.714286, w: 2504.5713, h: 46.285713 } textheight=30
+dpi=1.75 type=1.5 width=2524 axis=Column natural=1239 rect=Rect { x: 9.714286, y: 9.714286, w: 2505.714, h: 46.285713 } textheight=30
+dpi=1.75 type=1.5 width=2526 axis=Column natural=1239 rect=Rect { x: 9.714286, y: 9.714286, w: 2508.0, h: 46.285713 } textheight=30
+dpi=1.75 type=2 width=3348 axis=Column natural=1652 rect=Rect { x: 9.714286, y: 9.714286, w: 3329.714, h: 56.0 } textheight=40
+dpi=1.75 type=2 width=3348.01 axis=Column natural=1652 rect=Rect { x: 9.714286, y: 9.714286, w: 3329.714, h: 56.0 } textheight=40
+dpi=1.75 type=2 width=3348.25 axis=Column natural=1652 rect=Rect { x: 9.714286, y: 9.714286, w: 3329.714, h: 56.0 } textheight=40
+dpi=1.75 type=2 width=3348.5 axis=Column natural=1652 rect=Rect { x: 9.714286, y: 9.714286, w: 3330.2856, h: 56.0 } textheight=40
+dpi=1.75 type=2 width=3349 axis=Column natural=1652 rect=Rect { x: 9.714286, y: 9.714286, w: 3330.8572, h: 56.0 } textheight=40
+dpi=1.75 type=2 width=3350 axis=Column natural=1652 rect=Rect { x: 9.714286, y: 9.714286, w: 3332.0, h: 56.0 } textheight=40
+dpi=1.75 type=2 width=3352 axis=Column natural=1652 rect=Rect { x: 9.714286, y: 9.714286, w: 3333.714, h: 56.0 } textheight=40
+dpi=2 type=1 width=1696 axis=Column natural=826 rect=Rect { x: 9.0, y: 9.0, w: 1678.0, h: 36.0 } textheight=20
+dpi=2 type=1 width=1696.01 axis=Column natural=826 rect=Rect { x: 9.0, y: 9.0, w: 1678.0, h: 36.0 } textheight=20
+dpi=2 type=1 width=1696.25 axis=Column natural=826 rect=Rect { x: 9.0, y: 9.0, w: 1678.5, h: 36.0 } textheight=20
+dpi=2 type=1 width=1696.5 axis=Column natural=826 rect=Rect { x: 9.0, y: 9.0, w: 1678.5, h: 36.0 } textheight=20
+dpi=2 type=1 width=1697 axis=Column natural=826 rect=Rect { x: 9.0, y: 9.0, w: 1679.0, h: 36.0 } textheight=20
+dpi=2 type=1 width=1698 axis=Column natural=826 rect=Rect { x: 9.0, y: 9.0, w: 1680.0, h: 36.0 } textheight=20
+dpi=2 type=1 width=1700 axis=Column natural=826 rect=Rect { x: 9.0, y: 9.0, w: 1682.0, h: 36.0 } textheight=20
+dpi=2 type=1.1 width=1861.2009 axis=Column natural=908.60046 rect=Rect { x: 9.0, y: 9.0, w: 1843.0, h: 38.0 } textheight=22.000002
+dpi=2 type=1.1 width=1861.2109 axis=Column natural=908.60046 rect=Rect { x: 9.0, y: 9.0, w: 1843.0, h: 38.0 } textheight=22.000002
+dpi=2 type=1.1 width=1861.4509 axis=Column natural=908.60046 rect=Rect { x: 9.0, y: 9.0, w: 1843.5, h: 38.0 } textheight=22.000002
+dpi=2 type=1.1 width=1861.7009 axis=Column natural=908.60046 rect=Rect { x: 9.0, y: 9.0, w: 1843.5, h: 38.0 } textheight=22.000002
+dpi=2 type=1.1 width=1862.2009 axis=Column natural=908.60046 rect=Rect { x: 9.0, y: 9.0, w: 1844.0, h: 38.0 } textheight=22.000002
+dpi=2 type=1.1 width=1863.2009 axis=Column natural=908.60046 rect=Rect { x: 9.0, y: 9.0, w: 1845.0, h: 38.0 } textheight=22.000002
+dpi=2 type=1.1 width=1865.2009 axis=Column natural=908.60046 rect=Rect { x: 9.0, y: 9.0, w: 1847.0, h: 38.0 } textheight=22.000002
+dpi=2 type=1.25 width=2109 axis=Column natural=1032.5 rect=Rect { x: 9.0, y: 9.0, w: 2091.0, h: 41.0 } textheight=25
+dpi=2 type=1.25 width=2109.01 axis=Column natural=1032.5 rect=Rect { x: 9.0, y: 9.0, w: 2091.0, h: 41.0 } textheight=25
+dpi=2 type=1.25 width=2109.25 axis=Column natural=1032.5 rect=Rect { x: 9.0, y: 9.0, w: 2091.5, h: 41.0 } textheight=25
+dpi=2 type=1.25 width=2109.5 axis=Column natural=1032.5 rect=Rect { x: 9.0, y: 9.0, w: 2091.5, h: 41.0 } textheight=25
+dpi=2 type=1.25 width=2110 axis=Column natural=1032.5 rect=Rect { x: 9.0, y: 9.0, w: 2092.0, h: 41.0 } textheight=25
+dpi=2 type=1.25 width=2111 axis=Column natural=1032.5 rect=Rect { x: 9.0, y: 9.0, w: 2093.0, h: 41.0 } textheight=25
+dpi=2 type=1.25 width=2113 axis=Column natural=1032.5 rect=Rect { x: 9.0, y: 9.0, w: 2095.0, h: 41.0 } textheight=25
+dpi=2 type=1.5 width=2522 axis=Column natural=1239 rect=Rect { x: 9.0, y: 9.0, w: 2504.0, h: 46.0 } textheight=30
+dpi=2 type=1.5 width=2522.01 axis=Column natural=1239 rect=Rect { x: 9.0, y: 9.0, w: 2504.0, h: 46.0 } textheight=30
+dpi=2 type=1.5 width=2522.25 axis=Column natural=1239 rect=Rect { x: 9.0, y: 9.0, w: 2504.5, h: 46.0 } textheight=30
+dpi=2 type=1.5 width=2522.5 axis=Column natural=1239 rect=Rect { x: 9.0, y: 9.0, w: 2504.5, h: 46.0 } textheight=30
+dpi=2 type=1.5 width=2523 axis=Column natural=1239 rect=Rect { x: 9.0, y: 9.0, w: 2505.0, h: 46.0 } textheight=30
+dpi=2 type=1.5 width=2524 axis=Column natural=1239 rect=Rect { x: 9.0, y: 9.0, w: 2506.0, h: 46.0 } textheight=30
+dpi=2 type=1.5 width=2526 axis=Column natural=1239 rect=Rect { x: 9.0, y: 9.0, w: 2508.0, h: 46.0 } textheight=30
+dpi=2 type=2 width=3348 axis=Column natural=1652 rect=Rect { x: 9.0, y: 9.0, w: 3330.0, h: 56.0 } textheight=40
+dpi=2 type=2 width=3348.01 axis=Column natural=1652 rect=Rect { x: 9.0, y: 9.0, w: 3330.0, h: 56.0 } textheight=40
+dpi=2 type=2 width=3348.25 axis=Column natural=1652 rect=Rect { x: 9.0, y: 9.0, w: 3330.5, h: 56.0 } textheight=40
+dpi=2 type=2 width=3348.5 axis=Column natural=1652 rect=Rect { x: 9.0, y: 9.0, w: 3330.5, h: 56.0 } textheight=40
+dpi=2 type=2 width=3349 axis=Column natural=1652 rect=Rect { x: 9.0, y: 9.0, w: 3331.0, h: 56.0 } textheight=40
+dpi=2 type=2 width=3350 axis=Column natural=1652 rect=Rect { x: 9.0, y: 9.0, w: 3332.0, h: 56.0 } textheight=40
+dpi=2 type=2 width=3352 axis=Column natural=1652 rect=Rect { x: 9.0, y: 9.0, w: 3334.0, h: 56.0 } textheight=40
+cases=175
+test fractional_scale_boundary_matches_actual_snapped_allocation ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+

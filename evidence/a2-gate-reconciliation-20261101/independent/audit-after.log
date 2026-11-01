@@ -1,0 +1,8 @@
+{
+  "historical_evidence_blobs_unchanged": 961,
+  "all_current_source_blob_matches": 234,
+  "original_UI_tests_unchanged": 32,
+  "original_UI_test_files_unchanged": 11,
+  "galleries_start_worker_and_two_fresh_runs_identical_files": 17,
+  "passive_identical_files": 6
+}

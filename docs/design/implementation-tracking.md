@@ -78,3 +78,31 @@ R1 continuation replaces label-box arithmetic with the existing core layout/text
 Final direct-source UI41, reused identity-verified core411/paint62/adapter2, unchanged conformance13/adversarial5/geometry64 and unchanged fresh-review probes4 pass. Offline locked Cargo548 passes as supplemental/repeated coverage; exact overlap/count qualifications are in REPORT.md, not additive unique-test claims. Diagnostic175-case fractional survey changes13→0 printed mismatches; it is not175 assertion tests. Eight galleries are deterministic across two processes and byte-identical to starting92e98004; all six passive goldens and all historical evidence are preserved. Strict UI clippy and workspace formatting pass; all-target core clippy has two pre-existing test warnings, preserved without unrelated cleanup.
 
 Build identity uses a new bounded direct-rustc output, not Cargo Fresh inference, after entire relevant unchanged source/dependency verification. Existing Cargo target only, offline --locked/jobs2/debug0/incremental0; no cleanup, network, native launch, approval, integration or push. Complete commands, reports, standard SHA256 manifest and source/blob/artifact identities are sealed with the tested source unchanged. Owner retains fresh independent review, A2 acceptance and integration; native windows/screenshots/OS AT/preferences/fonts/shaping/IME/physical DPI/platform remain **UNVERIFIED**.
+
+## Current reconciliation — sender accepted scoped R1 review, not all A2 (2026-11-01)
+
+The sender accepted the complete independent scoped HEADLESS R1 review of exact
+`f427b7474dad99a983115edfad14c5084c9cb253` (implementation
+`91c008bdc1054f42f67dcd5d45729290ddb4ffa4`). Prior P2 actual-content/snapping finding is resolved.
+This supersedes historical “fresh R1 review required” wording only: it is NOT owner full-A2
+acceptance, native certification, integration or project completion. Earlier A1-blocked/A2-not-started
+paragraphs remain historical; accepted04642 already lifted the A1→A2 gate.
+
+Complete independent report/commands/scripts/logs/negative controls/source identities and original
+267-entry standard manifest are now durably preserved, without changing their provenance, under
+[`evidence/a2-gate-reconciliation-20261101`](../../evidence/a2-gate-reconciliation-20261101/REPORT.md).
+238 payload files are retained byte-for-byte;29 large compiled artifacts stay at their external
+locations with bounded hashes/identities. The original /tmp directory and prior evidence are untouched.
+
+The [current exact remaining-gate matrix](A2-remaining-gates.md) reconciles all A2 components,
+Specification §8 numbered evidence gates, platform/manual cells, saved goals and previous reviews,
+with executable next steps. No additional implementation defect is established in the latest scoped
+review; this is not an exhaustive full-A2 review. Preserve the extra whole-world layout/text cost caveat
+(100 unrelated-label calls→200/300; native responsiveness unverified) and the two pre-existing strict
+core-test lint warnings at a1_wrapped_hug.rs79/125. No lint/performance/source fixes are made here.
+
+Next concrete native gate: owner-authorized macOS synthetic operating-gallery keyboard/pointer/resize
+and responsiveness, followed by real VoiceOver/IME/fonts/DPI checks; separate Windows/X11/Wayland
+capabilities remain unavailable to this no-launch task. All native cells remain UNVERIFIED.
+Owner/sender retains full A2 disposition and every project lifecycle decision. This reconciliation is
+evidence/doc-only: no new build artifacts, launches, grants, source changes, approval, integration or push.

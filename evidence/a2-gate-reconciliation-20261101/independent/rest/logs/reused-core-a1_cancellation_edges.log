@@ -1,0 +1,8 @@
+
+running 3 tests
+test semantic_tab_requires_live_panel_and_relations_survive_no_stale_generation ... ok
+test scroll_capture_wins_over_an_armed_button ... ok
+test matching_pointer_is_not_enough_a_release_must_match_primary_button ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

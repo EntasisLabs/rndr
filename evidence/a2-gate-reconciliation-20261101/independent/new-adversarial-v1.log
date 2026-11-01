@@ -1,0 +1,9 @@
+
+running 4 tests
+test hidden_shown_revealed_and_missing_geometry_recover ... ok
+test malformed_geometry_and_nonfinite_resize_do_not_adopt_or_panic ... ok
+test unrelated_scroll_and_layout_cache_equivalent_to_final_authoritative_walk ... ok
+test siblings_nested_unknown_parent_and_creation_order_converge ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+

@@ -1,0 +1,7 @@
+PASS: allowed doc/evidence paths only; historical tracking prefixes preserved; all other parent-tracked bytes unchanged
+PASS: canonical digests, new relative links, compiled binary exclusion
+Parent: f427b7474dad99a983115edfad14c5084c9cb253
+Unchanged implementation tree: ba52ced5ab99a7f44991db7d2a6715198b4c280b
+Unchanged Cargo.toml blob: 4a22e3d18e20d4613a373ee2a85aadb3312cbf7e
+Unchanged Cargo.lock blob: 6cd132000889d36940517203830205b41fda2dbb
+Changed/new path count at validation: 252

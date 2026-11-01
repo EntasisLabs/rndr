@@ -1,0 +1,14 @@
+fa6099eca1b63ac69cc58e664dabb46f320881e5aff9f39558fbbbf5fdb8d989  docs/design/A0-A1-checkpoint.md
+5b734148ab3842cb7194622062e23f3267ad5758d9c6fc4e705e439ff4b91807  docs/design/A1-api-decisions.md
+260cfe9a98eadf80a52dd88fbf8d772b1a86ceaa027860fc66b3edb3a58556ee  docs/design/A2-components.md
+f31f754c7bf0fbf645495ae057525e717f6dab6f27f687d9b1e1deb9dfcf510b  docs/design/implementation-tracking.md
+8dc077adecc90ff0a8a7ad7284b7350744d45fe076370371038d0905312e35b0  docs/design/UI Library Council — Review Guide.md
+c4e6d10b0b44073631555ea663c4700df980ffd6ca8f7361c4d27d0c8322601b  docs/design/UI Library Council — Specification.md
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+binary: rustc
+commit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea
+commit-date: 2026-08-18
+host: aarch64-apple-darwin
+release: 1.98.0
+LLVM version: 22.1.8
+cargo 1.98.0 (797e8a9bc 2026-08-05)

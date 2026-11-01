@@ -1,0 +1,9 @@
+{
+  "original_manifest_rows": 267,
+  "retained_payload_files": 238,
+  "external_binary_files": 29,
+  "retained_payload_bytes": 4291811,
+  "external_binary_bytes": 152586704,
+  "original_manifest_sha256": "5732aaa2c54ee57d4d10fd6d66554d5593393c99c1bc43b9ec678a1a552fe063",
+  "original_root": "/tmp/rndr-a2-rereview-OgFoQ8"
+}

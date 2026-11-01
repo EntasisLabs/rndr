@@ -1,0 +1,14 @@
+
+running 1 test
+reject=false candidates=0 unrelated_layout_calls=100 all_layout_calls=100 shapes=200
+reject=false candidates=1 unrelated_layout_calls=200 all_layout_calls=204 shapes=204
+reject=false candidates=8 unrelated_layout_calls=200 all_layout_calls=232 shapes=204
+reject=false candidates=32 unrelated_layout_calls=200 all_layout_calls=328 shapes=204
+reject=true candidates=0 unrelated_layout_calls=100 all_layout_calls=100 shapes=200
+reject=true candidates=1 unrelated_layout_calls=300 all_layout_calls=306 shapes=207
+reject=true candidates=8 unrelated_layout_calls=300 all_layout_calls=348 shapes=207
+reject=true candidates=32 unrelated_layout_calls=300 all_layout_calls=492 shapes=207
+test counts_whole_world_passes_not_native_time ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+

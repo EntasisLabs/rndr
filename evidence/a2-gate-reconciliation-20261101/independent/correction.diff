@@ -1,0 +1,467 @@
+diff --git a/crates/rndr_ui/src/controls.rs b/crates/rndr_ui/src/controls.rs
+index b473f08..ea7dcc7 100644
+--- a/crates/rndr_ui/src/controls.rs
++++ b/crates/rndr_ui/src/controls.rs
+@@ -838,13 +838,15 @@ pub(crate) fn resolve_controls(world: &mut World) {
+     }
+ }
+ 
+-/// Measure only after the current cascade/type scale has resolved. This stays
+-/// before core layout, avoiding a frame of horizontal overflow on type changes.
++/// Resolve after the current cascade/type scale, before App's final layout.
++/// Tentative rows are measured by core itself, including snapped nested geometry
++/// and the text engine's content box. No copied layout/text inset arithmetic.
+ pub(crate) fn resolve_toolbars(world: &mut World) {
+     let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
+     // Measure with the actual installed text engine and resolved type style.
+     // Unknown borrowed children force stacking rather than assuming a fake menu.
+     let engine = text_engine(world);
++    let mut candidates = Vec::new();
+     for root in world.entities_with::<ToolbarNode>() {
+         let node = *world.get::<ToolbarNode>(root).unwrap();
+         let children: Vec<_> = children_of(world, root)
+@@ -852,11 +854,8 @@ pub(crate) fn resolve_toolbars(world: &mut World) {
+             .filter(|e| !world.has::<Hidden>(*e))
+             .collect();
+         let gaps = 8.0 * children.len().saturating_sub(1) as f32;
+-        let padding = world.get::<Layout>(root).unwrap().padding * 2.0;
+-        let share = (node.available - padding - gaps).max(0.0) / children.len().max(1) as f32;
+-        // Preserve the existing conservative row budget (including its extra
+-        // breathing room). Passing that budget alone is not sufficient: each
+-        // Fill share must also fit the real label and nested insets below.
++        // Retain the historical conservative veto, not as a proof of fit.
++        // Every tentative row must also pass actual content geometry below.
+         let mut row_budget = gaps;
+         let mut known = true;
+         for child in &children {
+@@ -876,20 +875,12 @@ pub(crate) fn resolve_toolbars(world: &mut World) {
+                     .get::<TextStyle>(c.label)
+                     .cloned()
+                     .unwrap_or_else(|| theme.typography(Typography::Label));
+-                // Core gives every direct Fill control the same row share, not
+-                // its natural width. Check each label against that allocation.
+-                // Include the actual nested ring/gap/border/face/label insets
+-                // rather than a sum-width estimate or a magic safety margin.
+-                let insets: f32 = [*child, c.gap, c.border, c.face, c.label]
+-                    .iter()
+-                    .map(|e| world.get::<Layout>(*e).unwrap().padding * 2.0)
+-                    .sum();
++
+                 let natural = engine
+                     .measure(&label.text, &style, &[], f32::INFINITY)
+                     .width;
+-                let required = (natural + insets).max(theme.target_min());
+                 row_budget += (natural + 52.0).max(theme.target_min());
+-                known &= required.is_finite() && required <= share;
++                known &= natural.is_finite();
+             } else {
+                 known = false;
+             }
+@@ -902,6 +893,68 @@ pub(crate) fn resolve_toolbars(world: &mut World) {
+                 Axis::Column
+             };
+             l.gap = 8.0;
++            if l.axis == Axis::Row && !children.is_empty() {
++                candidates.push((root, children));
++            }
++        }
++    }
++    if candidates.is_empty() {
++        return;
++    }
++    // A tentative short row can clamp a caller's scroll offset before being
++    // rejected. Measurement must not commit that clamp. Restore the original
++    // scroll state before each walk and leave final clamping to App's layout.
++    let scrolls: Vec<_> = world
++        .entities_with::<Scroll>()
++        .into_iter()
++        .map(|e| (e, *world.get::<Scroll>(e).unwrap()))
++        .collect();
++    loop {
++        for (e, scroll) in &scrolls {
++            world.insert(*e, *scroll);
+         }
++        layout_propagate(world);
++        apply_text_layout(world);
++        let mut changed = false;
++        for (root, children) in &candidates {
++            if world.get::<Layout>(*root).unwrap().axis != Axis::Row {
++                continue;
++            }
++            let fits = children.iter().all(|child| {
++                let c = world.get::<Control>(*child).unwrap();
++                let label = world.get::<Label>(c.label).unwrap();
++                let style = world
++                    .get::<TextStyle>(c.label)
++                    .cloned()
++                    .unwrap_or_else(|| theme.typography(Typography::Label));
++                let natural = engine
++                    .measure(&label.text, &style, &[], f32::INFINITY)
++                    .width;
++                // A never-shown hidden ancestor has no allocated Rect yet.
++                // Missing geometry cannot prove fit; reveal is reconsidered on
++                // the next update using the same authoritative layout walk.
++                let Some(rect) = world.get::<Rect>(c.label) else {
++                    return false;
++                };
++                let content = field_text_width(rect.w, engine.unit_advance(&style));
++                rect.w.is_finite()
++                    && content >= natural
++                    && world
++                        .get::<TextLayout>(c.label)
++                        .is_some_and(|l| l.lines.len() <= 1)
++            });
++            if !fits {
++                world.get_mut::<Layout>(*root).unwrap().axis = Axis::Column;
++                changed = true;
++            }
++        }
++        // Vetoes only remove rows: at most one per candidate, plus the final
++        // stable walk. Recheck other rows if a veto changes ancestor geometry.
++        if !changed {
++            break;
++        }
++    }
++    for (e, scroll) in scrolls {
++        world.insert(e, scroll);
+     }
+ }
+diff --git a/crates/rndr_ui/tests/a2_toolbar_allocation.rs b/crates/rndr_ui/tests/a2_toolbar_allocation.rs
+index c7c4edd..2a33799 100644
+--- a/crates/rndr_ui/tests/a2_toolbar_allocation.rs
++++ b/crates/rndr_ui/tests/a2_toolbar_allocation.rs
+@@ -47,7 +47,12 @@ fn needed(a: &App, h: ControlHandle) -> f32 {
+         }
+         e = a.world().get::<Parent>(e).unwrap().entity;
+     }
+-    (natural(a, h) + insets).max(a.world().get::<Layout>(h.root).unwrap().min_width)
++    // Original R1 fixture omitted core's inner text origin. Integer-scale
++    // stimulus boundary only; fitted() verifies final engine geometry.
++    let style = a.world().get::<TextStyle>(h.label).unwrap();
++    let unit = text_engine(a.world()).unit_advance(style);
++    let text_insets = 4096. - field_text_width(4096., unit);
++    (natural(a, h) + insets + text_insets).max(a.world().get::<Layout>(h.root).unwrap().min_width)
+ }
+ fn axis(a: &App, t: ToolbarHandle) -> Axis {
+     a.world().get::<Layout>(t.root).unwrap().axis
+@@ -60,7 +65,24 @@ fn fitted(a: &App, t: ToolbarHandle, handles: &[ControlHandle]) {
+     assert_eq!(axis(a, t), Axis::Row);
+     for h in handles {
+         let r = a.world().get::<Rect>(h.label).unwrap();
+-        assert!(r.w + 0.001 >= natural(a, *h), "{r:?} < {}", natural(a, *h));
++        let style = a.world().get::<TextStyle>(h.label).unwrap();
++        let engine = text_engine(a.world());
++        let content = field_text_width(r.w, engine.unit_advance(style));
++        assert!(
++            content >= natural(a, *h),
++            "{r:?} content={content} < {}",
++            natural(a, *h)
++        );
++        let actual = a.world().get::<TextLayout>(h.label).unwrap();
++        let unwrapped = engine.layout(
++            &a.world().get::<Label>(h.label).unwrap().text,
++            style,
++            &[],
++            f32::INFINITY,
++        );
++        assert_eq!(actual.lines.len(), 1);
++        assert_eq!(actual.lines, unwrapped.lines);
++        assert_eq!(actual.glyphs, unwrapped.glyphs);
+     }
+ }
+ 
+@@ -95,12 +117,13 @@ fn equal_share_boundary_both_densities_and_type_scales() {
+             let short = button(&mut a, t, 3, "Go");
+             a.update();
+             let boundary = 2. * needed(&a, long).max(needed(&a, short)) + 8.;
+-            // Immediately below, exactly at, and above fit; both directions.
++            // Below by one allocated point, exactly at, and above fit, both
++            // directions. A quarter point can snap UP to the exact boundary.
+             for (width, expected) in [
+-                (boundary - 0.25, Axis::Column),
++                (boundary - 2., Axis::Column),
+                 (boundary, Axis::Row),
+-                (boundary + 0.25, Axis::Row),
+-                (boundary - 0.25, Axis::Column),
++                (boundary + 2., Axis::Row),
++                (boundary - 2., Axis::Column),
+                 (boundary, Axis::Row),
+             ] {
+                 resize(&mut a, p, t, width);
+@@ -216,7 +239,7 @@ fn mixed_icon_and_source_actions_use_their_actual_label_styles() {
+                     .max(needed(&a, icon))
+                     .max(needed(&a, source))
+                 + 16.;
+-            for (w, expected) in [(boundary - 0.25, Axis::Column), (boundary, Axis::Row)] {
++            for (w, expected) in [(boundary - 3., Axis::Column), (boundary, Axis::Row)] {
+                 resize(&mut a, p, t, w);
+                 a.update();
+                 assert_eq!(axis(&a, t), expected);
+@@ -262,7 +285,7 @@ fn empty_single_hidden_unknown_policy_and_toolbar_padding() {
+     a.world_mut().remove::<Hidden>(long.root);
+     a.world_mut().get_mut::<Layout>(t.root).unwrap().padding = 7.;
+     let boundary = 2. * needed(&a, long) + 8. + 14.;
+-    for (w, expected) in [(boundary - 0.25, Axis::Column), (boundary, Axis::Row)] {
++    for (w, expected) in [(boundary - 2., Axis::Column), (boundary, Axis::Row)] {
+         resize(&mut a, p, t, w);
+         a.update();
+         assert_eq!(axis(&a, t), expected);
+diff --git a/crates/rndr_ui/tests/a2_toolbar_content_fit.rs b/crates/rndr_ui/tests/a2_toolbar_content_fit.rs
+new file mode 100644
+index 0000000..ba4949d
+--- /dev/null
++++ b/crates/rndr_ui/tests/a2_toolbar_content_fit.rs
+@@ -0,0 +1,209 @@
++use rndr_core::*;
++use rndr_ui::{
++    controls::{self, *},
++    *,
++};
++const LONG: &str = "This is a very long but valid command label with many words";
++fn setup(
++    width: f32,
++    scale: f32,
++    density: Density,
++    type_scale: f32,
++) -> (App, Entity, ToolbarHandle, ControlHandle, ControlHandle) {
++    let mut a = App::new();
++    a.add_plugin(UiPlugin);
++    a.world_mut().insert_resource(Viewport {
++        scale,
++        ..Viewport::new(8000., 30000.)
++    });
++    a.world_mut().insert_resource(UiTheme {
++        density,
++        text_scale: type_scale,
++        ..UiTheme::default()
++    });
++    let p = a.world_mut().spawn((Layout {
++        width: Size::Px(width),
++        ..Layout::column()
++    },));
++    let t = Toolbar::mount(a.world_mut(), p, UiId(1), width).unwrap();
++    let h = button(&mut a, t, 2, LONG);
++    let short = button(&mut a, t, 3, "Go");
++    (a, p, t, h, short)
++}
++fn button(a: &mut App, t: ToolbarHandle, id: u64, text: &str) -> ControlHandle {
++    controls::Button::mount(
++        a.world_mut(),
++        t.root,
++        UiId(id),
++        ButtonProps::new(text, HostIntent::Command(id)),
++    )
++    .unwrap()
++}
++fn resize(a: &mut App, p: Entity, width: f32) {
++    a.world_mut().get_mut::<Layout>(p).unwrap().width = Size::Px(width);
++    Toolbar::mount(a.world_mut(), p, UiId(1), width).unwrap();
++}
++fn row(a: &App, t: ToolbarHandle) -> bool {
++    a.world().get::<Layout>(t.root).unwrap().axis == Axis::Row
++}
++// This assertion consumes the engine's FINAL content and line/glyph geometry.
++// It does not assert a reimplementation of the toolbar's fit predicate.
++fn unwrapped(a: &App, h: ControlHandle) {
++    let w = a.world();
++    let style = w.get::<TextStyle>(h.label).unwrap();
++    let engine = text_engine(w);
++    let label = w.get::<Label>(h.label).unwrap();
++    let natural = engine.layout(&label.text, style, &[], f32::INFINITY);
++    let actual = w.get::<TextLayout>(h.label).unwrap();
++    let r = w.get::<Rect>(h.label).unwrap();
++    let content = field_text_width(r.w, engine.unit_advance(style));
++    assert_eq!(
++        actual.lines.len(),
++        1,
++        "label={} rect={r:?} content={content} actual={actual:?}",
++        label.text
++    );
++    assert!(
++        content >= natural.width,
++        "content={content} natural={}",
++        natural.width
++    );
++    assert_eq!(actual.lines, natural.lines);
++    assert_eq!(actual.glyphs, natural.glyphs);
++    assert_eq!(actual.width, natural.width);
++}
++#[test]
++fn integer_inner_text_reproduction_and_exact_pixel_boundaries() {
++    for density in [Density::Comfortable, Density::Compact] {
++        let (mut a, p, t, h, short) = setup(1696., 1., density, 1.);
++        a.update();
++        assert!(!row(&a, t), "old label-box boundary must stack");
++        // Actual builtin layout: unwrapped 826, content inset 24, nested padding18.
++        // 1744 is the true integer snapped fit; two points below loses a point
++        // of content. Subpixel widths may legitimately snap to the same fit.
++        for (width, expected_row) in [
++            (1742., false),
++            (1744., true),
++            (1746., true),
++            (1742., false),
++            (1744., true),
++        ] {
++            resize(&mut a, p, width);
++            a.update();
++            assert_eq!(
++                row(&a, t),
++                expected_row,
++                "width={width} density={density:?}"
++            );
++            if expected_row {
++                unwrapped(&a, h);
++                unwrapped(&a, short);
++            }
++        }
++    }
++}
++#[test]
++fn fractional_content_boundaries_with_nested_origin_and_updates() {
++    for density in [Density::Comfortable, Density::Compact] {
++        for scale in [1., 1.25, 1.5, 1.75, 2.] {
++            for ty in [1., 1.1, 1.25, 1.5, 2.] {
++                let (mut a, p, t, h, short) = setup(5000., scale, density, ty);
++                a.world_mut().get_mut::<Layout>(p).unwrap().padding = 0.3;
++                a.world_mut().get_mut::<Layout>(t.root).unwrap().padding = 0.7;
++                a.update();
++                let style = a.world().get::<TextStyle>(h.label).unwrap();
++                let natural = text_engine(a.world())
++                    .measure(LONG, style, &[], f32::INFINITY)
++                    .width;
++                // Sweep around both the rejected old boundary and true content
++                // boundary. These are stimuli, not our correctness oracle.
++                for center in [
++                    2. * (natural + 18.) + 8.,
++                    2. * (natural + 42.) + 8. + 2. * 0.7,
++                ] {
++                    for extra in [-4., -2., -0.5, 0., 0.25, 0.5, 1., 2., 4., -4., 4.] {
++                        resize(&mut a, p, center + extra);
++                        a.update();
++                        if row(&a, t) {
++                            unwrapped(&a, h);
++                            unwrapped(&a, short);
++                        }
++                    }
++                }
++                resize(&mut a, p, 6000.);
++                a.update();
++                assert!(row(&a, t));
++                unwrapped(&a, h);
++            }
++        }
++    }
++}
++#[test]
++fn same_update_label_type_width_both_ways_uses_final_line_geometry() {
++    for density in [Density::Comfortable, Density::Compact] {
++        let (mut a, p, t, h, short) = setup(1696., 1.75, density, 1.);
++        a.update();
++        assert!(!row(&a, t));
++        assert!(request_focus(a.world_mut(), h.root));
++        for (width, ty, label, expected) in [
++            (1696., 1., "Go", true),
++            (1696., 1., LONG, false),
++            (2000., 1., LONG, true),
++            (2000., 2., LONG, false),
++            (2000., 1., LONG, true),
++            (1000., 1., LONG, false),
++            (2000., 1., LONG, true),
++        ] {
++            resize(&mut a, p, width);
++            a.world_mut().insert_resource(UiTheme {
++                density,
++                text_scale: ty,
++                ..UiTheme::default()
++            });
++            assert_eq!(button(&mut a, t, 2, label), h);
++            a.update();
++            assert_eq!(row(&a, t), expected);
++            assert_eq!(a.world().resource::<Focus>().unwrap().entity, Some(h.root));
++            if expected {
++                unwrapped(&a, h);
++                unwrapped(&a, short);
++            }
++            assert_eq!(
++                try_activate(a.world_mut(), h.root),
++                ActivationResult::Accepted
++            );
++            let req = take_action_intents(a.world_mut());
++            assert_eq!(req.len(), 1);
++            assert_eq!(
++                host_intent(a.world(), &req[0]),
++                Some(HostIntent::Command(2))
++            );
++        }
++    }
++}
++#[test]
++fn hidden_ancestor_malformed_and_scroll_rejected_measurement_are_safe() {
++    let (mut a, p, t, h, _) = setup(1696., 1.75, Density::Comfortable, 1.);
++    a.world_mut().get_mut::<Layout>(p).unwrap().height = Size::Px(40.);
++    a.world_mut().insert(p, Scroll::default());
++    let outer = a.world_mut().spawn((Layout::column(),));
++    set_parent(a.world_mut(), p, outer);
++    a.world_mut().insert(p, Hidden);
++    a.update(); // No Rect is allocated under a never-shown hidden ancestor.
++    a.world_mut().remove::<Hidden>(p);
++    a.update();
++    assert!(!row(&a, t));
++    a.world_mut().get_mut::<Scroll>(p).unwrap().offset[1] = -30.;
++    a.update();
++    assert!(!row(&a, t));
++    assert_eq!(a.world().get::<Scroll>(p).unwrap().offset[1], -30.);
++    assert!(a.world().get::<TextLayout>(h.label).unwrap().lines.len() <= 1);
++    let label = a.world_mut().remove::<Label>(h.label).unwrap();
++    a.update(); // Malformed owned label must stack, not panic or adopt a child.
++    assert!(!row(&a, t));
++    a.world_mut().insert(h.label, label);
++    resize(&mut a, p, 2000.);
++    a.update();
++    assert!(row(&a, t));
++    unwrapped(&a, h);
++}
+diff --git a/docs/design/A2-components.md b/docs/design/A2-components.md
+index d8e5d11..3192a26 100644
+--- a/docs/design/A2-components.md
++++ b/docs/design/A2-components.md
+@@ -93,8 +93,20 @@ Final commands, exact implementation SHA/source/rlib identities, suite counts, n
+ 
+ No cross-platform/platform-accessibility readiness is asserted. Native windows, screenshots, actual capture/blur, OS AT/preferences/fonts/shaping and physical DPI remain **UNVERIFIED**. This is a reviewable bounded A2 implementation result, not whole-project satisfaction or native certification.
+ 
+-## Bounded R1 correction after independent A2 REVISE
++## Historical first R1 correction after independent A2 REVISE (superseded below)
+ 
+ The independent review of `31006f0dfb834ea90e8b20ebac3b41d10dcdf88d` found that summed natural widths did not prove fit in core's equal-share Fill row. The correction checks **each** resolved label's unwrapped width plus its actual nested layout insets against `(available - toolbar padding - gaps) / visible children`, including target minima. The existing conservative total-width budget is retained as an additional veto, preserving established narrow-toolbar behavior; a budget fit is never sufficient without each actual share fitting. Exact per-share fits pass the new check; otherwise all actions stack. No measured-width allocation, hidden-action policy, style scheduling, activation or core change is introduced. Unknown visible children still force stacking; hidden children do not consume shares. Empty/single behavior is retained.
+ 
+ Permanent `a2_toolbar_allocation.rs` promotes the independent unequal-label probe and covers mixed icon/source commands, same-update width/font-scale/label changes in both directions, comfortable/compact and 100%/200% type, boundary fits, finite narrow geometry, focus/identity/names/actions, hidden/unknown children and toolbar padding. New R1 evidence is separate under `evidence/a2-r1-20261101/`; old sealed receipts and all six passive goldens remain historical and unchanged. A fresh independent exact-candidate re-review is required before owner A2 acceptance. No native certification or integration is implied.
++
++## R1 continuation: actual content and snapped layout fit
++
++Fresh independent review of exact `92e98004d886a9ccfc3d2d05eaf090b591e10cc9` remains a **REVISE** deliverable only. The first correction above omitted core's inner text inset and actual snapping: at 1696 points the 826-point label box has only 802 points of text content and wraps to two lines. Its arithmetic boundary claims are historical, not the current implementation contract.
++
++The current continuation calls the existing authoritative `layout_propagate` and `apply_text_layout` on tentative rows, after the current style cascade. A row survives only if every known visible control's actual snapped label rectangle yields `field_text_width >= unwrapped natural width` and its actual `TextLayout` has at most one line. This includes all nested layout padding and the installed engine's unit advance without copying core inset/snapping constants, guessed tolerances or a special-case label. The conservative historical sum remains a veto, never a proof of fit. Unknown/malformed content still stacks; hidden content is excluded; empty behavior is unchanged. Reflow reconsiders tentative rows each update, so width/type/label updates work both ways in the same update.
++
++Vetoes are monotone within the update; if an ancestor geometry changes after a veto, remaining rows are measured again. This uses core's existing layout/text code, not a second layout engine or public API. With N tentative nonempty rows there are at most N+1 measurement walks (normally one or two), followed by App's normal final layout. Scroll snapshots are restored before each measurement and after resolution so a rejected short row cannot commit a premature scroll clamp. Layout/text caches are refreshed by the final authoritative walk. No input, focus, intent draining, editor buffers/history or host dispatch is introduced. No core/API/dependency source changes are necessary.
++
++The previous five allocation tests now assert actual final content and line/glyph geometry. Their incorrect boundary stimulus now includes the public core content metric; below-boundary samples lose a full allocated pixel rather than assuming a quarter-point must survive rounding. Original source/logs remain preserved. Four new permanent tests cover the integer reproduction/exact boundaries, fractional logical scales and origins, both densities, 100–200% type, same-update width/type/label updates in both directions, focus/actions and preservation of scroll offsets through rejected measurements. The identical final four-test fixture passes 0/4 (four failures) on the starting UI and passes 4/4 on the final direct-source UI build. Its hidden-ancestor/malformed/scroll guardrail also reproduces a missing-rectangle panic in the intermediate correction, preserved before the final conservative missing-geometry fallback; revealing the ancestor reconsiders layout in the same update. All original 32 tests remain unchanged.
++
++Evidence and full identity/command qualifications: `evidence/a2-r1-content-fit-20261101/REPORT.md` and `COMMANDS.md`. A2 remains **unaccepted**; owner arranges fresh independent review and retains acceptance/integration. Native windows/screenshots/OS AT/preferences/fonts/shaping/IME/physical DPI/platform remain **UNVERIFIED**.
+diff --git a/docs/design/implementation-tracking.md b/docs/design/implementation-tracking.md
+index 942fe14..9175487 100644
+--- a/docs/design/implementation-tracking.md
++++ b/docs/design/implementation-tracking.md
+@@ -68,3 +68,13 @@ This is **not** integration, native certification, A2 acceptance or whole-projec
+ The original independent review directory `/tmp/rndr-independent-04642.hmZHsh/` is untouched. Durable small report, independent probe and manifests are copied without replacement into `evidence/a2-20261101-mZVyJv/accepted-a1-review/`. REVIEW.md retains SHA256 **b738135187bdbe6f215b090589836d5731f65b4b052f5986c45825b168eaadd2**. The bounded P3 fixture correction explicitly sets code=None in the logical-only branch and asserts shape distinction; no A1 production rewrite is made for that nit. Additional logical-only cases are promoted from independent.rs into a separate permanent fixture; original prior14 remains unchanged.
+ 
+ A2 implementation and verification results are recorded separately in `A2-components.md` and the new A2 evidence directory. All prior passive goldens, historical reports, expected-failure/invalid-cache logs remain preserved. Native windows/screenshots/capture-blur/OS AT/preferences/native fonts-shaping/physical DPI remain **UNVERIFIED** unless a later exact receipt says otherwise.
++
++## A2 R1 continuation — actual text-content fit, unaccepted review candidate
++
++Started clean at exact `92e98004d886a9ccfc3d2d05eaf090b591e10cc9` in the same authorized worktree. Full canonical Specification, Review Guide, A2 components, A1 API, checkpoint/tracking and fresh independent REVIEW/COMMANDS/probes were read, with bounded reads recovering combined-output truncation. Fresh review `/tmp/rndr-a2-fresh-review-4TfleE` is accepted as a review deliverable ONLY; A2 remains unaccepted. Its complete original manifest was verified, and exact compact review/probe/log copies and provenance are preserved in new `evidence/a2-r1-content-fit-20261101/`.
++
++R1 continuation replaces label-box arithmetic with the existing core layout/text routines and public content-width metric on actual snapped tentative rows. Every surviving row meets the unwrapped-content contract. Monotone veto/revalidation and saved/restored scroll state preserve same-update reflow and caller ownership without core/API/dependency changes. See `A2-components.md` for contract and cost. Original32 UI tests remain byte-unchanged. Previous5 boundary stimuli were demonstrably incorrect (original fixture passes old UI, fails three boundary assertions on corrected UI); originals and failure evidence remain preserved. Corrected5 now inspect final text line/glyph geometry. The identical final new4 content/line-geometry tests pass 0/4 (four failures) on old exact UI and 4/4 on final directly rebuilt UI. A hidden-ancestor/malformed/scroll guardrail also caught an intermediate missing-rectangle panic; the failure and final conservative fallback are preserved.
++
++Final direct-source UI41, reused identity-verified core411/paint62/adapter2, unchanged conformance13/adversarial5/geometry64 and unchanged fresh-review probes4 pass. Offline locked Cargo548 passes as supplemental/repeated coverage; exact overlap/count qualifications are in REPORT.md, not additive unique-test claims. Diagnostic175-case fractional survey changes13→0 printed mismatches; it is not175 assertion tests. Eight galleries are deterministic across two processes and byte-identical to starting92e98004; all six passive goldens and all historical evidence are preserved. Strict UI clippy and workspace formatting pass; all-target core clippy has two pre-existing test warnings, preserved without unrelated cleanup.
++
++Build identity uses a new bounded direct-rustc output, not Cargo Fresh inference, after entire relevant unchanged source/dependency verification. Existing Cargo target only, offline --locked/jobs2/debug0/incremental0; no cleanup, network, native launch, approval, integration or push. Complete commands, reports, standard SHA256 manifest and source/blob/artifact identities are sealed with the tested source unchanged. Owner retains fresh independent review, A2 acceptance and integration; native windows/screenshots/OS AT/preferences/fonts/shaping/IME/physical DPI/platform remain **UNVERIFIED**.

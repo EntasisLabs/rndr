@@ -110,3 +110,31 @@ Vetoes are monotone within the update; if an ancestor geometry changes after a v
 The previous five allocation tests now assert actual final content and line/glyph geometry. Their incorrect boundary stimulus now includes the public core content metric; below-boundary samples lose a full allocated pixel rather than assuming a quarter-point must survive rounding. Original source/logs remain preserved. Four new permanent tests cover the integer reproduction/exact boundaries, fractional logical scales and origins, both densities, 100–200% type, same-update width/type/label updates in both directions, focus/actions and preservation of scroll offsets through rejected measurements. The identical final four-test fixture passes 0/4 (four failures) on the starting UI and passes 4/4 on the final direct-source UI build. Its hidden-ancestor/malformed/scroll guardrail also reproduces a missing-rectangle panic in the intermediate correction, preserved before the final conservative missing-geometry fallback; revealing the ancestor reconsiders layout in the same update. All original 32 tests remain unchanged.
 
 Evidence and full identity/command qualifications: `evidence/a2-r1-content-fit-20261101/REPORT.md` and `COMMANDS.md`. A2 remains **unaccepted**; owner arranges fresh independent review and retains acceptance/integration. Native windows/screenshots/OS AT/preferences/fonts/shaping/IME/physical DPI/platform remain **UNVERIFIED**.
+
+## Current reconciliation — sender accepted scoped R1 review, not all A2 (2026-11-01)
+
+The sender accepted the complete independent scoped HEADLESS R1 review of exact
+`f427b7474dad99a983115edfad14c5084c9cb253` (implementation
+`91c008bdc1054f42f67dcd5d45729290ddb4ffa4`). Prior P2 actual-content/snapping finding is resolved.
+This supersedes historical “fresh R1 review required” wording only: it is NOT owner full-A2
+acceptance, native certification, integration or project completion. Earlier A1-blocked/A2-not-started
+paragraphs remain historical; accepted04642 already lifted the A1→A2 gate.
+
+Complete independent report/commands/scripts/logs/negative controls/source identities and original
+267-entry standard manifest are now durably preserved, without changing their provenance, under
+[`evidence/a2-gate-reconciliation-20261101`](../../evidence/a2-gate-reconciliation-20261101/REPORT.md).
+238 payload files are retained byte-for-byte;29 large compiled artifacts stay at their external
+locations with bounded hashes/identities. The original /tmp directory and prior evidence are untouched.
+
+The [current exact remaining-gate matrix](A2-remaining-gates.md) reconciles all A2 components,
+Specification §8 numbered evidence gates, platform/manual cells, saved goals and previous reviews,
+with executable next steps. No additional implementation defect is established in the latest scoped
+review; this is not an exhaustive full-A2 review. Preserve the extra whole-world layout/text cost caveat
+(100 unrelated-label calls→200/300; native responsiveness unverified) and the two pre-existing strict
+core-test lint warnings at a1_wrapped_hug.rs79/125. No lint/performance/source fixes are made here.
+
+Next concrete native gate: owner-authorized macOS synthetic operating-gallery keyboard/pointer/resize
+and responsiveness, followed by real VoiceOver/IME/fonts/DPI checks; separate Windows/X11/Wayland
+capabilities remain unavailable to this no-launch task. All native cells remain UNVERIFIED.
+Owner/sender retains full A2 disposition and every project lifecycle decision. This reconciliation is
+evidence/doc-only: no new build artifacts, launches, grants, source changes, approval, integration or push.

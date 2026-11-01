@@ -1,0 +1,347 @@
+{
+  "rest/logs/adversarial.log": {
+    "passed": 5,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/cargo-libraries.log": {
+    "passed": 524,
+    "failed": 0,
+    "suites": 76
+  },
+  "rest/logs/cargo-render.log": {
+    "passed": 24,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/final-regressions.log": {
+    "passed": 5,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/geometry.log": {
+    "passed": 1,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-actual-adapter.log": {
+    "passed": 2,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-a1_cancellation_edges.log": {
+    "passed": 3,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-a1_hotkey_ownership.log": {
+    "passed": 11,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-a1_interaction.log": {
+    "passed": 7,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-a1_lifecycle.log": {
+    "passed": 4,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-a1_logical_only.log": {
+    "passed": 3,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-a1_relation_lifecycle.log": {
+    "passed": 1,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-a1_reproductions.log": {
+    "passed": 3,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-a1_review_corrections.log": {
+    "passed": 14,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-a1_wrapped_hug.log": {
+    "passed": 2,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-a2_core_contracts.log": {
+    "passed": 3,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-a2_nested_focus.log": {
+    "passed": 1,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-actions.log": {
+    "passed": 4,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-body.log": {
+    "passed": 8,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-button.log": {
+    "passed": 5,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-caret.log": {
+    "passed": 11,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-click_caret.log": {
+    "passed": 4,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-clipboard.log": {
+    "passed": 1,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-decorations.log": {
+    "passed": 2,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-desktop_exit.log": {
+    "passed": 2,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-ecs.log": {
+    "passed": 3,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-edit.log": {
+    "passed": 5,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-editor.log": {
+    "passed": 6,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-editor_drag.log": {
+    "passed": 12,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-editor_navigation.log": {
+    "passed": 20,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-feed.log": {
+    "passed": 11,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-field.log": {
+    "passed": 5,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-focus.log": {
+    "passed": 6,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-font.log": {
+    "passed": 8,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-fs.log": {
+    "passed": 16,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-hotkey.log": {
+    "passed": 28,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-ime.log": {
+    "passed": 3,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-input_platform.log": {
+    "passed": 10,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-keyboard.log": {
+    "passed": 17,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-layout.log": {
+    "passed": 16,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-list.log": {
+    "passed": 13,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-markdown.log": {
+    "passed": 12,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-mono.log": {
+    "passed": 1,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-overlay.log": {
+    "passed": 3,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-pane.log": {
+    "passed": 4,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-pointers.log": {
+    "passed": 10,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-prompt.log": {
+    "passed": 17,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-runtime.log": {
+    "passed": 15,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-source_edit.log": {
+    "passed": 8,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-split.log": {
+    "passed": 7,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-tabs.log": {
+    "passed": 2,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-text_engine.log": {
+    "passed": 11,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-tray.log": {
+    "passed": 6,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-unit.log": {
+    "passed": 14,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-window.log": {
+    "passed": 27,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-core-wrap.log": {
+    "passed": 6,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-paint-a2_resolved_color.log": {
+    "passed": 1,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-paint-editor.log": {
+    "passed": 4,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-paint-list.log": {
+    "passed": 2,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-paint-markdown.log": {
+    "passed": 2,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-paint-paint.log": {
+    "passed": 13,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-paint-pattern.log": {
+    "passed": 1,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-paint-slot.log": {
+    "passed": 2,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-paint-text_snapshot.log": {
+    "passed": 3,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-paint-uncolored_text.log": {
+    "passed": 7,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-paint-unit.log": {
+    "passed": 27,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-probe-independent.log": {
+    "passed": 8,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-probe-original4.log": {
+    "passed": 4,
+    "failed": 0,
+    "suites": 1
+  },
+  "rest/logs/reused-probe-tab_release.log": {
+    "passed": 1,
+    "failed": 0,
+    "suites": 1
+  }
+}

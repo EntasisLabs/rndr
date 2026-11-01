@@ -1,0 +1,268 @@
+sha256	bytes	storage	original_absolute_path	repository_relative_copy
+dce7f59c6dac1615b339044be6bddf6f714c3e88dcb312bd350a763bf43b4a9e	8226	retained	/tmp/rndr-a2-rereview-OgFoQ8/COMMANDS.md	independent/COMMANDS.md
+86e24e37274b9ef50ef51bf70375f29411d4de92282eed614bfb6d03a9203eee	15773	retained	/tmp/rndr-a2-rereview-OgFoQ8/REVIEW.md	independent/REVIEW.md
+2cb2b682822fc270f1e4bef811e013df18982c991161892f19135b0339f2c821	1746	retained	/tmp/rndr-a2-rereview-OgFoQ8/all-artifact-revalidation.log	independent/all-artifact-revalidation.log
+30126864268bc67eaf470e5a060981dfec47dc406cbd86e693a4feec215d04b4	3544	retained	/tmp/rndr-a2-rereview-OgFoQ8/all-build-artifacts.sha256	independent/all-build-artifacts.sha256
+85a3abc320c706ec5b290b56462442f58c0c16a37d651509cf3e1535b5ea8f8a	269	retained	/tmp/rndr-a2-rereview-OgFoQ8/audit-after.log	independent/audit-after.log
+85a3abc320c706ec5b290b56462442f58c0c16a37d651509cf3e1535b5ea8f8a	269	retained	/tmp/rndr-a2-rereview-OgFoQ8/audit.json	independent/audit.json
+85a3abc320c706ec5b290b56462442f58c0c16a37d651509cf3e1535b5ea8f8a	269	retained	/tmp/rndr-a2-rereview-OgFoQ8/audit.log	independent/audit.log
+30587940848c7e92d9f8457109765eed4ceb692ab9c36cce7003ce73ca972153	1921	retained	/tmp/rndr-a2-rereview-OgFoQ8/audit.py	independent/audit.py
+1d471b47fde9649d4fdf7a79be54799fe606ca132cab42262cf29d9251fa8748	357	retained	/tmp/rndr-a2-rereview-OgFoQ8/baseline/artifacts.sha256	independent/baseline/artifacts.sha256
+d41958d8b73cf22c1ddc22f6dbc80599d3dce5a82fe14ed557e82e6401f488b4	5440464	external-binary	/tmp/rndr-a2-rereview-OgFoQ8/baseline/content-tests	
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	0	retained	/tmp/rndr-a2-rereview-OgFoQ8/baseline/content-tests-compile.log	independent/baseline/content-tests-compile.log
+39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c	4	retained	/tmp/rndr-a2-rereview-OgFoQ8/baseline/content-tests.exit	independent/baseline/content-tests.exit
+1a6d5fe1ae9870da56c56559be1be5d046d5aff6b77012e7e6b8e1ce000556b8	10966	retained	/tmp/rndr-a2-rereview-OgFoQ8/baseline/content-tests.log	independent/baseline/content-tests.log
+da903732dcbcf3788c1582c0279776280e4a6c0bd983f1f85a3ff2e0cdc8fb3b	5414672	external-binary	/tmp/rndr-a2-rereview-OgFoQ8/baseline/fractional-survey	
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	0	retained	/tmp/rndr-a2-rereview-OgFoQ8/baseline/fractional-survey-compile.log	independent/baseline/fractional-survey-compile.log
+9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa	2	retained	/tmp/rndr-a2-rereview-OgFoQ8/baseline/fractional-survey.exit	independent/baseline/fractional-survey.exit
+04a8ed58a90d62593e82ddae6aad1c0080dd508bcc012ee976f05c5fe864a534	28649	retained	/tmp/rndr-a2-rereview-OgFoQ8/baseline/fractional-survey.log	independent/baseline/fractional-survey.log
+89b058ef7e291a431c7c15f629ccfbc08f9fc4d48d967467b88f70256e0312d5	5410976	external-binary	/tmp/rndr-a2-rereview-OgFoQ8/baseline/fresh-probes	
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	0	retained	/tmp/rndr-a2-rereview-OgFoQ8/baseline/fresh-probes-compile.log	independent/baseline/fresh-probes-compile.log
+39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c	4	retained	/tmp/rndr-a2-rereview-OgFoQ8/baseline/fresh-probes.exit	independent/baseline/fresh-probes.exit
+3cc25df0882fa70d610c04483932b10c131d24dbd28ff58b6b2036aa7e323eeb	14097	retained	/tmp/rndr-a2-rereview-OgFoQ8/baseline/fresh-probes.log	independent/baseline/fresh-probes.log
+161ebf3b2f9f59ac7663a1ba816bb16110f775eae97f532654b6694e766f3f78	610	retained	/tmp/rndr-a2-rereview-OgFoQ8/baseline/inputs.sha256	independent/baseline/inputs.sha256
+11b1f5f4733cd6bee3b6df51d339973c2c295c8bcd09aa4cebd868791ef39a36	20883	retained	/tmp/rndr-a2-rereview-OgFoQ8/blobs-after.txt	independent/blobs-after.txt
+11b1f5f4733cd6bee3b6df51d339973c2c295c8bcd09aa4cebd868791ef39a36	20883	retained	/tmp/rndr-a2-rereview-OgFoQ8/blobs-before.txt	independent/blobs-before.txt
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	0	retained	/tmp/rndr-a2-rereview-OgFoQ8/boundary-baseline/compile.log	independent/boundary-baseline/compile.log
+9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa	2	retained	/tmp/rndr-a2-rereview-OgFoQ8/boundary-baseline/run.exit	independent/boundary-baseline/run.exit
+c210a3f584930809fa8d24fd19d9cfc835e314c2d5ad75db3083061d87399e96	556	retained	/tmp/rndr-a2-rereview-OgFoQ8/boundary-baseline/run.log	independent/boundary-baseline/run.log
+079f7bd3b1e9c8e0afc0d1051804f39389ae4a500a1bb8fe5a18e35ae2704286	5408808	external-binary	/tmp/rndr-a2-rereview-OgFoQ8/boundary-baseline/test	
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	0	retained	/tmp/rndr-a2-rereview-OgFoQ8/boundary-final/compile.log	independent/boundary-final/compile.log
+39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c	4	retained	/tmp/rndr-a2-rereview-OgFoQ8/boundary-final/run.exit	independent/boundary-final/run.exit
+bbeefe8b6795ac1ea2f70070c67f3c36307466a6568d7769aa2e078182ef6f85	1510	retained	/tmp/rndr-a2-rereview-OgFoQ8/boundary-final/run.log	independent/boundary-final/run.log
+371c08a65d2a4fe6ae1b6dd670215bf7f2aaef4cd02c3cd4cf439abdbd24c1c1	5448552	external-binary	/tmp/rndr-a2-rereview-OgFoQ8/boundary-final/test	
+2ace6cd0734f6e912ed756880403ea381118936c3de12b234094a149ce8b09f2	33722	retained	/tmp/rndr-a2-rereview-OgFoQ8/candidate-manifest-validation.log	independent/candidate-manifest-validation.log
+5c77fb6df8849932a384d59e9e49af8a1fe836e2044b549ab46054bed45f13be	859	retained	/tmp/rndr-a2-rereview-OgFoQ8/canonical-toolchain-identities.txt	independent/canonical-toolchain-identities.txt
+21df1d37258c6b16394c17b77ce161da1f6b8b1141efaa15eccd94c7baf6330a	6752	retained	/tmp/rndr-a2-rereview-OgFoQ8/cargo-and-reuse-counts.json	independent/cargo-and-reuse-counts.json
+728b0bc42544ad79c187633bccc86526135019d304d42dd1e577c5edb93f8b0d	28083	retained	/tmp/rndr-a2-rereview-OgFoQ8/correction.diff	independent/correction.diff
+d7b730798a916f13de418583f56b4c6086667c9b54f4d5738b0904da488f99c8	5384808	external-binary	/tmp/rndr-a2-rereview-OgFoQ8/cost-probe	
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	0	retained	/tmp/rndr-a2-rereview-OgFoQ8/cost-probe-compile.log	independent/cost-probe-compile.log
+f4a5821def3470373d342495045efe811c642467ad8a331a2bf9fe5224ccb77b	844	retained	/tmp/rndr-a2-rereview-OgFoQ8/cost-probe.log	independent/cost-probe.log
+c8105f00eb0e8f2fa83c233fb00c83573e5c32e2eac614c19613ad708f1d4ac5	2461	retained	/tmp/rndr-a2-rereview-OgFoQ8/cost-probe.rs	independent/cost-probe.rs
+bd4e0effd645565bd52d478df22e5a75d423c512033a5850e501efa458f40096	5599872	external-binary	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/bin/operating-gallery	
+9fca0482f301a5651ff5487c0cb0b66b0f2d66462a60858efd37e712800242c9	4814408	external-binary	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/bin/ui-a2_adoption_boundary	
+fbb0b2d5669d340203e743d7a05cd3b97a3b7e08ab2ae04af54ec54c8b097165	5607336	external-binary	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/bin/ui-a2_malformed_controls	
+c805a066b34214f7df6465852400c06736540144eba98bbc5f77c6d99c4e15ba	5524992	external-binary	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/bin/ui-a2_nested_paint	
+310c75b138b3332961d7d8ddaea1c4812ade899f82d16aa2007b933735cba260	6438736	external-binary	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/bin/ui-a2_operating	
+a572c0690556d84ca6fa5256bf59e83a961f54884cfd43a0651bde955f7704ad	5585120	external-binary	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/bin/ui-a2_states	
+93f44b12967a2c3b860be3163e9c4c7fa8d72407c7691219d00e274d03113763	5475352	external-binary	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/bin/ui-a2_toolbar_allocation	
+651f446c7f41249b5732008db93662ee8bccf51b265aa2eb1230d44262cdf131	5456488	external-binary	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/bin/ui-a2_toolbar_content_fit	
+6c7c87bb993bf03e06c776022437cf920ca0ebb5fb5c9bb2916b035e34117fa9	5532232	external-binary	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/bin/ui-a2_toolbar_type_update	
+841243ae08d16594f87586e9310775d2e57087b2ade8fe3441c36b9c9f41b126	5506336	external-binary	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/bin/ui-complete_gallery	
+644f223ca65496a22e0747c1ed944f8b2bac9f3aeb2aa77536763efce47d9561	5652688	external-binary	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/bin/ui-foundations	
+a620f92ff23f10a467b9e6ffd5f1be750c99c45aa1f0bf1db83bad4762e50825	4306120	external-binary	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/bin/ui-malformed_lifecycle	
+b2da88974c227df7d25b34433b3d61f7d904c757b0d3f2ceeeab69c5a75a6d82	5566448	external-binary	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/bin/ui-paint_evidence	
+562843f62b00933df8b199eaef560cd5a7f0e76b2a092af4b3cd0f058299c912	1024408	external-binary	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/bin/ui-unit	
+b8ec4a1ae3753f1bd339196fa1ec51d1c4028046db9fe27b2c00b72b2c835682	1788	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/binary-identities-sha256.txt	independent/exact-ui/binary-identities-sha256.txt
+eed8660f1f578c7f57f3cf797c0c2cfe6ddeb43efb34b14e5f14d8e272e508d9	3580304	external-binary	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/current/librndr_ui.rlib	
+90ea5f8ca9e7e20f813d4823507cf857fafb078e81cc741db8e8e89ddf9f33b8	335964	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-established.diff	independent/exact-ui/gallery-established.diff
+4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865	2	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-established.exit	independent/exact-ui/gallery-established.exit
+bb47cd004f03e34e362f543a1b6ceece375dd8380fc34e610c578286c7383a2f	119570	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-one/dark-compact-200-long.display-list.txt	independent/exact-ui/gallery-one/dark-compact-200-long.display-list.txt
+ba3811150e42916ed538315de028c12a360ec8b7dde88b906ae654fe370bd37a	11350	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-one/dark-compact-200-long.semantics-geometry.txt	independent/exact-ui/gallery-one/dark-compact-200-long.semantics-geometry.txt
+97868eb6ab574c825c1f3bdf07208fb0b6c5e7f93e3c72c8eea84e080c3d4334	109832	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-one/dark-wide-preview.display-list.txt	independent/exact-ui/gallery-one/dark-wide-preview.display-list.txt
+6418857b193cefbbfbe7778b65276a277a8a8ad0bdae3c98f11b515b681204a3	10863	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-one/dark-wide-preview.semantics-geometry.txt	independent/exact-ui/gallery-one/dark-wide-preview.semantics-geometry.txt
+515a0b23818d846b56408cb8aaa582ba5e208af5804cde7a46a5a33708109dcc	102321	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-one/high-dark-compact.display-list.txt	independent/exact-ui/gallery-one/high-dark-compact.display-list.txt
+cd4ac78c37dbc8403e8767d695265f1709c98aad79cb4ce82ec1b3bdd88bfa8e	10861	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-one/high-dark-compact.semantics-geometry.txt	independent/exact-ui/gallery-one/high-dark-compact.semantics-geometry.txt
+e7594178b2df9a75873bda417f4f61661b662eebca312f870a594ca59d54661f	85851	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-one/high-light-200.display-list.txt	independent/exact-ui/gallery-one/high-light-200.display-list.txt
+2b04d28ff7c86847277e8ebbbe09d5e58aa0ada78cc85deb40dec2d819c38469	10660	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-one/high-light-200.semantics-geometry.txt	independent/exact-ui/gallery-one/high-light-200.semantics-geometry.txt
+4893b9eb477ea79d7b504406b85384b666b7184bcb4a1c30f1e63a3afd9add48	511	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-one/inventory.txt	independent/exact-ui/gallery-one/inventory.txt
+3c57747faccd529f689ed4082b3ee46d6ca11a8e667b055a66d6720425b98318	111288	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-one/light-narrow-200-long.display-list.txt	independent/exact-ui/gallery-one/light-narrow-200-long.display-list.txt
+66458a7e07782104d8af0ad9d36abb381db789bdc2b297c47d2cc3428e1ef198	11111	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-one/light-narrow-200-long.semantics-geometry.txt	independent/exact-ui/gallery-one/light-narrow-200-long.semantics-geometry.txt
+2848ad6c63c8149a0aac89ee443fe4628157e54875bf8e7a63fda3555c15ee16	101425	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-one/light-wide.display-list.txt	independent/exact-ui/gallery-one/light-wide.display-list.txt
+e48c20a35f8b9b2513dd7e84bb3481b0daf9939aab9de3c41f682c1f99b1b159	10618	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-one/light-wide.semantics-geometry.txt	independent/exact-ui/gallery-one/light-wide.semantics-geometry.txt
+c739af6a9586e7ee3a00b71d616b2a26549902be9121affc5157168c540b5364	115368	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-one/reflow-400-equivalent.display-list.txt	independent/exact-ui/gallery-one/reflow-400-equivalent.display-list.txt
+b66024fe3a37593c1e3b8317b8cab37110e139a7b899247320d28219af1583a8	11079	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-one/reflow-400-equivalent.semantics-geometry.txt	independent/exact-ui/gallery-one/reflow-400-equivalent.semantics-geometry.txt
+fc39d957739ee866a5cb308317f6c4453f7dad08dcbef725be23871ccc7cc8ba	127342	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-one/wide-long.display-list.txt	independent/exact-ui/gallery-one/wide-long.display-list.txt
+b60fd817755a7d082fdf0091c75758b114dc56a40921e49ec3c0b5ad41540042	11036	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-one/wide-long.semantics-geometry.txt	independent/exact-ui/gallery-one/wide-long.semantics-geometry.txt
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	0	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-repeat.diff	independent/exact-ui/gallery-repeat.diff
+bb47cd004f03e34e362f543a1b6ceece375dd8380fc34e610c578286c7383a2f	119570	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-two/dark-compact-200-long.display-list.txt	independent/exact-ui/gallery-two/dark-compact-200-long.display-list.txt
+ba3811150e42916ed538315de028c12a360ec8b7dde88b906ae654fe370bd37a	11350	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-two/dark-compact-200-long.semantics-geometry.txt	independent/exact-ui/gallery-two/dark-compact-200-long.semantics-geometry.txt
+97868eb6ab574c825c1f3bdf07208fb0b6c5e7f93e3c72c8eea84e080c3d4334	109832	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-two/dark-wide-preview.display-list.txt	independent/exact-ui/gallery-two/dark-wide-preview.display-list.txt
+6418857b193cefbbfbe7778b65276a277a8a8ad0bdae3c98f11b515b681204a3	10863	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-two/dark-wide-preview.semantics-geometry.txt	independent/exact-ui/gallery-two/dark-wide-preview.semantics-geometry.txt
+515a0b23818d846b56408cb8aaa582ba5e208af5804cde7a46a5a33708109dcc	102321	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-two/high-dark-compact.display-list.txt	independent/exact-ui/gallery-two/high-dark-compact.display-list.txt
+cd4ac78c37dbc8403e8767d695265f1709c98aad79cb4ce82ec1b3bdd88bfa8e	10861	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-two/high-dark-compact.semantics-geometry.txt	independent/exact-ui/gallery-two/high-dark-compact.semantics-geometry.txt
+e7594178b2df9a75873bda417f4f61661b662eebca312f870a594ca59d54661f	85851	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-two/high-light-200.display-list.txt	independent/exact-ui/gallery-two/high-light-200.display-list.txt
+2b04d28ff7c86847277e8ebbbe09d5e58aa0ada78cc85deb40dec2d819c38469	10660	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-two/high-light-200.semantics-geometry.txt	independent/exact-ui/gallery-two/high-light-200.semantics-geometry.txt
+4893b9eb477ea79d7b504406b85384b666b7184bcb4a1c30f1e63a3afd9add48	511	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-two/inventory.txt	independent/exact-ui/gallery-two/inventory.txt
+3c57747faccd529f689ed4082b3ee46d6ca11a8e667b055a66d6720425b98318	111288	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-two/light-narrow-200-long.display-list.txt	independent/exact-ui/gallery-two/light-narrow-200-long.display-list.txt
+66458a7e07782104d8af0ad9d36abb381db789bdc2b297c47d2cc3428e1ef198	11111	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-two/light-narrow-200-long.semantics-geometry.txt	independent/exact-ui/gallery-two/light-narrow-200-long.semantics-geometry.txt
+2848ad6c63c8149a0aac89ee443fe4628157e54875bf8e7a63fda3555c15ee16	101425	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-two/light-wide.display-list.txt	independent/exact-ui/gallery-two/light-wide.display-list.txt
+e48c20a35f8b9b2513dd7e84bb3481b0daf9939aab9de3c41f682c1f99b1b159	10618	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-two/light-wide.semantics-geometry.txt	independent/exact-ui/gallery-two/light-wide.semantics-geometry.txt
+c739af6a9586e7ee3a00b71d616b2a26549902be9121affc5157168c540b5364	115368	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-two/reflow-400-equivalent.display-list.txt	independent/exact-ui/gallery-two/reflow-400-equivalent.display-list.txt
+b66024fe3a37593c1e3b8317b8cab37110e139a7b899247320d28219af1583a8	11079	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-two/reflow-400-equivalent.semantics-geometry.txt	independent/exact-ui/gallery-two/reflow-400-equivalent.semantics-geometry.txt
+fc39d957739ee866a5cb308317f6c4453f7dad08dcbef725be23871ccc7cc8ba	127342	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-two/wide-long.display-list.txt	independent/exact-ui/gallery-two/wide-long.display-list.txt
+b60fd817755a7d082fdf0091c75758b114dc56a40921e49ec3c0b5ad41540042	11036	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/gallery-two/wide-long.semantics-geometry.txt	independent/exact-ui/gallery-two/wide-long.semantics-geometry.txt
+64006067d5c6dd8d51cf30df00477b3ba794c4a6a632a21509e555bc94e6fb9f	389	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/handoff-rlibs-sha256.txt	independent/exact-ui/handoff-rlibs-sha256.txt
+900c80d88e14b1e558aea875d9be2c28c7c1e54f15515657c292a1c1d01fa65c	41	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/implementation-head.txt	independent/exact-ui/implementation-head.txt
+d204e02cd649176161ef6eae1b15e8c88a29e8c545cbcf9c82a4b76fbb77eacd	204	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/logs/ui-a2_adoption_boundary.log	independent/exact-ui/logs/ui-a2_adoption_boundary.log
+fba9c83d4c603164c9def2dc4e262b5e5aced74cb5d4ae7cc922b49c1a2d6fc8	281	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/logs/ui-a2_malformed_controls.log	independent/exact-ui/logs/ui-a2_malformed_controls.log
+b6daccbf2509c85d087cc1cc89357d3bf8aa580e0226cc559bda611b5649a674	183	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/logs/ui-a2_nested_paint.log	independent/exact-ui/logs/ui-a2_nested_paint.log
+c17169ffcc89f947150fa662f60bbb7d38619fb0dc8bd1414ba5a8607d56b0e5	1002	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/logs/ui-a2_operating.log	independent/exact-ui/logs/ui-a2_operating.log
+7c389dfd996f59b0b16a5943d9ae029541a372cf7ed570dc596095cd961bf23f	276	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/logs/ui-a2_states.log	independent/exact-ui/logs/ui-a2_states.log
+bc5e1bc7aff222cdd40b35ace83ca63938c1c82c11dc26642ca436d4953dfc7b	459	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/logs/ui-a2_toolbar_allocation.log	independent/exact-ui/logs/ui-a2_toolbar_allocation.log
+2676f5de596461e4133e7c13b72275deb2090710c59855c794693f658581b94b	412	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/logs/ui-a2_toolbar_content_fit.log	independent/exact-ui/logs/ui-a2_toolbar_content_fit.log
+95fedb27ea75d8ec8b2f9c10ae74f1437a967c2271a373d18384c301d606512b	187	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/logs/ui-a2_toolbar_type_update.log	independent/exact-ui/logs/ui-a2_toolbar_type_update.log
+3a5eaec6f0c4ebfba40db2814d3cede476bfbc076c9ad715b7f1bf994412c627	194	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/logs/ui-complete_gallery.log	independent/exact-ui/logs/ui-complete_gallery.log
+5f827f5ec20e29907a885efce240b1ffa08478553bbeafae196548d8ae88ce89	699	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/logs/ui-foundations.log	independent/exact-ui/logs/ui-foundations.log
+2743307fc9cb6a1d71dda4a97f03ab0265a83694ab81770df2b3a345b0d9ed53	177	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/logs/ui-malformed_lifecycle.log	independent/exact-ui/logs/ui-malformed_lifecycle.log
+6ff9a7cdf407a9f18b8949ae99b935963dde5b3b3ece232590e62417497abd87	422	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/logs/ui-paint_evidence.log	independent/exact-ui/logs/ui-paint_evidence.log
+df166913f47ff1f04202cae9b31df67ed272d692d99a0023a8117dc3029100dd	113	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/logs/ui-unit.log	independent/exact-ui/logs/ui-unit.log
+9bce083569eb19d56c9620f84ea7729669af01b8fea6d11087a13a529e039efb	108	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/runner-sha256.txt	independent/exact-ui/runner-sha256.txt
+3bbd211b43f06f8cee509523d845cc370f55971325a093f53571b2fb20eac4f9	106	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/status.txt	independent/exact-ui/status.txt
+32d5cf6a74446f2cbf755adb492645b5764d13b62f5e0cf945f6e7d04e9698da	217	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/test-counts.txt	independent/exact-ui/test-counts.txt
+748cbe586dd1ba3348ba478e3c24ccdd908b696294df39d624220281464280f8	23338	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/transcript.log	independent/exact-ui/transcript.log
+339756c3f65bbd1659c1ce0b6471caa6d0c0ce2c6fe482944a5b6fa0dfa8a6b4	2389	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/ui-source-after-sha256.txt	independent/exact-ui/ui-source-after-sha256.txt
+339756c3f65bbd1659c1ce0b6471caa6d0c0ce2c6fe482944a5b6fa0dfa8a6b4	2389	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/ui-source-before-sha256.txt	independent/exact-ui/ui-source-before-sha256.txt
+6e1cc52379ce4c8c3d31bebda5c7f4edd1dd73fa5889ab9d24b46c30e4a11f1d	14966	retained	/tmp/rndr-a2-rereview-OgFoQ8/exact-ui/unchanged-core-paint-adapter-inputs-sha256.txt	independent/exact-ui/unchanged-core-paint-adapter-inputs-sha256.txt
+c415cc9d274d4c5150dac2ac5d21b047a2e652f22054de92c7c1e4a3569bcc56	348	retained	/tmp/rndr-a2-rereview-OgFoQ8/final/artifacts.sha256	independent/final/artifacts.sha256
+6cb49d6c983ec595f52c1c19794e4f8841d16734b2f906967bedc0edd8947a8e	5456480	external-binary	/tmp/rndr-a2-rereview-OgFoQ8/final/content-tests	
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	0	retained	/tmp/rndr-a2-rereview-OgFoQ8/final/content-tests-compile.log	independent/final/content-tests-compile.log
+9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa	2	retained	/tmp/rndr-a2-rereview-OgFoQ8/final/content-tests.exit	independent/final/content-tests.exit
+6ece50fe0fbe7440804737a08b96a8688a4d10c58773e768e7f4ab61ed40d72e	412	retained	/tmp/rndr-a2-rereview-OgFoQ8/final/content-tests.log	independent/final/content-tests.log
+e377260ec896f891d67b5054226514ced71529c880ddf1d6026e5bc8c7344945	5454448	external-binary	/tmp/rndr-a2-rereview-OgFoQ8/final/fractional-survey	
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	0	retained	/tmp/rndr-a2-rereview-OgFoQ8/final/fractional-survey-compile.log	independent/final/fractional-survey-compile.log
+9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa	2	retained	/tmp/rndr-a2-rereview-OgFoQ8/final/fractional-survey.exit	independent/final/fractional-survey.exit
+c34e23d8552ba20f3bd12baf18d783186817744c2dca4928ea98f0d10bd5e9c8	28291	retained	/tmp/rndr-a2-rereview-OgFoQ8/final/fractional-survey.log	independent/final/fractional-survey.log
+66558747cb8c8f4ad70b46c9448e4781895b53e7c011c977a0688585265c5cf6	5450752	external-binary	/tmp/rndr-a2-rereview-OgFoQ8/final/fresh-probes	
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	0	retained	/tmp/rndr-a2-rereview-OgFoQ8/final/fresh-probes-compile.log	independent/final/fresh-probes-compile.log
+9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa	2	retained	/tmp/rndr-a2-rereview-OgFoQ8/final/fresh-probes.exit	independent/final/fresh-probes.exit
+0058f779c99dc95d65b4171ac50d087fee7d7529bcb56c4162d0962ae7cb60af	22538	retained	/tmp/rndr-a2-rereview-OgFoQ8/final/fresh-probes.log	independent/final/fresh-probes.log
+58576c94f271b174505bc9ff489e392d560094b8b304f7b93a32705cddac76d1	606	retained	/tmp/rndr-a2-rereview-OgFoQ8/final/inputs.sha256	independent/final/inputs.sha256
+47c5ce01170fdf3906ffb0f2fd20b2dbc4b65d611b5f6ef204e423bd5d7971fd	9417	retained	/tmp/rndr-a2-rereview-OgFoQ8/final-source-revalidation.log	independent/final-source-revalidation.log
+3b13f1648d2c93233a899ffc8262ecccc5a4d9e73fb5b8a4f84f9175cca37a92	3966	retained	/tmp/rndr-a2-rereview-OgFoQ8/fractional-survey.rs	independent/fractional-survey.rs
+43c1f9c6cf3b1b20d7058613677ca30eb05fba57e0800bbe0376f387d24aaf8d	1123	retained	/tmp/rndr-a2-rereview-OgFoQ8/fresh-artifact-revalidation.log	independent/fresh-artifact-revalidation.log
+4734ef1c9ddb693398adebefa36c7ea530bd2d701d9f413b747afac782ed2a99	4007	retained	/tmp/rndr-a2-rereview-OgFoQ8/fresh-probes.rs	independent/fresh-probes.rs
+ee0fa54a1f9ae4b420db9e13e6e306a8d7e01f0d68fb74dcc84a88a77289f604	234640	retained	/tmp/rndr-a2-rereview-OgFoQ8/full-head-blobs.txt	independent/full-head-blobs.txt
+900c80d88e14b1e558aea875d9be2c28c7c1e54f15515657c292a1c1d01fa65c	41	retained	/tmp/rndr-a2-rereview-OgFoQ8/head-after.txt	independent/head-after.txt
+900c80d88e14b1e558aea875d9be2c28c7c1e54f15515657c292a1c1d01fa65c	41	retained	/tmp/rndr-a2-rereview-OgFoQ8/head-before.txt	independent/head-before.txt
+e42ef7ace17b1d96e6fe3f8d9057fccee95c7365eada8a65b7290cfdfbb54857	5898320	external-binary	/tmp/rndr-a2-rereview-OgFoQ8/new-adversarial	
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	0	retained	/tmp/rndr-a2-rereview-OgFoQ8/new-adversarial-compile.log	independent/new-adversarial-compile.log
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	0	retained	/tmp/rndr-a2-rereview-OgFoQ8/new-adversarial-v1-compile.log	independent/new-adversarial-v1-compile.log
+3c63723bd3373c770a7b531d5abff645bb708f3467daef141929173d6e4738a7	406	retained	/tmp/rndr-a2-rereview-OgFoQ8/new-adversarial-v1.log	independent/new-adversarial-v1.log
+ba9cc5d0560807cbe43b6dfc87279efa7e341b3446125f25725bb9e6ce5e01f8	5420	retained	/tmp/rndr-a2-rereview-OgFoQ8/new-adversarial-v1.rs	independent/new-adversarial-v1.rs
+d16b3559cbad828e811172af7fb4ee72012ea7e595c1b8f6ab768390117f0124	498	retained	/tmp/rndr-a2-rereview-OgFoQ8/new-adversarial.log	independent/new-adversarial.log
+87333567ac93b26cc8684f89cc2f37839416468cda0ae8411f7783b7d9f13675	7603	retained	/tmp/rndr-a2-rereview-OgFoQ8/new-adversarial.rs	independent/new-adversarial.rs
+06f4ed09adfa9dc919d8943546413cd87af187f7e288ebfd04cfeb5102637d54	8612	retained	/tmp/rndr-a2-rereview-OgFoQ8/operating.rs	independent/operating.rs
+b878e44c2fc0c650601085f739ca14ee2b00005c3ea74976b1a56aa77badeffc	9973	retained	/tmp/rndr-a2-rereview-OgFoQ8/original-allocation.rs	independent/original-allocation.rs
+3ea248205f608fd725ef6a534d96968d8c3ff4c8332b13d46472553848420a60	164	retained	/tmp/rndr-a2-rereview-OgFoQ8/resource-after.txt	independent/resource-after.txt
+32e304d736ebf33650f13e3fe924a5602272ca4b7e3b3c9bc8f7bdeab7b5994f	164	retained	/tmp/rndr-a2-rereview-OgFoQ8/resource-before.txt	independent/resource-before.txt
+632a894d2017aa3b2781cef301907197e51fa49b8b9131425912b1c7d8b3a058	5645768	external-binary	/tmp/rndr-a2-rereview-OgFoQ8/rest/bin/adversarial	
+270eff4ca74533b8321eb8248b33be7e1c47e620c1bfd50d0ec3578cf9a7761d	5475344	external-binary	/tmp/rndr-a2-rereview-OgFoQ8/rest/bin/final-regressions	
+a17a686c6f35aca365b0426cf450e5285b556fa54c550daaa182909db1d65fca	6032712	external-binary	/tmp/rndr-a2-rereview-OgFoQ8/rest/bin/geometry	
+621bb29b09eae0b6c06f0a05a3a45e76125efccd13225410321f1bcbe42b51f2	4993760	external-binary	/tmp/rndr-a2-rereview-OgFoQ8/rest/bin/passive-generator	
+fc0d7265f33b400846f4549817dfb7c74625514a6d0d1f852ab3df5acfa8cc20	473	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/binary-identities-sha256.txt	independent/rest/binary-identities-sha256.txt
+900c80d88e14b1e558aea875d9be2c28c7c1e54f15515657c292a1c1d01fa65c	41	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/implementation-head.txt	independent/rest/implementation-head.txt
+1cf070663cd50f4e87aa0109707d24e0bed8c96f0415e2efe80da1b1ea43ab51	540	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/adversarial.log	independent/rest/logs/adversarial.log
+0664d88820a0ac716259aae8ffaec4b747cba89119209456d734eb25e68cc72c	45289	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/cargo-libraries.log	independent/rest/logs/cargo-libraries.log
+9eed6ac43bf40c794612fd6d6088d028fc3293f6edcfbb04f3c79e07a5db9910	2040	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/cargo-render.log	independent/rest/logs/cargo-render.log
+da617cec9cb409cc7d90040e129ad90b46ac0d3bfc0d87a5184fe72f43403805	60	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/clippy-ui-strict.log	independent/rest/logs/clippy-ui-strict.log
+c6ff4928cb032c20ca32451314e26fde3e0d2facda1d411e7b2eed82463fba30	1269	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/clippy.log	independent/rest/logs/clippy.log
+78904067bb2c9bf02093622f3ca6342dade71d7123c7feca305a478e2db5c881	556	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/final-regressions.log	independent/rest/logs/final-regressions.log
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	0	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/format.log	independent/rest/logs/format.log
+5ca5c93df72cc674f8a0b580b6bbe45057aeb8bee29f71e7e5703886c419ec3e	222	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/geometry.log	independent/rest/logs/geometry.log
+63bd8a3ac13f8b1c160887cdaf9b30715b07e638d60df463cb8815f661518191	60	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/native-source-check.log	independent/rest/logs/native-source-check.log
+b83efd40906da7cf82e0baaf525e4afcae1e83167e4151ead37a070837039994	513	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/normal-tree.log	independent/rest/logs/normal-tree.log
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	0	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/passive-comparison.log	independent/rest/logs/passive-comparison.log
+fc125318852e7ed599bc64beaa9cbf936f7c4f0ecbb202d05864fec59bfee4de	310	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-actual-adapter.log	independent/rest/logs/reused-actual-adapter.log
+8563316f05d210f6885e9c99ed82fa6dcc16f28fc265d12ade0cac61ce4b96fb	332	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-a1_cancellation_edges.log	independent/rest/logs/reused-core-a1_cancellation_edges.log
+9a4530121a53a7abf2c01dc93e307cdc30a879825ea0939f7bde99e7a0573afa	752	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-a1_hotkey_ownership.log	independent/rest/logs/reused-core-a1_hotkey_ownership.log
+2de3d7ef2300c2eb0ecaa3ddf358952c5bf3b59687b0571c48806c370228ac1a	607	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-a1_interaction.log	independent/rest/logs/reused-core-a1_interaction.log
+8d7cbcb0cad3bd722850dc89cfb4604dbdea47a7869d2337e1c0b99c2e7769a9	373	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-a1_lifecycle.log	independent/rest/logs/reused-core-a1_lifecycle.log
+c0446ab2fac9acd5d24c0a4cee5ac2bd67be80217e1d7e83551d864016d6176a	327	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-a1_logical_only.log	independent/rest/logs/reused-core-a1_logical_only.log
+2e638caf8d39489cd2a68e90e2126fd0a866583c0ba92123da47546a2e1773c3	182	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-a1_relation_lifecycle.log	independent/rest/logs/reused-core-a1_relation_lifecycle.log
+26161c28eba08d4adce02215a0b11400c05f6d02a4f25f51658dabcb1bb85582	267	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-a1_reproductions.log	independent/rest/logs/reused-core-a1_reproductions.log
+f7e880c471436f8bc225e1ed76d58090581cac63a37379b03b61517f1f59bd22	1043	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-a1_review_corrections.log	independent/rest/logs/reused-core-a1_review_corrections.log
+4968652411adffe4f1271bb5412d3c1fea5ac7fef78e0815ccf3a7a02efbbc8d	267	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-a1_wrapped_hug.log	independent/rest/logs/reused-core-a1_wrapped_hug.log
+9e979189929aabbc30d30a3b3029e9daad7b1b21cc76034d546226999163fcaa	314	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-a2_core_contracts.log	independent/rest/logs/reused-core-a2_core_contracts.log
+00f2e89a2f7e1cc5136cff3390975760a0de5936e5c25afa1c3f4a18cbd2b1de	183	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-a2_nested_focus.log	independent/rest/logs/reused-core-a2_nested_focus.log
+40a8bec37190a6402c874f55f14a418d02085f27bf0a06e2e0a0c474bd9713b1	302	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-actions.log	independent/rest/logs/reused-core-actions.log
+2a807f0f91628f8e0afd2bd00aa577a6cbe0a5200518338dd07899ab48cd26c0	492	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-body.log	independent/rest/logs/reused-core-body.log
+bc17f4984fe1d0e5afe146692c10d58d1905c2b86e8c131bd0d3721ee0084c55	318	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-button.log	independent/rest/logs/reused-core-button.log
+5bf40e33ee4c9c17f75140f25a729d596fe5dbc987ce4932afc78e4158d93cd9	640	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-caret.log	independent/rest/logs/reused-core-caret.log
+a63c726d45818e28d5f07e27250400263c06d8f6d7d922dee4d00a1d9562ec6a	317	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-click_caret.log	independent/rest/logs/reused-core-click_caret.log
+2cdbbb9a8b524de14153b6a40157e00a530219fe9e1adf52db4aa75d544c96c5	157	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-clipboard.log	independent/rest/logs/reused-core-clipboard.log
+fa1e4ebc8f4c68ba6fb1ffbd6cd417c0cbf79f0a0b32072ddfb7b9eb27d91c40	191	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-decorations.log	independent/rest/logs/reused-core-decorations.log
+50c6b0d67426a8be6ccfda524a41562420085fa80ae92b88e9f02235b87a6b1b	254	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-desktop_exit.log	independent/rest/logs/reused-core-desktop_exit.log
+f55612b882bf9637d37c708996f9d35495527d0ed0e01d8d6093a51bb3a7cd80	252	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-ecs.log	independent/rest/logs/reused-core-ecs.log
+2f600506a1af107b36bfc713eecc4d48a31b1b40f3f4b8f4edc36edd6a2172c2	382	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-edit.log	independent/rest/logs/reused-core-edit.log
+c332848e18f32ef277f7fa1fb6e69a2d4c22e783c51fc8c69ec77c2a94d04342	412	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-editor.log	independent/rest/logs/reused-core-editor.log
+ecd9883bd3e53a8ffedd96b5ba78608e6daa30416c8c3a120d46e8c438c054c2	1077	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-editor_drag.log	independent/rest/logs/reused-core-editor_drag.log
+b9e50a028c0c2e7f7c8adbd5ea511b067be5f0e5dd1e670d66f367817d7e5d61	1490	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-editor_navigation.log	independent/rest/logs/reused-core-editor_navigation.log
+89eba192fab75717a660a986bbb03d61acc492d8ba7be185d14541509e4f2f86	632	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-feed.log	independent/rest/logs/reused-core-feed.log
+cd455ac15eb07ca7b6467d8329c5630a63662ab6e4b4b99b6300960bc5dc0013	360	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-field.log	independent/rest/logs/reused-core-field.log
+179bde8403c6a6b612a3c5f994a41bad712a03c17c9bb3b2d3c1ef441ab3f37f	356	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-focus.log	independent/rest/logs/reused-core-focus.log
+fc698cb0b7d4cd8232c8d0cede7f4bc8d68f65247579115b21e8cb0fcf452f53	518	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-font.log	independent/rest/logs/reused-core-font.log
+3a9328cf479d7028e4d7ec7ce1d1d837723589a361ca468b952766e194dafd8d	768	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-fs.log	independent/rest/logs/reused-core-fs.log
+291f0296a8b58c4ceaaf5ad1d841cddd4cb85085dd04651ab8e0bccaf5c6656a	1747	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-hotkey.log	independent/rest/logs/reused-core-hotkey.log
+e09b529d6d47dc98a6b3af856be0338756bc683646e9d5451b44d3ce8b68891d	276	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-ime.log	independent/rest/logs/reused-core-ime.log
+2976c521c88bc07e04c17333cecc47283c292ee03f9fd602c92d03b3cccde79a	693	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-input_platform.log	independent/rest/logs/reused-core-input_platform.log
+93c3ff6bdd90853d03c3b4263997dfdd1618c9d6f8d483f050a8463f04cd57b1	1061	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-keyboard.log	independent/rest/logs/reused-core-keyboard.log
+d69686ad9248854ae28166bb9e9d0944a7199fc551ce9915ef51c0fdadf5bd28	913	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-layout.log	independent/rest/logs/reused-core-layout.log
+dbc3804b27f0fd997c5f312c47fe5db1d1e6ba9ba3f140294a4ad78e45feb9ab	783	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-list.log	independent/rest/logs/reused-core-list.log
+d299b1c8831993b592aea19d6aeff62c31fca0e7ee7e9bfc0e3966138a7de583	872	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-markdown.log	independent/rest/logs/reused-core-markdown.log
+61fda737258bc149b8389ce061abd6c79c28897c3cb114fc6d3e9e247e628ad8	156	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-mono.log	independent/rest/logs/reused-core-mono.log
+6e8a3fd529747d35d904483b190a8f85990711f66ade585c9230836e089276a6	245	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-overlay.log	independent/rest/logs/reused-core-overlay.log
+640ce1326c7a9c51da2135dc759c2d2a146938326f1a6bdbf0a67e42b744fc16	322	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-pane.log	independent/rest/logs/reused-core-pane.log
+09ee3657021906a0e907b0b66a3cf00f7d7e602bb8f7bedcb2deca36532c7c0a	653	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-pointers.log	independent/rest/logs/reused-core-pointers.log
+e0f74f35db48a19bdb5e5c220ce1b49f8a4fe4f6540726d8d1ba8b4fcd90c271	1061	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-prompt.log	independent/rest/logs/reused-core-prompt.log
+4e6420d1194ab128242cc674fd91f581b7167006e2c077c7625fe2e1d4a20494	817	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-runtime.log	independent/rest/logs/reused-core-runtime.log
+ff61d3e4cb5e03ca93f62d7966f9cc56de80df6058eff515e5c8730f56aae8e1	665	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-source_edit.log	independent/rest/logs/reused-core-source_edit.log
+625fed0f374935cc8b75820878a8425b60420c69a2b27de382d6f08eb92ff9ce	453	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-split.log	independent/rest/logs/reused-core-split.log
+cd4140a17a86dfbf0911a2dd0998a19cb3d36b8565ece86b88b16233bf0f6127	205	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-tabs.log	independent/rest/logs/reused-core-tabs.log
+d52bdeffc4c0c1f7b2bc432c32b7be53f11d67bde21e034f49f4108cbdee7427	745	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-text_engine.log	independent/rest/logs/reused-core-text_engine.log
+8b940351989ab8686fa3e80c70a611f69c07e010e57adb6380f1533d53fec50f	404	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-tray.log	independent/rest/logs/reused-core-tray.log
+df04b66c02227b3a75afe10feb9f4bd112f77ccb0731635c924fb325e6ae266d	1184	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-unit.log	independent/rest/logs/reused-core-unit.log
+e89f92789a045befaa4d849d454782367177afa55f7994346e0dec1a7f31278d	1480	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-window.log	independent/rest/logs/reused-core-window.log
+2f03d76eeffd0475bec311584a34b6a1c2155da57ab4eed277e4c4f37a8683ab	399	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-core-wrap.log	independent/rest/logs/reused-core-wrap.log
+ff752b3e7d1d9a06e158599e22f154acda9b8eaca3bf16ac5ba96da7f7be022a	187	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-paint-a2_resolved_color.log	independent/rest/logs/reused-paint-a2_resolved_color.log
+a51a23052cdc10b5275238d459739b604c169083fd01e098fa29a6d9565c65c2	403	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-paint-editor.log	independent/rest/logs/reused-paint-editor.log
+4e4f0113178cf715b9d67e7b0060f15a75cb40d044025fea7d7b66e162bbca09	226	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-paint-list.log	independent/rest/logs/reused-paint-list.log
+1d9388a41235eab313bc290f89932e7c942b15718828c526cecc06ff7a087740	235	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-paint-markdown.log	independent/rest/logs/reused-paint-markdown.log
+df1610046ceeaa53f9fee6cfaf7ab36518d9b6c481ba7cb3f53b7821368372e6	769	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-paint-paint.log	independent/rest/logs/reused-paint-paint.log
+3675467d6e16292e24df4da6f7222e974656fa0d9df5a7743b019b11a4cffa38	158	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-paint-pattern.log	independent/rest/logs/reused-paint-pattern.log
+bc092da3c486e9bdd4f0af0461b4295a5a23136a477d4b929d4370cb7c0141ca	176	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-paint-slot.log	independent/rest/logs/reused-paint-slot.log
+a66f707208c1e02d1b402203eca177fee045b0afa93fe1f34943a9227312cd52	294	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-paint-text_snapshot.log	independent/rest/logs/reused-paint-text_snapshot.log
+ddfab62f3b47b70090c4189f6caa60d902b352db29e721784f8696cb1555fb9f	564	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-paint-uncolored_text.log	independent/rest/logs/reused-paint-uncolored_text.log
+bc4582251a5525b272172ce9b646e50ea5fd20d9b003e21f2775e03c6dec799f	1890	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-paint-unit.log	independent/rest/logs/reused-paint-unit.log
+e3ce0c5556fe400141e723db053ccf6ed7310e8ea5eb26525430238c1545e6d8	681	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-probe-independent.log	independent/rest/logs/reused-probe-independent.log
+0a22e10a8441fa62d1b2c21252ceadd90a8098ddcfa1f36eb6793cb199946f63	303	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-probe-original4.log	independent/rest/logs/reused-probe-original4.log
+696119023b0290d7854483e7f96b59a7b23d7e2b0b04ff902229b1a54d400b29	172	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/reused-probe-tab_release.log	independent/rest/logs/reused-probe-tab_release.log
+1094a36867300c1838cdc4ee40efe961d83bac574665f8ee57a40d5b1e88698c	60	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/umbrella.log	independent/rest/logs/umbrella.log
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	0	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/logs/workspace-format.log	independent/rest/logs/workspace-format.log
+10e6941400e497645d462931f3d87af554c164ce136b1af86dd2a86929de5ef1	174054	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/passive-gallery/dark-compact-200.txt	independent/rest/passive-gallery/dark-compact-200.txt
+4f0c80acbf0a47754215d4c3d7698b26742e77b0e17726e03525539763aca28a	173117	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/passive-gallery/dark-wide.txt	independent/rest/passive-gallery/dark-wide.txt
+fdf8acfe6b1e0f34768d42c90fab09103937dbf8e3c44256487852d8686a5336	174564	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/passive-gallery/high-dark-200.txt	independent/rest/passive-gallery/high-dark-200.txt
+1697e6760b204e0357b5351542cf1044c97408288f1209b789f04e6716e05e02	174565	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/passive-gallery/high-light-200.txt	independent/rest/passive-gallery/high-light-200.txt
+767d29db2305accd3d2679c4fb045b6d9a7f2fae6167ab091fa484f02ba754f3	175029	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/passive-gallery/light-narrow-200.txt	independent/rest/passive-gallery/light-narrow-200.txt
+56fd2322d9230a0ff28ca5f48ec05e08e42e50c1511a832bb2a9018fccc446c7	173118	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/passive-gallery/light-wide.txt	independent/rest/passive-gallery/light-wide.txt
+6172d7601266246cdb34254e0d2b683b8b2a982cdb39c2c190a90a14d150bded	115	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/status.txt	independent/rest/status.txt
+a0635f6457555bb329eb7496b915ed801e5a4869d791afe032fdbea7a40d9e04	22574	retained	/tmp/rndr-a2-rereview-OgFoQ8/rest/transcript.log	independent/rest/transcript.log
+46365b23538b3834d6ad2d33b391de2ddc3024013788db04f719463bec971a0c	489	retained	/tmp/rndr-a2-rereview-OgFoQ8/reuse-validation-after.log	independent/reuse-validation-after.log
+a99597aa4250f5e4164677314b02006bf43164fee790c527339afb7f0a7a714c	63725	retained	/tmp/rndr-a2-rereview-OgFoQ8/reuse-validation-final.json	independent/reuse-validation-final.json
+46365b23538b3834d6ad2d33b391de2ddc3024013788db04f719463bec971a0c	489	retained	/tmp/rndr-a2-rereview-OgFoQ8/reuse-validation.log	independent/reuse-validation.log
+cf739d982be0b1c325a0682fd3678977610d28732e1c59c380c222be594494bc	393	retained	/tmp/rndr-a2-rereview-OgFoQ8/reused-input-identities/fresh-handoff-rlibs-sha256.txt	independent/reused-input-identities/fresh-handoff-rlibs-sha256.txt
+8e7f37f9f25e30a03c300ac1467606ad6a48640b496d59d16d4d2ce1b47e4bc7	2276	retained	/tmp/rndr-a2-rereview-OgFoQ8/reused-input-identities/fresh-ui-source-after-sha256.txt	independent/reused-input-identities/fresh-ui-source-after-sha256.txt
+0ed6ebc9c5279b0b456b4a40dbf73ee0cf0a5e44e8ac9e6c10d9a20b0dc0efdf	9787	retained	/tmp/rndr-a2-rereview-OgFoQ8/reused-input-identities/original-binary-identities-sha256.txt	independent/reused-input-identities/original-binary-identities-sha256.txt
+e584c79fd69d1e66786502862292e2118cbc08475a243299aa0a32ad0600fed5	389	retained	/tmp/rndr-a2-rereview-OgFoQ8/reused-input-identities/original-current-rlibs-sha256.txt	independent/reused-input-identities/original-current-rlibs-sha256.txt
+214e9c19f2f627c9c64df7928eac38705d315d750874d0d126daa144079940c6	1222	retained	/tmp/rndr-a2-rereview-OgFoQ8/reused-input-identities/original-dependency-rlibs-sha256.txt	independent/reused-input-identities/original-dependency-rlibs-sha256.txt
+7957ed1dd3837696841baae225a55e415ddcf1b654cde292abcbefbb19d39d0a	17130	retained	/tmp/rndr-a2-rereview-OgFoQ8/reused-input-identities/original-source-before-sha256.txt	independent/reused-input-identities/original-source-before-sha256.txt
+b4eb7d0bb062a23233c1007f23206d217e1501407a64758bc29ac676e56f66fb	8025	retained	/tmp/rndr-a2-rereview-OgFoQ8/review-inputs/COMMANDS.md	independent/review-inputs/COMMANDS.md
+85ff2e5f84ad365c93a336095f902d9e04f8f465fc3e1c9c0ef4b50707e4e039	22138	retained	/tmp/rndr-a2-rereview-OgFoQ8/review-inputs/MANIFEST.sha256	independent/review-inputs/MANIFEST.sha256
+d617301815a616cc3ea53f5b688e9f75debe5b3495a6d82d46837d85ecceb95d	13436	retained	/tmp/rndr-a2-rereview-OgFoQ8/review-inputs/REVIEW.md	independent/review-inputs/REVIEW.md
+3b1ed3549bf8bfd4fd0baa559fdd4f48a164e340931a642e7a9e1cc450fbdc6e	10618	retained	/tmp/rndr-a2-rereview-OgFoQ8/review-inputs/worker-COMMANDS.md	independent/review-inputs/worker-COMMANDS.md
+bee3ee3e59ec64963f937f2816745447a840d8ef8f90fb95ac4eda05d1133105	17629	retained	/tmp/rndr-a2-rereview-OgFoQ8/review-inputs/worker-REPORT.md	independent/review-inputs/worker-REPORT.md
+dead3c5191eb8e2895416027fce3145dbdd0e3fa6ce73ce1ed577b9d75056f84	459	retained	/tmp/rndr-a2-rereview-OgFoQ8/run-cost.sh	independent/run-cost.sh
+731dafd8e956d2889985e0b769a5332b5268219a891ac8e1e66c60148f3bd22c	1353	retained	/tmp/rndr-a2-rereview-OgFoQ8/run-fresh-probes.sh	independent/run-fresh-probes.sh
+6fbee9983e84bbbdb56b61bbe3f7cfb43632d3fdce62a137a485f57335da5dc4	484	retained	/tmp/rndr-a2-rereview-OgFoQ8/run-new.sh	independent/run-new.sh
+074386a85343ced041e63cbe560876703df0f55b5282544f74465f5bccca52f9	480	retained	/tmp/rndr-a2-rereview-OgFoQ8/run-original-boundary.sh	independent/run-original-boundary.sh
+6d4a45ca3568956701d9a5739faf4b698b1a045efbeca29ce2d943a73df5f350	622	retained	/tmp/rndr-a2-rereview-OgFoQ8/seal-review.py	independent/seal-review.py
+9bd55139377b7382bf61ceb9def384e2919556d20dbe43252ea41ff5d3b1097c	57338	retained	/tmp/rndr-a2-rereview-OgFoQ8/seal.diff	independent/seal.diff
+27eded5b8b11b8b11c45cbc15ec5551bae473ddc6e61e81330827e285cfc6f95	23925	retained	/tmp/rndr-a2-rereview-OgFoQ8/source-after.sha256	independent/source-after.sha256
+27eded5b8b11b8b11c45cbc15ec5551bae473ddc6e61e81330827e285cfc6f95	23925	retained	/tmp/rndr-a2-rereview-OgFoQ8/source-before.sha256	independent/source-before.sha256
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	0	retained	/tmp/rndr-a2-rereview-OgFoQ8/status-after.txt	independent/status-after.txt
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855	0	retained	/tmp/rndr-a2-rereview-OgFoQ8/status-before.txt	independent/status-before.txt
+39b8dc3fc8b44765c8e6f1adee04c5b465e555ab791cc42d0d9e810d5b64297c	4	retained	/tmp/rndr-a2-rereview-OgFoQ8/strict-aggregate-clippy.exit	independent/strict-aggregate-clippy.exit
+c959a03c2ef568f9ae703feacf14011d1b474e5f099f7ed45d71cfc6a72e63cb	1810	retained	/tmp/rndr-a2-rereview-OgFoQ8/strict-aggregate-clippy.log	independent/strict-aggregate-clippy.log
+e00c628f2de410dc9be1340020edbf5ede7cdfb2876c1ac880cb3272de841cfb	1641	retained	/tmp/rndr-a2-rereview-OgFoQ8/validate-reuse.py	independent/validate-reuse.py
+a19821d6223c04174ca1b555714c856cff0a07e6268036fc15f46ebc62d4f9e1	4138	retained	/tmp/rndr-a2-rereview-OgFoQ8/verify-rest-v2.sh	independent/verify-rest-v2.sh
+85e12125d39ccab96b855e6a9cf712850a503aee8cdcae7a506280e271da30e9	4541	retained	/tmp/rndr-a2-rereview-OgFoQ8/verify-ui.sh	independent/verify-ui.sh
