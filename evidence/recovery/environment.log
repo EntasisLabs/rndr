@@ -1,0 +1,9 @@
+UTC=2026-11-01T07:16:51Z
+tested_source=d1610de48e4f249ad83788161d25368bdd935534
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+cargo 1.98.0 (797e8a9bc 2026-08-05)
+Filesystem      Size    Used   Avail Capacity iused ifree %iused  Mounted on
+/dev/disk3s5   228Gi   201Gi   3.3Gi    99%    1.8M   35M    5%   /System/Volumes/Data
+921M	target
+gallery_byte_comparison=PASS
+source_rustfmt=PASS

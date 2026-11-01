@@ -1,0 +1,7 @@
+4976d58019365356d821bf262c7ac188fb686507 docs(ui): preserve approved council designs and reproduce A1 gaps
+eccc4b99bcaa5beb116b76d6f0c392d6abaf74af feat(core): add opt-in release interaction and safe semantic prerequisites
+4576494108c2a7276b5b99e1a998401b5e272b92 fix(core): harden mixed input readonly and owned lifecycle contracts
+27d36125ef70940bcf2782b3b5d0e292a1250ac5 fix(core): complete wrapped layout and readonly input prerequisites
+eb2a6f0b7630bf27fd2f32e585aa2125e28c21f1 feat(ui): add opt-in passive semantic foundations and headless gallery
+fc6f622eec4411b103a33a45168103c02b2dde7e fix(core): revalidate semantic tab relations after host mutation
+d1610de48e4f249ad83788161d25368bdd935534 fix(ui): reject malformed owned titles before lifecycle updates
