@@ -1,0 +1,24 @@
+core: cargo test --offline --locked -p rndr_core -v exit=0
+original-library: rustc --edition=2021 --crate-name rndr_core --crate-type rlib --cfg feature="default" /tmp/rndr-a1-ownership-verify-1iuBBg/crates/rndr_core/src/lib.rs -L dependency=target/debug/deps --extern pulldown_cmark=target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib --extern unicode_segmentation=target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib -C debuginfo=0 -o /tmp/rndr-a1-ownership-verify-1iuBBg/librndr_core.rlib exit=0
+starting-fixture-build: rustc --edition=2021 --test evidence/a1-ownership-20261101-2t23Vj/identity-verified-run/fixture.rs -L dependency=target/debug/deps --extern rndr_core=/tmp/rndr-a1-ownership-verify-1iuBBg/librndr_core.rlib -C debuginfo=0 -o /tmp/rndr-a1-ownership-verify-1iuBBg/starting-fixture exit=0
+starting-fixture: /tmp/rndr-a1-ownership-verify-1iuBBg/starting-fixture --nocapture exit=101
+candidate-fixture-build: rustc --edition=2021 --test evidence/a1-ownership-20261101-2t23Vj/identity-verified-run/fixture.rs -L dependency=target/debug/deps --extern rndr_core=target/debug/deps/librndr_core-99fc9f1d1448f44b.rlib -C debuginfo=0 -o /tmp/rndr-a1-ownership-verify-1iuBBg/candidate-fixture exit=0
+candidate-fixture: /tmp/rndr-a1-ownership-verify-1iuBBg/candidate-fixture --nocapture exit=0
+adversarial-build: rustc --edition=2021 --test evidence/a1-ownership-20261101-2t23Vj/reviewer/adversarial.rs -L dependency=target/debug/deps --extern rndr_core=target/debug/deps/librndr_core-99fc9f1d1448f44b.rlib -C debuginfo=0 -o /tmp/rndr-a1-ownership-verify-1iuBBg/adversarial exit=0
+adversarial: /tmp/rndr-a1-ownership-verify-1iuBBg/adversarial --nocapture exit=0
+probe-build: rustc --edition=2021 evidence/a1-ownership-20261101-2t23Vj/probe.rs -L dependency=target/debug/deps --extern rndr_core=target/debug/deps/librndr_core-99fc9f1d1448f44b.rlib -C debuginfo=0 -o /tmp/rndr-a1-ownership-verify-1iuBBg/probe exit=0
+probe: /tmp/rndr-a1-ownership-verify-1iuBBg/probe exit=0
+mixed-build: rustc --edition=2021 evidence/a1-ownership-20261101-2t23Vj/mixed.rs -L dependency=target/debug/deps --extern rndr_core=target/debug/deps/librndr_core-99fc9f1d1448f44b.rlib -C debuginfo=0 -o /tmp/rndr-a1-ownership-verify-1iuBBg/mixed exit=0
+mixed: /tmp/rndr-a1-ownership-verify-1iuBBg/mixed exit=0
+paint: cargo test --offline --locked -p rndr_paint exit=0
+ui: cargo test --offline --locked -p rndr_ui exit=0
+accesskit: cargo test --offline --locked -p rndr_render --no-default-features --features accesskit --lib a11y::tests exit=0
+umbrella: cargo check --offline --locked -p rndr --all-targets --no-default-features exit=0
+tree: cargo tree --offline --locked -p rndr_ui --edges normal exit=0
+gallery: cargo run --offline --locked -p rndr_ui --example passive_gallery -- evidence/a1-ownership-20261101-2t23Vj/identity-verified-run/gallery exit=0
+gallery-diff: diff -rq evidence/ui-gallery evidence/a1-ownership-20261101-2t23Vj/identity-verified-run/gallery exit=0
+recovery-hashes: shasum -a 256 -c evidence/recovery/logs-sha256.txt exit=0
+gallery-hashes: shasum -a 256 -c evidence/ui-gallery-sha256.txt exit=0
+correction-hashes: shasum -a 256 -c evidence/a1-corrections-20261101/files-sha256.txt exit=0
+archived-diff: git diff --exit-code 01da8acdc57240cd536234d062933e232b033eec -- evidence/recovery evidence/a1-corrections-20261101 evidence/ui-* exit=0
+format: rustfmt --edition 2021 --check crates/rndr_core/src/hotkey/registry.rs crates/rndr_core/src/interaction.rs crates/rndr_core/tests/a1_review_corrections.rs crates/rndr_core/tests/a1_hotkey_ownership.rs exit=0

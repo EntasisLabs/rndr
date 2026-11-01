@@ -1,0 +1,2 @@
+Tab+Enter legacy focus=Some(Entity { index: 0, generation: 0 }) target=Entity { index: 0, generation: 0 } Fired=Some("legacy")
+separate-frame Enter legacy Fired=Some("legacy")

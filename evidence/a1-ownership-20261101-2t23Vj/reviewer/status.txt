@@ -1,0 +1,16 @@
+core exit=0
+paint exit=0
+ui exit=0
+accesskit exit=0
+umbrella exit=0
+tree exit=0
+gallery exit=0
+gallery diff exit=0
+recovery hashes exit=0
+gallery hashes exit=0
+original build exit=0
+fixture original exit=101
+fixture corrected exit=0
+adversarial expanded exit=101
+source hashes exit=0
+format exit=0

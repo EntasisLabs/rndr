@@ -92,7 +92,7 @@ That historical script used offline **locked** resolution, jobs=2, debug=0, incr
 
 Recovery disk preflight and final reading: **3.3 GiB free**; reused target grew from 912 to **920 MiB**. No broad cleanup or cache deletion. Regenerated gallery copies are under ignored `target/ui-recovery-gallery`, not an extra committed duplicate. Approved design digests and all six preserved golden hashes still match. No native execution/screenshots were performed.
 
-## Bounded A1 correction verification — current review candidate
+## Bounded A1 correction verification — prior 01da candidate (independently REVISED)
 
 Starting SHA `f7aa9703b7258e5ed546fc8436b3676f2705d9b0` received independent REVISE; owner accepted the REVIEW deliverable only. This correction preserves A0 and recovery fixes, and does not start A2 or perform acceptance/integration/push.
 
@@ -105,9 +105,24 @@ Starting SHA `f7aa9703b7258e5ed546fc8436b3676f2705d9b0` received independent REV
 
 Exact commands, statuses, before/after source identities, cache-collision caveats, new evidence hashes and both full inventories are in `evidence/a1-corrections-20261101/README.md`. Authoritative full logs are `fresh-verified-run/` there, not the earlier invalid cache-selection attempts. `A1-api-decisions.md` defines the revised contract and limits. Old archives are unchanged. Native windows/screenshots/OS AT/preferences/fonts/shaping/physical DPI remain **UNVERIFIED**.
 
+## Second bounded A1 correction — nonmatching registration ownership
+
+Independent re-review of exact `01da8acdc57240cd536234d062933e232b033eec` was accepted **as a review deliverable**, with implementation **REVISE** for P2. Mere live Alt+Space registration converted an ordinary Space release into a synthetic cancellation marker in both same/split-frame cases. This section supersedes the prior candidate's readiness claim, not its preserved evidence.
+
+The correction changes only the shared hotkey control-edge ownership predicate: a matching chord or active physical-key guard owns an edge; base-key registration alone does not. Classification occurs **before** release clears the guard, retaining genuine hotkey cancellation even after modifier changes. Existing guard receive-order/repeat/synthetic rules and GenericInteraction cancellation/focus/editor behavior are unchanged. Space and Enter share this policy; no Alt+Space special case or FIFO/API change.
+
+- [x] New permanent `a1_hotkey_ownership.rs`: **11 tests**, covering logical/physical Space+Enter, Alt/Ctrl registrations, same/split frames, no-registration controls, matching chords/releases, active guards with stale/synthetic/repeat releases, fresh post-guard gesture, traversal/focus cancellation and legacy Enter/editor Space.
+- [x] **Identical new fixture** against direct-rustc rebuilt starting source: **5 fail / 6 pass**, exit101; against explicit corrected rlib: **11 pass**, exit0. Both ordinary Space positive tests fail starting source; three additional tests fail on their fresh unmodified Space gesture after cancellation/traversal. Enter/no-registration/compatibility controls pass starting source. No fixture alteration between builds.
+- [x] Actual candidate rustc library invocation in `initial-focused.log`; exact explicit rlib SHA and all source hashes match the full run. Starting source is `git archive 01da8acd…`, compiled directly with existing dependency rlibs, bypassing Cargo snapshot fingerprints. No invalidation or broad cleanup needed this time; no second Cargo target.
+- [x] Fresh relevant suites: **413 core + 62 paint + 14 UI + 1 AccessKit adapter passed**, zero failed/ignored; includes all **14 unchanged** prior correction tests and existing hotkey/editor/IME/source-history tests. Original independent adversarial repro now **4/4 pass**; original probe/mixed outputs retained as expected.
+- [x] Offline locked umbrella all-targets/no-default check, GPU-free normal graph, six byte-identical galleries in a new output path, preserved recovery/gallery/prior-correction hashes, archived-evidence diff and targeted rustfmt all pass.
+- [ ] Fresh independent exact-candidate re-review and owner A1 acceptance **still required**; A1 is not accepted, A2 remains blocked. No approval/integration/push performed.
+
+Durable evidence: `evidence/a1-ownership-20261101-2t23Vj/README.md`, `run.sh`, `identity-verified-run/status.txt` (latest complete run; earlier `final-run/` also passed), copied reviewer report/repro/failing log with provenance. The entire `/tmp/rndr-rereview-01da.3eseqx/` remains untouched. All prior evidence, including archived invalid cached logs, is unchanged. An initial partial run stopped on a mistaken **harness expected-count assertion**, not a candidate test failure; its raw outputs are preserved and explained. Final disk **3.1 GiB free**, existing target **969 MiB** (started 3.2 GiB free). Native windows/screenshots/capture-blur integration/OS AT/preferences/native fonts-shaping/physical DPI remain **UNVERIFIED**.
+
 ### Owner exact-candidate acceptance checklist
 
-- [ ] Review exact final candidate against baseline `291ab05493a59732f891dd762bf90c64e79a48d0`, using complete `evidence/a1-corrections-20261101/baseline-changed-files.txt` and the focused correction inventory alongside it; distinguish reusable core prerequisites, passive A0 library, recovery fixes and these corrections.
+- [ ] Review exact final candidate against baseline `291ab05493a59732f891dd762bf90c64e79a48d0`, using complete `evidence/a1-ownership-20261101-2t23Vj/baseline-changed-files.txt` and the focused correction inventory alongside it; distinguish reusable core prerequisites, passive A0 library, recovery fixes and these corrections.
 - [ ] Independently re-review additive API spellings and corrected **FIFO64 requests / distinct intentional activations / no coalescing / explicit overflow** contract in `A1-api-decisions.md`. The earlier per-target contract was rejected, not accepted by tests.
 - [ ] Independently inspect/reproduce offline behavioral, compatibility, real paint/glyph/layout and AccessKit evidence; verify archived log/golden/design hashes.
 - [ ] Assess the UNVERIFIED native matrix below; do not claim optical/native/OS AT certification or complete usable library.
@@ -129,4 +144,4 @@ Exact commands, statuses, before/after source identities, cache-collision caveat
 | Native GPU screenshots, physical fractional-DPI/display transitions | Headless geometry verified; actual platform/GPU/display matrix **unverified** |
 | Native materials, menus/dialogs, parser changes, networking/actions, Blooey adoption | Out of scope; no changes |
 
-Exact current review source/evidence paths are listed in `evidence/a1-corrections-20261101/baseline-changed-files.txt` (focused delta in `correction-changed-files.txt` there); historical `evidence/ui-changed-files.txt` is preserved. Commits are reported in the handoff and can be reproduced with `git log --reverse 291ab05493a59732f891dd762bf90c64e79a48d0..HEAD`. Review core prerequisites separately from the A0 library commit. Owner alone decides review acceptance and continuation.
+Exact current review source/evidence paths are listed in `evidence/a1-ownership-20261101-2t23Vj/baseline-changed-files.txt` (focused delta from 01da in `correction-changed-files.txt` there); historical `evidence/ui-changed-files.txt` is preserved. Commits are reported in the handoff and can be reproduced with `git log --reverse 291ab05493a59732f891dd762bf90c64e79a48d0..HEAD`. Review core prerequisites separately from the A0 library commit. Owner alone decides review acceptance and continuation.

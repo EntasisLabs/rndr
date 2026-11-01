@@ -1,0 +1,26 @@
+
+running 4 tests
+
+thread 'unrelated_modified_hotkey_same_frame' (388733) panicked at /tmp/rndr-rereview-01da.3eseqx/adversarial.rs:16:45:
+assertion `left == right` failed: same_frame=true, registered=true, plain Space was not hotkey-owned
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'unrelated_modified_hotkey_split_frame' (388734) panicked at /tmp/rndr-rereview-01da.3eseqx/adversarial.rs:16:45:
+assertion `left == right` failed: same_frame=false, registered=true, plain Space was not hotkey-owned
+  left: 0
+ right: 1
+test plain_space_no_hotkey_same_frame ... ok
+test plain_space_no_hotkey_split_frame ... ok
+test unrelated_modified_hotkey_same_frame ... FAILED
+test unrelated_modified_hotkey_split_frame ... FAILED
+
+failures:
+
+failures:
+    unrelated_modified_hotkey_same_frame
+    unrelated_modified_hotkey_split_frame
+
+test result: FAILED. 2 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

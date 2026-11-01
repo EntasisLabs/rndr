@@ -1,0 +1,2 @@
+Tab+Space down+up focus=Some(Entity { index: 0, generation: 0 }) target=Entity { index: 0, generation: 0 } intents=[ActionIntent { entity: Entity { index: 0, generation: 0 }, name: "go" }]
+subsequent unarmed release intents=[]

@@ -1,0 +1,51 @@
+
+running 11 tests
+
+thread 'nonmatching_space_same_frame' (404552) panicked at evidence/a1-ownership-20261101-2t23Vj/identity-verified-run/fixture.rs:50:5:
+assertion `left == right` failed
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'nonmatching_registration_survives_traversal_and_focus_cancellation' (404551) panicked at evidence/a1-ownership-20261101-2t23Vj/identity-verified-run/fixture.rs:50:5:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+thread 'matching_chords_and_matching_release_cancel_stale_arm' (404544) panicked at evidence/a1-ownership-20261101-2t23Vj/identity-verified-run/fixture.rs:50:5:
+assertion `left == right` failed
+  left: 0
+ right: 1
+test nonmatching_registration_survives_traversal_and_focus_cancellation ... FAILED
+test nonmatching_space_same_frame ... FAILED
+test matching_chords_and_matching_release_cancel_stale_arm ... FAILED
+test nonmatching_registration_preserves_legacy_enter_and_editor_space ... ok
+test nonmatching_registration_does_not_validate_synthetic_or_repeated_releases ... ok
+
+thread 'active_guard_owns_release_before_clear_then_allows_fresh_gesture' (404543) panicked at evidence/a1-ownership-20261101-2t23Vj/identity-verified-run/fixture.rs:50:5:
+assertion `left == right` failed
+  left: 0
+ right: 1
+test active_guard_owns_release_before_clear_then_allows_fresh_gesture ... FAILED
+
+thread 'nonmatching_space_split_frame' (404553) panicked at evidence/a1-ownership-20261101-2t23Vj/identity-verified-run/fixture.rs:50:5:
+assertion `left == right` failed
+  left: 0
+ right: 1
+test nonmatching_space_split_frame ... FAILED
+test nonmatching_enter_same_frame ... ok
+test nonmatching_enter_split_frame ... ok
+test no_registration_enter_controls ... ok
+test no_registration_space_controls ... ok
+
+failures:
+
+failures:
+    active_guard_owns_release_before_clear_then_allows_fresh_gesture
+    matching_chords_and_matching_release_cancel_stale_arm
+    nonmatching_registration_survives_traversal_and_focus_cancellation
+    nonmatching_space_same_frame
+    nonmatching_space_split_frame
+
+test result: FAILED. 6 passed; 5 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

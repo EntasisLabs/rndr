@@ -1,0 +1,7 @@
+core: passed=413 failed=0 ignored=0
+paint: passed=62 failed=0 ignored=0
+ui: passed=14 failed=0 ignored=0
+accesskit: passed=1 failed=0 ignored=0
+starting-fixture: passed=6 failed=5 ignored=0
+candidate-fixture: passed=11 failed=0 ignored=0
+adversarial: passed=4 failed=0 ignored=0

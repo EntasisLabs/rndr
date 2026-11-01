@@ -1,0 +1,123 @@
+    Finished `test` profile [unoptimized] target(s) in 0.07s
+     Running unittests src/lib.rs (target/debug/deps/rndr_paint-255db0da892d9bcb)
+
+running 27 tests
+test affine::tests::uniform_scale_is_the_geometric_mean ... ok
+test affine::tests::size_buckets_stop_at_the_outline_threshold ... ok
+test affine::tests::inverse_round_trips ... ok
+test path::tests::polygon_rejects_a_degenerate_input ... ok
+test display::tests::extra_pop_does_not_unwind_the_root ... ok
+test affine::tests::translate_then_rotate_matches_the_point ... ok
+test path::tests::ellipse_bounds_cover_the_radii ... ok
+test affine::tests::buckets_are_stable_inside_an_octave ... ok
+test path::tests::hairline_width_shrinks_as_the_scale_grows ... ok
+test display::tests::clipped_finish_wraps_the_camera ... ok
+test snapshot::tests::geometry_rounds_to_the_nearest_half_point ... ok
+test tess::tests::a_chevron_tip_meets_without_a_notch ... ok
+test tess::tests::hairline_mesh_thins_when_the_bucket_jumps ... ok
+test tess::tests::square_fill_covers_the_center_and_not_the_outside ... ok
+test tess::tests::dashed_stroke_breaks_into_separated_runs ... ok
+test zoom::tests::a_drag_drops_the_zoom_anchor ... ok
+test zoom::tests::a_fast_drag_keeps_the_press_delta ... ok
+test tess::tests::cache_reuses_a_bucket_and_rebuilds_across_it ... ok
+test tess::tests::a_chevron_marker_is_solid_unless_asked_to_dash ... ok
+test tess::tests::a_dashed_shaft_keeps_its_arrowhead_solid ... ok
+test tess::tests::even_odd_punches_a_hole_nonzero_does_not ... ok
+test tess::tests::a_following_move_to_does_not_fill_dash_gaps ... ok
+test zoom::tests::a_press_move_and_release_before_the_next_frame_pans_fully ... ok
+test zoom::tests::a_release_applies_a_move_that_arrived_with_it ... ok
+test zoom::tests::a_slow_drag_follows_each_sample_and_the_release ... ok
+test zoom::tests::one_notch_keeps_the_point_under_the_cursor ... ok
+test zoom::tests::ten_notches_each_way_restore_pan_and_scale ... ok
+
+test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/editor.rs (target/debug/deps/editor-7acd93c9357bebba)
+
+running 4 tests
+test stale_row_hint_is_ignored_and_ime_cursor_wins_over_affinity ... ok
+test up_at_wrap_endpoint_paints_the_exact_upper_row_end ... ok
+test scrolled_document_spans_rebase_glyph_colors_highlights_and_underlines ... ok
+test eof_typing_emits_a_caret_quad_inside_the_editor_content_clip ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/list.rs (target/debug/deps/list-b401955cf895b67c)
+
+running 2 tests
+test selected_row_paints_the_builder_text ... ok
+test styled_row_dims_the_shortcut_and_highlights_matches ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/markdown.rs (target/debug/deps/markdown-7562c48956550c67)
+
+running 2 tests
+test selected_link_text_uses_the_label_color ... ok
+test markdown_document_paints_heading_list_quote_rule_and_code ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/paint.rs (target/debug/deps/paint-53360726317710d7)
+
+running 13 tests
+test latin_i_is_narrower_than_m ... ok
+test glyphs_outside_the_clip_are_dropped ... ok
+test caret_sits_on_the_glyph_column ... ok
+test prompt_scroll_shifts_the_caret ... ok
+test frame_runs_startup_once_then_paints ... ok
+test an_image_view_records_a_command_and_does_not_add_a_fill ... ok
+test prompt_text_is_clipped_to_the_content_band ... ok
+test radius_is_on_the_solid_and_not_the_glyphs ... ok
+test an_image_view_is_centered_and_keeps_its_radius ... ok
+test an_image_past_the_parent_is_clipped ... ok
+test two_spans_paint_two_colors ... ok
+test find_on_line_50_paints_only_when_visible ... ok
+test labeled_rect_paints_a_solid_quad_then_glyphs ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/pattern.rs (target/debug/deps/pattern-b3a1837db03d765e)
+
+running 1 test
+test click_fires_and_paints_the_button ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/slot.rs (target/debug/deps/slot-6b939f38487a3501)
+
+running 2 tests
+test slot_follows_scroll ... ok
+test slot_follows_split ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/text_snapshot.rs (target/debug/deps/text_snapshot-1ef003903ac1045d)
+
+running 3 tests
+test latin_caret_tracks_the_pen_not_the_cell_grid ... ok
+test latin_memory_uses_real_advances_and_rn_kerning ... ok
+test styled_label_snapshot_has_two_colors_and_a_highlight ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/uncolored_text.rs (target/debug/deps/uncolored_text-1f9cd1081267877a)
+
+running 7 tests
+test fallback_label_without_background_emits_real_glyph_geometry ... ok
+test hidden_and_clipped_uncolored_labels_stay_hidden ... ok
+test uncolored_containers_do_not_fill_or_block_children ... ok
+test label_color_and_theme_work_without_background ... ok
+test frame_lays_out_and_paints_an_uncolored_label ... ok
+test explicit_background_alpha_does_not_control_glyph_alpha ... ok
+test text_marks_keep_their_geometry_and_order_without_a_background ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests rndr_paint
+
+running 1 test
+test crates/rndr_paint/src/lib.rs - (line 18) ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+

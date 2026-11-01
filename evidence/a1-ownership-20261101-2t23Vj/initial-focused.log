@@ -1,0 +1,27 @@
+       Fresh bitflags v2.13.2
+       Fresh memchr v2.8.3
+       Fresh unicase v2.10.0
+       Fresh pulldown-cmark v0.13.5
+       Fresh unicode-segmentation v1.13.3
+       Dirty rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core): the file `crates/rndr_core/src/hotkey/registry.rs` has changed (1793520575.229386367s, 9m 19s after last build at 1793520016.079807310s)
+   Compiling rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core)
+     Running `/Users/theelevators/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc --crate-name rndr_core --edition=2021 crates/rndr_core/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no --cfg 'feature="default"' --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values("default", "highlight", "pool", "tokio"))' -C metadata=571c4d9a0df92144 -C extra-filename=-99fc9f1d1448f44b --out-dir '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' -C strip=debuginfo -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rmeta' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rmeta'`
+     Running `/Users/theelevators/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc --crate-name a1_hotkey_ownership --edition=2021 crates/rndr_core/tests/a1_hotkey_ownership.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no --test --cfg 'feature="default"' --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values("default", "highlight", "pool", "tokio"))' -C metadata=5171279d58b78c55 -C extra-filename=-ff7ca825feb1f988 --out-dir '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' -C strip=debuginfo -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'rndr_core=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/librndr_core-99fc9f1d1448f44b.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib'`
+    Finished `test` profile [unoptimized] target(s) in 1.50s
+     Running `/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/a1_hotkey_ownership-ff7ca825feb1f988`
+
+running 11 tests
+test nonmatching_registration_survives_traversal_and_focus_cancellation ... ok
+test matching_chords_and_matching_release_cancel_stale_arm ... ok
+test active_guard_owns_release_before_clear_then_allows_fresh_gesture ... ok
+test nonmatching_registration_does_not_validate_synthetic_or_repeated_releases ... ok
+test nonmatching_enter_split_frame ... ok
+test nonmatching_registration_preserves_legacy_enter_and_editor_space ... ok
+test nonmatching_enter_same_frame ... ok
+test nonmatching_space_same_frame ... ok
+test no_registration_space_controls ... ok
+test no_registration_enter_controls ... ok
+test nonmatching_space_split_frame ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

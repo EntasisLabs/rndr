@@ -535,13 +535,19 @@ fn suppress_hotkey_keys(world: &mut World, updates: &[ChordUpdate]) {
     // one of those is the focus-in pair, not a new press.
     let mut blocked = HashSet::new();
     for event in input.keys.drain(..) {
+        // A registered base key alone does not own an ordinary gesture.
+        // Classify before a real release clears its guard: that release still
+        // belongs to the hotkey, even when its modifiers have already changed.
+        let hotkey_owned = armed_code(&event, &armed).is_some()
+            || strokes
+                .iter()
+                .any(|stroke| stroke.matches(&event, platform));
         let control_edge = modern_edges
             && matches!(
                 event.logical,
                 crate::LogicalKey::Named(crate::NamedKey::Space | crate::NamedKey::Enter)
             )
-            && source_code(&event)
-                .is_some_and(|code| !live.contains(&code) && !armed.contains_key(&code));
+            && !hotkey_owned;
         if event.synthetic {
             if event.released {
                 note_failed_release(&event, &armed, &mut blocked);

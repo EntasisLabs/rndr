@@ -1,0 +1,14 @@
+evidence/recovery/accesskit.log: OK
+evidence/recovery/core.log: OK
+evidence/recovery/environment.log: OK
+evidence/recovery/format.log: OK
+evidence/recovery/gallery-comparison.log: OK
+evidence/recovery/gallery.log: OK
+evidence/recovery/malformed-fixed.log: OK
+evidence/recovery/malformed-reproduced.log: OK
+evidence/recovery/paint.log: OK
+evidence/recovery/relation-fixed.log: OK
+evidence/recovery/relation-reproduced.log: OK
+evidence/recovery/tree.log: OK
+evidence/recovery/ui.log: OK
+evidence/recovery/umbrella.log: OK

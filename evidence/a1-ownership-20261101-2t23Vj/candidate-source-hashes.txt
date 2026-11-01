@@ -1,0 +1,2 @@
+4699893bc4f7509860d1c9d88bdcb641414be9d5bc8c64c4b2842d2ea2fc28cd  crates/rndr_core/tests/a1_hotkey_ownership.rs
+eee07c4df86fe363823c9855726727792d527dbaa432dc3595c59a9ca3e07233  crates/rndr_core/src/hotkey/registry.rs

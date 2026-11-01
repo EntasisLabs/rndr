@@ -1,0 +1,4 @@
+core: cargo test --offline --locked -p rndr_core -v exit=0
+original-library: rustc --edition=2021 --crate-name rndr_core --crate-type rlib --cfg feature="default" /tmp/rndr-a1-ownership-verify-7fcMr8/crates/rndr_core/src/lib.rs -L dependency=target/debug/deps --extern pulldown_cmark=target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib --extern unicode_segmentation=target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib -C debuginfo=0 -o /tmp/rndr-a1-ownership-verify-7fcMr8/librndr_core.rlib exit=0
+starting-fixture-build: rustc --edition=2021 --test evidence/a1-ownership-20261101-2t23Vj/verified-run/fixture.rs -L dependency=target/debug/deps --extern rndr_core=/tmp/rndr-a1-ownership-verify-7fcMr8/librndr_core.rlib -C debuginfo=0 -o /tmp/rndr-a1-ownership-verify-7fcMr8/starting-fixture exit=0
+starting-fixture: /tmp/rndr-a1-ownership-verify-7fcMr8/starting-fixture --nocapture exit=101

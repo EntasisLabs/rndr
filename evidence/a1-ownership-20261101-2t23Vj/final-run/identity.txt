@@ -1,0 +1,22 @@
+base=01da8acdc57240cd536234d062933e232b033eec
+worktree=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library
+build=/tmp/rndr-a1-ownership-verify-H35paB
+jobs=2 dev/test debug=0 incremental=0 offline locked existing target
+01da8acdc57240cd536234d062933e232b033eec
+ M crates/rndr_core/src/hotkey/registry.rs
+?? crates/rndr_core/tests/a1_hotkey_ownership.rs
+?? evidence/a1-ownership-20261101-2t23Vj/
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+binary: rustc
+commit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea
+commit-date: 2026-08-18
+host: aarch64-apple-darwin
+release: 1.98.0
+LLVM version: 22.1.8
+Filesystem      Size    Used   Avail Capacity iused ifree %iused  Mounted on
+/dev/disk3s5   228Gi   201Gi   3.2Gi    99%    1.8M   33M    5%   /System/Volumes/Data
+969M	target
+a805f3f05e2f3e4a478798325bca8fd0f4a534fcd40cf5c9eb7768f9d1b4aaa4  /tmp/rndr-a1-ownership-verify-H35paB/librndr_core.rlib
+Filesystem      Size    Used   Avail Capacity iused ifree %iused  Mounted on
+/dev/disk3s5   228Gi   201Gi   3.1Gi    99%    1.8M   33M    5%   /System/Volumes/Data
+969M	target
