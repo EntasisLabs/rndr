@@ -1,0 +1,26 @@
+    Checking rndr_render v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_render)
+    Checking rndr v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr)
+error[E0382]: borrow of moved value: `theme`
+  --> crates/rndr/examples/ui_gallery.rs:46:85
+   |
+12 | ...et theme = UiTheme {
+   |       ----- move occurs because `theme` has type `rndr_ui::UiTheme`, which does not implement the `Copy` trait
+...
+32 | ...et mut app = operating::create(width, 700.0, theme, has("--long"));
+   |                                                 ----- value moved here
+...
+46 | ...       let descriptor = ObservationSession::enable(app.world_mut(), &format!("{theme:?}"))
+   |                                                                                   ^^^^^ value borrowed here after move
+   |
+note: consider changing this parameter type in function `create` to borrow instead if owning the value isn't necessary
+  --> crates/rndr/examples/../../rndr_ui/examples/support/operating.rs:29:47
+   |
+29 | pub fn create(width: f32, height: f32, theme: UiTheme, long: bool) -> App {
+   |        ------ in this function                ^^^^^^^ this parameter takes ownership of the value
+help: consider cloning the value if the performance cost is acceptable
+   |
+32 |     let mut app = operating::create(width, 700.0, theme.clone(), has("--long"));
+   |                                                        ++++++++
+
+For more information about this error, try `rustc --explain E0382`.
+error: could not compile `rndr` (example "ui_gallery") due to 1 previous error

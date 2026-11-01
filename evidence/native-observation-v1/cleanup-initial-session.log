@@ -1,0 +1,1 @@
+Removed only session.json, observe.sock and their exact known private parent from the first forcibly terminated pilot. No capability values read/logged. Normal later run removed its own session.

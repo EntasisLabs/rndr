@@ -1,0 +1,530 @@
+{
+  "tested_implementation": "f6648f16a7bcc75194bbc05ddabae3fd1527b0ec",
+  "native_frames": [
+    {
+      "path": "final-native-light/frame-1",
+      "width": 1000,
+      "height": 700,
+      "device_scale": 1.0,
+      "revision": "3",
+      "nodes": 28,
+      "unique_rgba": 10,
+      "png_sha256": "8e38bf06d85104d44d11ca48a5449d668784d2480cbb482df55ab1b59598bb63",
+      "rgba_sha256": "7921fa8dc92de1336b06eca2e8c79773fd48a99efd5113c289a83121991427d3",
+      "metadata_sha256": "7067a75f828f383a5fe5218da06aa634428504204059dc1e5f4bac9b3c99f24b"
+    },
+    {
+      "path": "final-native-light/frame-2",
+      "width": 1000,
+      "height": 700,
+      "device_scale": 1.0,
+      "revision": "4",
+      "nodes": 28,
+      "unique_rgba": 10,
+      "png_sha256": "8e38bf06d85104d44d11ca48a5449d668784d2480cbb482df55ab1b59598bb63",
+      "rgba_sha256": "7921fa8dc92de1336b06eca2e8c79773fd48a99efd5113c289a83121991427d3",
+      "metadata_sha256": "ed015e128bcca4ee8f979242eb66eb04967ae268fec454a0dad8dde4034f32a6"
+    },
+    {
+      "path": "final-native-narrow/frame-1",
+      "width": 320,
+      "height": 700,
+      "device_scale": 1.0,
+      "revision": "4",
+      "nodes": 28,
+      "unique_rgba": 2,
+      "png_sha256": "a2701f0f67cc305a16ee62e75d9c9c02f051a76563deff754e09ecf99045a9b7",
+      "rgba_sha256": "c704670129dac30925b25e51d15ed038b4e44696aa9b13d3762d0799ecd3b209",
+      "metadata_sha256": "ffaffccf18e852be08593b0b67b90371519a51dd563f54645244091d74361c76"
+    },
+    {
+      "path": "final-native-narrow/frame-2",
+      "width": 320,
+      "height": 700,
+      "device_scale": 1.0,
+      "revision": "5",
+      "nodes": 28,
+      "unique_rgba": 2,
+      "png_sha256": "a2701f0f67cc305a16ee62e75d9c9c02f051a76563deff754e09ecf99045a9b7",
+      "rgba_sha256": "c704670129dac30925b25e51d15ed038b4e44696aa9b13d3762d0799ecd3b209",
+      "metadata_sha256": "e155c5dbc02bd348b295982b21355e4ed82319d91ccd0f25be9fcf614cd11f3b"
+    }
+  ],
+  "preservation": {
+    "crates/rndr_core": "c799a2b11f7e958b4315b6de8421a2593dc1a1d0",
+    "crates/rndr_ui": "3b8c4d9b1792234a837298ab8f88a1ebcd98c0fb",
+    "docs/design": "11a07dc72ad61c18fb77b1207c994e35d7867898",
+    "evidence": "9b91384d1893552f2289983e4c6538f11c3b661e"
+  },
+  "test_groups": [
+    {
+      "passed": 14,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 11,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 7,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 14,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 8,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 11,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 6,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 12,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 20,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 11,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 6,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 8,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 16,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 28,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 10,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 17,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 16,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 13,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 12,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 10,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 17,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 16,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 8,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 7,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 11,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 6,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 27,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 6,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 27,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 13,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 7,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 40,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 6,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 11,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 8,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 9,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0
+    }
+  ],
+  "cargo_checks_passed": 572,
+  "cargo_failures": 0,
+  "source_inputs": [
+    {
+      "path": "Cargo.lock",
+      "sha256": "9c775c35fe485c1b36463d21ed808274a63d5cae8f788978da38661b4f8a76d5",
+      "git_blob": "b06a71cb65a1cb6987fc12743fb8ec5973b0163a"
+    },
+    {
+      "path": "crates/rndr/Cargo.toml",
+      "sha256": "589910bd4024905fc3ab955dabbd12b35b7df9cb8621ecd75062674500eb2175",
+      "git_blob": "1d298262dd523d9c6d3f3ca9120382e017afbeff"
+    },
+    {
+      "path": "crates/rndr/examples/ui_gallery.rs",
+      "sha256": "072dac2bc843a5339c3c2d58fa75b4549d3f23bd0a0e5078fc8ca03b0adc86cb",
+      "git_blob": "a89059df73f03fbcfe74a64b7853457295beb5fc"
+    },
+    {
+      "path": "crates/rndr_paint/src/lib.rs",
+      "sha256": "0d1190e9a043b2f3ed90700dad3e5b7ee0ef9bf0b7b0c91c2b6139df864180a0",
+      "git_blob": "1295f754d149e073e09812c8ff34f57145cf286b"
+    },
+    {
+      "path": "crates/rndr_render/Cargo.toml",
+      "sha256": "0baaa5eadf1936ec91f43c2649449c78540cd6271a01e2f2d3060a72372de172",
+      "git_blob": "92b600fc9a9a9b4e10bdc1f77bedcc5adcc8b9a4"
+    },
+    {
+      "path": "crates/rndr_render/src/gpu.rs",
+      "sha256": "4f2b223f17d502de36c5efcb5a7fef26088da60ccc3e75b6a5f8436a71449e78",
+      "git_blob": "33781edaf46aced6b7b99f986ab9e586bef5c88c"
+    },
+    {
+      "path": "crates/rndr_render/src/lib.rs",
+      "sha256": "6401baea17461ae8e7bb64f7a6fa1b93d9756924d367f92496cceaaf9121c379",
+      "git_blob": "aaba66917edd382b11fcb1cd025382382bdc863a"
+    },
+    {
+      "path": "crates/rndr_render/src/observe.rs",
+      "sha256": "4824338533edd44fda5e85466215c53b60b9e769347e678abb9eb34459a8a902",
+      "git_blob": "42cad3c0238d0b62a7b9a773f9f821b01e3983c1"
+    },
+    {
+      "path": "crates/rndr_render/src/observe_tests.rs",
+      "sha256": "d7246fd9a86eda06027f3c3bc4184ecfc323f30fc3224106a4b091f80abc0f51",
+      "git_blob": "ea0a9ecc6c5934736de9927514aa9c59e3cddb03"
+    },
+    {
+      "path": "docs/native-observation.md",
+      "sha256": "d2929601f42f351b117827b6f73eb4b68f31124f2d76ab4db473a180a847870e",
+      "git_blob": "4eb3ef2f3dfae99d48ffac5318a840984f08eaef"
+    },
+    {
+      "path": "tools/observe_client.py",
+      "sha256": "c210a5d9324f5744deaafa438afc279d323dcf28cca9f3cf0dc1900add882d62",
+      "git_blob": "28434ed1fdeb0293b68417551b668a417ab37b01"
+    },
+    {
+      "path": "tools/test_observe_client.py",
+      "sha256": "61656cc19a2bb74cca23c80114412235d58c5d7f49d9a9b7a5dbf66af64bf824",
+      "git_blob": "a3b33d5efc525fcac2caab3e2fee7c9f3cc957ed"
+    },
+    {
+      "path": "tools/validate_observation_native.py",
+      "sha256": "39ea5bb4a75f001426540893e8457a9fc088c57cef579cf56ee583a0ab27bae3",
+      "git_blob": "9ac8d0b543ef0c52cb6762ecf01aa1e8dd706a84"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+04a64a72fa75951c136d12534043b7fb6c452502
+d7583a6d6643272e558458a89599dfe7720c765bae501eb52f5c22cdb30dbf06  target/debug/examples/ui_gallery
+Filesystem      Size    Used   Avail Capacity iused ifree %iused  Mounted on
+/dev/disk3s5   228Gi   203Gi   1.3Gi   100%    1.8M   14M   11%   /System/Volumes/Data
+2.4G	target
+?? evidence/native-observation-v1/
+?? tools/__pycache__/

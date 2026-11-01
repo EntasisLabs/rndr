@@ -1,0 +1,12 @@
+commit b5fb7a0a19265e36e906abcb36c118859f9ee526
+Author:     theelevators <elevatorstest@gmail.com>
+AuthorDate: Sun Nov 1 06:42:14 2026 -0700
+Commit:     theelevators <elevatorstest@gmail.com>
+CommitDate: Sun Nov 1 06:42:14 2026 -0700
+
+    fix(observe): bind supplemental semantics and revoke pending captures
+
+ crates/rndr_render/src/observe.rs       | 55 ++++++++++++++++++++++++++++++---
+ crates/rndr_render/src/observe_tests.rs | 50 ++++++++++++++++++++++++++++++
+ docs/native-observation.md              |  4 +--
+ 3 files changed, 102 insertions(+), 7 deletions(-)

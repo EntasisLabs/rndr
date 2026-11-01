@@ -1,0 +1,22 @@
+commit 04a64a72fa75951c136d12534043b7fb6c452502
+Author:     theelevators <elevatorstest@gmail.com>
+AuthorDate: Sun Nov 1 06:36:44 2026 -0700
+Commit:     theelevators <elevatorstest@gmail.com>
+CommitDate: Sun Nov 1 06:36:44 2026 -0700
+
+    feat(render): add opt-in authenticated native frame observation
+
+ Cargo.lock                              |   2 +
+ crates/rndr/Cargo.toml                  |   2 +
+ crates/rndr/examples/ui_gallery.rs      |  39 ++-
+ crates/rndr_paint/src/lib.rs            |  23 +-
+ crates/rndr_render/Cargo.toml           |   4 +
+ crates/rndr_render/src/gpu.rs           | 152 +++++++++++
+ crates/rndr_render/src/lib.rs           |  40 ++-
+ crates/rndr_render/src/observe.rs       | 443 ++++++++++++++++++++++++++++++++
+ crates/rndr_render/src/observe_tests.rs | 435 +++++++++++++++++++++++++++++++
+ docs/native-observation.md              | 102 ++++++++
+ tools/observe_client.py                 | 108 ++++++++
+ tools/test_observe_client.py            | 131 ++++++++++
+ tools/validate_observation_native.py    | 108 ++++++++
+ 13 files changed, 1582 insertions(+), 7 deletions(-)

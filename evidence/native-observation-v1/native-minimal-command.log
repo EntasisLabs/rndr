@@ -1,0 +1,14 @@
+{
+  "command": [
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/examples/ui_gallery",
+    "--observe",
+    "--observe-exit-after-15s"
+  ],
+  "binary_sha256": "2dc147e339d91ebacbd33486b0927bb54135aab755d788e91a2eb4650793f638",
+  "source": "native-synthetic-gallery-session",
+  "presented_confirmation": false,
+  "status": "blocked-or-failed",
+  "error": "observation denied: surface_unavailable",
+  "forced_shutdown": true,
+  "exit_code": -15
+}

@@ -1,0 +1,1896 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 6cd1320..b06a71c 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -3146,6 +3146,7 @@ dependencies = [
+  "block2 0.5.1",
+  "etagere",
+  "futures-util",
++ "getrandom 0.3.4",
+  "image-webp",
+  "insta",
+  "jpeg-decoder",
+@@ -3158,6 +3159,7 @@ dependencies = [
+  "rfd",
+  "rndr_core",
+  "rndr_paint",
++ "serde_json",
+  "swash",
+  "tokio",
+  "tray-icon",
+diff --git a/crates/rndr/Cargo.toml b/crates/rndr/Cargo.toml
+index 9ef0c91..1d29826 100644
+--- a/crates/rndr/Cargo.toml
++++ b/crates/rndr/Cargo.toml
+@@ -14,6 +14,8 @@ categories = ["gui", "graphics", "rendering"]
+ exclude = ["**/*.snap.new"]
+ 
+ [features]
++# Native read-only observation; still requires explicit per-app session opt-in.
++observe = ["rndr_render/observe"]
+ default = ["hotkey", "tray", "parley", "accesskit"]
+ # Embedded terminal. Off by default so a desktop build does not link a PTY.
+ term = ["dep:rndr_term"]
+diff --git a/crates/rndr/examples/ui_gallery.rs b/crates/rndr/examples/ui_gallery.rs
+index 8666373..a89059d 100644
+--- a/crates/rndr/examples/ui_gallery.rs
++++ b/crates/rndr/examples/ui_gallery.rs
+@@ -29,12 +29,49 @@ fn main() {
+         reading_scale: scale,
+         ..UiTheme::default()
+     };
+-    let mut app = operating::create(width, 700.0, theme, has("--long"));
++    let mut app = operating::create(width, 700.0, theme.clone(), has("--long"));
+     app.world_mut().insert_resource(WindowConfig {
+         title: "rndr A2 — synthetic host (not Blooey)".into(),
+         size: LogicalSize::new(width, 700.0),
+         min_size: Some(LogicalSize::new(280.0, 240.0)),
+         ..WindowConfig::default()
+     });
++    if has("--observe") {
++        #[cfg(feature = "observe")]
++        {
++            // This launcher contains only audited synthetic fixtures. Other apps
++            // must make their own whole-frame public-content decision.
++            use rndr::observe::{ObservationContent, ObservationSession};
++            app.world_mut().insert_resource(ObservationContent::Public);
++            let descriptor = ObservationSession::enable(app.world_mut(), &format!("{theme:?}"))
++                .expect("private observation session");
++            eprintln!("observation descriptor: {}", descriptor.display());
++        }
++        #[cfg(not(feature = "observe"))]
++        {
++            eprintln!("--observe requires --features observe");
++            std::process::exit(2);
++        }
++    }
++    // Bounded native validation without desktop automation or an interaction
++    // endpoint. Timer only requests normal synthetic-window shutdown.
++    #[cfg(feature = "observe")]
++    let _exit_timer = if has("--observe") && has("--observe-exit-after-15s") {
++        #[derive(Clone)]
++        struct Exit;
++        impl rndr_core::Event for Exit {}
++        app.add_system(rndr_core::Schedule::Update, |world| {
++            if !rndr_core::events::<Exit>(world).is_empty() {
++                world.resource_mut::<rndr_core::Input>().unwrap().quit = true;
++            }
++        });
++        Some(rndr_core::after(
++            app.world_mut(),
++            std::time::Duration::from_secs(15),
++            Exit,
++        ))
++    } else {
++        None
++    };
+     rndr::run(app);
+ }
+diff --git a/crates/rndr_paint/src/lib.rs b/crates/rndr_paint/src/lib.rs
+index 22a0435..1295f75 100644
+--- a/crates/rndr_paint/src/lib.rs
++++ b/crates/rndr_paint/src/lib.rs
+@@ -132,15 +132,28 @@ pub struct SurfaceRect {
+ /// before Update, PostUpdate runs before Layout, and the render
+ /// schedule runs after paint. This does not open a window.
+ pub fn frame(app: &mut App) -> Frame {
++    frame_with_snapshot(app, |_| ()).0
++}
++
++/// Run the normal frame path, taking an immutable snapshot at the paint boundary
++/// before application Render systems can mutate the world. This is not a second
++/// reconstruction or update; the returned frame and snapshot share one world.
++/// Consumers that depend on resources used during GPU submission must also
++/// validate those resources after Render systems run.
++pub fn frame_with_snapshot<T>(app: &mut App, snapshot: impl FnOnce(&World) -> T) -> (Frame, T) {
+     app.update();
+     let (quads, draws) = paint_parts(app.world());
+     let slots = surface_slots(app.world());
++    let snapshot = snapshot(app.world());
+     app.render();
+-    Frame {
+-        quads,
+-        slots,
+-        draws,
+-    }
++    (
++        Frame {
++            quads,
++            slots,
++            draws,
++        },
++        snapshot,
++    )
+ }
+ 
+ fn surface_slots(world: &World) -> Vec<SurfaceRect> {
+diff --git a/crates/rndr_render/Cargo.toml b/crates/rndr_render/Cargo.toml
+index 85714bb..92b600f 100644
+--- a/crates/rndr_render/Cargo.toml
++++ b/crates/rndr_render/Cargo.toml
+@@ -16,6 +16,8 @@ categories = ["gui", "graphics", "rendering"]
+ exclude = ["**/*.snap.new"]
+ 
+ [features]
++# Read-only per-session native surface observation. No listener without app opt-in.
++observe = ["dep:serde_json", "dep:getrandom"]
+ default = ["hotkey", "tray", "parley", "accesskit"]
+ # System-wide hotkeys. Off skips Carbon, Win32, X11, and the portal client.
+ hotkey = [
+@@ -59,6 +61,8 @@ parley = { version = "0.12", optional = true, features = ["complex-scripts"] }
+ swash = { version = "0.2.10", optional = true }
+ etagere = { version = "0.3", optional = true }
+ tray-icon = { version = "0.26.1", optional = true, default-features = false, features = ["ksni"] }
++serde_json = { version = "1", optional = true }
++getrandom = { version = "0.3", optional = true }
+ png = "0.18"
+ jpeg-decoder = "0.3"
+ image-webp = "0.2"
+diff --git a/crates/rndr_render/src/gpu.rs b/crates/rndr_render/src/gpu.rs
+index ac2dfec..18ff5ad 100644
+--- a/crates/rndr_render/src/gpu.rs
++++ b/crates/rndr_render/src/gpu.rs
+@@ -92,6 +92,12 @@ fn round_rect(px: vec2<f32>, rect: vec4<f32>, radius: f32) -> f32 {
+ "#;
+ 
+ pub struct Gpu {
++    #[cfg(feature = "observe")]
++    pub(crate) observe_armed: bool,
++    #[cfg(feature = "observe")]
++    pub(crate) observed: Option<Result<crate::RgbaImage, &'static str>>,
++    #[cfg(feature = "observe")]
++    observation_adapter: (String, String, u32),
+     window: Arc<Window>,
+     device: wgpu::Device,
+     queue: wgpu::Queue,
+@@ -141,6 +147,7 @@ impl Gpu {
+         coverage_atlas: AtlasBytes<'_>,
+         color_atlas: AtlasBytes<'_>,
+         transparent: bool,
++        #[cfg(feature = "observe")] observe: bool,
+     ) -> Self {
+         let atlas_w = coverage_atlas.width;
+         let atlas_h = coverage_atlas.height;
+@@ -175,6 +182,15 @@ impl Gpu {
+             .get_default_config(&adapter, width, height)
+             .expect("surface config");
+         config.present_mode = wgpu::PresentMode::AutoVsync;
++        #[cfg(feature = "observe")]
++        if observe
++            && surface
++                .get_capabilities(&adapter)
++                .usages
++                .contains(wgpu::TextureUsages::COPY_SRC)
++        {
++            config.usage |= wgpu::TextureUsages::COPY_SRC;
++        }
+         let clear_transparent = if transparent {
+             let caps = surface.get_capabilities(&adapter);
+             let mode = [
+@@ -397,11 +413,139 @@ impl Gpu {
+             instances,
+             instance_capacity: INITIAL_INSTANCES,
+             staging: Vec::new(),
++            #[cfg(feature = "observe")]
++            observe_armed: false,
++            #[cfg(feature = "observe")]
++            observed: None,
++            #[cfg(feature = "observe")]
++            observation_adapter: (
++                adapter.get_info().name.chars().take(256).collect(),
++                format!("{:?}", adapter.get_info().backend),
++                samples,
++            ),
+             clear_transparent,
+             scene,
+         }
+     }
+ 
++    #[cfg(feature = "observe")]
++    pub(crate) fn observation_provenance(&self, scene: bool) -> serde_json::Value {
++        serde_json::json!({"surface_format":format!("{:?}",self.config.format),"alpha_mode":format!("{:?}",self.config.alpha_mode),"present_mode":format!("{:?}",self.config.present_mode),"transparent_clear":self.clear_transparent,"adapter":self.observation_adapter.0,"backend":self.observation_adapter.1,"scene_samples":self.observation_adapter.2,"path":if scene {"scene"}else{"quads"},"text_engine":if cfg!(feature="parley") {"parley"} else {"builtin_atlas"}})
++    }
++
++    #[cfg(feature = "observe")]
++    fn observation_copy(
++        &mut self,
++        encoder: &mut wgpu::CommandEncoder,
++        texture: &wgpu::Texture,
++        width: u32,
++        height: u32,
++    ) -> Option<wgpu::Buffer> {
++        if !self.observe_armed {
++            return None;
++        }
++        self.observed = None;
++        if !self.config.usage.contains(wgpu::TextureUsages::COPY_SRC)
++            || !matches!(
++                self.config.format,
++                wgpu::TextureFormat::Bgra8Unorm
++                    | wgpu::TextureFormat::Bgra8UnormSrgb
++                    | wgpu::TextureFormat::Rgba8Unorm
++                    | wgpu::TextureFormat::Rgba8UnormSrgb
++            )
++        {
++            self.observed = Some(Err("surface_copy_unsupported"));
++            return None;
++        }
++        if texture.width() != width || texture.height() != height {
++            self.observed = Some(Err("surface_size_mismatch"));
++            return None;
++        }
++        if width == 0
++            || height == 0
++            || width > crate::observe::MAX_SIDE
++            || height > crate::observe::MAX_SIDE
++            || u64::from(width) * u64::from(height) > crate::observe::MAX_PIXELS
++        {
++            self.observed = Some(Err("size_limit"));
++            return None;
++        }
++        let stride = (width * 4).div_ceil(256) * 256;
++        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
++            label: Some("observe-live-surface"),
++            size: u64::from(stride) * u64::from(height),
++            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
++            mapped_at_creation: false,
++        });
++        encoder.copy_texture_to_buffer(
++            wgpu::TexelCopyTextureInfo {
++                texture,
++                mip_level: 0,
++                origin: wgpu::Origin3d::ZERO,
++                aspect: wgpu::TextureAspect::All,
++            },
++            wgpu::TexelCopyBufferInfo {
++                buffer: &buffer,
++                layout: wgpu::TexelCopyBufferLayout {
++                    offset: 0,
++                    bytes_per_row: Some(stride),
++                    rows_per_image: Some(height),
++                },
++            },
++            wgpu::Extent3d {
++                width,
++                height,
++                depth_or_array_layers: 1,
++            },
++        );
++        Some(buffer)
++    }
++
++    #[cfg(feature = "observe")]
++    fn observation_read(&mut self, buffer: Option<wgpu::Buffer>, width: u32, height: u32) {
++        let Some(buffer) = buffer else {
++            return;
++        };
++        let result = (|| {
++            let slice = buffer.slice(..);
++            let (send, recv) = std::sync::mpsc::channel();
++            slice.map_async(wgpu::MapMode::Read, move |r| {
++                let _ = send.send(r);
++            });
++            self.device
++                .poll(wgpu::PollType::Wait {
++                    submission_index: None,
++                    timeout: Some(std::time::Duration::from_millis(500)),
++                })
++                .map_err(|_| "gpu_timeout")?;
++            recv.recv_timeout(std::time::Duration::from_millis(50))
++                .map_err(|_| "gpu_timeout")?
++                .map_err(|_| "gpu_readback")?;
++            let mapped = slice.get_mapped_range().map_err(|_| "gpu_readback")?;
++            let mut rgba = Vec::with_capacity(width as usize * height as usize * 4);
++            let stride = (width as usize * 4).div_ceil(256) * 256;
++            for row in mapped.chunks(stride).take(height as usize) {
++                rgba.extend_from_slice(&row[..width as usize * 4]);
++            }
++            if matches!(
++                self.config.format,
++                wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb
++            ) {
++                for pixel in rgba.chunks_exact_mut(4) {
++                    pixel.swap(0, 2);
++                }
++            }
++            drop(mapped);
++            buffer.unmap();
++            Ok(crate::RgbaImage {
++                width,
++                height,
++                rgba,
++            })
++        })();
++        self.observed = Some(result);
++    }
++
+     /// Replace atlas texels. A size change recreates the texture and rebinds it.
+     /// Otherwise only dirty regions are copied, each padded to the 256-byte row rule.
+     #[cfg(feature = "parley")]
+@@ -556,7 +700,11 @@ impl Gpu {
+                 pass.draw(0..4, 0..needed as u32);
+             }
+         }
++        #[cfg(feature = "observe")]
++        let readback = self.observation_copy(&mut encoder, &texture.texture, width, height);
+         self.queue.submit(Some(encoder.finish()));
++        #[cfg(feature = "observe")]
++        self.observation_read(readback, width, height);
+         self.queue.present(texture);
+         true
+     }
+@@ -617,7 +765,11 @@ impl Gpu {
+             clear,
+             world,
+         );
++        #[cfg(feature = "observe")]
++        let readback = self.observation_copy(&mut encoder, &texture.texture, width, height);
+         self.queue.submit(Some(encoder.finish()));
++        #[cfg(feature = "observe")]
++        self.observation_read(readback, width, height);
+         self.queue.present(texture);
+         (true, uploaded)
+     }
+diff --git a/crates/rndr_render/src/lib.rs b/crates/rndr_render/src/lib.rs
+index d4e39c9..5d54a0d 100644
+--- a/crates/rndr_render/src/lib.rs
++++ b/crates/rndr_render/src/lib.rs
+@@ -44,6 +44,8 @@ mod hotkey;
+ mod images;
+ #[cfg(target_os = "macos")]
+ mod native_quit;
++#[cfg(feature = "observe")]
++pub mod observe;
+ mod outline;
+ mod pen;
+ mod platform;
+@@ -71,7 +73,9 @@ use rndr_core::{
+     Viewport, Wake, WindowConfig, WindowEffect, WindowHub, WindowKind, MOUSE_ID, PEN_ID,
+     TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
+ };
+-use rndr_paint::{atlas_r8, frame, ATLAS_H, ATLAS_W};
++#[cfg(not(feature = "observe"))]
++use rndr_paint::frame;
++use rndr_paint::{atlas_r8, ATLAS_H, ATLAS_W};
+ use winit::application::ApplicationHandler;
+ use winit::event::{
+     ElementState, Ime, MouseButton, MouseScrollDelta, StartCause, TouchPhase, WindowEvent,
+@@ -638,7 +642,16 @@ impl Handler {
+                 board.pull(clipboard);
+             }
+         }
++        #[cfg(not(feature = "observe"))]
+         let painted = frame(&mut self.app);
++        #[cfg(feature = "observe")]
++        let (painted, observation) = rndr_paint::frame_with_snapshot(&mut self.app, |world| {
++            let scale = world
++                .resource::<Viewport>()
++                .map(|v| v.pixels_per_point())
++                .unwrap_or(1.0);
++            observe::begin(world, raw_width, raw_height, scale)
++        });
+         {
+             let board = &mut self.os_clipboard;
+             if let Some(clipboard) = self.app.world_mut().resource_mut::<Clipboard>() {
+@@ -658,11 +671,31 @@ impl Handler {
+             .resource::<Viewport>()
+             .map(|viewport| viewport.pixels_per_point())
+             .unwrap_or(1.0);
++        #[cfg(feature = "observe")]
++        let observation =
++            observation.and_then(|capture| observe::validate(self.app.world(), capture, scale));
++        #[cfg(feature = "observe")]
++        {
++            let gpu = self.gpu.as_mut().expect("surface");
++            gpu.observe_armed = observation.is_some();
++            gpu.observed = None;
++        }
+         let (presented, uploaded) = {
+             let gpu = self.gpu.as_mut().expect("surface");
+             let world = self.app.world();
+             gpu.present_frame(&painted, &images, budget, width, height, scale, Some(world))
+         };
++        #[cfg(feature = "observe")]
++        if let Some(capture) = observation {
++            let gpu = self.gpu.as_mut().expect("surface");
++            observe::complete(
++                capture,
++                gpu.observed.take().unwrap_or(Err("surface_unavailable")),
++                presented,
++                gpu.observation_provenance(!painted.draws.is_empty()),
++            );
++            gpu.observe_armed = false;
++        }
+         if !uploaded.is_empty() {
+             crate::images::release_cpu(self.app.world_mut(), &uploaded);
+         }
+@@ -1303,6 +1336,11 @@ impl ApplicationHandler<RunnerEvent> for Handler {
+                 pixels: &color_pixels,
+             },
+             self.config.transparent,
++            #[cfg(feature = "observe")]
++            self.app
++                .world()
++                .resource::<observe::ObservationSession>()
++                .is_some(),
+         ));
+         self.gpu = Some(gpu);
+         if rndr_core::window::is_visible(self.app.world()) {
+diff --git a/crates/rndr_render/src/observe.rs b/crates/rndr_render/src/observe.rs
+new file mode 100644
+index 0000000..20542ce
+--- /dev/null
++++ b/crates/rndr_render/src/observe.rs
+@@ -0,0 +1,488 @@
++//! Opt-in read-only live observation. See `docs/native-observation.md`.
++//!
++//! This module never reconstructs a headless scene. Only the native runner can
++//! complete a request, from the surface texture submitted in that redraw.
++use rndr_core::{Component, World};
++use serde_json::{json, Value};
++use std::sync::{
++    atomic::{AtomicBool, AtomicU64, Ordering},
++    mpsc, Arc, Mutex,
++};
++use std::time::{Duration, Instant};
++use std::{io, path::PathBuf};
++
++/// Conservative image and semantic response limits (before encoding).
++pub const MAX_PIXELS: u64 = 4_000_000;
++/// Longest side, also bounds padded GPU readback rows on narrow/tall surfaces.
++pub const MAX_SIDE: u32 = 4096;
++/// Maximum UTF-8 metadata bytes in one response.
++pub const MAX_JSON: usize = 1_048_576;
++/// Mark any entity containing sensitive data. Denies the ENTIRE frame, even if
++/// hidden or absent from accessibility. No attempt at unsafe pixel masking.
++#[derive(Clone, Copy, Debug)]
++pub struct ObservationSensitive;
++impl Component for ObservationSensitive {}
++/// Application attestation for *all* rendered content, including custom drawing,
++/// images, titles and semantic descriptions. Default/missing means deny.
++/// Applications must update this before rendering private content. This is not
++/// automatic secret detection; use Deny for unaudited or mixed-content apps.
++#[derive(Clone, Copy, Debug, Default)]
++pub enum ObservationContent {
++    /// Do not expose this frame. The default for every app/session.
++    #[default]
++    Deny,
++    /// App has audited the entire frame as public, with no private content.
++    Public,
++}
++
++pub(crate) struct Request {
++    after: u64,
++    deadline: Instant,
++    reply: mpsc::SyncSender<(Value, Vec<u8>)>,
++}
++/// One app/window's session. Drop/removal stops the worker and removes only its
++/// own socket/descriptor/directory. Not cloned or inherited by other windows.
++pub struct ObservationSession {
++    requests: Mutex<mpsc::Receiver<Request>>,
++    stop: Arc<AtomicBool>,
++    worker: Mutex<Option<std::thread::JoinHandle<()>>>,
++    directory: PathBuf,
++    revision: AtomicU64,
++    theme: String,
++}
++impl ObservationSession {
++    /// Create a private session in the OS temp directory. Returns the descriptor
++    /// path for a local client. Does not grant permission to expose any content:
++    /// `ObservationContent::Public` is also required for each captured frame.
++    /// Available on Unix; no TCP fallback. Call before starting the native app.
++    #[cfg(unix)]
++    pub fn enable(world: &mut World, theme: &str) -> io::Result<PathBuf> {
++        use std::io::Write;
++        use std::os::unix::{
++            fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt},
++            net::UnixListener,
++        };
++        if world.resource::<Self>().is_some() || theme.len() > 4096 {
++            return Err(io::Error::new(
++                io::ErrorKind::InvalidInput,
++                "session exists or theme too large",
++            ));
++        }
++        let mut random = [0u8; 44];
++        getrandom::fill(&mut random)
++            .map_err(|_| io::Error::other("session entropy unavailable"))?;
++        let token: String = random[..32].iter().map(|b| format!("{b:02x}")).collect();
++        // The public locator reveals no bits of the independent capability.
++        let nonce: String = random[32..].iter().map(|b| format!("{b:02x}")).collect();
++        let directory = std::env::temp_dir().join(format!("rndr-observe-{nonce}"));
++        std::fs::DirBuilder::new().mode(0o700).create(&directory)?;
++        let descriptor = directory.join("session.json");
++        let setup = (|| {
++            let socket = directory.join("observe.sock");
++            let listener = UnixListener::bind(&socket)?;
++            std::fs::set_permissions(&socket, std::fs::Permissions::from_mode(0o600))?;
++            listener.set_nonblocking(true)?;
++            let mut file = std::fs::OpenOptions::new()
++                .write(true)
++                .create_new(true)
++                .mode(0o600)
++                .open(&descriptor)?;
++            file.write_all(
++                serde_json::to_vec(
++                    &json!({"protocol":"rndr-observe-1", "socket":socket, "capability":token}),
++                )
++                .unwrap()
++                .as_slice(),
++            )?;
++            let (send, recv) = mpsc::sync_channel(1);
++            let stop = Arc::new(AtomicBool::new(false));
++            let stopping = stop.clone();
++            let wake = rndr_core::frame_wake(world);
++            let worker = std::thread::Builder::new()
++                .name("rndr-observe".into())
++                .spawn(move || {
++                    while !stopping.load(Ordering::Acquire) {
++                        match listener.accept() {
++                            Ok((mut stream, _)) => {
++                                // A timeout-configuration failure must not turn
++                                // a local slow client into an unbounded read.
++                                if stream
++                                    .set_read_timeout(Some(Duration::from_millis(50)))
++                                    .is_err()
++                                {
++                                    continue;
++                                }
++                                let result = read_request(&mut stream)
++                                    .and_then(|line| authenticate(&line, &token));
++                                let packet = match result {
++                                    Ok(after) => {
++                                        let (reply, receive) = mpsc::sync_channel(1);
++                                        let deadline = Instant::now() + Duration::from_secs(2);
++                                        if send
++                                            .try_send(Request {
++                                                after,
++                                                deadline,
++                                                reply,
++                                            })
++                                            .is_ok()
++                                        {
++                                            wake.wake();
++                                            receive
++                                                .recv_timeout(Duration::from_secs(2))
++                                                .unwrap_or_else(|_| error("unavailable"))
++                                        } else {
++                                            error("busy")
++                                        }
++                                    }
++                                    Err(_) => error("invalid_request"),
++                                };
++                                let _ = write_packet(&mut stream, packet);
++                                // At most ten serviced connections per second per
++                                // session, including invalid/denied requests.
++                                std::thread::sleep(Duration::from_millis(100));
++                            }
++                            Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
++                                std::thread::sleep(Duration::from_millis(10))
++                            }
++                            Err(_) => break,
++                        }
++                    }
++                })?;
++            Ok(Self {
++                requests: Mutex::new(recv),
++                stop,
++                worker: Mutex::new(Some(worker)),
++                directory: directory.clone(),
++                revision: AtomicU64::new(0),
++                theme: theme.into(),
++            })
++        })();
++        match setup {
++            Ok(session) => {
++                world.insert_resource(session);
++                Ok(descriptor)
++            }
++            Err(e) => {
++                let _ = std::fs::remove_file(&descriptor);
++                let _ = std::fs::remove_file(directory.join("observe.sock"));
++                let _ = std::fs::remove_dir(directory);
++                Err(e)
++            }
++        }
++    }
++    /// This transport is unavailable on non-Unix hosts and returns Unsupported;
++    /// it never falls back to a network or unauthenticated transport.
++    #[cfg(not(unix))]
++    pub fn enable(_: &mut World, _: &str) -> io::Result<PathBuf> {
++        Err(io::Error::new(
++            io::ErrorKind::Unsupported,
++            "Unix local transport required",
++        ))
++    }
++}
++impl ObservationSession {
++    /// Revoke this session, stop its worker and remove its exact private files.
++    /// Safe to call repeatedly. The resource remains disabled until world drop;
++    /// this v1 API does not silently rotate or restart a revoked session.
++    pub fn shutdown(&self) {
++        self.stop.store(true, Ordering::Release);
++        if let Some(worker) = self.worker.lock().unwrap().take() {
++            let _ = worker.join();
++        }
++        let _ = std::fs::remove_file(self.directory.join("observe.sock"));
++        let _ = std::fs::remove_file(self.directory.join("session.json"));
++        let _ = std::fs::remove_dir(&self.directory);
++    }
++}
++impl Drop for ObservationSession {
++    fn drop(&mut self) {
++        self.shutdown();
++    }
++}
++#[cfg(test)]
++#[path = "observe_tests.rs"]
++mod tests;
++
++fn error(code: &str) -> (Value, Vec<u8>) {
++    (
++        json!({"protocol":"rndr-observe-1", "error":code, "png_bytes":0}),
++        vec![],
++    )
++}
++fn authenticate(line: &[u8], token: &str) -> io::Result<u64> {
++    let invalid = || io::Error::new(io::ErrorKind::PermissionDenied, "invalid request");
++    let text = std::str::from_utf8(line).map_err(|_| invalid())?;
++    let text = text.strip_suffix('\n').ok_or_else(invalid)?;
++    let parts: Vec<_> = text.split(' ').collect();
++    if parts.len() != 3 || parts[0] != "RNDR1" || parts[1].len() != 64 {
++        return Err(invalid());
++    }
++    let diff = parts[1]
++        .bytes()
++        .zip(token.bytes())
++        .fold(0u8, |a, (x, y)| a | (x ^ y));
++    if diff != 0 {
++        return Err(invalid());
++    }
++    if parts[2].is_empty() || !parts[2].bytes().all(|b| b.is_ascii_digit()) {
++        return Err(invalid());
++    }
++    parts[2].parse().map_err(|_| invalid())
++}
++#[cfg(unix)]
++fn read_request(stream: &mut std::os::unix::net::UnixStream) -> io::Result<Vec<u8>> {
++    use std::io::Read;
++    let until = Instant::now() + Duration::from_millis(500);
++    let mut line = Vec::new();
++    while line.len() < 128 && Instant::now() < until {
++        let mut byte = [0];
++        match stream.read(&mut byte) {
++            Ok(1) => {
++                line.push(byte[0]);
++                if byte[0] == b'\n' {
++                    return Ok(line);
++                }
++            }
++            Err(e)
++                if matches!(
++                    e.kind(),
++                    io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
++                ) =>
++            {
++                continue
++            }
++            _ => break,
++        }
++    }
++    Err(io::Error::new(
++        io::ErrorKind::InvalidInput,
++        "bounded request",
++    ))
++}
++#[cfg(unix)]
++fn write_packet(
++    stream: &mut std::os::unix::net::UnixStream,
++    packet: (Value, Vec<u8>),
++) -> io::Result<()> {
++    use std::io::Write;
++    let metadata = serde_json::to_vec(&packet.0)?;
++    if metadata.len() > MAX_JSON {
++        return Err(io::Error::other("metadata limit"));
++    }
++    // A slow reader cannot extend this worker's lifetime indefinitely by
++    // accepting one byte per socket timeout. One absolute response deadline.
++    stream.set_nonblocking(true)?;
++    let deadline = Instant::now() + Duration::from_millis(500);
++    for bytes in [
++        &(metadata.len() as u32).to_be_bytes()[..],
++        &metadata,
++        &packet.1,
++    ] {
++        let mut remaining = bytes;
++        while !remaining.is_empty() {
++            if Instant::now() >= deadline {
++                return Err(io::Error::new(io::ErrorKind::TimedOut, "response deadline"));
++            }
++            match stream.write(remaining) {
++                Ok(0) => return Err(io::Error::new(io::ErrorKind::WriteZero, "client closed")),
++                Ok(n) => remaining = &remaining[n..],
++                Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
++                    std::thread::sleep(Duration::from_millis(2))
++                }
++                Err(e) => return Err(e),
++            }
++        }
++    }
++    Ok(())
++}
++
++/// Optional current theme descriptor. Update alongside an application's theme;
++/// this is an app-supplied description, not a renderer-inferred style system.
++#[derive(Clone, Debug)]
++pub struct ObservationTheme(pub String);
++
++pub(crate) struct Capture {
++    request: Request,
++    metadata: Value,
++    tree: rndr_core::AccessTree,
++    details: Vec<(u64, rndr_core::AccessDetails)>,
++    scroll: Vec<(u64, rndr_core::Scroll, rndr_core::Rect)>,
++}
++fn semantic_details(
++    world: &World,
++    tree: &rndr_core::AccessTree,
++) -> Vec<(u64, rndr_core::AccessDetails)> {
++    tree.nodes
++        .iter()
++        .map(|node| {
++            (
++                node.id,
++                rndr_core::entity_from_access_id(node.id)
++                    .map(|e| rndr_core::access_details(world, e))
++                    .unwrap_or_default(),
++            )
++        })
++        .collect()
++}
++fn scroll_state(world: &World) -> Vec<(u64, rndr_core::Scroll, rndr_core::Rect)> {
++    let mut ports: Vec<_> = world
++        .query::<rndr_core::Scroll>()
++        .into_iter()
++        .map(|(e, s)| {
++            (
++                rndr_core::access_id(e),
++                *s,
++                world.get::<rndr_core::Rect>(e).copied().unwrap_or_default(),
++            )
++        })
++        .collect();
++    ports.sort_by_key(|p| p.0);
++    ports
++}
++fn public(world: &World) -> bool {
++    matches!(
++        world.resource::<ObservationContent>(),
++        Some(ObservationContent::Public)
++    ) && world.entities_with::<ObservationSensitive>().is_empty()
++}
++fn theme(world: &World) -> &str {
++    world
++        .resource::<ObservationTheme>()
++        .map(|t| t.0.as_str())
++        .unwrap_or_else(|| {
++            world
++                .resource::<ObservationSession>()
++                .map(|s| s.theme.as_str())
++                .unwrap_or("unspecified")
++        })
++}
++/// Refuse Render-stage changes rather than combine old paint with new semantics
++/// or newly sensitive data. Snapshot and validation both run on the UI thread.
++pub(crate) fn validate(world: &World, capture: Capture, scale: f32) -> Option<Capture> {
++    let error_code = if world
++        .resource::<ObservationSession>()
++        .is_none_or(|s| s.stop.load(Ordering::Acquire))
++    {
++        Some("session_revoked")
++    } else if capture.request.deadline <= Instant::now() {
++        Some("expired")
++    } else if !public(world) {
++        Some("sensitive_frame")
++    } else if !world.entities_with::<rndr_core::SurfaceSlot>().is_empty() {
++        Some("foreign_surface_unsupported")
++    } else if capture.tree != rndr_core::access_tree(world)
++        || capture.details != semantic_details(world, &capture.tree)
++        || capture.scroll != scroll_state(world)
++        || capture.metadata["device_scale"] != json!(scale)
++        || capture.metadata["theme"] != json!(theme(world))
++    {
++        Some("post_paint_mutation")
++    } else {
++        None
++    };
++    if let Some(code) = error_code {
++        let _ = capture.request.reply.try_send(error(code));
++        None
++    } else {
++        Some(capture)
++    }
++}
++/// Called after the world's layout/paint pass, before submitting its surface.
++pub(crate) fn begin(world: &World, width: u32, height: u32, scale: f32) -> Option<Capture> {
++    let session = world.resource::<ObservationSession>()?;
++    if session.stop.load(Ordering::Acquire) {
++        return None;
++    }
++    let revision = session.revision.fetch_add(1, Ordering::Relaxed) + 1;
++    let request = session.requests.lock().unwrap().try_recv().ok()?;
++    let deny = if request.deadline <= Instant::now() {
++        Some("expired")
++    } else if request.after >= revision {
++        Some("stale_revision")
++    } else if !public(world) {
++        Some("sensitive_frame")
++    } else if !world.entities_with::<rndr_core::SurfaceSlot>().is_empty() {
++        Some("foreign_surface_unsupported")
++    } else if width == 0
++        || height == 0
++        || width > MAX_SIDE
++        || height > MAX_SIDE
++        || u64::from(width) * u64::from(height) > MAX_PIXELS
++        || !scale.is_finite()
++        || scale <= 0.0
++    {
++        Some("size_limit")
++    } else {
++        None
++    };
++    if let Some(code) = deny {
++        let _ = request.reply.try_send(error(code));
++        return None;
++    }
++    let tree = rndr_core::access_tree(world);
++    if tree.nodes.len() > 8192 {
++        let _ = request.reply.try_send(error("semantic_limit"));
++        return None;
++    }
++    let binding_tree = tree.clone();
++    let nodes: Vec<_> = tree.nodes.into_iter().map(|node| {
++        let entity = rndr_core::entity_from_access_id(node.id);
++        let d = entity.map(|e| rndr_core::access_details(world, e)).unwrap_or_default();
++        let mut actions = Vec::new();
++        if d.focus { actions.push("focus"); } if d.activate { actions.push("activate"); } if d.set_value { actions.push("set_value"); }
++        json!({"id":node.id.to_string(), "role":format!("{:?}",node.role), "label":node.name, "value":node.value,
++            "bounds":[node.bounds.x,node.bounds.y,node.bounds.w,node.bounds.h], "children":node.children.iter().map(u64::to_string).collect::<Vec<_>>(),
++            "focusable":node.focusable,"focused":node.focused,"selected":node.selected,"enabled":node.enabled,"expanded":node.expanded,
++            "readonly":d.readonly,"description":d.description,"actions":actions,"panel":d.panel,"controls":d.controls.map(|id|id.to_string()),"labelled_by":d.labelled_by.map(|id|id.to_string()),"orientation":d.orientation.map(|o|format!("{o:?}"))})
++    }).collect();
++    // Scroll ports can be flattened out of the accessibility tree; expose those
++    // separately with generation-safe entity ids and actual logical geometry.
++    let scroll: Vec<_> = world.query::<rndr_core::Scroll>().into_iter().filter(|(e,_)| rndr_core::interaction_visible(world,*e)).map(|(e,s)| {
++        let r = world.get::<rndr_core::Rect>(e).copied().unwrap_or_default();
++        json!({"id":rndr_core::access_id(e).to_string(),"bounds":[r.x,r.y,r.w,r.h],"offset":s.offset,"content":s.content})
++    }).collect();
++    let metadata = json!({"protocol":"rndr-observe-1", "frame_revision":revision.to_string(), "width":width,"height":height,"device_scale":scale,
++        "theme":theme(world),"source":"live-surface-copy-before-present", "presented_confirmation":false,"bounds_units":"logical_points", "root":tree.root.to_string(),"nodes":nodes,"scroll":scroll});
++    if serde_json::to_vec(&metadata).map_or(true, |v| v.len() > MAX_JSON - 4096) {
++        let _ = request.reply.try_send(error("semantic_limit"));
++        return None;
++    }
++    Some(Capture {
++        request,
++        metadata,
++        details: semantic_details(world, &binding_tree),
++        tree: binding_tree,
++        scroll: scroll_state(world),
++    })
++}
++pub(crate) fn complete(
++    capture: Capture,
++    image: Result<crate::RgbaImage, &'static str>,
++    submitted: bool,
++    provenance: impl Into<Value>,
++) {
++    let packet = if capture.request.deadline <= Instant::now() {
++        error("expired")
++    } else if !submitted {
++        error("surface_unavailable")
++    } else {
++        match image.and_then(|i| {
++            if capture.metadata["width"] != json!(i.width)
++                || capture.metadata["height"] != json!(i.height)
++                || i.rgba.len() != i.width as usize * i.height as usize * 4
++            {
++                return Err("size_mismatch");
++            }
++            crate::encode_png(&i).map_err(|_| "png_failed")
++        }) {
++            Ok(png) => {
++                let mut metadata = capture.metadata;
++                metadata["png_bytes"] = json!(png.len());
++                metadata["render_provenance"] = provenance.into();
++                (metadata, png)
++            }
++            Err(code) => error(code),
++        }
++    };
++    let _ = capture.request.reply.try_send(packet);
++}
+diff --git a/crates/rndr_render/src/observe_tests.rs b/crates/rndr_render/src/observe_tests.rs
+new file mode 100644
+index 0000000..21a1400
+--- /dev/null
++++ b/crates/rndr_render/src/observe_tests.rs
+@@ -0,0 +1,485 @@
++//! Unit/synthetic protocol tests, NOT proof of native presentation.
++use super::*;
++use rndr_core::*;
++
++fn fixture() -> (App, mpsc::SyncSender<Request>) {
++    let mut app = App::new();
++    let (send, recv) = mpsc::sync_channel(1);
++    static NEXT: AtomicU64 = AtomicU64::new(0);
++    let directory = std::env::temp_dir().join(format!(
++        "rndr-observe-test-{}-{}",
++        std::process::id(),
++        NEXT.fetch_add(1, Ordering::Relaxed)
++    ));
++    std::fs::create_dir(&directory).unwrap();
++    app.world_mut().insert_resource(ObservationSession {
++        requests: Mutex::new(recv),
++        stop: Arc::new(AtomicBool::new(false)),
++        worker: Mutex::new(None),
++        directory,
++        revision: AtomicU64::new(0),
++        theme: "test-light".into(),
++    });
++    (app, send)
++}
++fn request(send: &mpsc::SyncSender<Request>, after: u64) -> mpsc::Receiver<(Value, Vec<u8>)> {
++    let (reply, recv) = mpsc::sync_channel(1);
++    send.send(Request {
++        after,
++        reply,
++        deadline: Instant::now() + Duration::from_secs(2),
++    })
++    .unwrap();
++    recv
++}
++fn image(width: u32, height: u32) -> crate::RgbaImage {
++    crate::RgbaImage {
++        width,
++        height,
++        rgba: vec![255; width as usize * height as usize * 4],
++    }
++}
++fn assert_error(recv: mpsc::Receiver<(Value, Vec<u8>)>, code: &str) {
++    let (value, png) = recv.recv_timeout(Duration::from_secs(1)).unwrap();
++    assert_eq!(value["error"], code);
++    assert_eq!(value["png_bytes"], 0);
++    assert!(png.is_empty());
++    assert!(value.get("nodes").is_none());
++    assert!(value.get("label").is_none());
++}
++#[test]
++fn disabled_by_default_and_auth_is_exact() {
++    assert!(App::new()
++        .world()
++        .resource::<ObservationSession>()
++        .is_none());
++    let token = "a".repeat(64);
++    assert_eq!(
++        authenticate(format!("RNDR1 {token} 0\n").as_bytes(), &token).unwrap(),
++        0
++    );
++    for line in [
++        format!("RNDR1 {} 0\n", "b".repeat(64)),
++        format!("RNDR1 {token} -1\n"),
++        format!("RNDR1 {token} 1 extra\n"),
++        format!("EXEC {token} 0\n"),
++        format!("RNDR1 {token} 18446744073709551616\n"),
++        format!("RNDR1 {token} 0\r\n"),
++        format!("RNDR1 {token} 0\n\n"),
++        String::new(),
++    ] {
++        assert!(authenticate(line.as_bytes(), &token).is_err(), "{line:?}");
++    }
++}
++#[test]
++fn missing_or_deny_attestation_exposes_neither_pixels_nor_semantics() {
++    let (mut app, send) = fixture();
++    app.world_mut().spawn((Label::new("secret-name"),));
++    for deny in [false, true] {
++        if deny {
++            app.world_mut().insert_resource(ObservationContent::Deny);
++        }
++        let recv = request(&send, 0);
++        assert!(begin(app.world(), 2, 2, 1.).is_none());
++        assert_error(recv, "sensitive_frame");
++    }
++}
++#[test]
++fn sensitive_hidden_or_unsemantic_entity_denies_whole_frame() {
++    let (mut app, send) = fixture();
++    app.world_mut().insert_resource(ObservationContent::Public);
++    app.world_mut()
++        .spawn((ObservationSensitive, Hidden, Label::new("secret")));
++    let recv = request(&send, 0);
++    assert!(begin(app.world(), 2, 2, 1.).is_none());
++    assert_error(recv, "sensitive_frame");
++}
++#[test]
++fn stale_future_and_expired_requests_never_return_cached_frame() {
++    let (mut app, send) = fixture();
++    app.world_mut().insert_resource(ObservationContent::Public);
++    let recv = request(&send, 100);
++    assert!(begin(app.world(), 2, 2, 1.).is_none());
++    assert_error(recv, "stale_revision");
++    let (reply, recv) = mpsc::sync_channel(1);
++    send.send(Request {
++        after: 0,
++        deadline: Instant::now() - Duration::from_secs(1),
++        reply,
++    })
++    .unwrap();
++    assert!(begin(app.world(), 2, 2, 1.).is_none());
++    assert_error(recv, "expired");
++}
++#[test]
++fn invalid_and_oversized_viewports_are_denied_before_allocation() {
++    let (mut app, send) = fixture();
++    app.world_mut().insert_resource(ObservationContent::Public);
++    for (w, h, s) in [
++        (0, 1, 1.),
++        (1, 0, 1.),
++        (2001, 2000, 1.),
++        (1, 4_000_000, 1.),
++        (4_000_000, 1, 1.),
++        (u32::MAX, u32::MAX, 1.),
++        (2, 2, 0.),
++        (2, 2, f32::NAN),
++    ] {
++        let recv = request(&send, 0);
++        assert!(begin(app.world(), w, h, s).is_none());
++        assert_error(recv, "size_limit");
++    }
++}
++#[test]
++fn semantics_reuse_actions_states_focus_and_unflattened_scroll() {
++    let (mut app, send) = fixture();
++    app.add_plugin(GenericInteraction);
++    app.world_mut().insert_resource(ObservationContent::Public);
++    let button = app.world_mut().spawn((
++        Button::new("Save \"draft\""),
++        ReleaseActivation,
++        Rect {
++            x: 2.,
++            y: 3.,
++            w: 40.,
++            h: 20.,
++        },
++        SelectedState(true),
++        Semantics {
++            name: Some("Save \"draft\"".into()),
++            ..Semantics::default()
++        },
++    ));
++    app.world_mut().resource_mut::<Focus>().unwrap().entity = Some(button);
++    let port = app.world_mut().spawn((
++        Scroll {
++            offset: [0., -20.],
++            content: [100., 400.],
++        },
++        Rect {
++            x: 0.,
++            y: 0.,
++            w: 100.,
++            h: 100.,
++        },
++    ));
++    let recv = request(&send, 0);
++    let capture = begin(app.world(), 4, 3, 2.).unwrap();
++    let capture = validate(app.world(), capture, 2.).unwrap();
++    complete(capture, Ok(image(4, 3)), true, "Bgra8UnormSrgb");
++    let (meta, png) = recv.recv().unwrap();
++    assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
++    assert_eq!(meta["png_bytes"], png.len());
++    assert_eq!(meta["presented_confirmation"], false);
++    assert_eq!(meta["device_scale"], 2.);
++    let node = meta["nodes"]
++        .as_array()
++        .unwrap()
++        .iter()
++        .find(|n| n["id"] == access_id(button).to_string())
++        .unwrap();
++    assert_eq!(node["label"], "Save \"draft\"");
++    assert_eq!(node["focused"], true);
++    assert_eq!(node["selected"], true);
++    assert_eq!(node["bounds"], json!([2., 3., 40., 20.]));
++    assert_eq!(node["actions"], json!(["focus", "activate"]));
++    assert_eq!(meta["scroll"][0]["id"], access_id(port).to_string());
++    assert_eq!(meta["scroll"][0]["offset"], json!([0., -20.]));
++}
++#[test]
++fn same_frame_resize_revision_and_image_dimensions_remain_bound() {
++    let (mut app, send) = fixture();
++    app.world_mut().insert_resource(ObservationContent::Public);
++    let mut last = 0;
++    for (w, h, scale) in [(2, 3, 1.), (4, 2, 2.), (1, 1, 1.25)] {
++        let recv = request(&send, last);
++        let capture = begin(app.world(), w, h, scale).unwrap();
++        complete(capture, Ok(image(w, h)), true, "Rgba8UnormSrgb");
++        let (meta, png) = recv.recv().unwrap();
++        let rev = meta["frame_revision"]
++            .as_str()
++            .unwrap()
++            .parse::<u64>()
++            .unwrap();
++        assert!(rev > last);
++        last = rev;
++        assert_eq!(meta["width"], w);
++        assert_eq!(meta["height"], h);
++        assert_eq!(meta["device_scale"], scale);
++        let decoder = png::Decoder::new(std::io::Cursor::new(png));
++        let reader = decoder.read_info().unwrap();
++        assert_eq!(reader.info().width, w);
++        assert_eq!(reader.info().height, h);
++    }
++}
++#[test]
++fn surface_loss_readback_failure_or_mismatched_image_exposes_nothing() {
++    let (mut app, send) = fixture();
++    app.world_mut().insert_resource(ObservationContent::Public);
++    for (pixels, submitted, code) in [
++        (Ok(image(2, 2)), false, "surface_unavailable"),
++        (Err("gpu_timeout"), true, "gpu_timeout"),
++        (Ok(image(1, 1)), true, "size_mismatch"),
++    ] {
++        let recv = request(&send, 0);
++        let capture = begin(app.world(), 2, 2, 1.).unwrap();
++        complete(capture, pixels, submitted, "test");
++        assert_error(recv, code);
++    }
++}
++#[test]
++fn snapshot_precedes_render_and_mutations_fail_closed() {
++    let (mut app, send) = fixture();
++    app.world_mut().insert_resource(ObservationContent::Public);
++    app.world_mut().spawn((Label::new("before"),));
++    app.add_system(Schedule::Render, |world| {
++        let e = world.entities_with::<Label>()[0];
++        world.get_mut::<Label>(e).unwrap().text = "after".into();
++    });
++    let recv = request(&send, 0);
++    let (_, capture) = rndr_paint::frame_with_snapshot(&mut app, |world| begin(world, 2, 2, 1.));
++    let capture = capture.unwrap();
++    assert!(capture.metadata.to_string().contains("before"));
++    assert!(!capture.metadata.to_string().contains("after"));
++    assert!(validate(app.world(), capture, 1.).is_none());
++    assert_error(recv, "post_paint_mutation");
++}
++#[test]
++fn post_paint_sensitive_state_scale_theme_and_scroll_are_validated() {
++    for mode in 0..5 {
++        let (mut app, send) = fixture();
++        app.world_mut().insert_resource(ObservationContent::Public);
++        let port = app.world_mut().spawn((Scroll::default(),));
++        let recv = request(&send, 0);
++        let capture = begin(app.world(), 2, 2, 1.).unwrap();
++        match mode {
++            0 => {
++                app.world_mut().spawn((ObservationSensitive,));
++            }
++            1 => {
++                app.world_mut().insert_resource(ObservationContent::Deny);
++            }
++            2 => {
++                app.world_mut()
++                    .insert_resource(ObservationTheme("dark".into()));
++            }
++            3 => {
++                app.world_mut().get_mut::<Scroll>(port).unwrap().offset = [0., -1.];
++            }
++            _ => {}
++        }
++        assert!(validate(app.world(), capture, if mode == 4 { 2. } else { 1. }).is_none());
++        assert_error(
++            recv,
++            if mode < 2 {
++                "sensitive_frame"
++            } else {
++                "post_paint_mutation"
++            },
++        );
++    }
++}
++#[test]
++fn foreign_surface_and_oversized_node_tree_are_denied() {
++    let (mut app, send) = fixture();
++    app.world_mut().insert_resource(ObservationContent::Public);
++    let foreign = app.world_mut().spawn((SurfaceSlot { id: 1 },));
++    let recv = request(&send, 0);
++    assert!(begin(app.world(), 2, 2, 1.).is_none());
++    assert_error(recv, "foreign_surface_unsupported");
++    app.world_mut().despawn_entity(foreign);
++    for _ in 0..8192 {
++        app.world_mut().spawn((Label::new("label"),));
++    }
++    let recv = request(&send, 0);
++    assert!(begin(app.world(), 2, 2, 1.).is_none());
++    assert_error(recv, "semantic_limit");
++}
++#[test]
++fn supplemental_description_and_action_changes_cannot_escape_frame_binding() {
++    for readonly in [false, true] {
++        let (mut app, send) = fixture();
++        app.add_plugin(GenericInteraction);
++        app.world_mut().insert_resource(ObservationContent::Public);
++        let button = app.world_mut().spawn((
++            Button::new("save"),
++            Semantics {
++                name: Some("Save".into()),
++                ..Semantics::default()
++            },
++        ));
++        let recv = request(&send, 0);
++        let capture = begin(app.world(), 2, 2, 1.).unwrap();
++        let semantics = app.world_mut().get_mut::<Semantics>(button).unwrap();
++        if readonly {
++            semantics.readonly = true;
++        } else {
++            semantics.description = "new help".into();
++        }
++        assert!(validate(app.world(), capture, 1.).is_none());
++        assert_error(recv, "post_paint_mutation");
++    }
++}
++#[test]
++fn shutdown_revokes_pending_capture_and_never_restarts_implicitly() {
++    let (mut app, send) = fixture();
++    app.world_mut().insert_resource(ObservationContent::Public);
++    let recv = request(&send, 0);
++    let capture = begin(app.world(), 2, 2, 1.).unwrap();
++    let session = app.world().resource::<ObservationSession>().unwrap();
++    let directory = session.directory.clone();
++    session.shutdown();
++    session.shutdown();
++    assert!(!directory.exists());
++    assert!(validate(app.world(), capture, 1.).is_none());
++    assert_error(recv, "session_revoked");
++    assert!(begin(app.world(), 2, 2, 1.).is_none());
++}
++#[test]
++fn render_stall_expiry_is_denied_before_gpu_allocation() {
++    let (mut app, send) = fixture();
++    app.world_mut().insert_resource(ObservationContent::Public);
++    let recv = request(&send, 0);
++    let mut capture = begin(app.world(), 2, 2, 1.).unwrap();
++    capture.request.deadline = Instant::now() - Duration::from_secs(1);
++    assert!(validate(app.world(), capture, 1.).is_none());
++    assert_error(recv, "expired");
++}
++#[test]
++fn metadata_limit_denies_without_exposing_large_or_sensitive_strings() {
++    let (mut app, send) = fixture();
++    app.world_mut().insert_resource(ObservationContent::Public);
++    app.world_mut().spawn((Label::new("x".repeat(MAX_JSON)),));
++    let recv = request(&send, 0);
++    assert!(begin(app.world(), 2, 2, 1.).is_none());
++    assert_error(recv, "semantic_limit");
++}
++#[cfg(unix)]
++fn read_packet(stream: &mut std::os::unix::net::UnixStream) -> (Value, Vec<u8>) {
++    use std::io::Read;
++    let mut len = [0; 4];
++    stream.read_exact(&mut len).unwrap();
++    let n = u32::from_be_bytes(len) as usize;
++    assert!(n <= MAX_JSON);
++    let mut bytes = vec![0; n];
++    stream.read_exact(&mut bytes).unwrap();
++    let meta: Value = serde_json::from_slice(&bytes).unwrap();
++    let n = meta["png_bytes"].as_u64().unwrap() as usize;
++    assert!(n <= MAX_PIXELS as usize * 5 + 65536);
++    let mut png = vec![0; n];
++    stream.read_exact(&mut png).unwrap();
++    (meta, png)
++}
++#[test]
++#[cfg(unix)]
++fn real_local_transport_permissions_bad_auth_then_coherent_packet_and_cleanup() {
++    use std::io::Write;
++    use std::os::unix::{fs::PermissionsExt, net::UnixStream};
++    let mut app = App::new();
++    app.world_mut().insert_resource(ObservationContent::Public);
++    let descriptor = ObservationSession::enable(app.world_mut(), "synthetic-test").unwrap();
++    assert_eq!(
++        std::fs::metadata(&descriptor).unwrap().permissions().mode() & 0o777,
++        0o600
++    );
++    assert_eq!(
++        std::fs::metadata(descriptor.parent().unwrap().join("observe.sock"))
++            .unwrap()
++            .permissions()
++            .mode()
++            & 0o777,
++        0o600
++    );
++    let dir = descriptor.parent().unwrap().to_path_buf();
++    assert_eq!(
++        std::fs::metadata(&dir).unwrap().permissions().mode() & 0o777,
++        0o700
++    );
++    assert!(ObservationSession::enable(app.world_mut(), "duplicate").is_err());
++    let desc: Value = serde_json::from_slice(&std::fs::read(&descriptor).unwrap()).unwrap();
++    let path = desc["socket"].as_str().unwrap().to_string();
++    let token = desc["capability"].as_str().unwrap().to_string();
++    assert_eq!(token.len(), 64);
++    let mut bad = UnixStream::connect(&path).unwrap();
++    bad.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
++    bad.write_all(format!("RNDR1 {} 0\n", "0".repeat(64)).as_bytes())
++        .unwrap();
++    let (meta, png) = read_packet(&mut bad);
++    assert_eq!(meta["error"], "invalid_request");
++    assert!(png.is_empty());
++    assert!(app
++        .world()
++        .resource::<ObservationSession>()
++        .unwrap()
++        .requests
++        .lock()
++        .unwrap()
++        .try_recv()
++        .is_err());
++    let client = std::thread::spawn(move || {
++        let mut stream = UnixStream::connect(&path).unwrap();
++        stream
++            .set_read_timeout(Some(Duration::from_secs(3)))
++            .unwrap();
++        stream
++            .write_all(format!("RNDR1 {token} 0\n").as_bytes())
++            .unwrap();
++        read_packet(&mut stream)
++    });
++    let until = Instant::now() + Duration::from_secs(1);
++    let capture = loop {
++        if let Some(c) = begin(app.world(), 2, 2, 1.) {
++            break c;
++        }
++        assert!(Instant::now() < until);
++        std::thread::sleep(Duration::from_millis(5));
++    };
++    complete(capture, Ok(image(2, 2)), true, "synthetic-unit-test");
++    let (meta, png) = client.join().unwrap();
++    assert!(meta.get("error").is_none());
++    assert!(!png.is_empty());
++    drop(app);
++    assert!(!dir.exists());
++}
++#[test]
++#[cfg(unix)]
++fn truncated_oversized_and_slow_requests_are_bounded() {
++    use std::io::Write;
++    use std::os::unix::net::UnixStream;
++    for bytes in [vec![b'x'; 129], b"RNDR1 incomplete".to_vec()] {
++        let (mut server, mut client) = UnixStream::pair().unwrap();
++        server
++            .set_read_timeout(Some(Duration::from_millis(20)))
++            .unwrap();
++        client.write_all(&bytes).unwrap();
++        let start = Instant::now();
++        assert!(read_request(&mut server).is_err());
++        assert!(start.elapsed() < Duration::from_secs(1));
++    }
++}
++#[test]
++#[cfg(unix)]
++fn slow_reader_and_shutdown_with_pending_request_have_absolute_deadlines() {
++    use std::io::Write;
++    use std::os::unix::net::UnixStream;
++    let (mut server, _client) = UnixStream::pair().unwrap();
++    let start = Instant::now();
++    assert!(write_packet(
++        &mut server,
++        (json!({"png_bytes":16_000_000}), vec![0; 16_000_000])
++    )
++    .is_err());
++    assert!(start.elapsed() < Duration::from_secs(2));
++    let mut app = App::new();
++    let descriptor = ObservationSession::enable(app.world_mut(), "test").unwrap();
++    let d: Value = serde_json::from_slice(&std::fs::read(&descriptor).unwrap()).unwrap();
++    let mut stream = UnixStream::connect(d["socket"].as_str().unwrap()).unwrap();
++    stream
++        .write_all(format!("RNDR1 {} 0\n", d["capability"].as_str().unwrap()).as_bytes())
++        .unwrap();
++    std::thread::sleep(Duration::from_millis(50));
++    let start = Instant::now();
++    drop(app);
++    assert!(start.elapsed() < Duration::from_secs(3));
++    assert!(!descriptor.exists());
++}
+diff --git a/docs/native-observation.md b/docs/native-observation.md
+new file mode 100644
+index 0000000..7fc8650
+--- /dev/null
++++ b/docs/native-observation.md
+@@ -0,0 +1,102 @@
++# Native read-only observation v1
++
++Status: opt-in implementation candidate, not full A2/native certification or approval to integrate. Existing gates in [design/A2-remaining-gates.md](design/A2-remaining-gates.md) remain open. This pass does not change visual styling or application adoption.
++
++## Obtain a live gallery frame
++
++Unix local sessions (macOS/Linux) only; no Windows transport/TCP fallback. Python 3 standard library is sufficient for the example client. Use a synthetic gallery, not a private application. Build with bounded settings:
++
++```sh
++export CARGO_BUILD_JOBS=2 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0
++# The ordinary/default feature set is preserved; observe is NOT default.
++cargo run --offline -p rndr --features observe --example ui_gallery -- --observe
++# Or builtin-atlas/minimal renderer, without optional desktop integrations:
++cargo run --offline -p rndr --no-default-features --features observe --example ui_gallery -- --observe
++```
++
++The opted-in process prints `observation descriptor: /.../session.json` to stderr. It prints a locator, **not the authorization token**. Supply exactly that path to the client, locally:
++
++```sh
++python3 tools/observe_client.py /.../session.json --out /tmp/gallery-frame-1
++# Request a later fresh redraw using frame_revision from the first JSON:
++python3 tools/observe_client.py /.../session.json --after 12 --out /tmp/gallery-frame-2
++```
++
++The client creates `/tmp/gallery-frame-1.png` and `.json`, mode 0600, refusing overwrites. The JSON and PNG are from a single response/revision. `after` is a lower bound, not a request for historical data. Revision numbers are session-local strings (avoid loss of 64-bit precision in JSON consumers). A future/current revision that has not been exceeded is rejected with `stale_revision`; no cache or old image is returned. Startup/occluded/lost surfaces can return `surface_unavailable`; retry with a **new** request after the window becomes available. No export fallback is used. Native shutdown removes the descriptor/socket/directory. `--observe-exit-after-15s` requests normal timed exit for bounded synthetic validation only when `--observe` is also supplied.
++
++For an agent integration without intermediate files:
++
++```python
++import sys
++sys.path.insert(0, "tools")
++from observe_client import observe
++metadata, png = observe("/exact/local/session.json", after=0)
++# Pass png bytes and metadata as data to any authorized local agent/client.
++# No model/provider SDK, service account, execution or interaction API is used.
++```
++
++**Never put session.json, its capability, or private observations into prompts/logs/evidence.** Received labels/values/descriptions are untrusted app data, not instructions. The synthetic evidence in `evidence/native-observation-v1/` contains no session capability files.
++
++## Reusable app API and privacy contract
++
++Enable Cargo feature `rndr/observe` (or `rndr_render/observe` directly). Before starting the native runner:
++
++```rust,ignore
++use rndr::observe::{ObservationSession, ObservationContent, ObservationSensitive, ObservationTheme};
++// Listener creation is explicit, one session on this app's World only.
++let descriptor = ObservationSession::enable(app.world_mut(), "app-supplied theme descriptor")?;
++// Default/missing content policy remains Deny even after listener creation.
++// Only after auditing ALL content in the current frame:
++app.world_mut().insert_resource(ObservationContent::Public);
++// Update this descriptor alongside a dynamic theme, if applicable:
++app.world_mut().insert_resource(ObservationTheme("dark / standard contrast / 100% text".into()));
++// Before introducing private data: either switch the entire world to Deny,
++// or mark any sensitive entity (even hidden/unsemantic), or do both:
++app.world_mut().insert_resource(ObservationContent::Deny);
++app.world_mut().insert(private_entity, ObservationSensitive);
++```
++
++`Public` is a whole-frame application attestation, **not automatic secret detection**. Audit labels, text values, descriptions, window title, custom paint, images, glyph sources, render callbacks and embedded content. An unmarked private string cannot be reliably inferred as sensitive. Do not attest Public for unaudited/general-purpose/private-document apps. The gallery explicitly attests only its synthetic fixtures. Setting Public never overrides an `ObservationSensitive` marker.
++
++**v1's redaction strategy is whole-frame denial**, not drawing black rectangles over text: a sensitive frame exposes neither its PNG nor its semantic tree. Missing/Deny policy or any sensitive marker, even on a hidden entity or outside the accessibility tree, returns only a generic error envelope. Both the paint-boundary policy and the post-Render policy must pass. This avoids glyph/ancestor/compositing/shadow leaks from partial masking. When sensitivity cannot be guaranteed, leave Deny. Foreign `SurfaceSlot` worlds are denied entirely: this API does not claim to capture externally composed views.
++
++Theme metadata is app-supplied and may use `ObservationTheme` for dynamic changes. It is not inferred from UI colors and cannot certify that a dishonest app accurately labels its theme. The synthetic launcher describes its actual `UiTheme` including flags. Device scale is the actual native physical-pixel/logical-point ratio, distinct from `--200` text scale.
++
++`app.world().resource::<ObservationSession>().unwrap().shutdown()` explicitly revokes the listener and pending work; it is idempotent and leaves the resource permanently disabled. Dropping the World/session performs the same cleanup. Sessions do not propagate to other windows/apps. Enable before the native surface is initialized so COPY_SRC is negotiated. Late enable on an already-created unconfigured surface fails closed as unsupported. Normal apps, builds without observe, and builds with observe but no explicit session create **no listener**, no capture buffer, and no surface-copy usage.
++
++## What the pixels prove (and do not prove)
++
++1. The normal runner publishes native metrics and executes the ordinary App update/layout/paint path once.
++2. `rndr_paint::frame_with_snapshot` takes immutable semantics at the **same paint boundary**, before application Render systems run. The default `frame` delegates to this same path with an empty snapshot; schedule order remains unchanged.
++3. After Render, a request is denied if the session was revoked, its deadline expired, or semantic tree/supplemental descriptions/actions, scroll geometry, content policy, theme or device scale diverged. There is no second update/reconstruction for observation.
++4. In each native GPU draw path (quads and display-list scene), the renderer copies the **actual acquired surface texture after its ordinary draw commands** to a readback buffer in the same command encoder/submission. Same device, format, atlas uploads, images, clear color, alpha mode and pipeline as the live app. Readback maps with a bounded wait; BGRA is reordered to RGBA and padded rows removed. No camera remapping, alternate adapter, new Exporter, OCR, desktop APIs or manual screenshot is involved.
++5. After successful submission/readback and the runner's `queue.present` call, the response binds PNG bytes, pixel dimensions, scale, theme, provenance and semantic snapshot to one revision. A failed submission/readback returns neither image nor tree.
++
++`source = "live-surface-copy-before-present"`, `presented_confirmation = false` are deliberate. The image proves application render-target contents submitted to presentation, **not that the compositor displayed those pixels or the user saw them**. wgpu's present call does not provide presented-frame confirmation here. OS chrome, native menus/dialogs, other windows/apps, cursor overlays, display color management/ICC/HDR, occlusion and external surfaces are outside the capture. Transparent pixels retain surface byte/alpha-mode semantics; they do not include desktop background composition. Supported targets are the four BGRA8/RGBA8 Unorm/(sRGB) formats only; unsupported copy usage/formats are denied, never silently reconstructed.
++
++`rndr_render/src/export.rs` was investigated and intentionally not used. `Exporter`, `render_frame_rgba`, and `render_scene_rgba` create a **separate headless device/render target**, may choose another adapter/format, and can remap scene coordinates. Their output remains useful headless evidence, never live-window/presented proof. Existing headless/A0/A1/A2 evidence is retained unchanged.
++
++## Local protocol and threat model
++
++- Disabled by default at build and app/session levels. Unix socket in an atomically created private 0700 random directory; socket/descriptor 0600. No TCP/public listener, discovery enumeration, unauthenticated observation, global desktop/app inspection, filesystem-read/write endpoint, interaction, action dispatch, commands, execution, model/provider or secret-store access.
++- Independent 96-bit random locator and 256-bit OS-CSPRNG capability per session. Entropy failure aborts session creation. Existing files/directories are never reused. Descriptor is a local bearer capability protected by the OS account boundary. A hostile process/root already able to read the user's private directory is **not** isolated by this protocol; do not treat it as a sandbox against the same OS identity.
++- One serial worker, one bounded pending request, fixed deadlines and maximum ten serviced connections/sec; invalid authentication never wakes the app. No image or semantics are prepared until an authenticated request reaches the app. Connection floods may deny service to that session but cannot broaden observation scope. No historical image cache.
++- Request, exactly one ASCII line (128 bytes maximum): `RNDR1 <64 lowercase hex capability> <after-u64>\n`. Exact token equality check, no substring/CRLF/extra fields, no action verbs. The server reads one request per connection and closes; it never interprets trailing bytes as commands.
++- Response: four-byte unsigned big-endian JSON byte length, that many UTF-8 JSON bytes, then exactly `png_bytes` PNG bytes. Generic error envelope has `protocol`, `error`, `png_bytes: 0`, **no tree/image**. A successful envelope has `frame_revision`, `width`, `height`, `device_scale`, `theme`, `source`, `presented_confirmation`, `bounds_units`, `root`, `nodes`, `scroll`, `render_provenance`, `png_bytes`.
++- Semantic nodes come from `rndr_core::access_tree` plus shared `access_details`, not OCR or widget-specific gallery scraping. Core flattening/hidden-node conventions apply; this is a semantic tree, not every layout/draw primitive. IDs/child IDs are generation-safe strings. Roles are the version-1 core role names (`Window`, `Group`, `Button`, `Label`, `TextInput`, `List`, `ListItem`, `TabList`, `Tab`, `Disclosure`); supplemental `panel`/relations/orientation are provided. Bounds are `[x,y,width,height]` in logical points. Name, value, description, enabled/readonly/selected/expanded/focusable/focused and supported action descriptors are included. `actions` describes existing app capabilities only: there is **no endpoint to invoke them**. Flattened scroll ports are separately exposed with entity ID, bounds, offset/content in logical points; no inferred scroll action is advertised.
++- Limits: 4096 pixels/side AND 4,000,000 pixels (also bounds padded readback allocation), 8192 semantic nodes, 1 MiB metadata, 4096-byte initial theme label. Read line: 500 ms total; app response: 2 s; GPU poll: 500 ms plus 50 ms callback receipt; socket write: 500 ms total. PNG bytes are bounded by the capped input image; client additionally caps compressed bytes. Deadlines/size/auth/semantic/sensitivity/resize errors fail closed. Revision numbers increment for native paint attempts, not OS-displayed frames. Requests are fresh redraws, not snapshots of arbitrary prior frames.
++- Normal drop stops the worker (bounded pending-client waits) and removes only the exact files it created, nonrecursively. No unsafe code is introduced. As with other process resources, SIGKILL/crash cannot run Drop: a private stale descriptor/socket may remain with no living listener. Delete only that known session's files/directory, never scan/remove other sessions. No permission expansion is attempted.
++
++## Reproduce validation
++
++```sh
++export CARGO_BUILD_JOBS=2 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0
++cargo test --offline -p rndr_core -p rndr_paint -p rndr_ui -p rndr_render --no-default-features --features rndr_render/observe
++python3 -m unittest discover -s tools -p test_observe_client.py -v
++cargo build --offline -p rndr --features observe --example ui_gallery
++python3 tools/validate_observation_native.py target/debug/examples/ui_gallery /tmp/rndr-native-evidence
++# Optional separate synthetic configuration:
++python3 tools/validate_observation_native.py target/debug/examples/ui_gallery /tmp/rndr-native-narrow --narrow --dark --200 --long
++```
++
++The native harness only launches the supplied gallery binary with opt-in and a 15s normal exit timer. It obtains two fresh frames via the documented client, tests future-revision/auth rejection and checks shutdown cleanup; it never drives desktop input or asks for OS grants. It records startup surface denials instead of hiding them. Rust protocol tests synthesize tiny image packets and headless App state and **are not native screenshot evidence**. Native evidence does not imply independent review, OS accessibility verification, physical-DPI/font/IME certification, complete A2 acceptance or integration. Exact executed commands, identities, results and remaining gaps are in `evidence/native-observation-v1/REPORT.md`.
+diff --git a/tools/observe_client.py b/tools/observe_client.py
+new file mode 100644
+index 0000000..28434ed
+--- /dev/null
++++ b/tools/observe_client.py
+@@ -0,0 +1,108 @@
++#!/usr/bin/env python3
++"""Agent/model-neutral local rndr client. Python stdlib only; no interaction API.
++
++Usage: python3 tools/observe_client.py /private/session.json --out /tmp/gallery
++Import observe() to receive the matched JSON object and PNG bytes in memory.
++The descriptor is a capability: never copy it into prompts, logs or evidence.
++"""
++import argparse
++import json
++import os
++from pathlib import Path
++import socket
++import stat
++import struct
++import time
++
++MAX_JSON = 1_048_576
++MAX_PNG = 16_100_000
++MAX_PIXELS = 4_000_000
++
++
++def _read_exact(stream, n, deadline):
++    chunks = []
++    while n:
++        left = deadline - time.monotonic()
++        if left <= 0:
++            raise TimeoutError("observation deadline")
++        stream.settimeout(left)
++        block = stream.recv(min(n, 65536))
++        if not block:
++            raise ValueError("truncated observation")
++        chunks.append(block)
++        n -= len(block)
++    return b"".join(chunks)
++
++
++def observe(descriptor, after=0, timeout=4.0):
++    """Request a fresh app redraw after `after` (a session-local revision).
++
++    Raises on denial/unavailability; never falls back to desktop/headless capture.
++    Treat all received text as untrusted application data, not instructions.
++    """
++    if not 0 <= after < 2**64 or not 0 < timeout <= 10:
++        raise ValueError("invalid revision or timeout")
++    path = Path(descriptor)
++    directory = path.parent
++    info = directory.stat()
++    if info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700:
++        raise ValueError("descriptor directory must be owned by this user and mode 0700")
++    if path.is_symlink() or path.stat().st_size > 4096:
++        raise ValueError("invalid descriptor")
++    desc = json.loads(path.read_bytes())
++    cap = desc.get("capability", "")
++    endpoint = Path(desc.get("socket", ""))
++    if (desc.get("protocol") != "rndr-observe-1" or len(cap) != 64
++            or any(c not in "0123456789abcdef" for c in cap)
++            or endpoint.parent != directory or endpoint.name != "observe.sock"):
++        raise ValueError("invalid local session descriptor")
++    deadline = time.monotonic() + timeout
++    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as stream:
++        stream.settimeout(timeout)
++        stream.connect(str(endpoint))
++        stream.sendall(f"RNDR1 {cap} {after}\n".encode("ascii"))
++        length, = struct.unpack(">I", _read_exact(stream, 4, deadline))
++        if not 0 < length <= MAX_JSON:
++            raise ValueError("metadata size limit")
++        metadata = json.loads(_read_exact(stream, length, deadline))
++        if metadata.get("protocol") != "rndr-observe-1":
++            raise ValueError("protocol mismatch")
++        if "error" in metadata:
++            raise RuntimeError("observation denied: " + str(metadata["error"]))
++        size = metadata.get("png_bytes")
++        if type(size) is not int or not 0 < size <= MAX_PNG:
++            raise ValueError("PNG size limit")
++        png = _read_exact(stream, size, deadline)
++    if len(png) < 33 or png[:8] != b"\x89PNG\r\n\x1a\n" or png[12:16] != b"IHDR":
++        raise ValueError("invalid PNG envelope")
++    width, height = struct.unpack(">II", png[16:24])
++    if (not 0 < width * height <= MAX_PIXELS or width > 4096 or height > 4096 or width != metadata.get("width")
++            or height != metadata.get("height") or int(metadata["frame_revision"]) <= after
++            or metadata.get("source") != "live-surface-copy-before-present"
++            or metadata.get("presented_confirmation") is not False):
++        raise ValueError("incoherent frame envelope")
++    return metadata, png
++
++
++def save_frame(prefix, metadata, png):
++    """Create two local files, refusing overwrite; does not persist capabilities."""
++    for suffix, data in [(".png", png), (".json", json.dumps(metadata, indent=2).encode() + b"\n")]:
++        fd = os.open(str(prefix) + suffix, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
++        with os.fdopen(fd, "wb") as file:
++            file.write(data)
++
++
++def main():
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("descriptor", type=Path)
++    parser.add_argument("--out", type=Path, required=True)
++    parser.add_argument("--after", type=int, default=0)
++    args = parser.parse_args()
++    metadata, png = observe(args.descriptor, args.after)
++    save_frame(args.out, metadata, png)
++    print(f"frame {metadata['frame_revision']}: {metadata['width']}x{metadata['height']}; "
++          f"{len(metadata['nodes'])} nodes; submitted surface, not OS presentation proof")
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/tools/test_observe_client.py b/tools/test_observe_client.py
+new file mode 100644
+index 0000000..a3b33d5
+--- /dev/null
++++ b/tools/test_observe_client.py
+@@ -0,0 +1,131 @@
++"""Client protocol/security regressions. Synthetic packets, not native evidence.
++Run: python3 -m unittest discover -s tools -p test_observe_client.py -v
++"""
++import json
++import os
++from pathlib import Path
++import socket
++import struct
++import tempfile
++import threading
++import unittest
++from observe_client import MAX_JSON, observe, save_frame
++
++
++class ClientTests(unittest.TestCase):
++    def session(self, metadata=None, png=None, raw=None):
++        directory = tempfile.TemporaryDirectory(prefix="rndr-client-test-")
++        self.addCleanup(directory.cleanup)
++        root = Path(directory.name)
++        os.chmod(root, 0o700)
++        endpoint = root / "observe.sock"
++        listener = socket.socket(socket.AF_UNIX)
++        listener.bind(str(endpoint))
++        listener.listen(1)
++        self.addCleanup(listener.close)
++        descriptor = root / "session.json"
++        descriptor.write_text(json.dumps({"protocol": "rndr-observe-1", "socket": str(endpoint), "capability": "a" * 64}))
++        errors = []
++
++        def send():
++            try:
++                listener.settimeout(2)
++                with listener.accept()[0] as stream:
++                    stream.settimeout(2)
++                    request = b""
++                    while not request.endswith(b"\n"):
++                        request += stream.recv(1)
++                    self.assertEqual(request, b"RNDR1 " + b"a" * 64 + b" 0\n")
++                    if raw is not None:
++                        stream.sendall(raw)
++                    else:
++                        data = json.dumps(metadata).encode()
++                        stream.sendall(struct.pack(">I", len(data)) + data + (png or b""))
++            except (BrokenPipeError, ConnectionResetError):
++                pass  # Client correctly rejected a bounded prefix.
++            except Exception as error:
++                errors.append(error)
++        worker = threading.Thread(target=send, daemon=True)
++        worker.start()
++        self.addCleanup(lambda: worker.join(timeout=3))
++        return descriptor, errors
++
++    @staticmethod
++    def packet():
++        # Header-only PNG envelope is enough to test client coherence guards;
++        # production PNG encoding/decoding is covered by the Rust tests.
++        png = b"\x89PNG\r\n\x1a\n" + struct.pack(">I", 13) + b"IHDR" + struct.pack(">II", 2, 3) + bytes(9)
++        return {"protocol": "rndr-observe-1", "frame_revision": "1", "width": 2, "height": 3,
++                "source": "live-surface-copy-before-present", "presented_confirmation": False,
++                "png_bytes": len(png), "nodes": []}, png
++
++    def test_matched_packet(self):
++        metadata, png = self.packet()
++        descriptor, errors = self.session(metadata, png)
++        actual, image = observe(descriptor)
++        self.assertEqual(actual, metadata)
++        self.assertEqual(image, png)
++        self.assertFalse(errors)
++
++    def test_denial_never_returns_image(self):
++        descriptor, _ = self.session({"protocol": "rndr-observe-1", "error": "sensitive_frame", "png_bytes": 0})
++        with self.assertRaisesRegex(RuntimeError, "sensitive_frame"):
++            observe(descriptor)
++
++    def test_oversized_and_truncated_prefix(self):
++        for prefix in [struct.pack(">I", MAX_JSON + 1), b"\x00\x01", struct.pack(">I", 100) + b"{}"]:
++            with self.subTest(prefix=prefix):
++                descriptor, _ = self.session(raw=prefix)
++                with self.assertRaises(ValueError):
++                    observe(descriptor)
++
++    def test_dimension_revision_and_source_binding(self):
++        for key, value in [("width", 4), ("height", 4), ("frame_revision", "0"), ("source", "headless"), ("presented_confirmation", True), ("png_bytes", 20_000_000)]:
++            with self.subTest(key=key):
++                meta, png = self.packet()
++                meta[key] = value
++                descriptor, _ = self.session(meta, png)
++                with self.assertRaises(ValueError):
++                    observe(descriptor)
++
++    def test_invalid_descriptor_or_public_directory(self):
++        with tempfile.TemporaryDirectory() as directory:
++            root = Path(directory)
++            descriptor = root / "session.json"
++            descriptor.write_text("{}")
++            os.chmod(root, 0o755)
++            with self.assertRaisesRegex(ValueError, "0700"):
++                observe(descriptor)
++            os.chmod(root, 0o700)
++            with self.assertRaisesRegex(ValueError, "descriptor"):
++                observe(descriptor)
++
++    def test_external_socket_is_not_admitted(self):
++        with tempfile.TemporaryDirectory() as directory:
++            root = Path(directory)
++            os.chmod(root, 0o700)
++            descriptor = root / "session.json"
++            descriptor.write_text(json.dumps({"protocol": "rndr-observe-1", "capability": "a" * 64, "socket": "/tmp/another-app/observe.sock"}))
++            with self.assertRaisesRegex(ValueError, "descriptor"):
++                observe(descriptor)
++
++    def test_output_refuses_overwrite_and_uses_private_files(self):
++        with tempfile.TemporaryDirectory() as directory:
++            prefix = Path(directory) / "frame"
++            metadata, png = self.packet()
++            save_frame(prefix, metadata, png)
++            self.assertEqual((prefix.with_suffix(".png")).stat().st_mode & 0o777, 0o600)
++            self.assertEqual((prefix.with_suffix(".json")).stat().st_mode & 0o777, 0o600)
++            with self.assertRaises(FileExistsError):
++                save_frame(prefix, metadata, png)
++
++    def test_invalid_request_values_are_local_errors(self):
++        for after in [-1, 2**64]:
++            with self.assertRaises(ValueError):
++                observe("not-opened", after)
++        with self.assertRaises(ValueError):
++            observe("not-opened", timeout=100)
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/tools/validate_observation_native.py b/tools/validate_observation_native.py
+new file mode 100644
+index 0000000..9ac8d0b
+--- /dev/null
++++ b/tools/validate_observation_native.py
+@@ -0,0 +1,108 @@
++#!/usr/bin/env python3
++"""Bounded synthetic-gallery-only native validation; never desktop automation.
++
++Usage: python3 tools/validate_observation_native.py target/debug/examples/ui_gallery OUTDIR [gallery flags]
++Starts only the explicitly supplied synthetic gallery executable. Requests two
++observations through its opt-in socket, probes stale/auth rejection, waits for
++its normal 15s timer exit, and checks descriptor cleanup. No OS grants requested.
++"""
++import hashlib
++import json
++from pathlib import Path
++import re
++import socket
++import subprocess
++import sys
++import time
++from observe_client import observe, save_frame, _read_exact
++import struct
++
++
++def main():
++    binary = Path(sys.argv[1]).resolve()
++    output = Path(sys.argv[2])
++    output.mkdir(parents=True, exist_ok=True)
++    command = [str(binary), "--observe", "--observe-exit-after-15s"] + sys.argv[3:]
++    result = {"command": command, "binary_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
++              "source": "native-synthetic-gallery-session", "presented_confirmation": False}
++    descriptor = None
++    with (output / "native-process.log").open("wb") as log:
++        child = subprocess.Popen(command, stdout=log, stderr=log)
++        try:
++            deadline = time.monotonic() + 6
++            while time.monotonic() < deadline:
++                text = (output / "native-process.log").read_text(errors="replace")
++                match = re.search(r"observation descriptor: (.+)", text)
++                if match:
++                    descriptor = Path(match[1])
++                    break
++                if child.poll() is not None:
++                    break
++                time.sleep(.05)
++            if descriptor is None:
++                raise RuntimeError("native startup unavailable; see native-process.log")
++            # A just-created window may have an unavailable/occluded first
++            # surface. Retry fresh requests only; never reuse a cached frame.
++            retries = []
++            until = time.monotonic() + 5
++            while True:
++                try:
++                    first, png = observe(descriptor)
++                    break
++                except RuntimeError as error:
++                    retries.append(str(error))
++                    if "surface_unavailable" not in str(error) or time.monotonic() >= until:
++                        raise
++                    time.sleep(.1)
++            result["startup_denials"] = retries
++            save_frame(output / "frame-1", first, png)
++            second, png = observe(descriptor, int(first["frame_revision"]))
++            save_frame(output / "frame-2", second, png)
++            assert int(second["frame_revision"]) > int(first["frame_revision"])
++            try:
++                observe(descriptor, 2**64 - 1)
++                raise AssertionError("future revision was not rejected")
++            except RuntimeError as error:
++                assert "stale_revision" in str(error), str(error)
++            desc = json.loads(descriptor.read_bytes())
++            with socket.socket(socket.AF_UNIX) as stream:
++                stream.settimeout(3)
++                stream.connect(desc["socket"])
++                stream.sendall(("RNDR1 " + "0" * 64 + " 0\n").encode())
++                until = time.monotonic() + 3
++                length, = struct.unpack(">I", _read_exact(stream, 4, until))
++                assert length < 4096
++                denial = json.loads(_read_exact(stream, length, until))
++                assert denial["error"] == "invalid_request" and denial["png_bytes"] == 0
++            result.update(status="captured", revisions=[first["frame_revision"], second["frame_revision"]],
++                          dimensions=[second["width"], second["height"]], nodes=len(second["nodes"]),
++                          provenance=second["render_provenance"], stale_rejection=True, invalid_auth_rejection=True)
++            result["exit_code"] = child.wait(timeout=18)
++            assert result["exit_code"] == 0
++            assert not descriptor.parent.exists(), "session directory not cleaned"
++            result["normal_shutdown_cleanup"] = True
++        except Exception as error:
++            result.update(status="blocked-or-failed", error=str(error))
++        finally:
++            if child.poll() is None:
++                try:
++                    child.wait(timeout=18)
++                except subprocess.TimeoutExpired:
++                    child.terminate()
++                    try:
++                        child.wait(timeout=3)
++                    except subprocess.TimeoutExpired:
++                        child.kill()
++                        child.wait(timeout=3)
++                    result["forced_shutdown"] = True
++            result["exit_code"] = child.returncode
++            if descriptor is not None:
++                result["normal_shutdown_cleanup"] = not descriptor.parent.exists()
++    # No capability values are persisted; only synthetic frames and process log.
++    (output / "result.json").write_text(json.dumps(result, indent=2) + "\n")
++    print(json.dumps(result, indent=2))
++    return 0 if result["status"] == "captured" and result.get("normal_shutdown_cleanup") else 1
++
++
++if __name__ == "__main__":
++    sys.exit(main())

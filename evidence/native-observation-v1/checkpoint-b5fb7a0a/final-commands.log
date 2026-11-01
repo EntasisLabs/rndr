@@ -1,0 +1,18 @@
+final-format: rustfmt --edition 2021 --config skip_children=true --check crates/rndr_render/src/observe.rs crates/rndr_render/src/observe_tests.rs crates/rndr_render/src/gpu.rs crates/rndr_render/src/lib.rs crates/rndr_paint/src/lib.rs crates/rndr/examples/ui_gallery.rs
+final-format exit=0
+final-client: python3 -m unittest discover -s tools -p test_observe_client.py -v
+final-client exit=0
+final-suites: cargo test --offline --locked -v -p rndr_core -p rndr_paint -p rndr_ui -p rndr_render --no-default-features --features rndr_render/observe
+final-suites exit=0
+final-disabled: cargo test --offline --locked -p rndr_render --no-default-features --lib
+final-disabled exit=0
+final-default-disabled: cargo check --offline --locked -p rndr --example ui_gallery
+final-default-disabled exit=0
+final-default-observe: cargo check --offline --locked -p rndr --features observe --example ui_gallery
+final-default-observe exit=0
+final-build-native: cargo build --offline --locked -v -p rndr --no-default-features --features observe --example ui_gallery
+final-build-native exit=0
+final-native-light: python3 tools/validate_observation_native.py target/debug/examples/ui_gallery evidence/native-observation-v1/final-native-light
+final-native-light exit=0
+final-native-narrow: python3 tools/validate_observation_native.py target/debug/examples/ui_gallery evidence/native-observation-v1/final-native-narrow --narrow --dark --200 --long
+final-native-narrow exit=0

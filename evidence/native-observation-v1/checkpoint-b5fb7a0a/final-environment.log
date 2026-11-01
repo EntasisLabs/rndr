@@ -1,0 +1,17 @@
+Sun Nov  1 13:42:14 UTC 2026
+b5fb7a0a19265e36e906abcb36c118859f9ee526
+e982c5d0938e02e45f14bb968673a6cb7ae47a10
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+binary: rustc
+commit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea
+commit-date: 2026-08-18
+host: aarch64-apple-darwin
+release: 1.98.0
+LLVM version: 22.1.8
+cargo 1.98.0 (797e8a9bc 2026-08-05)
+Python 3.14.6
+Filesystem      Size    Used   Avail Capacity iused ifree %iused  Mounted on
+/dev/disk3s5   228Gi   203Gi   1.3Gi   100%    1.8M   14M   12%   /System/Volumes/Data
+2.4G	target
+?? evidence/native-observation-v1/
+?? tools/__pycache__/

@@ -1,0 +1,14 @@
+commit f6648f16a7bcc75194bbc05ddabae3fd1527b0ec
+Author:     theelevators <elevatorstest@gmail.com>
+AuthorDate: Sun Nov 1 06:42:14 2026 -0700
+Commit:     theelevators <elevatorstest@gmail.com>
+CommitDate: Sun Nov 1 06:47:44 2026 -0700
+
+    fix(observe): bind supplemental semantics and revoke pending captures
+
+ crates/rndr_render/src/gpu.rs           |  8 +++-
+ crates/rndr_render/src/lib.rs           |  5 ++-
+ crates/rndr_render/src/observe.rs       | 66 ++++++++++++++++++++++++++++++---
+ crates/rndr_render/src/observe_tests.rs | 51 +++++++++++++++++++++++++
+ docs/native-observation.md              |  6 +--
+ 5 files changed, 125 insertions(+), 11 deletions(-)
