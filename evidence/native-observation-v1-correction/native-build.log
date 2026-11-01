@@ -1,0 +1,139 @@
+       Fresh unicode-ident v1.0.26
+       Fresh proc-macro2 v1.0.107
+       Fresh bitflags v2.13.2
+       Fresh quote v1.0.47
+       Fresh autocfg v1.5.1
+       Fresh libm v0.2.16
+       Fresh objc2-encode v4.1.0
+       Fresh num-traits v0.2.19
+       Fresh syn v3.0.6
+       Fresh cfg_aliases v0.2.2
+       Fresh cfg-if v1.0.5
+       Fresh objc2 v0.6.5
+       Fresh syn v2.0.119
+       Fresh arrayvec v0.7.8
+       Fresh zerocopy-derive v0.8.57
+       Fresh objc2-core-foundation v0.3.2
+       Fresh libc v0.2.189
+       Fresh zerocopy v0.8.57
+       Fresh foldhash v0.2.0
+       Fresh hashbrown v0.17.1
+       Fresh half v2.7.1
+       Fresh objc2-foundation v0.3.2
+       Fresh thiserror-impl v2.0.20
+       Fresh bytemuck_derive v1.12.1
+       Fresh equivalent v1.0.2
+       Fresh bytemuck v1.25.2
+       Fresh indexmap v2.14.2
+       Fresh thiserror v2.0.20
+       Fresh objc2-core-graphics v0.3.2
+       Fresh simd-adler32 v0.3.10
+       Fresh rustc-hash v1.1.0
+       Fresh naga-types v30.0.1
+       Fresh block2 v0.6.2
+       Fresh raw-window-handle v0.6.2
+       Fresh bit-vec v0.9.1
+       Fresh unicode-width v0.2.2
+       Fresh adler2 v2.0.1
+       Fresh log v0.4.34
+       Fresh codespan-reporting v0.13.1
+       Fresh bit-set v0.10.0
+       Fresh objc2-metal v0.3.2
+       Fresh euclid v0.22.14
+       Fresh scopeguard v1.2.0
+       Fresh smallvec v1.16.3
+       Fresh memchr v2.8.3
+       Fresh static_assertions v1.1.0
+       Fresh once_cell v1.21.4
+       Fresh naga v30.0.1
+       Fresh wgpu-types v30.0.1
+       Fresh parking_lot_core v0.9.12
+       Fresh lyon_geom v1.0.20
+       Fresh lock_api v0.4.14
+       Fresh objc2-quartz-core v0.3.2
+       Fresh crossbeam-utils v0.8.23
+       Fresh objc-sys v0.3.5
+       Fresh crc32fast v1.5.3
+       Fresh miniz_oxide v0.9.1
+       Fresh unicase v2.10.0
+       Fresh pulldown-cmark v0.13.5
+       Fresh flate2 v1.1.10
+       Fresh crossbeam-epoch v0.9.21
+       Fresh objc2 v0.5.2
+       Fresh parking_lot v0.12.5
+       Fresh raw-window-metal v1.1.0
+       Fresh lyon_path v1.0.19
+       Fresh wgpu-naga-bridge v30.0.1
+       Fresh libloading v0.8.9
+       Fresh quick-error v2.0.1
+       Fresh core-foundation-sys v0.8.7
+       Fresh profiling v1.0.18
+       Fresh zune-core v0.5.3
+       Fresh unicode-segmentation v1.13.3
+       Fresh zune-jpeg v0.5.15
+       Fresh rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core)
+       Fresh wgpu-hal v30.0.1
+       Fresh core-foundation v0.9.4
+       Fresh block2 v0.5.1
+       Fresh crossbeam-deque v0.8.8
+       Fresh foreign-types-macros v0.2.4
+       Fresh litrs v1.0.0
+       Fresh foreign-types-shared v0.3.1
+       Fresh weezl v0.1.12
+       Fresh dispatch v0.2.0
+       Fresh bitflags v1.3.2
+       Fresh byteorder-lite v0.1.0
+       Fresh fax v0.2.7
+       Fresh float_next_after v1.0.0
+       Fresh pxfm v0.1.30
+       Fresh moxcms v0.8.1
+       Fresh lyon_tessellation v1.0.23
+       Fresh tiff v0.11.3
+       Fresh core-graphics-types v0.1.3
+       Fresh objc2-foundation v0.2.2
+       Fresh foreign-types v0.5.0
+       Fresh document-features v0.2.12
+       Fresh rayon-core v1.13.0
+       Fresh wgpu-core-deps-apple v30.0.1
+       Fresh lyon_algorithms v1.0.22
+       Fresh pin-project-lite v0.2.17
+       Fresh either v1.19.0
+       Fresh tracing-core v0.1.36
+       Fresh tracing v0.1.44
+       Fresh rayon v1.12.0
+       Fresh lyon v1.0.19
+       Fresh wgpu-core v30.0.1
+       Fresh core-graphics v0.23.2
+       Fresh zmij v1.0.23
+       Fresh objc2-app-kit v0.2.2
+       Fresh image v0.25.10
+       Fresh serde_core v1.0.229
+       Fresh miniz_oxide v0.8.9
+       Fresh fdeflate v0.3.7
+       Fresh objc2-app-kit v0.3.2
+       Fresh cursor-icon v1.2.0
+       Fresh dpi v0.1.2
+       Fresh smol_str v0.2.2
+       Fresh itoa v1.0.18
+       Fresh winit v0.30.13
+       Fresh serde_json v1.0.154
+       Fresh png v0.18.1
+       Fresh arboard v3.7.0
+       Fresh wgpu v30.0.1
+       Fresh rndr_paint v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_paint)
+       Fresh getrandom v0.3.4
+       Fresh jpeg-decoder v0.3.2
+       Fresh image-webp v0.2.4
+       Fresh pollster v0.4.0
+       Dirty rndr_render v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_render): the dependency `rndr_paint` was rebuilt (1793543390.016349815s, 41m 53s after last build at 1793540877.290781837s)
+   Compiling rndr_render v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_render)
+       Dirty rndr_std v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_std): the dependency `rndr_core` was rebuilt (1793543389.704930363s, 1h 6m 31s after last build at 1793539398.605724542s)
+   Compiling rndr_std v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_std)
+     Running `/Users/theelevators/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc --crate-name rndr_render --edition=2021 crates/rndr_render/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no --cfg 'feature="observe"' --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values("accesskit", "default", "dialog", "hotkey", "observe", "parley", "tray"))' -C metadata=4cbef822f260f1bd -C extra-filename=-98344a67c1d1af4d --out-dir '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' -C strip=debuginfo -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'arboard=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libarboard-2189d832ca465e1e.rmeta' --extern 'block2=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libblock2-8922298c49217d9e.rmeta' --extern 'getrandom=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libgetrandom-ed602181e0977db8.rmeta' --extern 'image_webp=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libimage_webp-ad99aa94e6d24b61.rmeta' --extern 'jpeg_decoder=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libjpeg_decoder-e785e0c5ce29bd71.rmeta' --extern 'objc2=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libobjc2-2c55bd81090990cb.rmeta' --extern 'objc2_app_kit=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libobjc2_app_kit-43aba697481786fa.rmeta' --extern 'png=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpng-668455356ddd1a3d.rmeta' --extern 'pollster=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpollster-0876d8cbc79b1068.rmeta' --extern 'rndr_core=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/librndr_core-6203380e6fb25308.rmeta' --extern 'rndr_paint=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/librndr_paint-e4ece9f62c286f49.rmeta' --extern 'serde_json=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libserde_json-a3049842202ea6af.rmeta' --extern 'wgpu=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libwgpu-7166eeb61e478bbe.rmeta' --extern 'winit=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libwinit-e68dc5dd95630343.rmeta'`
+     Running `/Users/theelevators/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc --crate-name rndr_std --edition=2021 crates/rndr_std/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=777eaf36f2a2b3ca -C extra-filename=-ac1f6b1912be77e6 --out-dir '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' -C strip=debuginfo -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'rndr_core=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/librndr_core-6203380e6fb25308.rmeta'`
+       Fresh rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui)
+       Dirty rndr v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr): the dependency `rndr_paint` was rebuilt (1793543390.016349815s, 41m 53s after last build at 1793540877.047182954s)
+   Compiling rndr v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr)
+     Running `/Users/theelevators/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc --crate-name rndr --edition=2021 crates/rndr/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no --cfg 'feature="observe"' --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values("accesskit", "default", "dialog", "hotkey", "observe", "parley", "term", "tokio", "tray"))' -C metadata=4151de6a9b3f181e -C extra-filename=-6c39e0511bd237d5 --out-dir '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' -C strip=debuginfo -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'rndr_core=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/librndr_core-6203380e6fb25308.rmeta' --extern 'rndr_paint=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/librndr_paint-e4ece9f62c286f49.rmeta' --extern 'rndr_render=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/librndr_render-98344a67c1d1af4d.rmeta' --extern 'rndr_std=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/librndr_std-ac1f6b1912be77e6.rmeta'`
+     Running `/Users/theelevators/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc --crate-name ui_gallery --edition=2021 crates/rndr/examples/ui_gallery.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type bin --emit=dep-info,link -C embed-bitcode=no --cfg 'feature="observe"' --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values("accesskit", "default", "dialog", "hotkey", "observe", "parley", "term", "tokio", "tray"))' -C metadata=ddf50723b52be23a -C extra-filename=-fb89e3792cc83761 --out-dir '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/examples' -C strip=debuginfo -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'rndr=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/librndr-6c39e0511bd237d5.rlib' --extern 'rndr_core=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/librndr_core-6203380e6fb25308.rlib' --extern 'rndr_paint=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/librndr_paint-e4ece9f62c286f49.rlib' --extern 'rndr_render=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/librndr_render-98344a67c1d1af4d.rlib' --extern 'rndr_std=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/librndr_std-ac1f6b1912be77e6.rlib' --extern 'rndr_ui=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/librndr_ui-9ac197f5f9ead772.rlib'`
+    Finished `dev` profile [unoptimized] target(s) in 1.60s

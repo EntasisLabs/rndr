@@ -1,0 +1,22 @@
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+binary: rustc
+commit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea
+commit-date: 2026-08-18
+host: aarch64-apple-darwin
+release: 1.98.0
+LLVM version: 22.1.8
+cargo 1.98.0 (797e8a9bc 2026-08-05)
+28a0ae307f869ef651d8ebcc5fdcd82a9dc31ce7
+ M crates/rndr_core/src/text.rs
+ M crates/rndr_render/src/lib.rs
+ M crates/rndr_render/src/observe.rs
+ M crates/rndr_render/src/observe_tests.rs
+ M crates/rndr_render/src/text/mod.rs
+ M docs/native-observation.md
+ M tools/observe_client.py
+ M tools/test_observe_client.py
+?? evidence/native-observation-v1-correction/
+?? tools/test_observe_correction.py
+Filesystem      Size    Used   Avail Capacity iused ifree %iused  Mounted on
+/dev/disk3s5   228Gi   203Gi   713Mi   100%    1.8M  7.3M   20%   /System/Volumes/Data
+3b2e6da96b6abaa277046e8907e59f7007e91639183cb107619c0f77fb12a0e5  target/debug/examples/ui_gallery

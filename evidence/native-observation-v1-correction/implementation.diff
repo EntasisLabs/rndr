@@ -1,0 +1,899 @@
+diff --git a/crates/rndr_core/src/text.rs b/crates/rndr_core/src/text.rs
+index 80d7ddf..bb526ab 100644
+--- a/crates/rndr_core/src/text.rs
++++ b/crates/rndr_core/src/text.rs
+@@ -237,7 +237,12 @@ pub trait TextEngine: Send + Sync + 'static {
+     fn shape_count(&self) -> u64;
+ 
+     /// Bumps when atlas UVs are no longer the ones already stored on labels.
+-    /// Zero means the engine's coordinates do not move under a cached layout.
++    /// Also bump for font/fallback/configuration changes that invalidate an
++    /// already-painted frame. Observation binds this version and engine identity
++    /// across Render; custom engines must version interior invalidations and
++    /// avoid concurrent mutation through submission. Unversioned custom state
++    /// cannot be certified by the framework.
++    /// Zero means the engine's coordinates/configuration stay valid.
+     fn cache_epoch(&self) -> u64 {
+         0
+     }
+@@ -322,6 +327,7 @@ struct RunKey {
+ pub struct BuiltinText {
+     state: Mutex<EngineState>,
+     shapes: AtomicU64,
++    epoch: AtomicU64,
+ }
+ 
+ impl BuiltinText {
+@@ -342,6 +348,7 @@ impl BuiltinText {
+                 },
+             }),
+             shapes: AtomicU64::new(0),
++            epoch: AtomicU64::new(0),
+         }
+     }
+ 
+@@ -360,7 +367,12 @@ impl BuiltinText {
+     pub fn sync_face(&self, face: Arc<dyn Font>) {
+         let name = face.family_name().to_string();
+         self.register_font(&name, face);
+-        self.lock().default_family = name;
++        let mut state = self.lock();
++        if state.default_family != name {
++            state.default_family = name;
++            state.cache.frames.iter_mut().for_each(HashMap::clear);
++            self.epoch.fetch_add(1, Ordering::Relaxed);
++        }
+     }
+ 
+     fn lock(&self) -> MutexGuard<'_, EngineState> {
+@@ -608,14 +620,26 @@ impl TextEngine for BuiltinText {
+     }
+ 
+     fn set_fallbacks(&self, family: &str, faces: &[String]) {
+-        self.lock()
+-            .fallbacks
+-            .insert(family.to_string(), faces.to_vec());
++        let mut state = self.lock();
++        if state.fallbacks.get(family).is_none_or(|old| old != faces) {
++            state.fallbacks.insert(family.to_string(), faces.to_vec());
++            state.cache.frames.iter_mut().for_each(HashMap::clear);
++            self.epoch.fetch_add(1, Ordering::Relaxed);
++        }
+     }
+ 
+     fn register_font(&self, name: &str, font: Arc<dyn Font>) {
+         let mut state = self.lock();
++        if state
++            .fonts
++            .get(name)
++            .is_some_and(|old| Arc::ptr_eq(old, &font))
++        {
++            return;
++        }
+         state.fonts.insert(name.to_string(), font);
++        state.cache.frames.iter_mut().for_each(HashMap::clear);
++        self.epoch.fetch_add(1, Ordering::Relaxed);
+         state.fallbacks.entry(name.to_string()).or_insert_with(|| {
+             if name == "bitmap" {
+                 vec!["bitmap".to_string()]
+@@ -635,6 +659,10 @@ impl TextEngine for BuiltinText {
+     fn shape_count(&self) -> u64 {
+         self.shapes.load(Ordering::Relaxed)
+     }
++
++    fn cache_epoch(&self) -> u64 {
++        self.epoch.load(Ordering::Relaxed)
++    }
+ }
+ 
+ impl BuiltinText {
+diff --git a/crates/rndr_render/src/lib.rs b/crates/rndr_render/src/lib.rs
+index aaba669..87e0c9a 100644
+--- a/crates/rndr_render/src/lib.rs
++++ b/crates/rndr_render/src/lib.rs
+@@ -661,6 +661,23 @@ impl Handler {
+                 clipboard.image_dirty = false;
+             }
+         }
++        // A requested capture binds paint-time engine resources. Reject a
++        // Render-stage invalidation before atlas upload or surface submission.
++        #[cfg(feature = "observe")]
++        let observation = if let Some(capture) = observation {
++            let scale = self
++                .app
++                .world()
++                .resource::<Viewport>()
++                .map(|v| v.pixels_per_point())
++                .unwrap_or(1.0);
++            let Some(capture) = observe::validate(self.app.world(), capture, scale) else {
++                return false;
++            };
++            Some(capture)
++        } else {
++            None
++        };
+         self.upload_atlases();
+         crate::images::ingest(self.app.world_mut());
+         let images = crate::images::pending(self.app.world());
+@@ -672,9 +689,6 @@ impl Handler {
+             .map(|viewport| viewport.pixels_per_point())
+             .unwrap_or(1.0);
+         #[cfg(feature = "observe")]
+-        let observation =
+-            observation.and_then(|capture| observe::validate(self.app.world(), capture, scale));
+-        #[cfg(feature = "observe")]
+         {
+             let gpu = self.gpu.as_mut().expect("surface");
+             gpu.observe_armed = observation.is_some();
+@@ -688,14 +702,12 @@ impl Handler {
+         #[cfg(feature = "observe")]
+         if let Some(capture) = observation {
+             let gpu = self.gpu.as_mut().expect("surface");
++            let text_engine_kind = capture.text_engine_kind();
+             observe::complete(
+                 capture,
+                 gpu.observed.take().unwrap_or(Err("surface_unavailable")),
+                 presented,
+-                gpu.observation_provenance(
+-                    !painted.draws.is_empty(),
+-                    observe::text_engine_kind(self.app.world()),
+-                ),
++                gpu.observation_provenance(!painted.draws.is_empty(), text_engine_kind),
+             );
+             gpu.observe_armed = false;
+         }
+diff --git a/crates/rndr_render/src/observe.rs b/crates/rndr_render/src/observe.rs
+index 42cad3c..0609f5e 100644
+--- a/crates/rndr_render/src/observe.rs
++++ b/crates/rndr_render/src/observe.rs
+@@ -305,11 +305,22 @@ pub(crate) struct Capture {
+     request: Request,
+     metadata: Value,
+     tree: rndr_core::AccessTree,
++    engine: Option<Arc<dyn rndr_core::TextEngine>>,
++    engine_epoch: (u64, u64),
++    engine_kind: &'static str,
+     details: Vec<(u64, rndr_core::AccessDetails)>,
+     scroll: Vec<(u64, rndr_core::Scroll, rndr_core::Rect)>,
+ }
+-pub(crate) fn text_engine_kind(world: &World) -> &'static str {
+-    let engine = rndr_core::text_engine(world);
++impl Capture {
++    pub(crate) fn text_engine_kind(&self) -> &'static str {
++        self.engine_kind
++    }
++}
++#[cfg(test)]
++fn text_engine_kind(world: &World) -> &'static str {
++    engine_kind(rndr_core::text_engine(world).as_ref())
++}
++fn engine_kind(engine: &dyn rndr_core::TextEngine) -> &'static str {
+     if engine.as_any().is::<rndr_core::BuiltinText>() {
+         return "builtin_atlas";
+     }
+@@ -381,6 +392,8 @@ pub(crate) fn validate(world: &World, capture: Capture, scale: f32) -> Option<Ca
+         Some("sensitive_frame")
+     } else if !world.entities_with::<rndr_core::SurfaceSlot>().is_empty() {
+         Some("foreign_surface_unsupported")
++    } else if !engine_matches(world, &capture) {
++        Some("post_paint_text_engine_mutation")
+     } else if capture.tree != rndr_core::access_tree(world)
+         || capture.details != semantic_details(world, &capture.tree)
+         || capture.scroll != scroll_state(world)
+@@ -398,6 +411,26 @@ pub(crate) fn validate(world: &World, capture: Capture, scale: f32) -> Option<Ca
+         Some(capture)
+     }
+ }
++fn engine_epoch(engine: &dyn rndr_core::TextEngine) -> (u64, u64) {
++    #[cfg(feature = "parley")]
++    if let Some(parley) = engine.as_any().downcast_ref::<crate::text::ParleyText>() {
++        return parley.paint_epoch();
++    }
++    (engine.cache_epoch(), 0)
++}
++fn engine_matches(world: &World, capture: &Capture) -> bool {
++    // Synchronize a builtin TextFace change before checking its version. Keep
++    // the original Arc alive so an address cannot be recycled into a match.
++    let current = world.resource::<Arc<dyn rndr_core::TextEngine>>();
++    match (&capture.engine, current) {
++        (Some(old), Some(current)) if Arc::ptr_eq(old, current) => {
++            let current = rndr_core::text_engine(world);
++            engine_epoch(current.as_ref()) == capture.engine_epoch
++        }
++        (None, None) => true,
++        _ => false,
++    }
++}
+ /// Called after the world's layout/paint pass, before submitting its surface.
+ pub(crate) fn begin(world: &World, width: u32, height: u32, scale: f32) -> Option<Capture> {
+     let session = world.resource::<ObservationSession>()?;
+@@ -458,7 +491,15 @@ pub(crate) fn begin(world: &World, width: u32, height: u32, scale: f32) -> Optio
+         let _ = request.reply.try_send(error("semantic_limit"));
+         return None;
+     }
++    let engine = world.resource::<Arc<dyn rndr_core::TextEngine>>().cloned();
++    let engine_epoch = engine.as_ref().map_or((0, 0), |e| engine_epoch(e.as_ref()));
++    let engine_kind = engine
++        .as_ref()
++        .map_or("builtin_atlas", |e| engine_kind(e.as_ref()));
+     Some(Capture {
++        engine,
++        engine_epoch,
++        engine_kind,
+         request,
+         metadata,
+         details: semantic_details(world, &binding_tree),
+diff --git a/crates/rndr_render/src/observe_tests.rs b/crates/rndr_render/src/observe_tests.rs
+index ea0a9ec..d2416f6 100644
+--- a/crates/rndr_render/src/observe_tests.rs
++++ b/crates/rndr_render/src/observe_tests.rs
+@@ -1,4 +1,183 @@
+ //! Unit/synthetic protocol tests, NOT proof of native presentation.
++
++#[cfg(feature = "parley")]
++#[test]
++fn correction_parley_configuration_versions_and_unchanged_path() {
++    for mutation in 0..6 {
++        let (mut app, send) = fixture();
++        let engine: Arc<dyn TextEngine> = Arc::new(crate::text::ParleyText::bundled());
++        app.world_mut().insert_resource(engine);
++        app.world_mut().insert_resource(ObservationContent::Public);
++        app.world_mut().insert_resource(mutation);
++        app.add_system(Schedule::Render, |w| {
++            let engine = text_engine(w);
++            match *w.resource::<i32>().unwrap() {
++                0 => {}
++                1 => engine.set_fallbacks("Inter", &["Noto Sans Arabic".into()]),
++                2 => engine.register_font("new", Arc::new(BitmapFont)),
++                3 => engine.set_pixels_per_point(2.),
++                4 => engine
++                    .as_any()
++                    .downcast_ref::<crate::text::ParleyText>()
++                    .unwrap()
++                    .register_bytes(&[]),
++                _ => {
++                    let _ = engine
++                        .as_any()
++                        .downcast_ref::<crate::text::ParleyText>()
++                        .unwrap()
++                        .take_uploads();
++                }
++            }
++        });
++        let recv = request(&send, 0);
++        let (_, capture) = rndr_paint::frame_with_snapshot(&mut app, |w| begin(w, 2, 2, 1.));
++        let validated = validate(app.world(), capture.unwrap(), 1.);
++        if mutation == 0 {
++            let capture = validated.unwrap();
++            assert_eq!(capture.text_engine_kind(), "parley");
++            complete(
++                capture,
++                Ok(image(2, 2)),
++                true,
++                json!({"text_engine":"parley"}),
++            );
++            assert_eq!(
++                recv.recv().unwrap().0["render_provenance"]["text_engine"],
++                "parley"
++            );
++        } else {
++            assert!(validated.is_none());
++            assert_error(recv, "post_paint_text_engine_mutation");
++        }
++    }
++}
++
++// A distinct runtime type delegating shaping to builtin, as in the review's
++// reproduction. The explicit epoch simulates custom mutable atlas invalidation.
++struct CorrectionEngine(rndr_core::BuiltinText, std::sync::atomic::AtomicU64);
++macro_rules! delegate_correction_engine {
++    ($(fn $n:ident(&self $(, $a:ident : $t:ty)*) $(-> $r:ty)?;)*) => {
++        $(fn $n(&self $(, $a : $t)*) $(-> $r)? { self.0.$n($($a),*) })*
++    }
++}
++impl TextEngine for CorrectionEngine {
++    fn as_any(&self) -> &dyn std::any::Any {
++        self
++    }
++    fn cache_epoch(&self) -> u64 {
++        self.1.load(Ordering::Relaxed)
++    }
++    delegate_correction_engine! {
++        fn layout(&self, text: &str, style: &TextStyle, runs: &[TextSpan], width: f32) -> TextLayout;
++        fn measure(&self, text: &str, style: &TextStyle, runs: &[TextSpan], width: f32) -> TextMeasure;
++        fn line_height(&self, style: &TextStyle) -> f32;
++        fn unit_advance(&self, style: &TextStyle) -> f32;
++        fn solid_uv(&self, style: &TextStyle) -> [f32;4];
++        fn coverage_atlas(&self) -> Option<Arc<FontAtlas>>;
++        fn color_atlas(&self) -> Option<Arc<ColorAtlas>>;
++        fn fallbacks(&self, family: &str) -> Vec<String>;
++        fn set_fallbacks(&self, family: &str, faces: &[String]);
++        fn register_font(&self, name: &str, font: Arc<dyn Font>);
++        fn begin_frame(&self);
++        fn shape_count(&self) -> u64;
++    }
++}
++
++#[test]
++fn correction_render_engine_replacements_are_denied_even_same_kind() {
++    for same_kind in [false, true] {
++        let (mut app, send) = fixture();
++        ensure_text_engine(app.world_mut());
++        app.world_mut().insert_resource(ObservationContent::Public);
++        let original = text_engine(app.world());
++        app.world_mut().spawn((Label::new("painted with builtin"),));
++        app.world_mut().insert_resource(same_kind);
++        app.add_system(Schedule::Render, |w| {
++            let replacement: Arc<dyn TextEngine> = if *w.resource::<bool>().unwrap() {
++                Arc::new(BuiltinText::new())
++            } else {
++                Arc::new(CorrectionEngine(BuiltinText::new(), AtomicU64::new(0)))
++            };
++            w.insert_resource(replacement);
++        });
++        let recv = request(&send, 0);
++        let (_, capture) = rndr_paint::frame_with_snapshot(&mut app, |w| begin(w, 2, 2, 1.));
++        assert!(original.shape_count() > 0);
++        assert!(!Arc::ptr_eq(&original, &text_engine(app.world())));
++        assert!(validate(app.world(), capture.unwrap(), 1.).is_none());
++        assert_error(recv, "post_paint_text_engine_mutation");
++    }
++}
++
++#[test]
++fn correction_custom_epoch_change_in_render_is_denied() {
++    let (mut app, send) = fixture();
++    let engine = Arc::new(CorrectionEngine(BuiltinText::new(), AtomicU64::new(0)));
++    app.world_mut()
++        .insert_resource(engine.clone() as Arc<dyn TextEngine>);
++    app.world_mut().insert_resource(ObservationContent::Public);
++    app.add_system(Schedule::Render, |w| {
++        let engine = text_engine(w);
++        engine
++            .as_any()
++            .downcast_ref::<CorrectionEngine>()
++            .unwrap()
++            .1
++            .fetch_add(1, Ordering::Relaxed);
++    });
++    let recv = request(&send, 0);
++    let (_, capture) = rndr_paint::frame_with_snapshot(&mut app, |w| begin(w, 2, 2, 1.));
++    assert!(validate(app.world(), capture.unwrap(), 1.).is_none());
++    assert_error(recv, "post_paint_text_engine_mutation");
++}
++
++#[test]
++fn correction_builtin_mutations_in_render_are_denied() {
++    for mutation in 0..3 {
++        let (mut app, send) = fixture();
++        app.world_mut().insert_resource(ObservationContent::Public);
++        app.world_mut().insert_resource(mutation);
++        app.add_system(Schedule::Render, |w| {
++            let engine = text_engine(w);
++            match *w.resource::<i32>().unwrap() {
++                0 => engine.set_fallbacks("bitmap", &["another".into()]),
++                1 => engine.register_font("new-face", Arc::new(BitmapFont)),
++                _ => w.insert_resource(TextFace(Arc::new(BitmapFont))),
++            }
++        });
++        let recv = request(&send, 0);
++        let (_, capture) = rndr_paint::frame_with_snapshot(&mut app, |w| begin(w, 2, 2, 1.));
++        assert!(validate(app.world(), capture.unwrap(), 1.).is_none());
++        assert_error(recv, "post_paint_text_engine_mutation");
++    }
++}
++
++#[test]
++fn correction_unchanged_builtin_and_custom_keep_paint_provenance() {
++    for custom in [false, true] {
++        let (mut app, send) = fixture();
++        app.world_mut().insert_resource(ObservationContent::Public);
++        if custom {
++            app.world_mut().insert_resource(Arc::new(CorrectionEngine(
++                BuiltinText::new(),
++                AtomicU64::new(0),
++            )) as Arc<dyn TextEngine>);
++        }
++        app.world_mut().spawn((Label::new("unchanged paint"),));
++        let recv = request(&send, 0);
++        let (_, capture) = rndr_paint::frame_with_snapshot(&mut app, |w| begin(w, 2, 2, 1.));
++        let capture = validate(app.world(), capture.unwrap(), 1.).unwrap();
++        let kind = capture.text_engine_kind();
++        assert_eq!(kind, if custom { "custom" } else { "builtin_atlas" });
++        complete(capture, Ok(image(2, 2)), true, json!({"text_engine":kind}));
++        let (meta, png) = recv.recv().unwrap();
++        assert_eq!(meta["render_provenance"]["text_engine"], kind);
++        assert!(!png.is_empty());
++        assert_eq!(meta["presented_confirmation"], false);
++    }
++}
++
+ use super::*;
+ use rndr_core::*;
+ 
+diff --git a/crates/rndr_render/src/text/mod.rs b/crates/rndr_render/src/text/mod.rs
+index d3e60cb..9d62ed7 100644
+--- a/crates/rndr_render/src/text/mod.rs
++++ b/crates/rndr_render/src/text/mod.rs
+@@ -134,6 +134,7 @@ pub(super) struct State {
+     fallbacks: HashMap<String, Vec<String>>,
+     scale: f32,
+     epoch: u64,
++    uploads_epoch: u64,
+     rasters: u64,
+ }
+ 
+@@ -224,6 +225,7 @@ impl ParleyText {
+                 fallbacks: HashMap::new(),
+                 scale: 1.0,
+                 epoch: 0,
++                uploads_epoch: 0,
+                 rasters: 0,
+             }),
+             shapes: AtomicU64::new(0),
+@@ -275,12 +277,22 @@ impl ParleyText {
+     /// poisoned.
+     pub fn take_uploads(&self) -> AtlasUpload {
+         let mut state = self.lock();
++        state.uploads_epoch = state.uploads_epoch.wrapping_add(1);
+         AtlasUpload {
+             coverage: layer_from(state.coverage.take_dirty()),
+             color: layer_from(state.color.take_dirty()),
+         }
+     }
+ 
++    // Consuming pending uploads during Render can invalidate a painted frame
++    // without changing glyph UVs. Do not overload cache_epoch: the runner's
++    // ordinary upload must not invalidate all label layouts every frame.
++    #[cfg(feature = "observe")]
++    pub(crate) fn paint_epoch(&self) -> (u64, u64) {
++        let state = self.lock();
++        (state.epoch, state.uploads_epoch)
++    }
++
+     fn lock(&self) -> MutexGuard<'_, State> {
+         self.state.lock().expect("text engine")
+     }
+@@ -508,6 +520,7 @@ impl TextEngine for ParleyText {
+             .fallbacks
+             .entry(name.to_string())
+             .or_insert_with(|| vec![name.to_string()]);
++        state.invalidate_lines();
+     }
+ 
+     fn begin_frame(&self) {
+@@ -534,7 +547,11 @@ impl TextEngine for ParleyText {
+         } else {
+             1.0
+         };
+-        self.lock().scale = scale;
++        let mut state = self.lock();
++        if state.scale != scale {
++            state.scale = scale;
++            state.invalidate_lines();
++        }
+     }
+ }
+ 
+diff --git a/docs/native-observation.md b/docs/native-observation.md
+index 4eb3ef2..c2baf56 100644
+--- a/docs/native-observation.md
++++ b/docs/native-observation.md
+@@ -22,7 +22,7 @@ python3 tools/observe_client.py /.../session.json --out /tmp/gallery-frame-1
+ python3 tools/observe_client.py /.../session.json --after 12 --out /tmp/gallery-frame-2
+ ```
+ 
+-The client creates `/tmp/gallery-frame-1.png` and `.json`, mode 0600, refusing overwrites. The JSON and PNG are from a single response/revision. `after` is a lower bound, not a request for historical data. Revision numbers are session-local strings (avoid loss of 64-bit precision in JSON consumers). A future/current revision that has not been exceeded is rejected with `stale_revision`; no cache or old image is returned. Startup/occluded/lost surfaces can return `surface_unavailable`; retry with a **new** request after the window becomes available. No export fallback is used. Native shutdown removes the descriptor/socket/directory. `--observe-exit-after-15s` requests normal timed exit for bounded synthetic validation only when `--observe` is also supplied.
++The client creates `/tmp/gallery-frame-1.png` and `.json`, mode 0600, refusing overwrites. Prefer a private output directory. Both files are staged completely before no-clobber hard-link publication; ordinary failure rolls back only published names whose inode still matches this invocation. Existing files (including symlinks) are not overwritten. This is **not a crash-atomic two-file transaction**: readers can see the first name before the second, a crash can leave a partial pair, and arbitrary same-UID path mutation between the rollback identity check and unlink is not isolated by POSIX. Consume a pair only after successful return, not by globbing files from failed calls. Cooperating concurrent `save_frame` calls cannot overwrite each other. The JSON and PNG are from a single response/revision. `after` is a lower bound, not a request for historical data. Revision numbers are session-local strings (avoid loss of 64-bit precision in JSON consumers). A future/current revision that has not been exceeded is rejected with `stale_revision`; no cache or old image is returned. Startup/occluded/lost surfaces can return `surface_unavailable`; retry with a **new** request after the window becomes available. No export fallback is used. Native shutdown removes the descriptor/socket/directory. `--observe-exit-after-15s` requests normal timed exit for bounded synthetic validation only when `--observe` is also supplied.
+ 
+ For an agent integration without intermediate files:
+ 
+@@ -60,7 +60,7 @@ app.world_mut().insert(private_entity, ObservationSensitive);
+ 
+ **v1's redaction strategy is whole-frame denial**, not drawing black rectangles over text: a sensitive frame exposes neither its PNG nor its semantic tree. Missing/Deny policy or any sensitive marker, even on a hidden entity or outside the accessibility tree, returns only a generic error envelope. Both the paint-boundary policy and the post-Render policy must pass. This avoids glyph/ancestor/compositing/shadow leaks from partial masking. When sensitivity cannot be guaranteed, leave Deny. Foreign `SurfaceSlot` worlds are denied entirely: this API does not claim to capture externally composed views.
+ 
+-Theme metadata is app-supplied and may use `ObservationTheme` for dynamic changes. It is not inferred from UI colors and cannot certify that a dishonest app accurately labels its theme. The synthetic launcher describes its actual `UiTheme` including flags. Device scale is the actual native physical-pixel/logical-point ratio, distinct from `--200` text scale. Render provenance identifies the active engine as `builtin_atlas`, `parley`, or `custom`, separately from the compiled `parley_feature` flag; custom engine internals/font configuration are not inferred or certified.
++Theme metadata is app-supplied and may use `ObservationTheme` for dynamic changes. It is not inferred from UI colors and cannot certify that a dishonest app accurately labels its theme. The synthetic launcher describes its actual `UiTheme` including flags. Device scale is the actual native physical-pixel/logical-point ratio, distinct from `--200` text scale. Render provenance identifies the **paint-time** engine as `builtin_atlas`, `parley`, or `custom`, separately from the compiled `parley_feature` flag; custom engine internals/font configuration are not inferred or certified.
+ 
+ `app.world().resource::<ObservationSession>().unwrap().shutdown()` explicitly revokes the listener and pending work; it is idempotent and leaves the resource permanently disabled. Dropping the World/session performs the same cleanup. Sessions do not propagate to other windows/apps. Enable before the native surface is initialized so COPY_SRC is negotiated. Late enable on an already-created unconfigured surface fails closed as unsupported. Normal apps, builds without observe, and builds with observe but no explicit session create **no listener**, no capture buffer, and no surface-copy usage.
+ 
+@@ -68,7 +68,7 @@ Theme metadata is app-supplied and may use `ObservationTheme` for dynamic change
+ 
+ 1. The normal runner publishes native metrics and executes the ordinary App update/layout/paint path once.
+ 2. `rndr_paint::frame_with_snapshot` takes immutable semantics at the **same paint boundary**, before application Render systems run. The default `frame` delegates to this same path with an empty snapshot; schedule order remains unchanged.
+-3. After Render, a request is denied if the session was revoked, its deadline expired, or semantic tree/supplemental descriptions/actions, scroll geometry, content policy, theme or device scale diverged. There is no second update/reconstruction for observation.
++3. After Render and **before atlas upload/submission**, a request is denied if the session was revoked, its deadline expired, or semantic tree/supplemental descriptions/actions, scroll geometry, content policy, theme or device scale diverged. The snapshot retains the paint-time engine Arc, kind and `cache_epoch()`; replacing it (even with the same runtime kind), removing it, or changing its version denies both channels with `post_paint_text_engine_mutation`. Invalidated requested frames are not uploaded/submitted; the caller can request a fresh redraw. Builtin font/face/fallback changes and Parley font/fallback/scale updates are versioned. Parley pending-upload consumption is separately versioned, so Render cannot silently drain uploads needed by the already-painted frame; ordinary runner uploads do not invalidate the normal label layout cache. There is no second update/reconstruction for observation. All engines must avoid concurrent mutation during paint/upload/submission. Custom engines/fonts must version invalidating interior mutations; arbitrary unversioned custom interior state is not certified or detectable. This correction does not claim to have reproduced Parley atlas corruption.
+ 4. In each native GPU draw path (quads and display-list scene), the renderer copies the **actual acquired surface texture after its ordinary draw commands** to a readback buffer in the same command encoder/submission. Same device, format, atlas uploads, images, clear color, alpha mode and pipeline as the live app. Readback maps with a bounded wait; BGRA is reordered to RGBA and padded rows removed. No camera remapping, alternate adapter, new Exporter, OCR, desktop APIs or manual screenshot is involved.
+ 5. After successful submission/readback and the runner's `queue.present` call, the response binds PNG bytes, pixel dimensions, scale, theme, provenance and semantic snapshot to one revision. A failed submission/readback returns neither image nor tree.
+ 
+@@ -87,12 +87,16 @@ Theme metadata is app-supplied and may use `ObservationTheme` for dynamic change
+ - Limits: 4096 pixels/side AND 4,000,000 pixels (also bounds padded readback allocation), 8192 semantic nodes, 1 MiB metadata, 4096-byte initial theme label. Read line: 500 ms total; app response: 2 s; GPU poll: 500 ms plus 50 ms callback receipt; socket write: 500 ms total. PNG bytes are bounded by the capped input image; client additionally caps compressed bytes. Deadlines/size/auth/semantic/sensitivity/resize errors fail closed. Revision numbers increment for native paint attempts, not OS-displayed frames. Requests are fresh redraws, not snapshots of arbitrary prior frames.
+ - Normal drop stops the worker (bounded pending-client waits) and removes only the exact files it created, nonrecursively. No unsafe code is introduced. As with other process resources, SIGKILL/crash cannot run Drop: a private stale descriptor/socket may remain with no living listener. Delete only that known session's files/directory, never scan/remove other sessions. No permission expansion is attempted.
+ 
++### Client descriptor and deadline boundary
++
++The client starts one absolute deadline before descriptor processing and reuses its remaining budget for connect/send/receive. It opens the final descriptor and directory components without following symlinks, pins the directory fd, checks its owner/mode 0700, and verifies the opened descriptor is a current-user-owned regular file mode 0600. Nonblocking open rejects FIFOs/nonregular inputs without waiting for a writer; the read is capped at 4097 bytes to reject more than 4096, with size/timestamp checks for detectable concurrent modification. Symlink substitution at descriptor open fails closed. A path replacement after open cannot redirect that fd. Like the protocol itself, this is not a sandbox against a hostile same-UID process. Regular-file filesystem syscalls are not made cancellable by Python `O_NONBLOCK`: pathological filesystem/kernel stalls may overrun wall-clock time; elapsed budget is checked before/after processing and before any socket operation, and no late descriptor result is admitted.
++
+ ## Reproduce validation
+ 
+ ```sh
+ export CARGO_BUILD_JOBS=2 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0
+ cargo test --offline -p rndr_core -p rndr_paint -p rndr_ui -p rndr_render --no-default-features --features rndr_render/observe
+-python3 -m unittest discover -s tools -p test_observe_client.py -v
++python3 -m unittest discover -s tools -p 'test_observe*.py' -v
+ cargo build --offline -p rndr --features observe --example ui_gallery
+ python3 tools/validate_observation_native.py target/debug/examples/ui_gallery /tmp/rndr-native-evidence
+ # Optional separate synthetic configuration:
+diff --git a/tools/observe_client.py b/tools/observe_client.py
+index 28434ed..4e35cb1 100644
+--- a/tools/observe_client.py
++++ b/tools/observe_client.py
+@@ -34,6 +34,48 @@ def _read_exact(stream, n, deadline):
+     return b"".join(chunks)
+ 
+ 
++def _remaining(deadline):
++    left = deadline - time.monotonic()
++    if left <= 0:
++        raise TimeoutError("observation deadline")
++    return left
++
++
++def _descriptor(path, deadline):
++    # Pin the directory and inspect the opened fd, not an earlier path stat.
++    # O_NONBLOCK prevents FIFO open from waiting; only regular files are read.
++    flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
++    _remaining(deadline)
++    with_fd = os.open(path.parent, flags | os.O_DIRECTORY)
++    try:
++        info = os.fstat(with_fd)
++        if info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700:
++            raise ValueError("descriptor directory must be owned by this user and mode 0700")
++        _remaining(deadline)
++        fd = os.open(path.name, flags, dir_fd=with_fd)
++        try:
++            info = os.fstat(fd)
++            if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
++                    or stat.S_IMODE(info.st_mode) != 0o600 or info.st_size > 4096):
++                raise ValueError("invalid descriptor file")
++            _remaining(deadline)
++            data = os.read(fd, 4097)
++            _remaining(deadline)
++            final = os.fstat(fd)
++            if (len(data) > 4096 or len(data) != info.st_size
++                    or final.st_size != info.st_size or final.st_mtime_ns != info.st_mtime_ns
++                    or final.st_ctime_ns != info.st_ctime_ns):
++                raise ValueError("descriptor changed or size limit")
++        finally:
++            os.close(fd)
++    finally:
++        os.close(with_fd)
++    desc = json.loads(data)
++    if not isinstance(desc, dict):
++        raise ValueError("invalid local session descriptor")
++    return desc
++
++
+ def observe(descriptor, after=0, timeout=4.0):
+     """Request a fresh app redraw after `after` (a session-local revision).
+ 
+@@ -42,24 +84,23 @@ def observe(descriptor, after=0, timeout=4.0):
+     """
+     if not 0 <= after < 2**64 or not 0 < timeout <= 10:
+         raise ValueError("invalid revision or timeout")
++    deadline = time.monotonic() + timeout
+     path = Path(descriptor)
+     directory = path.parent
+-    info = directory.stat()
+-    if info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700:
+-        raise ValueError("descriptor directory must be owned by this user and mode 0700")
+-    if path.is_symlink() or path.stat().st_size > 4096:
+-        raise ValueError("invalid descriptor")
+-    desc = json.loads(path.read_bytes())
++    desc = _descriptor(path, deadline)
+     cap = desc.get("capability", "")
+-    endpoint = Path(desc.get("socket", ""))
++    endpoint_value = desc.get("socket", "")
++    if not isinstance(cap, str) or not isinstance(endpoint_value, str):
++        raise ValueError("invalid local session descriptor")
++    endpoint = Path(endpoint_value)
+     if (desc.get("protocol") != "rndr-observe-1" or len(cap) != 64
+             or any(c not in "0123456789abcdef" for c in cap)
+             or endpoint.parent != directory or endpoint.name != "observe.sock"):
+         raise ValueError("invalid local session descriptor")
+-    deadline = time.monotonic() + timeout
+     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as stream:
+-        stream.settimeout(timeout)
++        stream.settimeout(_remaining(deadline))
+         stream.connect(str(endpoint))
++        stream.settimeout(_remaining(deadline))
+         stream.sendall(f"RNDR1 {cap} {after}\n".encode("ascii"))
+         length, = struct.unpack(">I", _read_exact(stream, 4, deadline))
+         if not 0 < length <= MAX_JSON:
+@@ -85,11 +126,50 @@ def observe(descriptor, after=0, timeout=4.0):
+ 
+ 
+ def save_frame(prefix, metadata, png):
+-    """Create two local files, refusing overwrite; does not persist capabilities."""
+-    for suffix, data in [(".png", png), (".json", json.dumps(metadata, indent=2).encode() + b"\n")]:
+-        fd = os.open(str(prefix) + suffix, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+-        with os.fdopen(fd, "wb") as file:
+-            file.write(data)
++    """No-clobber publication with best-effort rollback, NOT a two-file transaction.
++
++    A reader can see one file before the other; crashes may leave a partial pair.
++    Concurrent callers cannot overwrite each other. Rollback checks inode identity
++    and preserves observed replacements; arbitrary same-UID path mutation between
++    that check and unlink is not isolated by POSIX. Use a private output directory
++    and consume pairs only after successful return, not by globbing partial files.
++    """
++    import tempfile
++    prefix = Path(prefix)
++    data = [(".png", png), (".json", json.dumps(metadata, indent=2).encode() + b"\n")]
++    directory = os.open(prefix.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
++    created = []
++    held = []
++    try:
++        # Stage complete private files before publishing either final name.
++        with tempfile.TemporaryDirectory(prefix=".rndr-frame-", dir=prefix.parent) as staging:
++            staged = []
++            for suffix, content in data:
++                path = Path(staging) / ("frame" + suffix)
++                fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
++                with os.fdopen(fd, "wb") as file:
++                    file.write(content)
++                # Hold the inode through rollback, even after staging cleanup,
++                # so unlink/recreate cannot recycle it into an identity match.
++                fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
++                held.append(fd)
++                staged.append((path, prefix.name + suffix, os.fstat(fd)))
++            for path, name, identity in staged:
++                os.link(path, name, dst_dir_fd=directory, follow_symlinks=False)
++                created.append((name, identity.st_dev, identity.st_ino))
++    except BaseException:
++        for name, device, inode in reversed(created):
++            try:
++                info = os.stat(name, dir_fd=directory, follow_symlinks=False)
++                if (info.st_dev, info.st_ino) == (device, inode):
++                    os.unlink(name, dir_fd=directory)
++            except FileNotFoundError:
++                pass
++        raise
++    finally:
++        for fd in held:
++            os.close(fd)
++        os.close(directory)
+ 
+ 
+ def main():
+diff --git a/tools/test_observe_client.py b/tools/test_observe_client.py
+index a3b33d5..bcd7bc3 100644
+--- a/tools/test_observe_client.py
++++ b/tools/test_observe_client.py
+@@ -25,6 +25,7 @@ class ClientTests(unittest.TestCase):
+         self.addCleanup(listener.close)
+         descriptor = root / "session.json"
+         descriptor.write_text(json.dumps({"protocol": "rndr-observe-1", "socket": str(endpoint), "capability": "a" * 64}))
++        os.chmod(descriptor, 0o600)
+         errors = []
+ 
+         def send():
+@@ -106,6 +107,7 @@ class ClientTests(unittest.TestCase):
+             os.chmod(root, 0o700)
+             descriptor = root / "session.json"
+             descriptor.write_text(json.dumps({"protocol": "rndr-observe-1", "capability": "a" * 64, "socket": "/tmp/another-app/observe.sock"}))
++            os.chmod(descriptor, 0o600)
+             with self.assertRaisesRegex(ValueError, "descriptor"):
+                 observe(descriptor)
+ 
+diff --git a/tools/test_observe_correction.py b/tools/test_observe_correction.py
+new file mode 100644
+index 0000000..658d70f
+--- /dev/null
++++ b/tools/test_observe_correction.py
+@@ -0,0 +1,205 @@
++"""Correction regressions: local synthetic files/packets, not native evidence."""
++import json
++import os
++from pathlib import Path
++import tempfile
++import threading
++import time
++import unittest
++from unittest import mock
++import observe_client as client
++
++
++class CorrectionTests(unittest.TestCase):
++    def setUp(self):
++        self.temp = tempfile.TemporaryDirectory()
++        self.addCleanup(self.temp.cleanup)
++        self.root = Path(self.temp.name)
++        os.chmod(self.root, 0o700)
++        self.path = self.root / "session.json"
++        self.prefix = self.root / "frame"
++
++    def descriptor(self, data=b"{}"):
++        self.path.write_bytes(data)
++        os.chmod(self.path, 0o600)
++
++    def test_fifo_rejected_without_writer(self):
++        os.mkfifo(self.path, 0o600)
++        start = time.monotonic()
++        with self.assertRaises(ValueError):
++            client.observe(self.path, timeout=.05)
++        self.assertLess(time.monotonic() - start, .5)
++
++    def test_descriptor_size_type_permissions_json(self):
++        for data in [b"x" * 4097, b"", b"not json", b"[]", b'{"capability":1}',
++                     b'{"capability":"a", "socket":[]}']:
++            with self.subTest(data=data[:30]):
++                self.descriptor(data)
++                with self.assertRaises(ValueError):
++                    client.observe(self.path, timeout=.05)
++        self.descriptor()
++        os.chmod(self.path, 0o644)
++        with self.assertRaises(ValueError):
++            client.observe(self.path)
++        self.path.unlink()
++        self.path.mkdir()
++        with self.assertRaises(ValueError):
++            client.observe(self.path)
++
++    def test_symlink_and_open_race_do_not_follow_target(self):
++        target = self.root / "target"
++        target.write_text("secret")
++        self.path.symlink_to(target)
++        with self.assertRaises(OSError):
++            client.observe(self.path)
++        self.path.unlink()
++        self.descriptor()
++        original = os.open
++        def swap(path, flags, *args, **kwargs):
++            if path == self.path.name:
++                self.path.unlink()
++                self.path.symlink_to(target)
++            return original(path, flags, *args, **kwargs)
++        with mock.patch.object(client.os, "open", side_effect=swap):
++            with self.assertRaises(OSError):
++                client.observe(self.path)
++        self.assertEqual(target.read_text(), "secret")
++
++    def test_growth_bounded_and_deadline_includes_read(self):
++        self.descriptor()
++        original = os.read
++        def grow(fd, count):
++            self.assertEqual(count, 4097)
++            self.path.write_bytes(b"x" * 5000)
++            return original(fd, count)
++        with mock.patch.object(client.os, "read", side_effect=grow):
++            with self.assertRaises(ValueError):
++                client.observe(self.path)
++        self.descriptor()
++        def slow(fd, count):
++            time.sleep(.02)
++            return original(fd, count)
++        with mock.patch.object(client.os, "read", side_effect=slow):
++            with self.assertRaises(TimeoutError):
++                client.observe(self.path, timeout=.005)
++
++    def test_existing_either_output_preserved_without_partial_pair(self):
++        for suffix in [".png", ".json"]:
++            old = Path(str(self.prefix) + suffix)
++            old.write_bytes(b"old")
++            with self.assertRaises(FileExistsError):
++                client.save_frame(self.prefix, {}, b"new")
++            self.assertEqual(old.read_bytes(), b"old")
++            other = Path(str(self.prefix) + (".json" if suffix == ".png" else ".png"))
++            self.assertFalse(other.exists())
++            old.unlink()
++
++    def test_second_publication_failure_rolls_back_png(self):
++        original = os.link
++        def fail(src, dst, **kwargs):
++            if str(dst).endswith(".json"):
++                raise OSError("injected second publication failure")
++            return original(src, dst, **kwargs)
++        with mock.patch.object(client.os, "link", side_effect=fail):
++            with self.assertRaises(OSError):
++                client.save_frame(self.prefix, {}, b"new")
++        self.assertEqual(list(self.root.iterdir()), [])
++
++    def test_second_write_failure_cleans_staging_and_outputs(self):
++        original = os.fdopen
++        def fail(fd, *args, **kwargs):
++            wrapped = original(fd, *args, **kwargs)
++            if fail.calls:
++                class FailedWrite:
++                    def __enter__(self):
++                        return self
++                    def write(self, data):
++                        raise OSError("injected second write failure")
++                    def __exit__(self, *exc):
++                        wrapped.close()
++                return FailedWrite()
++            fail.calls += 1
++            return wrapped
++        fail.calls = 0
++        with mock.patch.object(client.os, "fdopen", side_effect=fail):
++            with self.assertRaises(OSError):
++                client.save_frame(self.prefix, {}, b"new")
++        self.assertEqual(list(self.root.iterdir()), [])
++
++    def test_collision_race_preserves_raced_json(self):
++        original = os.link
++        def race(src, dst, **kwargs):
++            if str(dst).endswith(".json"):
++                self.prefix.with_suffix(".json").write_bytes(b"raced")
++            return original(src, dst, **kwargs)
++        with mock.patch.object(client.os, "link", side_effect=race):
++            with self.assertRaises(FileExistsError):
++                client.save_frame(self.prefix, {}, b"new")
++        self.assertEqual(self.prefix.with_suffix(".json").read_bytes(), b"raced")
++        self.assertFalse(self.prefix.with_suffix(".png").exists())
++
++    def test_rollback_preserves_observed_replacement(self):
++        original = os.link
++        def race(src, dst, **kwargs):
++            if str(dst).endswith(".json"):
++                image = self.prefix.with_suffix(".png")
++                image.unlink()
++                image.write_bytes(b"replacement")
++                raise OSError("raced replacement")
++            return original(src, dst, **kwargs)
++        with mock.patch.object(client.os, "link", side_effect=race):
++            with self.assertRaises(OSError):
++                client.save_frame(self.prefix, {}, b"new")
++        self.assertEqual(self.prefix.with_suffix(".png").read_bytes(), b"replacement")
++
++    def test_output_symlink_collision_preserves_target_and_link(self):
++        target = self.root / "target"
++        target.write_bytes(b"untouched")
++        for suffix in [".png", ".json"]:
++            path = Path(str(self.prefix) + suffix)
++            path.symlink_to(target)
++            with self.assertRaises(FileExistsError):
++                client.save_frame(self.prefix, {}, b"new")
++            self.assertTrue(path.is_symlink())
++            self.assertEqual(target.read_bytes(), b"untouched")
++            other = Path(str(self.prefix) + (".json" if suffix == ".png" else ".png"))
++            self.assertFalse(other.exists())
++            path.unlink()
++
++    def test_descriptor_fifo_substitution_at_open_is_rejected(self):
++        self.descriptor()
++        original = os.open
++        def swap(path, flags, *args, **kwargs):
++            if path == self.path.name:
++                self.path.unlink()
++                os.mkfifo(self.path, 0o600)
++            return original(path, flags, *args, **kwargs)
++        start = time.monotonic()
++        with mock.patch.object(client.os, "open", side_effect=swap):
++            with self.assertRaises(ValueError):
++                client.observe(self.path, timeout=.05)
++        self.assertLess(time.monotonic() - start, .5)
++
++    def test_concurrent_publishers_return_one_consistent_pair(self):
++        barrier = threading.Barrier(2)
++        outcomes = []
++        def publish(value):
++            barrier.wait()
++            try:
++                client.save_frame(self.prefix, {"owner": value}, value.encode())
++                outcomes.append(value)
++            except FileExistsError:
++                pass
++        workers = [threading.Thread(target=publish, args=(v,)) for v in ["one", "two"]]
++        for worker in workers:
++            worker.start()
++        for worker in workers:
++            worker.join(2)
++            self.assertFalse(worker.is_alive())
++        self.assertEqual(len(outcomes), 1)
++        self.assertEqual(self.prefix.with_suffix(".png").read_text(), outcomes[0])
++        self.assertEqual(json.loads(self.prefix.with_suffix(".json").read_text())["owner"], outcomes[0])
++
++
++if __name__ == "__main__":
++    unittest.main()

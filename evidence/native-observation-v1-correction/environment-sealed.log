@@ -1,0 +1,12 @@
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+binary: rustc
+commit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea
+commit-date: 2026-08-18
+host: aarch64-apple-darwin
+release: 1.98.0
+LLVM version: 22.1.8
+cargo 1.98.0 (797e8a9bc 2026-08-05)
+57458a7a8b1b164ac4959ce1226b7a19c01c2e0b
+Filesystem      Size    Used   Avail Capacity iused ifree %iused  Mounted on
+/dev/disk3s5   228Gi   203Gi   708Mi   100%    1.8M  7.2M   20%   /System/Volumes/Data
+ce544034520d1a8cc6d9af538ffa0f3502d0438303f84240e55e8813f3e44e09  target/debug/examples/ui_gallery

@@ -1,0 +1,12 @@
+PRESERVED 111 payloads evidence/native-observation-v1/MANIFEST.sha256 9034ec3ec28db8aa007ccd6faef65ba5139368e9fb0a549e5a4cbe7d2360b30a
+PRESERVED 30 payloads evidence/native-observation-v1-review/MANIFEST.sha256 12e9fda99c12d431fca79acc745595800d647556ca80401d8dfc46337de89110
+PRESERVED prior native/review evidence, UI and design paths
+PNG CRC/unfilter/tree PASS evidence/native-observation-v1-correction/native-light/frame-1 1000 700 raw_sha256 7921fa8dc92de1336b06eca2e8c79773fd48a99efd5113c289a83121991427d3 matches old native pixels; NOT compositor/visual certification
+PNG CRC/unfilter/tree PASS evidence/native-observation-v1-correction/native-light/frame-2 1000 700 raw_sha256 7921fa8dc92de1336b06eca2e8c79773fd48a99efd5113c289a83121991427d3 matches old native pixels; NOT compositor/visual certification
+PNG CRC/unfilter/tree PASS evidence/native-observation-v1-correction/native-narrow/frame-1 320 700 raw_sha256 c704670129dac30925b25e51d15ed038b4e44696aa9b13d3762d0799ecd3b209 matches old native pixels; NOT compositor/visual certification
+PNG CRC/unfilter/tree PASS evidence/native-observation-v1-correction/native-narrow/frame-2 320 700 raw_sha256 c704670129dac30925b25e51d15ed038b4e44696aa9b13d3762d0799ecd3b209 matches old native pixels; NOT compositor/visual certification
+TESTS suites.log 576 passing; overlap between commands is not additive
+TESTS parley-default.log 69 passing; overlap between commands is not additive
+TESTS disabled.log 22 passing; overlap between commands is not additive
+PASS final20Python, exactobserver/freshpaint22, three expected baseline red tests
+PASS final source-input hashes

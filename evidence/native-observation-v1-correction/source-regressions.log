@@ -1,0 +1,87 @@
+CURRENT EXACT OBSERVER + PAINT SOURCE
+PAINT_COMMAND ['rustc', '--crate-name', 'rndr_paint_review', '--crate-type', 'rlib', '--edition=2021', '-C', 'debuginfo=0', 'crates/rndr_paint/src/lib.rs', '-L', 'dependency=target/debug/deps', '--extern', 'rndr_core=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/librndr_core-6203380e6fb25308.rlib', '-o', '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-correction/libfresh_paint.rlib', '--extern', 'lyon=target/debug/deps/liblyon-37185680a94e4faa.rlib']
+COMMAND ['rustc', '--test', '--edition=2021', '-C', 'debuginfo=0', '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-correction/harness.rs', '-L', 'dependency=target/debug/deps', '-o', '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-correction/probe-tests', '--extern', 'getrandom=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libgetrandom-ed602181e0977db8.rlib', '--extern', 'png=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpng-668455356ddd1a3d.rlib', '--extern', 'rndr_core=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/librndr_core-6203380e6fb25308.rlib', '--extern', 'rndr_paint=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/librndr_paint-e4ece9f62c286f49.rlib', '--extern', 'serde_json=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libserde_json-a3049842202ea6af.rlib', '--extern', 'rndr_render=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/librndr_render-98344a67c1d1af4d.rlib', '--extern', 'rndr_paint_review=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-correction/libfresh_paint.rlib']
+SOURCE crates/rndr_render/src/observe.rs 81adfbdcccc2b02e4f494675ddc5fce37b97733a72d7a882efc45154f6755766
+SOURCE crates/rndr_render/src/observe_tests.rs db27bc171553d369ced71372eee3c3808fc9be5296752e0cf5dd58dd116d2898
+SOURCE crates/rndr_paint/src/lib.rs 0d1190e9a043b2f3ed90700dad3e5b7ee0ef9bf0b7b0c91c2b6139df864180a0
+
+running 22 tests
+test observe::tests::correction_custom_epoch_change_in_render_is_denied ... ok
+test observe::tests::correction_builtin_mutations_in_render_are_denied ... ok
+test observe::tests::correction_render_engine_replacements_are_denied_even_same_kind ... ok
+test observe::tests::disabled_by_default_and_auth_is_exact ... ok
+test observe::tests::correction_unchanged_builtin_and_custom_keep_paint_provenance ... ok
+test observe::tests::invalid_and_oversized_viewports_are_denied_before_allocation ... ok
+test observe::tests::metadata_limit_denies_without_exposing_large_or_sensitive_strings ... ok
+test observe::tests::missing_or_deny_attestation_exposes_neither_pixels_nor_semantics ... ok
+test observe::tests::post_paint_sensitive_state_scale_theme_and_scroll_are_validated ... ok
+test observe::tests::foreign_surface_and_oversized_node_tree_are_denied ... ok
+test observe::tests::render_stall_expiry_is_denied_before_gpu_allocation ... ok
+test observe::tests::same_frame_resize_revision_and_image_dimensions_remain_bound ... ok
+test observe::tests::semantics_reuse_actions_states_focus_and_unflattened_scroll ... ok
+test observe::tests::sensitive_hidden_or_unsemantic_entity_denies_whole_frame ... ok
+test observe::tests::shutdown_revokes_pending_capture_and_never_restarts_implicitly ... ok
+test observe::tests::real_local_transport_permissions_bad_auth_then_coherent_packet_and_cleanup ... ok
+test observe::tests::snapshot_precedes_render_and_mutations_fail_closed ... ok
+test observe::tests::stale_future_and_expired_requests_never_return_cached_frame ... ok
+test observe::tests::supplemental_description_and_action_changes_cannot_escape_frame_binding ... ok
+test observe::tests::surface_loss_readback_failure_or_mismatched_image_exposes_nothing ... ok
+test observe::tests::truncated_oversized_and_slow_requests_are_bounded ... ok
+test observe::tests::slow_reader_and_shutdown_with_pending_request_have_absolute_deadlines ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.77s
+
+BASELINE OBSERVER (current core retained)
+PAINT_COMMAND ['rustc', '--crate-name', 'rndr_paint_review', '--crate-type', 'rlib', '--edition=2021', '-C', 'debuginfo=0', 'crates/rndr_paint/src/lib.rs', '-L', 'dependency=target/debug/deps', '--extern', 'rndr_core=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/librndr_core-6203380e6fb25308.rlib', '-o', '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-correction/libfresh_paint.rlib', '--extern', 'lyon=target/debug/deps/liblyon-37185680a94e4faa.rlib']
+COMMAND ['rustc', '--test', '--edition=2021', '-C', 'debuginfo=0', '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-correction/harness.rs', '-L', 'dependency=target/debug/deps', '-o', '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-correction/probe-tests', '--extern', 'getrandom=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libgetrandom-ed602181e0977db8.rlib', '--extern', 'png=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpng-668455356ddd1a3d.rlib', '--extern', 'rndr_core=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/librndr_core-6203380e6fb25308.rlib', '--extern', 'rndr_paint=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/librndr_paint-e4ece9f62c286f49.rlib', '--extern', 'serde_json=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libserde_json-a3049842202ea6af.rlib', '--extern', 'rndr_render=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/librndr_render-98344a67c1d1af4d.rlib', '--extern', 'rndr_paint_review=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-correction/libfresh_paint.rlib']
+SOURCE crates/rndr_render/src/observe.rs 81adfbdcccc2b02e4f494675ddc5fce37b97733a72d7a882efc45154f6755766
+SOURCE crates/rndr_render/src/observe_tests.rs db27bc171553d369ced71372eee3c3808fc9be5296752e0cf5dd58dd116d2898
+SOURCE crates/rndr_paint/src/lib.rs 0d1190e9a043b2f3ed90700dad3e5b7ee0ef9bf0b7b0c91c2b6139df864180a0
+
+running 1 test
+test observe::tests::correction_render_engine_replacements_are_denied_even_same_kind ... 
+thread 'observe::tests::correction_render_engine_replacements_are_denied_even_same_kind' (798299) panicked at /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-correction/tests.rs:101:9:
+assertion failed: validate(app.world(), capture.unwrap(), 1.).is_none()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    observe::tests::correction_render_engine_replacements_are_denied_even_same_kind
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 21 filtered out; finished in 0.00s
+
+EXPECTED RED correction_render_engine_replacements_are_denied_even_same_kind exit 101
+
+running 1 test
+test observe::tests::correction_custom_epoch_change_in_render_is_denied ... 
+thread 'observe::tests::correction_custom_epoch_change_in_render_is_denied' (798302) panicked at /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-correction/tests.rs:124:5:
+assertion failed: validate(app.world(), capture.unwrap(), 1.).is_none()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    observe::tests::correction_custom_epoch_change_in_render_is_denied
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 21 filtered out; finished in 0.00s
+
+EXPECTED RED correction_custom_epoch_change_in_render_is_denied exit 101
+
+running 1 test
+test observe::tests::correction_builtin_mutations_in_render_are_denied ... 
+thread 'observe::tests::correction_builtin_mutations_in_render_are_denied' (798305) panicked at /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-correction/tests.rs:144:9:
+assertion failed: validate(app.world(), capture.unwrap(), 1.).is_none()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    observe::tests::correction_builtin_mutations_in_render_are_denied
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 21 filtered out; finished in 0.00s
+
+EXPECTED RED correction_builtin_mutations_in_render_are_denied exit 101
