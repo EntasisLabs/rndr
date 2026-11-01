@@ -854,6 +854,10 @@ pub(crate) fn resolve_toolbars(world: &mut World) {
         let gaps = 8.0 * children.len().saturating_sub(1) as f32;
         let padding = world.get::<Layout>(root).unwrap().padding * 2.0;
         let share = (node.available - padding - gaps).max(0.0) / children.len().max(1) as f32;
+        // Preserve the existing conservative row budget (including its extra
+        // breathing room). Passing that budget alone is not sufficient: each
+        // Fill share must also fit the real label and nested insets below.
+        let mut row_budget = gaps;
         let mut known = true;
         for child in &children {
             if let Some(c) = world.get::<Control>(*child) {
@@ -884,6 +888,7 @@ pub(crate) fn resolve_toolbars(world: &mut World) {
                     .measure(&label.text, &style, &[], f32::INFINITY)
                     .width;
                 let required = (natural + insets).max(theme.target_min());
+                row_budget += (natural + 52.0).max(theme.target_min());
                 known &= required.is_finite() && required <= share;
             } else {
                 known = false;
@@ -891,7 +896,11 @@ pub(crate) fn resolve_toolbars(world: &mut World) {
         }
         if let Some(l) = world.get_mut::<Layout>(root) {
             l.width = Size::Px(node.available);
-            l.axis = if known { Axis::Row } else { Axis::Column };
+            l.axis = if known && row_budget <= node.available {
+                Axis::Row
+            } else {
+                Axis::Column
+            };
             l.gap = 8.0;
         }
     }
