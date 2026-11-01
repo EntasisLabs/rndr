@@ -1,6 +1,6 @@
-# rndr_ui — A0/A1 checkpoint
+# rndr_ui — foundations and contracted A2 components
 
-An additive, opt-in, GPU-free library above `rndr_core`. This checkpoint contains **passive A0 foundations and reusable A1 prerequisites only**. It is not the completed A0→A1→A2 undertaking. No operating A2 controls should be added until independent review accepts `docs/design/A1-api-decisions.md`.
+An additive, opt-in, GPU-free library above `rndr_core`. The owner accepted exact04642's **HEADLESS A0/A1 core-contract checkpoint** and lifted the A2 gate. Operating A2 controls and a synthetic-host gallery are now implemented for fresh independent review. This is **not** native certification, integration or whole-project acceptance. Historical checkpoints/proposals remain unchanged; see `docs/design/implementation-tracking.md` and `docs/design/A2-components.md` for the current boundary.
 
 ## Install and compose
 
@@ -16,7 +16,7 @@ card.adopt(app.world_mut(), paragraph).unwrap(); // explicit transfer of lifetim
 app.update();
 ```
 
-`UiTheme` is explicit Light/Dark plus Standard/High contrast, independent UI/reading text scales and Comfortable/Compact density. Density does not reduce type size. Colors are semantic sRGB roles; only documented tested foreground/background pairs have a contrast guarantee. Strong/subtle strokes are distinct. Focus width **and gap** are independent tokens, not selection/accent; A2 still owns the focus rendering/state components. Opaque surfaces first; no native materials.
+`UiTheme` is explicit Light/Dark plus Standard/High contrast, independent UI/reading text scales and Comfortable/Compact density. Density does not reduce type size. Colors are semantic sRGB roles; only documented tested foreground/background pairs have a contrast guarantee. Strong/subtle strokes are distinct. Focus width **and gap** are independent tokens, not selection/accent; A2 operating controls now render a distinct reserved focus ring/gap and independent selected marker; native focus/capture behavior remains unverified. Opaque surfaces first; no native materials.
 
 `reading_layout` / `reading_layout_at_measure` return ordinary core Layout values, with a nominal adjustable 55–75 character reading measure and narrow-width padding. Hosts supply available width on resize. These are passive recipes, not a second layout engine or window lifecycle. All text heights hug real wrapped content. Separator is decorative, not the sole boundary for a future interactive control.
 
@@ -42,12 +42,15 @@ From the isolated worktree, using the existing local cache:
 
 ```sh
 export CARGO_BUILD_JOBS=2 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0
-cargo run --offline -p rndr_ui --example passive_gallery -- evidence/ui-gallery
-cargo test --offline -p rndr_ui
+# NEW nonexistent output only: the A2 generator refuses an existing directory.
+cargo run --offline --locked -p rndr_ui --example operating_gallery -- /tmp/rndr-a2-gallery-CHOOSE-A-NEW-NAME
+cargo test --offline --locked -p rndr_ui
 ```
 
-The gallery creates passive surfaces, Card/Callout, separators, typography, long text and localization fixtures. It writes full-document **actual rndr paint display lists, glyph UVs, colors, clips and layout rectangles** for six representative states. These are not native screenshots, an alternative renderer, or world-only style assertions. Golden tests compare the real paint output. A 32-state test matrix checks every visible Hug parent's containment and complete ASCII glyph coverage; nested scroll tests inspect actual paint scissors. Glyph geometry is checked at 100%/200% text and fractional/2× device scales.
+The new operating gallery includes all four Button variants, a named IconButton, NavigationRow selection/metadata, real manual tab/panel relations, responsive toolbar, reading content, passive Card/Callout, visible labelled source action, nested scroll and the existing Buffer editor. Its host consumes only core FIFO64 typed requests and uses synthetic command/locator validation; it never adopts Blooey or opens real documents. Native launch instructions and the per-platform matrix are in `docs/design/A2-components.md`.
+
+The **preserved passive gallery** creates surfaces, Card/Callout, separators, typography, long text and localization fixtures. It writes full-document **actual rndr paint display lists, glyph UVs, colors, clips and layout rectangles** for six representative states. These are not native screenshots, an alternative renderer, or world-only style assertions. Golden tests compare the real paint output. A 32-state test matrix checks every visible Hug parent's containment and complete ASCII glyph coverage; nested scroll tests inspect actual paint scissors. Glyph geometry is checked at 100%/200% text and fractional/2× device scales.
 
 The first display-list audit exposed a real nested wrapped-Hug clipping defect despite simpler world tests passing. The reproduced core fix resolves width-constrained heights before ancestor clips. Baseline/fixed logs and separate core commits preserve that evidence rather than silently blessing incomplete gallery output.
 
-See `docs/design/A0-A1-checkpoint.md` for exact verification commands, checkpoint checklist and remaining A2/native matrix.
+See historical `docs/design/A0-A1-checkpoint.md` for its exact checkpoint evidence. Current control purpose/props/slots, keyboard/pointer/AT behavior, overflow, lifecycle/state/unsupported contracts and native launch matrix are in `docs/design/A2-components.md`. New A2 display-list evidence is separate from all six old passive goldens and historical reports. Native windows/screenshots/capture-blur/OS AT/preferences/fonts/shaping/physical DPI remain **UNVERIFIED**.
