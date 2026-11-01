@@ -131,7 +131,10 @@ fn main() {
         for node in access_tree(app.world()).nodes {
             meta.push_str(&format!("access {:?}\n", node));
         }
-        for e in app.world().entities_with::<Label>() {
+        // ECS component storage is hash-backed; evidence order is not input order.
+        let mut labels = app.world().entities_with::<Label>();
+        labels.sort_by_key(|e| (e.index(), e.generation()));
+        for e in labels {
             if interaction_visible(app.world(), e) {
                 meta.push_str(&format!(
                     "label {:?} {:?} {:?}\n",
