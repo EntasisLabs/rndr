@@ -225,8 +225,8 @@ pub use split::{apply_split, Drag, Splitter};
 pub use style::{Body, Color, Label, TextOverflow, CELL_H, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
 pub use tabs::{Hidden, Tab, TabPanel, Tabs};
 pub use text::{
-    ensure_text_engine, style_for, style_of, text_engine, BuiltinText, FontStyle, TextAlign,
-    TextEngine, TextStyle, FONT_WEIGHT_BOLD, FONT_WEIGHT_REGULAR,
+    ensure_text_engine, has_implicit_text_engine, style_for, style_of, text_engine, BuiltinText,
+    FontStyle, TextAlign, TextEngine, TextStyle, FONT_WEIGHT_BOLD, FONT_WEIGHT_REGULAR,
 };
 pub use theme::{theme_of, Radius, Theme};
 pub use tray::{

@@ -17,7 +17,7 @@ fn actual_glyph_geometry_scales_and_device_scale_keeps_logical_layout() {
             width: Size::Px(300.0),
             ..Layout::column()
         },));
-        text(app.world_mut(), parent, "MMMM", Typography::Reading).unwrap();
+        let label = text(app.world_mut(), parent, "MMMM", Typography::Reading).unwrap();
         let frame = rndr_paint::frame(&mut app);
         let glyph = frame
             .quads
@@ -25,14 +25,34 @@ fn actual_glyph_geometry_scales_and_device_scale_keeps_logical_layout() {
             .find(|q| q.uv != rndr_paint::solid_uv())
             .unwrap();
         geometry.push((glyph.rect.w, glyph.rect.h));
-        let before = rndr_paint::quads_snapshot(&frame);
+        let before = frame.quads.clone();
+        let logical = app.world().get::<TextLayout>(label).unwrap().clone();
         for device_scale in [1.25, 2.0] {
             app.world_mut().insert_resource(Viewport {
                 scale: device_scale,
                 ..Viewport::default()
             });
             let frame = rndr_paint::frame(&mut app);
-            assert_eq!(before, rndr_paint::quads_snapshot(&frame));
+            // Device-pixel snapping is visible at non-integral 14pt metrics;
+            // the former 16pt fixture happened to divide both tested grids.
+            // Shaping stays logical, while painted edges may round by <1pt.
+            assert_eq!(app.world().get::<TextLayout>(label).unwrap(), &logical);
+            assert_eq!(before.len(), frame.quads.len());
+            for (a, b) in before.iter().zip(&frame.quads) {
+                assert_eq!(a.uv, b.uv);
+                assert_eq!(a.color, b.color);
+                for (x, y) in [
+                    (a.rect.x, b.rect.x),
+                    (a.rect.y, b.rect.y),
+                    (a.rect.x + a.rect.w, b.rect.x + b.rect.w),
+                    (a.rect.y + a.rect.h, b.rect.y + b.rect.h),
+                ] {
+                    assert!(
+                        (x - y).abs() <= 1.0,
+                        "device snap moved logical edge: {x} -> {y}"
+                    );
+                }
+            }
         }
     }
     assert!((geometry[1].0 - geometry[0].0 * 2.0).abs() < 0.01);
@@ -203,7 +223,9 @@ fn deterministic_actual_display_list_matches_saved_headless_artifacts() {
         let frame = rndr_paint::frame(&mut app);
         let actual = rndr_paint::quads_snapshot(&frame);
         let expected = std::fs::read_to_string(format!(
-            "{}/../../evidence/ui-gallery/{name}.txt",
+            // The historical ui-gallery evidence is immutable. These active
+            // snapshots cover the desktop foundation tokens, not visual sign-off.
+            "{}/../../evidence/visual-polish/passive-gallery/{name}.txt",
             env!("CARGO_MANIFEST_DIR")
         ))
         .unwrap();

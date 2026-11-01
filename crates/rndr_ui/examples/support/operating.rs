@@ -90,6 +90,9 @@ pub fn create(width: f32, height: f32, theme: UiTheme, long: bool) -> App {
         )
         .unwrap(),
     );
+    for command in &commands {
+        w.insert(command.root, ToolbarContentWidth);
+    }
     let nav = [
         NavigationRow::mount(
             w,
@@ -140,6 +143,7 @@ pub fn create(width: f32, height: f32, theme: UiTheme, long: bool) -> App {
             ..Semantics::default()
         },
     ));
+    w.insert(editor, UiRecipe(UiStyle::editor()));
     set_parent(w, editor, selector.panels[0]);
     let reading = Surface::Content
         .mount(w, selector.panels[1], UiId(1))

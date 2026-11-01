@@ -1,5 +1,5 @@
 //! Operating controls on core's canonical input/intent path. See README contracts.
-use crate::{Token, Typography, UiError, UiId, UiRecipe, UiStyle, UiTheme};
+use crate::{Corner, Token, Typography, UiColor, UiError, UiId, UiRecipe, UiStyle, UiTheme};
 use rndr_core::{Button as CoreButton, *};
 
 /// Emphasis, not an additional action or checked state.
@@ -630,6 +630,14 @@ struct ToolbarNode {
     available: f32,
 }
 impl Component for ToolbarNode {}
+/// Opt a direct toolbar control into content-sized rows instead of equal slabs.
+/// The toolbar owns its Layout.width while attached: measured width in rows,
+/// Fill in stacked fallback. Remove this marker to resume caller-owned sizing.
+/// It never hides actions or changes focus/activation semantics.
+#[derive(Clone, Copy, Debug)]
+pub struct ToolbarContentWidth;
+impl Component for ToolbarContentWidth {}
+
 /// Responsive toolbar recipe, not a menu. Controls stay visible in order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ToolbarHandle {
@@ -694,11 +702,12 @@ impl ToolbarHandle {
         Ok(())
     }
 }
-fn background(world: &mut World, entity: Entity, token: Token) {
+fn background(world: &mut World, entity: Entity, color: impl Into<UiColor>, corner: Corner) {
     world.insert(
         entity,
         UiRecipe(UiStyle {
-            background: Some(token.into()),
+            background: Some(color.into()),
+            corner: Some(corner),
             ..UiStyle::default()
         }),
     );
@@ -770,9 +779,11 @@ pub(crate) fn resolve_controls(world: &mut World) {
                 }
                 _ => (
                     if pressed {
-                        Token::Selected
+                        Token::ControlPressed
                     } else if hover {
-                        Token::Navigation
+                        Token::ControlHover
+                    } else if c.props.variant == ButtonVariant::Quiet || c.kind == Kind::Tab {
+                        Token::Canvas
                     } else {
                         Token::Content
                     },
@@ -780,21 +791,36 @@ pub(crate) fn resolve_controls(world: &mut World) {
                 ),
             }
         };
+        // Reserve the two-color outer ring for focus. Transparent inactive
+        // rings let controls sit on any host surface without canvas seams.
+        let transparent = UiColor::Explicit(Color::rgba(0.0, 0.0, 0.0, 0.0));
         background(
             world,
             root,
             if focused == Some(root) {
-                Token::Focus
+                Token::Focus.into()
             } else {
-                Token::Canvas
+                transparent
             },
+            Corner::Group,
         );
-        background(world, c.gap, Token::Canvas);
+        background(
+            world,
+            c.gap,
+            if focused == Some(root) {
+                Token::Canvas.into()
+            } else {
+                transparent
+            },
+            Corner::Control,
+        );
         background(
             world,
             c.border,
-            if pressed || hover {
-                Token::Focus
+            if theme.contrast == crate::Contrast::High {
+                Token::StrongStroke
+            } else if c.props.variant == ButtonVariant::Primary || selected {
+                fill
             } else if c.props.variant == ButtonVariant::Destructive {
                 Token::DangerStroke
             } else if c.props.variant == ButtonVariant::Quiet && !hover && !selected {
@@ -802,8 +828,9 @@ pub(crate) fn resolve_controls(world: &mut World) {
             } else {
                 Token::StrongStroke
             },
+            Corner::Control,
         );
-        background(world, c.face, fill);
+        background(world, c.face, fill, Corner::Compact);
         let mut label = c.props.label.clone();
         if c.kind == Kind::Navigation {
             if let Some(v) = &c.meta.secondary {
@@ -858,6 +885,7 @@ pub(crate) fn resolve_toolbars(world: &mut World) {
         // Every tentative row must also pass actual content geometry below.
         let mut row_budget = gaps;
         let mut known = true;
+        let mut content_widths = Vec::new();
         for child in &children {
             if let Some(c) = world.get::<Control>(*child) {
                 if (ControlHandle {
@@ -879,19 +907,24 @@ pub(crate) fn resolve_toolbars(world: &mut World) {
                 let natural = engine
                     .measure(&label.text, &style, &[], f32::INFINITY)
                     .width;
-                row_budget += (natural + 52.0).max(theme.target_min());
+                let width = (natural + 52.0).max(theme.target_min());
+                row_budget += width;
+                if world.has::<ToolbarContentWidth>(*child) {
+                    content_widths.push((*child, width));
+                }
                 known &= natural.is_finite();
             } else {
                 known = false;
             }
         }
+        let row = known && row_budget <= node.available;
+        for (child, width) in content_widths {
+            world.get_mut::<Layout>(child).unwrap().width =
+                if row { Size::Px(width) } else { Size::Fill };
+        }
         if let Some(l) = world.get_mut::<Layout>(root) {
             l.width = Size::Px(node.available);
-            l.axis = if known && row_budget <= node.available {
-                Axis::Row
-            } else {
-                Axis::Column
-            };
+            l.axis = if row { Axis::Row } else { Axis::Column };
             l.gap = 8.0;
             if l.axis == Axis::Row && !children.is_empty() {
                 candidates.push((root, children));
@@ -945,6 +978,11 @@ pub(crate) fn resolve_toolbars(world: &mut World) {
             });
             if !fits {
                 world.get_mut::<Layout>(*root).unwrap().axis = Axis::Column;
+                for child in children {
+                    if world.has::<ToolbarContentWidth>(*child) {
+                        world.get_mut::<Layout>(*child).unwrap().width = Size::Fill;
+                    }
+                }
                 changed = true;
             }
         }

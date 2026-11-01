@@ -246,7 +246,11 @@ fn mount(
         node.title,
         UiRecipe(UiStyle {
             foreground: Some(foreground.into()),
-            typography: Some(Typography::Heading),
+            typography: Some(if matches!(kind, Kind::Callout(_)) {
+                Typography::Emphasis
+            } else {
+                Typography::Heading
+            }),
             ..UiStyle::default()
         }),
     );
@@ -403,7 +407,14 @@ pub fn text(
         },
         Label::new(value).overflow(TextOverflow::Wrap),
         UiRecipe(UiStyle {
-            foreground: Some(Token::Text.into()),
+            foreground: Some(
+                if role == Typography::Secondary {
+                    Token::Secondary
+                } else {
+                    Token::Text
+                }
+                .into(),
+            ),
             typography: Some(role),
             ..UiStyle::default()
         }),

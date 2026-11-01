@@ -41,7 +41,8 @@ pub struct UiTheme {
     pub text_scale: f32,
     /// Reading/code text scale, independent of UI chrome.
     pub reading_scale: f32,
-    /// Engine font request; bundled deterministic fallback is the public-domain 8×8 ASCII bitmap.
+    /// UI family request: bundled Inter with the desktop Parley engine.
+    /// Headless/no-Parley builds retain the deterministic bitmap fallback.
     pub ui_family: String,
     /// Reading font request; no native font verification is implied.
     pub reading_family: String,
@@ -56,8 +57,8 @@ impl Default for UiTheme {
             density: Density::Comfortable,
             text_scale: 1.0,
             reading_scale: 1.0,
-            ui_family: "bitmap".into(),
-            reading_family: "bitmap".into(),
+            ui_family: "Inter".into(),
+            reading_family: "Inter".into(),
             code_family: "monospace".into(),
         }
     }
@@ -95,6 +96,10 @@ pub enum Token {
     Hover,
     /// Action pressed fill.
     Pressed,
+    /// Neutral non-primary hover surface; pair with Text.
+    ControlHover,
+    /// Neutral non-primary pressed surface; pair with Text.
+    ControlPressed,
     /// Selected surface; pair with Text.
     Selected,
     /// Informational foreground.
@@ -137,7 +142,7 @@ impl UiTheme {
         if self.contrast == Contrast::High {
             return hex(match token {
                 Canvas | Navigation | Content | Raised | Overlay | Selected | InfoFill
-                | SuccessFill | WarningFill | DangerFill => {
+                | SuccessFill | WarningFill | DangerFill | ControlHover | ControlPressed => {
                     if dark {
                         0x000000
                     } else {
@@ -175,34 +180,38 @@ impl UiTheme {
             });
         }
         hex(match (dark, token) {
-            (false, Canvas) => 0xf5f5f7,
-            (true, Canvas) => 0x111216,
-            (false, Navigation) => 0xeceef2,
-            (true, Navigation) => 0x15161a,
+            (false, Canvas) => 0xf4f5f7,
+            (true, Canvas) => 0x17191d,
+            (false, Navigation) => 0xecedf0,
+            (true, Navigation) => 0x1c1e23,
             (false, Content | Raised | Overlay) => 0xffffff,
-            (true, Content) => 0x18191d,
-            (true, Raised) => 0x212329,
-            (true, Overlay) => 0x292b31,
-            (false, Text) => 0x1d1d1f,
-            (true, Text) => 0xf5f5f7,
+            (true, Content) => 0x202227,
+            (true, Raised) => 0x272a30,
+            (true, Overlay) => 0x2d3037,
+            (false, Text) => 0x24272e,
+            (true, Text) => 0xedeef2,
             (false, Secondary | Disabled) => 0x60616a,
             (true, Secondary | Disabled) => 0xb5b7c1,
             (false, OnAccent) => 0xffffff,
             (true, OnAccent) => 0x111216,
-            (false, SubtleStroke) => 0xd9dae0,
-            (true, SubtleStroke) => 0x454851,
-            (false, StrongStroke) => 0x73757c,
-            (true, StrongStroke) => 0x999ca6,
+            (false, SubtleStroke) => 0xdfe1e6,
+            (true, SubtleStroke) => 0x393d45,
+            (false, StrongStroke) => 0x858993,
+            (true, StrongStroke) => 0x8c929e,
             (false, Focus) => 0x005fcc,
             (true, Focus) => 0x91caff,
-            (false, Accent) => 0x0065c2,
-            (true, Accent) => 0x8abfff,
-            (false, Hover) => 0x0057a8,
-            (true, Hover) => 0xacd2ff,
-            (false, Pressed) => 0x004789,
-            (true, Pressed) => 0xcce2ff,
-            (false, Selected) => 0xdceaff,
-            (true, Selected) => 0x263950,
+            (false, Accent) => 0x345db3,
+            (true, Accent) => 0x9ebcff,
+            (false, Hover) => 0x294e9c,
+            (true, Hover) => 0xb4cbff,
+            (false, Pressed) => 0x203f82,
+            (true, Pressed) => 0xc8d9ff,
+            (false, ControlHover) => 0xe8ebf0,
+            (true, ControlHover) => 0x30343d,
+            (false, ControlPressed) => 0xdce0e8,
+            (true, ControlPressed) => 0x3b414c,
+            (false, Selected) => 0xe7edfa,
+            (true, Selected) => 0x303c55,
             (false, InfoText) => 0x004a87,
             (false, InfoFill) => 0xe9f3ff,
             (false, InfoStroke) => 0x0065a9,
@@ -259,10 +268,11 @@ impl UiTheme {
     pub fn typography(&self, role: Typography) -> TextStyle {
         let (size, line, weight, reading) = match role {
             Typography::Label => (14.0, 20.0, 400, false),
+            Typography::Emphasis => (13.0, 18.0, 600, false),
             Typography::Secondary => (12.0, 16.0, 400, false),
-            Typography::Reading => (16.0, 24.0, 400, true),
-            Typography::Heading => (20.0, 28.0, 600, true),
-            Typography::Title => (28.0, 36.0, 600, true),
+            Typography::Reading => (14.0, 22.0, 400, true),
+            Typography::Heading => (18.0, 26.0, 600, true),
+            Typography::Title => (26.0, 34.0, 600, true),
             Typography::Code => (13.0, 20.0, 400, true),
         };
         let scale = if reading {
@@ -333,6 +343,8 @@ impl Space {
 pub enum Typography {
     /// Chrome label.
     Label,
+    /// Compact semibold section/callout label.
+    Emphasis,
     /// Secondary label.
     Secondary,
     /// Document reading.

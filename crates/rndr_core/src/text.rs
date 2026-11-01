@@ -273,6 +273,9 @@ pub fn text_engine(world: &World) -> Arc<dyn TextEngine> {
 pub fn ensure_text_engine(world: &mut World) {
     if !world.has_resource::<Arc<dyn TextEngine>>() {
         let engine: Arc<dyn TextEngine> = Arc::new(BuiltinText::new());
+        // Keep identity, not just type: an explicitly installed BuiltinText
+        // must never be mistaken for the temporary headless default.
+        world.insert_resource(ImplicitTextEngine(Arc::downgrade(&engine)));
         world.insert_resource(engine);
     }
     let face = text_face(world);
@@ -282,6 +285,29 @@ pub fn ensure_text_engine(world: &mut World) {
     if let Some(builtin) = engine.as_any().downcast_ref::<BuiltinText>() {
         builtin.sync_face(face);
     }
+}
+
+// Weak identity does not retain the old atlas after an engine upgrade.
+struct ImplicitTextEngine(std::sync::Weak<dyn TextEngine>);
+
+/// Whether the installed engine is core's untouched temporary bitmap fallback.
+///
+/// Desktop hosts can upgrade this fallback even after an early `App::update`.
+/// Explicit engines (including BuiltinText), TextFace resources, and changed
+/// font/fallback configuration are application-owned and must be preserved.
+/// Call only during sequential startup, before paint/atlas upload.
+pub fn has_implicit_text_engine(world: &World) -> bool {
+    if world.has_resource::<crate::TextFace>() {
+        return false;
+    }
+    world
+        .resource::<ImplicitTextEngine>()
+        .zip(world.resource::<Arc<dyn TextEngine>>())
+        .is_some_and(|(implicit, current)| {
+            implicit.0.upgrade().is_some_and(|original| {
+                Arc::ptr_eq(&original, current) && current.cache_epoch() == 0
+            })
+        })
 }
 
 struct EngineState {

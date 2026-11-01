@@ -344,7 +344,7 @@ fn headless_gallery_emits_real_glyphs_fills_wrapped_layout_at_200_percent() {
                         );
                         assert_eq!(
                             app.world().get::<TextStyle>(body).unwrap().size,
-                            16.0 * scale
+                            theme.typography(Typography::Reading).size
                         );
                         assert!(before.h > 0.0);
                     }

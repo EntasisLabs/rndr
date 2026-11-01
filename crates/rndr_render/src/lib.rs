@@ -322,7 +322,9 @@ fn run_apps(apps: Vec<App>) {
 
 fn install_text_engine(app: &mut App) {
     #[cfg(feature = "parley")]
-    if !app.world().has_resource::<Arc<dyn TextEngine>>() {
+    if !app.world().has_resource::<Arc<dyn TextEngine>>()
+        || rndr_core::has_implicit_text_engine(app.world())
+    {
         let engine: Arc<dyn TextEngine> = Arc::new(ParleyText::new());
         app.world_mut().insert_resource(engine);
     }
@@ -1776,6 +1778,86 @@ mod tests {
     use super::idle_control_flow;
     use std::time::{Duration, Instant};
     use winit::event_loop::ControlFlow;
+
+    #[test]
+    fn native_startup_after_headless_update_selects_the_platform_default() {
+        let mut app = rndr_core::App::new();
+        let label = app
+            .world_mut()
+            .spawn((rndr_core::Label::new("Desktop text"),));
+        app.update();
+        assert!(rndr_core::has_implicit_text_engine(app.world()));
+        super::install_text_engine(&mut app);
+        let engine = rndr_core::text_engine(app.world());
+        #[cfg(feature = "parley")]
+        assert!(engine.as_any().is::<super::ParleyText>());
+        #[cfg(not(feature = "parley"))]
+        assert!(engine.as_any().is::<rndr_core::BuiltinText>());
+        app.update();
+        let expected = engine.layout(
+            "Desktop text",
+            &rndr_core::style_for(app.world(), label),
+            &[],
+            f32::INFINITY,
+        );
+        assert_eq!(
+            app.world().get::<rndr_core::TextLayout>(label).unwrap(),
+            &expected,
+            "stored glyph UVs, advances and caret stops must belong to the replacement engine"
+        );
+        assert!(!expected.glyphs.is_empty());
+        // The renderer must shape the next frame with the chosen engine, not
+        // reuse the old bitmap UVs; observation independently binds identity.
+        let before = std::sync::Arc::clone(&engine);
+        super::install_text_engine(&mut app);
+        assert!(std::sync::Arc::ptr_eq(
+            &before,
+            &rndr_core::text_engine(app.world())
+        ));
+    }
+
+    #[test]
+    fn native_startup_preserves_application_owned_text() {
+        use rndr_core::{App, BuiltinText, TextEngine, TextFace};
+        use std::sync::Arc;
+        // Explicit engines, even builtin ones, are intentional.
+        let mut app = App::new();
+        let explicit: Arc<dyn TextEngine> = Arc::new(BuiltinText::new());
+        app.world_mut().insert_resource(Arc::clone(&explicit));
+        app.update();
+        super::install_text_engine(&mut app);
+        assert!(Arc::ptr_eq(&explicit, &rndr_core::text_engine(app.world())));
+        // Interior configuration of the auto engine is also intentional.
+        let mut app = App::new();
+        app.update();
+        let configured = rndr_core::text_engine(app.world());
+        configured.set_fallbacks("custom", &["bitmap".into()]);
+        super::install_text_engine(&mut app);
+        assert!(Arc::ptr_eq(
+            &configured,
+            &rndr_core::text_engine(app.world())
+        ));
+        // TextFace remains the supported legacy customization seam.
+        let mut app = App::new();
+        app.world_mut()
+            .insert_resource(TextFace(Arc::new(rndr_core::BitmapFont)));
+        app.update();
+        let configured = rndr_core::text_engine(app.world());
+        super::install_text_engine(&mut app);
+        assert!(Arc::ptr_eq(
+            &configured,
+            &rndr_core::text_engine(app.world())
+        ));
+        #[cfg(feature = "parley")]
+        {
+            let mut app = App::new();
+            let custom: Arc<dyn TextEngine> = Arc::new(super::ParleyText::new());
+            app.world_mut().insert_resource(Arc::clone(&custom));
+            app.update();
+            super::install_text_engine(&mut app);
+            assert!(Arc::ptr_eq(&custom, &rndr_core::text_engine(app.world())));
+        }
+    }
 
     #[test]
     fn hotkey_argument_beats_the_environment() {

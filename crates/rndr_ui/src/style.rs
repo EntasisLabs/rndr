@@ -75,6 +75,20 @@ impl Component for UiStyle {}
 pub struct UiRecipe(pub UiStyle);
 impl Component for UiRecipe {}
 impl UiStyle {
+    /// Readable source/editor surface on core's existing Editor + Label.
+    /// Only styling is owned here: buffer, caret, input, selection and history
+    /// remain with core. Native IME/selection appearance still needs OS review.
+    pub fn editor() -> Self {
+        Self {
+            background: Some(Token::Content.into()),
+            foreground: Some(Token::Text.into()),
+            typography: Some(Typography::Code),
+            padding: Some(Space::X12),
+            corner: Some(Corner::Control),
+            ..Self::default()
+        }
+    }
+
     fn over(self, recipe: Self) -> Self {
         Self {
             background: self.background.or(recipe.background),

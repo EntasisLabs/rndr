@@ -168,10 +168,14 @@ fn style_override_detach_and_theme_changes_do_not_reconstruct_controls() {
     a.update();
     assert_eq!(
         *a.world().get::<Color>(h.root).unwrap(),
-        a.world()
-            .resource::<UiTheme>()
-            .unwrap()
-            .color(Token::Canvas)
+        // Inactive focus layers no longer stamp canvas onto raised surfaces.
+        Color::rgba(0.0, 0.0, 0.0, 0.0)
+    );
+    assert!(request_focus(a.world_mut(), h.root));
+    a.update();
+    assert_eq!(
+        *a.world().get::<Color>(h.root).unwrap(),
+        a.world().resource::<UiTheme>().unwrap().color(Token::Focus)
     );
     h.destroy(a.world_mut()).unwrap();
     assert_eq!(h.validate(a.world()), Err(UiError::Stale));
