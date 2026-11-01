@@ -512,7 +512,19 @@ fn suppress_hotkey_keys(world: &mut World, updates: &[ChordUpdate]) {
         .collect();
     armed.retain(|code, _| live.contains(code));
 
+    // Focus can change later in this Input pass. Owned hotkey control edges
+    // become ordered cancellation markers, never activations or legacy input.
     let modern_edges = crate::interaction::needs_activation_edges(world);
+    let cancel_edge = |kept: &mut Vec<KeyEvent>, event: KeyEvent| {
+        if modern_edges
+            && matches!(
+                event.logical,
+                crate::LogicalKey::Named(crate::NamedKey::Space | crate::NamedKey::Enter)
+            )
+        {
+            kept.push(event.synthetic());
+        }
+    };
     let Some(input) = world.resource_mut::<Input>() else {
         store_armed(world, armed);
         return;
@@ -536,6 +548,8 @@ fn suppress_hotkey_keys(world: &mut World, updates: &[ChordUpdate]) {
             }
             if control_edge {
                 kept.push(event);
+            } else {
+                cancel_edge(&mut kept, event);
             }
             continue;
         }
@@ -550,6 +564,8 @@ fn suppress_hotkey_keys(world: &mut World, updates: &[ChordUpdate]) {
             }
             if control_edge {
                 kept.push(event);
+            } else {
+                cancel_edge(&mut kept, event);
             }
             continue;
         }
@@ -557,6 +573,7 @@ fn suppress_hotkey_keys(world: &mut World, updates: &[ChordUpdate]) {
             .iter()
             .any(|stroke| stroke.matches(&event, platform))
         {
+            cancel_edge(&mut kept, event);
             continue;
         }
         if let Some(code) = armed_code(&event, &armed) {
@@ -567,6 +584,7 @@ fn suppress_hotkey_keys(world: &mut World, updates: &[ChordUpdate]) {
                 fired_now.contains(&code),
                 blocked.contains(&code),
             ) {
+                cancel_edge(&mut kept, event);
                 continue;
             }
             armed.remove(&code);

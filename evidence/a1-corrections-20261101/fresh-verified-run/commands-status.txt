@@ -1,0 +1,11 @@
+cargo test --offline --locked -p rndr_core exit=0
+cargo test --offline --locked -p rndr_paint exit=0
+cargo test --offline --locked -p rndr_ui exit=0
+cargo test --offline --locked -p rndr_render --no-default-features --features accesskit --lib a11y::tests exit=0
+cargo check --offline --locked -p rndr --all-targets --no-default-features exit=0
+cargo tree --offline --locked -p rndr_ui --edges normal exit=0
+cargo run --offline --locked -p rndr_ui --example passive_gallery -- target/ui-a1-corrections-gallery exit=0
+GPU-free normal dependency assertion exit=0
+diff -rq evidence/ui-gallery target/ui-a1-corrections-gallery exit=0
+preserved gallery/recovery hashes and archived evidence diff exit=0
+rustfmt --edition 2021 --check four changed source/test files exit=0

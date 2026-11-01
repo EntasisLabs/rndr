@@ -1,0 +1,8 @@
+    Finished `dev` profile [unoptimized] target(s) in 0.05s
+     Running `target/debug/examples/passive_gallery target/ui-a1-corrections-gallery`
+light-wide: quads=1147 glyphs=1135 labels=26
+dark-wide: quads=1147 glyphs=1135 labels=26
+light-narrow-200: quads=1147 glyphs=1135 labels=26
+dark-compact-200: quads=1147 glyphs=1135 labels=26
+high-light-200: quads=1147 glyphs=1135 labels=26
+high-dark-200: quads=1147 glyphs=1135 labels=26

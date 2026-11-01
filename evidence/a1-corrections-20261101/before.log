@@ -1,0 +1,58 @@
+   Compiling rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core)
+    Finished `test` profile [unoptimized] target(s) in 0.71s
+     Running tests/a1_review_corrections.rs (target/debug/deps/a1_review_corrections-f539f4d985637d64)
+
+running 5 tests
+test traversal_then_legacy_enter ... FAILED
+test repeated_enter_and_at_are_distinct_before_drain ... FAILED
+test traversal_space_pair_then_unmatched_release ... FAILED
+test same_target_capacity_is_64_requests_not_targets ... FAILED
+test modified_release_resolves_arm_without_later_activation ... FAILED
+
+failures:
+
+---- traversal_then_legacy_enter stdout ----
+
+thread 'traversal_then_legacy_enter' (361007) panicked at crates/rndr_core/tests/a1_review_corrections.rs:37:5:
+assertion `left == right` failed
+  left: None
+ right: Some("go")
+
+---- repeated_enter_and_at_are_distinct_before_drain stdout ----
+
+thread 'repeated_enter_and_at_are_distinct_before_drain' (361004) panicked at crates/rndr_core/tests/a1_review_corrections.rs:56:21:
+assertion `left == right` failed
+  left: Activation(AlreadyPending)
+ right: Activation(Accepted)
+
+---- traversal_space_pair_then_unmatched_release stdout ----
+
+thread 'traversal_space_pair_then_unmatched_release' (361006) panicked at crates/rndr_core/tests/a1_review_corrections.rs:25:5:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+---- same_target_capacity_is_64_requests_not_targets stdout ----
+
+thread 'same_target_capacity_is_64_requests_not_targets' (361005) panicked at crates/rndr_core/tests/a1_review_corrections.rs:64:22:
+assertion `left == right` failed
+  left: AlreadyPending
+ right: Accepted
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- modified_release_resolves_arm_without_later_activation stdout ----
+
+thread 'modified_release_resolves_arm_without_later_activation' (361003) panicked at crates/rndr_core/tests/a1_review_corrections.rs:49:5:
+assertion failed: take_action_intents(app.world_mut()).is_empty()
+
+
+failures:
+    modified_release_resolves_arm_without_later_activation
+    repeated_enter_and_at_are_distinct_before_drain
+    same_target_capacity_is_64_requests_not_targets
+    traversal_space_pair_then_unmatched_release
+    traversal_then_legacy_enter
+
+test result: FAILED. 0 passed; 5 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p rndr_core --test a1_review_corrections`

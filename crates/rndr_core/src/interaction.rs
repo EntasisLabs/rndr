@@ -208,18 +208,16 @@ pub struct ActionIntent {
     pub name: String,
 }
 
-/// Explicit bounded pending-intent policy: one outstanding intent per target.
+/// Bounded FIFO of distinct requests, including repeated requests for one target.
 /// Hosts drain on Update. No eviction, overwrite, or implicit Fired fanout.
 #[derive(Default, Debug)]
 pub struct ActionIntents {
     pending: VecDeque<ActionIntent>,
     /// Number of refused attempts due to capacity (observable, never silent).
     pub overflow: u64,
-    /// Number of overlapping requests coalesced while that target is pending.
-    pub coalesced: u64,
 }
 impl ActionIntents {
-    /// Maximum pending targets, not a claim of an unbounded/lossless queue.
+    /// Maximum pending requests. Full queues reject explicitly without eviction.
     pub const CAPACITY: usize = 64;
     /// Pending intents in receive order.
     pub fn pending(&self) -> &VecDeque<ActionIntent> {
@@ -232,8 +230,6 @@ impl ActionIntents {
 pub enum ActivationResult {
     /// Accepted once.
     Accepted,
-    /// Same target already outstanding; explicit supported-cardinality limit.
-    AlreadyPending,
     /// Capacity exhausted; no mutation or eviction occurred.
     Overflow,
     /// Stale, hidden, disabled, readonly, unsupported, or not installed.
@@ -268,10 +264,6 @@ pub fn try_activate(world: &mut World, entity: Entity) -> ActivationResult {
             let Some(queue) = world.resource_mut::<ActionIntents>() else {
                 return ActivationResult::Rejected;
             };
-            if queue.pending.iter().any(|i| i.entity == entity) {
-                queue.coalesced += 1;
-                return ActivationResult::AlreadyPending;
-            }
             if queue.pending.len() == ActionIntents::CAPACITY {
                 queue.overflow += 1;
                 return ActivationResult::Overflow;
@@ -459,6 +451,13 @@ pub(crate) fn apply_generic_input(world: &mut World) {
     if blur || escape {
         cancel_activation(world);
         if blur {
+            // The hotkey filter may have preserved private control edges.
+            // No keyboard input may escape to legacy widgets on blur.
+            if let Some(input) = world.resource_mut::<Input>() {
+                input.keys.clear();
+                input.key = None;
+                input.chars.clear();
+            }
             return;
         }
     }
@@ -550,8 +549,24 @@ pub(crate) fn apply_generic_input(world: &mut World) {
     for event in keys {
         let focus = world.resource::<Focus>().and_then(|f| f.entity);
         let editor_owns = focus.is_some_and(|e| world.has::<CapturesKeys>(e));
+        let plain = !event.modifiers.command() && !event.modifiers.alt;
+        // Resolve every Space up, even if modifiers/ownership changed. Never
+        // leave an unmatched arm for a later unrelated release to commit.
+        let space_up = event.logical == LogicalKey::Named(NamedKey::Space) && event.released;
+        let released_arm = if space_up {
+            world
+                .resource_mut::<InteractionState>()
+                .unwrap()
+                .space
+                .take()
+        } else {
+            None
+        };
+        if event.synthetic || !plain {
+            cancel_activation(world);
+        }
         let mut consumed = false;
-        if !editor_owns && !event.modifiers.command() && !event.modifiers.alt {
+        if !editor_owns && plain {
             if event.logical == LogicalKey::Named(NamedKey::Tab) && !event.released {
                 let order = focus_order(world);
                 if !order.is_empty() {
@@ -581,12 +596,7 @@ pub(crate) fn apply_generic_input(world: &mut World) {
                         if event.synthetic {
                             cancel_activation(world);
                         } else if event.released {
-                            let armed = world
-                                .resource_mut::<InteractionState>()
-                                .unwrap()
-                                .space
-                                .take();
-                            if armed == Some(entity) {
+                            if !event.repeat && released_arm == Some(entity) {
                                 try_activate(world, entity);
                             }
                         } else if !event.repeat && access_details(world, entity).activate {
@@ -598,16 +608,25 @@ pub(crate) fn apply_generic_input(world: &mut World) {
                 }
             }
         }
-        if consumed {
-            if let Some(input) = world.resource_mut::<Input>() {
-                input.key = None;
-            }
-        } else if !input.keys.is_empty() {
+        // Edges retained before focus traversal are private to this policy:
+        // legacy consumers must never receive key-up or synthetic events.
+        if !consumed && !input.keys.is_empty() && !event.released && !event.synthetic {
             retained.push(event);
+        } else if consumed && input.keys.is_empty() {
+            world.resource_mut::<Input>().unwrap().key = None;
         }
     }
     if !input.keys.is_empty() {
-        world.resource_mut::<Input>().unwrap().keys = retained;
+        let platform = crate::keys::platform_of(world);
+        let input = world.resource_mut::<Input>().unwrap();
+        input.key = retained
+            .first()
+            .and_then(|e| crate::keys::legacy_key(e, platform));
+        input.chars = retained
+            .iter()
+            .filter_map(KeyEvent::insertable_text)
+            .collect();
+        input.keys = retained;
     }
     let focus = world.resource::<Focus>().and_then(|f| f.entity);
     world.resource_mut::<InteractionState>().unwrap().focus = focus;
@@ -709,12 +728,9 @@ pub fn move_tab_focus(world: &mut World, group: Entity, movement: TabFocusMove) 
     request_focus(world, tabs[index])
 }
 
-// Only the opt-in policy needs key-up and synthetic cancellation edges. This
-// does not change what legacy editors/widgets receive from the hotkey guard.
+// Focus can change by pointer or Tab later in this Input pass. Preserve
+// unregistered control edges in order until generic dispatch knows their owner;
+// it strips private edges before handing the remaining queue to legacy code.
 pub(crate) fn needs_activation_edges(world: &World) -> bool {
     world.has_resource::<InteractionState>()
-        && world
-            .resource::<Focus>()
-            .and_then(|f| f.entity)
-            .is_some_and(|e| world.has::<ReleaseActivation>(e))
 }

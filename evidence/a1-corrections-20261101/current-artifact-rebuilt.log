@@ -1,0 +1,43 @@
+       Fresh unicase v2.10.0
+       Fresh memchr v2.8.3
+       Fresh bitflags v2.13.2
+       Fresh pulldown-cmark v0.13.5
+       Fresh unicode-segmentation v1.13.3
+   Compiling rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core)
+     Running `/Users/theelevators/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc --crate-name rndr_core --edition=2021 crates/rndr_core/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no --cfg 'feature="default"' --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values("default", "highlight", "pool", "tokio"))' -C metadata=571c4d9a0df92144 -C extra-filename=-99fc9f1d1448f44b --out-dir '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' -C strip=debuginfo -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rmeta' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rmeta'`
+     Running `/Users/theelevators/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc --crate-name a1_interaction --edition=2021 crates/rndr_core/tests/a1_interaction.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no --test --cfg 'feature="default"' --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values("default", "highlight", "pool", "tokio"))' -C metadata=26852973fdc4cfd7 -C extra-filename=-64843e33abedd6da --out-dir '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' -C strip=debuginfo -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'rndr_core=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/librndr_core-99fc9f1d1448f44b.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib'`
+     Running `/Users/theelevators/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc --crate-name a1_review_corrections --edition=2021 crates/rndr_core/tests/a1_review_corrections.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no --test --cfg 'feature="default"' --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values("default", "highlight", "pool", "tokio"))' -C metadata=80814aa5645156bd -C extra-filename=-f539f4d985637d64 --out-dir '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' -C strip=debuginfo -L 'dependency=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps' --extern 'pulldown_cmark=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libpulldown_cmark-effc4bf9c02010fd.rlib' --extern 'rndr_core=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/librndr_core-99fc9f1d1448f44b.rlib' --extern 'unicode_segmentation=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/libunicode_segmentation-1422367974f5ae97.rlib'`
+    Finished `test` profile [unoptimized] target(s) in 1.52s
+     Running `/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/a1_interaction-64843e33abedd6da`
+
+running 7 tests
+test allowed_matrix_names_readonly_hidden_unsupported_and_safe_setvalue ... ok
+test generic_tab_focus_no_shell_side_effects_editor_keeps_keys ... ok
+test mixed_press_and_release_and_at_share_canonical_route ... ok
+test real_panel_relations_manual_focus_and_inactive_exclusion ... ok
+test cardinality_order_overflow_revalidation_and_generation ... ok
+test space_release_enter_down_repeat_synthetic_and_focus_loss ... ok
+test pointer_cancel_outside_escape_blur_capture_disable_and_destroy ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running `/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/a1_review_corrections-f539f4d985637d64`
+
+running 14 tests
+test legacy_to_modern_traversal_preserves_space_pair ... ok
+test repeated_enter_and_at_are_distinct_before_drain ... ok
+test subsequent_unmatched_release_cannot_commit_stale_traversal_arm ... ok
+test pointer_focus_then_keyboard_and_pointer_release_are_distinct ... ok
+test rejected_requests_and_drain_validation_preserve_survivor_order ... ok
+test modified_release_resolves_arm_without_later_activation ... ok
+test modern_edges_do_not_leak_to_legacy_and_repeat_is_not_new_activation ... ok
+test same_target_capacity_is_64_requests_not_targets ... ok
+test registered_hotkey_cancels_arm_in_order_and_never_leaks_to_legacy ... ok
+test traversal_then_legacy_enter ... ok
+test traversal_space_pair_then_unmatched_release ... ok
+test traversal_into_field_keeps_remaining_edit_order_and_no_dual_shim ... ok
+test traversal_into_editor_keeps_remaining_edit_order ... ok
+test space_cancel_focus_blur_synthetic_escape_and_modifiers ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

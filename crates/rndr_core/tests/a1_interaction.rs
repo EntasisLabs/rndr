@@ -68,11 +68,9 @@ fn mixed_press_and_release_and_at_share_canonical_route() {
     assert!(app.world().resource::<Fired>().unwrap().name.is_none());
     point(&mut app, modern, false, true);
     apply_access(app.world_mut(), AccessCommand::Activate(modern));
-    assert_eq!(
-        app.world().resource::<ActionIntents>().unwrap().coalesced,
-        1
-    );
-    assert_eq!(take_action_intents(app.world_mut()).len(), 1);
+    // Pointer release and an independent AT request have no correlation ID.
+    // The old per-target coalescing silently lost one intentional request.
+    assert_eq!(take_action_intents(app.world_mut()).len(), 2);
     point(&mut app, legacy, true, false);
     assert_eq!(
         app.world().resource::<Fired>().unwrap().name.as_deref(),
@@ -169,13 +167,13 @@ fn cardinality_order_overflow_revalidation_and_generation() {
     }
     assert_eq!(
         try_activate(app.world_mut(), modern),
-        ActivationResult::AlreadyPending
+        ActivationResult::Overflow
     );
     assert_eq!(
         try_activate(app.world_mut(), targets[64]),
         ActivationResult::Overflow
     );
-    assert_eq!(app.world().resource::<ActionIntents>().unwrap().overflow, 1);
+    assert_eq!(app.world().resource::<ActionIntents>().unwrap().overflow, 2);
     app.world_mut().insert(targets[1], Hidden);
     app.world_mut()
         .get_mut::<Button>(targets[2])

@@ -19,8 +19,8 @@ The adjacent canonical Specification and Review Guide remain byte-for-byte uncha
 - [x] Necessary core findings reproduced before fixing. Baseline folded-label/unsafe SetValue/tab-action failures retained; later lifecycle, release-edge and real wrapped-layout failures retained separately.
 - [x] Generic focus without Shell/file/quit behavior; core Focus/Input/World remain authoritative; repeat/synthetic/modifier handling and editor CapturesKeys ownership preserved.
 - [x] Per-control `ReleaseActivation` opt-in; unchanged unmarked legacy press/Enter/Fired path in mixed windows; modern pointer/keyboard/AT use canonical `try_activate` and do not fan out to Fired.
-- [x] Explicit cancellation and ownership: matching primary pointer, release-outside, Escape, blur, focus loss, disable/readonly/hidden, scroll capture, explicit capture loss, destroy/stale generation. Rich release edges survive only for opted-in controls outside registered hotkey ownership.
-- [x] **Review decision recorded:** bounded FIFO64, one pending intent per target until host drain, observable Accepted/AlreadyPending/Overflow/Rejected and counters, no eviction/overwrite/dual Fired delivery. This is an explicit limited-cardinality contract, **not an unrestricted lossless stream**. Independent reviewer must accept or revise it before A2.
+- [x] Explicit cancellation and ownership: matching primary pointer, release-outside, Escape, blur, focus loss, disable/readonly/hidden, scroll capture, explicit capture loss, destroy/stale generation. Ordered control edges survive pre-frame focus filtering until dispatch; registered-hotkey-owned edges only cancel, and private release/synthetic edges are stripped before legacy delivery.
+- [x] **Owner-directed correction after independent REVISE:** bounded FIFO64 **requests**, preserving distinct same-target keyboard/pointer/AT activations before drain. Observable Accepted/Overflow/Rejected, explicit overflow counter, no eviction/coalescing/modern-to-Fired fanout. New unaccepted A1 AlreadyPending/coalesced spellings removed; legacy public structs unchanged. See current `A1-api-decisions.md`; independent exact-candidate re-review remains required before A2.
 - [x] Explicit names/descriptions/readonly and shared allowed-action matrix; folded visible button labels; placeholder/value not used as persistent names. Core and actual AccessKit role/action/relation tests.
 - [x] AT SetValue explicitly returns UnsupportedSetValue and is not advertised. No raw Buffer/Label mutation; editor/history/IME/source-edit regression suite retained. Opted-in readonly user input is guarded; programmatic validated source-edit authority is unchanged.
 - [x] Real semantic tablist/tab/panel prerequisite API with checked links, focus distinct from selection, manual focus-move API, activation-driven panel selection, inactive exclusion, native controls/labelled_by and TabPanel role, stale/orphan handling. This is not the A2 mode-selector widget or its roving/orientation/overflow UI.
@@ -57,7 +57,7 @@ Failure logs named `*-reproduced.log` / `ui-a1-baseline.log` intentionally recor
 
 Historical first-run disk preflight had 5.2 GiB available. That run ended with a 912 MiB bounded cache and 4.4 GiB free; these are not the recovery disk readings. No cleanup outside the worktree, network fetch, publish/push/deploy, spending, secrets or integration was used. Optional feature sets/native target cross-builds beyond the commands above were not certified.
 
-## Recovery verification — current review candidate
+## Recovery verification — historical pre-correction review candidate
 
 Recovery began at preserved HEAD `eb2a6f0b7630bf27fd2f32e585aa2125e28c21f1`. The modified tracking record and four untracked checkpoint/evidence files were inventoried and retained, then reconciled here. Supported native admission succeeded with exclusive execution; no extra old-worker raw observation prerequisite was imposed, and no credentials/raw HTTP/re-interruption/fencing bypass was used.
 
@@ -65,17 +65,18 @@ Additional separately reviewable source fixes:
 - `fc6f622eec4411b103a33a45168103c02b2dde7e` — semantic tab relations revalidated after host reparent/component removal; stale advertising/activation/panel exposure reproduced before fixing.
 - `d1610de48e4f249ad83788161d25368bdd935534` — malformed owned title Label rejected before any Card/Callout recipe mutation; failure reproduced before fixing.
 
-The final documentation/evidence commit contains no further source changes. Exact candidate is that final commit; the tested source tree is `d1610de48e4f249ad83788161d25368bdd935534`. All prior five source commits remain ancestors, listed in `evidence/ui-code-commits.txt`.
+That recovery's final documentation/evidence commit (`f7aa9703b7258e5ed546fc8436b3676f2705d9b0`) contained no further source changes; its tested source tree was `d1610de48e4f249ad83788161d25368bdd935534`. It subsequently received independent REVISE. All prior five source commits remain ancestors, listed in `evidence/ui-code-commits.txt`. New bounded corrections/evidence are separate; this historical run does not certify them.
 
 Run from the worktree root:
 
 ```sh
-sh evidence/recovery/run.sh
+# Historical reproduction only: run.sh overwrites archived logs.
+# Do not run as-is when preserving evidence; use the new correction run script instead.
 shasum -a 256 -c evidence/recovery/logs-sha256.txt
 shasum -a 256 -c evidence/ui-gallery-sha256.txt
 ```
 
-The script uses offline **locked** resolution, jobs=2, debug=0, incremental=false and the existing local target cache. It exits on any failed cargo command or gallery mismatch. Saved log hashes identify this run; rerunning changes timing/build-status text and therefore may change log hashes. Verify archived hashes before overwriting logs when exact evidence custody matters.
+That historical script used offline **locked** resolution, jobs=2, debug=0, incremental=false and the existing local target cache. Saved hashes identify its archived run, not the correction candidate. The new correction script requires a fresh output directory; preserved logs must not be overwritten.
 
 | Fresh recovery receipt | Result at corrected source candidate |
 |---|---|
@@ -91,10 +92,23 @@ The script uses offline **locked** resolution, jobs=2, debug=0, incremental=fals
 
 Recovery disk preflight and final reading: **3.3 GiB free**; reused target grew from 912 to **920 MiB**. No broad cleanup or cache deletion. Regenerated gallery copies are under ignored `target/ui-recovery-gallery`, not an extra committed duplicate. Approved design digests and all six preserved golden hashes still match. No native execution/screenshots were performed.
 
+## Bounded A1 correction verification — current review candidate
+
+Starting SHA `f7aa9703b7258e5ed546fc8436b3676f2705d9b0` received independent REVISE; owner accepted the REVIEW deliverable only. This correction preserves A0 and recovery fixes, and does not start A2 or perform acceptance/integration/push.
+
+- [x] Same-frame no-focus Tab→Space down/up focuses and activates once; subsequent unmatched Space up cannot commit a stale arm. Legacy→modern and pointer-induced focus transitions, modifiers, hotkey cancellation, focus/capture loss, blur/cancel and editor ownership covered.
+- [x] Same-frame Tab→legacy Enter preserves Fired; unconsumed rich event order and first-press shim/text are reconstructed without processing both representations. Field/editor navigation/editing guardrails retained.
+- [x] Distinct Enter presses, AT requests and mixed-source requests preserve multiplicity before drain. Same-target capacity64/explicit overflow, FIFO survivor order and disabled/readonly/stale/hidden/action-name drain validation covered. No inferred deduplication or modern→legacy fanout.
+- [x] Initial five regressions failed original production source before changes. Final identical 14-test fixture: **11 fail / 3 guardrails pass** on rebuilt exact original source, **14 pass** corrected. Full current run: **402 core, 62 paint, 14 UI, 1 AccessKit adapter passed**, zero failed/ignored.
+- [x] Offline locked umbrella check, GPU-free normal dependency assertion, six byte-identical passive galleries, preserved original gallery/recovery hashes and targeted rustfmt passed. Disk remains **3.3 GiB** free, existing target **964 MiB**. Only a colliding core-library fingerprint was quarantined/preserved during counterfactual artifact validation; no broad cleanup or second build target.
+- [ ] Owner-led independent re-review/acceptance of the exact correction candidate; A2 remains blocked on that gate.
+
+Exact commands, statuses, before/after source identities, cache-collision caveats, new evidence hashes and both full inventories are in `evidence/a1-corrections-20261101/README.md`. Authoritative full logs are `fresh-verified-run/` there, not the earlier invalid cache-selection attempts. `A1-api-decisions.md` defines the revised contract and limits. Old archives are unchanged. Native windows/screenshots/OS AT/preferences/fonts/shaping/physical DPI remain **UNVERIFIED**.
+
 ### Owner exact-candidate acceptance checklist
 
-- [ ] Review exact final candidate against baseline `291ab05493a59732f891dd762bf90c64e79a48d0`, using complete `evidence/ui-changed-files.txt`; distinguish reusable core prerequisites, passive A0 library and recovery fixes.
-- [ ] Independently accept/revise additive API spellings and **FIFO64 / one outstanding intent per target / explicit coalescing and overflow** decision in `A1-api-decisions.md`. Tests do not grant this acceptance.
+- [ ] Review exact final candidate against baseline `291ab05493a59732f891dd762bf90c64e79a48d0`, using complete `evidence/a1-corrections-20261101/baseline-changed-files.txt` and the focused correction inventory alongside it; distinguish reusable core prerequisites, passive A0 library, recovery fixes and these corrections.
+- [ ] Independently re-review additive API spellings and corrected **FIFO64 requests / distinct intentional activations / no coalescing / explicit overflow** contract in `A1-api-decisions.md`. The earlier per-target contract was rejected, not accepted by tests.
 - [ ] Independently inspect/reproduce offline behavioral, compatibility, real paint/glyph/layout and AccessKit evidence; verify archived log/golden/design hashes.
 - [ ] Assess the UNVERIFIED native matrix below; do not claim optical/native/OS AT certification or complete usable library.
 - [ ] Owner alone authorizes A2 continuation after A1 review and retains later fixes, review and native integration. No self-approval/integration occurred in this recovery.
@@ -115,4 +129,4 @@ Recovery disk preflight and final reading: **3.3 GiB free**; reused target grew 
 | Native GPU screenshots, physical fractional-DPI/display transitions | Headless geometry verified; actual platform/GPU/display matrix **unverified** |
 | Native materials, menus/dialogs, parser changes, networking/actions, Blooey adoption | Out of scope; no changes |
 
-Exact review source/evidence paths are listed in `evidence/ui-changed-files.txt`; commits are reported in the handoff and can be reproduced with `git log --reverse 291ab05493a59732f891dd762bf90c64e79a48d0..HEAD`. Review core prerequisites separately from the A0 library commit. Owner alone decides review acceptance and continuation.
+Exact current review source/evidence paths are listed in `evidence/a1-corrections-20261101/baseline-changed-files.txt` (focused delta in `correction-changed-files.txt` there); historical `evidence/ui-changed-files.txt` is preserved. Commits are reported in the handoff and can be reproduced with `git log --reverse 291ab05493a59732f891dd762bf90c64e79a48d0..HEAD`. Review core prerequisites separately from the A0 library commit. Owner alone decides review acceptance and continuation.

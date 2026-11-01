@@ -1,0 +1,109 @@
+   Compiling rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/a1-original-f7aa9703/crates/rndr_core)
+    Finished `test` profile [unoptimized] target(s) in 1.49s
+     Running tests/a1_review_corrections.rs (target/debug/deps/a1_review_corrections-f539f4d985637d64)
+
+running 14 tests
+test rejected_requests_and_drain_validation_preserve_survivor_order ... FAILED
+test same_target_capacity_is_64_requests_not_targets ... FAILED
+test repeated_enter_and_at_are_distinct_before_drain ... FAILED
+test modern_edges_do_not_leak_to_legacy_and_repeat_is_not_new_activation ... ok
+test subsequent_unmatched_release_cannot_commit_stale_traversal_arm ... FAILED
+test pointer_focus_then_keyboard_and_pointer_release_are_distinct ... FAILED
+test legacy_to_modern_traversal_preserves_space_pair ... FAILED
+test modified_release_resolves_arm_without_later_activation ... FAILED
+test registered_hotkey_cancels_arm_in_order_and_never_leaks_to_legacy ... FAILED
+test traversal_space_pair_then_unmatched_release ... FAILED
+test traversal_into_field_keeps_remaining_edit_order_and_no_dual_shim ... ok
+test traversal_then_legacy_enter ... FAILED
+test traversal_into_editor_keeps_remaining_edit_order ... ok
+test space_cancel_focus_blur_synthetic_escape_and_modifiers ... FAILED
+
+failures:
+
+---- rejected_requests_and_drain_validation_preserve_survivor_order stdout ----
+
+thread 'rejected_requests_and_drain_validation_preserve_survivor_order' (366601) panicked at crates/rndr_core/tests/a1_review_corrections.rs:300:9:
+assertion `left == right` failed
+  left: AlreadyPending
+ right: Accepted
+
+---- same_target_capacity_is_64_requests_not_targets stdout ----
+
+thread 'same_target_capacity_is_64_requests_not_targets' (366603) panicked at crates/rndr_core/tests/a1_review_corrections.rs:402:9:
+assertion `left == right` failed
+  left: AlreadyPending
+ right: Accepted
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- repeated_enter_and_at_are_distinct_before_drain stdout ----
+
+thread 'repeated_enter_and_at_are_distinct_before_drain' (366602) panicked at crates/rndr_core/tests/a1_review_corrections.rs:84:9:
+assertion `left == right` failed
+  left: Activation(AlreadyPending)
+ right: Activation(Accepted)
+
+---- subsequent_unmatched_release_cannot_commit_stale_traversal_arm stdout ----
+
+thread 'subsequent_unmatched_release_cannot_commit_stale_traversal_arm' (366605) panicked at crates/rndr_core/tests/a1_review_corrections.rs:106:5:
+assertion failed: take_action_intents(app.world_mut()).is_empty()
+
+---- pointer_focus_then_keyboard_and_pointer_release_are_distinct stdout ----
+
+thread 'pointer_focus_then_keyboard_and_pointer_release_are_distinct' (366599) panicked at crates/rndr_core/tests/a1_review_corrections.rs:156:5:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+---- legacy_to_modern_traversal_preserves_space_pair stdout ----
+
+thread 'legacy_to_modern_traversal_preserves_space_pair' (366596) panicked at crates/rndr_core/tests/a1_review_corrections.rs:125:5:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+---- modified_release_resolves_arm_without_later_activation stdout ----
+
+thread 'modified_release_resolves_arm_without_later_activation' (366598) panicked at crates/rndr_core/tests/a1_review_corrections.rs:68:5:
+assertion failed: take_action_intents(app.world_mut()).is_empty()
+
+---- registered_hotkey_cancels_arm_in_order_and_never_leaks_to_legacy stdout ----
+
+thread 'registered_hotkey_cancels_arm_in_order_and_never_leaks_to_legacy' (366600) panicked at crates/rndr_core/tests/a1_review_corrections.rs:368:5:
+assertion failed: take_action_intents(app.world_mut()).is_empty()
+
+---- traversal_space_pair_then_unmatched_release stdout ----
+
+thread 'traversal_space_pair_then_unmatched_release' (366608) panicked at crates/rndr_core/tests/a1_review_corrections.rs:40:5:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+---- traversal_then_legacy_enter stdout ----
+
+thread 'traversal_then_legacy_enter' (366609) panicked at crates/rndr_core/tests/a1_review_corrections.rs:52:5:
+assertion `left == right` failed
+  left: None
+ right: Some("go")
+
+---- space_cancel_focus_blur_synthetic_escape_and_modifiers stdout ----
+
+thread 'space_cancel_focus_blur_synthetic_escape_and_modifiers' (366604) panicked at crates/rndr_core/tests/a1_review_corrections.rs:203:9:
+case 5
+
+
+failures:
+    legacy_to_modern_traversal_preserves_space_pair
+    modified_release_resolves_arm_without_later_activation
+    pointer_focus_then_keyboard_and_pointer_release_are_distinct
+    registered_hotkey_cancels_arm_in_order_and_never_leaks_to_legacy
+    rejected_requests_and_drain_validation_preserve_survivor_order
+    repeated_enter_and_at_are_distinct_before_drain
+    same_target_capacity_is_64_requests_not_targets
+    space_cancel_focus_blur_synthetic_escape_and_modifiers
+    subsequent_unmatched_release_cannot_commit_stale_traversal_arm
+    traversal_space_pair_then_unmatched_release
+    traversal_then_legacy_enter
+
+test result: FAILED. 3 passed; 11 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p rndr_core --test a1_review_corrections`

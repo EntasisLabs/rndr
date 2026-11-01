@@ -1,0 +1,1 @@
+cargo test --offline --locked -p rndr_core exit=101

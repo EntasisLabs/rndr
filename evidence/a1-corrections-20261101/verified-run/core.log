@@ -1,0 +1,66 @@
+    Finished `test` profile [unoptimized] target(s) in 0.05s
+     Running unittests src/lib.rs (target/debug/deps/rndr_core-24ebb6490fc5d548)
+
+running 14 tests
+test close::tests::cancel_invalidate_and_foreign_tokens ... ok
+test close::tests::discard_requires_current_failure ... ok
+test close::tests::failure_duplicate_retry_and_stale_completions ... ok
+test font::tests::left_edge_alias_of_the_next_line_stays_on_this_line ... ok
+test font::tests::rtl_selection_follows_visual_edges ... ok
+test markdown::tests::adjacent_lists_keep_the_blank_line_and_a_past_end_start_does_not ... ok
+test markdown::tests::partial_fence_and_emphasis_leave_the_paragraph_above_them ... ok
+test markdown::tests::copied_inline_markers_and_nested_numbers_round_trip ... ok
+test markdown::tests::copied_selection_keeps_markdown_structure ... ok
+test markdown::tests::parses_headings_emphasis_code_links_lists_quotes_and_rules ... ok
+test markdown::tests::partial_inline_constructs_do_not_show_raw_markers ... ok
+test markdown::tests::partial_task_markers_draw_as_checkboxes ... ok
+test editor::tests::document_rows_cache_geometry_and_invalidate_for_text_width_style_and_engine ... ok
+test markdown::tests::streamed_prefixes_match_a_full_parse ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/a1_cancellation_edges.rs (target/debug/deps/a1_cancellation_edges-0105e9bfd41c57ac)
+
+running 3 tests
+test semantic_tab_requires_live_panel_and_relations_survive_no_stale_generation ... ok
+test matching_pointer_is_not_enough_a_release_must_match_primary_button ... ok
+test scroll_capture_wins_over_an_armed_button ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/a1_interaction.rs (target/debug/deps/a1_interaction-64843e33abedd6da)
+
+running 7 tests
+test allowed_matrix_names_readonly_hidden_unsupported_and_safe_setvalue ... ok
+test mixed_press_and_release_and_at_share_canonical_route ... FAILED
+test real_panel_relations_manual_focus_and_inactive_exclusion ... ok
+test cardinality_order_overflow_revalidation_and_generation ... FAILED
+test generic_tab_focus_no_shell_side_effects_editor_keeps_keys ... ok
+test space_release_enter_down_repeat_synthetic_and_focus_loss ... ok
+test pointer_cancel_outside_escape_blur_capture_disable_and_destroy ... ok
+
+failures:
+
+---- mixed_press_and_release_and_at_share_canonical_route stdout ----
+
+thread 'mixed_press_and_release_and_at_share_canonical_route' (369455) panicked at crates/rndr_core/tests/a1_interaction.rs:73:5:
+assertion `left == right` failed
+  left: 1
+ right: 2
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- cardinality_order_overflow_revalidation_and_generation stdout ----
+
+thread 'cardinality_order_overflow_revalidation_and_generation' (369453) panicked at crates/rndr_core/tests/a1_interaction.rs:168:5:
+assertion `left == right` failed
+  left: AlreadyPending
+ right: Overflow
+
+
+failures:
+    cardinality_order_overflow_revalidation_and_generation
+    mixed_press_and_release_and_at_share_canonical_route
+
+test result: FAILED. 5 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p rndr_core --test a1_interaction`

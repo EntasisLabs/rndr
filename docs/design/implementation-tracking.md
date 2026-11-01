@@ -10,7 +10,7 @@ Full canonical read before source edits: Specification lines 1–339, Review Gui
 
 No pending work adoption; no Shell installation, app lifecycle, parsers, Blooey, native materials, publishing or integration. Native platform acceptance is not inferred from headless results.
 
-## Verified completion of this bounded checkpoint
+## Historical implementation verification (superseded by correction section below)
 
 A0+A1 implementation is complete for independent review; the whole undertaking is NOT complete and A2 has not been started. Source commits, in order:
 - `4976d58019365356d821bf262c7ac188fb686507` — unchanged approved proposals, approval/baseline record, initial reproduced failures.
@@ -23,7 +23,7 @@ Final verification: core 387 passed, paint 62 passed, UI 13 passed, actual Acces
 
 Canonical originals and portable copies were hash-checked again after implementation and still match the approved digests above (`evidence/ui-design-digests.txt`). Native matrix, source/evidence paths, exact commands, ownership/font limits and review gate are in `A0-A1-checkpoint.md`, `A1-api-decisions.md` and the crate README. Final cache 912 MiB, disk still 4.4 GiB free; no cleanup or permission expansion. The final documentation-only handoff commit follows these source commits. Owner retains independent acceptance, A2 continuation and integration.
 
-## Recovery reconciliation — supersedes earlier final-run status
+## Historical recovery reconciliation — supersedes initial implementation run only
 
 Recovery entry HEAD was `eb2a6f0b7630bf27fd2f32e585aa2125e28c21f1`; the one modified and four untracked handoff files were preserved and reconciled, not reset or discarded. Owner removed the inaccessible old-worker observation prerequisite. Native fenced execution succeeded; no distinct executor, lease denial or loss was observed. No raw HTTP/credentials/old-worker interruption was used.
 
@@ -31,6 +31,18 @@ The complete approved Specification (1–339) and Review Guide (1–70), API/car
 - `fc6f622eec4411b103a33a45168103c02b2dde7e`: revalidate tab relation after host reparent/component removal on every use; no old-group activation/stale native relation/exposed orphan panel after synchronization.
 - `d1610de48e4f249ad83788161d25368bdd935534`: require owned title Label before Card/Callout lifecycle updates; malformed handle rejected without partial recipe mutation.
 
-Fresh corrected-source totals: **core 388, paint 62, UI 14, AccessKit adapter 1 passed**, zero failed. Umbrella all-targets/no-default-features and GPU-free normal dependency graph passed. Six regenerated actual display lists match preserved goldens byte-for-byte; 32-state containment/glyph matrix passed. Targeted rustfmt passed. Historical failing logs remain explicitly labelled. Reproduce with `sh evidence/recovery/run.sh`; archived log hashes are in `evidence/recovery/logs-sha256.txt`. Full baseline-to-candidate file inventory is `evidence/ui-changed-files.txt`.
+Historical recovery totals: **core 388, paint 62, UI 14, AccessKit adapter 1 passed**, zero failed. Umbrella all-targets/no-default-features and GPU-free normal dependency graph passed. Six regenerated actual display lists matched preserved goldens byte-for-byte; 32-state containment/glyph matrix passed. Targeted rustfmt passed. Historical failing logs remain explicitly labelled. Do **not** run `evidence/recovery/run.sh` as-is: it overwrites archived logs. Archived hashes are in `evidence/recovery/logs-sha256.txt`; that historical candidate's baseline inventory is `evidence/ui-changed-files.txt`.
 
-Recovery disk stayed at 3.3 GiB free with existing local target 912 → 920 MiB; no broad cleanup. This is an **A0+A1 candidate ready for independent review**, not self-acceptance, A2 clearance or native integration. Native window/screenshots/AT/preference/font/DPI cells remain UNVERIFIED. Final documentation/evidence commit contains the reconciled original handoff files and no further source changes. Owner retains all acceptance, A2 and integration decisions.
+Recovery disk stayed at 3.3 GiB free with existing local target 912 → 920 MiB; no broad cleanup. That A0+A1 candidate subsequently received independent **REVISE** at `f7aa9703b7258e5ed546fc8436b3676f2705d9b0`; owner accepted the REVIEW deliverable only. Native window/screenshots/AT/preference/font/DPI cells remain UNVERIFIED.
+
+## Bounded A1 corrections after independent REVISE — current candidate
+
+Starting checkout was clean at exact `f7aa9703b7258e5ed546fc8436b3676f2705d9b0`, same worktree/undertaking. Full approved Specification, Review Guide, A1 decisions and checkpoints were reread; approved hashes above still match. Scope remains A0+A1, preserving all A0 and recovery fixes. No A2, approval, integration or push.
+
+Corrections: preserve ordered activation edges through same-frame focus changes; resolve every Space up without stale unmatched arms; preserve hotkey ownership with cancellation-only markers, strip private edges before legacy delivery; rebuild the compatibility shim/text from the remaining unconsumed rich queue. Owner-directed FIFO64 now counts **requests**, preserving independent same-target keyboard/pointer/AT activations without inferred deduplication. `AlreadyPending` and `coalesced` are explicitly removed from the new, not-yet-accepted A1 APIs. Legacy public structs/press/Fired semantics are unchanged. Exact limits/scheduling are in `A1-api-decisions.md`.
+
+Five initial regressions failed original production source before fixes. The final 14-test fixture produced **11 failures / 3 existing compatibility guardrails passing** against an actually rebuilt exact original snapshot; corrected source passes all 14. Existing lossy-contract expectations were revised with rationale, not suppressed. Evidence includes original standalone reviewer sources/logs, before/after receipts, source identities and retained invalid cached runs explicitly distinguished from verification.
+
+Authoritative full run `evidence/a1-corrections-20261101/fresh-verified-run/`: **402 core + 62 paint + 14 UI + 1 AccessKit adapter tests passed**, zero failed/ignored; offline locked umbrella all-targets/no-default-features check and GPU-free normal dependency tree passed; six passive display lists byte-identical to archived goldens; original recovery/gallery hashes and archived-evidence diff passed; targeted rustfmt passed. All commands/statuses in that directory and its parent README. Cache collision during counterfactual builds was resolved by preserving/quarantining only the colliding core-library fingerprint, not broad cleanup or a second build target. Disk stayed **3.3 GiB free**; final target **964 MiB**.
+
+All new receipts/hashes are under `evidence/a1-corrections-20261101/`. Full correction inventory is `correction-changed-files.txt`; full baseline inventory is `baseline-changed-files.txt` there. Historical `evidence/ui-*` and `evidence/recovery/*` are unchanged. New run script refuses existing output directories. Owner retains independent exact-candidate re-review/acceptance and all A2/integration decisions; native windows/screenshots/OS AT/preferences/fonts/shaping/physical DPI remain **UNVERIFIED**.
