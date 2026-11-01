@@ -1,7 +1,8 @@
-//! GPU-free, opt-in A0/A1 UI foundations above rndr_core.
-//! No A2 operating controls are included before independent A1 API review.
+//! GPU-free, opt-in A0/A1 foundations and operating A2 components above rndr_core.
+//! Core contract acceptance is scoped; native platform acceptance remains separate.
 //! See docs/design/A1-api-decisions.md for the bounded interaction contract.
 #![warn(missing_docs)]
+pub mod controls;
 pub mod style;
 pub mod surfaces;
 pub mod tokens;
@@ -25,6 +26,7 @@ impl Plugin for UiPlugin {
             app.world_mut().insert_resource(UiTheme::default());
         }
         app.world_mut().insert_resource(Installed);
+        app.add_system(Schedule::Layout, controls::resolve_controls);
         app.add_system(Schedule::Layout, resolve_styles);
     }
 }

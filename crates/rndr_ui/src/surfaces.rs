@@ -88,6 +88,11 @@ pub struct UiHandle {
     /// Stable content slot. Directly attached caller children remain borrowed.
     pub content: Entity,
 }
+/// Parent-scoped identity used by passive and operating components alike.
+pub(crate) fn key_at(world: &World, entity: Entity) -> Option<UiId> {
+    world.get::<Node>(entity).map(|n| n.id)
+}
+
 /// Lifecycle operation error; no partial update is performed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UiError {
@@ -97,6 +102,8 @@ pub enum UiError {
     IdentityConflict,
     /// Invalid adoption (cycles, existing UI component or stale entity).
     InvalidAdoption,
+    /// Empty required name/label, invalid dimensions or unsupported property shape.
+    InvalidProps,
 }
 
 /// Passive content Card, not a clickable control.
@@ -149,6 +156,12 @@ fn mount(
 ) -> Result<UiHandle, UiError> {
     if !world.is_alive(parent) || !world.has::<Layout>(parent) {
         return Err(UiError::Stale);
+    }
+    if children_of(world, parent)
+        .into_iter()
+        .any(|e| crate::controls::key_at(world, e) == Some(id))
+    {
+        return Err(UiError::IdentityConflict);
     }
     let existing = children_of(world, parent)
         .into_iter()

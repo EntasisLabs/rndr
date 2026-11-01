@@ -3115,6 +3115,7 @@ dependencies = [
  "rndr_render",
  "rndr_std",
  "rndr_term",
+ "rndr_ui",
 ]
 
 [[package]]

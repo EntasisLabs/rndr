@@ -41,6 +41,10 @@ rndr_std = { workspace = true }
 rndr_render = { path = "../rndr_render", version = "0.3.1", default-features = false }
 rndr_term = { workspace = true, optional = true }
 
+[dev-dependencies]
+# Operating gallery only: default/legacy applications do not adopt rndr_ui.
+rndr_ui = { path = "../rndr_ui" }
+
 [package.metadata.docs.rs]
 # docs.rs uses the crates-build-env image, which includes libfontconfig1-dev,
 # libxkbcommon, Wayland, and Vulkan. `parley` links fontconfig on Linux.
