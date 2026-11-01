@@ -1,0 +1,25 @@
+test_denial_never_returns_image (test_observe_client.ClientTests.test_denial_never_returns_image) ... ok
+test_dimension_revision_and_source_binding (test_observe_client.ClientTests.test_dimension_revision_and_source_binding) ... ok
+test_external_socket_is_not_admitted (test_observe_client.ClientTests.test_external_socket_is_not_admitted) ... ok
+test_invalid_descriptor_or_public_directory (test_observe_client.ClientTests.test_invalid_descriptor_or_public_directory) ... ok
+test_invalid_request_values_are_local_errors (test_observe_client.ClientTests.test_invalid_request_values_are_local_errors) ... ok
+test_matched_packet (test_observe_client.ClientTests.test_matched_packet) ... ok
+test_output_refuses_overwrite_and_uses_private_files (test_observe_client.ClientTests.test_output_refuses_overwrite_and_uses_private_files) ... ok
+test_oversized_and_truncated_prefix (test_observe_client.ClientTests.test_oversized_and_truncated_prefix) ... ok
+test_collision_race_preserves_raced_json (test_observe_correction.CorrectionTests.test_collision_race_preserves_raced_json) ... ok
+test_concurrent_publishers_return_one_consistent_pair (test_observe_correction.CorrectionTests.test_concurrent_publishers_return_one_consistent_pair) ... ok
+test_descriptor_fifo_substitution_at_open_is_rejected (test_observe_correction.CorrectionTests.test_descriptor_fifo_substitution_at_open_is_rejected) ... ok
+test_descriptor_size_type_permissions_json (test_observe_correction.CorrectionTests.test_descriptor_size_type_permissions_json) ... ok
+test_existing_either_output_preserved_without_partial_pair (test_observe_correction.CorrectionTests.test_existing_either_output_preserved_without_partial_pair) ... ok
+test_fifo_rejected_without_writer (test_observe_correction.CorrectionTests.test_fifo_rejected_without_writer) ... ok
+test_growth_bounded_and_deadline_includes_read (test_observe_correction.CorrectionTests.test_growth_bounded_and_deadline_includes_read) ... ok
+test_output_symlink_collision_preserves_target_and_link (test_observe_correction.CorrectionTests.test_output_symlink_collision_preserves_target_and_link) ... ok
+test_rollback_preserves_observed_replacement (test_observe_correction.CorrectionTests.test_rollback_preserves_observed_replacement) ... ok
+test_second_publication_failure_rolls_back_png (test_observe_correction.CorrectionTests.test_second_publication_failure_rolls_back_png) ... ok
+test_second_write_failure_cleans_staging_and_outputs (test_observe_correction.CorrectionTests.test_second_write_failure_cleans_staging_and_outputs) ... ok
+test_symlink_and_open_race_do_not_follow_target (test_observe_correction.CorrectionTests.test_symlink_and_open_race_do_not_follow_target) ... ok
+
+----------------------------------------------------------------------
+Ran 20 tests in 0.041s
+
+OK

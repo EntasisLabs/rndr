@@ -1,0 +1,39 @@
+{
+  "command": [
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/examples/ui_gallery",
+    "--observe",
+    "--observe-exit-after-15s"
+  ],
+  "binary_sha256": "ce544034520d1a8cc6d9af538ffa0f3502d0438303f84240e55e8813f3e44e09",
+  "source": "native-synthetic-gallery-session",
+  "presented_confirmation": false,
+  "startup_denials": [
+    "observation denied: surface_unavailable"
+  ],
+  "status": "captured",
+  "revisions": [
+    "3",
+    "4"
+  ],
+  "dimensions": [
+    1000,
+    700
+  ],
+  "nodes": 28,
+  "provenance": {
+    "adapter": "Apple M4",
+    "alpha_mode": "Auto",
+    "backend": "Metal",
+    "parley_feature": false,
+    "path": "quads",
+    "present_mode": "AutoVsync",
+    "scene_samples": 4,
+    "surface_format": "Bgra8UnormSrgb",
+    "text_engine": "builtin_atlas",
+    "transparent_clear": false
+  },
+  "stale_rejection": true,
+  "invalid_auth_rejection": true,
+  "exit_code": 0,
+  "normal_shutdown_cleanup": true
+}

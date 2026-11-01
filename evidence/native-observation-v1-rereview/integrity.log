@@ -1,0 +1,12 @@
+ALL PAYLOADS native-observation-v1 111 manifest 9034ec3ec28db8aa007ccd6faef65ba5139368e9fb0a549e5a4cbe7d2360b30a
+ALL PAYLOADS native-observation-v1-review 30 manifest 12e9fda99c12d431fca79acc745595800d647556ca80401d8dfc46337de89110
+ALL PAYLOADS native-observation-v1-correction 62 manifest 9e067e9daad5262a2f3bc59837a55994edba90b75e992e261b269077c08f094e
+EXACT DIFF and evidence-only seal ancestry PASS
+ALL nine production/test/doc source hashes PASS
+native-observation-v1-correction suites-final.log PASS 576 groups 80
+native-observation-v1-correction parley-default-final.log PASS 69 groups 1
+native-observation-v1-correction disabled-final.log PASS 22 groups 1
+native-observation-v1-rereview suites.log PASS 576 groups 80
+native-observation-v1-rereview parley.log PASS 69 groups 1
+native-observation-v1-rereview disabled.log PASS 22 groups 1
+PASS independent seal/diff/source/result audit

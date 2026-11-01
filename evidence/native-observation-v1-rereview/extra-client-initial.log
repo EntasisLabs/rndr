@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/evidence/native-observation-v1-rereview/extra_client.py", line 17, in <module>
+    assert c._descriptor(path,time.monotonic()+1)=={'old':True}
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/tools/observe_client.py", line 68, in _descriptor
+    raise ValueError("descriptor changed or size limit")
+ValueError: descriptor changed or size limit

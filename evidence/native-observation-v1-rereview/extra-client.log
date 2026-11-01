@@ -1,0 +1,6 @@
+PASS descriptor path replacement cannot redirect opened fd
+PASS same-size fd mutation detected
+PASS expired descriptor never starts socket
+PASS final directory symlink denied
+PASS 20 four-way same-prefix publication races; exactly one coherent winner each, no staging leftovers
+PASS 5 independent client probe groups
