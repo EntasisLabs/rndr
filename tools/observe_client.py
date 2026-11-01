@@ -34,6 +34,48 @@ def _read_exact(stream, n, deadline):
     return b"".join(chunks)
 
 
+def _remaining(deadline):
+    left = deadline - time.monotonic()
+    if left <= 0:
+        raise TimeoutError("observation deadline")
+    return left
+
+
+def _descriptor(path, deadline):
+    # Pin the directory and inspect the opened fd, not an earlier path stat.
+    # O_NONBLOCK prevents FIFO open from waiting; only regular files are read.
+    flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+    _remaining(deadline)
+    with_fd = os.open(path.parent, flags | os.O_DIRECTORY)
+    try:
+        info = os.fstat(with_fd)
+        if info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700:
+            raise ValueError("descriptor directory must be owned by this user and mode 0700")
+        _remaining(deadline)
+        fd = os.open(path.name, flags, dir_fd=with_fd)
+        try:
+            info = os.fstat(fd)
+            if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                    or stat.S_IMODE(info.st_mode) != 0o600 or info.st_size > 4096):
+                raise ValueError("invalid descriptor file")
+            _remaining(deadline)
+            data = os.read(fd, 4097)
+            _remaining(deadline)
+            final = os.fstat(fd)
+            if (len(data) > 4096 or len(data) != info.st_size
+                    or final.st_size != info.st_size or final.st_mtime_ns != info.st_mtime_ns
+                    or final.st_ctime_ns != info.st_ctime_ns):
+                raise ValueError("descriptor changed or size limit")
+        finally:
+            os.close(fd)
+    finally:
+        os.close(with_fd)
+    desc = json.loads(data)
+    if not isinstance(desc, dict):
+        raise ValueError("invalid local session descriptor")
+    return desc
+
+
 def observe(descriptor, after=0, timeout=4.0):
     """Request a fresh app redraw after `after` (a session-local revision).
 
@@ -42,24 +84,23 @@ def observe(descriptor, after=0, timeout=4.0):
     """
     if not 0 <= after < 2**64 or not 0 < timeout <= 10:
         raise ValueError("invalid revision or timeout")
+    deadline = time.monotonic() + timeout
     path = Path(descriptor)
     directory = path.parent
-    info = directory.stat()
-    if info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700:
-        raise ValueError("descriptor directory must be owned by this user and mode 0700")
-    if path.is_symlink() or path.stat().st_size > 4096:
-        raise ValueError("invalid descriptor")
-    desc = json.loads(path.read_bytes())
+    desc = _descriptor(path, deadline)
     cap = desc.get("capability", "")
-    endpoint = Path(desc.get("socket", ""))
+    endpoint_value = desc.get("socket", "")
+    if not isinstance(cap, str) or not isinstance(endpoint_value, str):
+        raise ValueError("invalid local session descriptor")
+    endpoint = Path(endpoint_value)
     if (desc.get("protocol") != "rndr-observe-1" or len(cap) != 64
             or any(c not in "0123456789abcdef" for c in cap)
             or endpoint.parent != directory or endpoint.name != "observe.sock"):
         raise ValueError("invalid local session descriptor")
-    deadline = time.monotonic() + timeout
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as stream:
-        stream.settimeout(timeout)
+        stream.settimeout(_remaining(deadline))
         stream.connect(str(endpoint))
+        stream.settimeout(_remaining(deadline))
         stream.sendall(f"RNDR1 {cap} {after}\n".encode("ascii"))
         length, = struct.unpack(">I", _read_exact(stream, 4, deadline))
         if not 0 < length <= MAX_JSON:
@@ -85,11 +126,50 @@ def observe(descriptor, after=0, timeout=4.0):
 
 
 def save_frame(prefix, metadata, png):
-    """Create two local files, refusing overwrite; does not persist capabilities."""
-    for suffix, data in [(".png", png), (".json", json.dumps(metadata, indent=2).encode() + b"\n")]:
-        fd = os.open(str(prefix) + suffix, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        with os.fdopen(fd, "wb") as file:
-            file.write(data)
+    """No-clobber publication with best-effort rollback, NOT a two-file transaction.
+
+    A reader can see one file before the other; crashes may leave a partial pair.
+    Concurrent callers cannot overwrite each other. Rollback checks inode identity
+    and preserves observed replacements; arbitrary same-UID path mutation between
+    that check and unlink is not isolated by POSIX. Use a private output directory
+    and consume pairs only after successful return, not by globbing partial files.
+    """
+    import tempfile
+    prefix = Path(prefix)
+    data = [(".png", png), (".json", json.dumps(metadata, indent=2).encode() + b"\n")]
+    directory = os.open(prefix.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    created = []
+    held = []
+    try:
+        # Stage complete private files before publishing either final name.
+        with tempfile.TemporaryDirectory(prefix=".rndr-frame-", dir=prefix.parent) as staging:
+            staged = []
+            for suffix, content in data:
+                path = Path(staging) / ("frame" + suffix)
+                fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                with os.fdopen(fd, "wb") as file:
+                    file.write(content)
+                # Hold the inode through rollback, even after staging cleanup,
+                # so unlink/recreate cannot recycle it into an identity match.
+                fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+                held.append(fd)
+                staged.append((path, prefix.name + suffix, os.fstat(fd)))
+            for path, name, identity in staged:
+                os.link(path, name, dst_dir_fd=directory, follow_symlinks=False)
+                created.append((name, identity.st_dev, identity.st_ino))
+    except BaseException:
+        for name, device, inode in reversed(created):
+            try:
+                info = os.stat(name, dir_fd=directory, follow_symlinks=False)
+                if (info.st_dev, info.st_ino) == (device, inode):
+                    os.unlink(name, dir_fd=directory)
+            except FileNotFoundError:
+                pass
+        raise
+    finally:
+        for fd in held:
+            os.close(fd)
+        os.close(directory)
 
 
 def main():

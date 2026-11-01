@@ -1,4 +1,183 @@
 //! Unit/synthetic protocol tests, NOT proof of native presentation.
+
+#[cfg(feature = "parley")]
+#[test]
+fn correction_parley_configuration_versions_and_unchanged_path() {
+    for mutation in 0..6 {
+        let (mut app, send) = fixture();
+        let engine: Arc<dyn TextEngine> = Arc::new(crate::text::ParleyText::bundled());
+        app.world_mut().insert_resource(engine);
+        app.world_mut().insert_resource(ObservationContent::Public);
+        app.world_mut().insert_resource(mutation);
+        app.add_system(Schedule::Render, |w| {
+            let engine = text_engine(w);
+            match *w.resource::<i32>().unwrap() {
+                0 => {}
+                1 => engine.set_fallbacks("Inter", &["Noto Sans Arabic".into()]),
+                2 => engine.register_font("new", Arc::new(BitmapFont)),
+                3 => engine.set_pixels_per_point(2.),
+                4 => engine
+                    .as_any()
+                    .downcast_ref::<crate::text::ParleyText>()
+                    .unwrap()
+                    .register_bytes(&[]),
+                _ => {
+                    let _ = engine
+                        .as_any()
+                        .downcast_ref::<crate::text::ParleyText>()
+                        .unwrap()
+                        .take_uploads();
+                }
+            }
+        });
+        let recv = request(&send, 0);
+        let (_, capture) = rndr_paint::frame_with_snapshot(&mut app, |w| begin(w, 2, 2, 1.));
+        let validated = validate(app.world(), capture.unwrap(), 1.);
+        if mutation == 0 {
+            let capture = validated.unwrap();
+            assert_eq!(capture.text_engine_kind(), "parley");
+            complete(
+                capture,
+                Ok(image(2, 2)),
+                true,
+                json!({"text_engine":"parley"}),
+            );
+            assert_eq!(
+                recv.recv().unwrap().0["render_provenance"]["text_engine"],
+                "parley"
+            );
+        } else {
+            assert!(validated.is_none());
+            assert_error(recv, "post_paint_text_engine_mutation");
+        }
+    }
+}
+
+// A distinct runtime type delegating shaping to builtin, as in the review's
+// reproduction. The explicit epoch simulates custom mutable atlas invalidation.
+struct CorrectionEngine(rndr_core::BuiltinText, std::sync::atomic::AtomicU64);
+macro_rules! delegate_correction_engine {
+    ($(fn $n:ident(&self $(, $a:ident : $t:ty)*) $(-> $r:ty)?;)*) => {
+        $(fn $n(&self $(, $a : $t)*) $(-> $r)? { self.0.$n($($a),*) })*
+    }
+}
+impl TextEngine for CorrectionEngine {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+    fn cache_epoch(&self) -> u64 {
+        self.1.load(Ordering::Relaxed)
+    }
+    delegate_correction_engine! {
+        fn layout(&self, text: &str, style: &TextStyle, runs: &[TextSpan], width: f32) -> TextLayout;
+        fn measure(&self, text: &str, style: &TextStyle, runs: &[TextSpan], width: f32) -> TextMeasure;
+        fn line_height(&self, style: &TextStyle) -> f32;
+        fn unit_advance(&self, style: &TextStyle) -> f32;
+        fn solid_uv(&self, style: &TextStyle) -> [f32;4];
+        fn coverage_atlas(&self) -> Option<Arc<FontAtlas>>;
+        fn color_atlas(&self) -> Option<Arc<ColorAtlas>>;
+        fn fallbacks(&self, family: &str) -> Vec<String>;
+        fn set_fallbacks(&self, family: &str, faces: &[String]);
+        fn register_font(&self, name: &str, font: Arc<dyn Font>);
+        fn begin_frame(&self);
+        fn shape_count(&self) -> u64;
+    }
+}
+
+#[test]
+fn correction_render_engine_replacements_are_denied_even_same_kind() {
+    for same_kind in [false, true] {
+        let (mut app, send) = fixture();
+        ensure_text_engine(app.world_mut());
+        app.world_mut().insert_resource(ObservationContent::Public);
+        let original = text_engine(app.world());
+        app.world_mut().spawn((Label::new("painted with builtin"),));
+        app.world_mut().insert_resource(same_kind);
+        app.add_system(Schedule::Render, |w| {
+            let replacement: Arc<dyn TextEngine> = if *w.resource::<bool>().unwrap() {
+                Arc::new(BuiltinText::new())
+            } else {
+                Arc::new(CorrectionEngine(BuiltinText::new(), AtomicU64::new(0)))
+            };
+            w.insert_resource(replacement);
+        });
+        let recv = request(&send, 0);
+        let (_, capture) = rndr_paint::frame_with_snapshot(&mut app, |w| begin(w, 2, 2, 1.));
+        assert!(original.shape_count() > 0);
+        assert!(!Arc::ptr_eq(&original, &text_engine(app.world())));
+        assert!(validate(app.world(), capture.unwrap(), 1.).is_none());
+        assert_error(recv, "post_paint_text_engine_mutation");
+    }
+}
+
+#[test]
+fn correction_custom_epoch_change_in_render_is_denied() {
+    let (mut app, send) = fixture();
+    let engine = Arc::new(CorrectionEngine(BuiltinText::new(), AtomicU64::new(0)));
+    app.world_mut()
+        .insert_resource(engine.clone() as Arc<dyn TextEngine>);
+    app.world_mut().insert_resource(ObservationContent::Public);
+    app.add_system(Schedule::Render, |w| {
+        let engine = text_engine(w);
+        engine
+            .as_any()
+            .downcast_ref::<CorrectionEngine>()
+            .unwrap()
+            .1
+            .fetch_add(1, Ordering::Relaxed);
+    });
+    let recv = request(&send, 0);
+    let (_, capture) = rndr_paint::frame_with_snapshot(&mut app, |w| begin(w, 2, 2, 1.));
+    assert!(validate(app.world(), capture.unwrap(), 1.).is_none());
+    assert_error(recv, "post_paint_text_engine_mutation");
+}
+
+#[test]
+fn correction_builtin_mutations_in_render_are_denied() {
+    for mutation in 0..3 {
+        let (mut app, send) = fixture();
+        app.world_mut().insert_resource(ObservationContent::Public);
+        app.world_mut().insert_resource(mutation);
+        app.add_system(Schedule::Render, |w| {
+            let engine = text_engine(w);
+            match *w.resource::<i32>().unwrap() {
+                0 => engine.set_fallbacks("bitmap", &["another".into()]),
+                1 => engine.register_font("new-face", Arc::new(BitmapFont)),
+                _ => w.insert_resource(TextFace(Arc::new(BitmapFont))),
+            }
+        });
+        let recv = request(&send, 0);
+        let (_, capture) = rndr_paint::frame_with_snapshot(&mut app, |w| begin(w, 2, 2, 1.));
+        assert!(validate(app.world(), capture.unwrap(), 1.).is_none());
+        assert_error(recv, "post_paint_text_engine_mutation");
+    }
+}
+
+#[test]
+fn correction_unchanged_builtin_and_custom_keep_paint_provenance() {
+    for custom in [false, true] {
+        let (mut app, send) = fixture();
+        app.world_mut().insert_resource(ObservationContent::Public);
+        if custom {
+            app.world_mut().insert_resource(Arc::new(CorrectionEngine(
+                BuiltinText::new(),
+                AtomicU64::new(0),
+            )) as Arc<dyn TextEngine>);
+        }
+        app.world_mut().spawn((Label::new("unchanged paint"),));
+        let recv = request(&send, 0);
+        let (_, capture) = rndr_paint::frame_with_snapshot(&mut app, |w| begin(w, 2, 2, 1.));
+        let capture = validate(app.world(), capture.unwrap(), 1.).unwrap();
+        let kind = capture.text_engine_kind();
+        assert_eq!(kind, if custom { "custom" } else { "builtin_atlas" });
+        complete(capture, Ok(image(2, 2)), true, json!({"text_engine":kind}));
+        let (meta, png) = recv.recv().unwrap();
+        assert_eq!(meta["render_provenance"]["text_engine"], kind);
+        assert!(!png.is_empty());
+        assert_eq!(meta["presented_confirmation"], false);
+    }
+}
+
 use super::*;
 use rndr_core::*;
 

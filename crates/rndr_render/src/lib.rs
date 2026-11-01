@@ -661,6 +661,23 @@ impl Handler {
                 clipboard.image_dirty = false;
             }
         }
+        // A requested capture binds paint-time engine resources. Reject a
+        // Render-stage invalidation before atlas upload or surface submission.
+        #[cfg(feature = "observe")]
+        let observation = if let Some(capture) = observation {
+            let scale = self
+                .app
+                .world()
+                .resource::<Viewport>()
+                .map(|v| v.pixels_per_point())
+                .unwrap_or(1.0);
+            let Some(capture) = observe::validate(self.app.world(), capture, scale) else {
+                return false;
+            };
+            Some(capture)
+        } else {
+            None
+        };
         self.upload_atlases();
         crate::images::ingest(self.app.world_mut());
         let images = crate::images::pending(self.app.world());
@@ -671,9 +688,6 @@ impl Handler {
             .resource::<Viewport>()
             .map(|viewport| viewport.pixels_per_point())
             .unwrap_or(1.0);
-        #[cfg(feature = "observe")]
-        let observation =
-            observation.and_then(|capture| observe::validate(self.app.world(), capture, scale));
         #[cfg(feature = "observe")]
         {
             let gpu = self.gpu.as_mut().expect("surface");
@@ -688,14 +702,12 @@ impl Handler {
         #[cfg(feature = "observe")]
         if let Some(capture) = observation {
             let gpu = self.gpu.as_mut().expect("surface");
+            let text_engine_kind = capture.text_engine_kind();
             observe::complete(
                 capture,
                 gpu.observed.take().unwrap_or(Err("surface_unavailable")),
                 presented,
-                gpu.observation_provenance(
-                    !painted.draws.is_empty(),
-                    observe::text_engine_kind(self.app.world()),
-                ),
+                gpu.observation_provenance(!painted.draws.is_empty(), text_engine_kind),
             );
             gpu.observe_armed = false;
         }

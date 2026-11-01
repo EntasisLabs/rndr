@@ -305,11 +305,22 @@ pub(crate) struct Capture {
     request: Request,
     metadata: Value,
     tree: rndr_core::AccessTree,
+    engine: Option<Arc<dyn rndr_core::TextEngine>>,
+    engine_epoch: (u64, u64),
+    engine_kind: &'static str,
     details: Vec<(u64, rndr_core::AccessDetails)>,
     scroll: Vec<(u64, rndr_core::Scroll, rndr_core::Rect)>,
 }
-pub(crate) fn text_engine_kind(world: &World) -> &'static str {
-    let engine = rndr_core::text_engine(world);
+impl Capture {
+    pub(crate) fn text_engine_kind(&self) -> &'static str {
+        self.engine_kind
+    }
+}
+#[cfg(test)]
+fn text_engine_kind(world: &World) -> &'static str {
+    engine_kind(rndr_core::text_engine(world).as_ref())
+}
+fn engine_kind(engine: &dyn rndr_core::TextEngine) -> &'static str {
     if engine.as_any().is::<rndr_core::BuiltinText>() {
         return "builtin_atlas";
     }
@@ -381,6 +392,8 @@ pub(crate) fn validate(world: &World, capture: Capture, scale: f32) -> Option<Ca
         Some("sensitive_frame")
     } else if !world.entities_with::<rndr_core::SurfaceSlot>().is_empty() {
         Some("foreign_surface_unsupported")
+    } else if !engine_matches(world, &capture) {
+        Some("post_paint_text_engine_mutation")
     } else if capture.tree != rndr_core::access_tree(world)
         || capture.details != semantic_details(world, &capture.tree)
         || capture.scroll != scroll_state(world)
@@ -396,6 +409,26 @@ pub(crate) fn validate(world: &World, capture: Capture, scale: f32) -> Option<Ca
         None
     } else {
         Some(capture)
+    }
+}
+fn engine_epoch(engine: &dyn rndr_core::TextEngine) -> (u64, u64) {
+    #[cfg(feature = "parley")]
+    if let Some(parley) = engine.as_any().downcast_ref::<crate::text::ParleyText>() {
+        return parley.paint_epoch();
+    }
+    (engine.cache_epoch(), 0)
+}
+fn engine_matches(world: &World, capture: &Capture) -> bool {
+    // Synchronize a builtin TextFace change before checking its version. Keep
+    // the original Arc alive so an address cannot be recycled into a match.
+    let current = world.resource::<Arc<dyn rndr_core::TextEngine>>();
+    match (&capture.engine, current) {
+        (Some(old), Some(current)) if Arc::ptr_eq(old, current) => {
+            let current = rndr_core::text_engine(world);
+            engine_epoch(current.as_ref()) == capture.engine_epoch
+        }
+        (None, None) => true,
+        _ => false,
     }
 }
 /// Called after the world's layout/paint pass, before submitting its surface.
@@ -458,7 +491,15 @@ pub(crate) fn begin(world: &World, width: u32, height: u32, scale: f32) -> Optio
         let _ = request.reply.try_send(error("semantic_limit"));
         return None;
     }
+    let engine = world.resource::<Arc<dyn rndr_core::TextEngine>>().cloned();
+    let engine_epoch = engine.as_ref().map_or((0, 0), |e| engine_epoch(e.as_ref()));
+    let engine_kind = engine
+        .as_ref()
+        .map_or("builtin_atlas", |e| engine_kind(e.as_ref()));
     Some(Capture {
+        engine,
+        engine_epoch,
+        engine_kind,
         request,
         metadata,
         details: semantic_details(world, &binding_tree),

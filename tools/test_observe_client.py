@@ -25,6 +25,7 @@ class ClientTests(unittest.TestCase):
         self.addCleanup(listener.close)
         descriptor = root / "session.json"
         descriptor.write_text(json.dumps({"protocol": "rndr-observe-1", "socket": str(endpoint), "capability": "a" * 64}))
+        os.chmod(descriptor, 0o600)
         errors = []
 
         def send():
@@ -106,6 +107,7 @@ class ClientTests(unittest.TestCase):
             os.chmod(root, 0o700)
             descriptor = root / "session.json"
             descriptor.write_text(json.dumps({"protocol": "rndr-observe-1", "capability": "a" * 64, "socket": "/tmp/another-app/observe.sock"}))
+            os.chmod(descriptor, 0o600)
             with self.assertRaisesRegex(ValueError, "descriptor"):
                 observe(descriptor)
 

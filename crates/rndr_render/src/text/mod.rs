@@ -134,6 +134,7 @@ pub(super) struct State {
     fallbacks: HashMap<String, Vec<String>>,
     scale: f32,
     epoch: u64,
+    uploads_epoch: u64,
     rasters: u64,
 }
 
@@ -224,6 +225,7 @@ impl ParleyText {
                 fallbacks: HashMap::new(),
                 scale: 1.0,
                 epoch: 0,
+                uploads_epoch: 0,
                 rasters: 0,
             }),
             shapes: AtomicU64::new(0),
@@ -275,10 +277,20 @@ impl ParleyText {
     /// poisoned.
     pub fn take_uploads(&self) -> AtlasUpload {
         let mut state = self.lock();
+        state.uploads_epoch = state.uploads_epoch.wrapping_add(1);
         AtlasUpload {
             coverage: layer_from(state.coverage.take_dirty()),
             color: layer_from(state.color.take_dirty()),
         }
+    }
+
+    // Consuming pending uploads during Render can invalidate a painted frame
+    // without changing glyph UVs. Do not overload cache_epoch: the runner's
+    // ordinary upload must not invalidate all label layouts every frame.
+    #[cfg(feature = "observe")]
+    pub(crate) fn paint_epoch(&self) -> (u64, u64) {
+        let state = self.lock();
+        (state.epoch, state.uploads_epoch)
     }
 
     fn lock(&self) -> MutexGuard<'_, State> {
@@ -508,6 +520,7 @@ impl TextEngine for ParleyText {
             .fallbacks
             .entry(name.to_string())
             .or_insert_with(|| vec![name.to_string()]);
+        state.invalidate_lines();
     }
 
     fn begin_frame(&self) {
@@ -534,7 +547,11 @@ impl TextEngine for ParleyText {
         } else {
             1.0
         };
-        self.lock().scale = scale;
+        let mut state = self.lock();
+        if state.scale != scale {
+            state.scale = scale;
+            state.invalidate_lines();
+        }
     }
 }
 

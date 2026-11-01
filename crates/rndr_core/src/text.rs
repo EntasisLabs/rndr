@@ -237,7 +237,12 @@ pub trait TextEngine: Send + Sync + 'static {
     fn shape_count(&self) -> u64;
 
     /// Bumps when atlas UVs are no longer the ones already stored on labels.
-    /// Zero means the engine's coordinates do not move under a cached layout.
+    /// Also bump for font/fallback/configuration changes that invalidate an
+    /// already-painted frame. Observation binds this version and engine identity
+    /// across Render; custom engines must version interior invalidations and
+    /// avoid concurrent mutation through submission. Unversioned custom state
+    /// cannot be certified by the framework.
+    /// Zero means the engine's coordinates/configuration stay valid.
     fn cache_epoch(&self) -> u64 {
         0
     }
@@ -322,6 +327,7 @@ struct RunKey {
 pub struct BuiltinText {
     state: Mutex<EngineState>,
     shapes: AtomicU64,
+    epoch: AtomicU64,
 }
 
 impl BuiltinText {
@@ -342,6 +348,7 @@ impl BuiltinText {
                 },
             }),
             shapes: AtomicU64::new(0),
+            epoch: AtomicU64::new(0),
         }
     }
 
@@ -360,7 +367,12 @@ impl BuiltinText {
     pub fn sync_face(&self, face: Arc<dyn Font>) {
         let name = face.family_name().to_string();
         self.register_font(&name, face);
-        self.lock().default_family = name;
+        let mut state = self.lock();
+        if state.default_family != name {
+            state.default_family = name;
+            state.cache.frames.iter_mut().for_each(HashMap::clear);
+            self.epoch.fetch_add(1, Ordering::Relaxed);
+        }
     }
 
     fn lock(&self) -> MutexGuard<'_, EngineState> {
@@ -608,14 +620,26 @@ impl TextEngine for BuiltinText {
     }
 
     fn set_fallbacks(&self, family: &str, faces: &[String]) {
-        self.lock()
-            .fallbacks
-            .insert(family.to_string(), faces.to_vec());
+        let mut state = self.lock();
+        if state.fallbacks.get(family).is_none_or(|old| old != faces) {
+            state.fallbacks.insert(family.to_string(), faces.to_vec());
+            state.cache.frames.iter_mut().for_each(HashMap::clear);
+            self.epoch.fetch_add(1, Ordering::Relaxed);
+        }
     }
 
     fn register_font(&self, name: &str, font: Arc<dyn Font>) {
         let mut state = self.lock();
+        if state
+            .fonts
+            .get(name)
+            .is_some_and(|old| Arc::ptr_eq(old, &font))
+        {
+            return;
+        }
         state.fonts.insert(name.to_string(), font);
+        state.cache.frames.iter_mut().for_each(HashMap::clear);
+        self.epoch.fetch_add(1, Ordering::Relaxed);
         state.fallbacks.entry(name.to_string()).or_insert_with(|| {
             if name == "bitmap" {
                 vec!["bitmap".to_string()]
@@ -634,6 +658,10 @@ impl TextEngine for BuiltinText {
 
     fn shape_count(&self) -> u64 {
         self.shapes.load(Ordering::Relaxed)
+    }
+
+    fn cache_epoch(&self) -> u64 {
+        self.epoch.load(Ordering::Relaxed)
     }
 }
 
