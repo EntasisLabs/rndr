@@ -339,6 +339,7 @@ impl ControlHandle {
     pub fn validate(self, world: &World) -> Result<(), UiError> {
         let c = world.get::<Control>(self.root).ok_or(UiError::Stale)?;
         if c.label != self.label
+            || !world.has::<Layout>(self.root)
             || world.get::<OwnedBy>(self.root).map(|o| o.0) != Some(self.root)
             || !world.has::<ReleaseActivation>(self.root)
             || !world.has::<Label>(self.label)
@@ -555,6 +556,8 @@ impl ModeHandle {
     pub fn validate(&self, world: &World) -> Result<(), UiError> {
         let s = world.get::<Selector>(self.root).ok_or(UiError::Stale)?;
         if self.group != s.group
+            || !world.has::<Layout>(self.root)
+            || !world.has::<Layout>(self.group)
             || self.tabs != s.tabs
             || self.panels != s.panels
             || world.get::<OwnedBy>(self.root).map(|o| o.0) != Some(self.root)
@@ -569,6 +572,7 @@ impl ModeHandle {
             if world.get::<Parent>(tab.root).map(|p| p.entity) != Some(self.group)
                 || world.get::<Parent>(*panel).map(|p| p.entity) != Some(self.root)
                 || world.get::<OwnedBy>(*panel).map(|o| o.0) != Some(self.root)
+                || !world.has::<Layout>(*panel)
                 || !world.has::<TabPanel>(*panel)
                 || world
                     .get::<TabRelation>(tab.root)
@@ -642,9 +646,10 @@ impl Toolbar {
             return Err(UiError::InvalidProps);
         }
         let root = if let Some(root) = find(world, parent, id) {
-            if !world.has::<ToolbarNode>(root) || !world.has::<Layout>(root) {
+            if !world.has::<ToolbarNode>(root) {
                 return Err(UiError::IdentityConflict);
             }
+            ToolbarHandle { root }.validate(world)?;
             root
         } else {
             let e = world.spawn((Layout::column(),));
@@ -666,11 +671,19 @@ impl Toolbar {
     }
 }
 impl ToolbarHandle {
-    /// Remove toolbar only; controls and caller subtrees detach intact.
-    pub fn destroy(self, world: &mut World) -> Result<(), UiError> {
-        if !world.has::<ToolbarNode>(self.root) || !world.has::<Layout>(self.root) {
+    /// Validate the toolbar's own root, not ownership of its borrowed children.
+    pub fn validate(self, world: &World) -> Result<(), UiError> {
+        if !world.has::<ToolbarNode>(self.root)
+            || !world.has::<Layout>(self.root)
+            || world.get::<OwnedBy>(self.root).map(|o| o.0) != Some(self.root)
+        {
             return Err(UiError::Stale);
         }
+        Ok(())
+    }
+    /// Remove toolbar only; controls and caller subtrees detach intact.
+    pub fn destroy(self, world: &mut World) -> Result<(), UiError> {
+        self.validate(world)?;
         destroy_owned(world, self.root);
         Ok(())
     }
@@ -830,6 +843,16 @@ pub(crate) fn resolve_controls(world: &mut World) {
         let mut known = true;
         for child in &children {
             if let Some(c) = world.get::<Control>(*child) {
+                if (ControlHandle {
+                    root: *child,
+                    label: c.label,
+                })
+                .validate(world)
+                .is_err()
+                {
+                    known = false;
+                    continue;
+                }
                 let label = world.get::<Label>(c.label).unwrap();
                 let style = world
                     .get::<TextStyle>(c.label)
