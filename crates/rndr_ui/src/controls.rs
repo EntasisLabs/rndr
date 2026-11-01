@@ -838,13 +838,15 @@ pub(crate) fn resolve_controls(world: &mut World) {
     }
 }
 
-/// Measure only after the current cascade/type scale has resolved. This stays
-/// before core layout, avoiding a frame of horizontal overflow on type changes.
+/// Resolve after the current cascade/type scale, before App's final layout.
+/// Tentative rows are measured by core itself, including snapped nested geometry
+/// and the text engine's content box. No copied layout/text inset arithmetic.
 pub(crate) fn resolve_toolbars(world: &mut World) {
     let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
     // Measure with the actual installed text engine and resolved type style.
     // Unknown borrowed children force stacking rather than assuming a fake menu.
     let engine = text_engine(world);
+    let mut candidates = Vec::new();
     for root in world.entities_with::<ToolbarNode>() {
         let node = *world.get::<ToolbarNode>(root).unwrap();
         let children: Vec<_> = children_of(world, root)
@@ -852,11 +854,8 @@ pub(crate) fn resolve_toolbars(world: &mut World) {
             .filter(|e| !world.has::<Hidden>(*e))
             .collect();
         let gaps = 8.0 * children.len().saturating_sub(1) as f32;
-        let padding = world.get::<Layout>(root).unwrap().padding * 2.0;
-        let share = (node.available - padding - gaps).max(0.0) / children.len().max(1) as f32;
-        // Preserve the existing conservative row budget (including its extra
-        // breathing room). Passing that budget alone is not sufficient: each
-        // Fill share must also fit the real label and nested insets below.
+        // Retain the historical conservative veto, not as a proof of fit.
+        // Every tentative row must also pass actual content geometry below.
         let mut row_budget = gaps;
         let mut known = true;
         for child in &children {
@@ -876,20 +875,12 @@ pub(crate) fn resolve_toolbars(world: &mut World) {
                     .get::<TextStyle>(c.label)
                     .cloned()
                     .unwrap_or_else(|| theme.typography(Typography::Label));
-                // Core gives every direct Fill control the same row share, not
-                // its natural width. Check each label against that allocation.
-                // Include the actual nested ring/gap/border/face/label insets
-                // rather than a sum-width estimate or a magic safety margin.
-                let insets: f32 = [*child, c.gap, c.border, c.face, c.label]
-                    .iter()
-                    .map(|e| world.get::<Layout>(*e).unwrap().padding * 2.0)
-                    .sum();
+
                 let natural = engine
                     .measure(&label.text, &style, &[], f32::INFINITY)
                     .width;
-                let required = (natural + insets).max(theme.target_min());
                 row_budget += (natural + 52.0).max(theme.target_min());
-                known &= required.is_finite() && required <= share;
+                known &= natural.is_finite();
             } else {
                 known = false;
             }
@@ -902,6 +893,68 @@ pub(crate) fn resolve_toolbars(world: &mut World) {
                 Axis::Column
             };
             l.gap = 8.0;
+            if l.axis == Axis::Row && !children.is_empty() {
+                candidates.push((root, children));
+            }
         }
+    }
+    if candidates.is_empty() {
+        return;
+    }
+    // A tentative short row can clamp a caller's scroll offset before being
+    // rejected. Measurement must not commit that clamp. Restore the original
+    // scroll state before each walk and leave final clamping to App's layout.
+    let scrolls: Vec<_> = world
+        .entities_with::<Scroll>()
+        .into_iter()
+        .map(|e| (e, *world.get::<Scroll>(e).unwrap()))
+        .collect();
+    loop {
+        for (e, scroll) in &scrolls {
+            world.insert(*e, *scroll);
+        }
+        layout_propagate(world);
+        apply_text_layout(world);
+        let mut changed = false;
+        for (root, children) in &candidates {
+            if world.get::<Layout>(*root).unwrap().axis != Axis::Row {
+                continue;
+            }
+            let fits = children.iter().all(|child| {
+                let c = world.get::<Control>(*child).unwrap();
+                let label = world.get::<Label>(c.label).unwrap();
+                let style = world
+                    .get::<TextStyle>(c.label)
+                    .cloned()
+                    .unwrap_or_else(|| theme.typography(Typography::Label));
+                let natural = engine
+                    .measure(&label.text, &style, &[], f32::INFINITY)
+                    .width;
+                // A never-shown hidden ancestor has no allocated Rect yet.
+                // Missing geometry cannot prove fit; reveal is reconsidered on
+                // the next update using the same authoritative layout walk.
+                let Some(rect) = world.get::<Rect>(c.label) else {
+                    return false;
+                };
+                let content = field_text_width(rect.w, engine.unit_advance(&style));
+                rect.w.is_finite()
+                    && content >= natural
+                    && world
+                        .get::<TextLayout>(c.label)
+                        .is_some_and(|l| l.lines.len() <= 1)
+            });
+            if !fits {
+                world.get_mut::<Layout>(*root).unwrap().axis = Axis::Column;
+                changed = true;
+            }
+        }
+        // Vetoes only remove rows: at most one per candidate, plus the final
+        // stable walk. Recheck other rows if a veto changes ancestor geometry.
+        if !changed {
+            break;
+        }
+    }
+    for (e, scroll) in scrolls {
+        world.insert(e, scroll);
     }
 }

@@ -47,7 +47,12 @@ fn needed(a: &App, h: ControlHandle) -> f32 {
         }
         e = a.world().get::<Parent>(e).unwrap().entity;
     }
-    (natural(a, h) + insets).max(a.world().get::<Layout>(h.root).unwrap().min_width)
+    // Original R1 fixture omitted core's inner text origin. Integer-scale
+    // stimulus boundary only; fitted() verifies final engine geometry.
+    let style = a.world().get::<TextStyle>(h.label).unwrap();
+    let unit = text_engine(a.world()).unit_advance(style);
+    let text_insets = 4096. - field_text_width(4096., unit);
+    (natural(a, h) + insets + text_insets).max(a.world().get::<Layout>(h.root).unwrap().min_width)
 }
 fn axis(a: &App, t: ToolbarHandle) -> Axis {
     a.world().get::<Layout>(t.root).unwrap().axis
@@ -60,7 +65,24 @@ fn fitted(a: &App, t: ToolbarHandle, handles: &[ControlHandle]) {
     assert_eq!(axis(a, t), Axis::Row);
     for h in handles {
         let r = a.world().get::<Rect>(h.label).unwrap();
-        assert!(r.w + 0.001 >= natural(a, *h), "{r:?} < {}", natural(a, *h));
+        let style = a.world().get::<TextStyle>(h.label).unwrap();
+        let engine = text_engine(a.world());
+        let content = field_text_width(r.w, engine.unit_advance(style));
+        assert!(
+            content >= natural(a, *h),
+            "{r:?} content={content} < {}",
+            natural(a, *h)
+        );
+        let actual = a.world().get::<TextLayout>(h.label).unwrap();
+        let unwrapped = engine.layout(
+            &a.world().get::<Label>(h.label).unwrap().text,
+            style,
+            &[],
+            f32::INFINITY,
+        );
+        assert_eq!(actual.lines.len(), 1);
+        assert_eq!(actual.lines, unwrapped.lines);
+        assert_eq!(actual.glyphs, unwrapped.glyphs);
     }
 }
 
@@ -95,12 +117,13 @@ fn equal_share_boundary_both_densities_and_type_scales() {
             let short = button(&mut a, t, 3, "Go");
             a.update();
             let boundary = 2. * needed(&a, long).max(needed(&a, short)) + 8.;
-            // Immediately below, exactly at, and above fit; both directions.
+            // Below by one allocated point, exactly at, and above fit, both
+            // directions. A quarter point can snap UP to the exact boundary.
             for (width, expected) in [
-                (boundary - 0.25, Axis::Column),
+                (boundary - 2., Axis::Column),
                 (boundary, Axis::Row),
-                (boundary + 0.25, Axis::Row),
-                (boundary - 0.25, Axis::Column),
+                (boundary + 2., Axis::Row),
+                (boundary - 2., Axis::Column),
                 (boundary, Axis::Row),
             ] {
                 resize(&mut a, p, t, width);
@@ -216,7 +239,7 @@ fn mixed_icon_and_source_actions_use_their_actual_label_styles() {
                     .max(needed(&a, icon))
                     .max(needed(&a, source))
                 + 16.;
-            for (w, expected) in [(boundary - 0.25, Axis::Column), (boundary, Axis::Row)] {
+            for (w, expected) in [(boundary - 3., Axis::Column), (boundary, Axis::Row)] {
                 resize(&mut a, p, t, w);
                 a.update();
                 assert_eq!(axis(&a, t), expected);
@@ -262,7 +285,7 @@ fn empty_single_hidden_unknown_policy_and_toolbar_padding() {
     a.world_mut().remove::<Hidden>(long.root);
     a.world_mut().get_mut::<Layout>(t.root).unwrap().padding = 7.;
     let boundary = 2. * needed(&a, long) + 8. + 14.;
-    for (w, expected) in [(boundary - 0.25, Axis::Column), (boundary, Axis::Row)] {
+    for (w, expected) in [(boundary - 2., Axis::Column), (boundary, Axis::Row)] {
         resize(&mut a, p, t, w);
         a.update();
         assert_eq!(axis(&a, t), expected);
