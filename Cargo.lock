@@ -3187,6 +3187,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "rndr_ui"
+version = "0.3.1"
+dependencies = [
+ "rndr_core",
+ "rndr_paint",
+]
+
+[[package]]
 name = "roxmltree"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

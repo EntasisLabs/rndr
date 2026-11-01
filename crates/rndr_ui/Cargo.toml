@@ -1,0 +1,16 @@
+[package]
+name = "rndr_ui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
+description = "Opt-in semantic UI foundations for rndr (A0/A1)"
+publish = false
+
+[dependencies]
+rndr_core = { workspace = true }
+
+[dev-dependencies]
+rndr_paint = { workspace = true }

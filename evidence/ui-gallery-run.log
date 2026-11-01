@@ -1,0 +1,10 @@
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_ui)
+   Compiling rndr_paint v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_paint)
+    Finished `dev` profile [unoptimized] target(s) in 0.40s
+     Running `target/debug/examples/passive_gallery evidence/ui-gallery`
+light-wide: quads=1147 glyphs=1135 labels=26
+dark-wide: quads=1147 glyphs=1135 labels=26
+light-narrow-200: quads=1147 glyphs=1135 labels=26
+dark-compact-200: quads=1147 glyphs=1135 labels=26
+high-light-200: quads=1147 glyphs=1135 labels=26
+high-dark-200: quads=1147 glyphs=1135 labels=26

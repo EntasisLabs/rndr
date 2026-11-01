@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/rndr",
     "crates/rndr_core",
+    "crates/rndr_ui",
     "crates/rndr_paint",
     "crates/rndr_render",
     "crates/rndr_std",
