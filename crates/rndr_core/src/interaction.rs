@@ -30,6 +30,12 @@ pub struct TabRelation {
     pub panel: Entity,
 }
 impl Component for TabRelation {}
+#[derive(Clone, Copy)]
+struct PanelLink {
+    tab: Entity,
+    group: Entity,
+}
+impl Component for PanelLink {}
 
 /// Supplemental accessibility data without changing `AccessNode` literals.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -76,6 +82,7 @@ pub fn access_details(world: &World, entity: Entity) -> AccessDetails {
     let relation = world.get::<TabRelation>(entity).filter(|r| {
         world.has::<Tabs>(r.group) && world.has::<TabPanel>(r.panel) && world.is_alive(r.panel)
     });
+    let valid_row = valid_list_row(world, entity);
     AccessDetails {
         description: semantics.description,
         readonly: semantics.readonly,
@@ -86,15 +93,22 @@ pub fn access_details(world: &World, entity: Entity) -> AccessDetails {
                 || world.has::<Prompt>(entity)
                 || world.has::<Editor>(entity)
                 || world.has::<List>(entity)
-                || world.has::<Tab>(entity)),
+                || world.has::<Tab>(entity)
+                || valid_row),
         activate: enabled
             && !semantics.readonly
             && (world.has::<Button>(entity)
-                || world.has::<List>(entity)
-                || world.has::<ListItem>(entity)
+                || world
+                    .get::<List>(entity)
+                    .is_some_and(|l| l.selected.is_some_and(|i| i < l.count))
+                || valid_row
                 || world.has::<Disclosure>(entity)
                 || (world.has::<Tab>(entity)
-                    && (relation.is_some() || crate::tabs::tab_group(world, entity).is_some()))),
+                    && (if world.has::<TabRelation>(entity) {
+                        relation.is_some()
+                    } else {
+                        crate::tabs::tab_group(world, entity).is_some()
+                    }))),
         set_value: false,
         panel: world.has::<TabPanel>(entity),
         controls: relation.map(|r| access_id(r.panel)),
@@ -107,6 +121,76 @@ pub fn access_details(world: &World, entity: Entity) -> AccessDetails {
                     .is_some_and(|r| r.panel == entity)
             })
             .map(access_id),
+    }
+}
+
+fn valid_list_row(world: &World, entity: Entity) -> bool {
+    let Some(row) = world.get::<ListItem>(entity) else {
+        return false;
+    };
+    let mut current = world.get::<Parent>(entity).map(|p| p.entity);
+    for _ in 0..256 {
+        let Some(e) = current else {
+            return false;
+        };
+        if let Some(list) = world.get::<List>(e) {
+            return row.index < list.count;
+        }
+        current = world.get::<Parent>(e).map(|p| p.entity);
+    }
+    false
+}
+
+pub(crate) fn readonly(world: &World, entity: Entity) -> bool {
+    world.get::<Semantics>(entity).is_some_and(|s| s.readonly)
+}
+
+// Constrain user input, not programmatic validated source-edit operations.
+// This opt-in guard leaves navigation, selection and Copy available.
+pub(crate) fn sanitize_readonly_input(world: &mut World) {
+    let Some(entity) = world.resource::<Focus>().and_then(|f| f.entity) else {
+        return;
+    };
+    if !readonly(world, entity)
+        || !(world.has::<TextField>(entity)
+            || world.has::<Prompt>(entity)
+            || world.has::<Editor>(entity))
+    {
+        return;
+    }
+    let Some(input) = world.resource_mut::<Input>() else {
+        return;
+    };
+    input.chars.clear();
+    input.ime_commit.clear();
+    input.ime_preedit.clear();
+    input.ime_cursor = None;
+    input.key = input.key.filter(|key| {
+        matches!(
+            key,
+            Key::Up | Key::Down | Key::Left | Key::Right | Key::Copy | Key::Tab | Key::Escape
+        )
+    });
+    input.keys.retain(|event| {
+        matches!(
+            event.logical,
+            LogicalKey::Named(
+                NamedKey::ArrowUp
+                    | NamedKey::ArrowDown
+                    | NamedKey::ArrowLeft
+                    | NamedKey::ArrowRight
+                    | NamedKey::Home
+                    | NamedKey::End
+                    | NamedKey::PageUp
+                    | NamedKey::PageDown
+                    | NamedKey::Tab
+                    | NamedKey::Escape
+            )
+        ) || (event.modifiers.command()
+            && matches!(event.logical, LogicalKey::Character('c' | 'C' | 'a' | 'A')))
+    });
+    for event in &mut input.keys {
+        event.text = None;
     }
 }
 
@@ -209,6 +293,41 @@ pub fn try_activate(world: &mut World, entity: Entity) -> ActivationResult {
     ActivationResult::Rejected
 }
 
+/// Remove references to a destroyed owned subtree without disturbing unrelated
+/// focus, capture or queued intents. Component lifecycle owners call this before despawn.
+pub fn forget_interaction_targets(world: &mut World, entities: &[Entity]) {
+    if let Some(state) = world.resource_mut::<InteractionState>() {
+        if state.pointer.is_some_and(|(e, _)| entities.contains(&e)) {
+            state.pointer = None;
+        }
+        if state.space.is_some_and(|e| entities.contains(&e)) {
+            state.space = None;
+        }
+        if state.focus.is_some_and(|e| entities.contains(&e)) {
+            state.focus = None;
+        }
+    }
+    if let Some(focus) = world.resource_mut::<Focus>() {
+        if focus.entity.is_some_and(|e| entities.contains(&e)) {
+            focus.entity = None;
+        }
+    }
+    if let Some(queue) = world.resource_mut::<ActionIntents>() {
+        queue.pending.retain(|i| !entities.contains(&i.entity));
+    }
+    if let Some(drag) = world.resource_mut::<ScrollDrag>() {
+        if drag.entity.is_some_and(|e| entities.contains(&e)) {
+            drag.entity = None;
+            drag.active = false;
+        }
+    }
+    if let Some(drag) = world.resource_mut::<Drag>() {
+        if drag.entity.is_some_and(|e| entities.contains(&e)) {
+            drag.entity = None;
+        }
+    }
+}
+
 /// Focus through the same validation path used by keyboard and AT.
 pub fn request_focus(world: &mut World, entity: Entity) -> bool {
     if !access_details(world, entity).focus {
@@ -276,6 +395,17 @@ fn focus_order(world: &World) -> Vec<Entity> {
 }
 
 pub(crate) fn sync_related_panels(world: &mut World) {
+    for panel in world.entities_with::<PanelLink>() {
+        let link = *world.get::<PanelLink>(panel).unwrap();
+        if !world
+            .get::<TabRelation>(link.tab)
+            .is_some_and(|r| r.panel == panel && r.group == link.group)
+            || !world.has::<Tabs>(link.group)
+        {
+            world.insert(panel, Hidden);
+            world.remove::<PanelLink>(panel);
+        }
+    }
     for tab in world.entities_with::<TabRelation>() {
         let relation = *world.get::<TabRelation>(tab).unwrap();
         let selected = world
@@ -314,6 +444,9 @@ pub(crate) fn apply_generic_input(world: &mut World) {
     if blur || world.resource::<InteractionState>().unwrap().focus != focus {
         cancel_activation(world);
     }
+    let had_armed = world
+        .resource::<InteractionState>()
+        .is_some_and(|s| s.pointer.is_some() || s.space.is_some());
     let escape = input.key == Some(Key::Escape)
         || input
             .keys
@@ -352,10 +485,17 @@ pub(crate) fn apply_generic_input(world: &mut World) {
             }
         }
     }
+    if world
+        .resource::<ScrollDrag>()
+        .is_some_and(|drag| drag.active)
+    {
+        world.resource_mut::<InteractionState>().unwrap().pointer = None;
+    }
     let armed = world.resource::<InteractionState>().unwrap().pointer;
     if !escape {
         if let Some((entity, id)) = armed {
             if id != input.pointer.id
+                || (input.pointer.released && input.pointer.button != PointerButton::Left)
                 || !access_details(world, entity).activate
                 || (!input.pointer.down && !input.pointer.released)
             {
@@ -424,7 +564,7 @@ pub(crate) fn apply_generic_input(world: &mut World) {
                 consumed = true;
             } else if event.logical == LogicalKey::Named(NamedKey::Escape) {
                 cancel_activation(world);
-                consumed = true;
+                consumed = had_armed;
             } else if let Some(entity) = focus.filter(|e| world.has::<ReleaseActivation>(*e)) {
                 match event.logical {
                     LogicalKey::Named(NamedKey::Enter) => {
@@ -509,7 +649,14 @@ pub fn link_tab_panel(
     {
         return Err(TabLinkError::Duplicate);
     }
+    if let Some(old) = world.get::<TabRelation>(tab).copied() {
+        if old.panel != panel && world.is_alive(old.panel) {
+            world.insert(old.panel, Hidden);
+            world.remove::<PanelLink>(old.panel);
+        }
+    }
     world.insert(tab, TabRelation { group, panel });
+    world.insert(panel, PanelLink { tab, group });
     sync_related_panels(world);
     Ok(())
 }

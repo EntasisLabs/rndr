@@ -1,0 +1,47 @@
+   Compiling rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core)
+    Finished `test` profile [unoptimized] target(s) in 0.18s
+     Running tests/a1_lifecycle.rs (target/debug/deps/a1_lifecycle-a3fb5d6128021d0b)
+
+running 4 tests
+test destroyed_semantic_tab_cannot_leave_an_exposed_orphan_panel ... FAILED
+test unarmed_escape_still_reaches_legacy_overlay ... FAILED
+test generic_install_preserves_focused_legacy_list_rows ... FAILED
+test readonly_preserves_field_and_editor_text_ime_and_history ... FAILED
+
+failures:
+
+---- destroyed_semantic_tab_cannot_leave_an_exposed_orphan_panel stdout ----
+
+thread 'destroyed_semantic_tab_cannot_leave_an_exposed_orphan_panel' (186591) panicked at crates/rndr_core/tests/a1_lifecycle.rs:41:5:
+assertion failed: !interaction_visible(app.world(), panel)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- unarmed_escape_still_reaches_legacy_overlay stdout ----
+
+thread 'unarmed_escape_still_reaches_legacy_overlay' (186594) panicked at crates/rndr_core/tests/a1_lifecycle.rs:15:18:
+assertion failed: !app.world().is_alive(overlay)
+
+---- generic_install_preserves_focused_legacy_list_rows stdout ----
+
+thread 'generic_install_preserves_focused_legacy_list_rows' (186592) panicked at crates/rndr_core/tests/a1_lifecycle.rs:9:19:
+assertion `left == right` failed
+  left: None
+ right: Some(Entity { index: 1, generation: 0 })
+
+---- readonly_preserves_field_and_editor_text_ime_and_history stdout ----
+
+thread 'readonly_preserves_field_and_editor_text_ime_and_history' (186593) panicked at crates/rndr_core/tests/a1_lifecycle.rs:29:9:
+assertion `left == right` failed
+  left: "originalbadunsafe"
+ right: "original"
+
+
+failures:
+    destroyed_semantic_tab_cannot_leave_an_exposed_orphan_panel
+    generic_install_preserves_focused_legacy_list_rows
+    readonly_preserves_field_and_editor_text_ime_and_history
+    unarmed_escape_still_reaches_legacy_overlay
+
+test result: FAILED. 0 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p rndr_core --test a1_lifecycle`

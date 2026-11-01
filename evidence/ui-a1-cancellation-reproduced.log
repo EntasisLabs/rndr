@@ -1,0 +1,30 @@
+   Compiling rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core)
+    Finished `test` profile [unoptimized] target(s) in 1.46s
+     Running tests/a1_cancellation_edges.rs (target/debug/deps/a1_cancellation_edges-0105e9bfd41c57ac)
+
+running 3 tests
+test semantic_tab_requires_live_panel_and_relations_survive_no_stale_generation ... ok
+test scroll_capture_wins_over_an_armed_button ... FAILED
+test matching_pointer_is_not_enough_a_release_must_match_primary_button ... FAILED
+
+failures:
+
+---- scroll_capture_wins_over_an_armed_button stdout ----
+
+thread 'scroll_capture_wins_over_an_armed_button' (191544) panicked at crates/rndr_core/tests/a1_cancellation_edges.rs:25:5:
+assertion failed: take_action_intents(app.world_mut()).is_empty()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- matching_pointer_is_not_enough_a_release_must_match_primary_button stdout ----
+
+thread 'matching_pointer_is_not_enough_a_release_must_match_primary_button' (191543) panicked at crates/rndr_core/tests/a1_cancellation_edges.rs:15:18:
+assertion failed: take_action_intents(app.world_mut()).is_empty()
+
+
+failures:
+    matching_pointer_is_not_enough_a_release_must_match_primary_button
+    scroll_capture_wins_over_an_armed_button
+
+test result: FAILED. 1 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p rndr_core --test a1_cancellation_edges`

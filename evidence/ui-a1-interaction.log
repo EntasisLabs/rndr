@@ -1,39 +1,14 @@
-   Compiling rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core)
-warning: unused import: `crate::action::Fired`
- --> crates/rndr_core/src/button.rs:1:5
-  |
-1 | use crate::action::Fired;
-  |     ^^^^^^^^^^^^^^^^^^^^
-  |
-  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
-
-warning: `rndr_core` (lib) generated 1 warning (run `cargo fix --lib -p rndr_core` to apply 1 suggestion)
-    Finished `test` profile [unoptimized] target(s) in 1.47s
+    Finished `test` profile [unoptimized] target(s) in 0.04s
      Running tests/a1_interaction.rs (target/debug/deps/a1_interaction-64843e33abedd6da)
 
 running 7 tests
 test allowed_matrix_names_readonly_hidden_unsupported_and_safe_setvalue ... ok
-test real_panel_relations_manual_focus_and_inactive_exclusion ... ok
 test generic_tab_focus_no_shell_side_effects_editor_keeps_keys ... ok
 test mixed_press_and_release_and_at_share_canonical_route ... ok
-test space_release_enter_down_repeat_synthetic_and_focus_loss ... FAILED
+test space_release_enter_down_repeat_synthetic_and_focus_loss ... ok
+test real_panel_relations_manual_focus_and_inactive_exclusion ... ok
 test cardinality_order_overflow_revalidation_and_generation ... ok
 test pointer_cancel_outside_escape_blur_capture_disable_and_destroy ... ok
 
-failures:
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 
----- space_release_enter_down_repeat_synthetic_and_focus_loss stdout ----
-
-thread 'space_release_enter_down_repeat_synthetic_and_focus_loss' (163921) panicked at crates/rndr_core/tests/a1_interaction.rs:77:5:
-assertion `left == right` failed
-  left: 0
- right: 1
-note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
-
-
-failures:
-    space_release_enter_down_repeat_synthetic_and_focus_loss
-
-test result: FAILED. 6 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
-
-error: test failed, to rerun pass `-p rndr_core --test a1_interaction`

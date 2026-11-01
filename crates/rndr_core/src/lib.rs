@@ -253,6 +253,8 @@ pub use interaction::{
     ReleaseActivation, Semantics, TabRelation,
 };
 
-pub use interaction::{link_tab_panel, move_tab_focus, TabFocusMove, TabLinkError};
+pub use interaction::{
+    forget_interaction_targets, link_tab_panel, move_tab_focus, TabFocusMove, TabLinkError,
+};
 
 pub use access::{try_apply_access, AccessCommandResult};

@@ -87,6 +87,7 @@ pub fn apply_fields(world: &mut World) {
         }
     }
     focus_pressed_field(world);
+    crate::interaction::sanitize_readonly_input(world);
     let focus = world.resource::<Focus>().and_then(|focus| focus.entity);
     let mut fields = world.entities_with::<TextField>();
     for entity in world.entities_with::<crate::prompt::Prompt>() {
@@ -195,6 +196,9 @@ fn publish_field_primary(world: &mut World, entity: Entity) {
 /// Text to insert for a middle-click on `entity`, when this platform has a
 /// primary selection and the press landed in the field.
 pub(crate) fn middle_paste_text(world: &World, entity: Entity) -> Option<String> {
+    if crate::interaction::readonly(world, entity) {
+        return None;
+    }
     if !primary_selection(platform_of(world)) {
         return None;
     }

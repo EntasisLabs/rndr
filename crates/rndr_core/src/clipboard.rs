@@ -165,6 +165,9 @@ pub fn apply_clipboard(world: &mut World) {
     let Some(entity) = entity else {
         return;
     };
+    if crate::interaction::readonly(world, entity) && name != COPY {
+        return;
+    }
     let mut text = world
         .get::<Label>(entity)
         .map(|label| label.text.clone())
