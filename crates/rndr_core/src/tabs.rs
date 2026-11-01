@@ -102,9 +102,9 @@ pub(crate) fn sync_panels(world: &mut World) {
 
 /// Actual semantic tablist owner, including sibling panel compositions.
 pub(crate) fn tab_group(world: &World, entity: crate::Entity) -> Option<crate::Entity> {
-    world
-        .get::<crate::TabRelation>(entity)
-        .map(|r| r.group)
-        .filter(|g| world.has::<Tabs>(*g))
-        .or_else(|| ancestor_with::<Tabs>(world, entity))
+    if world.has::<crate::TabRelation>(entity) {
+        crate::interaction::valid_tab_relation(world, entity).map(|r| r.group)
+    } else {
+        ancestor_with::<Tabs>(world, entity)
+    }
 }

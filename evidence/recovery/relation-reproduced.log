@@ -1,0 +1,22 @@
+   Compiling rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core)
+    Finished `test` profile [unoptimized] target(s) in 0.75s
+     Running tests/a1_relation_lifecycle.rs (target/debug/deps/a1_relation_lifecycle-46b3c66030495375)
+
+running 1 test
+test invalidated_tab_structure_rejects_actions_and_hides_panel ... FAILED
+
+failures:
+
+---- invalidated_tab_structure_rejects_actions_and_hides_panel stdout ----
+
+thread 'invalidated_tab_structure_rejects_actions_and_hides_panel' (334867) panicked at crates/rndr_core/tests/a1_relation_lifecycle.rs:19:9:
+assertion failed: !access_details(app.world(), tab).activate
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    invalidated_tab_structure_rejects_actions_and_hides_panel
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p rndr_core --test a1_relation_lifecycle`

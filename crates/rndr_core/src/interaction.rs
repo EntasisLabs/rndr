@@ -72,6 +72,17 @@ pub fn interaction_visible(world: &World, mut entity: Entity) -> bool {
     false // malformed/cyclic hierarchy is not actionable
 }
 
+// Public ECS components may be removed/reparented after linking. Never trust
+// the original link validation when advertising, activating or showing panels.
+pub(crate) fn valid_tab_relation(world: &World, tab: Entity) -> Option<TabRelation> {
+    let relation = *world.get::<TabRelation>(tab)?;
+    (world.has::<Tab>(tab)
+        && world.has::<Tabs>(relation.group)
+        && world.has::<TabPanel>(relation.panel)
+        && world.get::<Parent>(tab).map(|p| p.entity) == Some(relation.group))
+    .then_some(relation)
+}
+
 /// Current allowed-action matrix; platform advertising and dispatch share it.
 pub fn access_details(world: &World, entity: Entity) -> AccessDetails {
     if !interaction_visible(world, entity) {
@@ -79,9 +90,7 @@ pub fn access_details(world: &World, entity: Entity) -> AccessDetails {
     }
     let semantics = world.get::<Semantics>(entity).cloned().unwrap_or_default();
     let enabled = world.get::<Button>(entity).is_none_or(|b| b.enabled);
-    let relation = world.get::<TabRelation>(entity).filter(|r| {
-        world.has::<Tabs>(r.group) && world.has::<TabPanel>(r.panel) && world.is_alive(r.panel)
-    });
+    let relation = valid_tab_relation(world, entity);
     let valid_row = valid_list_row(world, entity);
     AccessDetails {
         description: semantics.description,
@@ -115,11 +124,7 @@ pub fn access_details(world: &World, entity: Entity) -> AccessDetails {
         labelled_by: world
             .entities_with::<TabRelation>()
             .into_iter()
-            .find(|tab| {
-                world
-                    .get::<TabRelation>(*tab)
-                    .is_some_and(|r| r.panel == entity)
-            })
+            .find(|tab| valid_tab_relation(world, *tab).is_some_and(|r| r.panel == entity))
             .map(access_id),
     }
 }
@@ -397,10 +402,8 @@ fn focus_order(world: &World) -> Vec<Entity> {
 pub(crate) fn sync_related_panels(world: &mut World) {
     for panel in world.entities_with::<PanelLink>() {
         let link = *world.get::<PanelLink>(panel).unwrap();
-        if !world
-            .get::<TabRelation>(link.tab)
+        if !valid_tab_relation(world, link.tab)
             .is_some_and(|r| r.panel == panel && r.group == link.group)
-            || !world.has::<Tabs>(link.group)
         {
             world.insert(panel, Hidden);
             world.remove::<PanelLink>(panel);
@@ -408,10 +411,11 @@ pub(crate) fn sync_related_panels(world: &mut World) {
     }
     for tab in world.entities_with::<TabRelation>() {
         let relation = *world.get::<TabRelation>(tab).unwrap();
-        let selected = world
-            .get::<Tab>(tab)
-            .zip(world.get::<Tabs>(relation.group))
-            .is_some_and(|(tab, group)| tab.id == group.selected);
+        let selected = valid_tab_relation(world, tab).is_some()
+            && world
+                .get::<Tab>(tab)
+                .zip(world.get::<Tabs>(relation.group))
+                .is_some_and(|(tab, group)| tab.id == group.selected);
         if !world.has::<TabPanel>(relation.panel) {
             continue;
         }
@@ -683,9 +687,7 @@ pub fn move_tab_focus(world: &mut World, group: Entity, movement: TabFocusMove) 
     let tabs: Vec<_> = children_of(world, group)
         .into_iter()
         .filter(|tab| {
-            world
-                .get::<TabRelation>(*tab)
-                .is_some_and(|r| r.group == group)
+            valid_tab_relation(world, *tab).is_some_and(|r| r.group == group)
                 && access_details(world, *tab).focus
         })
         .collect();
