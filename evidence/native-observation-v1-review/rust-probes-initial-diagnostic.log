@@ -1,0 +1,138 @@
+COMMAND ['rustc', '--test', '--edition=2021', '-C', 'debuginfo=0', '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/harness.rs', '-L', 'dependency=target/debug/deps', '-o', '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/probe-tests', '--extern', 'rndr_core=target/debug/deps/librndr_core-99fc9f1d1448f44b.rlib', '--extern', 'rndr_render=target/debug/deps/librndr_render-8580aa0d828bf983.rlib', '--extern', 'rndr_paint=target/debug/deps/librndr_paint-e4ece9f62c286f49.rlib', '--extern', 'serde_json=target/debug/deps/libserde_json-a3049842202ea6af.rlib', '--extern', 'getrandom=target/debug/deps/libgetrandom-ed602181e0977db8.rlib', '--extern', 'png=target/debug/deps/libpng-668455356ddd1a3d.rlib']
+SOURCE crates/rndr_render/src/observe.rs 4824338533edd44fda5e85466215c53b60b9e769347e678abb9eb34459a8a902
+SOURCE crates/rndr_render/src/observe_tests.rs d7246fd9a86eda06027f3c3bc4184ecfc323f30fc3224106a4b091f80abc0f51
+SOURCE crates/rndr_paint/src/lib.rs 0d1190e9a043b2f3ed90700dad3e5b7ee0ef9bf0b7b0c91c2b6139df864180a0
+error[E0583]: file not found for module `affine`
+  --> /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/paint.rs:44:1
+   |
+44 | mod affine;
+   | ^^^^^^^^^^^
+   |
+   = help: to create the module `affine`, create file "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/affine.rs" or "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/affine/mod.rs"
+   = note: if there is a `mod affine` elsewhere in the crate already, import it with `use crate::...` instead
+
+error[E0583]: file not found for module `display`
+  --> /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/paint.rs:45:1
+   |
+45 | mod display;
+   | ^^^^^^^^^^^^
+   |
+   = help: to create the module `display`, create file "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/display.rs" or "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/display/mod.rs"
+   = note: if there is a `mod display` elsewhere in the crate already, import it with `use crate::...` instead
+
+error[E0583]: file not found for module `font`
+  --> /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/paint.rs:46:1
+   |
+46 | mod font;
+   | ^^^^^^^^^
+   |
+   = help: to create the module `font`, create file "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/font.rs" or "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/font/mod.rs"
+   = note: if there is a `mod font` elsewhere in the crate already, import it with `use crate::...` instead
+
+error[E0583]: file not found for module `latin`
+  --> /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/paint.rs:47:1
+   |
+47 | mod latin;
+   | ^^^^^^^^^^
+   |
+   = help: to create the module `latin`, create file "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/latin.rs" or "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/latin/mod.rs"
+   = note: if there is a `mod latin` elsewhere in the crate already, import it with `use crate::...` instead
+
+error[E0583]: file not found for module `path`
+  --> /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/paint.rs:48:1
+   |
+48 | mod path;
+   | ^^^^^^^^^
+   |
+   = help: to create the module `path`, create file "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/path.rs" or "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/path/mod.rs"
+   = note: if there is a `mod path` elsewhere in the crate already, import it with `use crate::...` instead
+
+error[E0583]: file not found for module `snapshot`
+  --> /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/paint.rs:49:1
+   |
+49 | mod snapshot;
+   | ^^^^^^^^^^^^^
+   |
+   = help: to create the module `snapshot`, create file "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/snapshot.rs" or "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/snapshot/mod.rs"
+   = note: if there is a `mod snapshot` elsewhere in the crate already, import it with `use crate::...` instead
+
+error[E0583]: file not found for module `tess`
+  --> /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/paint.rs:50:1
+   |
+50 | mod tess;
+   | ^^^^^^^^^
+   |
+   = help: to create the module `tess`, create file "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/tess.rs" or "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/tess/mod.rs"
+   = note: if there is a `mod tess` elsewhere in the crate already, import it with `use crate::...` instead
+
+error[E0583]: file not found for module `zoom`
+  --> /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/paint.rs:51:1
+   |
+51 | mod zoom;
+   | ^^^^^^^^^
+   |
+   = help: to create the module `zoom`, create file "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/zoom.rs" or "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/zoom/mod.rs"
+   = note: if there is a `mod zoom` elsewhere in the crate already, import it with `use crate::...` instead
+
+error[E0308]: mismatched types
+   --> /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/tests.rs:241:80
+    |
+241 | ...d| begin(world, 2, 2, 1.));
+    |       ----- ^^^^^ expected `World`, found `rndr_core::world::World`
+    |       |
+    |       arguments to this function are incorrect
+    |
+note: there are multiple different versions of crate `rndr_core` in the dependency graph
+   --> crates/rndr_core/src/world.rs:87:1
+    |
+ 87 | pub struct World {
+    | ---------------- this is the found type
+    |
+   ::: crates/rndr_core/src/world.rs:87:1
+    |
+ 87 | pub struct World {
+    | ^^^^^^^^^^^^^^^^ this is the expected type
+    = help: you can use `cargo tree` to explore your dependency tree
+note: function defined here
+   --> /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/observe.rs:402:15
+    |
+402 | pub(crate) fn begin(world: &World, width: u32, height: u32, scale: f32)...
+    |               ^^^^^ -------------
+
+error[E0308]: mismatched types
+   --> /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/tests.rs:241:56
+    |
+241 | ...capture) = rndr_paint::frame_with_snapshot(&mut app, |world| begin(w...
+    |               ------------------------------- ^^^^^^^^ expected `rndr_core::app::App`, found `rndr_core::App`
+    |               |
+    |               arguments to this function are incorrect
+    |
+note: there are multiple different versions of crate `rndr_core` in the dependency graph
+   --> crates/rndr_core/src/app.rs:72:1
+    |
+ 72 | pub struct App {
+    | -------------- this is the found type
+    |
+   ::: crates/rndr_core/src/app.rs:72:1
+    |
+ 72 | pub struct App {
+    | ^^^^^^^^^^^^^^ this is the expected type
+    = help: you can use `cargo tree` to explore your dependency tree
+note: function defined here
+   --> crates/rndr_paint/src/lib.rs:143:8
+    |
+143 | pub fn frame_with_snapshot<T>(app: &mut App, snapshot: impl FnOnce(&Wor...
+    |        ^^^^^^^^^^^^^^^^^^^
+
+error: aborting due to 10 previous errors
+
+Some errors have detailed explanations: E0308, E0583.
+For more information about an error, try `rustc --explain E0308`.
+Traceback (most recent call last):
+  File "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/evidence/native-observation-v1-review/run_rust_probes.py", line 63, in <module>
+    subprocess.run(cmd,check=True)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/lib/python3.14/subprocess.py", line 578, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['rustc', '--test', '--edition=2021', '-C', 'debuginfo=0', '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/harness.rs', '-L', 'dependency=target/debug/deps', '-o', '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/probe-tests', '--extern', 'rndr_core=target/debug/deps/librndr_core-99fc9f1d1448f44b.rlib', '--extern', 'rndr_render=target/debug/deps/librndr_render-8580aa0d828bf983.rlib', '--extern', 'rndr_paint=target/debug/deps/librndr_paint-e4ece9f62c286f49.rlib', '--extern', 'serde_json=target/debug/deps/libserde_json-a3049842202ea6af.rlib', '--extern', 'getrandom=target/debug/deps/libgetrandom-ed602181e0977db8.rlib', '--extern', 'png=target/debug/deps/libpng-668455356ddd1a3d.rlib']' returned non-zero exit status 1.

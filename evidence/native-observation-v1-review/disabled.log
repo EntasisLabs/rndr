@@ -1,0 +1,29 @@
+    Finished `test` profile [unoptimized] target(s) in 0.11s
+     Running unittests src/lib.rs (target/debug/deps/rndr_render-ef5c3dbb4c1c1e67)
+
+running 22 tests
+test color::tests::srgb_transfer_decodes_known_channels ... ok
+test color::tests::theme_canvas_matches_on_srgb_and_unorm_surfaces ... ok
+test close::tests::pending_cancel_quit_is_consumed_and_stale_success_rejected ... ok
+test close::tests::process_exit_waits_for_secondary_and_cancel_resets_all ... ok
+test close::tests::secondary_failure_explicit_discard_closes_only_that_window ... ok
+test close::tests::mutation_after_completion_invalidates_ready_before_destruction ... ok
+test close::tests::ordinary_apps_keep_primary_secondary_and_quit_behavior ... ok
+test close::tests::unguarded_primary_cannot_destroy_guarded_secondary_or_new_window ... ok
+test export::tests::rejects_an_oversized_export ... ok
+test close::tests::failure_never_exits_or_destroys_in_memory_text_retry_drains ... ok
+test scene::tests::a_rotated_child_runs_before_the_camera ... ok
+test scene::tests::a_zoomed_shadow_stays_on_a_fine_grid_and_keeps_its_tail ... ok
+test gpu::tests::upload_encodes_fill_border_and_glyph_tint_for_both_formats ... ok
+test scene::tests::an_integer_pan_slides_the_shadow_texture_without_resizing_it ... ok
+test decode::tests::downsample_averages_a_two_by_two ... ok
+test scene::tests::rotated_glyphs_use_outlines_and_a_linear_fallback ... ok
+test tests::hotkey_argument_beats_the_environment ... ok
+test tests::idle_flow_waits_until_a_future_deadline ... ok
+test tests::reported_text_survives_ctrl_and_alt_but_not_super ... ok
+test decode::tests::png_round_trips_a_red_pixel ... ok
+test decode::tests::garbage_is_unknown_and_a_bad_jpeg_is_invalid ... ok
+test decode::tests::webp_round_trips_rgba ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

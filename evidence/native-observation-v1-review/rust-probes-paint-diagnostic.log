@@ -1,0 +1,36 @@
+PAINT_COMMAND ['rustc', '--crate-name', 'rndr_paint_review', '--crate-type', 'rlib', '--edition=2021', '-C', 'debuginfo=0', 'crates/rndr_paint/src/lib.rs', '-L', 'dependency=target/debug/deps', '--extern', 'rndr_core=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/librndr_core-6203380e6fb25308.rmeta', '-o', '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/libfresh_paint.rlib']
+error[E0433]: cannot find module or crate `lyon` in this scope
+  --> crates/rndr_paint/src/tess.rs:30:5
+   |
+30 | use lyon::path::math::point;
+   |     ^^^^ use of unresolved module or unlinked crate `lyon`
+   |
+   = help: you might be missing a crate named `lyon`
+
+error[E0433]: cannot find module or crate `lyon` in this scope
+  --> crates/rndr_paint/src/tess.rs:31:5
+   |
+31 | use lyon::path::Path as LyonPath;
+   |     ^^^^ use of unresolved module or unlinked crate `lyon`
+   |
+   = help: you might be missing a crate named `lyon`
+
+error[E0433]: cannot find module or crate `lyon` in this scope
+  --> crates/rndr_paint/src/tess.rs:32:5
+   |
+32 | use lyon::tessellation::{
+   |     ^^^^ use of unresolved module or unlinked crate `lyon`
+   |
+   = help: you might be missing a crate named `lyon`
+
+error: aborting due to 3 previous errors
+
+For more information about this error, try `rustc --explain E0433`.
+Traceback (most recent call last):
+  File "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/evidence/native-observation-v1-review/run_rust_probes.py", line 68, in <module>
+    subprocess.run(paintcmd,check=True)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/lib/python3.14/subprocess.py", line 578, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['rustc', '--crate-name', 'rndr_paint_review', '--crate-type', 'rlib', '--edition=2021', '-C', 'debuginfo=0', 'crates/rndr_paint/src/lib.rs', '-L', 'dependency=target/debug/deps', '--extern', 'rndr_core=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/debug/deps/librndr_core-6203380e6fb25308.rmeta', '-o', '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/target/native-observation-review/libfresh_paint.rlib']' returned non-zero exit status 1.

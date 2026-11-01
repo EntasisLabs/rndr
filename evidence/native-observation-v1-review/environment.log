@@ -1,0 +1,9 @@
+Sun Nov  1 14:14:30 UTC 2026
+1079de03f41609319d9d666be29168fb5006c424
+?? evidence/native-observation-v1-review/
+Filesystem      Size    Used   Avail Capacity iused ifree %iused  Mounted on
+/dev/disk3s5   228Gi   203Gi   1.3Gi   100%    1.8M   13M   12%   /System/Volumes/Data
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+cargo 1.98.0 (797e8a9bc 2026-08-05)
+Python 3.14.6
+Cargo: CARGO_BUILD_JOBS=2 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0; all Cargo calls --offline --locked

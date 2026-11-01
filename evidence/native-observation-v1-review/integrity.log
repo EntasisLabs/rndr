@@ -1,0 +1,14 @@
+PASS: exact 111 payload manifest, full implementation.diff, evidence-only seal
+PNG evidence/native-observation-v1/final-native-light/frame-1.png 1000 700 nodes 28 unique_rgba 10 raw_sha256 7921fa8dc92de1336b06eca2e8c79773fd48a99efd5113c289a83121991427d3
+PNG evidence/native-observation-v1/final-native-light/frame-2.png 1000 700 nodes 28 unique_rgba 10 raw_sha256 7921fa8dc92de1336b06eca2e8c79773fd48a99efd5113c289a83121991427d3
+PNG evidence/native-observation-v1/final-native-narrow/frame-1.png 320 700 nodes 28 unique_rgba 2 raw_sha256 c704670129dac30925b25e51d15ed038b4e44696aa9b13d3762d0799ecd3b209
+PNG evidence/native-observation-v1/final-native-narrow/frame-2.png 320 700 nodes 28 unique_rgba 2 raw_sha256 c704670129dac30925b25e51d15ed038b4e44696aa9b13d3762d0799ecd3b209
+PNG evidence/native-observation-v1-review/native-light/frame-1.png 1000 700 nodes 28 unique_rgba 10 raw_sha256 7921fa8dc92de1336b06eca2e8c79773fd48a99efd5113c289a83121991427d3
+PNG evidence/native-observation-v1-review/native-light/frame-2.png 1000 700 nodes 28 unique_rgba 10 raw_sha256 7921fa8dc92de1336b06eca2e8c79773fd48a99efd5113c289a83121991427d3
+PNG evidence/native-observation-v1-review/native-narrow/frame-1.png 320 700 nodes 28 unique_rgba 2 raw_sha256 c704670129dac30925b25e51d15ed038b4e44696aa9b13d3762d0799ecd3b209
+PNG evidence/native-observation-v1-review/native-narrow/frame-2.png 320 700 nodes 28 unique_rgba 2 raw_sha256 c704670129dac30925b25e51d15ed038b4e44696aa9b13d3762d0799ecd3b209
+suites.log groups 80 passed_failed_ignored [572, 0, 0]
+python.log 8 tests PASS
+disabled.log groups 1 passed_failed_ignored [22, 0, 0]
+evidence/native-observation-v1-review/native-light PASS auth/stale/cleanup; executable matches seal
+evidence/native-observation-v1-review/native-narrow PASS auth/stale/cleanup; executable matches seal

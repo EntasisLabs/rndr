@@ -1,0 +1,2 @@
+REPRODUCED: descriptor FIFO blocks beyond timeout=.05; harness killed at .8s; elapsed 0.805
+REPRODUCED: second-file collision leaves newly-created PNG beside preexisting JSON; call errors, never overwrites
