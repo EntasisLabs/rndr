@@ -836,6 +836,12 @@ pub(crate) fn resolve_controls(world: &mut World) {
         l.min_height = theme.target_min();
         l.min_width = theme.target_min();
     }
+}
+
+/// Measure only after the current cascade/type scale has resolved. This stays
+/// before core layout, avoiding a frame of horizontal overflow on type changes.
+pub(crate) fn resolve_toolbars(world: &mut World) {
+    let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
     // Measure with the actual installed text engine and resolved type style.
     // Unknown borrowed children force stacking rather than assuming a fake menu.
     let engine = text_engine(world);

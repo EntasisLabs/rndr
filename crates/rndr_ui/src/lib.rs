@@ -28,6 +28,7 @@ impl Plugin for UiPlugin {
         app.world_mut().insert_resource(Installed);
         app.add_system(Schedule::Layout, controls::resolve_controls);
         app.add_system(Schedule::Layout, resolve_styles);
+        app.add_system(Schedule::Layout, controls::resolve_toolbars);
     }
 }
 
