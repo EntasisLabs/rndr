@@ -64,7 +64,11 @@ fn ordinary(same_frame: bool, registered: bool, k: NamedKey) {
                 } else {
                     KeyCode::Enter
                 });
+            } else {
+                down.code = None;
             }
+            assert_eq!(down.code.is_some(), physical);
+            assert_eq!(down.code == key(k).code, physical);
             let up = down.clone().released();
             if same_frame {
                 frame(&mut a, vec![down, up]);
