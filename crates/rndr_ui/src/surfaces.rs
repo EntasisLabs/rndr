@@ -252,7 +252,9 @@ impl UiHandle {
         let n = world.get::<Node>(self.root).ok_or(UiError::Stale)?;
         if n.content != self.content
             || !world.is_alive(self.content)
-            || !world.is_alive(n.title)
+            || !world.has::<Label>(n.title)
+            || world.get::<Owned>(n.title).map(|o| o.root) != Some(self.root)
+            || world.get::<Owned>(self.root).map(|o| o.root) != Some(self.root)
             || world.get::<Owned>(self.content).map(|o| o.root) != Some(self.root)
             || world.get::<Parent>(self.content).map(|p| p.entity) != Some(self.root)
             || world.get::<Parent>(n.title).map(|p| p.entity) != Some(self.root)
