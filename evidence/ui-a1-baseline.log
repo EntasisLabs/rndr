@@ -1,0 +1,42 @@
+   Compiling rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-ui-council-v0-1-component-library/crates/rndr_core)
+    Finished `test` profile [unoptimized] target(s) in 0.17s
+     Running tests/a1_reproductions.rs (target/debug/deps/a1_reproductions-6a4f2b0911481d45)
+
+running 3 tests
+test at_set_value_must_not_bypass_editor_history ... FAILED
+test advertised_tab_activation_selects_panel ... FAILED
+test folded_button_child_label_is_name ... FAILED
+
+failures:
+
+---- at_set_value_must_not_bypass_editor_history stdout ----
+
+thread 'at_set_value_must_not_bypass_editor_history' (159867) panicked at crates/rndr_core/tests/a1_reproductions.rs:19:5:
+assertion `left == right` failed
+  left: "unvalidated"
+ right: "original"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- advertised_tab_activation_selects_panel stdout ----
+
+thread 'advertised_tab_activation_selects_panel' (159866) panicked at crates/rndr_core/tests/a1_reproductions.rs:29:5:
+assertion `left == right` failed
+  left: 1
+ right: 2
+
+---- folded_button_child_label_is_name stdout ----
+
+thread 'folded_button_child_label_is_name' (159868) panicked at crates/rndr_core/tests/a1_reproductions.rs:10:5:
+assertion `left == right` failed
+  left: ""
+ right: "Save document"
+
+
+failures:
+    advertised_tab_activation_selects_panel
+    at_set_value_must_not_bypass_editor_history
+    folded_button_child_label_is_name
+
+test result: FAILED. 0 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p rndr_core --test a1_reproductions`
