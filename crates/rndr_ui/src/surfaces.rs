@@ -305,6 +305,7 @@ impl UiHandle {
                 || out.contains(&entity)
                 || world.has::<Node>(entity)
                 || world.has::<Owned>(entity)
+                || crate::controls::owns_entity(world, entity)
             {
                 return false;
             }

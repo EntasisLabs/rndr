@@ -204,6 +204,12 @@ fn parent_valid(world: &World, parent: Entity) -> Result<(), UiError> {
         Err(UiError::Stale)
     }
 }
+/// Ownership guard shared with passive adoption; includes all internal slots,
+/// not just keyed component roots. Borrowed caller subtrees remain unmarked.
+pub(crate) fn owns_entity(world: &World, entity: Entity) -> bool {
+    world.has::<OwnedBy>(entity)
+}
+
 /// Shared identity check also used by passive surfaces; no global registry.
 pub(crate) fn key_at(world: &World, entity: Entity) -> Option<UiId> {
     world
