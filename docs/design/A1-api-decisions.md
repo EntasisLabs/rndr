@@ -1,0 +1,26 @@
+# A1 API / cardinality review decision record
+
+Status: implementation candidate for independent owner review, **not A2 clearance**.
+
+## Additive spellings and ownership
+
+- `rndr_core::GenericInteraction` installs/reuses idempotent `Chrome` and uses its one Input → Update pipeline. No Shell, quit/file selection policy, second focus manager, dispatcher or runtime. Existing Focus/Input/World are authoritative. Plugin uninstall is unsupported; install once per App lifetime. Reinstall is a no-op and does not reset state or queues.
+- A button opts in individually via `ReleaseActivation`. Unmarked Button retains press/legacy Enter and `Fired`. Modern buttons never also emit Fired. Existing public struct literals and AccessRole variants remain unchanged.
+- `request_focus`, `cancel_activation`, `try_activate` are reusable core APIs. Host capture loss must call cancel; logical core capture does not assert native pointer capture. Pointer press arms, same-pointer in-bounds release commits; outside, Escape, blur, focus loss, disable/readonly/hidden, destruction or explicit capture cancellation rejects. Enter commits on nonrepeat nonsynthetic down; Space on corresponding up. Editor CapturesKeys retains keyboard ownership. Rich events own the legacy shim; no dual delivery. Hotkey registration/guards take priority; only unregistered modern control Space/Enter edges survive the existing hotkey filter.
+
+## Canonical intent / supported cardinality
+
+`ActionIntents` is a **bounded pending FIFO of 64 distinct targets**, with **at most one outstanding intent per target until drained**. This is intentionally NOT an unrestricted/lossless multi-click event stream. It supports multiple targets on one frame and AT requests arriving before Input; Input does not clear them. `try_activate` returns `Accepted`, `AlreadyPending`, `Overflow`, or `Rejected`. Overlap on the same target (e.g. AT + pointer/keyboard while pending) returns AlreadyPending, increments `coalesced`, and emits once. Repeated intentional activation of the same target before host drain is also coalesced: that is the explicit supported-cardinality limit, not an invisible promise of exact-count delivery. Full queue returns Overflow and increments `overflow`, with no eviction, overwrite or side effect. Hosts must drain once during Update with `take_action_intents`; delayed hosts deliberately retain the queue and its backpressure.
+
+Drain revalidates generation, visibility, enabled/readonly and unchanged action name, rejecting obsolete intents. An opaque intent is not authorization to execute commands; hosts retain command permission/argument validation. Library never executes networking/actions. Legacy Fired remains its historic single-slot path for unmarked controls only. No automatic bridge fans the modern queue back into Fired. Independent reviewer must explicitly accept this bounded cardinality before A2, or request a different contract first.
+
+## Accessibility and tabs
+
+- `Semantics` adds explicit persistent name, description and interaction-readonly; placeholder and current text value are not persistent names. Composed visible labels are folded into Button names. Non-label interactive descendants are not folded.
+- `access_details` supplies allowed focus/activate/SetValue flags and relations without extending AccessNode literals. `try_apply_access` returns observable `AccessCommandResult`; compatibility `apply_access` delegates. Hidden/stale/disabled/readonly/unsupported requests are denied. Core and AccessKit use the same matrix.
+- All AT SetValue requests explicitly return `UnsupportedSetValue`; none mutate Label, Buffer, Caret, IME or history. Native bridge no longer advertises SetValue. This is a deliberate safety fix to reproduced bypasses, not a claim that AT text editing is complete. Ordinary legacy keyboard/IME editing is unchanged. Semantics.readonly constrains this interaction API; it is not a general editor document-write protection API (no new readonly text-entry widget is shipped in A0/A1).
+- `TabRelation` / validated `link_tab_panel`, `move_tab_focus(TabFocusMove)` and existing Tabs/Tab/TabPanel provide real tablist–tab–panel relationships without a new A2 selector widget. Manual focus movement does not change selection. Canonical activation selects and synchronizes actual panels. Inactive panels are hidden from layout/paint/hit/accessibility; platform panels use TabPanel with controls/labelled_by. A2 still owns orientation/key mapping, roving entry policy, visible focus treatment, selector composition and overflow presentation.
+
+## Reproductions and verification
+
+`a1_reproductions` records three failures at baseline: folded child name, unsafe SetValue, AT Tab no-op. `ui-a1-baseline.log` is retained unchanged. Core fixes make all three pass. `a1_interaction` covers opt-in/legacy mixtures, installation, release activation, cancellation, repeat/synthetic, focus, bounded cardinality, stale generations, AT matrix and real panels. `ui-core-suite.log` includes existing editor/IME/history/source-edit regressions. `ui-accesskit.log` exercises real AccessKit node roles, actions, descriptions and relations, not merely core-world expectations. This is headless adapter evidence, not VoiceOver/NVDA/UIA certification.

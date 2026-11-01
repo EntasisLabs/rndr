@@ -7,14 +7,27 @@ fn folded_button_child_label_is_name() {
     let label = world.spawn((Label::new("Save document"),));
     set_parent(&mut world, label, button);
     let tree = access_tree(&world);
-    assert_eq!(tree.nodes.iter().find(|n| n.id == access_id(button)).unwrap().name, "Save document");
+    assert_eq!(
+        tree.nodes
+            .iter()
+            .find(|n| n.id == access_id(button))
+            .unwrap()
+            .name,
+        "Save document"
+    );
 }
 
 #[test]
 fn at_set_value_must_not_bypass_editor_history() {
     let mut world = World::new();
     let field = world.spawn((TextField, Label::new("original")));
-    apply_access(&mut world, AccessCommand::SetValue { entity: field, value: "unvalidated".into() });
+    apply_access(
+        &mut world,
+        AccessCommand::SetValue {
+            entity: field,
+            value: "unvalidated".into(),
+        },
+    );
     // A1 deliberately rejects until a validated editor/history route exists.
     assert_eq!(world.get::<Label>(field).unwrap().text, "original");
 }

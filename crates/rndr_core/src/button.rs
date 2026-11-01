@@ -1,4 +1,3 @@
-use crate::action::Fired;
 use crate::input::{Focus, Input, Key};
 use crate::layout::{ancestor_with, hit_test};
 use crate::world::{Component, World};
@@ -64,18 +63,8 @@ fn focused_button(world: &World) -> Option<crate::entity::Entity> {
 }
 
 fn fire(world: &mut World, entity: crate::entity::Entity) -> bool {
-    let action = world.get::<Button>(entity).and_then(|button| {
-        if button.enabled {
-            Some(button.action.clone())
-        } else {
-            None
-        }
-    });
-    let Some(action) = action else {
+    if world.has::<crate::ReleaseActivation>(entity) {
         return false;
-    };
-    if let Some(fired) = world.resource_mut::<Fired>() {
-        fired.name = Some(action);
     }
-    true
+    crate::try_activate(world, entity) == crate::ActivationResult::Accepted
 }

@@ -90,6 +90,7 @@ pub mod hotkey;
 mod image_view;
 mod ime;
 mod input;
+mod interaction;
 mod keymap;
 mod keys;
 mod layout;
@@ -245,3 +246,13 @@ pub use wrap::{
     visual_pos, visual_selection_spans, wrap_lines, VisualLine, GLYPH_PX, TEXT_INSET_X,
     TEXT_INSET_Y,
 };
+
+pub use interaction::{
+    access_details, cancel_activation, interaction_visible, request_focus, take_action_intents,
+    try_activate, AccessDetails, ActionIntent, ActionIntents, ActivationResult, GenericInteraction,
+    ReleaseActivation, Semantics, TabRelation,
+};
+
+pub use interaction::{link_tab_panel, move_tab_focus, TabFocusMove, TabLinkError};
+
+pub use access::{try_apply_access, AccessCommandResult};

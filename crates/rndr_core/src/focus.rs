@@ -268,7 +268,7 @@ fn retarget_focus_after_toggle(world: &mut World, target: Entity) {
     }
 }
 
-fn ensure_focus_visible(world: &mut World) {
+pub(crate) fn ensure_focus_visible(world: &mut World) {
     let Some(entity) = current_focus(world) else {
         return;
     };

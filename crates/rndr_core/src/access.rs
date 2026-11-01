@@ -20,7 +20,7 @@ use crate::hierarchy::{children_of, Parent};
 use crate::input::Focus;
 use crate::layout::Rect;
 use crate::list::{List, ListActivated, ListItem};
-use crate::prompt::{Placeholder, Prompt};
+use crate::prompt::Prompt;
 use crate::style::Label;
 use crate::tabs::{Hidden, Tab, Tabs};
 use crate::world::World;
@@ -168,21 +168,45 @@ pub enum AccessCommand {
 /// a list sends [`ListActivated`] for the current selection. Activate on a
 /// disclosure toggles it.
 pub fn apply_access(world: &mut World, command: AccessCommand) {
+    let _ = try_apply_access(world, command);
+}
+
+/// Observable result for an accessibility request. The compatibility void
+/// entry point delegates here; unsupported mutations never alter text/history.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AccessCommandResult {
+    /// Focus/selection/disclosure applied.
+    Applied,
+    /// Canonical button/tab result, including cardinality and overflow.
+    Activation(crate::ActivationResult),
+    /// SetValue requires a validated editor-history operation, not a raw write.
+    UnsupportedSetValue,
+    /// Invalid/hidden/disabled/readonly/unsupported target.
+    Rejected,
+}
+
+/// Validate and apply the exact same matrix the native bridge advertises.
+pub fn try_apply_access(world: &mut World, command: AccessCommand) -> AccessCommandResult {
     match command {
         AccessCommand::Focus(entity) => {
-            if !world.is_alive(entity) {
-                return;
-            }
-            if let Some(focus) = world.resource_mut::<Focus>() {
-                focus.entity = Some(entity);
+            if crate::request_focus(world, entity) {
+                AccessCommandResult::Applied
             } else {
-                world.insert_resource(Focus {
-                    entity: Some(entity),
-                });
+                AccessCommandResult::Rejected
             }
         }
-        AccessCommand::Activate(entity) => activate(world, entity),
-        AccessCommand::SetValue { entity, value } => set_value(world, entity, value),
+        AccessCommand::Activate(entity) => {
+            if !crate::access_details(world, entity).activate {
+                return AccessCommandResult::Rejected;
+            }
+            if world.has::<Button>(entity) || world.has::<Tab>(entity) {
+                AccessCommandResult::Activation(crate::try_activate(world, entity))
+            } else {
+                activate(world, entity);
+                AccessCommandResult::Applied
+            }
+        }
+        AccessCommand::SetValue { .. } => AccessCommandResult::UnsupportedSetValue,
     }
 }
 
@@ -190,12 +214,8 @@ fn activate(world: &mut World, entity: Entity) {
     if !world.is_alive(entity) {
         return;
     }
-    if let Some(button) = world.get::<Button>(entity).cloned() {
-        if button.enabled {
-            if let Some(fired) = world.resource_mut::<crate::action::Fired>() {
-                fired.name = Some(button.action);
-            }
-        }
+    if world.has::<Button>(entity) || world.has::<Tab>(entity) {
+        crate::try_activate(world, entity);
         return;
     }
     if let Some(item) = world.get::<ListItem>(entity).copied() {
@@ -227,25 +247,6 @@ fn activate(world: &mut World, entity: Entity) {
     }
     if world.has::<Disclosure>(entity) {
         toggle_disclosure(world, entity);
-    }
-}
-
-fn set_value(world: &mut World, entity: Entity, value: String) {
-    if !world.is_alive(entity) {
-        return;
-    }
-    if world.has::<TextField>(entity) || world.has::<Prompt>(entity) {
-        if let Some(label) = world.get_mut::<Label>(entity) {
-            label.text = value;
-        }
-        return;
-    }
-    if let Some(buffer) = world.get_mut::<Buffer>(entity) {
-        let len = buffer.len();
-        buffer.delete_range(0, len);
-        buffer.insert_str(0, &value);
-        buffer.caret = buffer.len();
-        buffer.anchor = buffer.caret;
     }
 }
 
@@ -288,10 +289,13 @@ fn collect(
             children.extend(collect(world, child, focus, out));
         }
     }
-    let name = match role {
-        AccessRole::TextInput => text_name(world, entity),
-        _ => visible_text(world, entity),
-    };
+    let name = world
+        .get::<crate::Semantics>(entity)
+        .and_then(|s| s.name.clone())
+        .unwrap_or_else(|| match role {
+            AccessRole::TextInput => text_name(world, entity),
+            _ => visible_text(world, entity),
+        });
     let value = match role {
         AccessRole::TextInput => text_value(world, entity),
         _ => String::new(),
@@ -355,6 +359,9 @@ fn role_of(world: &World, entity: Entity) -> Option<AccessRole> {
     if world.has::<Label>(entity) {
         return Some(AccessRole::Label);
     }
+    if world.has::<crate::TabPanel>(entity) {
+        return Some(AccessRole::Group);
+    }
     if world.has::<Focusable>(entity) {
         return Some(AccessRole::Group);
     }
@@ -368,7 +375,7 @@ fn selected(world: &World, entity: Entity, role: AccessRole) -> bool {
             .is_some_and(|item| item.selected),
         AccessRole::Tab => {
             let id = world.get::<Tab>(entity).map(|tab| tab.id);
-            let tabs = ancestor_tabs(world, entity);
+            let tabs = crate::tabs::tab_group(world, entity);
             match (id, tabs) {
                 (Some(id), Some(tabs)) => world
                     .get::<Tabs>(tabs)
@@ -380,25 +387,7 @@ fn selected(world: &World, entity: Entity, role: AccessRole) -> bool {
     }
 }
 
-fn ancestor_tabs(world: &World, mut entity: Entity) -> Option<Entity> {
-    for _ in 0..64 {
-        if world.has::<Tabs>(entity) {
-            return Some(entity);
-        }
-        entity = world.get::<Parent>(entity)?.entity;
-        if !world.is_alive(entity) {
-            return None;
-        }
-    }
-    None
-}
-
 fn text_name(world: &World, entity: Entity) -> String {
-    if let Some(placeholder) = world.get::<Placeholder>(entity) {
-        if !placeholder.text.is_empty() {
-            return placeholder.text.clone();
-        }
-    }
     if world.has::<Prompt>(entity) {
         "Prompt".to_string()
     } else if world.has::<crate::editor::Editor>(entity) {
@@ -426,7 +415,9 @@ fn visible_text(world: &World, entity: Entity) -> String {
         }
     }
     for child in children_of(world, entity) {
-        if world.has::<Hidden>(child) || role_of(world, child).is_some() {
+        if world.has::<Hidden>(child)
+            || (role_of(world, child).is_some_and(|role| role != AccessRole::Label))
+        {
             continue;
         }
         let nested = visible_text(world, child);
@@ -461,6 +452,7 @@ fn widget_roots(world: &World) -> Vec<Entity> {
     consider.extend(world.entities_with::<Focusable>());
     consider.extend(world.entities_with::<Disclosure>());
     consider.extend(world.entities_with::<Tabs>());
+    consider.extend(world.entities_with::<crate::TabPanel>());
     for entity in consider {
         let root = top(world, entity);
         if !roots.contains(&root) {

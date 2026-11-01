@@ -54,7 +54,9 @@ pub fn apply_tabs(world: &mut World) {
         let position = world.resource::<Input>().unwrap().pointer.position;
         if let Some(hit) = hit_test(world, position[0], position[1]) {
             if let Some(tab) = ancestor_with::<Tab>(world, hit) {
-                if ancestor_with::<TabPanel>(world, hit).is_none() {
+                if !world.has::<crate::TabRelation>(tab)
+                    && ancestor_with::<TabPanel>(world, hit).is_none()
+                {
                     let id = world.get::<Tab>(tab).map(|tab| tab.id);
                     let tabs = ancestor_with::<Tabs>(world, tab);
                     if let (Some(id), Some(tabs)) = (id, tabs) {
@@ -67,9 +69,10 @@ pub fn apply_tabs(world: &mut World) {
         }
     }
     sync_panels(world);
+    crate::interaction::sync_related_panels(world);
 }
 
-fn sync_panels(world: &mut World) {
+pub(crate) fn sync_panels(world: &mut World) {
     let tabs = world.entities_with::<Tabs>();
     for tabs_entity in tabs {
         let selected = world.get::<Tabs>(tabs_entity).map(|tabs| tabs.selected);
@@ -95,4 +98,13 @@ fn sync_panels(world: &mut World) {
             }
         }
     }
+}
+
+/// Actual semantic tablist owner, including sibling panel compositions.
+pub(crate) fn tab_group(world: &World, entity: crate::Entity) -> Option<crate::Entity> {
+    world
+        .get::<crate::TabRelation>(entity)
+        .map(|r| r.group)
+        .filter(|g| world.has::<Tabs>(*g))
+        .or_else(|| ancestor_with::<Tabs>(world, entity))
 }

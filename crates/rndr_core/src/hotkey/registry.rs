@@ -512,6 +512,7 @@ fn suppress_hotkey_keys(world: &mut World, updates: &[ChordUpdate]) {
         .collect();
     armed.retain(|code, _| live.contains(code));
 
+    let modern_edges = crate::interaction::needs_activation_edges(world);
     let Some(input) = world.resource_mut::<Input>() else {
         store_armed(world, armed);
         return;
@@ -522,9 +523,19 @@ fn suppress_hotkey_keys(world: &mut World, updates: &[ChordUpdate]) {
     // one of those is the focus-in pair, not a new press.
     let mut blocked = HashSet::new();
     for event in input.keys.drain(..) {
+        let control_edge = modern_edges
+            && matches!(
+                event.logical,
+                crate::LogicalKey::Named(crate::NamedKey::Space | crate::NamedKey::Enter)
+            )
+            && source_code(&event)
+                .is_some_and(|code| !live.contains(&code) && !armed.contains_key(&code));
         if event.synthetic {
             if event.released {
                 note_failed_release(&event, &armed, &mut blocked);
+            }
+            if control_edge {
+                kept.push(event);
             }
             continue;
         }
@@ -536,6 +547,9 @@ fn suppress_hotkey_keys(world: &mut World, updates: &[ChordUpdate]) {
                 } else {
                     note_failed_release(&event, &armed, &mut blocked);
                 }
+            }
+            if control_edge {
+                kept.push(event);
             }
             continue;
         }

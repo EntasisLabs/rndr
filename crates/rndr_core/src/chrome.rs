@@ -14,8 +14,7 @@ use crate::tabs::apply_tabs;
 /// [`Plugin::build`] inserts [`Actions`], [`Fired`], [`Clipboard`],
 /// [`crate::Keymap`], and [`crate::KeymapFired`] when those resources are
 /// missing, then appends a consuming binding for [`crate::COPY`],
-/// [`crate::CUT`], and [`crate::PASTE`]. Installing twice appends a second
-/// copy of each binding.
+/// [`crate::CUT`], and [`crate::PASTE`]. Installing twice is a no-op.
 ///
 /// Input installs list navigation, resolves the keymap, moves the list
 /// selection, then edits the focused text field. Events this Input pass sends
@@ -26,8 +25,14 @@ use crate::tabs::apply_tabs;
 /// [`crate::Prompt`].
 pub struct Chrome;
 
+struct ChromeInstalled;
+
 impl Plugin for Chrome {
     fn build(self, app: &mut App) {
+        if app.world().has_resource::<ChromeInstalled>() {
+            return;
+        }
+        app.world_mut().insert_resource(ChromeInstalled);
         if !app.world().has_resource::<Actions>() {
             app.world_mut().insert_resource(Actions::default());
         }
@@ -61,6 +66,7 @@ impl Plugin for Chrome {
 /// move the list selection, then edit the focused text field. Update reads
 /// the events this pass sends.
 fn apply_input(world: &mut crate::world::World) {
+    crate::interaction::apply_generic_input(world);
     crate::list::prepare_list_keys(world);
     apply_keymap(world);
     crate::list::apply_list_input(world);
