@@ -13,6 +13,11 @@ use crate::world::{Component, World};
 impl Component for TextLayout {}
 impl Component for Spans {}
 
+// Keep the allocation identity alive, but not the engine/atlas. A numeric raw
+// address alone can be reused after an engine is dropped between updates.
+struct LayoutEngine(std::sync::Weak<dyn crate::text::TextEngine>);
+impl Component for LayoutEngine {}
+
 /// One styled byte range on a [`Label`].
 ///
 /// `color` tints the glyphs. `weight` overrides the run's font weight when set
@@ -884,13 +889,6 @@ pub fn apply_text_layout(world: &mut World) {
             .get::<crate::field::ImePreview>(entity)
             .and_then(|preview| preview.cursor);
         let mut key = layout_cache_key(font.as_ref(), &source, max_width, &spans, &preview, at);
-        // Equal epochs do not imply equal atlases: a startup engine upgrade
-        // or an explicit engine replacement can begin again at epoch zero.
-        // Bind cached UVs, metrics and caret stops to the engine that made them.
-        let engine_id = Arc::as_ptr(&engine) as *const () as usize as u64;
-        key ^= engine_id
-            .rotate_left(17)
-            .wrapping_mul(0x9E37_79B9_7F4A_7C15);
         key ^= crate::text::style_key(&style);
         key ^= overflow_bits(overflow);
         if !preview.is_empty() {
@@ -929,13 +927,19 @@ pub fn apply_text_layout(world: &mut World) {
             layout.ime_range = Some((insert_at, range_end));
             layout.ime_cursor = Some((insert_at + end).min(text.len()));
         }
-        if world
-            .get::<TextLayout>(entity)
-            .is_some_and(|stored| stored.cache_key == key)
+        let same_engine = world
+            .get::<LayoutEngine>(entity)
+            .and_then(|stored| stored.0.upgrade())
+            .is_some_and(|stored| Arc::ptr_eq(&stored, &engine));
+        if same_engine
+            && world
+                .get::<TextLayout>(entity)
+                .is_some_and(|stored| stored.cache_key == key)
         {
             continue;
         }
         layout.cache_key = key;
+        world.insert(entity, LayoutEngine(Arc::downgrade(&engine)));
         world.insert(entity, layout);
     }
 }

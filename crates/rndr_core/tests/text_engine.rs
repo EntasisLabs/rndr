@@ -6,6 +6,40 @@ use rndr_core::{
     FONT_WEIGHT_BOLD, FONT_WEIGHT_REGULAR, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
 
+#[test]
+fn label_layout_keeps_weak_engine_identity_without_retaining_the_engine() {
+    let mut app = App::new();
+    let label = app.world_mut().spawn((Label::new("engine identity"),));
+    let engine: Arc<dyn TextEngine> = Arc::new(BuiltinText::new());
+    let weak = Arc::downgrade(&engine);
+    app.world_mut().insert_resource(Arc::clone(&engine));
+    app.update();
+    assert_eq!(engine.cache_epoch(), 0);
+    assert_eq!(
+        Arc::strong_count(&engine),
+        2,
+        "cache must not retain the atlas"
+    );
+    assert!(
+        Arc::weak_count(&engine) > 1,
+        "label must anchor allocation identity, not only a reusable address"
+    );
+    let replacement: Arc<dyn TextEngine> = Arc::new(BuiltinText::new());
+    app.world_mut().insert_resource(Arc::clone(&replacement));
+    drop(engine);
+    assert!(weak.upgrade().is_none());
+    app.update();
+    assert_eq!(
+        app.world().get::<rndr_core::TextLayout>(label).unwrap(),
+        &replacement.layout(
+            "engine identity",
+            &rndr_core::style_for(app.world(), label),
+            &[],
+            f32::INFINITY
+        )
+    );
+}
+
 fn style() -> TextStyle {
     TextStyle::default()
 }

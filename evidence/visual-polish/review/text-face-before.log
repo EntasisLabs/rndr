@@ -1,0 +1,22 @@
+   Compiling rndr_render v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-evidence-driven-visual-polish/crates/rndr_render)
+    Finished `test` profile [unoptimized] target(s) in 5.08s
+     Running unittests src/lib.rs (target/debug/deps/rndr_render-ae68e23145a69e61)
+
+running 1 test
+test tests::native_startup_preserves_text_face_before_first_update ... FAILED
+
+failures:
+
+---- tests::native_startup_preserves_text_face_before_first_update stdout ----
+
+thread 'tests::native_startup_preserves_text_face_before_first_update' (1513553) panicked at crates/rndr_render/src/lib.rs:1825:9:
+assertion failed: rndr_core::text_engine(app.world()).as_any().is::<rndr_core::BuiltinText>()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    tests::native_startup_preserves_text_face_before_first_update
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 62 filtered out; finished in 0.28s
+
+error: test failed, to rerun pass `-p rndr_render --lib`

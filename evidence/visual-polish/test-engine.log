@@ -9,4 +9,3 @@ test tests::native_startup_preserves_application_owned_text ... ok
 test tests::native_startup_after_headless_update_selects_the_platform_default ... ok
 
 test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 60 filtered out; finished in 0.07s
-

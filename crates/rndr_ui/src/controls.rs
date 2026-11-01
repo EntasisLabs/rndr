@@ -632,11 +632,39 @@ struct ToolbarNode {
 impl Component for ToolbarNode {}
 /// Opt a direct toolbar control into content-sized rows instead of equal slabs.
 /// The toolbar owns its Layout.width while attached: measured width in rows,
-/// Fill in stacked fallback. Remove this marker to resume caller-owned sizing.
+/// Fill in stacked fallback. Removing the marker or leaving the toolbar restores
+/// the prior width on the next layout, unless the caller has taken it over.
 /// It never hides actions or changes focus/activation semantics.
 #[derive(Clone, Copy, Debug)]
 pub struct ToolbarContentWidth;
 impl Component for ToolbarContentWidth {}
+
+#[derive(Clone, Copy)]
+struct ToolbarOwnedWidth {
+    baseline: Size,
+    last: Size,
+}
+impl Component for ToolbarOwnedWidth {}
+
+fn toolbar_width(world: &mut World, child: Entity, width: Size) {
+    let Some(current) = world.get::<Layout>(child).map(|l| l.width) else {
+        return;
+    };
+    let mut owned = world
+        .get::<ToolbarOwnedWidth>(child)
+        .copied()
+        .unwrap_or(ToolbarOwnedWidth {
+            baseline: current,
+            last: current,
+        });
+    // While opted in the marker owns width; remember caller changes for release.
+    if current != owned.last {
+        owned.baseline = current;
+    }
+    owned.last = width;
+    world.get_mut::<Layout>(child).unwrap().width = width;
+    world.insert(child, owned);
+}
 
 /// Responsive toolbar recipe, not a menu. Controls stay visible in order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -869,6 +897,24 @@ pub(crate) fn resolve_controls(world: &mut World) {
 /// Tentative rows are measured by core itself, including snapped nested geometry
 /// and the text engine's content box. No copied layout/text inset arithmetic.
 pub(crate) fn resolve_toolbars(world: &mut World) {
+    // Release only our last write, not a later caller takeover. Hidden controls
+    // keep ownership while attached, so showing them can reflow normally.
+    for child in world.entities_with::<ToolbarOwnedWidth>() {
+        let attached = world.has::<ToolbarContentWidth>(child)
+            && world.has::<Control>(child)
+            && world
+                .get::<Parent>(child)
+                .is_some_and(|p| world.has::<ToolbarNode>(p.entity));
+        if !attached {
+            let owned = *world.get::<ToolbarOwnedWidth>(child).unwrap();
+            if let Some(l) = world.get_mut::<Layout>(child) {
+                if l.width == owned.last {
+                    l.width = owned.baseline;
+                }
+            }
+            world.remove::<ToolbarOwnedWidth>(child);
+        }
+    }
     let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
     // Measure with the actual installed text engine and resolved type style.
     // Unknown borrowed children force stacking rather than assuming a fake menu.
@@ -919,8 +965,7 @@ pub(crate) fn resolve_toolbars(world: &mut World) {
         }
         let row = known && row_budget <= node.available;
         for (child, width) in content_widths {
-            world.get_mut::<Layout>(child).unwrap().width =
-                if row { Size::Px(width) } else { Size::Fill };
+            toolbar_width(world, child, if row { Size::Px(width) } else { Size::Fill });
         }
         if let Some(l) = world.get_mut::<Layout>(root) {
             l.width = Size::Px(node.available);
@@ -980,7 +1025,7 @@ pub(crate) fn resolve_toolbars(world: &mut World) {
                 world.get_mut::<Layout>(*root).unwrap().axis = Axis::Column;
                 for child in children {
                     if world.has::<ToolbarContentWidth>(*child) {
-                        world.get_mut::<Layout>(*child).unwrap().width = Size::Fill;
+                        toolbar_width(world, *child, Size::Fill);
                     }
                 }
                 changed = true;

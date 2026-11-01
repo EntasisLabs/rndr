@@ -322,7 +322,8 @@ fn run_apps(apps: Vec<App>) {
 
 fn install_text_engine(app: &mut App) {
     #[cfg(feature = "parley")]
-    if !app.world().has_resource::<Arc<dyn TextEngine>>()
+    if (!app.world().has_resource::<Arc<dyn TextEngine>>()
+        && !app.world().has_resource::<rndr_core::TextFace>())
         || rndr_core::has_implicit_text_engine(app.world())
     {
         let engine: Arc<dyn TextEngine> = Arc::new(ParleyText::new());
@@ -1814,6 +1815,21 @@ mod tests {
             &before,
             &rndr_core::text_engine(app.world())
         ));
+    }
+
+    #[test]
+    fn native_startup_preserves_text_face_before_first_update() {
+        let mut app = rndr_core::App::new();
+        app.world_mut()
+            .insert_resource(rndr_core::TextFace(std::sync::Arc::new(
+                rndr_core::BitmapFont,
+            )));
+        super::install_text_engine(&mut app);
+        app.update();
+        assert!(rndr_core::text_engine(app.world())
+            .as_any()
+            .is::<rndr_core::BuiltinText>());
+        assert!(!rndr_core::has_implicit_text_engine(app.world()));
     }
 
     #[test]

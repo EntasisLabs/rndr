@@ -1,0 +1,24 @@
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-evidence-driven-visual-polish/crates/rndr_ui)
+    Finished `test` profile [unoptimized] target(s) in 1.15s
+     Running tests/desktop_foundations.rs (target/debug/deps/desktop_foundations-87396d0f0912b85c)
+
+running 1 test
+test content_width_releases_owned_width_on_marker_or_parent_detach ... FAILED
+
+failures:
+
+---- content_width_releases_owned_width_on_marker_or_parent_detach stdout ----
+
+thread 'content_width_releases_owned_width_on_marker_or_parent_detach' (1511933) panicked at crates/rndr_ui/tests/desktop_foundations.rs:30:13:
+assertion `left == right` failed
+  left: Px(136.0)
+ right: Px(117.0)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    content_width_releases_owned_width_on_marker_or_parent_detach
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p rndr_ui --test desktop_foundations`

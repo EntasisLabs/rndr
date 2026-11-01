@@ -86,11 +86,17 @@ Counts below include integration and doc tests where present; configurations rep
 | `cargo test --offline --locked -p rndr_render --no-default-features --features observe` | 53 passed, 0 failed | `test-render-builtin.log` |
 | `python3 -m unittest discover -s tools -p 'test_observe*.py'` | 20 passed | `test-python.log` |
 | `cargo run --offline --locked -p rndr_ui --example passive_gallery -- evidence/visual-polish/passive-gallery` | 6 new active fixtures generated; full golden tests pass | `generate-passive.log`, `passive-gallery/*.txt` |
-| `git diff --check` | passed | run before implementation commit and evidence finalization |
+| `git diff --check` | working-tree-only check; not committed-range proof | prior checks did not establish that baseline-to-candidate diff passed; `git diff --check 6e1f1d2 c235a715` failed for extra EOF blank lines in five logs, corrected in independent review |
 
 `test-engine.log`/`build-engine.log` are intermediate investigation logs; final authoritative suites are the complete renderer logs above. No strict-lint or native accessibility certification is claimed. No dependency/lockfile changes were made.
 
 Disk was checked before builds: 5.5 GiB free at actual start, later 4.4 GiB, then 2.6 GiB after complete affected builds/captures. Builds were bounded as above. No broad cleanup or deletion of other targets/scratch work was performed; only Python bytecode produced by this assignment was removed. No further native/gallery or additional-feature builds were started after the low-space update. A final UI test did recompile core/paint/UI in 3.88 seconds with the same bounded settings; the final log records that explicitly. Final free space was 2.7 GiB.
+
+## Independent correction review
+
+See `review/README.md` for independent findings, severity, resolutions, exact commands and pre-fix failures. This follow-up preserves TextFace before the first update, restores toolbar-owned widths on release, and uses weak engine identities instead of reusable raw addresses. The five original test logs were normalized only by removing extra EOF blank lines; test outcomes were not rewritten. All manifest entries are regenerated after normalization and review evidence addition.
+
+The original test totals above and all PNG/build provenance still describe the original implementation source, not the follow-up corrections. Independent final-source runs cover the full UI suite (45 passed), core text engine tests (12 passed), and native startup tests in each of Parley/bitmap configurations (3 passed each). No new native window/capture run was made in review. New source does not inherit visual acceptance from older captures.
 
 ## Reviewer order and remaining manual gates
 

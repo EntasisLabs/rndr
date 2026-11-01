@@ -4,6 +4,57 @@ use rndr_ui::{
     *,
 };
 
+#[test]
+fn content_width_releases_owned_width_on_marker_or_parent_detach() {
+    for detach in [0, 1, 2] {
+        for takeover in [false, true] {
+            let mut app = App::new();
+            app.add_plugin(UiPlugin);
+            let host = app.world_mut().spawn((Layout::column(),));
+            let toolbar = Toolbar::mount(app.world_mut(), host, UiId(1), 800.).unwrap();
+            let h = controls::Button::mount(
+                app.world_mut(),
+                toolbar.root,
+                UiId(2),
+                ButtonProps::new("Action", HostIntent::Command(1)),
+            )
+            .unwrap();
+            app.world_mut().get_mut::<Layout>(h.root).unwrap().width = Size::Px(117.);
+            app.world_mut().insert(h.root, ToolbarContentWidth);
+            app.update();
+            assert_ne!(
+                app.world().get::<Layout>(h.root).unwrap().width,
+                Size::Px(117.)
+            );
+            // A caller edit while opted in is saved, not lost on release.
+            app.world_mut().get_mut::<Layout>(h.root).unwrap().width = Size::Px(121.);
+            app.update();
+            assert_ne!(
+                app.world().get::<Layout>(h.root).unwrap().width,
+                Size::Px(121.)
+            );
+            app.world_mut().insert(h.root, Hidden);
+            match detach {
+                0 => {
+                    app.world_mut().remove::<ToolbarContentWidth>(h.root);
+                }
+                1 => set_parent(app.world_mut(), h.root, host),
+                _ => {
+                    toolbar.destroy(app.world_mut()).unwrap();
+                }
+            }
+            if takeover {
+                app.world_mut().get_mut::<Layout>(h.root).unwrap().width = Size::Px(93.);
+            }
+            app.update();
+            assert_eq!(
+                app.world().get::<Layout>(h.root).unwrap().width,
+                Size::Px(if takeover { 93. } else { 121. })
+            );
+        }
+    }
+}
+
 fn ratio(a: Color, b: Color) -> f32 {
     fn luminance(c: Color) -> f32 {
         fn linear(v: f32) -> f32 {
