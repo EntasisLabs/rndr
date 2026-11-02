@@ -1,0 +1,24 @@
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/crates/rndr_ui)
+    Finished `test` profile [unoptimized] target(s) in 0.82s
+     Running tests/refinement_release.rs (target/debug/deps/refinement_release-fb831b4f76b81204)
+
+running 1 test
+test fitting_preserves_takeover_before_first_layout ... FAILED
+
+failures:
+
+---- fitting_preserves_takeover_before_first_layout stdout ----
+
+thread 'fitting_preserves_takeover_before_first_layout' (3145847) panicked at crates/rndr_ui/tests/refinement_release.rs:91:5:
+assertion `left == right` failed
+  left: Fill
+ right: Px(809.0)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    fitting_preserves_takeover_before_first_layout
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p rndr_ui --test refinement_release`

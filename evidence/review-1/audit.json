@@ -1,0 +1,21 @@
+{
+  "original_evidence_hashes_verified": 101,
+  "original_runtime_source_hashes_verified": true,
+  "original_council_docs_unchanged": true,
+  "runtime_changed_since_candidate": [
+    "crates/rndr_ui/src/controls.rs"
+  ],
+  "test_pass_counts": {
+    "tests-render-parley.log": 71,
+    "tests-core-paint-ui.log": 539,
+    "tests-render-builtin.log": 25,
+    "tests-final-core-paint-ui.log": 541,
+    "tests-core-paint-ui-corrected.log": 540,
+    "tests-release.log": 4
+  },
+  "fresh_pixel_identity": {
+    "fresh-light": true,
+    "fresh-dark": true,
+    "fresh-stress": true
+  }
+}

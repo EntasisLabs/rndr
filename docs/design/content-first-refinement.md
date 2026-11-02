@@ -46,7 +46,7 @@ For an ordinary toolbar, opt direct actions into `ToolbarContentWidth` as before
 | Label | 14 / 20 | Commands/navigation |
 | Emphasis | 13 / 18 | Compact supporting headings/actions |
 | Secondary | 12 / 16 | Metadata and supporting information |
-| Code | 12 / 18 | Existing editor/source role |
+| Code | 13 / 20 | Existing editor/source role |
 
 UI and reading/code scales remain independent explicit UiTheme values. Density never scales down type. Inter is requested by the existing bundled Parley path; the no-Parley deterministic bitmap fallback remains deliberately different. This is not a new native font resolver.
 

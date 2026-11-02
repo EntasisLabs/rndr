@@ -1184,10 +1184,12 @@ pub(crate) fn resolve_toolbars(world: &mut World) {
         }
         if let Some(mut owned) = world.get::<AdaptiveModes>(root).cloned() {
             if let Some(layout) = world.get::<Layout>(root) {
-                if owned.last_width.is_some_and(|last| layout.width != last) {
+                // Before our first write, all current geometry is still authored.
+                // Remember same-update composition as well as later takeovers.
+                if owned.last_width != Some(layout.width) {
                     owned.width = layout.width;
                 }
-                if owned.last_gap.is_some_and(|last| layout.gap != last) {
+                if owned.last_gap != Some(layout.gap) {
                     owned.gap = layout.gap;
                 }
             }
