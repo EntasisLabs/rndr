@@ -51,7 +51,7 @@ fn needed(a: &App, h: ControlHandle) -> f32 {
     // stimulus boundary only; fitted() verifies final engine geometry.
     let style = a.world().get::<TextStyle>(h.label).unwrap();
     let unit = text_engine(a.world()).unit_advance(style);
-    let text_insets = 4096. - field_text_width(4096., unit);
+    let text_insets = 4096. - label_box(a.world(), h.label).text_width(4096., unit);
     (natural(a, h) + insets + text_insets).max(a.world().get::<Layout>(h.root).unwrap().min_width)
 }
 fn axis(a: &App, t: ToolbarHandle) -> Axis {
@@ -67,7 +67,7 @@ fn fitted(a: &App, t: ToolbarHandle, handles: &[ControlHandle]) {
         let r = a.world().get::<Rect>(h.label).unwrap();
         let style = a.world().get::<TextStyle>(h.label).unwrap();
         let engine = text_engine(a.world());
-        let content = field_text_width(r.w, engine.unit_advance(style));
+        let content = label_box(a.world(), h.label).text_width(r.w, engine.unit_advance(style));
         assert!(
             content >= natural(a, *h),
             "{r:?} content={content} < {}",

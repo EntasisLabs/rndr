@@ -65,10 +65,10 @@ pub use tess::{tessellate_fill, tessellate_stroke, Mesh, MeshCache};
 pub use zoom::{ZoomCamera, ZOOM_MAX_STEP, ZOOM_MIN_STEP};
 
 use rndr_core::{
-    children_of, field_text_width, layered_roots, style_for, style_of, text_engine, theme_of, App,
-    Caret, Clip, Color, DirtyMark, EditField, Field, Focus, Label, MonoCache, MonoCursorShape,
-    MonoGrid, Parent, Radius, Rect, Spans, TextLayout, TextSelection, Theme, Viewport, World,
-    CELL_H, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
+    children_of, layered_roots, style_for, style_of, text_engine, theme_of, App, Caret, Clip,
+    Color, DirtyMark, EditField, Field, Focus, Label, MonoCache, MonoCursorShape, MonoGrid, Parent,
+    Radius, Rect, Spans, TextLayout, TextSelection, Theme, Viewport, World, CELL_H, TEXT_ORIGIN_X,
+    TEXT_ORIGIN_Y,
 };
 
 /// One instanced quad in logical points.
@@ -252,13 +252,14 @@ fn paint_visited(
     shift_y: f32,
     clip_text: bool,
     caret_row: Option<&rndr_core::CaretRow>,
+    metrics: rndr_core::LabelBox,
 ) {
     let text_clip = if clip_text {
         clip.intersect(Clip {
             x: rect.x,
-            y: rect.y + TEXT_ORIGIN_Y,
+            y: rect.y + metrics.inset_y,
             w: rect.w,
-            h: (rect.h - 2.0 * TEXT_ORIGIN_Y).max(0.0),
+            h: (rect.h - 2.0 * metrics.inset_y).max(0.0),
         })
     } else {
         clip
@@ -269,6 +270,13 @@ fn paint_visited(
     if dirty {
         push_dirty_mark(out, rect, clip, solid, theme.dirty);
     }
+    // All text adornments share the same origin. Background/hit rectangles and
+    // clips remain the real layout boxes; editing labels use legacy metrics.
+    let rect = Rect {
+        x: rect.x + metrics.inset_x - TEXT_ORIGIN_X,
+        y: rect.y + metrics.inset_y - TEXT_ORIGIN_Y,
+        ..rect
+    };
     if let (Some(layout), Some(caret)) = (layout, caret) {
         push_selection(
             out,
@@ -493,6 +501,7 @@ fn walk(
                 shift_y,
                 clip_text,
                 world.get::<rndr_core::CaretRow>(entity),
+                rndr_core::label_box(world, entity),
             );
         };
         if needs_fallback {
@@ -891,9 +900,12 @@ fn measured(world: &World, entity: rndr_core::Entity, text: &str, rect: Rect) ->
     let engine = text_engine(world);
     let wrap = world
         .get::<Field>(entity)
-        .is_some_and(|field| field.kind == EditField::Body);
+        .is_some_and(|field| field.kind == EditField::Body)
+        || world
+            .get::<Label>(entity)
+            .is_some_and(|label| label.overflow != rndr_core::TextOverflow::Visible);
     let max_width = if wrap {
-        field_text_width(rect.w, engine.unit_advance(&style))
+        rndr_core::label_box(world, entity).text_width(rect.w, engine.unit_advance(&style))
     } else {
         f32::INFINITY
     };

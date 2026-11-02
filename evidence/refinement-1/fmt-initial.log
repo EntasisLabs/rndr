@@ -1,0 +1,185 @@
+Diff in /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/crates/rndr_ui/src/composition.rs:22:
+     /// Quiet sidebar + dominant document. Nonfinite widths resolve to zero;
+     /// extremely narrow hosts may scroll vertically, never force a wide row.
+     pub fn resolve(available: f32, theme: &UiTheme) -> Self {
+-        let available = if available.is_finite() { available.max(0.0) } else { 0.0 };
++        let available = if available.is_finite() {
++            available.max(0.0)
++        } else {
++            0.0
++        };
+         let scale = theme.typography(Typography::Label).size / 14.0;
+         let gap = theme.space(Space::X16);
+         let navigation = 240.0 * scale;
+Diff in /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/crates/rndr_ui/src/composition.rs:32:
+             side_by_side,
+             gap,
+             navigation_width: if side_by_side { navigation } else { available },
+-            document_width: if side_by_side { available - navigation - gap } else { available },
++            document_width: if side_by_side {
++                available - navigation - gap
++            } else {
++                available
++            },
+             available,
+         }
+     }
+Diff in /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/crates/rndr_ui/src/composition.rs:41:
+     /// all identities, content, focus, editor/history and authored other fields.
+     /// Invalid relations are rejected before either node is changed.
+     pub fn apply(self, world: &mut World, root: Entity, navigation: Entity) -> Result<(), UiError> {
+-        if !world.has::<Layout>(root) || !world.has::<Layout>(navigation)
+-            || world.get::<Parent>(navigation).map(|p| p.entity) != Some(root) {
++        if !world.has::<Layout>(root)
++            || !world.has::<Layout>(navigation)
++            || world.get::<Parent>(navigation).map(|p| p.entity) != Some(root)
++        {
+             return Err(UiError::Stale);
+         }
+         let layout = world.get_mut::<Layout>(root).unwrap();
+Diff in /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/crates/rndr_ui/src/composition.rs:49:
+-        layout.axis = if self.side_by_side { Axis::Row } else { Axis::Column };
++        layout.axis = if self.side_by_side {
++            Axis::Row
++        } else {
++            Axis::Column
++        };
+         layout.gap = self.gap;
+         world.get_mut::<Layout>(navigation).unwrap().width = if self.side_by_side {
+             Size::Px(self.navigation_width)
+Diff in /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/crates/rndr_ui/src/composition.rs:53:
+-        } else { Size::Fill };
++        } else {
++            Size::Fill
++        };
+         Ok(())
+     }
+ }
+Diff in /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/crates/rndr_ui/src/composition.rs:58:
+ /// Restrained section layout with density-aware rhythm, no automatic surface.
+ /// Use on caller-owned content slots when a second filled card is unnecessary.
+ pub fn section_layout(theme: &UiTheme) -> Layout {
+-    Layout { width: Size::Fill, gap: theme.space(Space::X12), ..Layout::column() }
++    Layout {
++        width: Size::Fill,
++        gap: theme.space(Space::X12),
++        ..Layout::column()
++    }
+ }
+
+Diff in /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/crates/rndr_ui/src/controls.rs:570:
+             return Err(UiError::InvalidProps);
+         }
+         world.insert(self.group, AdaptiveModes);
+-        world.insert(self.group, ToolbarNode { id: UiId(0), available });
++        world.insert(
++            self.group,
++            ToolbarNode {
++                id: UiId(0),
++                available,
++            },
++        );
+         for tab in &self.tabs {
+             world.insert(tab.root, ToolbarContentWidth);
+         }
+Diff in /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/crates/rndr_ui/src/controls.rs:781:
+ fn host_plane(world: &World, root: Entity, theme: &UiTheme) -> UiColor {
+     let mut parent = world.get::<Parent>(root).map(|p| p.entity);
+     while let Some(entity) = parent {
+-        let color = world.get::<UiStyle>(entity).and_then(|s| s.background)
++        let color = world
++            .get::<UiStyle>(entity)
++            .and_then(|s| s.background)
+             .or_else(|| world.get::<UiRecipe>(entity).and_then(|s| s.0.background));
+         if let Some(color) = color {
+-            if color.resolve(theme).a == 1.0 { return color; }
++            if color.resolve(theme).a == 1.0 {
++                return color;
++            }
+         } else if let Some(color) = world.get::<Color>(entity) {
+-            if color.a == 1.0 { return UiColor::Explicit(*color); }
++            if color.a == 1.0 {
++                return UiColor::Explicit(*color);
++            }
+         }
+         parent = world.get::<Parent>(entity).map(|p| p.entity);
+     }
+Diff in /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/crates/rndr_ui/src/controls.rs:838:
+         } else if pressed && theme.contrast == crate::Contrast::High {
+             (Token::Text, Token::Canvas)
+         } else if selected {
+-            (if pressed { Token::ControlPressed } else if hover { Token::ControlHover } else { Token::Selected }, Token::Text)
++            (
++                if pressed {
++                    Token::ControlPressed
++                } else if hover {
++                    Token::ControlHover
++                } else {
++                    Token::Selected
++                },
++                Token::Text,
++            )
+         } else {
+             match c.props.variant {
+                 ButtonVariant::Primary => (
+Diff in /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/crates/rndr_ui/src/controls.rs:900:
+         // Quiet controls inherit the host plane at rest, rather than painting
+         // canvas-colored tiles into content/raised surfaces. HC keeps explicit
+         // boundaries; selected markers and independent focus are unchanged.
+-        let quiet_idle = c.props.enabled && !pressed && !hover && !selected
++        let quiet_idle = c.props.enabled
++            && !pressed
++            && !hover
++            && !selected
+             && theme.contrast != crate::Contrast::High
+             && (c.props.variant == ButtonVariant::Quiet || c.kind == Kind::Tab);
+         let idle_plane = host_plane(world, root, &theme);
+Diff in /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/crates/rndr_ui/src/controls.rs:907:
+-        let border: UiColor = if quiet_idle { idle_plane } else { (if theme.contrast == crate::Contrast::High {
++        let border: UiColor = if quiet_idle {
++            idle_plane
++        } else {
++            (if theme.contrast == crate::Contrast::High {
+                 Token::StrongStroke
+             } else if c.props.variant == ButtonVariant::Primary || selected {
+                 fill
+Diff in /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/crates/rndr_ui/src/controls.rs:914:
+                 fill
+             } else {
+                 Token::StrongStroke
+-            }).into() };
++            })
++            .into()
++        };
+         background(world, c.border, border, Corner::Control);
+-        background(world, c.face, if quiet_idle { idle_plane } else { fill.into() }, Corner::Compact);
++        background(
++            world,
++            c.face,
++            if quiet_idle { idle_plane } else { fill.into() },
++            Corner::Compact,
++        );
+         let mut label = c.props.label.clone();
+         if c.kind == Kind::Navigation {
+             if let Some(v) = &c.meta.secondary {
+Diff in /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/crates/rndr_ui/src/controls.rs:1107:
+         if let Some(layout) = world.get::<Layout>(group) {
+             let orientation = if layout.axis == Axis::Row {
+                 TabOrientation::Horizontal
+-            } else { TabOrientation::Vertical };
++            } else {
++                TabOrientation::Vertical
++            };
+             world.insert(group, ManualTabs(orientation));
+         }
+     }
+Diff in /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/crates/rndr_ui/src/lib.rs:7:
+ pub mod style;
+ pub mod surfaces;
+ pub mod tokens;
+-use rndr_core::{App, Layout, Plugin, Schedule, Size};
+ pub use composition::{section_layout, WorkspaceLayout};
++use rndr_core::{App, Layout, Plugin, Schedule, Size};
+ pub use style::{detach_style, resolve_styles, Corner, UiColor, UiRecipe, UiStyle};
+ pub use surfaces::{separator, text, Callout, Card, Feedback, Surface, UiError, UiHandle, UiId};
+ pub use tokens::{Appearance, Contrast, Density, Space, Token, Typography, UiTheme};

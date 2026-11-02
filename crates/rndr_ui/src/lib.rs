@@ -2,10 +2,12 @@
 //! Core contract acceptance is scoped; native platform acceptance remains separate.
 //! See docs/design/A1-api-decisions.md for the bounded interaction contract.
 #![warn(missing_docs)]
+pub mod composition;
 pub mod controls;
 pub mod style;
 pub mod surfaces;
 pub mod tokens;
+pub use composition::{section_layout, WorkspaceLayout};
 use rndr_core::{App, Layout, Plugin, Schedule, Size};
 pub use style::{detach_style, resolve_styles, Corner, UiColor, UiRecipe, UiStyle};
 pub use surfaces::{separator, text, Callout, Card, Feedback, Surface, UiError, UiHandle, UiId};

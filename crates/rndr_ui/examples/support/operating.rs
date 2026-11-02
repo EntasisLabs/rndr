@@ -270,50 +270,17 @@ fn resize(w: &mut World) {
     } else {
         Typography::Title
     });
-    let side_by_side = width >= 760.0 * scale;
-    w.get_mut::<Layout>(d.workspace).unwrap().axis = if side_by_side {
-        Axis::Row
-    } else {
-        Axis::Column
-    };
+    let composition = WorkspaceLayout::resolve((width - 24.0).max(0.0), &theme);
     let navigation_root = w.get::<Parent>(d.navigation).unwrap().entity;
-    w.get_mut::<Layout>(navigation_root).unwrap().width = if side_by_side {
-        Size::Px(260.0 * scale)
-    } else {
-        Size::Fill
-    };
+    composition.apply(w, d.workspace, navigation_root).unwrap();
     w.get_mut::<Layout>(d.editor).unwrap().height = Size::Px((76.0 * scale).min(180.0));
     let card_width = (width - 64.0).max(32.0);
     Toolbar::mount(w, d.card.content, UiId(2), card_width).unwrap();
-    let document_width = if side_by_side {
-        width - 24.0 - 260.0 * scale - 16.0 - 32.0
-    } else {
-        width - 56.0
-    };
+    let document_width = composition.document_width - 2.0 * theme.space(Space::X16);
     w.insert(d.reading, reading_layout(document_width.max(32.0), &theme));
-    // These short gallery mode labels need not masquerade as full-width fields.
-    // Stack at enlarged type/narrow widths rather than squeezing either target.
-    let modes_in_row = document_width >= 248.0 * scale;
-    w.get_mut::<Layout>(d.selector.group).unwrap().axis = if modes_in_row {
-        Axis::Row
-    } else {
-        Axis::Column
-    };
-    w.insert(
-        d.selector.group,
-        ManualTabs(if modes_in_row {
-            TabOrientation::Horizontal
-        } else {
-            TabOrientation::Vertical
-        }),
-    );
-    for tab in &d.selector.tabs {
-        w.get_mut::<Layout>(tab.root).unwrap().width = if modes_in_row {
-            Size::Px(120.0 * scale)
-        } else {
-            Size::Fill
-        };
-    }
+    // The library fits actual resolved labels and owns matching arrow-key
+    // orientation. Consumers do not copy a font-size-dependent magic breakpoint.
+    d.selector.fit(w, document_width.max(32.0)).unwrap();
 }
 /// Normal host test double: drains only the reviewed queue, retains multiplicity,
 /// validates current UI payload plus independent host document/revision/anchor.

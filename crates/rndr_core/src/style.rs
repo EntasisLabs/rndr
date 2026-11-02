@@ -111,3 +111,66 @@ pub const CELL_H: f32 = 16.0;
 pub const TEXT_ORIGIN_X: f32 = 12.0;
 /// Top inset of the first line inside a row rectangle.
 pub const TEXT_ORIGIN_Y: f32 = 8.0;
+
+/// Opt-in box metrics for **display-only** labels. Legacy labels retain their
+/// 12/8 point insets and 36 point minimum height. Core editing/selection labels
+/// deliberately ignore this component: their pointer, IME, caret and history
+/// geometry remains on the existing field contract.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LabelBox {
+    /// Symmetric horizontal text inset, logical points.
+    pub inset_x: f32,
+    /// Symmetric vertical text inset, logical points.
+    pub inset_y: f32,
+    /// Minimum measured height, independent of hit-target size on the parent.
+    pub min_height: f32,
+}
+impl Component for LabelBox {}
+impl Default for LabelBox {
+    fn default() -> Self {
+        Self {
+            inset_x: TEXT_ORIGIN_X,
+            inset_y: TEXT_ORIGIN_Y,
+            min_height: 36.0,
+        }
+    }
+}
+impl LabelBox {
+    /// Unpadded text; the containing composition owns spacing and hit targets.
+    pub const CONTENT: Self = Self {
+        inset_x: 0.0,
+        inset_y: 0.0,
+        min_height: 0.0,
+    };
+    /// Available inline width, preserving the legacy at-least-one-advance rule.
+    pub fn text_width(self, width: f32, unit: f32) -> f32 {
+        let unit = if unit.is_finite() && unit > 0.0 {
+            unit
+        } else {
+            1.0
+        };
+        (width - 2.0 * self.inset_x).max(unit)
+    }
+}
+
+/// Effective display label metrics. Invalid/negative values fall back as a
+/// whole to legacy metrics; editable/selectable fields never opt in implicitly.
+pub fn label_box(world: &crate::World, entity: crate::Entity) -> LabelBox {
+    if world.has::<crate::Field>(entity)
+        || world.has::<crate::Editor>(entity)
+        || world.has::<crate::Caret>(entity)
+        || world.has::<crate::TextSelection>(entity)
+        || world.has::<crate::Buffer>(entity)
+    {
+        return LabelBox::default();
+    }
+    world
+        .get::<LabelBox>(entity)
+        .copied()
+        .filter(|b| {
+            [b.inset_x, b.inset_y, b.min_height]
+                .iter()
+                .all(|v| v.is_finite() && *v >= 0.0)
+        })
+        .unwrap_or_default()
+}

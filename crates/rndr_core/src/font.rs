@@ -832,6 +832,7 @@ pub fn apply_text_layout(world: &mut World) {
     for entity in labels {
         let style = crate::text::style_for(world, entity);
         let unit = engine.unit_advance(&style);
+        let metrics = crate::label_box(world, entity);
         let wrap = world.has::<crate::Editor>(entity)
             || world
                 .get::<Field>(entity)
@@ -849,7 +850,7 @@ pub fn apply_text_layout(world: &mut World) {
                 if wrap {
                     world
                         .get::<crate::layout::Rect>(entity)
-                        .map(|rect| field_text_width(rect.w, unit))
+                        .map(|rect| metrics.text_width(rect.w, unit))
                         .unwrap_or(f32::INFINITY)
                 } else {
                     f32::INFINITY
@@ -857,7 +858,7 @@ pub fn apply_text_layout(world: &mut World) {
             }
             TextOverflow::Wrap | TextOverflow::Ellipsis => {
                 if rect_w > 0.0 {
-                    field_text_width(rect_w, unit)
+                    metrics.text_width(rect_w, unit)
                 } else {
                     f32::INFINITY
                 }

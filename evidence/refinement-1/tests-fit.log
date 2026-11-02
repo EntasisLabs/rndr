@@ -1,0 +1,44 @@
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/crates/rndr_ui)
+    Finished `test` profile [unoptimized] target(s) in 1.87s
+     Running tests/a2_toolbar_allocation.rs (target/debug/deps/a2_toolbar_allocation-e2872fb9dd89f889)
+
+running 5 tests
+test unequal_toolbar_labels_must_fit_each_row_share ... ok
+test empty_single_hidden_unknown_policy_and_toolbar_padding ... ok
+test mixed_icon_and_source_actions_use_their_actual_label_styles ... ok
+test same_update_width_scale_and_label_changes_preserve_identity_and_actions ... ok
+test equal_share_boundary_both_densities_and_type_scales ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/a2_toolbar_content_fit.rs (target/debug/deps/a2_toolbar_content_fit-bb1605c2f7951a66)
+
+running 4 tests
+test hidden_ancestor_malformed_and_scroll_rejected_measurement_are_safe ... ok
+test integer_inner_text_reproduction_and_exact_pixel_boundaries ... ok
+test same_update_label_type_width_both_ways_uses_final_line_geometry ... ok
+test fractional_content_boundaries_with_nested_origin_and_updates ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.09s
+
+     Running tests/desktop_foundations.rs (target/debug/deps/desktop_foundations-87396d0f0912b85c)
+
+running 4 tests
+test semantic_type_and_editor_recipe_resolve_readably_in_every_palette ... ok
+test hover_is_neutral_focus_is_reserved_and_selection_remains_distinct ... ok
+test content_width_releases_owned_width_on_marker_or_parent_detach ... ok
+test content_sized_actions_survive_reflow_scale_density_focus_and_activation ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running tests/refinement.rs (target/debug/deps/refinement-606f4962fd0dfd3f)
+
+running 6 tests
+test label_box_never_changes_editor_selection_or_legacy_metrics ... ok
+test workspace_is_content_width_and_text_scale_driven_without_mutating_on_error ... ok
+test display_metrics_measure_shape_paint_and_release_together ... ok
+test navigation_metadata_is_secondary_visible_named_and_owned ... ok
+test quiet_host_plane_uses_same_update_palette_and_honors_explicit_color_takeover ... ok
+test adaptive_modes_preserve_selection_focus_targets_and_release_authored_widths ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s

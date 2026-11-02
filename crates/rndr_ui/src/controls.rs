@@ -92,6 +92,7 @@ struct Control {
     border: Entity,
     face: Entity,
     label: Entity,
+    secondary: Option<Entity>,
 }
 impl Component for Control {}
 #[derive(Clone, Copy)]
@@ -277,9 +278,32 @@ fn mount_control(
         set_parent(world, root, parent);
         let gap = primitive(world, root, root, 2.0);
         let border = primitive(world, gap, root, 1.0);
-        let face = primitive(world, border, root, 4.0);
+        let face = primitive(world, border, root, 0.0);
         let label = primitive(world, face, root, 0.0);
         world.insert(label, Label::new(&props.label).overflow(TextOverflow::Wrap));
+        world.insert(
+            label,
+            LabelBox {
+                inset_x: 6.0,
+                inset_y: 2.0,
+                min_height: 0.0,
+            },
+        );
+        let secondary = if kind == Kind::Navigation {
+            let entity = primitive(world, face, root, 0.0);
+            world.insert(entity, Label::new("").overflow(TextOverflow::Wrap));
+            world.insert(
+                entity,
+                LabelBox {
+                    inset_x: 6.0,
+                    ..LabelBox::CONTENT
+                },
+            );
+            world.insert(entity, Hidden);
+            Some(entity)
+        } else {
+            None
+        };
         world.insert(
             root,
             Control {
@@ -291,6 +315,7 @@ fn mount_control(
                 border,
                 face,
                 label,
+                secondary,
             },
         );
         ControlHandle { root, label }
@@ -359,6 +384,15 @@ impl ControlHandle {
             }
         } else if !world.has::<CoreButton>(self.root) {
             return Err(UiError::Stale);
+        }
+        if let Some(secondary) = c.secondary {
+            if !world.has::<Label>(secondary)
+                || world.get::<OwnedBy>(secondary).map(|o| o.0) != Some(self.root)
+                || world.get::<Parent>(secondary).map(|p| p.entity) != Some(c.face)
+                || !world.has::<Layout>(secondary)
+            {
+                return Err(UiError::Stale);
+            }
         }
         for (child, parent) in [
             (c.gap, self.root),
@@ -559,6 +593,65 @@ impl ModeSelector {
     }
 }
 impl ModeHandle {
+    /// Opt into content-sized tabs with visible vertical fallback. Supply the
+    /// tablist's available logical content width on resize. This reuses the
+    /// toolbar's actual text/layout fit check; no guessed label widths. Owns
+    /// tab widths and orientation until `clear_fit` or destruction. Focus,
+    /// selected panel and borrowed editor state are never reset.
+    pub fn fit(&self, world: &mut World, available: f32) -> Result<(), UiError> {
+        self.validate(world)?;
+        if !available.is_finite() || available < 32.0 {
+            return Err(UiError::InvalidProps);
+        }
+        if !world.has::<AdaptiveModes>(self.group) {
+            let layout = world.get::<Layout>(self.group).unwrap();
+            let owned = AdaptiveModes {
+                width: layout.width,
+                gap: layout.gap,
+                last_width: None,
+                last_gap: None,
+                inserted: self
+                    .tabs
+                    .iter()
+                    .filter(|tab| !world.has::<ToolbarContentWidth>(tab.root))
+                    .map(|tab| tab.root)
+                    .collect(),
+            };
+            world.insert(self.group, owned);
+        }
+        world.insert(
+            self.group,
+            ToolbarNode {
+                id: UiId(0),
+                available,
+            },
+        );
+        for tab in &self.tabs {
+            world.insert(tab.root, ToolbarContentWidth);
+        }
+        Ok(())
+    }
+    /// Release fit-owned widths on the next layout. Current orientation remains
+    /// explicit; a subsequent mount can choose another orientation. Does not
+    /// remove caller content or reset the active panel.
+    pub fn clear_fit(&self, world: &mut World) -> Result<(), UiError> {
+        self.validate(world)?;
+        if let Some(owned) = world.get::<AdaptiveModes>(self.group).cloned() {
+            let layout = world.get_mut::<Layout>(self.group).unwrap();
+            if Some(layout.width) == owned.last_width {
+                layout.width = owned.width;
+            }
+            if Some(layout.gap) == owned.last_gap {
+                layout.gap = owned.gap;
+            }
+            world.remove::<AdaptiveModes>(self.group);
+            world.remove::<ToolbarNode>(self.group);
+            for tab in owned.inserted {
+                world.remove::<ToolbarContentWidth>(tab);
+            }
+        }
+        Ok(())
+    }
     /// Validate all generations, direct-parent relations and owned content slots.
     pub fn validate(&self, world: &World) -> Result<(), UiError> {
         let s = world.get::<Selector>(self.root).ok_or(UiError::Stale)?;
@@ -624,6 +717,16 @@ impl ModeHandle {
         Ok(())
     }
 }
+
+#[derive(Clone)]
+struct AdaptiveModes {
+    width: Size,
+    gap: f32,
+    last_width: Option<Size>,
+    last_gap: Option<f32>,
+    inserted: Vec<Entity>,
+}
+impl Component for AdaptiveModes {}
 
 #[derive(Clone, Copy)]
 struct ToolbarNode {
@@ -741,6 +844,21 @@ fn background(world: &mut World, entity: Entity, color: impl Into<UiColor>, corn
         }),
     );
 }
+// Resolve the nearest authored/semantic host plane before the style pass.
+// This avoids canvas-colored seams without weakening opaque contrast recipes.
+fn host_plane(world: &World, root: Entity, theme: &UiTheme) -> UiColor {
+    let mut parent = world.get::<Parent>(root).map(|p| p.entity);
+    while let Some(entity) = parent {
+        if let Some(color) = crate::style::background_at(world, entity, theme) {
+            if color.a == 1.0 {
+                return UiColor::Explicit(color);
+            }
+        }
+        parent = world.get::<Parent>(entity).map(|p| p.entity);
+    }
+    Token::Canvas.into()
+}
+
 /// Recipe resolution runs before the existing style resolver/Layout/paint.
 /// No input processing, queue draining or host command dispatch occurs here.
 pub(crate) fn resolve_controls(world: &mut World) {
@@ -786,7 +904,16 @@ pub(crate) fn resolve_controls(world: &mut World) {
         } else if pressed && theme.contrast == crate::Contrast::High {
             (Token::Text, Token::Canvas)
         } else if selected {
-            (Token::Selected, Token::Text)
+            (
+                if pressed {
+                    Token::ControlPressed
+                } else if hover {
+                    Token::ControlHover
+                } else {
+                    Token::Selected
+                },
+                Token::Text,
+            )
         } else {
             match c.props.variant {
                 ButtonVariant::Primary => (
@@ -845,10 +972,20 @@ pub(crate) fn resolve_controls(world: &mut World) {
             },
             Corner::Control,
         );
-        background(
-            world,
-            c.border,
-            if theme.contrast == crate::Contrast::High {
+        // Quiet controls inherit the host plane at rest, rather than painting
+        // canvas-colored tiles into content/raised surfaces. HC keeps explicit
+        // boundaries; selected markers and independent focus are unchanged.
+        let quiet_idle = c.props.enabled
+            && !pressed
+            && !hover
+            && !selected
+            && theme.contrast != crate::Contrast::High
+            && (c.props.variant == ButtonVariant::Quiet || c.kind == Kind::Tab);
+        let idle_plane = host_plane(world, root, &theme);
+        let border: UiColor = if quiet_idle {
+            idle_plane
+        } else {
+            (if theme.contrast == crate::Contrast::High {
                 Token::StrongStroke
             } else if c.props.variant == ButtonVariant::Primary || selected {
                 fill
@@ -858,18 +995,52 @@ pub(crate) fn resolve_controls(world: &mut World) {
                 fill
             } else {
                 Token::StrongStroke
-            },
-            Corner::Control,
+            })
+            .into()
+        };
+        background(world, c.border, border, Corner::Control);
+        background(
+            world,
+            c.face,
+            if quiet_idle { idle_plane } else { fill.into() },
+            Corner::Compact,
         );
-        background(world, c.face, fill, Corner::Compact);
+        world.get_mut::<UiRecipe>(c.face).unwrap().0.padding =
+            Some(if theme.density == crate::Density::Comfortable {
+                crate::Space::X2
+            } else {
+                crate::Space::Zero
+            });
         let mut label = c.props.label.clone();
-        if c.kind == Kind::Navigation {
-            if let Some(v) = &c.meta.secondary {
-                label.push_str(&format!(" — {v}"));
-            }
+        if let Some(secondary) = c.secondary {
+            let mut metadata = c.meta.secondary.clone().unwrap_or_default();
             if c.meta.dirty {
-                label.push_str(" (unsaved)");
+                if !metadata.is_empty() {
+                    metadata.push_str(" · ");
+                }
+                metadata.push_str("Unsaved");
             }
+            if metadata.is_empty() {
+                world.insert(secondary, Hidden);
+            } else {
+                world.remove::<Hidden>(secondary);
+            }
+            world.get_mut::<Label>(secondary).unwrap().text = metadata;
+            let secondary_ink = if !c.props.enabled {
+                Token::Disabled
+            } else if pressed && theme.contrast == crate::Contrast::High {
+                ink
+            } else {
+                Token::Secondary
+            };
+            world.insert(
+                secondary,
+                UiRecipe(UiStyle {
+                    foreground: Some(secondary_ink.into()),
+                    typography: Some(Typography::Secondary),
+                    ..UiStyle::default()
+                }),
+            );
         }
         if selected {
             label = format!("| {label}");
@@ -956,7 +1127,48 @@ pub(crate) fn resolve_toolbars(world: &mut World) {
                 let natural = engine
                     .measure(&label.text, &style, &[], f32::INFINITY)
                     .width;
-                let width = (natural + 52.0).max(theme.target_min());
+                // Navigation metadata is a separate, smaller wrapped line.
+                // Include its real engine measurement when such a row is used
+                // inside a toolbar, not just the primary label.
+                let natural =
+                    if let Some(secondary) = c.secondary.filter(|e| !world.has::<Hidden>(*e)) {
+                        let label = world.get::<Label>(secondary).unwrap();
+                        let style = world
+                            .get::<TextStyle>(secondary)
+                            .cloned()
+                            .unwrap_or_else(|| theme.typography(Typography::Secondary));
+                        natural.max(
+                            engine
+                                .measure(&label.text, &style, &[], f32::INFINITY)
+                                .width,
+                        )
+                    } else {
+                        natural
+                    };
+                let chrome = [*child, c.gap, c.border, c.face]
+                    .iter()
+                    .filter_map(|e| world.get::<Layout>(*e))
+                    .map(|l| l.padding * 2.0)
+                    .sum::<f32>();
+                let label_inset = label_box(world, c.label).inset_x * 2.0;
+                let metadata_inset = c
+                    .secondary
+                    .map(|e| label_box(world, e).inset_x * 2.0)
+                    .unwrap_or(0.0);
+                let mut width =
+                    (natural + chrome + label_inset.max(metadata_inset)).max(theme.target_min());
+                if world.has::<ToolbarContentWidth>(*child) {
+                    // A snug measured width can lose a pixel at either edge
+                    // after nested physical snapping (native Parley advances
+                    // are fractional). Reserve two device pixels for marked
+                    // content-sized actions; final layout still proves fit.
+                    let scale = world
+                        .resource::<Viewport>()
+                        .map(|v| v.scale)
+                        .filter(|s| s.is_finite() && *s > 0.0)
+                        .unwrap_or(1.0);
+                    width = (width * scale).ceil() / scale + 2.0 / scale;
+                }
                 row_budget += width;
                 if world.has::<ToolbarContentWidth>(*child) {
                     content_widths.push((*child, width));
@@ -970,6 +1182,19 @@ pub(crate) fn resolve_toolbars(world: &mut World) {
         for (child, width) in content_widths {
             toolbar_width(world, child, if row { Size::Px(width) } else { Size::Fill });
         }
+        if let Some(mut owned) = world.get::<AdaptiveModes>(root).cloned() {
+            if let Some(layout) = world.get::<Layout>(root) {
+                if owned.last_width.is_some_and(|last| layout.width != last) {
+                    owned.width = layout.width;
+                }
+                if owned.last_gap.is_some_and(|last| layout.gap != last) {
+                    owned.gap = layout.gap;
+                }
+            }
+            owned.last_width = Some(Size::Px(node.available));
+            owned.last_gap = Some(8.0);
+            world.insert(root, owned);
+        }
         if let Some(l) = world.get_mut::<Layout>(root) {
             l.width = Size::Px(node.available);
             l.axis = if row { Axis::Row } else { Axis::Column };
@@ -980,6 +1205,7 @@ pub(crate) fn resolve_toolbars(world: &mut World) {
         }
     }
     if candidates.is_empty() {
+        resolve_mode_orientation(world);
         return;
     }
     // A tentative short row can clamp a caller's scroll offset before being
@@ -1014,10 +1240,32 @@ pub(crate) fn resolve_toolbars(world: &mut World) {
                 // A never-shown hidden ancestor has no allocated Rect yet.
                 // Missing geometry cannot prove fit; reveal is reconsidered on
                 // the next update using the same authoritative layout walk.
+                if let Some(secondary) = c.secondary.filter(|e| !world.has::<Hidden>(*e)) {
+                    let Some(rect) = world.get::<Rect>(secondary) else {
+                        return false;
+                    };
+                    let label = world.get::<Label>(secondary).unwrap();
+                    let style = world
+                        .get::<TextStyle>(secondary)
+                        .cloned()
+                        .unwrap_or_else(|| theme.typography(Typography::Secondary));
+                    let natural = engine
+                        .measure(&label.text, &style, &[], f32::INFINITY)
+                        .width;
+                    if label_box(world, secondary).text_width(rect.w, engine.unit_advance(&style))
+                        < natural
+                        || !world
+                            .get::<TextLayout>(secondary)
+                            .is_some_and(|l| l.lines.len() <= 1)
+                    {
+                        return false;
+                    }
+                }
                 let Some(rect) = world.get::<Rect>(c.label) else {
                     return false;
                 };
-                let content = field_text_width(rect.w, engine.unit_advance(&style));
+                let content =
+                    label_box(world, c.label).text_width(rect.w, engine.unit_advance(&style));
                 rect.w.is_finite()
                     && content >= natural
                     && world
@@ -1042,5 +1290,19 @@ pub(crate) fn resolve_toolbars(world: &mut World) {
     }
     for (e, scroll) in scrolls {
         world.insert(e, scroll);
+    }
+    resolve_mode_orientation(world);
+}
+
+fn resolve_mode_orientation(world: &mut World) {
+    for group in world.entities_with::<AdaptiveModes>() {
+        if let Some(layout) = world.get::<Layout>(group) {
+            let orientation = if layout.axis == Axis::Row {
+                TabOrientation::Horizontal
+            } else {
+                TabOrientation::Vertical
+            };
+            world.insert(group, ManualTabs(orientation));
+        }
     }
 }

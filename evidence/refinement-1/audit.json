@@ -1,0 +1,160 @@
+{
+  "runtime_source_hashes_match_build": true,
+  "native_frames_are_surface_copies_not_compositor_screenshots": true,
+  "captures": {
+    "after-compact": {
+      "dimensions": [
+        1000,
+        700
+      ],
+      "args": [
+        "--compact"
+      ],
+      "focused_labels": [],
+      "disabled_labels": [],
+      "png_sha256": "e479546296f7b7ec5d537ddc74b472c013a44f4dbf599849625b5ae3071a8884"
+    },
+    "after-dark-preview": {
+      "dimensions": [
+        1000,
+        700
+      ],
+      "args": [
+        "--dark",
+        "--preview"
+      ],
+      "focused_labels": [],
+      "disabled_labels": [],
+      "png_sha256": "1e932739f6082bd6f98174408c860ed7039030f1012c0e575e88470f88e885f7"
+    },
+    "after-hc-dark": {
+      "dimensions": [
+        1000,
+        700
+      ],
+      "args": [
+        "--dark",
+        "--hc",
+        "--compact",
+        "--preview"
+      ],
+      "focused_labels": [],
+      "disabled_labels": [],
+      "png_sha256": "c7dbe551a6fd3e850e5cb34591146933a006b237611db71c0eae21faed8e42ac"
+    },
+    "after-hc-light": {
+      "dimensions": [
+        1000,
+        700
+      ],
+      "args": [
+        "--hc"
+      ],
+      "focused_labels": [],
+      "disabled_labels": [],
+      "png_sha256": "668e424b0ac2fb1a9609e81f2c2d54be5af4b7fa5ab4703fc2779f47ecd0befc"
+    },
+    "after-light": {
+      "dimensions": [
+        1000,
+        700
+      ],
+      "args": [],
+      "focused_labels": [],
+      "disabled_labels": [],
+      "png_sha256": "8b4de7b7ced7cda6576c070ea62518475d1cd31d92cfd000f87d37492d1da2d6"
+    },
+    "after-narrow-200-editor": {
+      "dimensions": [
+        320,
+        700
+      ],
+      "args": [
+        "--narrow",
+        "--200",
+        "--long",
+        "--focus-editor"
+      ],
+      "focused_labels": [
+        "Synthetic source editor",
+        ""
+      ],
+      "disabled_labels": [],
+      "png_sha256": "e2df0215e18cbba10042cf8a9d2a2dff9bc506d3c000467d0f972544339754d1"
+    },
+    "after-narrow-200-long": {
+      "dimensions": [
+        320,
+        700
+      ],
+      "args": [
+        "--narrow",
+        "--200",
+        "--long"
+      ],
+      "focused_labels": [],
+      "disabled_labels": [],
+      "png_sha256": "4bb2f2b302a53b6ada410ccfbf21424c9f82f3dbd5fe1c105ba50fc342ef3ca6"
+    },
+    "after-narrow-200-source": {
+      "dimensions": [
+        320,
+        700
+      ],
+      "args": [
+        "--dark",
+        "--hc",
+        "--compact",
+        "--narrow",
+        "--200",
+        "--long",
+        "--preview",
+        "--focus-source"
+      ],
+      "focused_labels": [
+        "Show source"
+      ],
+      "disabled_labels": [],
+      "png_sha256": "acedef94b988d76f05129bc2e583cb53650e0c2f277a8f5adc507d402083602f"
+    },
+    "after-pressed": {
+      "dimensions": [
+        1000,
+        700
+      ],
+      "args": [
+        "--dark",
+        "--pressed"
+      ],
+      "focused_labels": [
+        "Secondary"
+      ],
+      "disabled_labels": [
+        "Unavailable"
+      ],
+      "png_sha256": "9e1d5891f7bee3c5a54bedc1c6777ccf8b3c975e0f0885cbec1b711531428cb9"
+    },
+    "after-states": {
+      "dimensions": [
+        1000,
+        700
+      ],
+      "args": [
+        "--states"
+      ],
+      "focused_labels": [
+        "Reference note, Read-only fixture"
+      ],
+      "disabled_labels": [
+        "Unavailable"
+      ],
+      "png_sha256": "9cab96cf1e900f0f9546c96521c3c40d30c9ae9e18350ea5c7e956da6be738c1"
+    }
+  },
+  "test_counts": {
+    "tests-core-paint-ui.log": 539,
+    "tests-render-parley.log": 71,
+    "tests-render-builtin.log": 25,
+    "tests-python.log": 20
+  }
+}

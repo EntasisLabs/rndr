@@ -270,8 +270,8 @@ impl UiTheme {
             Typography::Label => (14.0, 20.0, 400, false),
             Typography::Emphasis => (13.0, 18.0, 600, false),
             Typography::Secondary => (12.0, 16.0, 400, false),
-            Typography::Reading => (14.0, 22.0, 400, true),
-            Typography::Heading => (18.0, 26.0, 600, true),
+            Typography::Reading => (16.0, 24.0, 400, true),
+            Typography::Heading => (20.0, 28.0, 600, true),
             Typography::Title => (26.0, 34.0, 600, true),
             Typography::Code => (13.0, 20.0, 400, true),
         };

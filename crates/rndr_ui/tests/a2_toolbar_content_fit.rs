@@ -56,7 +56,7 @@ fn unwrapped(a: &App, h: ControlHandle) {
     let natural = engine.layout(&label.text, style, &[], f32::INFINITY);
     let actual = w.get::<TextLayout>(h.label).unwrap();
     let r = w.get::<Rect>(h.label).unwrap();
-    let content = field_text_width(r.w, engine.unit_advance(style));
+    let content = label_box(w, h.label).text_width(r.w, engine.unit_advance(style));
     assert_eq!(
         actual.lines.len(),
         1,
@@ -78,15 +78,21 @@ fn integer_inner_text_reproduction_and_exact_pixel_boundaries() {
         let (mut a, p, t, h, short) = setup(1696., 1., density, 1.);
         a.update();
         assert!(!row(&a, t), "old label-box boundary must stack");
-        // Actual builtin layout: unwrapped 826, content inset 24, nested padding18.
-        // 1744 is the true integer snapped fit; two points below loses a point
-        // of content. Subpixel widths may legitimately snap to the same fit.
+        // Actual builtin layout: unwrapped 826, explicit UI label inset12,
+        // nested chrome14 comfortable /10 compact. Legacy labels still use24.
+        // Two points below loses a point of content. Subpixel widths may snap
+        // to the same fit; final engine lines/glyphs remain the oracle below.
+        let boundary = if density == Density::Comfortable {
+            1712.
+        } else {
+            1704.
+        };
         for (width, expected_row) in [
-            (1742., false),
-            (1744., true),
-            (1746., true),
-            (1742., false),
-            (1744., true),
+            (boundary - 2., false),
+            (boundary, true),
+            (boundary + 2., true),
+            (boundary - 2., false),
+            (boundary, true),
         ] {
             resize(&mut a, p, width);
             a.update();
@@ -120,6 +126,14 @@ fn fractional_content_boundaries_with_nested_origin_and_updates() {
                 for center in [
                     2. * (natural + 18.) + 8.,
                     2. * (natural + 42.) + 8. + 2. * 0.7,
+                    2. * (natural
+                        + if density == Density::Comfortable {
+                            26.
+                        } else {
+                            22.
+                        })
+                        + 8.
+                        + 2. * 0.7,
                 ] {
                     for extra in [-4., -2., -0.5, 0., 0.25, 0.5, 1., 2., 4., -4., 4.] {
                         resize(&mut a, p, center + extra);

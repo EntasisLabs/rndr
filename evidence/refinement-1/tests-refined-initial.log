@@ -1,0 +1,99 @@
+   Compiling rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/crates/rndr_core)
+   Compiling rndr_paint v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/crates/rndr_paint)
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/crates/rndr_ui)
+    Finished `test` profile [unoptimized] target(s) in 3.21s
+     Running unittests src/lib.rs (target/debug/deps/rndr_ui-be434b2df1868d91)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/a2_adoption_boundary.rs (target/debug/deps/a2_adoption_boundary-ef50ef65f6223102)
+
+running 1 test
+test passive_adoption_rejects_all_operating_ownership_and_plain_transfer_still_works ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/a2_malformed_controls.rs (target/debug/deps/a2_malformed_controls-cc32fcb5dc1178ac)
+
+running 2 tests
+test toolbar_measurement_tolerates_malformed_borrowed_control_and_checks_own_layout ... ok
+test removed_root_group_or_panel_layout_is_stale_not_a_partial_update ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/a2_nested_paint.rs (target/debug/deps/a2_nested_paint-23ccc8e7dfa97eb2)
+
+running 1 test
+test nested_source_focus_real_glyph_clip_and_hit_geometry_agree ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/a2_operating.rs (target/debug/deps/a2_operating-988c99130288a5d0)
+
+running 11 tests
+test malformed_owned_slots_fail_before_update_or_destroy ... ok
+test lifecycle_keys_stale_generations_and_borrowed_state_survive ... ok
+test host_validation_rejects_queued_payload_replacement_and_stale_generation ... ok
+test controls_share_canonical_pointer_keyboard_at_and_fifo_without_fanout ... ok
+test cancellation_disabled_readonly_and_action_update_do_not_commit_stale_gestures ... ok
+test toolbar_wide_row_narrow_stack_and_destroy_never_hides_actions ... ok
+test manual_modes_have_roving_entry_real_relations_and_full_inactive_exclusion ... ok
+test nested_scroll_paints_real_clip_and_focus_reveal_without_rebuilding ... ok
+test source_is_visible_named_keyboard_reachable_and_host_validates_locator ... ok
+test mode_and_theme_updates_preserve_editor_content_focus_selection_history_and_scroll ... ok
+test actual_gallery_matrix_has_real_glyphs_wrap_targets_and_narrow_reflow ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.46s
+
+     Running tests/a2_states.rs (target/debug/deps/a2_states-5fcc1f126dd3d348)
+
+running 2 tests
+test style_override_detach_and_theme_changes_do_not_reconstruct_controls ... ok
+test actual_resolved_control_states_contrast_focus_geometry_and_glyph_scale ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/a2_toolbar_allocation.rs (target/debug/deps/a2_toolbar_allocation-e2872fb9dd89f889)
+
+running 5 tests
+test unequal_toolbar_labels_must_fit_each_row_share ... ok
+test equal_share_boundary_both_densities_and_type_scales ... FAILED
+test mixed_icon_and_source_actions_use_their_actual_label_styles ... FAILED
+test empty_single_hidden_unknown_policy_and_toolbar_padding ... FAILED
+test same_update_width_scale_and_label_changes_preserve_identity_and_actions ... ok
+
+failures:
+
+---- equal_share_boundary_both_densities_and_type_scales stdout ----
+
+thread 'equal_share_boundary_both_densities_and_type_scales' (3115550) panicked at crates/rndr_ui/tests/a2_toolbar_allocation.rs:131:17:
+assertion `left == right` failed: density=Comfortable scale=1 width=1734
+  left: Row
+ right: Column
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- mixed_icon_and_source_actions_use_their_actual_label_styles stdout ----
+
+thread 'mixed_icon_and_source_actions_use_their_actual_label_styles' (3115551) panicked at crates/rndr_ui/tests/a2_toolbar_allocation.rs:245:17:
+assertion `left == right` failed
+  left: Row
+ right: Column
+
+---- empty_single_hidden_unknown_policy_and_toolbar_padding stdout ----
+
+thread 'empty_single_hidden_unknown_policy_and_toolbar_padding' (3115549) panicked at crates/rndr_ui/tests/a2_toolbar_allocation.rs:291:9:
+assertion `left == right` failed
+  left: Row
+ right: Column
+
+
+failures:
+    empty_single_hidden_unknown_policy_and_toolbar_padding
+    equal_share_boundary_both_densities_and_type_scales
+    mixed_icon_and_source_actions_use_their_actual_label_styles
+
+test result: FAILED. 2 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `-p rndr_ui --test a2_toolbar_allocation`

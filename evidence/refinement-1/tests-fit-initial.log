@@ -1,0 +1,115 @@
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/crates/rndr_ui)
+error[E0422]: cannot find struct, variant or union type `Mode` in this scope
+  --> crates/rndr_ui/tests/refinement.rs:97:17
+   |
+97 |                 Mode { id: UiId(2), label: "Preview", enabled: true },
+   |                 ^^^^ not found in this scope
+
+error[E0422]: cannot find struct, variant or union type `Mode` in this scope
+  --> crates/rndr_ui/tests/refinement.rs:98:17
+   |
+98 | ...   Mode { id: UiId(3), label: "A longer source editor label", enabled...
+   |       ^^^^ not found in this scope
+
+error[E0422]: cannot find struct, variant or union type `NavigationProps` in this scope
+   --> crates/rndr_ui/tests/refinement.rs:153:66
+    |
+153 | ...rld_mut(), root, UiId(1), NavigationProps {
+    |                              ^^^^^^^^^^^^^^^
+    |
+   ::: crates/rndr_ui/src/controls.rs:115:1
+    |
+115 | pub struct NavigationRow;
+    | ------------------------ similarly named struct `NavigationRow` defined here
+    |
+help: a struct with a similar name exists
+    |
+153 -     let row = NavigationRow::mount(a.world_mut(), root, UiId(1), NavigationProps {
+153 +     let row = NavigationRow::mount(a.world_mut(), root, UiId(1), NavigationRow {
+    |
+
+error[E0599]: no associated function or constant named `new` found for struct `rndr_core::Buffer` in the current scope
+  --> crates/rndr_ui/tests/refinement.rs:49:25
+   |
+49 |     w.insert(e, Buffer::new("exact source"));
+   |                         ^^^ associated function or constant not found in `rndr_core::Buffer`
+   |
+note: if you're trying to build a new `rndr_core::Buffer`, consider using `rndr_core::Buffer::from_str` which returns `rndr_core::Buffer`
+  --> crates/rndr_core/src/editor.rs:57:5
+   |
+57 |     pub fn from_str(text: &str) -> Self {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0369]: binary operation `==` cannot be applied to type `rndr_core::Layout`
+  --> crates/rndr_ui/tests/refinement.rs:83:5
+   |
+83 |     assert_eq!(*a.world().get::<Layout>(root).unwrap(), before);
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |     |
+   |     rndr_core::Layout
+   |     rndr_core::Layout
+   |
+note: `rndr_core::Layout` does not implement `PartialEq`
+  --> crates/rndr_core/src/layout.rs:38:1
+   |
+38 | pub struct Layout {
+   | ^^^^^^^^^^^^^^^^^ `rndr_core::Layout` is defined in another crate
+
+error[E0061]: this function takes 7 arguments but 6 arguments were supplied
+   --> crates/rndr_ui/tests/refinement.rs:96:25
+    |
+ 96 |               let modes = ModeSelector::mount(a.world_mut(), root, UiId...
+    |  _________________________^^^^^^^^^^^^^^^^^^^-
+ 97 | |                 Mode { id: UiId(2), label: "Preview", enabled: true },
+ 98 | |                 Mode { id: UiId(3), label: "A longer source editor la...
+ 99 | |             ], UiId(2), TabOrientation::Horizontal).unwrap();
+    | |________________-------____________________________- argument #7 of type `usize` is missing
+    |                  |
+    |                  expected `&[&str]`, found `UiId`
+    |
+note: associated function defined here
+   --> crates/rndr_ui/src/controls.rs:481:12
+    |
+481 |     pub fn mount(
+    |            ^^^^^
+help: provide the argument
+    |
+ 96 ~             let modes = ModeSelector::mount(a.world_mut(), root, UiId(1), &[
+ 97 +                 Mode { id: UiId(2), label: "Preview", enabled: true },
+ 98 +                 Mode { id: UiId(3), label: "A longer source editor label", enabled: true },
+ 99 ~             ], /* &[&str] */, TabOrientation::Horizontal, /* usize */).unwrap();
+    |
+
+error[E0308]: mismatched types
+   --> crates/rndr_ui/tests/refinement.rs:111:82
+    |
+111 | ...elected, modes.tabs[0].root);
+    |             ^^^^^^^^^^^^^^^^^^ expected `u64`, found `Entity`
+
+error[E0061]: this function takes 5 arguments but 4 arguments were supplied
+   --> crates/rndr_ui/tests/refinement.rs:153:15
+    |
+153 |       let row = NavigationRow::mount(a.world_mut(), root, UiId(1), Navi...
+    |  _______________^^^^^^^^^^^^^^^^^^^^-
+154 | |         button: ButtonProps::new("Project notes", HostIntent::Command...
+155 | |         selected: true, dirty: true, secondary: Some("Draft".into()),
+156 | |     }).unwrap();
+    | |______- argument #5 of type `NavigationMeta` is missing
+    |
+note: associated function defined here
+   --> crates/rndr_ui/src/controls.rs:164:12
+    |
+164 |     pub fn mount(
+    |            ^^^^^
+help: provide the argument
+    |
+153 |     let row = NavigationRow::mount(a.world_mut(), root, UiId(1), NavigationProps {
+154 |         button: ButtonProps::new("Project notes", HostIntent::Command(1)),
+155 |         selected: true, dirty: true, secondary: Some("Draft".into()),
+156 ~     }, /* NavigationMeta */).unwrap();
+    |
+
+Some errors have detailed explanations: E0061, E0308, E0369, E0422, E0599.
+For more information about an error, try `rustc --explain E0061`.
+error: could not compile `rndr_ui` (test "refinement") due to 8 previous errors
+warning: build failed, waiting for other jobs to finish...

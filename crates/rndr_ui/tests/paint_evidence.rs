@@ -224,8 +224,8 @@ fn deterministic_actual_display_list_matches_saved_headless_artifacts() {
         let actual = rndr_paint::quads_snapshot(&frame);
         let expected = std::fs::read_to_string(format!(
             // The historical ui-gallery evidence is immutable. These active
-            // snapshots cover the desktop foundation tokens, not visual sign-off.
-            "{}/../../evidence/visual-polish/passive-gallery/{name}.txt",
+            // snapshots cover the refined text boxes/type roles, not visual sign-off.
+            "{}/../../evidence/refinement-1/passive-gallery/{name}.txt",
             env!("CARGO_MANIFEST_DIR")
         ))
         .unwrap();

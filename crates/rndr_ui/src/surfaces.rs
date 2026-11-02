@@ -189,6 +189,7 @@ fn mount(
                 ..Layout::column()
             },
             Label::new("").overflow(TextOverflow::Wrap),
+            LabelBox::CONTENT,
             Owned { root },
         ));
         set_parent(world, title, root);
@@ -390,7 +391,9 @@ pub fn separator(world: &mut World, parent: Entity) -> Result<Entity, UiError> {
     Ok(entity)
 }
 
-/// Passive wrapped text. The caller owns this node until explicitly adopted.
+/// Passive wrapped text with content-only metrics (no legacy field padding).
+/// The containing surface/section owns rhythm. The caller owns this node until
+/// explicitly adopted. LabelBox may be replaced/removed for authored metrics.
 pub fn text(
     world: &mut World,
     parent: Entity,
@@ -406,6 +409,7 @@ pub fn text(
             ..Layout::column()
         },
         Label::new(value).overflow(TextOverflow::Wrap),
+        LabelBox::CONTENT,
         UiRecipe(UiStyle {
             foreground: Some(
                 if role == Typography::Secondary {

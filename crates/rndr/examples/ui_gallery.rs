@@ -3,6 +3,38 @@
 #[path = "../../rndr_ui/examples/support/operating.rs"]
 mod operating;
 use rndr_core::{LogicalSize, WindowConfig};
+
+// Synthetic fixture inputs only, not desktop automation or OS input proof.
+struct StateFixture {
+    pressed: bool,
+    sent: bool,
+}
+impl rndr_core::Component for StateFixture {}
+fn fixture_input(world: &mut rndr_core::World) {
+    use rndr_core::*;
+    let fixture = world.resource::<StateFixture>().unwrap();
+    let pressed = fixture.pressed;
+    let sent = fixture.sent;
+    let demo = world.resource::<operating::Demo>().unwrap();
+    let target = demo.commands[usize::from(pressed)].root;
+    let Some(rect) = world.get::<Rect>(target).copied() else {
+        return;
+    };
+    let position = [rect.x + rect.w * 0.5, rect.y + rect.h * 0.5];
+    let pointer = &mut world.resource_mut::<Input>().unwrap().pointer;
+    *pointer = Pointer {
+        position,
+        pressed: pressed && !sent,
+        down: pressed,
+        press_at: if pressed && !sent {
+            Some(position)
+        } else {
+            None
+        },
+        ..Pointer::default()
+    };
+    world.resource_mut::<StateFixture>().unwrap().sent = true;
+}
 use rndr_ui::*;
 fn main() {
     let args: Vec<_> = std::env::args().collect();
@@ -48,6 +80,34 @@ fn main() {
     };
     if let Some(entity) = focus {
         rndr_core::request_focus(app.world_mut(), entity);
+    }
+    if has("--preview") {
+        let target = app
+            .world()
+            .resource::<operating::Demo>()
+            .unwrap()
+            .selector
+            .tabs[1]
+            .root;
+        assert_eq!(
+            rndr_core::try_activate(app.world_mut(), target),
+            rndr_core::ActivationResult::Accepted
+        );
+    }
+    if has("--states") || has("--pressed") {
+        use rndr_core::*;
+        use rndr_ui::controls::{self, ButtonProps, ButtonVariant, HostIntent};
+        let demo = app.world().resource::<operating::Demo>().unwrap().clone();
+        let mut props = ButtonProps::new("Unavailable", HostIntent::Command(2));
+        props.variant = ButtonVariant::Quiet;
+        props.enabled = false;
+        controls::Button::mount(app.world_mut(), demo.toolbar.root, UiId(12), props).unwrap();
+        request_focus(app.world_mut(), demo.nav[1].root);
+        app.world_mut().insert_resource(StateFixture {
+            pressed: has("--pressed"),
+            sent: false,
+        });
+        app.add_system_front(Schedule::Input, fixture_input);
     }
     if has("--observe") {
         #[cfg(feature = "observe")]

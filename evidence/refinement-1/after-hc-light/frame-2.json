@@ -1,0 +1,879 @@
+{
+  "bounds_units": "logical_points",
+  "device_scale": 1.0,
+  "frame_revision": "4",
+  "height": 700,
+  "nodes": [
+    {
+      "actions": [],
+      "bounds": [
+        0.0,
+        0.0,
+        1000.0,
+        700.0
+      ],
+      "children": [
+        "2",
+        "3",
+        "5",
+        "10",
+        "15",
+        "20",
+        "25",
+        "34",
+        "39",
+        "45",
+        "38",
+        "52",
+        "53",
+        "71",
+        "73",
+        "75",
+        "85",
+        "86",
+        "87",
+        "88",
+        "89",
+        "81",
+        "83",
+        "90"
+      ],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "18446744073709551615",
+      "label": "rndr \u2014 Component gallery (synthetic)",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Window",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        12.0,
+        12.0,
+        976.0,
+        34.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "2",
+      "label": "Component gallery",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        12.0,
+        58.0,
+        976.0,
+        16.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "3",
+      "label": "Synthetic workspace \u00b7 Tab to navigate, Enter or Space to activate. No real documents or saves.",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        12.0,
+        86.0,
+        55.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "5",
+      "label": "Add",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        75.0,
+        86.0,
+        100.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "10",
+      "label": "Secondary",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        183.0,
+        86.0,
+        64.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "15",
+      "label": "Quiet",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        255.0,
+        86.0,
+        148.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "20",
+      "label": "Reset demo count",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        411.0,
+        86.0,
+        38.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "25",
+      "label": "Add one synthetic item",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        28.0,
+        152.0,
+        208.0,
+        18.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "34",
+      "label": "DOCUMENTS",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        28.0,
+        178.0,
+        208.0,
+        54.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "39",
+      "label": "Draft note, Demo folder, unsaved",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": true,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        28.0,
+        240.0,
+        208.0,
+        54.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "45",
+      "label": "Reference note, Read-only fixture",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        284.0,
+        152.0,
+        688.0,
+        28.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "38",
+      "label": "Document workspace",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        291.0,
+        195.0,
+        70.0,
+        24.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "58",
+      "label": "| Source",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        284.0,
+        188.0,
+        84.0,
+        38.0
+      ],
+      "children": [
+        "58"
+      ],
+      "controls": "53",
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "54",
+      "label": "Source",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Tab",
+      "selected": true,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        383.0,
+        195.0,
+        67.0,
+        24.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "64",
+      "label": "Preview",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        376.0,
+        188.0,
+        81.0,
+        38.0
+      ],
+      "children": [
+        "64"
+      ],
+      "controls": "59",
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "60",
+      "label": "Preview",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Tab",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        284.0,
+        188.0,
+        688.0,
+        38.0
+      ],
+      "children": [
+        "54",
+        "60"
+      ],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "52",
+      "label": "Document mode",
+      "labelled_by": null,
+      "orientation": "Horizontal",
+      "panel": false,
+      "readonly": false,
+      "role": "TabList",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus"
+      ],
+      "bounds": [
+        284.0,
+        234.0,
+        688.0,
+        76.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "65",
+      "label": "Synthetic source editor",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "TextInput",
+      "selected": false,
+      "value": "Synthetic editable source. Type here; Undo/Redo remain core-owned."
+    },
+    {
+      "actions": [],
+      "bounds": [
+        284.0,
+        234.0,
+        688.0,
+        76.0
+      ],
+      "children": [
+        "65"
+      ],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "53",
+      "label": "",
+      "labelled_by": "54",
+      "orientation": null,
+      "panel": true,
+      "readonly": false,
+      "role": "Group",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        28.0,
+        354.0,
+        944.0,
+        28.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "71",
+      "label": "Content card",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        28.0,
+        390.0,
+        944.0,
+        24.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "73",
+      "label": "Borrowed content and actions have explicit slots. The card itself is not clickable.",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        28.0,
+        422.0,
+        111.0,
+        36.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "Tab to Show source; Enter or Space requests source reveal",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "75",
+      "label": "Show source",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        28.0,
+        466.0,
+        944.0,
+        24.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "85",
+      "label": "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only.",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        28.0,
+        490.0,
+        944.0,
+        24.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "86",
+      "label": "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only.",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        28.0,
+        514.0,
+        944.0,
+        24.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "87",
+      "label": "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only.",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        28.0,
+        538.0,
+        944.0,
+        24.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "88",
+      "label": "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only.",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        28.0,
+        562.0,
+        944.0,
+        24.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "89",
+      "label": "Nested scroll content: keyboard-accessible source action stays labelled, never hover-only.",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        28.0,
+        610.0,
+        944.0,
+        18.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "81",
+      "label": "Warning: Synthetic unsaved state",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        28.0,
+        636.0,
+        944.0,
+        24.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "83",
+      "label": "Warnings stay visible. This is not a recovery or saving implementation.",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        12.0,
+        688.0,
+        976.0,
+        16.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "90",
+      "label": "Requests: 0; source reveals: 0; rejected: 0",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    }
+  ],
+  "png_bytes": 80248,
+  "presented_confirmation": false,
+  "protocol": "rndr-observe-1",
+  "render_provenance": {
+    "adapter": "Apple M4",
+    "alpha_mode": "Auto",
+    "backend": "Metal",
+    "parley_feature": true,
+    "path": "quads",
+    "present_mode": "AutoVsync",
+    "scene_samples": 4,
+    "surface_format": "Bgra8UnormSrgb",
+    "text_engine": "parley",
+    "transparent_clear": false
+  },
+  "root": "18446744073709551615",
+  "scroll": [
+    {
+      "bounds": [
+        28.0,
+        466.0,
+        944.0,
+        100.0
+      ],
+      "content": [
+        944.0,
+        120.0
+      ],
+      "id": "84",
+      "offset": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "bounds": [
+        0.0,
+        0.0,
+        1000.0,
+        700.0
+      ],
+      "content": [
+        1000.0,
+        716.0
+      ],
+      "id": "1",
+      "offset": [
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "source": "live-surface-copy-before-present",
+  "theme": "UiTheme { appearance: Light, contrast: High, density: Comfortable, text_scale: 1.0, reading_scale: 1.0, ui_family: \"Inter\", reading_family: \"Inter\", code_family: \"monospace\" }",
+  "width": 1000
+}

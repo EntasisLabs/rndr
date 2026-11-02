@@ -174,6 +174,27 @@ struct Managed {
 }
 impl Component for Managed {}
 
+/// Preview the same background ownership/cascade used by `resolve_styles`,
+/// without mutation. Controls resolve before styles; host-plane inheritance
+/// must account for same-update themes *and* explicit Color takeovers.
+pub(crate) fn background_at(
+    world: &World,
+    entity: rndr_core::Entity,
+    theme: &UiTheme,
+) -> Option<Color> {
+    let desired = world
+        .get::<UiStyle>(entity)
+        .and_then(|s| s.background)
+        .or_else(|| world.get::<UiRecipe>(entity).and_then(|s| s.0.background))
+        .map(|c| c.resolve(theme));
+    let current = world.get::<Color>(entity).copied();
+    let mut slot = world
+        .get::<Managed>(entity)
+        .map(|m| m.background.clone())
+        .unwrap_or_default();
+    slot.resolve(current, desired, true).unwrap_or(current)
+}
+
 /// Resolve all owned properties before hierarchy measurement and paint.
 /// Repeated installation adds no systems; arbitrary app-owned entities are untouched.
 pub fn resolve_styles(world: &mut World) {

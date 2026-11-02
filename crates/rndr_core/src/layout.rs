@@ -1,9 +1,9 @@
 use crate::entity::Entity;
-use crate::font::{field_text_width, layout_cache_key, text_face, TextLayout};
+use crate::font::{layout_cache_key, text_face, TextLayout};
 use crate::hierarchy::{children_of, roots, Parent};
 use crate::input::{Input, Viewport};
 use crate::split::Splitter;
-use crate::style::{Label, TextOverflow, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
+use crate::style::{label_box, Label, TextOverflow};
 use crate::text::{style_for, text_engine};
 use crate::world::{Component, World};
 
@@ -760,8 +760,9 @@ fn label_hug_width(
     world.get::<Label>(entity)?;
     let style = style_for(world, entity);
     let engine = text_engine(world);
+    let metrics = label_box(world, entity);
     let max_width = if field_w.is_finite() {
-        field_text_width(field_w, engine.unit_advance(&style))
+        metrics.text_width(field_w, engine.unit_advance(&style))
     } else {
         f32::INFINITY
     };
@@ -770,8 +771,8 @@ fn label_hug_width(
         lines = lines.min(crate::prompt::line_cap(prompt));
     }
     let line_h = engine.line_height(&style);
-    let h = (TEXT_ORIGIN_Y + lines as f32 * line_h + TEXT_ORIGIN_Y).max(36.0);
-    let w = width + 2.0 * TEXT_ORIGIN_X;
+    let h = (2.0 * metrics.inset_y + lines as f32 * line_h).max(metrics.min_height);
+    let w = width + 2.0 * metrics.inset_x;
     Some((w, h))
 }
 
