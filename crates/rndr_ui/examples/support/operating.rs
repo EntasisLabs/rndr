@@ -9,6 +9,9 @@ use rndr_ui::{
 pub struct Demo {
     pub root: Entity,
     pub toolbar: ToolbarHandle,
+    pub workspace: Entity,
+    pub navigation: Entity,
+    pub source_toolbar: ToolbarHandle,
     pub commands: Vec<ControlHandle>,
     pub nav: [ControlHandle; 2],
     pub selector: ModeHandle,
@@ -38,7 +41,7 @@ pub fn create(width: f32, height: f32, theme: UiTheme, long: bool) -> App {
             width: Size::Fill,
             height: Size::Fill,
             padding: 12.0,
-            gap: 8.0,
+            gap: 12.0,
             ..Layout::column()
         },
         Scroll::default(),
@@ -47,14 +50,8 @@ pub fn create(width: f32, height: f32, theme: UiTheme, long: bool) -> App {
             ..UiStyle::default()
         }),
     ));
-    text(
-        w,
-        root,
-        "rndr A2 operating gallery (synthetic host)",
-        Typography::Heading,
-    )
-    .unwrap();
-    text(w, root, "Tab/Shift-Tab navigate. Enter or Space activates. Mode arrows focus only. No real documents, saves or deletion.", Typography::Secondary).unwrap();
+    text(w, root, "rndr / Component gallery", Typography::Title).unwrap();
+    text(w, root, "Synthetic workspace · Tab to navigate, Enter or Space to activate. No real documents or saves.", Typography::Secondary).unwrap();
     let toolbar = Toolbar::mount(w, root, UiId(1), (width - 24.0).max(32.0)).unwrap();
     w.insert(
         toolbar.root,
@@ -93,10 +90,26 @@ pub fn create(width: f32, height: f32, theme: UiTheme, long: bool) -> App {
     for command in &commands {
         w.insert(command.root, ToolbarContentWidth);
     }
+    let workspace = w.spawn((Layout {
+        width: Size::Fill,
+        gap: 16.0,
+        ..Layout::row()
+    },));
+    set_parent(w, workspace, root);
+    let navigation = Surface::Navigation.mount(w, workspace, UiId(50)).unwrap();
+    text(w, navigation.content, "DOCUMENTS", Typography::Emphasis).unwrap();
+    let document = Surface::Content.mount(w, workspace, UiId(51)).unwrap();
+    text(
+        w,
+        document.content,
+        "Document workspace",
+        Typography::Heading,
+    )
+    .unwrap();
     let nav = [
         NavigationRow::mount(
             w,
-            root,
+            navigation.content,
             UiId(20),
             ButtonProps::new("Draft note", HostIntent::Command(20)),
             NavigationMeta {
@@ -108,7 +121,7 @@ pub fn create(width: f32, height: f32, theme: UiTheme, long: bool) -> App {
         .unwrap(),
         NavigationRow::mount(
             w,
-            root,
+            navigation.content,
             UiId(21),
             ButtonProps::new("Reference note", HostIntent::Command(21)),
             NavigationMeta {
@@ -120,7 +133,7 @@ pub fn create(width: f32, height: f32, theme: UiTheme, long: bool) -> App {
     ];
     let selector = ModeSelector::mount(
         w,
-        root,
+        document.content,
         UiId(30),
         "Document mode",
         &["Source", "Preview"],
@@ -131,7 +144,7 @@ pub fn create(width: f32, height: f32, theme: UiTheme, long: bool) -> App {
     let editor = w.spawn((
         Layout {
             width: Size::Fill,
-            height: Size::Px(108.0),
+            height: Size::Px(76.0),
             ..Layout::column()
         },
         Editor::default(),
@@ -143,6 +156,7 @@ pub fn create(width: f32, height: f32, theme: UiTheme, long: bool) -> App {
             ..Semantics::default()
         },
     ));
+    w.insert(editor, Scroll::default());
     w.insert(editor, UiRecipe(UiStyle::editor()));
     set_parent(w, editor, selector.panels[0]);
     let reading = Surface::Content
@@ -167,7 +181,10 @@ pub fn create(width: f32, height: f32, theme: UiTheme, long: bool) -> App {
         revision: 3,
         anchor: 11,
     };
-    let source = SourceAction::mount(w, card.content, UiId(1), locator, true).unwrap();
+    let source_toolbar =
+        Toolbar::mount(w, card.content, UiId(2), (width - 64.0).max(32.0)).unwrap();
+    let source = SourceAction::mount(w, source_toolbar.root, UiId(1), locator, true).unwrap();
+    w.insert(source.root, ToolbarContentWidth);
     let callout = Callout::mount(
         w,
         root,
@@ -205,6 +222,9 @@ pub fn create(width: f32, height: f32, theme: UiTheme, long: bool) -> App {
     w.insert_resource(Demo {
         root,
         toolbar,
+        workspace,
+        navigation: navigation.content,
+        source_toolbar,
         commands,
         nav,
         selector,
@@ -233,7 +253,55 @@ fn resize(w: &mut World) {
     let width = w.resource::<Viewport>().unwrap().content_width();
     Toolbar::mount(w, d.root, UiId(1), (width - 24.0).max(32.0)).unwrap();
     let theme = w.resource::<UiTheme>().unwrap().clone();
-    w.insert(d.reading, reading_layout((width - 24.0).max(32.0), &theme));
+    let scale = if theme.text_scale.is_finite() {
+        theme.text_scale.clamp(0.5, 4.0)
+    } else {
+        1.0
+    };
+    let side_by_side = width >= 760.0 * scale;
+    w.get_mut::<Layout>(d.workspace).unwrap().axis = if side_by_side {
+        Axis::Row
+    } else {
+        Axis::Column
+    };
+    let navigation_root = w.get::<Parent>(d.navigation).unwrap().entity;
+    w.get_mut::<Layout>(navigation_root).unwrap().width = if side_by_side {
+        Size::Px(260.0 * scale)
+    } else {
+        Size::Fill
+    };
+    w.get_mut::<Layout>(d.editor).unwrap().height = Size::Px((76.0 * scale).min(180.0));
+    let card_width = (width - 64.0).max(32.0);
+    Toolbar::mount(w, d.card.content, UiId(2), card_width).unwrap();
+    let document_width = if side_by_side {
+        width - 24.0 - 260.0 * scale - 16.0 - 32.0
+    } else {
+        width - 56.0
+    };
+    w.insert(d.reading, reading_layout(document_width.max(32.0), &theme));
+    // These short gallery mode labels need not masquerade as full-width fields.
+    // Stack at enlarged type/narrow widths rather than squeezing either target.
+    let modes_in_row = document_width >= 248.0 * scale;
+    w.get_mut::<Layout>(d.selector.group).unwrap().axis = if modes_in_row {
+        Axis::Row
+    } else {
+        Axis::Column
+    };
+    w.insert(
+        d.selector.group,
+        ManualTabs(if modes_in_row {
+            TabOrientation::Horizontal
+        } else {
+            TabOrientation::Vertical
+        }),
+    );
+    for tab in &d.selector.tabs {
+        w.get_mut::<Layout>(tab.root).unwrap().width = if modes_in_row {
+            Size::Px(120.0 * scale)
+        } else {
+            Size::Fill
+        };
+    }
 }
 /// Normal host test double: drains only the reviewed queue, retains multiplicity,
 /// validates current UI payload plus independent host document/revision/anchor.
@@ -275,7 +343,7 @@ pub fn consume(w: &mut World) {
         };
         NavigationRow::mount(
             w,
-            d.root,
+            d.navigation,
             UiId(20 + i as u64),
             ButtonProps::new(label, HostIntent::Command(20 + i as u64)),
             meta,

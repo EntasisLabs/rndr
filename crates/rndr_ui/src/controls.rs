@@ -181,7 +181,8 @@ impl SourceAction {
         enabled: bool,
     ) -> Result<ControlHandle, UiError> {
         let mut props = ButtonProps::new("Show source", HostIntent::RevealSource(locator));
-        props.variant = ButtonVariant::Quiet;
+        // Source reveal is a command, not a muted field or hover-only link.
+        props.variant = ButtonVariant::Secondary;
         props.enabled = enabled;
         props.description = "Tab to Show source; Enter or Space requests source reveal".into();
         mount_control(
@@ -810,6 +811,8 @@ pub(crate) fn resolve_controls(world: &mut World) {
                         Token::ControlPressed
                     } else if hover {
                         Token::ControlHover
+                    } else if c.kind == Kind::Navigation {
+                        Token::Navigation
                     } else if c.props.variant == ButtonVariant::Quiet || c.kind == Kind::Tab {
                         Token::Canvas
                     } else {
@@ -880,7 +883,7 @@ pub(crate) fn resolve_controls(world: &mut World) {
             UiRecipe(UiStyle {
                 foreground: Some(ink.into()),
                 typography: Some(if c.kind == Kind::Source {
-                    Typography::Secondary
+                    Typography::Emphasis
                 } else {
                     Typography::Label
                 }),

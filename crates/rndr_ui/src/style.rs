@@ -83,7 +83,7 @@ impl UiStyle {
             background: Some(Token::Content.into()),
             foreground: Some(Token::Text.into()),
             typography: Some(Typography::Code),
-            padding: Some(Space::X12),
+            padding: Some(Space::X8),
             corner: Some(Corner::Control),
             ..Self::default()
         }

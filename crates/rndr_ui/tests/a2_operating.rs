@@ -519,9 +519,10 @@ fn mode_and_theme_updates_preserve_editor_content_focus_selection_history_and_sc
     }
     let caret = (3, 1);
     a.world_mut().get_mut::<Scroll>(d.nested).unwrap().offset = [0.0, -20.0];
+    let document = a.world().get::<Parent>(d.selector.root).unwrap().entity;
     let h = ModeSelector::mount(
         a.world_mut(),
-        d.root,
+        document,
         UiId(30),
         "Mode",
         &["Source", "Preview"],
