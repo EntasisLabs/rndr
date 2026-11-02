@@ -8,6 +8,7 @@ use rndr_ui::{
 #[derive(Clone)]
 pub struct Demo {
     pub root: Entity,
+    pub title: Entity,
     pub toolbar: ToolbarHandle,
     pub workspace: Entity,
     pub navigation: Entity,
@@ -50,7 +51,7 @@ pub fn create(width: f32, height: f32, theme: UiTheme, long: bool) -> App {
             ..UiStyle::default()
         }),
     ));
-    text(w, root, "Component gallery", Typography::Title).unwrap();
+    let title = text(w, root, "Component gallery", Typography::Title).unwrap();
     text(w, root, "Synthetic workspace · Tab to navigate, Enter or Space to activate. No real documents or saves.", Typography::Secondary).unwrap();
     let toolbar = Toolbar::mount(w, root, UiId(1), (width - 24.0).max(32.0)).unwrap();
     w.insert(
@@ -223,6 +224,7 @@ pub fn create(width: f32, height: f32, theme: UiTheme, long: bool) -> App {
     .unwrap();
     w.insert_resource(Demo {
         root,
+        title,
         toolbar,
         workspace,
         navigation: navigation.content,
@@ -260,6 +262,14 @@ fn resize(w: &mut World) {
     } else {
         1.0
     };
+    // Large display type has no emergency word breaking. Use the heading role
+    // at constrained widths so even "Component" fits at enlarged text scales.
+    // User scaling remains intact for the chosen semantic role.
+    w.get_mut::<UiRecipe>(d.title).unwrap().0.typography = Some(if width < 600.0 * scale {
+        Typography::Heading
+    } else {
+        Typography::Title
+    });
     let side_by_side = width >= 760.0 * scale;
     w.get_mut::<Layout>(d.workspace).unwrap().axis = if side_by_side {
         Axis::Row

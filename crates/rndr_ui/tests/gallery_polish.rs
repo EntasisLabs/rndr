@@ -82,6 +82,16 @@ fn workspace_reflows_without_rebuilding_or_horizontal_control_overflow() {
                     }
                 );
                 assert_eq!(w.get::<Buffer>(d.editor).unwrap().text(), original);
+                assert_eq!(
+                    *w.get::<TextStyle>(d.title).unwrap(),
+                    w.resource::<UiTheme>()
+                        .unwrap()
+                        .typography(if width < 600.0 * scale {
+                            Typography::Heading
+                        } else {
+                            Typography::Title
+                        })
+                );
                 assert!(w.has::<Editor>(d.editor));
                 assert!(
                     !w.has::<Scroll>(d.editor),
