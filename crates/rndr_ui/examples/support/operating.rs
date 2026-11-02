@@ -50,7 +50,7 @@ pub fn create(width: f32, height: f32, theme: UiTheme, long: bool) -> App {
             ..UiStyle::default()
         }),
     ));
-    text(w, root, "rndr / Component gallery", Typography::Title).unwrap();
+    text(w, root, "Component gallery", Typography::Title).unwrap();
     text(w, root, "Synthetic workspace · Tab to navigate, Enter or Space to activate. No real documents or saves.", Typography::Secondary).unwrap();
     let toolbar = Toolbar::mount(w, root, UiId(1), (width - 24.0).max(32.0)).unwrap();
     w.insert(
@@ -156,7 +156,9 @@ pub fn create(width: f32, height: f32, theme: UiTheme, long: bool) -> App {
             ..Semantics::default()
         },
     ));
-    w.insert(editor, Scroll::default());
+    // Canonical focus reveal walks Focusable ancestors; editor buffer scrolling
+    // remains owned by Editor::offset, not by a generic container Scroll.
+    w.insert(editor, Focusable);
     w.insert(editor, UiRecipe(UiStyle::editor()));
     set_parent(w, editor, selector.panels[0]);
     let reading = Surface::Content

@@ -4,6 +4,59 @@ use rndr_ui::*;
 mod operating;
 
 #[test]
+fn responsive_modes_keep_keyboard_direction_and_lower_content_reachable() {
+    for (width, scale, arrow) in [
+        (1000.0, 1.0, NamedKey::ArrowRight),
+        (320.0, 2.0, NamedKey::ArrowDown),
+    ] {
+        let theme = UiTheme {
+            text_scale: scale,
+            reading_scale: scale,
+            ..UiTheme::default()
+        };
+        let mut app = operating::create(width, 700.0, theme, false);
+        let d = app.world().resource::<operating::Demo>().unwrap().clone();
+        request_focus(app.world_mut(), d.selector.tabs[0].root);
+        app.world_mut()
+            .resource_mut::<Input>()
+            .unwrap()
+            .push_key(KeyEvent::named(arrow, Modifiers::new()), Platform::Mac);
+        app.update();
+        app.world_mut().insert_resource(Input::default());
+        assert_eq!(
+            app.world().resource::<Focus>().unwrap().entity,
+            Some(d.selector.tabs[1].root)
+        );
+        assert_eq!(
+            app.world().get::<Tabs>(d.selector.group).unwrap().selected,
+            0,
+            "arrows focus, never activate"
+        );
+        assert_eq!(
+            try_activate(app.world_mut(), d.selector.tabs[1].root),
+            ActivationResult::Accepted
+        );
+        app.update();
+        let reading = *app.world().get::<Rect>(d.reading).unwrap();
+        assert!(reading.x >= 0.0 && reading.x + reading.w <= width + 0.1);
+        assert_eq!(
+            try_activate(app.world_mut(), d.selector.tabs[0].root),
+            ActivationResult::Accepted
+        );
+        app.update();
+        for target in [d.source.root, d.editor] {
+            request_focus(app.world_mut(), target);
+            app.update();
+            let rect = *app.world().get::<Rect>(target).unwrap();
+            assert!(
+                rect.y >= 0.0 && rect.y + rect.h <= 700.1,
+                "focused lower content must be revealed: {rect:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn workspace_reflows_without_rebuilding_or_horizontal_control_overflow() {
     for density in [Density::Comfortable, Density::Compact] {
         for scale in [1.0, 2.0] {
@@ -29,7 +82,11 @@ fn workspace_reflows_without_rebuilding_or_horizontal_control_overflow() {
                     }
                 );
                 assert_eq!(w.get::<Buffer>(d.editor).unwrap().text(), original);
-                assert!(w.has::<Scroll>(d.editor));
+                assert!(w.has::<Editor>(d.editor));
+                assert!(
+                    !w.has::<Scroll>(d.editor),
+                    "core Editor owns its offset; a generic scrollport intercepts focus reveal"
+                );
                 let editor = *w.get::<Rect>(d.editor).unwrap();
                 assert!(editor.h <= 180.0 && editor.h >= 76.0);
                 for h in d
