@@ -1,0 +1,52 @@
+   Compiling syn v3.0.6
+   Compiling objc2 v0.6.5
+   Compiling objc2-core-foundation v0.3.2
+   Compiling hashbrown v0.17.1
+   Compiling bytemuck_derive v1.12.1
+   Compiling thiserror-impl v2.0.20
+   Compiling objc2-foundation v0.3.2
+   Compiling indexmap v2.14.2
+   Compiling thiserror v2.0.20
+   Compiling bytemuck v1.25.2
+   Compiling objc2-core-graphics v0.3.2
+   Compiling naga-types v30.0.1
+   Compiling block2 v0.6.2
+   Compiling objc2-metal v0.3.2
+   Compiling wgpu-types v30.0.1
+   Compiling naga v30.0.1
+   Compiling objc2-quartz-core v0.3.2
+   Compiling raw-window-metal v1.1.0
+   Compiling foreign-types-macros v0.2.4
+   Compiling foreign-types v0.5.0
+   Compiling image v0.25.10
+   Compiling wgpu-naga-bridge v30.0.1
+   Compiling wgpu-hal v30.0.1
+   Compiling wgpu-core-deps-apple v30.0.1
+   Compiling wgpu-core v30.0.1
+   Compiling core-graphics v0.23.2
+   Compiling objc2-app-kit v0.3.2
+   Compiling winit v0.30.13
+   Compiling arboard v3.7.0
+   Compiling wgpu v30.0.1
+   Compiling rndr_render v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-evidence-driven-visual-polish/crates/rndr_render)
+    Finished `test` profile [unoptimized] target(s) in 11.80s
+     Running unittests src/lib.rs (target/debug/deps/rndr_render-b7aa4f0c0d02295e)
+
+running 3 tests
+test tests::native_startup_preserves_text_face_before_first_update ... ok
+test tests::native_startup_preserves_application_owned_text ... ok
+test tests::native_startup_after_headless_update_selects_the_platform_default ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 44 filtered out; finished in 0.00s
+
+     Running tests/export_scene.rs (target/debug/deps/export_scene-4d15f3509cde4ea1)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s
+
+     Running tests/source_edit.rs (target/debug/deps/source_edit-d1dee77febdc7499)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

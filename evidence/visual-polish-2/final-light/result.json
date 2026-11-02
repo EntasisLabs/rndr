@@ -1,0 +1,39 @@
+{
+  "command": [
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-evidence-driven-visual-polish/target/debug/examples/ui_gallery",
+    "--observe",
+    "--observe-exit-after-15s"
+  ],
+  "binary_sha256": "434c7fb5ee31003e8b1d3ac3641190a8e584050ab51dfac08b9733e04f9790cf",
+  "source": "native-synthetic-gallery-session",
+  "presented_confirmation": false,
+  "startup_denials": [
+    "observation denied: surface_unavailable"
+  ],
+  "status": "captured",
+  "revisions": [
+    "3",
+    "4"
+  ],
+  "dimensions": [
+    1000,
+    700
+  ],
+  "nodes": 30,
+  "provenance": {
+    "adapter": "Apple M4",
+    "alpha_mode": "Auto",
+    "backend": "Metal",
+    "parley_feature": true,
+    "path": "quads",
+    "present_mode": "AutoVsync",
+    "scene_samples": 4,
+    "surface_format": "Bgra8UnormSrgb",
+    "text_engine": "parley",
+    "transparent_clear": false
+  },
+  "stale_rejection": true,
+  "invalid_auth_rejection": true,
+  "exit_code": 0,
+  "normal_shutdown_cleanup": true
+}

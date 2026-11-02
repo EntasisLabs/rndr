@@ -1,0 +1,125 @@
+{
+  "binary_sha256": "0a9f23ee96d7478ced613d7bba04ce896181f3fb47e8e345b851962224ec3fb1",
+  "captures": {
+    "light": {
+      "dimensions": [
+        1000,
+        700
+      ],
+      "editor_bounds": [
+        304.0,
+        316.0,
+        668.0,
+        76.0
+      ],
+      "source_bounds": [
+        28.0,
+        544.0,
+        134.0,
+        54.0
+      ],
+      "frame_1_sha256": "6d28f4d6af267c20254d587e715a797db33d37291b20e19944cd553d6fced4fc",
+      "presented_confirmation": false
+    },
+    "dark": {
+      "dimensions": [
+        1000,
+        700
+      ],
+      "editor_bounds": [
+        304.0,
+        316.0,
+        668.0,
+        76.0
+      ],
+      "source_bounds": [
+        28.0,
+        544.0,
+        134.0,
+        54.0
+      ],
+      "frame_1_sha256": "90e22ad11a8285e8b7c543da9b9b436e0f5c7a3a168abd32eabbbbede603f202",
+      "presented_confirmation": false
+    },
+    "narrow": {
+      "dimensions": [
+        320,
+        700
+      ],
+      "editor_bounds": [
+        28.0,
+        816.0,
+        264.0,
+        76.0
+      ],
+      "source_bounds": [
+        28.0,
+        1076.0,
+        134.0,
+        54.0
+      ],
+      "frame_1_sha256": "75e6cad3aa2482042641197c4e7a91c9ea17e6de3549b79a9566022c103f6b29",
+      "presented_confirmation": false
+    },
+    "200": {
+      "dimensions": [
+        320,
+        700
+      ],
+      "editor_bounds": [
+        24.0,
+        1936.0,
+        272.0,
+        152.0
+      ],
+      "source_bounds": [
+        24.0,
+        2440.0,
+        216.0,
+        70.0
+      ],
+      "frame_1_sha256": "606e6d8a9ef9d41e3281208040af5a9dfa7119cb8d34d343f69662bb5876a3ca",
+      "presented_confirmation": false
+    },
+    "200-source": {
+      "dimensions": [
+        320,
+        700
+      ],
+      "editor_bounds": [
+        24.0,
+        -462.0,
+        272.0,
+        152.0
+      ],
+      "source_bounds": [
+        24.0,
+        42.0,
+        216.0,
+        70.0
+      ],
+      "frame_1_sha256": "19e564e4339eb7954bbd92e18acc0d77af604b941f4816c33c6df61a6493088d",
+      "presented_confirmation": false
+    },
+    "200-editor": {
+      "dimensions": [
+        320,
+        700
+      ],
+      "editor_bounds": [
+        28.0,
+        0.0,
+        264.0,
+        152.0
+      ],
+      "source_bounds": [
+        28.0,
+        516.0,
+        216.0,
+        70.0
+      ],
+      "frame_1_sha256": "90fde2397c27adb0d05b114ff29a5987d9706804a51afaa5572ac3cc02c902ba",
+      "presented_confirmation": false
+    }
+  }
+}
