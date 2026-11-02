@@ -31,11 +31,24 @@ fn main() {
     };
     let mut app = operating::create(width, 700.0, theme.clone(), has("--long"));
     app.world_mut().insert_resource(WindowConfig {
-        title: "rndr A2 — synthetic host (not Blooey)".into(),
+        title: "rndr — Component gallery (synthetic)".into(),
         size: LogicalSize::new(width, 700.0),
         min_size: Some(LogicalSize::new(280.0, 240.0)),
         ..WindowConfig::default()
     });
+    // Capture lower content at enlarged type without an automation endpoint.
+    // This uses the same canonical focus-reveal path as keyboard navigation.
+    let demo = app.world().resource::<operating::Demo>().unwrap();
+    let focus = if has("--focus-source") {
+        Some(demo.source.root)
+    } else if has("--focus-editor") {
+        Some(demo.editor)
+    } else {
+        None
+    };
+    if let Some(entity) = focus {
+        rndr_core::request_focus(app.world_mut(), entity);
+    }
     if has("--observe") {
         #[cfg(feature = "observe")]
         {
