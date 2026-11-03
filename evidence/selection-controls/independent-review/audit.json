@@ -1,0 +1,43 @@
+{
+  "candidate": "9146cbdccbcb78daa36510f9a975364cf7bea052",
+  "baseline": "c9536acba3914a3be39c53c6bffe42a9b9c40c42",
+  "source": "19f553c0d57339ee666d9752dedca861331209f1",
+  "baseline_evidence_files": 3534,
+  "baseline_evidence_changed_or_removed": [],
+  "candidate_evidence_files": 3656,
+  "candidate_evidence_disk_mismatches": [],
+  "source_manifest_files": 276,
+  "source_manifest_disk_mismatches": [],
+  "source_manifest_source_commit_mismatches": [],
+  "receipt_manifest_sha_matches": true,
+  "receipt_binary_sha_matches_current_binary": true,
+  "receipt_source_head_matches": true,
+  "receipt_states": 12,
+  "receipt_frames": 24,
+  "receipt_errors": [],
+  "gate_counts": {
+    "core-paint": {
+      "passed_executions": 484,
+      "failed": 0,
+      "ignored": 0,
+      "summaries": 62,
+      "exit_zero": true
+    },
+    "ui-focused": {
+      "passed_executions": 93,
+      "failed": 0,
+      "ignored": 0,
+      "summaries": 11,
+      "exit_zero": true
+    },
+    "native-observe": {
+      "passed_executions": 76,
+      "failed": 0,
+      "ignored": 0,
+      "summaries": 1,
+      "exit_zero": true
+    }
+  },
+  "counts_caveat": "Execution counts, including doctests. Not unique-test totals; overlap original implementation runs and own probe reruns. Gallery matrix includes 24 cases within one test.",
+  "audit_ok": true
+}

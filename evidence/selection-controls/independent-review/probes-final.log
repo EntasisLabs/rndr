@@ -1,0 +1,42 @@
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-checkbox-and-single-multi-select-controls/crates/rndr_ui)
+    Finished `test` profile [unoptimized] target(s) in 0.26s
+     Running tests/selection_independent_review.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/selection_independent_review-b77b06cc3a88e202)
+
+running 9 tests
+test checkbox_ime_space_release_never_emits ... ok
+test multi_inspector_accessible_name_includes_current_value ... FAILED
+test noncanonical_host_multi_value_does_not_request_spurious_commit ... FAILED
+test readonly_invalidation_swallows_matching_outside_release ... ok
+test removed_armed_option_cannot_retarget_its_space_release ... ok
+test inspector_popup_blur_cancels_dirty_draft ... ok
+test keyboard_roundtrip_same_set_does_not_request_spurious_commit ... FAILED
+test end_navigation_reveals_last_row ... ok
+test initial_selected_last_row_is_visible_after_open_and_settle ... ok
+
+failures:
+
+---- multi_inspector_accessible_name_includes_current_value stdout ----
+
+thread 'multi_inspector_accessible_name_includes_current_value' (4307501) panicked at crates/rndr_ui/tests/selection_independent_review.rs:216:5:
+multi trigger name/value drop selected value: AccessNode { id: 9, role: ComboBox, name: "Channels", value: "", bounds: Rect { x: 16.0, y: 88.0, w: 368.0, h: 38.0 }, children: [], focusable: true, focused: false, selected: false, enabled: true, expanded: Some(false) }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- noncanonical_host_multi_value_does_not_request_spurious_commit stdout ----
+
+thread 'noncanonical_host_multi_value_does_not_request_spurious_commit' (4307502) panicked at crates/rndr_ui/tests/selection_independent_review.rs:227:5:
+unchanged set must not request a commit solely due to vector ordering
+
+---- keyboard_roundtrip_same_set_does_not_request_spurious_commit stdout ----
+
+thread 'keyboard_roundtrip_same_set_does_not_request_spurious_commit' (4307500) panicked at crates/rndr_ui/tests/selection_independent_review.rs:255:5:
+same selected set produced unnecessary host mutation request: [PropertyEvent { inspector: Entity { index: 1, generation: 0 }, object: ObjectId(1), property: PropertyId(1), kind: CommitRequested { before: Choices([2, 1]), after: Choices([1, 2]) } }]
+
+
+failures:
+    keyboard_roundtrip_same_set_does_not_request_spurious_commit
+    multi_inspector_accessible_name_includes_current_value
+    noncanonical_host_multi_value_does_not_request_spurious_commit
+
+test result: FAILED. 6 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+error: test failed, to rerun pass `-p rndr_ui --test selection_independent_review`
