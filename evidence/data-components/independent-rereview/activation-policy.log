@@ -1,0 +1,10 @@
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-composable-listview-and-treeview-foundation/crates/rndr_ui)
+    Finished `test` profile [unoptimized] target(s) in 0.20s
+     Running tests/independent_rereview_policy.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/independent_rereview_policy-22a5473f3a1f746f)
+
+running 2 tests
+test nested_handlers_self_invalidation_and_host_fifo ... ok
+test nested_handlers_at_last_fifo_slot_consume_only_their_own_admission ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

@@ -1,0 +1,67 @@
+{
+  "reviewed_delivery": "1957e1ece7cd4a3777e069e4899873d14073bee3",
+  "correction_source": "17d16f1f7143a2cb4b23176702fe5ed7ae5e1d06",
+  "preserved_original_files": 264,
+  "preserved_delivery_evidence_files": 431,
+  "bound_source_files": 16,
+  "verification_counts": {
+    "core-paint-ui": 570,
+    "collection-metrics": 17,
+    "native-observe": 73,
+    "fallback-renderer": 25,
+    "facade": 1,
+    "facade-fallback": 1
+  },
+  "unchanged_original_cases_passed": 6,
+  "maintained_chronology_cases_passed": 12,
+  "additional_reentrancy_cases_passed": 2,
+  "binary_sha256": "88924c9429fedb4efcad3ee221a7cfb7ebd2a54974c0684031d8d8573b97ef1e",
+  "native_images": [
+    {
+      "state": "light",
+      "file_sha256": "9bbc231977118a7e82253724a3da4b3e505366efecd564b6b0648369219676ad",
+      "byte_identical_to_corrected_delivery": true
+    },
+    {
+      "state": "dark",
+      "file_sha256": "0660bbbb47b2f768438dcbc7b18e58a212fd4177987acec7cbb6f9d06fb79441",
+      "byte_identical_to_corrected_delivery": true
+    },
+    {
+      "state": "narrow",
+      "file_sha256": "46cc99de138431c7baabfee26bbaa895cef277a70b696f18286fe81c3a68feab",
+      "byte_identical_to_corrected_delivery": true
+    },
+    {
+      "state": "tree-focus",
+      "file_sha256": "439f5d170856ae222a640142a8006cd5891c221f88eff3b3c3960375205c759a",
+      "byte_identical_to_corrected_delivery": true
+    },
+    {
+      "state": "disabled",
+      "file_sha256": "5bfd7b960c9e7ebd543eaa70e7b478ad8e2022347c38be531245959be649e890",
+      "byte_identical_to_corrected_delivery": true
+    },
+    {
+      "state": "empty",
+      "file_sha256": "b6122ccc26f879541f1cfc56a6e96f85bbb594f7637e348cecb7a220878ee5f5",
+      "byte_identical_to_corrected_delivery": true
+    },
+    {
+      "state": "filtered",
+      "file_sha256": "21834aedcc9e4fd40904d80078c6b2915274d91fb9bf309ca0343b4bb12b16b7",
+      "byte_identical_to_corrected_delivery": true
+    },
+    {
+      "state": "compact-hc-200",
+      "file_sha256": "8bbeecad84e4342221f2c79aaa113ed6d403be89c9c96b5d6c870feefbb0cb78",
+      "byte_identical_to_corrected_delivery": true
+    },
+    {
+      "state": "large",
+      "file_sha256": "1e66ed51d1760fd5433058c67e72238bac95e1f278408d9ce8b0ac2ae6c32a91",
+      "byte_identical_to_corrected_delivery": true
+    }
+  ],
+  "limits": "Independent scoped review only; no owner approval/integration, physical input, AT/IME or Windows/Linux certification."
+}

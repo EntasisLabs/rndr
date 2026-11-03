@@ -1,0 +1,20 @@
+$ cargo test --offline --locked -p rndr --lib --no-default-features 
+   Compiling once_cell v1.21.4
+   Compiling naga v30.0.1
+   Compiling wgpu-naga-bridge v30.0.1
+   Compiling wgpu-hal v30.0.1
+   Compiling wgpu-core-deps-apple v30.0.1
+   Compiling wgpu-core v30.0.1
+   Compiling wgpu v30.0.1
+   Compiling rndr_render v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-composable-listview-and-treeview-foundation/crates/rndr_render)
+   Compiling rndr v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-composable-listview-and-treeview-foundation/crates/rndr)
+    Finished `test` profile [unoptimized] target(s) in 7.22s
+     Running unittests src/lib.rs (target/debug/deps/rndr-53973104d13aa5c8)
+
+running 1 test
+test tests::reexports_cover_the_desktop_stack ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+EXIT=0

@@ -1,0 +1,92 @@
+[
+  {
+    "state": "light",
+    "path": "evidence/data-components/corrections/native-light/frame-2.png",
+    "fresh_recapture": "evidence/data-components/independent-rereview/native-light/frame-2.png",
+    "file_sha256": "9bbc231977118a7e82253724a3da4b3e505366efecd564b6b0648369219676ad",
+    "inspected_with": "cognition_image_view",
+    "assessment": "Readable primary/secondary text; quiet light surfaces. List focus on Brand refresh and selection on Release checklist remain visually distinct.",
+    "also_inspected": "nine-state-contact-sheet.png, row-major light,dark,narrow,tree-focus,disabled,empty,filtered,compact-hc-200,large",
+    "origin": "Actual native Mac Metal/Parley pixels. Contact sheet is a nearest-neighbor derivative; direct original images also opened. Tool artifact image hashes may describe re-encoded renditions, not original PNG bytes."
+  },
+  {
+    "state": "dark",
+    "path": "evidence/data-components/corrections/native-dark/frame-2.png",
+    "fresh_recapture": "evidence/data-components/independent-rereview/native-dark/frame-2.png",
+    "file_sha256": "0660bbbb47b2f768438dcbc7b18e58a212fd4177987acec7cbb6f9d06fb79441",
+    "inspected_with": "cognition_image_view",
+    "assessment": "Dark content surfaces and muted secondary text remain legible; selected fill and focus outline are separate.",
+    "also_inspected": "nine-state-contact-sheet.png, row-major light,dark,narrow,tree-focus,disabled,empty,filtered,compact-hc-200,large",
+    "origin": "Actual native Mac Metal/Parley pixels. Contact sheet is a nearest-neighbor derivative; direct original images also opened. Tool artifact image hashes may describe re-encoded renditions, not original PNG bytes."
+  },
+  {
+    "state": "narrow",
+    "path": "evidence/data-components/corrections/native-narrow/frame-2.png",
+    "fresh_recapture": "evidence/data-components/independent-rereview/native-narrow/frame-2.png",
+    "file_sha256": "46cc99de138431c7baabfee26bbaa895cef277a70b696f18286fe81c3a68feab",
+    "inspected_with": "cognition_image_view",
+    "assessment": "380x920 stacked dark panels and wrapping toolbar. Text is viewport-clipped, not escaping; bottom data uses scrolling rather than a fit-all claim.",
+    "also_inspected": "nine-state-contact-sheet.png, row-major light,dark,narrow,tree-focus,disabled,empty,filtered,compact-hc-200,large",
+    "origin": "Actual native Mac Metal/Parley pixels. Contact sheet is a nearest-neighbor derivative; direct original images also opened. Tool artifact image hashes may describe re-encoded renditions, not original PNG bytes."
+  },
+  {
+    "state": "tree-focus",
+    "path": "evidence/data-components/corrections/native-tree-focus/frame-2.png",
+    "fresh_recapture": "evidence/data-components/independent-rereview/native-tree-focus/frame-2.png",
+    "file_sha256": "439f5d170856ae222a640142a8006cd5891c221f88eff3b3c3960375205c759a",
+    "inspected_with": "cognition_image_view",
+    "assessment": "Brand refresh (ItemId1, leaf) has full-row focus outline including indent; Release checklist (ItemId3, sibling) is selected. Not ancestor/descendant.",
+    "also_inspected": "nine-state-contact-sheet.png, row-major light,dark,narrow,tree-focus,disabled,empty,filtered,compact-hc-200,large",
+    "origin": "Actual native Mac Metal/Parley pixels. Contact sheet is a nearest-neighbor derivative; direct original images also opened. Tool artifact image hashes may describe re-encoded renditions, not original PNG bytes."
+  },
+  {
+    "state": "disabled",
+    "path": "evidence/data-components/corrections/native-disabled/frame-2.png",
+    "fresh_recapture": "evidence/data-components/independent-rereview/native-disabled/frame-2.png",
+    "file_sha256": "5bfd7b960c9e7ebd543eaa70e7b478ad8e2022347c38be531245959be649e890",
+    "inspected_with": "cognition_image_view",
+    "assessment": "Muted data rows/disclosures and retained selection context without active data-row focus frame; host toolbar remains available.",
+    "also_inspected": "nine-state-contact-sheet.png, row-major light,dark,narrow,tree-focus,disabled,empty,filtered,compact-hc-200,large",
+    "origin": "Actual native Mac Metal/Parley pixels. Contact sheet is a nearest-neighbor derivative; direct original images also opened. Tool artifact image hashes may describe re-encoded renditions, not original PNG bytes."
+  },
+  {
+    "state": "empty",
+    "path": "evidence/data-components/corrections/native-empty/frame-2.png",
+    "fresh_recapture": "evidence/data-components/independent-rereview/native-empty/frame-2.png",
+    "file_sha256": "b6122ccc26f879541f1cfc56a6e96f85bbb594f7637e348cecb7a220878ee5f5",
+    "inspected_with": "cognition_image_view",
+    "assessment": "Both inset empty messages and no-data status visible; no ghost row or selection; viewport focus is distinct.",
+    "also_inspected": "nine-state-contact-sheet.png, row-major light,dark,narrow,tree-focus,disabled,empty,filtered,compact-hc-200,large",
+    "origin": "Actual native Mac Metal/Parley pixels. Contact sheet is a nearest-neighbor derivative; direct original images also opened. Tool artifact image hashes may describe re-encoded renditions, not original PNG bytes."
+  },
+  {
+    "state": "filtered",
+    "path": "evidence/data-components/corrections/native-filtered/frame-2.png",
+    "fresh_recapture": "evidence/data-components/independent-rereview/native-filtered/frame-2.png",
+    "file_sha256": "21834aedcc9e4fd40904d80078c6b2915274d91fb9bf309ca0343b4bb12b16b7",
+    "inspected_with": "cognition_image_view",
+    "assessment": "Visible filter is no matching project. Both views show No matches feedback; no data rows remain.",
+    "also_inspected": "nine-state-contact-sheet.png, row-major light,dark,narrow,tree-focus,disabled,empty,filtered,compact-hc-200,large",
+    "origin": "Actual native Mac Metal/Parley pixels. Contact sheet is a nearest-neighbor derivative; direct original images also opened. Tool artifact image hashes may describe re-encoded renditions, not original PNG bytes."
+  },
+  {
+    "state": "compact-hc-200",
+    "path": "evidence/data-components/corrections/native-compact-hc-200/frame-2.png",
+    "fresh_recapture": "evidence/data-components/independent-rereview/native-compact-hc-200/frame-2.png",
+    "file_sha256": "8bbeecad84e4342221f2c79aaa113ed6d403be89c9c96b5d6c870feefbb0cb78",
+    "inspected_with": "cognition_image_view",
+    "assessment": "Dark high-contrast/enlarged UI text and field boundaries, wrapped toolbar. Lower rows are normally viewport-clipped; not physical DPI validation.",
+    "also_inspected": "nine-state-contact-sheet.png, row-major light,dark,narrow,tree-focus,disabled,empty,filtered,compact-hc-200,large",
+    "origin": "Actual native Mac Metal/Parley pixels. Contact sheet is a nearest-neighbor derivative; direct original images also opened. Tool artifact image hashes may describe re-encoded renditions, not original PNG bytes."
+  },
+  {
+    "state": "large",
+    "path": "evidence/data-components/corrections/native-large/frame-2.png",
+    "fresh_recapture": "evidence/data-components/independent-rereview/native-large/frame-2.png",
+    "file_sha256": "1e66ed51d1760fd5433058c67e72238bac95e1f278408d9ce8b0ac2ae6c32a91",
+    "inspected_with": "cognition_image_view",
+    "assessment": "Previous/Next, page1/79, 128/10000 and application-owned paging caption visible. Retained page only, not virtualization.",
+    "also_inspected": "nine-state-contact-sheet.png, row-major light,dark,narrow,tree-focus,disabled,empty,filtered,compact-hc-200,large",
+    "origin": "Actual native Mac Metal/Parley pixels. Contact sheet is a nearest-neighbor derivative; direct original images also opened. Tool artifact image hashes may describe re-encoded renditions, not original PNG bytes."
+  }
+]
