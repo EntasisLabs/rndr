@@ -274,7 +274,9 @@ pub fn hit_test(world: &World, x: f32, y: f32) -> Option<Entity> {
 /// The wheel goes to the deepest [`Scroll`] under the pointer.
 /// A press that is not on a [`Splitter`] captures that scrollport. Once the
 /// contact moves [`SCROLL_DRAG_SLOP`] points, further movement is added to its
-/// offset. The press itself is left for focus.
+/// offset. The press itself is left for focus. Offset changes are clamped and
+/// laid out immediately so later capture, hit testing and focus reveal read
+/// matching rectangles/clips, even when this system runs at Input front.
 pub fn apply_scroll(world: &mut World) {
     let Some(input) = world.resource::<Input>().cloned() else {
         clear_scroll_drag(world);
@@ -295,6 +297,9 @@ fn apply_wheel(world: &mut World, input: &Input) {
         if let Some(scroll) = world.get_mut::<Scroll>(entity) {
             scroll.offset[0] += input.scroll[0];
             scroll.offset[1] += input.scroll[1];
+            // Wheel precedes contact capture and the canonical input dispatcher.
+            crate::focus::pause_focus_reveal(world);
+            layout_propagate(world);
         }
     }
     if let Some(input) = world.resource_mut::<Input>() {
@@ -343,9 +348,13 @@ fn apply_pointer_drag(world: &mut World, input: &Input) {
         }
         drag.active = true;
     }
-    if let Some(scroll) = world.get_mut::<Scroll>(entity) {
-        scroll.offset[0] += position[0] - drag.last[0];
-        scroll.offset[1] += position[1] - drag.last[1];
+    if position != drag.last {
+        if let Some(scroll) = world.get_mut::<Scroll>(entity) {
+            scroll.offset[0] += position[0] - drag.last[0];
+            scroll.offset[1] += position[1] - drag.last[1];
+            crate::focus::pause_focus_reveal(world);
+            layout_propagate(world);
+        }
     }
     drag.last = position;
     world.insert_resource(drag);

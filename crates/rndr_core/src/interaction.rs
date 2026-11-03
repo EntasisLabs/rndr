@@ -433,6 +433,7 @@ pub fn request_focus(world: &mut World, entity: Entity) -> bool {
     world.insert_resource(Focus {
         entity: Some(entity),
     });
+    crate::focus::resume_focus_reveal(world);
     true
 }
 
@@ -769,6 +770,9 @@ pub(crate) fn apply_generic_input(world: &mut World) {
     }
     let focus = world.resource::<Focus>().and_then(|f| f.entity);
     world.resource_mut::<InteractionState>().unwrap().focus = focus;
+    if input.pointer.pressed || input.key.is_some() || !input.keys.is_empty() {
+        crate::focus::resume_focus_reveal(world);
+    }
     crate::focus::ensure_focus_visible(world);
 }
 

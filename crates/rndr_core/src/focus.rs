@@ -36,9 +36,10 @@ use crate::world::World;
 /// caret keys stay. When the tree owns the key it clears [`Input::key`],
 /// including keys it does not act on.
 ///
-/// The focused row is then scrolled into the nearest [`crate::Scroll`]
-/// ancestor, in logical points. A child [`crate::Label`] rectangle is used
-/// when the row has one, otherwise the row's own rectangle.
+/// The focused row is then scrolled into its [`crate::Scroll`] ancestors, in
+/// logical points. Deliberate wheel/drag scrolling suspends idle reveal of that
+/// same focused row until another focus/input request, so it does not snap back.
+/// A child [`crate::Label`] rectangle is used when present, otherwise the row's.
 pub fn apply_focus(world: &mut World) {
     snap_stale_focus(world);
 
@@ -105,6 +106,9 @@ pub fn apply_focus(world: &mut World) {
         }
     }
 
+    if input.pointer.pressed || input.key.is_some() {
+        resume_focus_reveal(world);
+    }
     ensure_focus_visible(world);
 }
 
@@ -268,10 +272,39 @@ fn retarget_focus_after_toggle(world: &mut World, target: Entity) {
     }
 }
 
+// Suspend only the focus that deliberate scrolling moved away from. Preserve
+// normal repeated reveal for deferred mount/popup layout, and resume on any
+// changed focus or explicit same-target request. Shared by Shell and Chrome.
+struct ScrollFocusPause {
+    entity: Option<Entity>,
+    paused: bool,
+}
+
+pub(crate) fn pause_focus_reveal(world: &mut World) {
+    let entity = world.resource::<Focus>().and_then(|f| f.entity);
+    world.insert_resource(ScrollFocusPause {
+        entity,
+        paused: true,
+    });
+}
+
+pub(crate) fn resume_focus_reveal(world: &mut World) {
+    if let Some(pause) = world.resource_mut::<ScrollFocusPause>() {
+        pause.paused = false;
+    }
+}
+
 pub(crate) fn ensure_focus_visible(world: &mut World) {
     let Some(entity) = current_focus(world) else {
         return;
     };
+    if world
+        .resource::<ScrollFocusPause>()
+        .is_some_and(|p| p.paused && p.entity == Some(entity))
+    {
+        return;
+    }
+    resume_focus_reveal(world);
     reveal_entity(world, entity);
 }
 
