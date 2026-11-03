@@ -1,0 +1,46 @@
+{
+  "reviewed_head": "2b2a42a44c97efdbbb86316ccb4bb6a8144f0193",
+  "source_head": "865cbb3463eb2ab1c4460888ebfdfd3b37052857",
+  "baseline": "d0cbecf3524acd39fc9fc1c3cb35e33f04b62eeb",
+  "recommendation": "changes_requested",
+  "implementation_modified": false,
+  "findings": [
+    {
+      "id": "R1",
+      "severity": "P1",
+      "title": "Deferred disclosure violates chronological navigation and focus",
+      "reproductions_failed": 3
+    },
+    {
+      "id": "R2",
+      "severity": "P2",
+      "title": "Unrelated expansion cancels armed host activation",
+      "reproductions_failed": 1
+    }
+  ],
+  "existing_tests": {
+    "core_paint_ui": 558,
+    "collections_subset_included_above": 17,
+    "native_render_observe": 73,
+    "fallback_render": 25,
+    "facade": 1,
+    "facade_fallback": 1,
+    "python": 20
+  },
+  "adversarial": {
+    "passed": 2,
+    "failed": 4,
+    "exit_code": 101,
+    "log": "adversarial-six.log"
+  },
+  "native_recapture": "native-dark/result.json",
+  "layout_metrics": {
+    "rows": 1024,
+    "entities": 6147,
+    "first_frame_ms": 279.57,
+    "app_records": 10000,
+    "page_rows": 128,
+    "app_layout_entities": 1639
+  },
+  "original_final_pngs_inspected": 9
+}

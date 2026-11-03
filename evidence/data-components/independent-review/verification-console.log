@@ -1,0 +1,11 @@
+PASS formatting
+PASS core-paint-ui
+PASS collection-metrics
+PASS native-observe
+PASS fallback-renderer
+PASS facade
+PASS facade-fallback
+PASS python
+PASS gallery-build
+PASS gallery-fallback-check
+Verification complete. Native capture/PNG inspection is a separate gate.

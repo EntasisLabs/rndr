@@ -1,0 +1,29 @@
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-composable-listview-and-treeview-foundation/crates/rndr_ui)
+    Finished `test` profile [unoptimized] target(s) in 0.23s
+     Running tests/independent_review_adversarial.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/independent_review_adversarial-f558901b48631158)
+
+running 3 tests
+
+thread 'disclosure_enter_then_right_in_one_batch_respects_chronology' (3608382) panicked at crates/rndr_ui/tests/independent_review_adversarial.rs:25:5:
+queued Enter must not undo later Right
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'at_disclosure_activate_then_tab_does_not_steal_focus_back' (3608381) panicked at crates/rndr_ui/tests/independent_review_adversarial.rs:36:5:
+assertion `left == right` failed: late disclosure drain must not override chronological Tab
+  left: Some(Entity { index: 3, generation: 0 })
+ right: Some(Entity { index: 11, generation: 0 })
+test disclosure_enter_then_right_in_one_batch_respects_chronology ... FAILED
+test at_disclosure_activate_then_tab_does_not_steal_focus_back ... FAILED
+test disclosure_enter_then_right_in_separate_frames_is_control ... ok
+
+failures:
+
+failures:
+    at_disclosure_activate_then_tab_does_not_steal_focus_back
+    disclosure_enter_then_right_in_one_batch_respects_chronology
+
+test result: FAILED. 1 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p rndr_ui --test independent_review_adversarial`
+
+EXIT=101

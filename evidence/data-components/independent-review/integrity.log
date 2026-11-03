@@ -1,0 +1,22 @@
+{
+  "source_files_verified": 15,
+  "evidence_files_verified": 231,
+  "native_states_verified": [
+    "light",
+    "dark",
+    "narrow",
+    "tree-focus",
+    "disabled",
+    "empty",
+    "filtered",
+    "compact-hc-200",
+    "large"
+  ],
+  "idle_png_identity": true,
+  "auth_stale_rejection_and_cleanup": true,
+  "note": "Pixel inspection is recorded separately in REPORT.md; hashes alone are not aesthetic or platform certification."
+}
+Independent source manifest completeness: 15/15; evidence-only follow-up source unchanged; temporary test removed.
+/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/examples/data_gallery: OK
+Filesystem      Size    Used   Avail Capacity iused ifree %iused  Mounted on
+/dev/disk3s5   228Gi   196Gi   6.7Gi    97%    1.9M   70M    3%   /System/Volumes/Data

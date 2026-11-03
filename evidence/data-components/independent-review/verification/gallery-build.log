@@ -1,0 +1,4 @@
+$ cargo build --offline --locked -p rndr --example data_gallery --features observe 
+    Finished `dev` profile [unoptimized] target(s) in 0.13s
+
+EXIT=0
