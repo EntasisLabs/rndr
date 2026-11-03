@@ -2,6 +2,7 @@
 //! Core contract acceptance is scoped; native platform acceptance remains separate.
 //! See docs/design/A1-api-decisions.md for the bounded interaction contract.
 #![warn(missing_docs)]
+pub mod collections;
 pub mod composition;
 pub mod controls;
 pub mod style;
@@ -28,6 +29,8 @@ impl Plugin for UiPlugin {
             app.world_mut().insert_resource(UiTheme::default());
         }
         app.world_mut().insert_resource(Installed);
+        app.add_system(Schedule::Input, collections::requests);
+        app.add_system(Schedule::Layout, collections::styles);
         app.add_system(Schedule::Layout, controls::resolve_controls);
         app.add_system(Schedule::Layout, resolve_styles);
         app.add_system(Schedule::Layout, controls::resolve_toolbars);

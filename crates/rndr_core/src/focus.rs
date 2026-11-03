@@ -272,6 +272,16 @@ pub(crate) fn ensure_focus_visible(world: &mut World) {
     let Some(entity) = current_focus(world) else {
         return;
     };
+    reveal_entity(world, entity);
+}
+
+/// Reveal an existing visible entity through all core scroll ancestors without
+/// changing focus or selection. Layout must have run. Composed collection rows
+/// use their whole row bounds, not an arbitrary child label or disclosure glyph.
+pub fn reveal_entity(world: &mut World, entity: Entity) {
+    if !crate::interaction_visible(world, entity) {
+        return;
+    }
     let Some(mut rect) = focus_rect(world, entity) else {
         return;
     };
@@ -308,6 +318,9 @@ pub(crate) fn ensure_focus_visible(world: &mut World) {
 }
 
 fn focus_rect(world: &World, entity: Entity) -> Option<Rect> {
+    if world.has::<crate::CollectionAccess>(entity) {
+        return world.get::<Rect>(entity).copied();
+    }
     for child in children_of(world, entity) {
         if world.has::<Label>(child) {
             return world.get::<Rect>(child).copied();

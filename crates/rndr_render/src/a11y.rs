@@ -100,8 +100,14 @@ fn platform_node(world: &World, node: &rndr_core::AccessNode) -> Node {
     if !node.enabled {
         out.set_disabled();
     }
-    if node.selected {
-        out.set_selected(true);
+    if node.selected || matches!(node.role, AccessRole::ListItem | AccessRole::TreeItem) {
+        out.set_selected(node.selected);
+    }
+    if let Some(level) = entity_from_access_id(node.id)
+        .and_then(|e| world.get::<rndr_core::CollectionAccess>(e))
+        .and_then(|a| a.level)
+    {
+        out.set_level(level);
     }
     if let Some(expanded) = node.expanded {
         out.set_expanded(expanded);
@@ -121,6 +127,8 @@ fn role(role: AccessRole) -> Role {
         AccessRole::TabList => Role::TabList,
         AccessRole::Tab => Role::Tab,
         AccessRole::Disclosure => Role::DisclosureTriangle,
+        AccessRole::Tree => Role::Tree,
+        AccessRole::TreeItem => Role::TreeItem,
     }
 }
 
@@ -129,6 +137,77 @@ mod tests {
     use super::*;
     use rndr_core::*;
 
+    #[test]
+    fn composed_tree_roles_hierarchy_level_selection_and_focus_reach_native_adapter() {
+        let mut app = App::new();
+        app.add_plugin(GenericInteraction);
+        let w = app.world_mut();
+        let tree = w.spawn((
+            Layout::column(),
+            Focusable,
+            CollectionAccess {
+                role: AccessRole::Tree,
+                expanded: None,
+                level: None,
+                parent: None,
+            },
+        ));
+        let branch = w.spawn((
+            Layout::row(),
+            Button::new("select"),
+            ReleaseActivation,
+            SelectedState(false),
+            CollectionAccess {
+                role: AccessRole::TreeItem,
+                expanded: Some(true),
+                level: Some(1),
+                parent: None,
+            },
+        ));
+        let leaf = w.spawn((
+            Layout::row(),
+            Button::new("select"),
+            ReleaseActivation,
+            SelectedState(true),
+            CollectionAccess {
+                role: AccessRole::TreeItem,
+                expanded: None,
+                level: Some(2),
+                parent: Some(branch),
+            },
+        ));
+        set_parent(w, branch, tree);
+        set_parent(w, leaf, tree);
+        assert!(request_focus(w, leaf));
+        let t = tree_update(w);
+        let node = |e| {
+            &t.nodes
+                .iter()
+                .find(|(id, _)| *id == NodeId(access_id(e)))
+                .unwrap()
+                .1
+        };
+        assert_eq!(node(tree).role(), Role::Tree);
+        assert_eq!(node(branch).role(), Role::TreeItem);
+        assert_eq!(node(branch).is_expanded(), Some(true));
+        assert_eq!(node(branch).is_selected(), Some(false));
+        assert_eq!(node(leaf).is_selected(), Some(true));
+        assert_eq!(node(leaf).level(), Some(2));
+        assert_eq!(node(tree).children(), &[NodeId(access_id(branch))]);
+        assert_eq!(node(branch).children(), &[NodeId(access_id(leaf))]);
+        assert_eq!(t.focus, NodeId(access_id(leaf)));
+        w.get_mut::<Button>(leaf).unwrap().enabled = false;
+        let t = tree_update(w);
+        let leaf = &t
+            .nodes
+            .iter()
+            .find(|(id, _)| *id == NodeId(access_id(leaf)))
+            .unwrap()
+            .1;
+        assert!(leaf.is_disabled());
+        assert!(!leaf.supports_action(Action::Click));
+        assert!(!leaf.supports_action(Action::Focus));
+    }
     #[test]
     fn actions_descriptions_and_real_panel_relations_match_dispatch() {
         let mut app = App::new();

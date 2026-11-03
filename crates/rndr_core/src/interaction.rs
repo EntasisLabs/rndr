@@ -7,6 +7,19 @@ use std::collections::VecDeque;
 pub struct ReleaseActivation;
 impl Component for ReleaseActivation {}
 
+/// Opt out of sequential Tab traversal without denying pointer, arrow or AT focus.
+/// Composite widgets maintain one roving stop using the canonical focus policy.
+#[derive(Clone, Copy, Debug)]
+pub struct TabStop(pub bool);
+impl Component for TabStop {}
+
+/// Composite navigation hook executed in the canonical chronological key loop,
+/// after pointer focus and before Tab/manual tabs/button handling. Return true
+/// to consume only owned keys. Editors, modified and blurred input bypass it.
+#[derive(Clone, Copy)]
+pub struct KeyNavigation(pub fn(&mut World, Entity, &KeyEvent) -> bool);
+impl Component for KeyNavigation {}
+
 /// Explicit persistent name, supplementary description and readonly state.
 /// Placeholder and current value are never used as persistent names.
 #[derive(Clone, Debug, Default)]
@@ -243,10 +256,22 @@ pub enum ActivationResult {
 /// Drain and revalidate queued intents. Stale/hidden/disabled/readonly targets
 /// are discarded before delivery; hosts must still validate their own command.
 pub fn take_action_intents(world: &mut World) -> Vec<ActionIntent> {
-    let pending: Vec<_> = world
-        .resource_mut::<ActionIntents>()
-        .map(|q| q.pending.drain(..).collect())
+    take_action_intents_matching(world, |_, _| true)
+}
+
+/// Drain only requests owned by a component. Unmatched requests retain FIFO
+/// order for other consumers. Matched requests receive the usual revalidation.
+pub fn take_action_intents_matching(
+    world: &mut World,
+    owns: impl Fn(&World, &ActionIntent) -> bool,
+) -> Vec<ActionIntent> {
+    let (pending, remaining): (Vec<_>, Vec<_>) = world
+        .resource::<ActionIntents>()
+        .map(|q| q.pending.iter().cloned().partition(|i| owns(world, i)))
         .unwrap_or_default();
+    if let Some(q) = world.resource_mut::<ActionIntents>() {
+        q.pending = remaining.into();
+    }
     pending
         .into_iter()
         .filter(|intent| {
@@ -388,7 +413,10 @@ fn focus_order(world: &World) -> Vec<Entity> {
         if !interaction_visible(world, entity) {
             return;
         }
-        if access_details(world, entity).focus && crate::manual_tabs::roving_stop(world, entity) {
+        if access_details(world, entity).focus
+            && world.get::<TabStop>(entity).is_none_or(|s| s.0)
+            && crate::manual_tabs::roving_stop(world, entity)
+        {
             out.push(entity);
         }
         for child in children_of(world, entity) {
@@ -542,6 +570,10 @@ pub(crate) fn apply_generic_input(world: &mut World) {
                 Key::Tab => Some(NamedKey::Tab),
                 Key::Enter => Some(NamedKey::Enter),
                 Key::Escape => Some(NamedKey::Escape),
+                Key::Up => Some(NamedKey::ArrowUp),
+                Key::Down => Some(NamedKey::ArrowDown),
+                Key::Left => Some(NamedKey::ArrowLeft),
+                Key::Right => Some(NamedKey::ArrowRight),
                 _ => None,
             })
             .map(|key| {
@@ -581,7 +613,17 @@ pub(crate) fn apply_generic_input(world: &mut World) {
         }
         let mut consumed = false;
         if !editor_owns && plain {
-            if event.logical == LogicalKey::Named(NamedKey::Tab) && !event.released {
+            let navigation = focus.and_then(|e| world.get::<KeyNavigation>(e).map(|n| (e, n.0)));
+            let handled = navigation.is_some_and(|(e, handler)| handler(world, e, &event));
+            // A composite hook may normalize an auxiliary focus target to its
+            // roving row before falling through. Continue from actual focus,
+            // not the stale pre-hook entity (also respect a newly focused editor).
+            let focus = world.resource::<Focus>().and_then(|f| f.entity);
+            if handled {
+                consumed = true;
+            } else if focus.is_some_and(|e| world.has::<CapturesKeys>(e)) {
+                // Retain this event for the editor's canonical input stage.
+            } else if event.logical == LogicalKey::Named(NamedKey::Tab) && !event.released {
                 let order = focus_order(world);
                 if !order.is_empty() {
                     let index = focus.and_then(|f| order.iter().position(|e| *e == f));

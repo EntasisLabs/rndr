@@ -121,7 +121,7 @@ mod wrap;
 
 pub use access::{
     access_id, access_tree, apply_access, entity_from_access_id, AccessCommand, AccessNode,
-    AccessRole, AccessTree, ACCESS_ROOT,
+    AccessRole, AccessTree, CollectionAccess, ACCESS_ROOT,
 };
 pub use action::{apply_actions, Actions, Binding, Chord, Fired, COPY, CUT, PASTE};
 pub use app::{App, Plugin, Schedule, System};
@@ -156,7 +156,7 @@ pub use event::{events, send, Event, Events};
 pub use feed::{Epoch, Feed, FeedConfig, FeedError, OnFull};
 pub use field::{CapturesKeys, ImePreview, Submitted, TextChanged, TextField};
 pub use file_drop::{FileDrop, FileHover, FileHoverCancel};
-pub use focus::apply_focus;
+pub use focus::{apply_focus, reveal_entity};
 pub use font::{
     apply_text_layout, field_text_width, layout_text, layout_text_spans, line_col, measure_text,
     text_face, BitmapFont, ColorAtlas, Font, FontAtlas, GlyphBox, PlacedGlyph, SelectionBox, Spans,
@@ -255,8 +255,9 @@ pub use manual_tabs::{ControlDisabled, ManualTabs, ResolvedColor, SelectedState,
 
 pub use interaction::{
     access_details, cancel_activation, interaction_pressed, interaction_visible, request_focus,
-    take_action_intents, try_activate, AccessDetails, ActionIntent, ActionIntents,
-    ActivationResult, GenericInteraction, ReleaseActivation, Semantics, TabRelation,
+    take_action_intents, take_action_intents_matching, try_activate, AccessDetails, ActionIntent,
+    ActionIntents, ActivationResult, GenericInteraction, KeyNavigation, ReleaseActivation,
+    Semantics, TabRelation, TabStop,
 };
 
 pub use interaction::{

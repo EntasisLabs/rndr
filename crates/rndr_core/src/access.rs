@@ -52,7 +52,26 @@ pub enum AccessRole {
     Tab,
     /// A [`Disclosure`].
     Disclosure,
+    /// Application-owned hierarchical collection.
+    Tree,
+    /// One node in an application-owned tree.
+    TreeItem,
 }
+
+/// Semantic projection for composed collections; does not install input or data ownership.
+#[derive(Clone, Copy, Debug)]
+pub struct CollectionAccess {
+    /// Collection or row role.
+    pub role: AccessRole,
+    /// Expanded state for branches only.
+    pub expanded: Option<bool>,
+    /// One-based tree depth (rows only).
+    pub level: Option<usize>,
+    /// Logical tree parent row. The layout may be a flat scroll stack; the
+    /// accessibility projection restores hierarchy without a second layout tree.
+    pub parent: Option<Entity>,
+}
+impl crate::Component for CollectionAccess {}
 
 /// One node in [`AccessTree`].
 #[derive(Clone, Debug, PartialEq)]
@@ -122,6 +141,29 @@ pub fn access_tree(world: &World) -> AccessTree {
     let mut children = Vec::new();
     for root in widget_roots(world) {
         children.extend(collect(world, root, focus, &mut nodes));
+    }
+    // Keep logical tree hierarchy even when the layout is a flat visible stack.
+    // Iterating projected preorder preserves application sibling reorderings.
+    let ids: std::collections::BTreeSet<_> = nodes.iter().map(|n| n.id).collect();
+    let mut moved = std::collections::BTreeSet::new();
+    let mut logical = std::collections::BTreeMap::<u64, Vec<u64>>::new();
+    for node in &nodes {
+        if let Some(parent) = entity_from_access_id(node.id)
+            .and_then(|e| world.get::<CollectionAccess>(e))
+            .and_then(|a| a.parent)
+            .map(access_id)
+            .filter(|p| ids.contains(p))
+        {
+            moved.insert(node.id);
+            logical.entry(parent).or_default().push(node.id);
+        }
+    }
+    children.retain(|id| !moved.contains(id));
+    for node in &mut nodes {
+        node.children.retain(|id| !moved.contains(id));
+        if let Some(children) = logical.remove(&node.id) {
+            node.children.extend(children);
+        }
     }
     nodes.insert(
         0,
@@ -283,11 +325,20 @@ fn collect(
     let mut children = Vec::new();
     if !matches!(
         role,
-        AccessRole::Button | AccessRole::ListItem | AccessRole::Label
+        AccessRole::Button | AccessRole::ListItem | AccessRole::TreeItem | AccessRole::Label
     ) {
         for child in children_of(world, entity) {
             children.extend(collect(world, child, focus, out));
         }
+    }
+    // Composed tree rows fold passive content into the supplied name, but
+    // expose their separate disclosure command to assistive technologies.
+    if role == AccessRole::TreeItem
+        && world
+            .get::<CollectionAccess>(entity)
+            .is_some_and(|a| a.expanded.is_some())
+    {
+        children.extend(collection_commands(world, entity, focus, out));
     }
     let name = world
         .get::<crate::Semantics>(entity)
@@ -312,12 +363,19 @@ fn collect(
             h: 0.0,
         }),
         children,
-        focusable: world.has::<Focusable>(entity)
-            || matches!(
-                role,
-                AccessRole::Button | AccessRole::TextInput | AccessRole::List | AccessRole::Tab
-            ),
-        focused: focus.is_some_and(|focus| focus == entity || focus_inside(world, entity, focus)),
+        focusable: if world.has::<CollectionAccess>(entity) {
+            crate::access_details(world, entity).focus
+        } else {
+            world.has::<Focusable>(entity)
+                || matches!(
+                    role,
+                    AccessRole::Button | AccessRole::TextInput | AccessRole::List | AccessRole::Tab
+                )
+        },
+        focused: focus.is_some_and(|focus| {
+            focus == entity
+                || (!world.has::<CollectionAccess>(entity) && focus_inside(world, entity, focus))
+        }),
         selected: selected(world, entity, role),
         enabled: !world.has::<crate::ControlDisabled>(entity)
             && world
@@ -325,14 +383,39 @@ fn collect(
                 .map(|button| button.enabled)
                 .unwrap_or(true),
         expanded: world
-            .get::<Disclosure>(entity)
-            .map(|disclosure| disclosure.open),
+            .get::<CollectionAccess>(entity)
+            .and_then(|a| a.expanded)
+            .or_else(|| world.get::<Disclosure>(entity).map(|d| d.open)),
     };
     out.push(node);
     vec![id]
 }
 
+// Passive composition wrappers do not hide a branch's separate AT command.
+fn collection_commands(
+    world: &World,
+    entity: Entity,
+    focus: Option<Entity>,
+    out: &mut Vec<AccessNode>,
+) -> Vec<u64> {
+    let mut commands = Vec::new();
+    for child in children_of(world, entity) {
+        if world.has::<Hidden>(child) {
+            continue;
+        }
+        if world.has::<Button>(child) {
+            commands.extend(collect(world, child, focus, out));
+        } else {
+            commands.extend(collection_commands(world, child, focus, out));
+        }
+    }
+    commands
+}
+
 fn role_of(world: &World, entity: Entity) -> Option<AccessRole> {
+    if let Some(access) = world.get::<CollectionAccess>(entity) {
+        return Some(access.role);
+    }
     if world.has::<Button>(entity) {
         return Some(AccessRole::Button);
     }

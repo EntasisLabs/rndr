@@ -2,6 +2,19 @@
 
 An additive, opt-in, GPU-free library above `rndr_core`. The owner accepted exact04642's **HEADLESS A0/A1 core-contract checkpoint** and lifted the A2 gate. Operating A2 controls and a synthetic-host gallery are now implemented for fresh independent review. This is **not** native certification, integration or whole-project acceptance. Historical checkpoints/proposals remain unchanged; see `docs/design/implementation-tracking.md` and `docs/design/A2-components.md` for the current boundary.
 
+## Data browsers (first milestone)
+
+Composable, application-owned `collections::ListView` and `collections::TreeView`
+now provide stable-ID rows, passive composition slots, independent focus/selection/
+activation, themed scrolling and hierarchical navigation. The standalone interactive
+`data_gallery` demonstrates mutation, filtering, resizing and application paging over
+10,000 records. It is not Blooey and does not own filesystem/database data.
+
+See [API, exact dependency prep/launch commands, limits and roadmap](../../docs/data-components.md).
+Selection modes are None/Single only; retained rows are budgeted, **not virtualized**.
+Current implementation/visual evidence is separate from the historical reports below;
+independent sender review and integration remain required.
+
 ## Install and compose
 
 ```rust
