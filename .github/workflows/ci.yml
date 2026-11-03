@@ -92,12 +92,19 @@ jobs:
       - name: Build native semantic galleries with observation
         run: cargo build -p rndr --features observe,ui --example ui_gallery --example data_gallery --example data_editors_gallery --example selection_gallery
 
+      # Archive-only: unpublished optional UI prevents registry lockfile/build
+      # verification even with ui disabled. Keep facade normalization, membership
+      # and source-integrity coverage; never call this release readiness.
+      - name: Facade archive regression (not registry build verification)
+        if: runner.os == 'Linux'
+        run: python3 scripts/check-facade-archive.py
+
       - name: Package and docs
         if: runner.os == 'Linux'
         run: |
-          # rndr_ui stays publish=false. The facade now has an optional local UI
-          # dependency without a registry version; neither is release-ready.
-          # Validate facade via feature builds/doctests, not a misleading package gate.
+          # rndr_ui stays publish=false. Its version+path metadata lets the
+          # facade normalize, but cannot supply a registry release. The facade
+          # archive is checked above; registry build verification remains blocked.
           # Builds each packaged crate from the tarball. Cargo does not execute
           # tests here, so the archive checks below guard the snapshot suite.
           cargo package --workspace --locked --exclude rndr_ui --exclude rndr --exclude expand --exclude idle --exclude overlay --exclude palette --exclude terminal --exclude stream --exclude two-windows --exclude pen-probe --exclude canvas-scene --exclude create-view

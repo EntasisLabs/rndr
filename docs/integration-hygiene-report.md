@@ -1,5 +1,7 @@
 # First consolidation increment — review handoff
 
+> Historical executor handoff for `5e5fe94b324953109341b59ec032ef1e81990e66`, not an acceptance record. Independent review reproduced scroll-geometry and packaging regressions; corrections and fresh results are recorded in [the independent review](integration-hygiene-independent-review.md). In particular, the facade package exclusion and path-only dependency policy below are **superseded**, not accepted because documented. UI publication remains disabled.
+
 Baseline: `fe9e6798dddd9fdb07c8bbafa4af58d9e726f30c`. Candidate is the commit containing this report on the admitted isolated worktree branch. Executor has not approved, integrated, pushed or published it. No unified list/palette or later architectural increment is included.
 
 ## Audited findings and diff
