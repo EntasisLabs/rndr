@@ -1,0 +1,11 @@
+   Compiling rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-unified-virtualized-list-and-palette-migration/crates/rndr_core)
+    Finished `test` profile [unoptimized] target(s) in 0.22s
+     Running tests/unified_viewport.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/unified_viewport-3d41417602eef27d)
+
+running 3 tests
+test viewport_hooks_are_bounded_and_topology_mutation_is_observed_before_placement ... ok
+test focus_delegation_admits_original_revalidates_return_and_preserves_rejected_arms ... ok
+test explicit_editor_hook_falls_through_space_enter_and_transactional_ownership_runs_first ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

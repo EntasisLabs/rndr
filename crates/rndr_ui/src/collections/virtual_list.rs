@@ -40,6 +40,7 @@ struct VirtualView {
     indices: Arc<HashMap<ItemId, usize>>,
     stride: f32,
     viewport_height: f32,
+    viewport_width: f32,
     compose: VirtualCompose,
     rows: BTreeMap<ItemId, RowSlot>,
     selected: Option<ItemId>,
@@ -135,6 +136,7 @@ impl ListView {
                     indices: Arc::new(HashMap::new()),
                     stride: row_height,
                     viewport_height: 0.,
+                    viewport_width: 0.,
                     compose,
                     rows: BTreeMap::new(),
                     selected: None,
@@ -152,7 +154,13 @@ impl ListView {
         let mut v = w.get::<VirtualView>(root).unwrap().clone();
         let focused = logical_focus(w, root, &v);
         let canonical_focus = w.resource::<Focus>().and_then(|f| f.entity);
-        let old_index = focused
+        // Canonical focus may have changed since the last requests pass (e.g.
+        // request_focus followed immediately by metadata replacement). Reconcile
+        // that actual key, not a stale navigation cache. External owners keep
+        // their explicit navigation key when this list does not own focus.
+        v.active = focused.or(v.active);
+        let old_index = v
+            .active
             .and_then(|id| v.indices.get(&id).copied())
             .unwrap_or(0);
         // Cancel queued/armed requests for removed or newly disabled rows before
@@ -166,11 +174,9 @@ impl ListView {
             }
         }
         if !std::ptr::fn_addr_eq(v.compose, compose) {
-            for slot in v.rows.values() {
+            for slot in v.rows.values_mut() {
                 retire(w, slot.root);
-                for child in children_of(w, slot.content) {
-                    despawn(w, child);
-                }
+                reset_content(w, slot);
             }
         }
         v.last_click = None;
@@ -220,6 +226,14 @@ impl ListView {
         }
         Ok(VirtualViewHandle { root })
     }
+}
+// The content entity itself is caller-populated too (Label, Color, styles,
+// editor state, etc.). Clearing only children leaks components across keys or
+// renderer changes. Reuse the managed row root, but replace its full content.
+fn reset_content(w: &mut World, slot: &mut RowSlot) {
+    despawn(w, slot.content);
+    slot.content = spacer(w, slot.root);
+    w.get_mut::<Layout>(slot.content).unwrap().height = Size::Fill;
 }
 fn spacer(w: &mut World, parent: Entity) -> Entity {
     let e = w.spawn((Layout {
@@ -291,6 +305,9 @@ fn realize(w: &mut World, root: Entity) -> bool {
         return false;
     };
     let h = w.get::<Rect>(root).map(|r| r.h).unwrap_or(0.);
+    let width = w.get::<Rect>(root).map(|r| r.w).unwrap_or(0.);
+    let width_changed = width != v.viewport_width;
+    v.viewport_width = width;
     let max = (v.items.len() as f32 * v.stride - h).max(0.);
     let mut offset = w
         .get::<Scroll>(root)
@@ -335,12 +352,15 @@ fn realize(w: &mut World, root: Entity) -> bool {
     let wanted_set: HashSet<_> = wanted.iter().copied().collect();
     let old: Vec<_> = v.rows.keys().copied().collect();
     let mut spare = Vec::new();
-    let mut changed = w
-        .get::<VirtualView>(root)
-        .is_some_and(|old| old.viewport_height != h);
+    // A width-only reflow can change composed child geometry on the second
+    // callback too. Request the final measure/place even when the row window
+    // and viewport height did not change.
+    let mut changed = width_changed
+        || w.get::<VirtualView>(root)
+            .is_some_and(|old| old.viewport_height != h);
     for id in old {
         if !wanted_set.contains(&id) {
-            let slot = v.rows.remove(&id).unwrap();
+            let mut slot = v.rows.remove(&id).unwrap();
             // Park focus on the viewport, preserving the logical stable ID.
             if w.resource::<Focus>()
                 .and_then(|f| f.entity)
@@ -352,9 +372,7 @@ fn realize(w: &mut World, root: Entity) -> bool {
                 request_focus(w, root);
             }
             retire(w, slot.root);
-            for child in children_of(w, slot.content) {
-                despawn(w, child);
-            }
+            reset_content(w, &mut slot);
             spare.push(slot);
             changed = true;
         }

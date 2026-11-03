@@ -7,6 +7,125 @@ use rndr_ui::{
     UiId, UiPlugin,
 };
 use std::time::Instant;
+
+// A renderer may attach passive presentation directly to its content slot.
+fn direct_content(w: &mut World, slot: RowSlot, item: &RowItem) {
+    if item.id == ItemId(0) {
+        w.insert(slot.content, Label::new("Only record zero"));
+        w.insert(slot.content, Color::rgb(1., 0., 0.));
+    }
+}
+fn bare_content(_: &mut World, _: RowSlot, _: &RowItem) {}
+
+fn width_sensitive(w: &mut World, slot: RowSlot, _: &RowItem) {
+    let width = w.get::<Rect>(slot.root).map(|r| r.w).unwrap_or(0.);
+    let child = children_of(w, slot.content)
+        .first()
+        .copied()
+        .unwrap_or_else(|| {
+            let e = w.spawn((Layout::column(),));
+            set_parent(w, e, slot.content);
+            e
+        });
+    let l = w.get_mut::<Layout>(child).unwrap();
+    l.width = Size::Px(width / 2.);
+    l.height = Size::Px(10.);
+}
+
+#[test]
+fn width_only_reflow_remeasures_second_reconciliation_before_hit_geometry() {
+    let (mut a, p, h) = setup(100);
+    ListView::mount_virtual(
+        a.world_mut(),
+        p,
+        UiId(1),
+        ViewProps::new("Records"),
+        &items(100),
+        32.,
+        width_sensitive,
+    )
+    .unwrap();
+    rndr_paint::frame(&mut a);
+    a.world_mut().insert_resource(Viewport::new(800., 320.));
+    layout_propagate(a.world_mut());
+    let slot = h.row(a.world(), ItemId(0)).unwrap();
+    let child = children_of(a.world(), slot.content)[0];
+    assert_eq!(a.world().get::<Rect>(slot.root).unwrap().w, 800.);
+    assert_eq!(
+        a.world().get::<Rect>(child).unwrap().w,
+        400.,
+        "second reconciliation's new width must be placed in this propagation"
+    );
+}
+
+#[test]
+fn recycled_and_replaced_renderers_do_not_inherit_content_components() {
+    let (mut a, p, h) = setup(1000);
+    ListView::mount_virtual(
+        a.world_mut(),
+        p,
+        UiId(1),
+        ViewProps::new("Records"),
+        &items(1000),
+        32.,
+        direct_content,
+    )
+    .unwrap();
+    rndr_paint::frame(&mut a);
+    let old = h.row(a.world(), ItemId(0)).unwrap();
+    assert!(a.world().has::<Label>(old.content));
+    h.reveal(a.world_mut(), ItemId(999)).unwrap();
+    for id in 990..1000 {
+        if let Some(slot) = h.row(a.world(), ItemId(id)) {
+            assert!(
+                !a.world().has::<Label>(slot.content),
+                "recycled content leaked from record zero"
+            );
+            assert!(!a.world().has::<Color>(slot.content));
+        }
+    }
+    h.reveal(a.world_mut(), ItemId(0)).unwrap();
+    assert!(a
+        .world()
+        .has::<Label>(h.row(a.world(), ItemId(0)).unwrap().content));
+    ListView::mount_virtual(
+        a.world_mut(),
+        p,
+        UiId(1),
+        ViewProps::new("Records"),
+        &items(1000),
+        32.,
+        bare_content,
+    )
+    .unwrap();
+    assert!(
+        !a.world()
+            .has::<Label>(h.row(a.world(), ItemId(0)).unwrap().content),
+        "replacing the renderer must retire all old presentation"
+    );
+}
+
+#[test]
+fn immediate_canonical_focus_removal_falls_forward_from_actual_row() {
+    let (mut a, p, h) = setup(100);
+    let row = h.row(a.world(), ItemId(3)).unwrap().root;
+    // No Input/requests pass between canonical focus and metadata replacement.
+    assert!(request_focus(a.world_mut(), row));
+    let mut data = items(100);
+    data[3].enabled = false;
+    ListView::mount_virtual(
+        a.world_mut(),
+        p,
+        UiId(1),
+        ViewProps::new("Records"),
+        &data,
+        32.,
+        compose,
+    )
+    .unwrap();
+    assert_eq!(h.focused(a.world()), Some(ItemId(4)));
+}
+
 #[derive(Default)]
 struct Builds(usize);
 fn compose(w: &mut World, slot: RowSlot, item: &RowItem) {

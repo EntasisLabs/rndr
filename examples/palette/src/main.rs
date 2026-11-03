@@ -1485,6 +1485,145 @@ mod tests {
         assert_eq!(sim.app.world().get::<ImageView>(icon).unwrap().image, 3);
     }
 
+    #[test]
+    fn semantic_palette_ime_snapshot_does_not_navigate_or_duplicate_commit() {
+        use rndr_core::*;
+        let mut sim = Sim::new();
+        sim.app.add_plugin(rndr_ui::UiPlugin);
+        sim.app.add_system(Schedule::Startup, super::setup);
+        sim.app.add_system(Schedule::Update, super::palette_update);
+        sim.app
+            .world_mut()
+            .insert_resource(Viewport::new(720., 620.));
+        sim.update();
+        sim.advance(super::SEARCH_LAG);
+        sim.update();
+        rndr_paint::frame(&mut sim.app);
+        let p = sim.app.world().resource::<super::Palette>().unwrap();
+        let (list, field) = (p.list, p.field);
+        let h = super::VirtualViewHandle { root: list };
+        request_focus(sim.world(), field);
+        let active = h.active(sim.app.world());
+        {
+            let input = sim.world().resource_mut::<Input>().unwrap();
+            input.ime_enabled = true;
+            input.ime_preedit = "に".into();
+            input.keys = vec![
+                KeyEvent::named(NamedKey::ArrowDown, Modifiers::default()),
+                KeyEvent::named(NamedKey::Enter, Modifiers::default()),
+            ];
+        }
+        rndr_paint::frame(&mut sim.app);
+        assert_eq!(h.active(sim.app.world()), active);
+        assert!(!sim.app.world().resource::<super::Palette>().unwrap().asking);
+        {
+            let input = sim.world().resource_mut::<Input>().unwrap();
+            input.ime_preedit.clear();
+            input.ime_commit = "日本".into();
+            input.keys = vec![
+                KeyEvent::character('x', Modifiers::default()),
+                KeyEvent::named(NamedKey::Enter, Modifiers::default()),
+            ];
+        }
+        rndr_paint::frame(&mut sim.app);
+        assert_eq!(sim.app.world().get::<Label>(field).unwrap().text, "日本");
+        assert_eq!(
+            sim.app.world().resource::<super::Palette>().unwrap().query,
+            "日本"
+        );
+        assert_eq!(h.active(sim.app.world()), active);
+        assert!(!sim.app.world().resource::<super::Palette>().unwrap().asking);
+        assert_eq!(
+            sim.app.world().resource::<Focus>().unwrap().entity,
+            Some(field)
+        );
+    }
+
+    #[test]
+    fn semantic_palette_hover_and_double_click_ask_preserve_prompt_ownership() {
+        use rndr_core::*;
+        let mut sim = Sim::new();
+        sim.app.add_plugin(rndr_ui::UiPlugin);
+        sim.app.add_system(Schedule::Startup, super::setup);
+        sim.app.add_system(Schedule::Update, super::palette_update);
+        sim.app
+            .world_mut()
+            .insert_resource(Viewport::new(720., 620.));
+        sim.update();
+        sim.advance(super::SEARCH_LAG);
+        sim.update();
+        rndr_paint::frame(&mut sim.app);
+        let p = sim.app.world().resource::<super::Palette>().unwrap();
+        let (list, field) = (p.list, p.field);
+        let h = super::VirtualViewHandle { root: list };
+        let r = *sim
+            .app
+            .world()
+            .get::<Rect>(h.row(sim.app.world(), super::ItemId(3)).unwrap().root)
+            .unwrap();
+        sim.world()
+            .resource_mut::<Input>()
+            .unwrap()
+            .pointer
+            .position = [r.x + 80., r.y + 8.];
+        rndr_paint::frame(&mut sim.app);
+        assert_eq!(h.active(sim.app.world()), Some(super::ItemId(3)));
+        assert_eq!(h.selected(sim.app.world()), Some(super::ItemId(3)));
+        let r = *sim
+            .app
+            .world()
+            .get::<Rect>(h.row(sim.app.world(), super::ItemId(0)).unwrap().root)
+            .unwrap();
+        for _ in 0..2 {
+            {
+                let input = sim.world().resource_mut::<Input>().unwrap();
+                input.pointer = Pointer {
+                    position: [r.x + 80., r.y + 8.],
+                    down: true,
+                    pressed: true,
+                    ..Pointer::default()
+                };
+            }
+            rndr_paint::frame(&mut sim.app);
+            sim.advance(std::time::Duration::from_millis(20));
+            {
+                let input = sim.world().resource_mut::<Input>().unwrap();
+                input.pointer.down = false;
+                input.pointer.pressed = false;
+                input.pointer.released = true;
+            }
+            rndr_paint::frame(&mut sim.app);
+        }
+        assert!(sim.app.world().resource::<super::Palette>().unwrap().asking);
+        assert_eq!(
+            sim.app.world().resource::<Focus>().unwrap().entity,
+            Some(field)
+        );
+        sim.world().resource_mut::<Input>().unwrap().keys =
+            vec![KeyEvent::character('q', Modifiers::default())];
+        rndr_paint::frame(&mut sim.app);
+        let shift = Modifiers {
+            shift: true,
+            ..Modifiers::default()
+        };
+        sim.world().resource_mut::<Input>().unwrap().keys =
+            vec![KeyEvent::named(NamedKey::Enter, shift)];
+        rndr_paint::frame(&mut sim.app);
+        assert_eq!(sim.app.world().get::<Label>(field).unwrap().text, "q\n");
+        sim.world().resource_mut::<Input>().unwrap().keys =
+            vec![KeyEvent::named(NamedKey::Enter, Modifiers::default())];
+        rndr_paint::frame(&mut sim.app);
+        assert!(sim.app.world().resource::<super::Palette>().unwrap().asking);
+        assert_eq!(sim.app.world().get::<Label>(field).unwrap().text, "");
+        assert!(sim
+            .app
+            .world()
+            .resource::<super::Palette>()
+            .unwrap()
+            .message
+            .starts_with("Asked: q"));
+    }
+
     fn list_count(sim: &rndr_core::Sim) -> u32 {
         let list = sim.app.world().resource::<super::Palette>().unwrap().list;
         super::VirtualViewHandle { root: list }.len(sim.app.world()) as u32

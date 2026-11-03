@@ -1,0 +1,20 @@
+   Compiling palette v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-unified-virtualized-list-and-palette-migration/examples/palette)
+    Finished `test` profile [unoptimized] target(s) in 0.68s
+     Running unittests src/main.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/palette-f6e0e543f80da7c0)
+
+running 12 tests
+test tests::palette_icon_is_a_template_only_on_macos ... ok
+test tests::a_rejected_hotkey_uses_a_short_status_line ... ok
+test tests::menu_chord_is_a_parseable_accelerator ... ok
+test tests::show_palette_label_is_the_global_hotkey ... ok
+test tests::fuzzy_records_the_matched_letters ... ok
+test tests::row_icons_are_solid_and_inset_like_the_text ... ok
+test tests::ask_hint_fits_and_the_draft_survives_leaving ... ok
+test tests::semantic_palette_pointer_and_typing_in_one_batch_keeps_search_focus ... ok
+test tests::semantic_palette_ime_snapshot_does_not_navigate_or_duplicate_commit ... ok
+test tests::semantic_palette_search_owns_typing_and_forwards_navigation_activation ... ok
+test tests::a_slower_query_does_not_replace_a_newer_one ... ok
+test tests::semantic_palette_hover_and_double_click_ask_preserve_prompt_ownership ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+

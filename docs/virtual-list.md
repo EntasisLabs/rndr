@@ -24,7 +24,9 @@ input or recycle retained composed subtrees behind their owners' backs. Sharing
 the uniform window calculation and canonical Scroll geometry, with a small
 reconciliation hook, permits different row lifetime/input contracts without a
 parallel layout/scroll engine. Semantic realization retains overlapping keys and
-reuses retired root/content slots, destroying their children before rebinding.
+reuses retired row roots, replacing their entire caller-populated content entity
+and descendants before rebinding. Content components (not just children) never
+carry over to another key or renderer.
 
 * `mount_virtual` validates metadata then indexes/copies it: **O(n) time/storage**,
   including names. Call it when metadata changes, not every frame. Maximum count
@@ -48,7 +50,8 @@ reuses retired root/content slots, destroying their children before rebinding.
   by `ItemId` outside the row. `item_for_entity` resolves a currently live nested
   request target to its stable key. Do not save a raw entity for later model work.
 * Removing/disabling a record retires armed/queued subtree requests. Recycling
-  destroys all embedded children before binding the slot to a different key.
+  replaces the content entity and all embedded descendants before binding the
+  row root to a different key.
   Replacing the renderer also destroys old composed content. Same-key overlapping
   rows retain their content/focus across metadata replacement and reorder.
 * This is not variable-height virtualization, lazy/remote data loading, virtual

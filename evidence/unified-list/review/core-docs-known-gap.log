@@ -1,0 +1,36 @@
+ Documenting rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-unified-virtualized-list-and-palette-migration/crates/rndr_core)
+error: unresolved link to `Fired`
+ --> crates/rndr_core/src/button.rs:7:64
+  |
+7 | /// Click or Enter target. `action` is the name written into [`Fired`].
+  |                                                                ^^^^^ no item named `Fired` in scope
+  |
+  = help: to escape `[` and `]` characters, add '\' before them like `\[` or `\]`
+  = note: `-D rustdoc::broken-intra-doc-links` implied by `-D warnings`
+  = help: to override `-D warnings` add `#[allow(rustdoc::broken_intra_doc_links)]`
+
+error: unresolved link to `Fired`
+  --> crates/rndr_core/src/button.rs:15:28
+   |
+15 |     /// Name copied into [`Fired`] when this button activates.
+   |                            ^^^^^ no item named `Fired` in scope
+   |
+   = help: to escape `[` and `]` characters, add '\' before them like `\[` or `\]`
+
+error: unresolved link to `Fired`
+  --> crates/rndr_core/src/button.rs:17:47
+   |
+17 | ...d Enter leave [`Fired`] and the key unchanged.
+   |                    ^^^^^ no item named `Fired` in scope
+   |
+   = help: to escape `[` and `]` characters, add '\' before them like `\[` or `\]`
+
+error: unresolved link to `Fired`
+  --> crates/rndr_core/src/button.rs:22:52
+   |
+22 |     /// Enabled button that writes `action` into [`Fired`] when activated.
+   |                                                    ^^^^^ no item named `Fired` in scope
+   |
+   = help: to escape `[` and `]` characters, add '\' before them like `\[` or `\]`
+
+error: could not document `rndr_core`

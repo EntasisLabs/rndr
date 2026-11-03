@@ -1,0 +1,32 @@
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-unified-virtualized-list-and-palette-migration/crates/rndr_ui)
+    Finished `test` profile [unoptimized] target(s) in 1.08s
+     Running tests/virtual_gallery.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/virtual_gallery-f85228af7ed1f0de)
+
+running 1 test
+test actual_gallery_large_model_controls_and_theme_matrix_remain_bounded ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+
+     Running tests/virtual_list.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/virtual_list-88166892ccdf9a60)
+
+running 16 tests
+test invalid_input_is_atomic_and_keys_conflict_with_retained_family ... ok
+test immediate_canonical_focus_removal_falls_forward_from_actual_row ... ok
+test armed_row_is_cancelled_before_pool_slot_is_rebound ... ok
+test explicit_external_field_forwarding_preserves_focus_and_ime_and_selection_contract ... ok
+test external_focus_owner_is_synchronous_and_never_inherited_by_nested_controls ... ok
+test recycled_and_replaced_renderers_do_not_inherit_content_components ... ok
+test scroll_then_click_uses_new_geometry_and_not_recycled_item ... ok
+test removed_disabled_and_empty_metadata_reconcile_without_stale_activation ... ok
+test keys_survive_filter_reorder_replace_and_recycling ... ok
+test width_only_reflow_remeasures_second_reconciliation_before_hit_geometry ... ok
+test keyboard_reveal_does_not_undo_later_deliberate_scroll ... ok
+test selection_and_activation_remain_independent ... ok
+test nested_focus_survives_same_key_replacement_and_disabled_ancestry_blocks_it ... ok
+test palette_policy_is_opt_in_and_nested_controls_are_excluded ... ok
+test nested_button_checkbox_pointer_keyboard_and_recycle_do_not_bubble ... ok
+100000 metadata: mount+frame=49.478292ms; 20 steady headless paint frames=28.5965ms; realized layouts=35; steady_callbacks=400
+test hundred_thousand_rows_have_bounded_entities_callbacks_and_no_steady_entity_allocations ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+

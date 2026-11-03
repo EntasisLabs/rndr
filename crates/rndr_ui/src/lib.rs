@@ -2,8 +2,9 @@
 //!
 //! Install [`UiPlugin`] for core interaction, scrolling and semantic styling.
 //! No window, GPU, filesystem runtime or parallel focus dispatcher is installed.
-//! Collections retain bounded rows; they are not virtualized. Native screen-reader,
-//! IME and cross-platform visual certification remain separate from headless tests.
+//! Collections offer retained bounded rows and uniform-height virtual ListView.
+//! Native screen-reader, IME and cross-platform visual certification remain
+//! separate from headless tests.
 #![deny(missing_docs)]
 pub mod collections;
 pub mod composition;
