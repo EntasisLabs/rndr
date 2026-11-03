@@ -153,6 +153,45 @@ def main():
         assert not pathlib.Path(str(collision) + ".png").exists()
         count += 1
         print("PASS output-collision: exit=1; existing metadata preserved; no orphan PNG")
+        # Output paths: no implicit mkdir, extension replacement or overwrite.
+        def output_case(prefix, expected):
+            nonlocal count
+            result = subprocess.run([binary, "--scene", str(source), "--output", str(prefix), "--ui-id", "42"], capture_output=True, text=True, timeout=30)
+            assert result.returncode == expected, (prefix, result.stderr)
+            assert "PRIVATE_SENTINEL" not in result.stdout + result.stderr
+            count += 1
+            print(f"PASS output-path-{prefix.name}: exit={expected}")
+
+        output_case(root / "missing-parent" / "capture", 1)
+        assert not (root / "missing-parent").exists()
+        spaced = root / "spaces and dots.scene"
+        output_case(spaced, 0)
+        assert pathlib.Path(str(spaced) + ".png").exists()
+        assert pathlib.Path(str(spaced) + ".json").exists()
+        assert not spaced.exists()
+        saved = pathlib.Path(str(spaced) + ".png").read_bytes()
+        output_case(spaced, 1)
+        assert pathlib.Path(str(spaced) + ".png").read_bytes() == saved
+        blocked = root / "directory-collision"
+        pathlib.Path(str(blocked) + ".json").mkdir()
+        output_case(blocked, 1)
+        assert not pathlib.Path(str(blocked) + ".png").exists()
+        assert pathlib.Path(str(blocked) + ".json").is_dir()
+        if sys.platform != "win32":
+            # create_new rejects final-component symlinks, including dangling ones.
+            for suffix in (".png", ".json"):
+                for dangling in (False, True):
+                    prefix = root / f"symlink-{suffix[1:]}-{dangling}"
+                    destination = root / f"sentinel-{suffix[1:]}-{dangling}"
+                    if not dangling:
+                        destination.write_text("PRIVATE_SENTINEL")
+                    link = pathlib.Path(str(prefix) + suffix)
+                    link.symlink_to(destination)
+                    output_case(prefix, 1)
+                    assert link.is_symlink()
+                    assert not destination.exists() if dangling else destination.read_text() == "PRIVATE_SENTINEL"
+                    other = ".json" if suffix == ".png" else ".png"
+                    assert not pathlib.Path(str(prefix) + other).exists()
         result = subprocess.run([binary, "--help"], capture_output=True, text=True, timeout=30)
         assert result.returncode == 0 and "--scene" in result.stdout
         count += 1

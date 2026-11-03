@@ -1,0 +1,56 @@
+$ cargo clippy --offline --locked -p rndr_render --features observe --all-targets -- -D warnings
+    Checking rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-component-targeted-headless-capture/crates/rndr_core)
+    Checking rndr_paint v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-component-targeted-headless-capture/crates/rndr_paint)
+    Checking rndr_render v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-component-targeted-headless-capture/crates/rndr_render)
+error: using `chunks_exact` with a constant chunk size
+   --> crates/rndr_render/src/capture/tests.rs:268:10
+    |
+268 |         .chunks_exact(4)
+    |          ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<4>().0.iter()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#chunks_exact_to_as_chunks
+    = note: `-D clippy::chunks-exact-to-as-chunks` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::chunks_exact_to_as_chunks)]`
+
+error: using `chunks_exact` with a constant chunk size
+   --> crates/rndr_render/src/capture/tests.rs:276:26
+    |
+276 |     assert!(c.image.rgba.chunks_exact(4).all(|p| p[1] > 250 && p[0] < 3));
+    |                          ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<4>().0.iter()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#chunks_exact_to_as_chunks
+
+error: using `chunks_exact` with a constant chunk size
+   --> crates/rndr_render/src/capture/tests.rs:301:10
+    |
+301 |         .chunks_exact(4)
+    |          ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<4>().0.iter()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#chunks_exact_to_as_chunks
+
+error: using `chunks_exact` with a constant chunk size
+   --> crates/rndr_render/src/capture/tests.rs:394:14
+    |
+394 |             .chunks_exact(4)
+    |              ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<4>().0.iter()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#chunks_exact_to_as_chunks
+
+error: using `chunks_exact` with a constant chunk size
+   --> crates/rndr_render/src/capture/tests.rs:415:26
+    |
+415 |     assert!(c.image.rgba.chunks_exact(4).all(|p| p[2] > 250 && p[1] < 3));
+    |                          ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<4>().0.iter()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#chunks_exact_to_as_chunks
+
+error: using `chunks_exact` with a constant chunk size
+   --> crates/rndr_render/src/capture/tests.rs:454:22
+    |
+454 |                     .chunks_exact(4)
+    |                      ^^^^^^^^^^^^^^^ help: consider using `as_chunks` instead: `as_chunks::<4>().0.iter()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#chunks_exact_to_as_chunks
+
+error: could not compile `rndr_render` (lib test) due to 6 previous errors
+warning: build failed, waiting for other jobs to finish...

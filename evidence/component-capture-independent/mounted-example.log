@@ -1,0 +1,5 @@
+   Compiling rndr_render v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-component-targeted-headless-capture/crates/rndr_render)
+   Compiling rndr v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-component-targeted-headless-capture/crates/rndr)
+    Finished `dev` profile [unoptimized] target(s) in 2.19s
+     Running `../rndr-refined-cross-platform-ui-framework/target/debug/examples/component_capture evidence/component-capture-independent/mounted-card`
+UI key 42 resolved to Entity { index: 1, generation: 0 }; 4 subtree nodes, 320x136 real offscreen pixels

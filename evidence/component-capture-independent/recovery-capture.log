@@ -1,0 +1,43 @@
+   Compiling rndr_render v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-component-targeted-headless-capture/crates/rndr_render)
+    Finished `test` profile [unoptimized] target(s) in 4.55s
+     Running unittests src/lib.rs (../rndr-refined-cross-platform-ui-framework/target/debug/deps/rndr_render-33ebdf27a082fccd)
+
+running 17 tests
+test capture::tests::actual_headless_pixels_same_frame_layout_identity_and_scale ... ok
+test capture::tests::caps_entire_offscreen_viewport_even_for_tiny_targets ... ok
+test capture::tests::geometry_hidden_empty_outside_invalid_and_fractional_scale ... ok
+test capture::tests::geometry_metadata_never_serializes_labels_or_access_values ... ok
+test capture::tests::hierarchy_cycles_and_node_limits_are_explicit_errors ... ok
+test capture::tests::independent_image_budget_failure_is_not_blank_success ... ok
+test capture::tests::independent_privacy_checkpoints_precede_identity_and_never_leak_text ... ok
+test capture::tests::independent_reused_exporter_observes_replaced_and_cross_world_images ... ok
+test capture::tests::independent_same_parent_duplicates_and_live_remount_pin_are_rejected ... ok
+test capture::tests::native_semantic_scroll_theme_and_scale_guards_also_apply_headlessly ... ok
+test capture::tests::offscreen_composite_keeps_overlays_and_clips_to_viewport ... ok
+test capture::tests::post_paint_engine_replacement_and_epoch_mutations_are_rejected ... ok
+test capture::tests::privacy_denies_before_identity_or_geometry_and_foreign_surfaces ... ok
+test capture::tests::render_mutation_and_new_sensitive_markers_drop_all_output ... ok
+test capture::tests::resolves_scopes_duplicates_and_generation_pins ... ok
+test capture::tests::retained_images_render_but_missing_or_native_gpu_only_images_do_not_fake_success ... ok
+test capture::tests::update_can_revoke_capture_before_submission ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 76 filtered out; finished in 0.31s
+
+     Running unittests src/bin/rndr-capture.rs (../rndr-refined-cross-platform-ui-framework/target/debug/deps/rndr_capture-772e69ab565b13e1)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+     Running tests/export_scene.rs (../rndr-refined-cross-platform-ui-framework/target/debug/deps/export_scene-6d5830aeb264c27d)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s
+
+     Running tests/source_edit.rs (../rndr-refined-cross-platform-ui-framework/target/debug/deps/source_edit-569ab559e7a7d52f)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+

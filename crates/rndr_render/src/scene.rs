@@ -1524,6 +1524,19 @@ impl SceneGpu {
         }
     }
 
+    // Capture cannot trust numeric image IDs across frames or Worlds. Keep the
+    // reusable pipelines/device, but rebuild this small resource cache each time.
+    #[cfg(feature = "observe")]
+    pub(crate) fn reset_capture_images(&mut self) {
+        self.images.clear();
+        self.image_bytes = 0;
+    }
+
+    #[cfg(feature = "observe")]
+    pub(crate) fn has_capture_images(&self, ids: &[u64]) -> bool {
+        ids.iter().all(|id| self.images.contains_key(id))
+    }
+
     fn ensure_image(&mut self, id: u64, image: &CpuImage, budget: u64) {
         if self.images.contains_key(&id) {
             if let Some(cached) = self.images.get_mut(&id) {

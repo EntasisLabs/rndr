@@ -1,0 +1,30 @@
+   Compiling rndr_render v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-component-targeted-headless-capture/crates/rndr_render)
+    Finished `test` profile [unoptimized] target(s) in 3.74s
+     Running unittests src/lib.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/rndr_render-33ebdf27a082fccd)
+
+running 2 tests
+test capture::tests::independent_image_budget_failure_is_not_blank_success ... FAILED
+test capture::tests::independent_reused_exporter_observes_replaced_and_cross_world_images ... FAILED
+
+failures:
+
+---- capture::tests::independent_image_budget_failure_is_not_blank_success stdout ----
+
+thread 'capture::tests::independent_image_budget_failure_is_not_blank_success' (4742611) panicked at crates/rndr_render/src/capture/tests.rs:464:5:
+assertion failed: matches!(capture(&mut app, &mut gpu, Target::Entity(child), ids),
+    Err(Error::ImageUnavailable))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- capture::tests::independent_reused_exporter_observes_replaced_and_cross_world_images stdout ----
+
+thread 'capture::tests::independent_reused_exporter_observes_replaced_and_cross_world_images' (4742619) panicked at crates/rndr_render/src/capture/tests.rs:451:13:
+stale image for channel 0
+
+
+failures:
+    capture::tests::independent_image_budget_failure_is_not_blank_success
+    capture::tests::independent_reused_exporter_observes_replaced_and_cross_world_images
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 89 filtered out; finished in 0.10s
+
+error: test failed, to rerun pass `-p rndr_render --lib`

@@ -111,6 +111,7 @@ pub enum Error {
     Changed,
     /// A painted image has no retained CPU pixels. Reload with `load_rgba`;
     /// native-only GPU textures and unfinished decodes cannot be reproduced.
+    /// Also returned if the GPU image budget cannot retain every painted image.
     ImageUnavailable,
     /// Offscreen adapter, GPU, size cap or readback failure.
     Export(ExportError),
@@ -352,14 +353,9 @@ pub fn capture(
         let epoch = observe::engine_epoch(rndr_core::text_engine(world).as_ref());
         let v = world.resource::<Viewport>().ok_or(Error::Geometry)?;
         let [w, h] = viewport_pixels(v)?;
-        // A fresh offscreen device cannot inherit native GPU-only image cache
-        // entries. Never silently return blank pixels for an unavailable image.
-        let available: std::collections::HashSet<_> = crate::images::pending(world)
-            .into_iter()
-            .map(|(id, _)| id)
-            .collect();
-        if frame.draws.iter().any(|draw| matches!(&draw.op,rndr_paint::Op::Image(image) if !available.contains(&image.id))) { return Err(Error::ImageUnavailable); }
-        let full = exporter.render_frame(Some(world), frame, w, h, m.scale)?;
+        let full = exporter
+            .render_capture_frame(world, frame, w, h, m.scale)?
+            .ok_or(Error::ImageUnavailable)?;
         let [x, y, w, h] = m.pixel_rect;
         let mut rgba = Vec::with_capacity((w * h * 4) as usize);
         for row in y..y + h {

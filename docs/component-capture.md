@@ -118,6 +118,11 @@ extra App systems or a default font/engine upgrade.
   native presenter cannot be silently replaced with transparent pixels. For
   headless fixtures, finish decoding and store pixels with `load_rgba` first
   (or consume `DecodedImage` in an application system and retain its bytes).
+  Capture rebuilds its image cache each call, so replacing a numeric image ID or
+  reusing an Exporter across Worlds cannot reuse stale pixels. If the configured
+  image budget cannot keep all painted images resident, the entire capture returns
+  `image_unavailable` rather than silently omitting images. Ordinary renderer
+  budget/downsampling rules still apply; this is not lossless source-image export.
 
 ## Identity, geometry and privacy failures
 
@@ -132,7 +137,7 @@ extra App systems or a default font/engine upgrade.
 | `post_paint_mutation` | Post-Render resolution/geometry/identity/accessibility/text-engine validation failed. Retry a new frame after settling app state. |
 | `sensitive_frame` | Missing/Deny public attestation or **any** sensitive entity in the World. |
 | `foreign_surface_unsupported` | Any SurfaceSlot exists, including hidden/off-target slots. |
-| `image_unavailable` | A painted image cannot be reproduced from retained CPU pixels. |
+| `image_unavailable` | A painted image has no retained CPU pixels or cannot remain resident within the image budget. |
 | `headless_render_failed` | Adapter/device/size/readback failed; the typed API retains `ExportError`. |
 
 Privacy is the existing observation policy, **not an option to disable redaction**:
@@ -191,7 +196,10 @@ Scene version 1 (`examples/component-capture.json`):
   write failure rolls back only this invocation's new files. This is **not a
   crash-atomic two-file transaction** or a sandbox against hostile same-user
   filesystem races; a crash can leave a partial pair. Use a private directory.
-  Unix files are created mode 0600; Windows uses the output directory's ACL.
+  Final output-file symlinks (including dangling links) are refused rather than
+  followed. Parent directories must already exist and are trusted; parent symlinks
+  are not a sandbox boundary. Unix files are created mode 0600; Windows uses the
+  output directory's ACL.
 - Exit codes: `0` success/help, `1` output I/O, `2` usage/scene input,
   `3` target/geometry/limit/coherence/unavailable-image, `4` privacy denial,
   `5` adapter/render/PNG failure. Failures emit generic content-free stderr,
@@ -216,7 +224,9 @@ constructing a device. Pixel tests check same-frame update identity/color, scale
 visible clipping, overlays, retained images and resource invalidation. The CLI
 suite decodes the actual PNG and checks pixels as well as error codes/no-output
 privacy and overwrite behavior. Source-bound commands/results and sample captures
-are in `evidence/component-capture/REPORT.md`.
+are in `evidence/component-capture/REPORT.md`; independent review, image-cache
+corrections and expanded filesystem probes are in
+`evidence/component-capture-independent/REPORT.md`.
 
 This increment does not certify native Windows/Linux/macOS presentation, input,
 accessibility, screen readers, DPI, font fallback, IME or startup. No Wayland

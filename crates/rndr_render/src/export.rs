@@ -188,6 +188,51 @@ impl Exporter {
         self.draw(world, frame, &images, budget, width, height, scale)
     }
 
+    /// Capture-only resource isolation: never reuse stale image IDs, and never
+    /// report success if the ordinary cache budget omitted/evicted a used image.
+    #[cfg(feature = "observe")]
+    pub(crate) fn render_capture_frame(
+        &mut self,
+        world: &World,
+        frame: &Frame,
+        width: u32,
+        height: u32,
+        scale: f32,
+    ) -> Result<Option<RgbaImage>, ExportError> {
+        let _guard = headless_gpu_lock();
+        check_size(width, height)?;
+        let ids: Vec<_> = frame
+            .draws
+            .iter()
+            .filter_map(|draw| match &draw.op {
+                Op::Image(image) => Some(image.id),
+                _ => None,
+            })
+            .collect();
+        let images: Vec<_> = images::pending(world)
+            .into_iter()
+            .filter(|(id, _)| ids.contains(id))
+            .collect();
+        if ids
+            .iter()
+            .any(|id| !images.iter().any(|(available, _)| available == id))
+        {
+            return Ok(None);
+        }
+        self.sync_atlases(world);
+        self.gpu().scene.reset_capture_images();
+        let image = self.draw(
+            Some(world),
+            frame,
+            &images,
+            images::budget_of(world),
+            width,
+            height,
+            scale,
+        )?;
+        Ok(self.gpu().scene.has_capture_images(&ids).then_some(image))
+    }
+
     /// Draw `scene` so `rect`'s top-left is the image origin.
     ///
     /// `scale` is device pixels per world unit. The scene camera is not

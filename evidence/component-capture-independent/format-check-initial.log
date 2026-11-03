@@ -1,0 +1,103 @@
+Diff in /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-component-targeted-headless-capture/crates/rndr_render/src/capture/tests.rs:499:
+                 app.world_mut()
+                     .spawn((observe::ObservationSensitive, Hidden));
+             }
+-            2 => { app.add_system(Schedule::Update, |w| {
+-                w.spawn((observe::ObservationSensitive, Hidden));
+-            }); },
+-            3 => { app.add_system(Schedule::Render, |w| {
+-                w.insert_resource(observe::ObservationContent::Deny)
+-            }); },
+-            4 => { app.add_system(Schedule::Render, |w| {
+-                w.spawn((observe::ObservationSensitive, Hidden));
+-            }); },
+-            5 => { app.add_system(Schedule::Layout, |w| {
+-                w.insert_resource(observe::ObservationContent::Deny);
+-            }); },
+-            _ => { app.add_system(Schedule::Layout, |w| {
+-                w.spawn((observe::ObservationSensitive, Hidden));
+-            }); },
++            2 => {
++                app.add_system(Schedule::Update, |w| {
++                    w.spawn((observe::ObservationSensitive, Hidden));
++                });
++            }
++            3 => {
++                app.add_system(Schedule::Render, |w| {
++                    w.insert_resource(observe::ObservationContent::Deny)
++                });
++            }
++            4 => {
++                app.add_system(Schedule::Render, |w| {
++                    w.spawn((observe::ObservationSensitive, Hidden));
++                });
++            }
++            5 => {
++                app.add_system(Schedule::Layout, |w| {
++                    w.insert_resource(observe::ObservationContent::Deny);
++                });
++            }
++            _ => {
++                app.add_system(Schedule::Layout, |w| {
++                    w.spawn((observe::ObservationSensitive, Hidden));
++                });
++            }
+         }
+         let result = capture(&mut app, &mut gpu, Target::Entity(root), ids);
+         assert!(matches!(result, Err(Error::Sensitive)));
+Diff in /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-component-targeted-headless-capture/crates/rndr_render/src/capture/tests.rs:549:
+     );
+ }
+ 
+-
+ #[test]
+ fn independent_missing_attestation_denies_before_update_or_target_lookup() {
+     let mut app = App::new();
+Diff in /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-component-targeted-headless-capture/crates/rndr_render/src/capture/tests.rs:557:
+     app.world_mut().insert_resource(0u32);
+     app.add_system(Schedule::Update, |w| *w.resource_mut::<u32>().unwrap() += 1);
+     let mut gpu = Exporter::new().expect("real adapter");
+-    assert!(matches!(capture(&mut app, &mut gpu, Target::Entity(root), ids), Err(Error::Sensitive)));
++    assert!(matches!(
++        capture(&mut app, &mut gpu, Target::Entity(root), ids),
++        Err(Error::Sensitive)
++    ));
+     assert_eq!(*app.world().resource::<u32>().unwrap(), 0);
+ }
+ 
+Diff in /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-component-targeted-headless-capture/crates/rndr_render/src/capture/tests.rs:568:
+         let (mut app, root, _) = fixture();
+         app.world_mut().insert_resource(mode);
+         app.add_system(Schedule::Render, |w| {
+-            let root = w.query::<Key>().into_iter().find(|(_, k)| k.0 == 7).unwrap().0;
++            let root = w
++                .query::<Key>()
++                .into_iter()
++                .find(|(_, k)| k.0 == 7)
++                .unwrap()
++                .0;
+             match *w.resource::<i32>().unwrap() {
+                 0 => w.get_mut::<Rect>(root).unwrap().x += 1.0,
+-                1 => { w.insert(root, Hidden); },
+-                _ => { w.spawn((SurfaceSlot { id: 123 }, Hidden)); },
++                1 => {
++                    w.insert(root, Hidden);
++                }
++                _ => {
++                    w.spawn((SurfaceSlot { id: 123 }, Hidden));
++                }
+             }
+         });
+         let result = capture(&mut app, &mut gpu, Target::Entity(root), ids);
+Diff in /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-component-targeted-headless-capture/crates/rndr_render/src/capture/tests.rs:579:
+-        assert!(matches!((&result, mode), (Err(Error::Changed), 0 | 1) | (Err(Error::ForeignSurface), 2)), "{result:?}");
++        assert!(
++            matches!(
++                (&result, mode),
++                (Err(Error::Changed), 0 | 1) | (Err(Error::ForeignSurface), 2)
++            ),
++            "{result:?}"
++        );
+     }
+ }
+ 

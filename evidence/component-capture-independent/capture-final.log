@@ -1,0 +1,37 @@
+   Compiling rndr_render v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-component-targeted-headless-capture/crates/rndr_render)
+error[E0599]: no method named `remove_resource` found for mutable reference `&mut rndr_core::World` in the current scope
+   --> crates/rndr_render/src/capture/tests.rs:496:22
+    |
+495 | /                 app.world_mut()
+496 | |                     .remove_resource::<observe::ObservationContent>();
+    | |_____________________-^^^^^^^^^^^^^^^
+    |
+help: there is a method `resource` with a similar name
+    |
+496 -                     .remove_resource::<observe::ObservationContent>();
+496 +                     .resource::<observe::ObservationContent>();
+    |
+
+error[E0308]: `match` arms have incompatible types
+   --> crates/rndr_render/src/capture/tests.rs:502:18
+    |
+493 |           match mode {
+    |           ---------- `match` arms have incompatible types
+494 |               0 => {
+495 | /                 app.world_mut()
+496 | |                     .remove_resource::<observe::ObservationContent>();
+    | |______________________________________________________________________- this is found to be of type `()`
+...
+499 | /                 app.world_mut()
+500 | |                     .spawn((observe::ObservationSensitive, Hidden));
+    | |____________________________________________________________________- this is found to be of type `()`
+501 |               }
+502 |               2 => app.add_system(Schedule::Update, |w| {
+    |  __________________^
+503 | |                 w.spawn((observe::ObservationSensitive, Hidden));
+504 | |             }),
+    | |______________^ expected `()`, found `&mut App`
+
+Some errors have detailed explanations: E0308, E0599.
+For more information about an error, try `rustc --explain E0308`.
+error: could not compile `rndr_render` (lib test) due to 2 previous errors

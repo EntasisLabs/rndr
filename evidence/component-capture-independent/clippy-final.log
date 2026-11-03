@@ -1,0 +1,3 @@
+$ cargo clippy --offline --locked -p rndr_render --features observe --all-targets -- -D warnings
+    Checking rndr_render v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-component-targeted-headless-capture/crates/rndr_render)
+    Finished `dev` profile [unoptimized] target(s) in 1.15s

@@ -1,0 +1,137 @@
+   Compiling rndr_render v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-component-targeted-headless-capture/crates/rndr_render)
+    Finished `test` profile [unoptimized] target(s) in 5.13s
+     Running unittests src/lib.rs (../rndr-refined-cross-platform-ui-framework/target/debug/deps/rndr_render-33ebdf27a082fccd)
+
+running 95 tests
+test a11y::tests::selection_checked_expanded_multiselect_and_option_states_reach_accesskit ... ok
+test capture::tests::caps_entire_offscreen_viewport_even_for_tiny_targets ... ok
+test a11y::tests::manual_orientation_selected_and_disabled_matrix_reaches_accesskit ... ok
+test a11y::tests::composed_tree_roles_hierarchy_level_selection_and_focus_reach_native_adapter ... ok
+test a11y::tests::table_roles_values_header_description_and_no_cell_focus_reach_accesskit ... ok
+test a11y::tests::actions_descriptions_and_real_panel_relations_match_dispatch ... ok
+test capture::tests::geometry_hidden_empty_outside_invalid_and_fractional_scale ... ok
+test capture::tests::independent_same_parent_duplicates_and_live_remount_pin_are_rejected ... ok
+test capture::tests::geometry_metadata_never_serializes_labels_or_access_values ... ok
+test capture::tests::hierarchy_cycles_and_node_limits_are_explicit_errors ... ok
+test capture::tests::privacy_denies_before_identity_or_geometry_and_foreign_surfaces ... ok
+test capture::tests::independent_missing_attestation_denies_before_update_or_target_lookup ... ok
+test capture::tests::resolves_scopes_duplicates_and_generation_pins ... ok
+test capture::tests::independent_image_budget_failure_is_not_blank_success ... ok
+test capture::tests::independent_privacy_checkpoints_precede_identity_and_never_leak_text ... ok
+test close::tests::failure_never_exits_or_destroys_in_memory_text_retry_drains ... ok
+test close::tests::mutation_after_completion_invalidates_ready_before_destruction ... ok
+test close::tests::ordinary_apps_keep_primary_secondary_and_quit_behavior ... ok
+test close::tests::pending_cancel_quit_is_consumed_and_stale_success_rejected ... ok
+test close::tests::process_exit_waits_for_secondary_and_cancel_resets_all ... ok
+test close::tests::secondary_failure_explicit_discard_closes_only_that_window ... ok
+test close::tests::unguarded_primary_cannot_destroy_guarded_secondary_or_new_window ... ok
+test color::tests::srgb_transfer_decodes_known_channels ... ok
+test color::tests::theme_canvas_matches_on_srgb_and_unorm_surfaces ... ok
+test decode::tests::downsample_averages_a_two_by_two ... ok
+test decode::tests::garbage_is_unknown_and_a_bad_jpeg_is_invalid ... ok
+test decode::tests::png_round_trips_a_red_pixel ... ok
+test capture::tests::offscreen_composite_keeps_overlays_and_clips_to_viewport ... ok
+test export::tests::rejects_an_oversized_export ... ok
+test gpu::tests::upload_encodes_fill_border_and_glyph_tint_for_both_formats ... ok
+test decode::tests::webp_round_trips_rgba ... ok
+test hotkey::repeat::tests::a_different_key_still_fires_while_another_is_held ... ok
+test hotkey::repeat::tests::a_release_and_press_with_the_same_timestamp_is_a_repeat ... ok
+test hotkey::repeat::tests::only_the_first_press_while_held_is_delivered ... ok
+test observe::tests::correction_custom_epoch_change_in_render_is_denied ... ok
+test observe::tests::correction_builtin_mutations_in_render_are_denied ... ok
+test capture::tests::update_can_revoke_capture_before_submission ... ok
+test observe::tests::correction_render_engine_replacements_are_denied_even_same_kind ... ok
+test observe::tests::disabled_by_default_and_auth_is_exact ... ok
+test observe::tests::correction_unchanged_builtin_and_custom_keep_paint_provenance ... ok
+test observe::tests::invalid_and_oversized_viewports_are_denied_before_allocation ... ok
+test capture::tests::independent_post_render_geometry_hidden_and_foreign_surface_checks ... ok
+test observe::tests::missing_or_deny_attestation_exposes_neither_pixels_nor_semantics ... ok
+test observe::tests::post_paint_sensitive_state_scale_theme_and_scroll_are_validated ... ok
+test capture::tests::post_paint_engine_replacement_and_epoch_mutations_are_rejected ... ok
+test observe::tests::correction_parley_configuration_versions_and_unchanged_path ... ok
+test capture::tests::render_mutation_and_new_sensitive_markers_drop_all_output ... ok
+test observe::tests::render_stall_expiry_is_denied_before_gpu_allocation ... ok
+test observe::tests::same_frame_resize_revision_and_image_dimensions_remain_bound ... ok
+test observe::tests::sensitive_hidden_or_unsemantic_entity_denies_whole_frame ... ok
+test observe::tests::shutdown_revokes_pending_capture_and_never_restarts_implicitly ... ok
+test capture::tests::actual_headless_pixels_same_frame_layout_identity_and_scale ... ok
+test observe::tests::semantics_reuse_actions_states_focus_and_unflattened_scroll ... ok
+test observe::tests::snapshot_precedes_render_and_mutations_fail_closed ... ok
+test observe::tests::stale_future_and_expired_requests_never_return_cached_frame ... ok
+test capture::tests::retained_images_render_but_missing_or_native_gpu_only_images_do_not_fake_success ... ok
+test observe::tests::surface_loss_readback_failure_or_mismatched_image_exposes_nothing ... ok
+test scene::tests::a_rotated_child_runs_before_the_camera ... ok
+test scene::tests::a_zoomed_shadow_stays_on_a_fine_grid_and_keeps_its_tail ... ok
+test scene::tests::an_integer_pan_slides_the_shadow_texture_without_resizing_it ... ok
+test observe::tests::selection_state_and_relationship_changes_cannot_escape_frame_binding ... ok
+test scene::tests::rotated_glyphs_use_outlines_and_a_linear_fallback ... ok
+test tests::hotkey_argument_beats_the_environment ... ok
+test tests::idle_flow_waits_until_a_future_deadline ... ok
+test observe::tests::supplemental_description_and_action_changes_cannot_escape_frame_binding ... ok
+test capture::tests::native_semantic_scroll_theme_and_scale_guards_also_apply_headlessly ... ok
+test tests::native_startup_preserves_text_face_before_first_update ... ok
+test tests::reported_text_survives_ctrl_and_alt_but_not_super ... ok
+test text::tests::arabic_runs_right_to_left ... ok
+test text::tests::bold_italic_ink_is_heavier_than_italic ... ok
+test text::tests::cjk_breaks_inside_a_narrow_measure ... ok
+test capture::tests::independent_reused_exporter_observes_replaced_and_cross_world_images ... ok
+test text::tests::engine_in_the_world_is_the_one_paint_uses ... ok
+test text::tests::emoji_flag_is_one_color_cluster ... ok
+test observe::tests::metadata_limit_denies_without_exposing_large_or_sensitive_strings ... ok
+test text::tests::hard_break_left_edge_stays_on_that_line ... ok
+test text::tests::idle_frames_keep_packed_glyphs ... ok
+test text::tests::latin_kerning_pulls_av_together ... ok
+test text::tests::scale_change_reshapes ... ok
+test text::tests::line_height_multiplier_spaces_the_lines ... ok
+test text::tests::unused_glyphs_are_evicted_when_the_shelf_is_full ... ok
+test text::tests::uploads_are_dirty_rects_until_the_atlas_grows ... ok
+test tray::tests::host_edge_matches_the_backend ... ok
+test tray::tests::left_press_is_one_click_and_right_click_is_not ... ok
+test tray::tests::menu_rows_show_the_hotkey_on_linux_and_keep_other_accelerators ... ok
+test tray::tests::png_bytes_become_rgba ... ok
+test text::tests::scrolling_a_virtual_list_reshapes_only_new_rows ... ok
+test text::tests::wrapped_line_start_stays_on_that_line ... ok
+test text::tests::bundled_hello_and_resume_snapshots ... ok
+test observe::tests::foreign_surface_and_oversized_node_tree_are_denied ... ok
+test tests::native_startup_preserves_application_owned_text ... ok
+test tests::native_startup_after_headless_update_selects_the_platform_default ... ok
+test observe::tests::real_local_transport_permissions_bad_auth_then_coherent_packet_and_cleanup ... ok
+test observe::tests::truncated_oversized_and_slow_requests_are_bounded ... ok
+test observe::tests::slow_reader_and_shutdown_with_pending_request_have_absolute_deadlines ... ok
+
+test result: ok. 95 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.88s
+
+     Running unittests src/bin/rndr-capture.rs (../rndr-refined-cross-platform-ui-framework/target/debug/deps/rndr_capture-772e69ab565b13e1)
+
+running 2 tests
+test tests::arguments_are_strict ... ok
+test tests::scene_rejects_unsupported_input ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/export_scene.rs (../rndr-refined-cross-platform-ui-framework/target/debug/deps/export_scene-6d5830aeb264c27d)
+
+running 6 tests
+test export_rejects_sizes_past_the_cap_without_a_device ... ok
+test a_rotated_child_stays_with_a_scaled_camera ... ok
+test a_rounded_image_masks_its_corner_and_its_clip ... ok
+test a_rounded_image_keeps_its_edge_color_and_a_device_pixel_radius ... ok
+test a_zoomed_drop_shadow_falls_off_without_flat_steps ... ok
+test offscreen_scene_matches_regions_and_the_golden ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+
+     Running tests/source_edit.rs (../rndr-refined-cross-platform-ui-framework/target/debug/deps/source_edit-569ab559e7a7d52f)
+
+running 1 test
+test styled_unicode_source_edit_undo_resize_and_hit_testing_use_shaped_rows ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+   Doc-tests rndr_render
+
+running 1 test
+test crates/rndr_render/src/lib.rs - (line 23) - compile ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+

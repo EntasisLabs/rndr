@@ -265,7 +265,9 @@ fn offscreen_composite_keeps_overlays_and_clips_to_viewport() {
     assert!(c
         .image
         .rgba
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .all(|p| p[0] < 3 && p[1] < 3 && p[2] > 250 && p[3] == 255));
     rndr_core::despawn(app.world_mut(), overlay);
     app.world_mut().resource_mut::<Viewport>().unwrap().width = 12.0;
@@ -273,7 +275,13 @@ fn offscreen_composite_keeps_overlays_and_clips_to_viewport() {
     assert_eq!(c.image.width, 8);
     assert_eq!(c.metadata.pixel_rect[0], 4);
     assert_eq!(c.metadata.nodes[0].bounds.unwrap().w, 16.0); // Layout unchanged, visible pixels clipped.
-    assert!(c.image.rgba.chunks_exact(4).all(|p| p[1] > 250 && p[0] < 3));
+    assert!(c
+        .image
+        .rgba
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .all(|p| p[1] > 250 && p[0] < 3));
     let mut layout = *app.world().get::<Layout>(root).unwrap();
     layout.padding = 100.0;
     app.world_mut().insert(root, layout);
@@ -298,7 +306,9 @@ fn retained_images_render_but_missing_or_native_gpu_only_images_do_not_fake_succ
     assert!(c
         .image
         .rgba
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .all(|p| p[2] > 250 && p[0] < 3 && p[1] < 3 && p[3] == 255));
     crate::images::release_cpu(app.world_mut(), &[99]);
     assert!(matches!(
@@ -377,7 +387,7 @@ fn update_can_revoke_capture_before_submission() {
 fn actual_headless_pixels_same_frame_layout_identity_and_scale() {
     let (mut app, root, child) = fixture();
     let mut gpu = Exporter::new().expect("real headless adapter required");
-    for scale in [1.0, 2.0] {
+    for scale in [1.0, 1.5, 2.0] {
         app.world_mut().resource_mut::<Viewport>().unwrap().scale = scale;
         let c = capture(&mut app, &mut gpu, key(8, Some(root)), ids).unwrap();
         assert_eq!(c.metadata.target, child);
@@ -391,7 +401,9 @@ fn actual_headless_pixels_same_frame_layout_identity_and_scale() {
         assert!(c
             .image
             .rgba
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .all(|p| p[0] < 3 && p[1] > 250 && p[2] < 3 && p[3] == 255));
         assert!(crate::encode_png(&c.image)
             .unwrap()
@@ -412,7 +424,13 @@ fn actual_headless_pixels_same_frame_layout_identity_and_scale() {
     });
     let c = capture(&mut app, &mut gpu, key(9, Some(root)), ids).unwrap();
     assert_eq!(c.metadata.nodes[0].ui_id, Some(9));
-    assert!(c.image.rgba.chunks_exact(4).all(|p| p[2] > 250 && p[1] < 3));
+    assert!(c
+        .image
+        .rgba
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .all(|p| p[2] > 250 && p[1] < 3));
 }
 #[test]
 fn render_mutation_and_new_sensitive_markers_drop_all_output() {
@@ -434,4 +452,177 @@ fn render_mutation_and_new_sensitive_markers_drop_all_output() {
         capture(&mut app, &mut gpu, Target::Entity(root), ids),
         Err(Error::Sensitive)
     ));
+}
+
+#[test]
+fn independent_reused_exporter_observes_replaced_and_cross_world_images() {
+    let mut gpu = Exporter::new().expect("real adapter");
+    for blue in [false, true, false] {
+        let (mut app, _, child) = fixture();
+        app.world_mut().remove::<Color>(child);
+        app.world_mut().insert(child, rndr_core::ImageView::new(99));
+        for channel in [if blue { 2 } else { 1 }, 0] {
+            let mut pixel = vec![0, 0, 0, 255];
+            pixel[channel] = 255;
+            crate::load_rgba(app.world_mut(), 99, 1, 1, pixel).unwrap();
+            let c = capture(&mut app, &mut gpu, Target::Entity(child), ids).unwrap();
+            assert!(
+                c.image
+                    .rgba
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .all(|p| p[channel] > 250 && p[(channel + 1) % 3] < 3),
+                "stale image for channel {channel}"
+            );
+        }
+    }
+}
+
+#[test]
+fn independent_image_budget_failure_is_not_blank_success() {
+    let (mut app, root, _) = fixture();
+    for id in 100..105 {
+        let image = app.world_mut().spawn((
+            Layout {
+                width: Size::Px(2.0),
+                height: Size::Px(2.0),
+                ..Layout::column()
+            },
+            rndr_core::ImageView::new(id),
+        ));
+        set_parent(app.world_mut(), image, root);
+        crate::load_rgba(app.world_mut(), id, 128, 128, vec![255; 128 * 128 * 4]).unwrap();
+    }
+    // Minimum budget is 64 KiB. Five downsampled mip chains cannot coexist.
+    crate::set_image_budget(app.world_mut(), 64 * 1024);
+    let mut gpu = Exporter::new().expect("real adapter");
+    assert!(matches!(
+        capture(&mut app, &mut gpu, Target::Entity(root), ids),
+        Err(Error::ImageUnavailable)
+    ));
+}
+
+#[test]
+fn independent_privacy_checkpoints_precede_identity_and_never_leak_text() {
+    let mut gpu = Exporter::new().expect("real adapter");
+    for mode in 0..7 {
+        let (mut app, root, _) = fixture();
+        app.world_mut().insert_resource(0u32);
+        app.add_system(Schedule::Update, |w| *w.resource_mut::<u32>().unwrap() += 1);
+        match mode {
+            0 => {
+                app.world_mut()
+                    .insert_resource(observe::ObservationContent::Deny);
+            }
+            1 => {
+                app.world_mut()
+                    .spawn((observe::ObservationSensitive, Hidden));
+            }
+            2 => {
+                app.add_system(Schedule::Update, |w| {
+                    w.spawn((observe::ObservationSensitive, Hidden));
+                });
+            }
+            3 => {
+                app.add_system(Schedule::Render, |w| {
+                    w.insert_resource(observe::ObservationContent::Deny)
+                });
+            }
+            4 => {
+                app.add_system(Schedule::Render, |w| {
+                    w.spawn((observe::ObservationSensitive, Hidden));
+                });
+            }
+            5 => {
+                app.add_system(Schedule::Layout, |w| {
+                    w.insert_resource(observe::ObservationContent::Deny);
+                });
+            }
+            _ => {
+                app.add_system(Schedule::Layout, |w| {
+                    w.spawn((observe::ObservationSensitive, Hidden));
+                });
+            }
+        }
+        let result = capture(&mut app, &mut gpu, Target::Entity(root), ids);
+        assert!(matches!(result, Err(Error::Sensitive)));
+        assert_eq!(
+            *app.world().resource::<u32>().unwrap(),
+            if mode < 2 { 0 } else { 1 }
+        );
+    }
+}
+
+#[test]
+fn independent_same_parent_duplicates_and_live_remount_pin_are_rejected() {
+    let (mut app, root, child) = fixture();
+    let other = app.world_mut().spawn((Layout::column(), Key(8)));
+    set_parent(app.world_mut(), other, root);
+    app.update();
+    assert_eq!(
+        metadata(app.world(), key(8, Some(root)), &ids),
+        Err(Error::Ambiguous)
+    );
+    app.world_mut().insert(child, Key(88)); // old handle still alive, logical key remounted
+    assert_eq!(
+        metadata(
+            app.world(),
+            Target::UiId {
+                id: 8,
+                parent: Some(root),
+                expected: Some(child)
+            },
+            &ids
+        ),
+        Err(Error::Stale)
+    );
+}
+
+#[test]
+fn independent_missing_attestation_denies_before_update_or_target_lookup() {
+    let mut app = App::new();
+    let root = app.world_mut().spawn((Layout::column(),));
+    app.world_mut().insert_resource(0u32);
+    app.add_system(Schedule::Update, |w| *w.resource_mut::<u32>().unwrap() += 1);
+    let mut gpu = Exporter::new().expect("real adapter");
+    assert!(matches!(
+        capture(&mut app, &mut gpu, Target::Entity(root), ids),
+        Err(Error::Sensitive)
+    ));
+    assert_eq!(*app.world().resource::<u32>().unwrap(), 0);
+}
+
+#[test]
+fn independent_post_render_geometry_hidden_and_foreign_surface_checks() {
+    let mut gpu = Exporter::new().expect("real adapter");
+    for mode in 0..3 {
+        let (mut app, root, _) = fixture();
+        app.world_mut().insert_resource(mode);
+        app.add_system(Schedule::Render, |w| {
+            let root = w
+                .query::<Key>()
+                .into_iter()
+                .find(|(_, k)| k.0 == 7)
+                .unwrap()
+                .0;
+            match *w.resource::<i32>().unwrap() {
+                0 => w.get_mut::<Rect>(root).unwrap().x += 1.0,
+                1 => {
+                    w.insert(root, Hidden);
+                }
+                _ => {
+                    w.spawn((SurfaceSlot { id: 123 }, Hidden));
+                }
+            }
+        });
+        let result = capture(&mut app, &mut gpu, Target::Entity(root), ids);
+        assert!(
+            matches!(
+                (&result, mode),
+                (Err(Error::Changed), 0 | 1) | (Err(Error::ForeignSurface), 2)
+            ),
+            "{result:?}"
+        );
+    }
 }
