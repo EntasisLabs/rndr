@@ -944,6 +944,32 @@ fn parsed(p: &Property, raw: &str) -> PropertyDraft {
         },
     }
 }
+// Choices are sets at the inspector boundary. Keep host records (and all
+// other PropertyValue equality/raw-draft contracts) untouched.
+fn same_value(a: &PropertyValue, b: &PropertyValue) -> bool {
+    match (a, b) {
+        (PropertyValue::Choices(a), PropertyValue::Choices(b)) => {
+            let (mut a, mut b) = (a.clone(), b.clone());
+            a.sort_unstable();
+            b.sort_unstable();
+            a == b
+        }
+        _ => a == b,
+    }
+}
+fn draft_dirty(p: &Property, d: &PropertyDraft) -> bool {
+    if matches!(p.kind, PropertyKind::MultiChoice(_)) {
+        // App validation may reject a well-typed set. Equality is still about
+        // selected identities; malformed raw drafts remain dirty.
+        let mut unvalidated = p.clone();
+        unvalidated.validate = None;
+        parsed(&unvalidated, &d.raw)
+            .value
+            .is_none_or(|v| !same_value(&v, &p.value))
+    } else {
+        d.raw != display(&p.value)
+    }
+}
 fn base(p: &Property) -> PropertyDraft {
     let mut d = parsed(p, &display(&p.value));
     if let Some(e) = &p.validation {
@@ -1146,6 +1172,20 @@ fn update_field(w: &mut World, i: &Inspector, s: &PropertyState) {
             .find(|c| c.id == *id)
             .map(|c| c.label.clone())
             .unwrap_or_default(),
+        (PropertyKind::MultiChoice(options), _) => {
+            let mut unvalidated = p.clone();
+            unvalidated.validate = None;
+            match parsed(&unvalidated, &s.draft.raw).value {
+                Some(PropertyValue::Choices(ids)) if ids.is_empty() => "None selected".into(),
+                Some(PropertyValue::Choices(ids)) => options
+                    .iter()
+                    .filter(|o| ids.contains(&o.id))
+                    .map(|o| o.label.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                _ => format!("Invalid selection: {}", s.draft.raw),
+            }
+        }
         _ => s.draft.raw.clone(),
     };
     if matches!(
@@ -1183,7 +1223,10 @@ fn update_field(w: &mut World, i: &Inspector, s: &PropertyState) {
         s.slot.editor,
         Semantics {
             name: Some(
-                if matches!(p.kind, PropertyKind::Boolean | PropertyKind::Choice(_)) {
+                if matches!(
+                    p.kind,
+                    PropertyKind::Boolean | PropertyKind::Choice(_) | PropertyKind::MultiChoice(_)
+                ) {
                     format!("{}: {}", p.label, shown)
                 } else {
                     p.label.clone()
@@ -1402,15 +1445,16 @@ impl PropertyInspector {
                     || s.property.validation != p.validation
                     || old_enabled != props.enabled
                     || !same_validator;
-                let acknowledgement = (!contract_changed && s.property.value != p.value)
-                    .then(|| s.pending.iter().position(|v| v == &p.value))
-                    .flatten();
+                let acknowledgement = (!contract_changed
+                    && !same_value(&s.property.value, &p.value))
+                .then(|| s.pending.iter().position(|v| same_value(v, &p.value)))
+                .flatten();
                 if let Some(n) = acknowledgement {
                     // An earlier request was accepted. Later edits are still local:
                     // do not replace the label, caret, IME state or typing history.
                     s.pending.drain(..=n);
-                    s.dirty = s.draft.raw != display(&p.value);
-                } else if contract_changed || s.property.value != p.value {
+                    s.dirty = draft_dirty(p, &s.draft);
+                } else if contract_changed || !same_value(&s.property.value, &p.value) {
                     if s.dirty {
                         send(
                             w,
@@ -1701,7 +1745,7 @@ impl InspectorHandle {
         if let Some(e) = &s.property.validation {
             s.draft.error = Some(e.clone());
         }
-        s.dirty = s.draft.raw != display(&s.property.value);
+        s.dirty = draft_dirty(&s.property, &s.draft);
         let draft = s.draft.clone();
         update_field(w, &i, &i.fields[&id]);
         emit(w, self.root, &i, id, PropertyEventKind::DraftChanged(draft));
@@ -1729,7 +1773,9 @@ impl InspectorHandle {
             return Ok(false);
         }
         let after = s.draft.value.clone().unwrap();
-        if after == s.property.value || s.pending.last() == Some(&after) {
+        if same_value(&after, &s.property.value)
+            || s.pending.last().is_some_and(|v| same_value(v, &after))
+        {
             return Ok(false);
         }
         let before = s.property.value.clone();
