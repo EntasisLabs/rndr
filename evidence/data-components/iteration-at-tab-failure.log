@@ -1,0 +1,61 @@
+PASS formatting
+test equal_share_boundary_both_densities_and_type_scales ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/a2_toolbar_content_fit.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/a2_toolbar_content_fit-26996472b7bf3008)
+
+running 4 tests
+test hidden_ancestor_malformed_and_scroll_rejected_measurement_are_safe ... ok
+test integer_inner_text_reproduction_and_exact_pixel_boundaries ... ok
+test same_update_label_type_width_both_ways_uses_final_line_geometry ... ok
+test fractional_content_boundaries_with_nested_origin_and_updates ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.12s
+
+     Running tests/a2_toolbar_type_update.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/a2_toolbar_type_update-6804eef88a083c03)
+
+running 1 test
+test toolbar_reflows_using_current_resolved_type_in_the_same_update ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/collections.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/collections-993191d5871a36b6)
+
+running 16 tests
+test malformed_or_oversize_inputs_reject_atomically_and_lifetimes_are_generation_checked ... ok
+test disabled_tree_ancestry_reconciles_selection_and_focus_without_hidden_targets ... ok
+test filtering_or_removing_an_armed_id_cannot_select_a_replacement ... ok
+test keyboard_focus_space_selection_and_enter_activation_are_distinct ... ok
+test pointer_disclosure_and_accessibility_use_the_same_canonical_targets ... FAILED
+test chronological_tab_navigation_and_enter_share_one_dispatcher ... ok
+test scoped_collection_drain_leaves_unrelated_host_requests_in_order ... ok
+test nested_tree_navigation_collapse_and_removal_have_safe_focus ... ok
+test stable_identity_and_composed_subtrees_survive_reorder_updates_and_reconciliation ... ok
+test pointer_release_selects_and_drag_escape_blur_cancel ... ok
+test core_scroll_drag_cancels_pointer_selection_and_nested_hierarchy_is_projected ... ok
+test gallery_public_components_render_mutate_filter_resize_and_show_empty_states ... ok
+test painted_theme_density_clips_and_independent_states_are_real_component_output ... ok
+test scroll_reveal_clipping_empty_disabled_and_none_selection_are_integrated ... ok
+test gallery_large_dataset_pages_bound_mounted_rows_and_keep_data_app_owned ... ok
+test retained_budget_is_measured_honestly_not_virtualized ... ok
+
+failures:
+
+---- pointer_disclosure_and_accessibility_use_the_same_canonical_targets stdout ----
+
+thread 'pointer_disclosure_and_accessibility_use_the_same_canonical_targets' (3562246) panicked at crates/rndr_ui/tests/collections.rs:372:5:
+assertion `left == right` failed
+  left: Some(Entity { index: 3, generation: 0 })
+ right: Some(Entity { index: 33, generation: 0 })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    pointer_disclosure_and_accessibility_use_the_same_canonical_targets
+
+test result: FAILED. 15 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.98s
+
+error: test failed, to rerun pass `-p rndr_ui --test collections`
+
+EXIT=101

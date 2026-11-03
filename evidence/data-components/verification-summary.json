@@ -1,0 +1,45 @@
+{
+  "core-paint-ui": {
+    "passed": 558,
+    "failed": 0,
+    "ignored": 0,
+    "measurements": []
+  },
+  "collection-metrics": {
+    "passed": 17,
+    "failed": 0,
+    "ignored": 0,
+    "measurements": [
+      "application_paging records=10000 page_rows=128 mounted_layout_entities=1639",
+      "retained_budget rows=1024 layout_entities=6147 first_frame_ms=276.43; layout/accessibility remain O(N), not virtualized"
+    ]
+  },
+  "native-observe": {
+    "passed": 73,
+    "failed": 0,
+    "ignored": 0,
+    "measurements": []
+  },
+  "fallback-renderer": {
+    "passed": 25,
+    "failed": 0,
+    "ignored": 0,
+    "measurements": []
+  },
+  "facade": {
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "measurements": []
+  },
+  "facade-fallback": {
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "measurements": []
+  },
+  "python": {
+    "passed": 20,
+    "failed": 0
+  }
+}

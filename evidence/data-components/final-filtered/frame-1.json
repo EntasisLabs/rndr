@@ -1,0 +1,739 @@
+{
+  "bounds_units": "logical_points",
+  "device_scale": 1.0,
+  "frame_revision": "3",
+  "height": 820,
+  "nodes": [
+    {
+      "actions": [],
+      "bounds": [
+        0.0,
+        0.0,
+        1040.0,
+        820.0
+      ],
+      "children": [
+        "2",
+        "3",
+        "5",
+        "7",
+        "8",
+        "14",
+        "19",
+        "24",
+        "29",
+        "35",
+        "40",
+        "45",
+        "50",
+        "69",
+        "70",
+        "74",
+        "72",
+        "73",
+        "148",
+        "246",
+        "247"
+      ],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "18446744073709551615",
+      "label": "rndr / Data components",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Window",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        20.0,
+        20.0,
+        1000.0,
+        34.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "2",
+      "label": "Data, in good order",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        20.0,
+        66.0,
+        1000.0,
+        16.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "3",
+      "label": "Composable collections / stable identity / your data",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        20.0,
+        94.0,
+        52.0,
+        32.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "5",
+      "label": "Filter",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus"
+      ],
+      "bounds": [
+        83.0,
+        95.0,
+        830.0,
+        32.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "Type to filter. Reset clears the query.",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "7",
+      "label": "Filter both collections",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "TextInput",
+      "selected": false,
+      "value": "no matching project"
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        924.0,
+        94.0,
+        96.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "8",
+      "label": "Reset",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        20.0,
+        144.0,
+        244.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "14",
+      "label": "Add",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        272.0,
+        144.0,
+        244.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "19",
+      "label": "Remove",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        524.0,
+        144.0,
+        244.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "24",
+      "label": "Reverse",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        776.0,
+        144.0,
+        244.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "29",
+      "label": "Empty",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        20.0,
+        194.0,
+        244.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "35",
+      "label": "Theme",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        272.0,
+        194.0,
+        244.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "40",
+      "label": "Dense",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        524.0,
+        194.0,
+        244.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "45",
+      "label": "Disable",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        776.0,
+        194.0,
+        244.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "50",
+      "label": "10K data",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        32.0,
+        256.0,
+        468.0,
+        28.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "69",
+      "label": "01 / ListView",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        32.0,
+        292.0,
+        468.0,
+        16.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "70",
+      "label": "Focus \u2260 selection. Enter activates.",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        36.0,
+        320.0,
+        460.0,
+        382.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "75",
+      "label": "No matches. Try another filter or reset it.",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus"
+      ],
+      "bounds": [
+        32.0,
+        316.0,
+        468.0,
+        390.0
+      ],
+      "children": [
+        "75"
+      ],
+      "controls": null,
+      "description": "Arrows move focus. Space or click selects. Enter activates. Tree Left/Right collapses/expands.",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": true,
+      "id": "74",
+      "label": "Project list",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "List",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        540.0,
+        256.0,
+        468.0,
+        28.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "72",
+      "label": "02 / TreeView",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        540.0,
+        292.0,
+        468.0,
+        16.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "73",
+      "label": "Left / Right explores the hierarchy.",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        544.0,
+        320.0,
+        460.0,
+        382.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "149",
+      "label": "No matches. Try another filter or reset it.",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus"
+      ],
+      "bounds": [
+        540.0,
+        316.0,
+        468.0,
+        390.0
+      ],
+      "children": [
+        "149"
+      ],
+      "controls": null,
+      "description": "Arrows move focus. Space or click selects. Enter activates. Tree Left/Right collapses/expands.",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "148",
+      "label": "Project tree",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Tree",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        20.0,
+        730.0,
+        1000.0,
+        16.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "246",
+      "label": "List \u00b7 Selected(None) \u00b7 12 records \u00b7 page 1",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        20.0,
+        758.0,
+        1000.0,
+        16.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "247",
+      "label": "Retained rows \u00b7 128-record application pages \u00b7 no virtualization claim",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    }
+  ],
+  "png_bytes": 48533,
+  "presented_confirmation": false,
+  "protocol": "rndr-observe-1",
+  "render_provenance": {
+    "adapter": "Apple M4",
+    "alpha_mode": "Auto",
+    "backend": "Metal",
+    "parley_feature": true,
+    "path": "quads",
+    "present_mode": "AutoVsync",
+    "scene_samples": 4,
+    "surface_format": "Bgra8UnormSrgb",
+    "text_engine": "parley",
+    "transparent_clear": false
+  },
+  "root": "18446744073709551615",
+  "scroll": [
+    {
+      "bounds": [
+        0.0,
+        0.0,
+        1040.0,
+        820.0
+      ],
+      "content": [
+        1040.0,
+        794.0
+      ],
+      "id": "1",
+      "offset": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "bounds": [
+        540.0,
+        316.0,
+        468.0,
+        390.0
+      ],
+      "content": [
+        468.0,
+        8.0
+      ],
+      "id": "148",
+      "offset": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "bounds": [
+        32.0,
+        316.0,
+        468.0,
+        390.0
+      ],
+      "content": [
+        468.0,
+        8.0
+      ],
+      "id": "74",
+      "offset": [
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "source": "live-surface-copy-before-present",
+  "theme": "UiTheme { appearance: Light, contrast: Standard, density: Comfortable, text_scale: 1.0, reading_scale: 1.0, ui_family: \"Inter\", reading_family: \"Inter\", code_family: \"monospace\" }",
+  "width": 1040
+}

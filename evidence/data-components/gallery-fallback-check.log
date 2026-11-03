@@ -1,0 +1,6 @@
+$ cargo check --offline --locked -p rndr --example data_gallery --no-default-features 
+    Checking rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-composable-listview-and-treeview-foundation/crates/rndr_ui)
+    Checking rndr v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-composable-listview-and-treeview-foundation/crates/rndr)
+    Finished `dev` profile [unoptimized] target(s) in 0.28s
+
+EXIT=0
