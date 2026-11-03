@@ -1,0 +1,41 @@
+{
+  "command": [
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/examples/selection_gallery",
+    "--observe",
+    "--observe-exit-after-15s",
+    "--dark",
+    "--single-open"
+  ],
+  "binary_sha256": "9604211c7de5114c3621e6ebb5092205693873c08ac777c0815a9bfc3c8a2996",
+  "source": "native-synthetic-gallery-session",
+  "presented_confirmation": false,
+  "startup_denials": [
+    "observation denied: surface_unavailable"
+  ],
+  "status": "captured",
+  "revisions": [
+    "3",
+    "4"
+  ],
+  "dimensions": [
+    1180,
+    960
+  ],
+  "nodes": 53,
+  "provenance": {
+    "adapter": "Apple M4",
+    "alpha_mode": "Auto",
+    "backend": "Metal",
+    "parley_feature": true,
+    "path": "quads",
+    "present_mode": "AutoVsync",
+    "scene_samples": 4,
+    "surface_format": "Bgra8UnormSrgb",
+    "text_engine": "parley",
+    "transparent_clear": false
+  },
+  "stale_rejection": true,
+  "invalid_auth_rejection": true,
+  "exit_code": 0,
+  "normal_shutdown_cleanup": true
+}

@@ -58,7 +58,7 @@ Exit **0**. **12 presets / 24 native PNG frames**: light, dark-single, multi, na
 
 ## Preservation / disk
 
-`integrity-audit.json` verifies **all 3,534 pre-existing tracked evidence files** byte-for-byte against baseline, no changes. All new evidence is isolated here (about 3.9 MiB before this report). Source/binary/frame audits pass. No old evidence/history was deleted or rewritten.
+`integrity-audit.json` verifies **all 3,534 pre-existing tracked evidence files** byte-for-byte against baseline, no changes. All new evidence is isolated here (about 3.9 MiB before this report). Source/binary/frame audits pass. No old evidence/history was deleted or rewritten. The pre-existing `evidence/.gitignore` ignores nested `native/` directories, so this undertaking's 87 native capture files are explicitly force-tracked, without changing that ignore policy. Source formatting/whitespace gates passed; immutable raw command transcripts retain logger-generated trailing spaces and terminal blank lines, which produce evidence-only `git diff --check` warnings when staging the logs. These are not source failures and were not scrubbed from receipts.
 
 Rust/Cargo 1.98.0; offline locked builds, retained compatible cache, two jobs, incremental=0, dev/test debug=0. Free disk: about 6.6 GiB initially, 6.4 GiB after tests/captures. New scripts enforce a 2 GiB stop floor and do no cache cleanup. No redundant target was created.
 
