@@ -1,0 +1,17 @@
+{
+  "status": "OUTSTANDING",
+  "independent_visual_signoff": false,
+  "implementation_pixel_inspection": false,
+  "attempt": {
+    "tool": "cognition_image_view",
+    "path": "evidence/data-components-next/review-corrections/native/light/frame-2.png",
+    "ok": true,
+    "vision_available": true,
+    "returned_image_sha256": "9f38c8fcbd2c17ed72b5ba8b963b3b16be5cb398fc3c7b7bc917976268d588be",
+    "result": "Metadata only; no inspectable pixel attachment received. Tool success does not establish appearance."
+  },
+  "native_states": 12,
+  "native_frames": 24,
+  "presented_confirmation": false,
+  "follow_up": "Owner combined independent re-review must inspect actual delivered pixels; provenance/geometry tests do not substitute."
+}
