@@ -1,0 +1,5 @@
+Filesystem      Size    Used   Avail Capacity iused ifree %iused  Mounted on
+/dev/disk3s5   228Gi   196Gi   6.4Gi    97%    1.9M   67M    3%   /System/Volumes/Data
+Filesystem   1024-blocks      Used Available Capacity  Mounted on
+/dev/disk3s5   239362496 205975164   6749484    97%    /System/Volumes/Data
+340K	evidence/data-components-next

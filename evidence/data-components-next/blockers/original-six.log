@@ -1,0 +1,17 @@
+$ bash evidence/data-components/independent-review/run-adversarial.sh
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-composable-datatable-and-propertyinspector/crates/rndr_ui)
+    Finished `test` profile [unoptimized] target(s) in 0.91s
+     Running tests/independent_review_adversarial.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/independent_review_adversarial-f558901b48631158)
+
+running 6 tests
+test focused_disclosure_becoming_leaf_normalizes_to_surviving_row ... ok
+test disclosure_enter_then_right_in_one_batch_respects_chronology ... ok
+test at_disclosure_activate_then_tab_does_not_steal_focus_back ... ok
+test programmatic_expansion_does_not_cancel_unrelated_armed_host_button ... ok
+test disclosure_enter_then_right_in_separate_frames_is_control ... ok
+test pointer_disclosure_release_then_tab_does_not_steal_focus_back ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+EXIT=0

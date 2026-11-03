@@ -1,0 +1,11 @@
+Tue Nov  3 02:18:00 UTC 2026
+57c30a3242efcea7d54a6083251575ac04f1c603
+Filesystem      Size    Used   Avail Capacity iused ifree %iused  Mounted on
+/dev/disk3s5   228Gi   196Gi   6.7Gi    97%    1.9M   70M    3%   /System/Volumes/Data
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+cargo 1.98.0 (797e8a9bc 2026-08-05)
+CARGO_BUILD_JOBS=2
+CARGO_PROFILE_TEST_DEBUG=0
+CARGO_PROFILE_DEV_DEBUG=0
+CARGO_TARGET_DIR=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target
+CARGO_INCREMENTAL=0

@@ -1,0 +1,26 @@
+{
+  "head": "57c30a3242efcea7d54a6083251575ac04f1c603",
+  "product_baseline": "57c30a3242efcea7d54a6083251575ac04f1c603",
+  "cwd": "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-composable-datatable-and-propertyinspector",
+  "binary": "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/property_editor_prerequisites-438f5c055e01006f",
+  "binary_sha256": "c9395851b83c450925c5c6638f44e184adf7efed31329080e57989a62b0fba46",
+  "binary_bytes": 6214256,
+  "source_manifest": "source.sha256.json",
+  "source_manifest_sha256": "d5eb593ea440c60cd0483e153d97f3959e239cd4bacf62069256d36a4325da0a",
+  "command": [
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/property_editor_prerequisites-438f5c055e01006f",
+    "--ignored",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "acceptance_exit": 101,
+  "known_five_failures_reproduced": true,
+  "max_child_rss_bytes_macos": 383795200,
+  "environment": {
+    "CARGO_TARGET_DIR": "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_INCREMENTAL": "0"
+  }
+}
