@@ -229,8 +229,8 @@ pub use sim::Sim;
 pub use slot::SurfaceSlot;
 pub use split::{apply_split, Drag, Splitter};
 pub use style::{
-    label_box, Body, Color, Label, LabelBox, TextOverflow, CELL_H, CELL_W, TEXT_ORIGIN_X,
-    TEXT_ORIGIN_Y,
+    label_box, Body, Border, Color, CrossMark, Label, LabelBox, ScrollIndicator, TextOverflow,
+    CELL_H, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
 pub use tabs::{Hidden, Tab, TabPanel, Tabs};
 pub use text::{

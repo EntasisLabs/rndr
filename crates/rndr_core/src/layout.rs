@@ -298,7 +298,10 @@ pub fn hit_test(world: &World, x: f32, y: f32) -> Option<Entity> {
 }
 
 /// Apply the wheel, then a held contact.
-/// The wheel goes to the deepest [`Scroll`] under the pointer.
+/// Each wheel axis goes to the deepest visible [`Scroll`] under the pointer
+/// that can move on that axis. Only its bounded consumption is removed; the
+/// remainder chains through ancestors at boundaries. A miss never scrolls an
+/// unrelated root. Pointer dragging retains its existing captured ownership.
 /// A press that is not on a [`Splitter`] captures that scrollport, except a
 /// left press inside an [`crate::Editor`] (which owns selection drag). Once the
 /// contact moves [`SCROLL_DRAG_SLOP`] points, further movement is added to its
@@ -318,17 +321,30 @@ fn apply_wheel(world: &mut World, input: &Input) {
     if input.scroll[0] == 0.0 && input.scroll[1] == 0.0 {
         return;
     }
-    let target = hit_test(world, input.pointer.position[0], input.pointer.position[1])
-        .and_then(|hit| ancestor_with::<Scroll>(world, hit))
-        .or_else(|| roots::<Scroll>(world).into_iter().next());
-    if let Some(entity) = target {
-        if let Some(scroll) = world.get_mut::<Scroll>(entity) {
-            scroll.offset[0] += input.scroll[0];
-            scroll.offset[1] += input.scroll[1];
-            // Wheel precedes contact capture and the canonical input dispatcher.
-            crate::focus::pause_focus_reveal(world);
-            layout_propagate(world);
+    let mut target = hit_test(world, input.pointer.position[0], input.pointer.position[1]);
+    let mut remaining = input.scroll.map(|v| if v.is_finite() { v } else { 0. });
+    let mut changed = false;
+    // Walk the hit's actual ancestry once; no viewport-wide fallback or axis
+    // remapping. Defer relayout until consumption is complete so recycling
+    // cannot change this event's ownership midway through the chain.
+    while let Some(entity) = target {
+        if let Some(rect) = world.get::<Rect>(entity).copied() {
+            if let Some(scroll) = world.get_mut::<Scroll>(entity) {
+                let before = scroll.offset;
+                scroll.offset[0] += remaining[0];
+                scroll.offset[1] += remaining[1];
+                scroll.clamp_to(rect.w, rect.h);
+                for axis in 0..2 {
+                    remaining[axis] -= scroll.offset[axis] - before[axis];
+                }
+                changed |= scroll.offset != before;
+            }
         }
+        target = world.get::<Parent>(entity).map(|p| p.entity);
+    }
+    if changed {
+        crate::focus::pause_focus_reveal(world);
+        layout_propagate(world);
     }
     if let Some(input) = world.resource_mut::<Input>() {
         input.scroll = [0.0, 0.0];

@@ -4,6 +4,37 @@ impl Component for Color {}
 impl Component for Label {}
 impl Component for Body {}
 
+/// Font-independent, geometrically centered cross indicator in the entity box.
+/// Its square ink spans half the shorter side; stroke width scales with it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CrossMark {
+    /// Straight-alpha sRGB ink color.
+    pub color: Color,
+}
+impl Component for CrossMark {}
+
+/// Uniform inset outline, independent of descendant layout and scroll content.
+/// Uses the entity's [`crate::Radius`] and effective clip; never fills its interior.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Border {
+    /// Straight-alpha sRGB stroke color.
+    pub color: Color,
+    /// Logical-point thickness, clamped to the shorter half-size at paint time.
+    pub width: f32,
+}
+impl Component for Border {}
+
+/// Passive overlay thumbs for overflowing axes of a [`crate::Scroll`] viewport.
+/// These report extent/position, do not reserve layout space or capture input,
+/// and are not draggable controls. Hosts opt in; `rndr_ui::UiPlugin` supplies
+/// theme-aware defaults for its application's scrollports.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ScrollIndicator {
+    /// Straight-alpha sRGB thumb color.
+    pub color: Color,
+}
+impl Component for ScrollIndicator {}
+
 /// sRGB color with straight alpha, drawn as a solid fill.
 ///
 /// `r`, `g`, and `b` are IEC 61966-2-1 channel values in `0.0..=1.0`: the

@@ -326,27 +326,32 @@ pub fn reveal_entity(world: &mut World, entity: Entity) {
         let Some(port) = world.get::<Rect>(scroll_entity).copied() else {
             break;
         };
-        let dy = if rect.y < port.y {
-            port.y - rect.y
-        } else if rect.y + rect.h > port.y + port.h {
-            port.y + port.h - rect.y - rect.h
-        } else {
-            0.0
-        };
-        let dx = if rect.x < port.x {
-            port.x - rect.x
-        } else if rect.x + rect.w > port.x + port.w {
-            port.x + port.w - rect.x - rect.w
-        } else {
-            0.0
-        };
+        let dy = reveal_delta(rect.y, rect.h, port.y, port.h);
+        let dx = reveal_delta(rect.x, rect.w, port.x, port.w);
         if let Some(scroll) = world.get_mut::<Scroll>(scroll_entity) {
+            let before = scroll.offset;
             scroll.offset[0] += dx;
             scroll.offset[1] += dy;
-            rect.x += dx;
-            rect.y += dy;
+            scroll.clamp_to(port.w, port.h);
+            rect.x += scroll.offset[0] - before[0];
+            rect.y += scroll.offset[1] - before[1];
         }
         current = world.get::<Parent>(scroll_entity).map(|p| p.entity);
+    }
+}
+
+// Oversized rows/scrollports cannot be fully revealed. Keep a visible
+// oversized target stable instead of jumping to its trailing edge on focus.
+fn reveal_delta(start: f32, size: f32, port: f32, extent: f32) -> f32 {
+    if size > extent && start < port + extent && start + size > port {
+        return 0.;
+    }
+    if start < port {
+        port - start
+    } else if start + size > port + extent {
+        port + extent - start - size
+    } else {
+        0.
     }
 }
 

@@ -542,8 +542,153 @@ fn walk(
             );
         }
     }
+    record_geometry(world, entity, quads.borrow().len() as u32, draws, false);
     for child in children_of(world, entity) {
         walk(world, child, quads, draws, scale, solid, theme);
+    }
+    record_geometry(world, entity, quads.borrow().len() as u32, draws, true);
+    record_scroll_indicator(world, entity, quads, solid);
+}
+
+fn record_scroll_indicator(
+    world: &World,
+    entity: rndr_core::Entity,
+    quads: &RefCell<Vec<Quad>>,
+    solid: [f32; 4],
+) {
+    let (Some(style), Some(scroll), Some(rect), Some(clip)) = (
+        world.get::<rndr_core::ScrollIndicator>(entity),
+        world.get::<rndr_core::Scroll>(entity),
+        world.get::<Rect>(entity),
+        world.get::<Clip>(entity),
+    ) else {
+        return;
+    };
+    // Keep the affordance on the visible clipped edge, even when an outer
+    // document clips this viewport's far edge. Input ownership is unchanged.
+    let visible = clip.intersect(Clip::from_rect(*rect));
+    for axis in 0..2 {
+        let length = if axis == 0 { rect.w } else { rect.h };
+        let visible_length = if axis == 0 { visible.w } else { visible.h };
+        let content = scroll.content[axis];
+        if !length.is_finite()
+            || !content.is_finite()
+            || length < 12.
+            || visible_length < 12.
+            || content <= length
+        {
+            continue;
+        }
+        let track = visible_length - 8.;
+        let thumb = (track * length / content).max(18.).min(track);
+        let position = (-scroll.offset[axis] / (content - length)).clamp(0., 1.) * (track - thumb);
+        let thumb_rect = if axis == 0 {
+            Rect {
+                x: visible.x + 4. + position,
+                y: visible.y + visible.h - 5.,
+                w: thumb,
+                h: 3.,
+            }
+        } else {
+            Rect {
+                x: visible.x + visible.w - 5.,
+                y: visible.y + 4. + position,
+                w: 3.,
+                h: thumb,
+            }
+        };
+        push(
+            &mut quads.borrow_mut(),
+            thumb_rect,
+            style.color,
+            solid,
+            *clip,
+            1.5,
+            0,
+        );
+    }
+}
+
+// Ordinary paint commands: these use the same clip, z order, capture and GPU
+// antialiasing as every other path. No font metrics or demo-specific offsets.
+fn record_geometry(
+    world: &World,
+    entity: rndr_core::Entity,
+    z: u32,
+    draws: &RefCell<Vec<Placed>>,
+    outline: bool,
+) {
+    if (outline && !world.has::<rndr_core::Border>(entity))
+        || (!outline && !world.has::<rndr_core::CrossMark>(entity))
+    {
+        return;
+    }
+    let Some(rect) = world.get::<Rect>(entity).copied() else {
+        return;
+    };
+    let clip = world
+        .get::<Clip>(entity)
+        .copied()
+        .unwrap_or_else(|| Clip::from_rect(rect));
+    if rect.w <= 0. || rect.h <= 0. || clip.w <= 0. || clip.h <= 0. {
+        return;
+    }
+    let mut canvas = Canvas::new();
+    if let Some(border) = world.get::<rndr_core::Border>(entity).filter(|_| outline) {
+        if border.width.is_finite() && border.width > 0. {
+            let width = border.width.min(rect.w.min(rect.h) * 0.5);
+            let inset = width * 0.5;
+            let radius = world
+                .get::<Radius>(entity)
+                .map(|r| r.0)
+                .unwrap_or(0.)
+                .max(0.)
+                .min(rect.w.min(rect.h) * 0.5);
+            canvas.stroke(
+                Path::round_rect(
+                    Rect {
+                        x: rect.x + inset,
+                        y: rect.y + inset,
+                        w: rect.w - width,
+                        h: rect.h - width,
+                    },
+                    (radius - inset).max(0.),
+                ),
+                border.color,
+                Stroke {
+                    width,
+                    ..Stroke::default()
+                },
+            );
+        }
+    }
+    if let Some(mark) = world
+        .get::<rndr_core::CrossMark>(entity)
+        .filter(|_| !outline)
+    {
+        let size = rect.w.min(rect.h);
+        let half = size * 0.25;
+        let center = [rect.x + rect.w * 0.5, rect.y + rect.h * 0.5];
+        let stroke = Stroke {
+            width: (size / 10.).max(1.),
+            cap: Cap::Round,
+            ..Stroke::default()
+        };
+        // Both strokes share one symmetric path; checkbox ink is opaque.
+        let mut path = Path::builder();
+        path.move_to([center[0] - half, center[1] - half])
+            .line_to([center[0] + half, center[1] + half]);
+        path.move_to([center[0] + half, center[1] - half])
+            .line_to([center[0] - half, center[1] + half]);
+        canvas.stroke(path.build(), mark.color, stroke);
+    }
+    for op in canvas.finish_clipped(Rect {
+        x: clip.x,
+        y: clip.y,
+        w: clip.w,
+        h: clip.h,
+    }) {
+        draws.borrow_mut().push(Placed { z, op });
     }
 }
 

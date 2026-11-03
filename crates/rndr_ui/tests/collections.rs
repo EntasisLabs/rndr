@@ -618,9 +618,18 @@ fn painted_theme_density_clips_and_independent_states_are_real_component_output(
                 h.select(app.world_mut(), Some(ItemId(1))).unwrap();
                 h.focus(app.world_mut(), ItemId(2)).unwrap();
                 let output = rndr_paint::frame(&mut app);
-                assert!(output.quads.iter().any(
-                    |q| q.uv == rndr_paint::solid_uv() && q.color == theme.color(Token::Focus)
-                ));
+                assert!(output.draws.iter().any(|draw| matches!(&draw.op,
+                    rndr_paint::Op::Path(path) if path.fill.is_none()
+                    && path.stroke.as_ref().is_some_and(|stroke| stroke.color == theme.color(Token::Focus))
+                )));
+                assert!(
+                    !output
+                        .quads
+                        .iter()
+                        .any(|q| q.uv == rndr_paint::solid_uv()
+                            && q.color == theme.color(Token::Focus)),
+                    "focus must not fill ancestor/gutter"
+                );
                 assert!(output
                     .quads
                     .iter()

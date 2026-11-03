@@ -959,6 +959,11 @@ pub(crate) fn requests(world: &mut World) {
 }
 pub(crate) fn styles(world: &mut World) {
     let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
+    for viewport in world.entities_with::<Scroll>() {
+        let mut color = theme.color(Token::Secondary);
+        color.a = 0.55;
+        world.insert(viewport, ScrollIndicator { color });
+    }
     let focus = world.resource::<Focus>().and_then(|f| f.entity);
     let hovered = world
         .resource::<Input>()
@@ -971,18 +976,22 @@ pub(crate) fn styles(world: &mut World) {
         world.insert(
             root,
             UiRecipe(UiStyle {
-                background: Some(
-                    if focus == Some(root) {
-                        Token::Focus
-                    } else {
-                        Token::Content
-                    }
-                    .into(),
-                ),
+                background: Some(Token::Content.into()),
                 corner: Some(Corner::Group),
                 ..UiStyle::default()
             }),
         );
+        if focus == Some(root) && v.props.enabled {
+            world.insert(
+                root,
+                Border {
+                    color: theme.color(Token::Focus),
+                    width: 2.,
+                },
+            );
+        } else {
+            world.remove::<Border>(root);
+        }
         world.insert(
             v.empty,
             UiRecipe(UiStyle {
@@ -1019,30 +1028,28 @@ pub(crate) fn styles(world: &mut World) {
             world.insert(
                 row.inner,
                 UiRecipe(UiStyle {
-                    background: Some(fill.into()),
+                    background: Some(crate::UiColor::Explicit(Color::rgba(0., 0., 0., 0.))),
                     corner: Some(Corner::Compact),
                     ..UiStyle::default()
                 }),
             );
-            // A continuous inner surface reserves a quiet full-row focus frame,
-            // including the tree indent/disclosure region, not a filled gutter.
+            // One row surface owns fill, including its disclosure/indent. Focus
+            // is a bounded outline, never a filled ancestor viewport or gutter.
+            if focused && enabled {
+                world.insert(
+                    row.slot.root,
+                    Border {
+                        color: theme.color(Token::Focus),
+                        width: 2.,
+                    },
+                );
+            } else {
+                world.remove::<Border>(row.slot.root);
+            }
             world.insert(
                 row.slot.root,
                 UiRecipe(UiStyle {
-                    background: Some(
-                        if focused {
-                            Token::Focus
-                        } else if selected {
-                            Token::Selected
-                        } else if interaction_pressed(world, row.slot.root) {
-                            Token::ControlPressed
-                        } else if hover && enabled {
-                            Token::ControlHover
-                        } else {
-                            Token::Content
-                        }
-                        .into(),
-                    ),
+                    background: Some(fill.into()),
                     corner: Some(Corner::Control),
                     ..UiStyle::default()
                 }),
@@ -1050,24 +1057,15 @@ pub(crate) fn styles(world: &mut World) {
             world.insert(
                 row.slot.content,
                 UiRecipe(UiStyle {
-                    background: Some(
-                        if selected {
-                            Token::Selected
-                        } else if interaction_pressed(world, row.slot.root) {
-                            Token::ControlPressed
-                        } else if hover && enabled {
-                            Token::ControlHover
-                        } else {
-                            Token::Content
-                        }
-                        .into(),
-                    ),
+                    background: Some(crate::UiColor::Explicit(Color::rgba(0., 0., 0., 0.))),
                     corner: Some(Corner::Compact),
                     ..UiStyle::default()
                 }),
             );
             world.get_mut::<Layout>(row.slot.content).unwrap().padding =
-                if theme.density == crate::Density::Compact {
+                if world.has::<crate::data::TableRow>(row.slot.root) {
+                    crate::data::TABLE_INSET - 3.0
+                } else if theme.density == crate::Density::Compact {
                     4.0
                 } else {
                     7.0

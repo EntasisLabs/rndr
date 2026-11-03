@@ -336,8 +336,12 @@ fn mount(
                     ..Layout::column()
                 },
             );
-            w.insert(mark, Label::new("x"));
-            w.insert(mark, LabelBox::CONTENT);
+            w.insert(
+                mark,
+                CrossMark {
+                    color: Color::rgb(1., 1., 1.),
+                },
+            );
             let label = text(w, e, &props.label, Typography::Label)?;
             w.get_mut::<Layout>(label).unwrap().width = Size::Fill;
             (e, label, Some(face), Some(mark))
@@ -545,15 +549,7 @@ fn refresh(w: &mut World, root: Entity) {
             layout.width = Size::Px(22.0 * scale);
             layout.height = Size::Px(22.0 * scale);
             layout.padding = 2.0 * scale;
-            if let Some(mark) = s.mark {
-                w.insert(
-                    mark,
-                    LabelBox {
-                        inset_x: 5.0 * scale,
-                        ..LabelBox::CONTENT
-                    },
-                );
-            }
+            // Indicator geometry is relative to the face, not a font baseline.
             w.insert(
                 border,
                 UiStyle {
@@ -592,12 +588,11 @@ fn refresh(w: &mut World, root: Entity) {
             } else {
                 w.insert(mark, Hidden);
             }
+            let theme = w.resource::<crate::UiTheme>().cloned().unwrap_or_default();
             w.insert(
                 mark,
-                UiStyle {
-                    foreground: Some(Token::OnAccent.into()),
-                    typography: Some(Typography::Label),
-                    ..UiStyle::default()
+                CrossMark {
+                    color: theme.color(Token::OnAccent),
                 },
             );
         }

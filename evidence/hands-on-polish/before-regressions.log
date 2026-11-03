@@ -1,0 +1,49 @@
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-hands-on-visual-and-nested-scroll-polish/target/polish-baseline-src/crates/rndr_ui)
+    Finished `test` profile [unoptimized] target(s) in 1.29s
+     Running tests/hands_on_polish.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/hands_on_polish-3936908bca3c103e)
+
+running 4 tests
+test non_scrollable_inner_axis_chains_without_remapping ... FAILED
+test outside_or_clipped_content_never_targets_an_unrelated_scrollport ... FAILED
+test nested_wheel_consumes_only_available_distance_and_chains_each_axis ... FAILED
+test table_column_boundaries_share_one_grid_in_both_densities_and_after_scroll ... FAILED
+
+failures:
+
+---- non_scrollable_inner_axis_chains_without_remapping stdout ----
+
+thread 'non_scrollable_inner_axis_chains_without_remapping' (4921133) panicked at crates/rndr_ui/tests/hands_on_polish.rs:76:5:
+assertion `left == right` failed
+  left: [0.0, 0.0]
+ right: [0.0, -40.0]
+
+---- outside_or_clipped_content_never_targets_an_unrelated_scrollport stdout ----
+
+thread 'outside_or_clipped_content_never_targets_an_unrelated_scrollport' (4921134) panicked at crates/rndr_ui/tests/hands_on_polish.rs:63:5:
+assertion `left == right` failed
+  left: [0.0, -70.0]
+ right: [0.0, 0.0]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- nested_wheel_consumes_only_available_distance_and_chains_each_axis stdout ----
+
+thread 'nested_wheel_consumes_only_available_distance_and_chains_each_axis' (4921132) panicked at crates/rndr_ui/tests/hands_on_polish.rs:52:5:
+assertion `left == right` failed
+  left: [0.0, 0.0]
+ right: [0.0, -30.0]
+
+---- table_column_boundaries_share_one_grid_in_both_densities_and_after_scroll stdout ----
+
+thread 'table_column_boundaries_share_one_grid_in_both_densities_and_after_scroll' (4921135) panicked at crates/rndr_ui/tests/hands_on_polish.rs:24:17:
+density true width 800: header Rect { x: 10.0, y: 10.0, w: 130.0, h: 30.0 } cell Rect { x: 7.0, y: 77.0, w: 130.0, h: 20.0 }
+
+
+failures:
+    nested_wheel_consumes_only_available_distance_and_chains_each_axis
+    non_scrollable_inner_axis_chains_without_remapping
+    outside_or_clipped_content_never_targets_an_unrelated_scrollport
+    table_column_boundaries_share_one_grid_in_both_densities_and_after_scroll
+
+test result: FAILED. 0 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `-p rndr_ui --test hands_on_polish`

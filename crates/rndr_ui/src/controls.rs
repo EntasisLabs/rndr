@@ -979,7 +979,7 @@ pub(crate) fn resolve_controls(world: &mut World) {
             } else {
                 transparent
             },
-            Corner::Control,
+            Corner::FocusGap,
         );
         // Quiet controls inherit the host plane at rest, rather than painting
         // canvas-colored tiles into content/raised surfaces. HC keeps explicit
@@ -1012,7 +1012,7 @@ pub(crate) fn resolve_controls(world: &mut World) {
             world,
             c.face,
             if quiet_idle { idle_plane } else { fill.into() },
-            Corner::Compact,
+            Corner::ControlFace,
         );
         world.get_mut::<UiRecipe>(c.face).unwrap().0.padding =
             Some(if theme.density == crate::Density::Comfortable {

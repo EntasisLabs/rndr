@@ -1,0 +1,3 @@
+before checkbox decoded white-ink centroid: (8.296032553407935, 10.824008138351983); face center=(8.5,8.5)
+after checkbox decoded white-ink centroid: (8.5, 8.5); face center=(8.5,8.5)
+PASS decoded actual-PNG centering and comparison crops (before left / after right). Native input remains unverified.

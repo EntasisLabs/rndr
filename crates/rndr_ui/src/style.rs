@@ -33,6 +33,10 @@ pub enum Corner {
     Compact,
     /// Control 6.
     Control,
+    /// Control face 5: one-point inset from a six-point border.
+    ControlFace,
+    /// Focus gap 8: two-point inset from a ten-point focus ring.
+    FocusGap,
     /// Content group 10.
     Group,
     /// Overlay 12.
@@ -45,6 +49,8 @@ impl Corner {
             Self::Square => 0.0,
             Self::Compact => 4.0,
             Self::Control => 6.0,
+            Self::ControlFace => 5.0,
+            Self::FocusGap => 8.0,
             Self::Group => 10.0,
             Self::Overlay => 12.0,
         }

@@ -1,0 +1,25 @@
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-hands-on-visual-and-nested-scroll-polish/crates/rndr_ui)
+    Finished `test` profile [unoptimized] target(s) in 1.03s
+     Running tests/hands_on_polish.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/hands_on_polish-3936908bca3c103e)
+
+running 4 tests
+test outside_or_clipped_content_never_targets_an_unrelated_scrollport ... ok
+test non_scrollable_inner_axis_chains_without_remapping ... ok
+test nested_wheel_consumes_only_available_distance_and_chains_each_axis ... ok
+test table_column_boundaries_share_one_grid_in_both_densities_and_after_scroll ... FAILED
+
+failures:
+
+---- table_column_boundaries_share_one_grid_in_both_densities_and_after_scroll stdout ----
+
+thread 'table_column_boundaries_share_one_grid_in_both_densities_and_after_scroll' (4911260) panicked at crates/rndr_ui/tests/hands_on_polish.rs:24:17:
+density true width 800: header Rect { x: 10.0, y: 10.0, w: 130.0, h: 30.0 } cell Rect { x: 7.0, y: 77.0, w: 130.0, h: 20.0 }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    table_column_boundaries_share_one_grid_in_both_densities_and_after_scroll
+
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `-p rndr_ui --test hands_on_polish`

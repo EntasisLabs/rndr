@@ -1,0 +1,55 @@
+   Compiling rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-hands-on-visual-and-nested-scroll-polish/crates/rndr_core)
+   Compiling rndr_paint v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-hands-on-visual-and-nested-scroll-polish/crates/rndr_paint)
+    Finished `test` profile [unoptimized] target(s) in 3.39s
+     Running unittests src/lib.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/rndr_core-9f09f9eec776bfd8)
+
+running 14 tests
+test close::tests::cancel_invalidate_and_foreign_tokens ... ok
+test font::tests::rtl_selection_follows_visual_edges ... ok
+test close::tests::failure_duplicate_retry_and_stale_completions ... ok
+test font::tests::left_edge_alias_of_the_next_line_stays_on_this_line ... ok
+test close::tests::discard_requires_current_failure ... ok
+test markdown::tests::partial_fence_and_emphasis_leave_the_paragraph_above_them ... ok
+test markdown::tests::copied_selection_keeps_markdown_structure ... ok
+test markdown::tests::adjacent_lists_keep_the_blank_line_and_a_past_end_start_does_not ... ok
+test markdown::tests::parses_headings_emphasis_code_links_lists_quotes_and_rules ... ok
+test markdown::tests::partial_inline_constructs_do_not_show_raw_markers ... ok
+test markdown::tests::copied_inline_markers_and_nested_numbers_round_trip ... ok
+test markdown::tests::partial_task_markers_draw_as_checkboxes ... ok
+test editor::tests::document_rows_cache_geometry_and_invalidate_for_text_width_style_and_engine ... ok
+test markdown::tests::streamed_prefixes_match_a_full_parse ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/lib.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/rndr_paint-255db0da892d9bcb)
+
+running 27 tests
+test affine::tests::buckets_are_stable_inside_an_octave ... ok
+test affine::tests::size_buckets_stop_at_the_outline_threshold ... ok
+test affine::tests::translate_then_rotate_matches_the_point ... ok
+test affine::tests::inverse_round_trips ... ok
+test affine::tests::uniform_scale_is_the_geometric_mean ... ok
+test path::tests::polygon_rejects_a_degenerate_input ... ok
+test display::tests::extra_pop_does_not_unwind_the_root ... ok
+test path::tests::ellipse_bounds_cover_the_radii ... ok
+test display::tests::clipped_finish_wraps_the_camera ... ok
+test path::tests::hairline_width_shrinks_as_the_scale_grows ... ok
+test snapshot::tests::geometry_rounds_to_the_nearest_half_point ... ok
+test tess::tests::a_chevron_tip_meets_without_a_notch ... ok
+test tess::tests::a_dashed_shaft_keeps_its_arrowhead_solid ... ok
+test tess::tests::a_following_move_to_does_not_fill_dash_gaps ... ok
+test tess::tests::a_chevron_marker_is_solid_unless_asked_to_dash ... ok
+test tess::tests::dashed_stroke_breaks_into_separated_runs ... ok
+test tess::tests::hairline_mesh_thins_when_the_bucket_jumps ... ok
+test tess::tests::cache_reuses_a_bucket_and_rebuilds_across_it ... ok
+test tess::tests::even_odd_punches_a_hole_nonzero_does_not ... ok
+test tess::tests::square_fill_covers_the_center_and_not_the_outside ... ok
+test zoom::tests::a_drag_drops_the_zoom_anchor ... ok
+test zoom::tests::a_fast_drag_keeps_the_press_delta ... ok
+test zoom::tests::a_press_move_and_release_before_the_next_frame_pans_fully ... ok
+test zoom::tests::a_release_applies_a_move_that_arrived_with_it ... ok
+test zoom::tests::a_slow_drag_follows_each_sample_and_the_release ... ok
+test zoom::tests::one_notch_keeps_the_point_under_the_cursor ... ok
+test zoom::tests::ten_notches_each_way_restore_pan_and_scale ... ok
+
+test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

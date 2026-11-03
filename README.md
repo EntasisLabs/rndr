@@ -36,6 +36,8 @@ Try `cargo run -p rndr --example selection_gallery --features observe` (also `ui
 
 Publishing is deliberately not enabled: `rndr_ui` stays `publish = false`, and the facade's optional local UI dependency has no registry release policy yet. Updated metadata is not a publication-readiness claim. Existing registry release instructions/scripts must not be used to publish this consolidation candidate.
 
+For the five-item hands-on polish retest (checkbox centering, disabled/focused surfaces, table columns, nested scrolling and rounded borders), see the [UI polish guide](docs/ui-polish.md). `cargo run --offline --locked -p rndr --example ui_polish --features observe -- --scene scroll --narrow` opens its explicit nested-scroll fixture; `--scene selection`, `data` and `editors` reopen the existing interactive gallery content.
+
 Core markdown now supports explicit [host-filled block slots](docs/markdown-host-slots.md) for retained live values and real controls. `rndr_ui::apply_theme_bridge` opts one World into UiTheme-derived core/markdown colors and default typography; `UiPlugin` alone remains unchanged. Try `cargo run --offline --locked -p rndr --example markdown_gallery --features observe` for streaming, focus, resize and light/dark controls.
 
 ## Crates

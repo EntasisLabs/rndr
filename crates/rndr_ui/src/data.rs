@@ -129,6 +129,14 @@ pub struct TableHandle {
 }
 /// Bounded table composition over the existing ListView and controls.
 pub struct DataTable;
+// Grid chrome is independent of collection density: header and body share
+// ten-point outer insets and exact column widths. Collection rows reserve
+// three points for their focus outline; the remaining seven belong to content.
+pub(crate) const TABLE_INSET: f32 = 10.0;
+const CELL_INSET: f32 = 5.0; // Same as header root/gap/border chrome (2+2+1).
+#[derive(Clone, Copy)]
+pub(crate) struct TableRow;
+impl Component for TableRow {}
 
 pub(crate) fn key_at(world: &World, e: Entity) -> Option<UiId> {
     world
@@ -248,6 +256,22 @@ fn intrinsic_labels(w: &mut World, e: Entity) {
 // the active canonical engine after theme resolution, reserving one guard point.
 pub(crate) fn measure_cells(w: &mut World) {
     let engine = text_engine(w);
+    // After theme resolution, apply the same declared column alignment to
+    // header text as body content. The header's existing button keeps all
+    // focus, activation, semantics and rounded chrome.
+    for root in w.entities_with::<Table>() {
+        let table = w.get::<Table>(root).unwrap().clone();
+        for column in &table.columns {
+            let label = table.headers[&column.id].label;
+            if let Some(style) = w.get_mut::<TextStyle>(label) {
+                style.align = match column.alignment {
+                    CellAlignment::Start => TextAlign::Start,
+                    CellAlignment::Center => TextAlign::Center,
+                    CellAlignment::End => TextAlign::End,
+                };
+            }
+        }
+    }
     for e in w.entities_with::<IntrinsicCellLabel>() {
         let Some(label) = w.get::<Label>(e) else {
             continue;
@@ -382,7 +406,7 @@ impl DataTable {
         });
         table.props = props.clone();
         table.columns = columns.to_vec();
-        let width = columns.iter().map(|c| c.width).sum::<f32>() + 20.0;
+        let width = columns.iter().map(|c| c.width).sum::<f32>() + TABLE_INSET * 2.0;
         world.insert(
             root,
             Layout {
@@ -404,7 +428,7 @@ impl DataTable {
             Layout {
                 width: Size::Px(width),
                 height: Size::Hug,
-                padding: 10.0,
+                padding: TABLE_INSET,
                 ..Layout::row()
             },
         );
@@ -459,6 +483,15 @@ impl DataTable {
                 },
             );
             world.insert(h.root, ActivationHandler(header_activate));
+            // Header chrome already supplies CELL_INSET; no second label inset.
+            world.insert(
+                h.label,
+                LabelBox {
+                    inset_x: 0.,
+                    inset_y: 2.,
+                    min_height: 0.,
+                },
+            );
             world.insert(
                 h.root,
                 DataAccess {
@@ -484,6 +517,7 @@ impl DataTable {
         let old_cells = table.cells.clone();
         let mut cells = BTreeMap::new();
         table.view = ListView::mount(world, root, UiId(1), vp, rows, |w, row, item| {
+            w.insert(row.root, TableRow);
             w.insert(
                 row.root,
                 DataAccess {
@@ -511,6 +545,7 @@ impl DataTable {
                     Layout {
                         width: Size::Px(c.width),
                         height: Size::Hug,
+                        padding: CELL_INSET,
                         ..Layout::row()
                     },
                 );
