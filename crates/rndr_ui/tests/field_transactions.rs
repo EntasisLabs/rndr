@@ -233,3 +233,16 @@ fn released_synthetic_and_repeat_cancel_never_transact() {
     assert!(submitted(&app).is_empty());
     assert_eq!(app.world().resource::<Cancels>().unwrap().0, 0);
 }
+
+#[test]
+fn reviewer_ime_enabled_commit_strips_different_key_text() {
+    let (mut app, e, _) = setup(true);
+    {
+        let i = app.world_mut().resource_mut::<Input>().unwrap();
+        i.ime_enabled = true;
+        i.ime_commit = "日".into();
+        i.keys = vec![character('n')];
+    }
+    rndr_paint::frame(&mut app);
+    assert_eq!(app.world().get::<Label>(e).unwrap().text, "日");
+}

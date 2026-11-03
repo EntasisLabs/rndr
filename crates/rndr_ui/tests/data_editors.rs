@@ -538,3 +538,205 @@ fn custom_editor_uses_explicit_typed_draft_without_reflection() {
         Some(PropertyValue::Custom("new".into()))
     );
 }
+
+#[test]
+fn reviewer_boolean_window_blur_cancels_draft() {
+    let (mut a, r) = setup();
+    let h = inspector(&mut a, r, 1, &properties()).unwrap();
+    frame(&mut a);
+    let e = h.slot(a.world(), PropertyId(3)).unwrap().editor;
+    request_focus(a.world_mut(), e);
+    batch(&mut a, vec![key(NamedKey::Enter)]);
+    assert_eq!(
+        h.draft(a.world(), PropertyId(3)).unwrap().value,
+        Some(PropertyValue::Boolean(true))
+    );
+    send(a.world_mut(), WindowFocus::Blurred);
+    frame(&mut a);
+    assert_eq!(
+        h.draft(a.world(), PropertyId(3)).unwrap().value,
+        Some(PropertyValue::Boolean(false))
+    );
+}
+#[test]
+fn reviewer_commit_control_window_blur_cancels_draft() {
+    let (mut a, r) = setup();
+    let h = inspector(&mut a, r, 1, &properties()).unwrap();
+    frame(&mut a);
+    let slot = h.slot(a.world(), PropertyId(1)).unwrap();
+    request_focus(a.world_mut(), slot.editor);
+    batch(&mut a, vec![ch('x'), key(NamedKey::Tab)]);
+    assert_eq!(
+        a.world().resource::<Focus>().unwrap().entity,
+        Some(slot.commit)
+    );
+    send(a.world_mut(), WindowFocus::Blurred);
+    frame(&mut a);
+    assert_eq!(h.draft(a.world(), PropertyId(1)).unwrap().raw, "A");
+}
+
+#[test]
+fn reviewer_leave_and_return_in_one_batch_must_cancel_before_commit() {
+    let (mut a, r) = setup();
+    let h = inspector(&mut a, r, 1, &properties()).unwrap();
+    frame(&mut a);
+    let slot = h.slot(a.world(), PropertyId(1)).unwrap();
+    request_focus(a.world_mut(), slot.editor);
+    let mut back = key(NamedKey::Tab);
+    back.modifiers.shift = true;
+    batch(
+        &mut a,
+        vec![
+            ch('x'),
+            key(NamedKey::Tab),
+            key(NamedKey::Tab),
+            key(NamedKey::Tab),
+            back.clone(),
+            back,
+            key(NamedKey::Enter),
+        ],
+    );
+    assert!(
+        !property_events(&a)
+            .iter()
+            .any(|e| matches!(e, PropertyEventKind::CommitRequested { .. })),
+        "must cancel when focus leaves property even if it returns before frame ends"
+    );
+}
+
+#[test]
+fn acknowledged_submit_retains_later_draft_caret_history_and_external_replacement_resets() {
+    let (mut a, r) = setup();
+    let mut p = properties();
+    let h = inspector(&mut a, r, 1, &p).unwrap();
+    frame(&mut a);
+    let e = h.slot(a.world(), PropertyId(1)).unwrap().editor;
+    request_focus(a.world_mut(), e);
+    batch(&mut a, vec![ch('1'), key(NamedKey::Enter), ch('2')]);
+    let caret = *a.world().get::<Caret>(e).unwrap();
+    p[0].value = PropertyValue::Text("A1".into());
+    inspector(&mut a, r, 1, &p).unwrap();
+    assert_eq!(h.draft(a.world(), PropertyId(1)).unwrap().raw, "A12");
+    let after = a.world().get::<Caret>(e).unwrap();
+    assert_eq!((after.index, after.anchor), (caret.index, caret.anchor));
+    let mut m = Modifiers::default();
+    m.super_key = Platform::host() == Platform::Mac;
+    m.ctrl = !m.super_key;
+    batch(&mut a, vec![KeyEvent::character('z', m)]);
+    assert_eq!(h.draft(a.world(), PropertyId(1)).unwrap().raw, "A1");
+    p[0].value = PropertyValue::Text("B".into());
+    inspector(&mut a, r, 1, &p).unwrap();
+    batch(&mut a, vec![KeyEvent::character('z', m)]);
+    assert_eq!(h.draft(a.world(), PropertyId(1)).unwrap().raw, "B");
+}
+
+#[test]
+fn multiple_outstanding_acknowledgements_preserve_invalid_later_draft_and_contract_change_cancels()
+{
+    let (mut a, r) = setup();
+    let mut p = properties();
+    let h = inspector(&mut a, r, 1, &p).unwrap();
+    frame(&mut a);
+    let e = h.slot(a.world(), PropertyId(1)).unwrap().editor;
+    request_focus(a.world_mut(), e);
+    batch(
+        &mut a,
+        vec![ch('1'), key(NamedKey::Enter), ch('2'), key(NamedKey::Enter)],
+    );
+    h.set_draft(a.world_mut(), PropertyId(1), "invalid too long")
+        .unwrap();
+    for accepted in ["A1", "A12"] {
+        p[0].value = PropertyValue::Text(accepted.into());
+        inspector(&mut a, r, 1, &p).unwrap();
+        let d = h.draft(a.world(), PropertyId(1)).unwrap();
+        assert_eq!(d.raw, "invalid too long");
+        assert!(d.error.is_some());
+        assert!(!h.commit(a.world_mut(), PropertyId(1)).unwrap());
+    }
+    p[0].readonly = true;
+    inspector(&mut a, r, 1, &p).unwrap();
+    assert_eq!(h.draft(a.world(), PropertyId(1)).unwrap().raw, "A12");
+}
+
+#[test]
+fn choice_window_blur_and_queued_departure_cancel_without_commit() {
+    for blur in [true, false] {
+        let (mut a, r) = setup();
+        let h = inspector(&mut a, r, 1, &properties()).unwrap();
+        frame(&mut a);
+        let slot = h.slot(a.world(), PropertyId(4)).unwrap();
+        request_focus(a.world_mut(), slot.editor);
+        batch(&mut a, vec![key(NamedKey::Enter), key(NamedKey::Tab)]);
+        assert_eq!(
+            h.draft(a.world(), PropertyId(4)).unwrap().value,
+            Some(PropertyValue::Choice(2))
+        );
+        if blur {
+            send(a.world_mut(), WindowFocus::Blurred);
+            frame(&mut a);
+        } else {
+            batch(&mut a, vec![key(NamedKey::Tab), key(NamedKey::Tab)]);
+        }
+        assert_eq!(
+            h.draft(a.world(), PropertyId(4)).unwrap().value,
+            Some(PropertyValue::Choice(1))
+        );
+        assert!(!property_events(&a)
+            .iter()
+            .any(|e| matches!(e, PropertyEventKind::CommitRequested { .. })));
+    }
+}
+
+#[test]
+fn custom_descendant_focus_retains_within_property_then_blur_or_departure_cancels() {
+    for blur in [true, false] {
+        let (mut a, r) = setup();
+        let mut p = properties();
+        p[0].kind = PropertyKind::Custom("tag".into());
+        p[0].value = PropertyValue::Custom("old".into());
+        let h = PropertyInspector::mount(
+            a.world_mut(),
+            r,
+            UiId(50),
+            InspectorProps::new("Custom", ObjectId(1)),
+            &groups(),
+            &p,
+            |w, slot, _| {
+                if children_of(w, slot.editor).is_empty() && slot.editor != slot.commit {
+                    controls::Button::mount(
+                        w,
+                        slot.editor,
+                        UiId(900),
+                        controls::ButtonProps::new(
+                            "Custom child",
+                            controls::HostIntent::Command(900),
+                        ),
+                    )
+                    .unwrap();
+                }
+            },
+        )
+        .unwrap();
+        frame(&mut a);
+        let slot = h.slot(a.world(), PropertyId(1)).unwrap();
+        let child = children_of(a.world(), slot.editor)[0];
+        request_focus(a.world_mut(), child);
+        h.set_draft(a.world_mut(), PropertyId(1), "new").unwrap();
+        request_focus(a.world_mut(), slot.commit);
+        assert_eq!(h.draft(a.world(), PropertyId(1)).unwrap().raw, "new");
+        request_focus(a.world_mut(), child);
+        assert_eq!(h.draft(a.world(), PropertyId(1)).unwrap().raw, "new");
+        if blur {
+            send(a.world_mut(), WindowFocus::Blurred);
+            frame(&mut a);
+        } else {
+            let other = h.slot(a.world(), PropertyId(2)).unwrap().editor;
+            request_focus(a.world_mut(), other);
+            // Cancellation must already have happened, without a paint/update.
+        }
+        assert_eq!(h.draft(a.world(), PropertyId(1)).unwrap().raw, "old");
+        assert!(!property_events(&a)
+            .iter()
+            .any(|e| matches!(e, PropertyEventKind::CommitRequested { .. })));
+    }
+}

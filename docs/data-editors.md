@@ -102,7 +102,8 @@ assert_eq!(inspector.draft(app.world(), PropertyId(1)).unwrap().raw, "Project A"
 * `DraftChanged` includes raw text, parsed value if valid and validation error.
   `CommitRequested { before, after }` is emitted only for a valid changed value,
   carries inspector/object/property identity, and **never changes host values**.
-  Identical pending requests are suppressed until another edit or reconcile.
+  Requests identical to the latest outstanding request are suppressed; later edits
+  do not erase outstanding acknowledgement identities.
   The host should process frame events in `Update`, not replay them every frame.
 * Text/number: non-repeat plain Enter requests commit at that exact queued-key
   boundary; Escape cancels. Commit/Cancel buttons are explicit for every editor.
@@ -110,13 +111,19 @@ assert_eq!(inspector.draft(app.world(), PropertyId(1)).unwrap().raw, "Project A"
   no implicit commit-on-blur. IME confirmation Enter is not a property commit.
 * Focus moving from the editor to the **same property's** Commit/Cancel controls
   retains its draft. Leaving that property (including window blur) cancels to the
-  host value. The text-field notification is synchronous at focus transition;
-  other/custom descendants use the canonical post-update containment check.
+  host value. An opt-in canonical `FocusBoundary` on the property root observes
+  each actual departure synchronously, before the next queued key, including
+  Boolean/choice buttons, Commit/Cancel and custom editor descendants. A leave
+  and return in one batch still cancels at departure; final containment is only
+  a fallback for out-of-band focus changes.
 * Changing object, kind, committed value, enable/read-only state, validation or
   validator identity safely reconciles/resets drafts and local typing history.
   Removal/unmount emits explicit cancellation for dirty drafts and clears owned
-  interaction targets. An accepted pending value resets without a spurious
-  cancellation; unrelated host changes cancel rather than guessing a merge.
+  interaction targets. A value-only acknowledgement matching an outstanding
+  request advances the host baseline without replacing later draft text, caret
+  or local undo history (including later invalid drafts). Acknowledged and older
+  requests are retired; later requests remain pending. Unrelated value changes
+  or contract changes cancel/reset rather than guessing a merge.
   Pending requests already emitted still retain their original object identity.
 * Read-only text is focusable/selectable/copyable but cannot edit/submit. Disabled
   controls cannot focus/activate. Feedback uses semantic danger/secondary tokens;
@@ -141,7 +148,15 @@ is routed to the focus current at that key boundary. The ordinary canonical
 edit functions still own graphemes, selection, clipboard and typing history.
 `FieldTransaction::{Changed, Submit, Cancel, FocusLost}` are synchronous hooks;
 `Submitted` remains available with the exact boundary snapshot. No complete
-field stage is replayed per key. Callbacks must not reinstall/replay input.
+field stage is replayed per key. The per-key filter preserves `ime_enabled`,
+preedit and commit from the public `Input` snapshot; aggregate commit text is
+inserted once, not submitted. This is not proof of real OS IME operation.
+Callbacks must not reinstall/replay input.
+
+`FocusBoundary` is independently opt-in on a subtree, using the same canonical
+focus-transition notifications; it does not replace traversal, introduce a second
+input loop or migrate legacy fields. Custom focusable descendants inherit the
+property boundary automatically. Callbacks must not replay focus or input.
 
 `reset_field_draft` is an explicit owner-driven replacement for opted-in fields:
 it clears caret/local undo/preedit and emits no typing or property commit event.

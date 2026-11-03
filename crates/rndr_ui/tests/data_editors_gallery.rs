@@ -215,3 +215,35 @@ fn independent_reading_scale_enlarges_builtin_editor_line_boxes() {
     let r = a.world().get::<Rect>(e).unwrap();
     assert!(r.h >= text_engine(a.world()).line_height(&style) + 16. - 1.);
 }
+
+#[test]
+fn reviewer_host_ack_preserves_text_queued_after_submit() {
+    let mut a = gallery::create(1180., 960., UiTheme::default());
+    frame(&mut a);
+    frame(&mut a);
+    let h = a
+        .world()
+        .resource::<gallery::Gallery>()
+        .unwrap()
+        .inspector
+        .unwrap();
+    let e = h.slot(a.world(), PropertyId(1)).unwrap().editor;
+    request_focus(a.world_mut(), e);
+    batch(
+        &mut a,
+        vec![
+            KeyEvent::character('1', Modifiers::default()),
+            k(NamedKey::Enter),
+            KeyEvent::character('2', Modifiers::default()),
+        ],
+    );
+    assert_eq!(
+        a.world().resource::<gallery::Gallery>().unwrap().records[0].title,
+        "Brand refresh1"
+    );
+    assert_eq!(
+        h.draft(a.world(), PropertyId(1)).unwrap().raw,
+        "Brand refresh12",
+        "later typing must remain an uncommitted draft after host acknowledges the earlier Submit"
+    );
+}

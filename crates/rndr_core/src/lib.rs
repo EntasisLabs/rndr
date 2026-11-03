@@ -155,8 +155,8 @@ pub use entity::Entity;
 pub use event::{events, send, Event, Events};
 pub use feed::{Epoch, Feed, FeedConfig, FeedError, OnFull};
 pub use field::{
-    reset_field_draft, CapturesKeys, FieldTransaction, FieldTransactions, ImePreview, Submitted,
-    TextChanged, TextField,
+    reset_field_draft, CapturesKeys, FieldTransaction, FieldTransactions, FocusBoundary,
+    ImePreview, Submitted, TextChanged, TextField,
 };
 pub use file_drop::{FileDrop, FileHover, FileHoverCancel};
 pub use focus::{apply_focus, reveal_entity};

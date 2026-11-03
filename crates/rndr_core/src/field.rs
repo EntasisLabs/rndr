@@ -75,7 +75,37 @@ pub(crate) fn transaction_focus_lost(world: &mut World, next: Option<Entity>) {
     let old = world.resource::<Focus>().and_then(|f| f.entity);
     notify_focus_lost(world, old, next);
 }
+/// Opt-in synchronous notification when focus leaves this entity's subtree.
+/// Called before the next queued input, including window blur (`next = None`).
+/// Moving between descendants does not notify. This does not change focus policy.
+#[derive(Clone, Copy)]
+pub struct FocusBoundary(pub fn(&mut World, Entity, Option<Entity>));
+impl Component for FocusBoundary {}
+fn focus_ancestors(world: &World, mut entity: Option<Entity>) -> Vec<Entity> {
+    let mut result = Vec::new();
+    for _ in 0..256 {
+        let Some(e) = entity else {
+            break;
+        };
+        if result.contains(&e) {
+            break;
+        }
+        result.push(e);
+        entity = world.get::<Parent>(e).map(|p| p.entity);
+    }
+    result
+}
 pub(crate) fn notify_focus_lost(world: &mut World, old: Option<Entity>, next: Option<Entity>) {
+    let destinations = focus_ancestors(world, next);
+    let departures = focus_ancestors(world, old);
+    for e in departures {
+        if !destinations.contains(&e) {
+            if let Some(handler) = world.get::<FocusBoundary>(e).copied() {
+                (handler.0)(world, e, next);
+            }
+        }
+    }
+
     if let Some(e) =
         old.filter(|e| world.has::<TextField>(*e) && world.has::<FieldTransactions>(*e))
     {
@@ -127,6 +157,7 @@ pub(crate) fn transaction_key(world: &mut World, entity: Entity, event: &KeyEven
     let mut one = Input::default();
     one.keys = vec![event.clone()];
     if let Some(input) = world.resource::<Input>() {
+        one.ime_enabled = input.ime_enabled;
         one.ime_preedit = input.ime_preedit.clone();
         one.ime_commit = input.ime_commit.clone();
     }

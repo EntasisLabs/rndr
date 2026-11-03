@@ -841,7 +841,8 @@ struct PropertyState {
     property: Property,
     slot: PropertySlot,
     draft: PropertyDraft,
-    pending: Option<PropertyValue>,
+    // Outstanding requests survive later edits until acknowledged or cancelled.
+    pending: Vec<PropertyValue>,
     dirty: bool,
 }
 #[derive(Clone)]
@@ -1014,24 +1015,13 @@ fn field_signal(w: &mut World, e: Entity, s: FieldTransaction) {
         FieldTransaction::Cancel => {
             let _ = h.cancel(w, o.property, CancelReason::Escape);
         }
-        FieldTransaction::FocusLost(next) => {
-            let slot = h.slot(w, o.property);
-            let mut target = next;
-            let mut inside = false;
-            for _ in 0..256 {
-                let Some(e) = target else {
-                    break;
-                };
-                if Some(e) == slot.map(|s| s.root) {
-                    inside = true;
-                    break;
-                }
-                target = w.get::<Parent>(e).map(|p| p.entity);
-            }
-            if !inside {
-                let _ = h.cancel(w, o.property, CancelReason::Blur);
-            }
-        }
+        // The property's FocusBoundary handles all descendants, not just TextFields.
+        FieldTransaction::FocusLost(_) => {}
+    }
+}
+fn property_departure(w: &mut World, e: Entity, _: Option<Entity>) {
+    if let Some(o) = owner(w, e) {
+        let _ = InspectorHandle { root: o.inspector }.cancel(w, o.property, CancelReason::Blur);
     }
 }
 fn property_key(w: &mut World, e: Entity, k: &KeyEvent) -> bool {
@@ -1158,7 +1148,7 @@ fn update_field(w: &mut World, i: &Inspector, s: &PropertyState) {
     );
     let message = if let Some(e) = &s.draft.error {
         format!("Invalid: {e}")
-    } else if s.pending.is_some() {
+    } else if !s.pending.is_empty() {
         "Commit requested; awaiting model reconcile".into()
     } else if s.dirty {
         "Draft — not committed".into()
@@ -1176,7 +1166,7 @@ fn update_field(w: &mut World, i: &Inspector, s: &PropertyState) {
             editing
                 && s.dirty
                 && s.draft.error.is_none()
-                && s.pending.as_ref() != s.draft.value.as_ref(),
+                && s.pending.last() != s.draft.value.as_ref(),
         ),
         (s.slot.cancel, 2, "Cancel", editing && s.dirty),
     ] {
@@ -1346,15 +1336,22 @@ impl PropertyInspector {
                     (Some(a), Some(b)) => std::ptr::fn_addr_eq(a, b),
                     _ => false,
                 };
-                let changed = s.property.kind != p.kind
-                    || s.property.value != p.value
+                let contract_changed = s.property.kind != p.kind
                     || s.property.readonly != p.readonly
                     || s.property.enabled != p.enabled
                     || s.property.validation != p.validation
                     || old_enabled != props.enabled
                     || !same_validator;
-                if changed {
-                    if s.dirty && s.pending.as_ref() != Some(&p.value) {
+                let acknowledgement = (!contract_changed && s.property.value != p.value)
+                    .then(|| s.pending.iter().position(|v| v == &p.value))
+                    .flatten();
+                if let Some(n) = acknowledgement {
+                    // An earlier request was accepted. Later edits are still local:
+                    // do not replace the label, caret, IME state or typing history.
+                    s.pending.drain(..=n);
+                    s.dirty = s.draft.raw != display(&p.value);
+                } else if contract_changed || s.property.value != p.value {
+                    if s.dirty {
                         send(
                             w,
                             PropertyEvent {
@@ -1366,7 +1363,7 @@ impl PropertyInspector {
                         );
                     }
                     s.draft = base(p);
-                    s.pending = None;
+                    s.pending.clear();
                     s.dirty = false;
                     w.remove::<Caret>(s.slot.editor);
                     reset_field_draft(w, s.slot.editor, &s.draft.raw);
@@ -1490,13 +1487,22 @@ impl PropertyInspector {
                             feedback,
                         },
                         draft: base(p),
-                        pending: None,
+                        pending: Vec::new(),
                         dirty: false,
                     },
                 );
             }
             let s = i.fields.get_mut(&p.id).unwrap();
             s.property = p.clone();
+            w.insert(
+                s.slot.root,
+                PropertyOwner {
+                    inspector: root,
+                    property: p.id,
+                    action: 0,
+                },
+            );
+            w.insert(s.slot.root, FocusBoundary(property_departure));
             set_parent(w, s.slot.root, i.groups[&p.group]);
             let children = children_of(w, s.slot.root);
             w.get_mut::<Label>(children[0]).unwrap().text = p.label.clone();
@@ -1634,7 +1640,6 @@ impl InspectorHandle {
             s.draft.error = Some(e.clone());
         }
         s.dirty = s.draft.raw != display(&s.property.value);
-        s.pending = None;
         let draft = s.draft.clone();
         update_field(w, &i, &i.fields[&id]);
         emit(w, self.root, &i, id, PropertyEventKind::DraftChanged(draft));
@@ -1662,11 +1667,11 @@ impl InspectorHandle {
             return Ok(false);
         }
         let after = s.draft.value.clone().unwrap();
-        if after == s.property.value || s.pending.as_ref() == Some(&after) {
+        if after == s.property.value || s.pending.last() == Some(&after) {
             return Ok(false);
         }
         let before = s.property.value.clone();
-        s.pending = Some(after.clone());
+        s.pending.push(after.clone());
         update_field(w, &i, &i.fields[&id]);
         emit(
             w,
@@ -1691,7 +1696,7 @@ impl InspectorHandle {
         let dirty = s.dirty;
         s.draft = base(&s.property);
         s.dirty = false;
-        s.pending = None;
+        s.pending.clear();
         w.remove::<Caret>(s.slot.editor);
         clear_typing_history(w, s.slot.editor);
         update_field(w, &i, &i.fields[&id]);
