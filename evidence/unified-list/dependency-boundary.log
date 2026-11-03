@@ -1,0 +1,11 @@
+Baseline 0b997b4253c3545786a56a5b91f30bbdae76e6b5
+The following broad-lint/doc failing files have no candidate diff:
+baseline_failure_files_unchanged=0
+rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-unified-virtualized-list-and-palette-migration/crates/rndr_core)
+├── pulldown-cmark v0.13.5
+│   ├── bitflags v2.13.2
+│   ├── memchr v2.8.3
+│   └── unicase v2.10.0
+└── unicode-segmentation v1.13.3
+
+Assertion: rndr_core has no rndr_ui normal dependency: PASS

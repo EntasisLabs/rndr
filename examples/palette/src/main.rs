@@ -34,15 +34,21 @@ use std::time::Duration;
 use rndr_core::window::{self, WindowConfig, WindowKind};
 use rndr_core::{
     context_stack, events, feed, platform_of, set_parent, sleep, spawn, spawn_detached, theme_of,
-    toggle_on_click, App, Axis, CapturesKeys, Caret, Chrome, Color, Context, Dismiss, DismissHold,
-    Entity, Event, Focus, HotkeyBinding, HotkeyRejected, ImageView, Item, KeyBinding, Keymap,
-    KeymapFired, Keystroke, Label, Layout, List, ListActivated, ListKeys, ListRows, LogicalSize,
-    Menu, NamedKey, Placeholder, Position, Prompt, Radius, Schedule, Size, Spans, Submitted,
-    TaskHandle, TextChanged, TextFace, TextField, TextOverflow, TextSpan, Theme, TrayConfig,
-    TrayIcon, TrayItemId, TrayMenu, World, TEXT_ORIGIN_X,
+    toggle_on_click, App, Axis, CapturesKeys, Caret, Color, Context, Dismiss, DismissHold, Entity,
+    Event, Focus, HotkeyBinding, HotkeyRejected, ImageView, Item, KeyBinding, Keymap, KeymapFired,
+    Keystroke, Label, Layout, LogicalSize, Menu, NamedKey, Placeholder, Position, Prompt, Radius,
+    Schedule, Size, Spans, Submitted, TaskHandle, TextChanged, TextFace, TextField, TextOverflow,
+    TextSpan, Theme, TrayConfig, TrayIcon, TrayItemId, TrayMenu, World, TEXT_ORIGIN_X,
 };
 use rndr_paint::LatinFace;
 use rndr_render::{configured_hotkey, load_rgba, run, toggle_window};
+#[cfg(test)]
+use rndr_ui::collections::ItemId;
+use rndr_ui::collections::{
+    CollectionEvent, CollectionEventKind, Item as SemanticItem, ListView, RowSlot, ViewProps,
+    VirtualViewHandle,
+};
+use rndr_ui::{UiId, UiPlugin};
 use unicode_normalization::UnicodeNormalization;
 
 const CONTEXT: &str = "Palette";
@@ -198,23 +204,28 @@ fn setup(world: &mut World) {
     ));
     set_parent(world, field, root);
 
-    let list = world.spawn((
-        Layout {
-            axis: Axis::Column,
-            gap: 0.0,
-            padding: 0.0,
-            width: Size::Fill,
-            height: Size::Fill,
-            min_width: 0.0,
-            min_height: 0.0,
+    let list = ListView::mount_virtual(
+        world,
+        root,
+        UiId(700),
+        ViewProps::new("Commands"),
+        &[],
+        ROW_H,
+        build_virtual_row,
+    )
+    .unwrap()
+    .root;
+    world.get_mut::<Layout>(list).unwrap().height = Size::Fill;
+    world.insert(
+        list,
+        rndr_ui::collections::VirtualListPolicy {
+            hover_navigation: true,
+            selection_follows_navigation: true,
+            double_click_activate: true,
+            focus_owner: Some(field),
         },
-        theme.pane,
-        Radius(theme.radius),
-        List::new(0, ROW_H),
-        ListKeys,
-        ListRows(build_row),
-    ));
-    set_parent(world, list, root);
+    );
+    world.insert(field, rndr_core::KeyNavigation(search_navigation));
 
     let status = world.spawn((
         Layout {
@@ -416,11 +427,49 @@ fn ensure_row_icon(world: &mut World, row: Entity, index: u32) {
     set_parent(world, lead, row);
 }
 
-fn build_row(world: &mut World, row: Entity, index: u32) {
+fn search_navigation(world: &mut World, _field: Entity, key: &rndr_core::KeyEvent) -> bool {
+    let Some(p) = world.resource::<Palette>() else {
+        return false;
+    };
+    if p.asking {
+        return false;
+    }
+    let list = p.list;
+    VirtualViewHandle { root: list }.forward_key(world, key)
+}
+
+fn reconcile_commands(world: &mut World, list: Entity) {
+    let hits = world.resource::<Palette>().unwrap().hits.clone();
+    let items: Vec<_> = hits
+        .iter()
+        .map(|i| SemanticItem::new(*i as u64, COMMANDS[*i].1))
+        .collect();
+    let parent = world.get::<rndr_core::Parent>(list).unwrap().entity;
+    ListView::mount_virtual(
+        world,
+        parent,
+        UiId(700),
+        ViewProps::new("Commands"),
+        &items,
+        ROW_H,
+        build_virtual_row,
+    )
+    .unwrap();
+    let h = VirtualViewHandle { root: list };
+    if h.selected(world).is_none() {
+        if let Some(id) = h.active(world) {
+            let _ = h.select(world, Some(id));
+        }
+    }
+}
+
+fn build_virtual_row(world: &mut World, slot: RowSlot, item: &SemanticItem) {
+    let hit = item.id.0 as usize;
     let selected = world
-        .get::<rndr_core::ListItem>(row)
-        .is_some_and(|item| item.selected);
-    let Some((title, action)) = command_at(world, index) else {
+        .resource::<Palette>()
+        .is_some_and(|p| VirtualViewHandle { root: p.list }.active(world) == Some(item.id));
+    let row = slot.content;
+    let Some(&(action, title)) = COMMANDS.get(hit) else {
         return;
     };
     let platform = platform_of(world);
@@ -441,7 +490,7 @@ fn build_row(world: &mut World, row: Entity, index: u32) {
     if let Some(label) = world.get_mut::<Label>(row) {
         label.text.clear();
     }
-    ensure_row_icon(world, row, index);
+    ensure_row_icon(world, row, hit as u32);
     let (name, keys) = row_parts(world, row);
     set_text(world, name, title);
     set_text(world, keys, &shortcut);
@@ -472,12 +521,6 @@ fn build_row(world: &mut World, row: Entity, index: u32) {
             },
         );
     }
-}
-
-fn command_at(world: &World, index: u32) -> Option<(&'static str, &'static str)> {
-    let palette = world.resource::<Palette>()?;
-    let hit = palette.hits.get(index as usize).copied()?;
-    Some((COMMANDS[hit].1, COMMANDS[hit].0))
 }
 
 fn row_parts(world: &mut World, row: Entity) -> (Entity, Entity) {
@@ -714,9 +757,17 @@ fn palette_update(world: &mut World) {
         .iter()
         .map(|event| event.title)
         .collect();
-    let activated: Vec<u32> = events::<ListActivated>(world)
+    let list_root = world.resource::<Palette>().unwrap().list;
+    let activated: Vec<usize> = events::<CollectionEvent>(world)
         .iter()
-        .map(|event| event.index)
+        .filter(|event| event.view == list_root)
+        .filter_map(|event| {
+            if let CollectionEventKind::Activated(id) = event.kind {
+                Some(id.0 as usize)
+            } else {
+                None
+            }
+        })
         .collect();
     let actions = world
         .resource::<KeymapFired>()
@@ -765,11 +816,7 @@ fn palette_update(world: &mut World) {
             let hint = status_hint(world);
             world.resource_mut::<Palette>().unwrap().message = hint;
         }
-        if let Some(list) = world.get_mut::<List>(list) {
-            list.count = hits.len() as u32;
-            list.selected = if hits.is_empty() { None } else { Some(0) };
-            list.offset = 0.0;
-        }
+        reconcile_commands(world, list);
     }
 
     for title in ran {
@@ -778,12 +825,9 @@ fn palette_update(world: &mut World) {
         palette.running = None;
     }
 
-    for index in activated {
-        let hit = world
-            .resource::<Palette>()
-            .and_then(|palette| palette.hits.get(index as usize).copied());
-        if let Some(hit) = hit {
-            if COMMANDS[hit].0 == "ask" {
+    for hit in activated {
+        if let Some((command, _)) = COMMANDS.get(hit) {
+            if *command == "ask" {
                 toggle_ask(world);
             } else {
                 run_command(world, hit);
@@ -856,18 +900,13 @@ fn enter_ask(world: &mut World) {
         caret.index = len;
         caret.anchor = len;
     }
-    world.remove::<ListKeys>(list);
     let hint = ask_hint(world);
     let palette = world.resource_mut::<Palette>().unwrap();
     palette.asking = true;
     palette.query.clear();
     palette.hits = (0..COMMANDS.len()).collect();
     palette.message = hint;
-    if let Some(list) = world.get_mut::<List>(list) {
-        list.count = COMMANDS.len() as u32;
-        list.selected = Some(0);
-        list.offset = 0.0;
-    }
+    reconcile_commands(world, list);
 }
 
 fn leave_ask(world: &mut World) {
@@ -889,7 +928,6 @@ fn leave_ask(world: &mut World) {
         caret.index = 0;
         caret.anchor = 0;
     }
-    world.insert(list, ListKeys);
     let hint = status_hint(world);
     let palette = world.resource_mut::<Palette>().unwrap();
     palette.asking = false;
@@ -897,11 +935,7 @@ fn leave_ask(world: &mut World) {
     palette.query.clear();
     palette.hits = (0..COMMANDS.len()).collect();
     palette.message = hint;
-    if let Some(list) = world.get_mut::<List>(list) {
-        list.count = COMMANDS.len() as u32;
-        list.selected = Some(0);
-        list.offset = 0.0;
-    }
+    reconcile_commands(world, list);
 }
 
 fn clear_prompt(world: &mut World) {
@@ -1003,7 +1037,7 @@ fn main() {
     app.world_mut()
         .insert_resource(TextFace(Arc::new(LatinFace)));
     app.world_mut().insert_resource(Theme::default());
-    app.add_plugin(Chrome);
+    app.add_plugin(UiPlugin);
     app.add_system(Schedule::Startup, setup);
     app.add_system(Schedule::Update, palette_update);
     // Held across `run`. Dropping it releases the grab.
@@ -1153,7 +1187,7 @@ mod tests {
 
         let mut sim = Sim::new();
         sim.app.world_mut().insert_resource(Theme::default());
-        sim.app.add_plugin(rndr_core::Chrome);
+        sim.app.add_plugin(rndr_ui::UiPlugin);
         sim.app.add_system(Schedule::Startup, super::setup);
         sim.app.add_system(Schedule::Update, super::palette_update);
         sim.update();
@@ -1161,10 +1195,10 @@ mod tests {
         sim.update();
 
         let list = sim.app.world().resource::<super::Palette>().unwrap().list;
-        let row = rndr_core::children_of(sim.world(), list)
-            .into_iter()
-            .find(|child| sim.app.world().has::<rndr_core::ListItem>(*child))
-            .expect("a row");
+        let row = super::VirtualViewHandle { root: list }
+            .row(sim.world(), super::ItemId(0))
+            .expect("a row")
+            .content;
         let row_rect = *sim.app.world().get::<Rect>(row).expect("row rect");
         let icon_entity = super::row_icon_entity(sim.world(), row).expect("icon");
         let icon_rect = *sim.app.world().get::<Rect>(icon_entity).expect("icon rect");
@@ -1216,7 +1250,7 @@ mod tests {
         sim.app
             .world_mut()
             .insert_resource(rndr_core::Theme::default());
-        sim.app.add_plugin(rndr_core::Chrome);
+        sim.app.add_plugin(rndr_ui::UiPlugin);
         sim.app
             .add_system(rndr_core::Schedule::Startup, super::setup);
         sim.app
@@ -1297,7 +1331,7 @@ mod tests {
 
         let mut sim = Sim::new();
         sim.app.world_mut().insert_resource(Theme::default());
-        sim.app.add_plugin(rndr_core::Chrome);
+        sim.app.add_plugin(rndr_ui::UiPlugin);
         sim.app.add_system(Schedule::Startup, super::setup);
         sim.app.add_system(Schedule::Update, super::palette_update);
 
@@ -1347,9 +1381,113 @@ mod tests {
         assert_ne!(super::filter("a").len(), super::COMMANDS.len());
     }
 
+    #[test]
+    fn semantic_palette_search_owns_typing_and_forwards_navigation_activation() {
+        use rndr_core::*;
+        let mut sim = Sim::new();
+        sim.app.add_plugin(rndr_ui::UiPlugin);
+        sim.app.add_system(Schedule::Startup, super::setup);
+        sim.app.add_system(Schedule::Update, super::palette_update);
+        sim.app
+            .world_mut()
+            .insert_resource(Viewport::new(720., 620.));
+        sim.update();
+        sim.advance(super::SEARCH_LAG);
+        sim.update();
+        rndr_paint::frame(&mut sim.app);
+        let p = sim.app.world().resource::<super::Palette>().unwrap();
+        let (list, field) = (p.list, p.field);
+        let h = super::VirtualViewHandle { root: list };
+        assert!(sim.app.world().entities_with::<List>().is_empty());
+        // Even a pointer focus request synchronously delegates to the search
+        // editor. A queued printable key in that same native batch keeps typing.
+        let row = h.row(sim.app.world(), super::ItemId(0)).unwrap().root;
+        assert!(request_focus(sim.world(), row));
+        assert_eq!(
+            sim.app.world().resource::<Focus>().unwrap().entity,
+            Some(field)
+        );
+        request_focus(sim.world(), field);
+        sim.world().resource_mut::<Input>().unwrap().keys =
+            vec![KeyEvent::named(NamedKey::ArrowDown, Modifiers::default())];
+        rndr_paint::frame(&mut sim.app);
+        assert_eq!(h.active(sim.app.world()), Some(super::ItemId(1)));
+        assert_eq!(h.selected(sim.app.world()), Some(super::ItemId(1)));
+        assert_eq!(
+            sim.app.world().resource::<Focus>().unwrap().entity,
+            Some(field)
+        );
+        // Filtering/reordering retains the command key, never its old index.
+        sim.world().resource_mut::<super::Palette>().unwrap().hits = vec![3, 1, 8];
+        super::reconcile_commands(sim.world(), list);
+        assert_eq!(h.active(sim.app.world()), Some(super::ItemId(1)));
+        assert_eq!(h.selected(sim.app.world()), Some(super::ItemId(1)));
+        sim.world().resource_mut::<Input>().unwrap().keys =
+            vec![KeyEvent::named(NamedKey::Enter, Modifiers::default())];
+        rndr_paint::frame(&mut sim.app);
+        assert_eq!(
+            sim.app.world().resource::<Focus>().unwrap().entity,
+            Some(field)
+        );
+        assert!(sim
+            .app
+            .world()
+            .resource::<super::Palette>()
+            .unwrap()
+            .running
+            .is_some());
+    }
+
+    #[test]
+    fn semantic_palette_pointer_and_typing_in_one_batch_keeps_search_focus() {
+        use rndr_core::*;
+        let mut sim = Sim::new();
+        sim.app.add_plugin(rndr_ui::UiPlugin);
+        sim.app.add_system(Schedule::Startup, super::setup);
+        sim.app.add_system(Schedule::Update, super::palette_update);
+        sim.app
+            .world_mut()
+            .insert_resource(Viewport::new(720., 620.));
+        sim.update();
+        sim.advance(super::SEARCH_LAG);
+        sim.update();
+        rndr_paint::frame(&mut sim.app);
+        let p = sim.app.world().resource::<super::Palette>().unwrap();
+        let (list, field) = (p.list, p.field);
+        let row = super::VirtualViewHandle { root: list }
+            .row(sim.app.world(), super::ItemId(3))
+            .unwrap()
+            .root;
+        let r = *sim.app.world().get::<Rect>(row).unwrap();
+        let input = sim.world().resource_mut::<Input>().unwrap();
+        input.pointer.position = [r.x + 80., r.y + r.h / 2.];
+        input.pointer.down = true;
+        input.pointer.pressed = true;
+        input.keys = vec![KeyEvent::character('s', Modifiers::default())];
+        rndr_paint::frame(&mut sim.app);
+        assert_eq!(
+            sim.app.world().resource::<Focus>().unwrap().entity,
+            Some(field)
+        );
+        assert_eq!(
+            sim.app.world().resource::<super::Palette>().unwrap().query,
+            "s"
+        );
+        // A stable key's icon must not be reinterpreted as a filtered index.
+        sim.world().resource_mut::<super::Palette>().unwrap().hits = vec![3];
+        super::reconcile_commands(sim.world(), list);
+        rndr_paint::frame(&mut sim.app);
+        let row = super::VirtualViewHandle { root: list }
+            .row(sim.app.world(), super::ItemId(3))
+            .unwrap()
+            .content;
+        let icon = super::row_icon_entity(sim.app.world(), row).unwrap();
+        assert_eq!(sim.app.world().get::<ImageView>(icon).unwrap().image, 3);
+    }
+
     fn list_count(sim: &rndr_core::Sim) -> u32 {
         let list = sim.app.world().resource::<super::Palette>().unwrap().list;
-        sim.app.world().get::<rndr_core::List>(list).unwrap().count
+        super::VirtualViewHandle { root: list }.len(sim.app.world()) as u32
     }
 
     fn opaque_rgb(icon: &rndr_core::TrayIcon) -> Option<[u8; 3]> {

@@ -1,6 +1,6 @@
 # rndr_ui — semantic components and data editors
 
-An additive, opt-in, GPU-free library above `rndr_core`. Current main baseline `fe9e679` includes semantic foundations, operating controls, ListView/TreeView, DataTable, PropertyInspector, Checkbox, SingleSelect and MultiSelect. The owner integrated the data editors and selection controls after review/corrections and hands-on gallery testing. That is not cross-platform native certification. [Current status and boundaries](../../docs/ui-status.md) supersede stale candidate/gate prose in historical A0/A1/A2 records; archived evidence and canonical proposals remain unchanged.
+An additive, opt-in, GPU-free library above `rndr_core`. The integration/hygiene baseline `0b997b4` includes semantic foundations, operating controls, ListView/TreeView, DataTable, PropertyInspector, Checkbox, SingleSelect and MultiSelect. The owner integrated the data editors and selection controls after review/corrections and hands-on gallery testing. That is not cross-platform native certification. [Current status and boundaries](../../docs/ui-status.md) supersede stale candidate/gate prose in historical A0/A1/A2 records; archived evidence and canonical proposals remain unchanged.
 
 Use this crate directly for headless composition, or enable the facade's `ui` feature and import `rndr::ui`. No semantic names are glob-exported into `rndr`'s legacy root. `rndr_ui` remains **publish = false**. The facade's optional local UI dependency is not registry-release ready; metadata improvements do not authorize publication.
 
@@ -13,7 +13,7 @@ activation, themed scrolling and hierarchical navigation. The standalone interac
 10,000 records. It is not Blooey and does not own filesystem/database data.
 
 See [API, exact dependency prep/launch commands, limits and roadmap](../../docs/data-components.md).
-Selection modes are None/Single only; retained rows are budgeted, **not virtualized**.
+Selection modes are None/Single only; retained rows are budgeted, **not virtualized**. `ListView::mount_virtual` adds viewport-bounded uniform rows with stable logical keys, explicitly ephemeral composed subtrees, exclusive nested-control input ownership, and shared core windowing/scroll geometry. The real palette uses it. See [virtual lists](../../docs/virtual-list.md) and [headless evidence](../../evidence/unified-list/report.md).
 [DataTable/PropertyInspector](../../docs/data-editors.md) compose application-owned data and draft → validate → explicit commit. [Selection controls](../../docs/selection-controls.md) are reusable independently and inside the inspector; selecting a draft does not silently write the application model.
 
 On collection rows, screen-reader **Activate selects**, like clicking; keyboard **Enter emits `Activated(id)` without selecting**. These are deliberately separate contracts, not interchangeable action names.

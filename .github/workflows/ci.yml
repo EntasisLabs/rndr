@@ -90,7 +90,7 @@ jobs:
         run: cargo build -p expand -p idle -p overlay -p palette -p terminal -p stream -p two-windows -p pen-probe -p canvas-scene -p create-view -p rndr_render
 
       - name: Build native semantic galleries with observation
-        run: cargo build -p rndr --features observe,ui --example ui_gallery --example data_gallery --example data_editors_gallery --example selection_gallery
+        run: cargo build -p rndr --features observe,ui --example ui_gallery --example data_gallery --example data_editors_gallery --example selection_gallery --example virtual_list_gallery
 
       # Archive-only: unpublished optional UI prevents registry lockfile/build
       # verification even with ui disabled. Keep facade normalization, membership

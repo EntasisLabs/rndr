@@ -210,6 +210,25 @@ pub fn resolve_styles(world: &mut World) {
             entities.push(entity);
         }
     }
+    resolve_entities(world, &theme, entities);
+}
+
+// Viewport-born content can be created after the normal Layout style pass, or
+// during scroll hit-geometry refresh. Resolve only that bounded subtree using
+// the exact same property-ownership rules; never rescan unrelated UI per list.
+pub(crate) fn resolve_subtree_styles(world: &mut World, root: Entity) {
+    let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
+    let mut entities = Vec::new();
+    let mut pending = vec![root];
+    while let Some(e) = pending.pop() {
+        if world.has::<UiStyle>(e) || world.has::<UiRecipe>(e) || world.has::<Managed>(e) {
+            entities.push(e);
+        }
+        pending.extend(children_of(world, e));
+    }
+    resolve_entities(world, &theme, entities);
+}
+fn resolve_entities(world: &mut World, theme: &UiTheme, entities: Vec<Entity>) {
     for entity in entities {
         let attached = world.has::<UiStyle>(entity) || world.has::<UiRecipe>(entity);
         let recipe = world
@@ -224,7 +243,7 @@ pub fn resolve_styles(world: &mut World) {
         let mut managed = world.get::<Managed>(entity).cloned().unwrap_or_default();
         if let Some(value) = managed.background.resolve(
             world.get::<Color>(entity).copied(),
-            style.background.map(|v| v.resolve(&theme)),
+            style.background.map(|v| v.resolve(theme)),
             true,
         ) {
             if let Some(value) = value {
@@ -236,7 +255,7 @@ pub fn resolve_styles(world: &mut World) {
         if world.has::<Label>(entity) {
             if let Some(value) = managed.foreground.resolve(
                 world.get::<Label>(entity).and_then(|l| l.color),
-                style.foreground.map(|v| v.resolve(&theme)),
+                style.foreground.map(|v| v.resolve(theme)),
                 true,
             ) {
                 world.get_mut::<Label>(entity).unwrap().color = value;

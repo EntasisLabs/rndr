@@ -331,7 +331,7 @@ pub(crate) fn apply_lists(world: &mut World) {
             list.offset = list.offset.clamp(0.0, max_offset);
         }
         list.built_for = height;
-        let (first, len) = window(list.offset, height, list.row_height, list.count);
+        let (first, len) = list_window(list.offset, height, list.row_height, list.count);
         let selected = list.selected;
         world.insert(entity, list);
         let rows = sync_pool(world, entity, len, list.row_height);
@@ -656,8 +656,16 @@ fn millis(duration: std::time::Duration) -> u64 {
     u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
 }
 
-fn window(offset: f32, height: f32, row_height: f32, count: u32) -> (u32, u32) {
-    if count == 0 || row_height <= 0.0 || height <= 0.0 {
+/// Shared uniform-height visible range `(first, len)` used by core and semantic lists.
+/// Invalid/non-finite geometry produces an empty range.
+pub fn list_window(offset: f32, height: f32, row_height: f32, count: u32) -> (u32, u32) {
+    if count == 0
+        || !offset.is_finite()
+        || !height.is_finite()
+        || !row_height.is_finite()
+        || row_height <= 0.0
+        || height <= 0.0
+    {
         return (0, 0);
     }
     let first = (offset.max(0.0) / row_height).floor() as u32;

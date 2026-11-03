@@ -1,0 +1,25 @@
+{
+  "baseline": "0b997b4253c3545786a56a5b91f30bbdae76e6b5",
+  "note": "Changed source/docs/config hashes after the recorded final exact-source gate; report and logs are committed alongside this manifest.",
+  "files": {
+    ".github/workflows/ci.yml": "7dd0d3926a6e18ac75fe8f694ce1753382dcb0f289045344cb97d235c149a2a9",
+    "Cargo.lock": "b4ce7f8cc70378122c748bc25b0c50e4be25542ccd9cc902c0f027ae811470d8",
+    "README.md": "4b6e63a19f0a8678fffe569eb914a0b2181884305795d8d334e1941f38bf10ee",
+    "crates/rndr/examples/virtual_list_gallery.rs": "cb6d2ec00858caee1942e35f3bd3907d48c7023a216e5e3d5d4b4587d69ff569",
+    "crates/rndr_core/src/interaction.rs": "754ddeb01331531e2b85670acd406b3705f66e130cc0e1464fa7a01bb3a80e3f",
+    "crates/rndr_core/src/layout.rs": "6bd40ab1e0a186e4ac92568b7131d7a549cd0a5e5bdddd9fdae8da8378d378fb",
+    "crates/rndr_core/src/lib.rs": "17ed63b6b5ae3e1b934e18a77995d3dd57b21e25744a2f7c5349a585cfbf2614",
+    "crates/rndr_core/src/list.rs": "b2b80ff5e1a2e4a33c2f0957d31f9f86217f373227c9b924a3d1802f814453d7",
+    "crates/rndr_ui/README.md": "eca5b8771604cb7fcf5f4713602cfeb2a6765ca38112a50b351ccf013b81a3bf",
+    "crates/rndr_ui/examples/support/virtual_gallery.rs": "0c54ea8800a7a748c938c957570d88e07d3bc2ce9a5b4ff278b7cf16e4c89d66",
+    "crates/rndr_ui/src/collections.rs": "643f0626957947e7680da4398196290c9534cfa6b72243459b8d0c819a2b942e",
+    "crates/rndr_ui/src/collections/virtual_list.rs": "635b992420e4aa00a2e0645b7697ba2f9e434ac9539a341cb6eca186f8c76616",
+    "crates/rndr_ui/src/style.rs": "ce1e0d241eea58175bdf9e54c684dbee5b982c30e5775cc7eb3fb7a1d646b2e4",
+    "crates/rndr_ui/tests/virtual_gallery.rs": "59ec9631437e34a373eec1285814dd5e54f75a9b2e59c65b43e4bb62007bd229",
+    "crates/rndr_ui/tests/virtual_list.rs": "7b24ed6d1b968015f538772a423d5dcb50847482d87760165654efd44e193509",
+    "docs/data-components.md": "385540b8d1c1e18795bd46bd45975e76d67a54c8becfbf1e18daebabd74e9c0d",
+    "docs/virtual-list.md": "efe0a51c8b99eb017609ea08b4a0b31c5770dd5bb71ab20b6c2a92025af42a88",
+    "examples/palette/Cargo.toml": "cad791d895686b17c732c5b83708c2b7faca8363615e30904420770a9b9394b9",
+    "examples/palette/src/main.rs": "b1dc037da57c85e6734659a85f138a5ac7b3f55377f95af3a0bb210c2aa9d043"
+  }
+}

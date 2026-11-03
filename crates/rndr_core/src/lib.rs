@@ -189,11 +189,11 @@ pub use keys::{
 };
 pub use layout::{
     ancestor_with, apply_scroll, hit_test, layered_roots, layout_propagate, Axis, Clip, Layout,
-    Rect, Scroll, ScrollDrag, Size, SCROLL_DRAG_SLOP,
+    Rect, Scroll, ScrollDrag, Size, ViewportRows, SCROLL_DRAG_SLOP,
 };
 pub use list::{
-    List, ListActivated, ListItem, ListKeys, ListRows, LIST_ACTIVATE, LIST_DOWN, LIST_END,
-    LIST_HOME, LIST_PAGE_DOWN, LIST_PAGE_UP, LIST_UP,
+    list_window, List, ListActivated, ListItem, ListKeys, ListRows, LIST_ACTIVATE, LIST_DOWN,
+    LIST_END, LIST_HOME, LIST_PAGE_DOWN, LIST_PAGE_UP, LIST_UP,
 };
 pub use markdown::{
     markdown_view, parse_markdown, LinkActivated, MarkdownBlock, MarkdownKind, MarkdownLink,
@@ -261,8 +261,8 @@ pub use manual_tabs::{ControlDisabled, ManualTabs, ResolvedColor, SelectedState,
 pub use interaction::{
     access_details, cancel_activation, interaction_pressed, interaction_visible, request_focus,
     take_action_intents, take_action_intents_matching, try_activate, AccessDetails, ActionIntent,
-    ActionIntents, ActivationHandler, ActivationResult, GenericInteraction, KeyNavigation,
-    ReleaseActivation, Semantics, TabRelation, TabStop,
+    ActionIntents, ActivationHandler, ActivationResult, FocusTarget, GenericInteraction,
+    KeyNavigation, ReleaseActivation, Semantics, TabRelation, TabStop,
 };
 
 pub use interaction::{

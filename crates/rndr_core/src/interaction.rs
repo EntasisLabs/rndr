@@ -13,9 +13,21 @@ impl Component for ReleaseActivation {}
 pub struct TabStop(pub bool);
 impl Component for TabStop {}
 
+/// Explicit canonical focus delegation for a passive composite row. The callback
+/// may update logical focus and return an existing external focus owner (such as
+/// a palette search field). Called only after the requested target is admitted;
+/// the returned entity is revalidated. Must not request focus recursively. Only
+/// the requested entity participates: embedded controls never inherit delegation.
+#[derive(Clone, Copy)]
+pub struct FocusTarget(pub fn(&mut World, Entity) -> Entity);
+impl Component for FocusTarget {}
+
 /// Composite navigation hook executed in the canonical chronological key loop,
 /// after pointer focus and before Tab/manual tabs/button handling. Return true
-/// to consume only owned keys. Editors, modified and blurred input bypass it.
+/// to consume only owned keys. Modified and blurred input bypass it. An explicit
+/// hook on a CapturesKeys editor opts into pre-editor forwarding (e.g. a palette
+/// search field); unhandled keys still reach that editor. Transactional editor
+/// ownership is resolved first. No ancestor hook runs for a nested control.
 #[derive(Clone, Copy)]
 pub struct KeyNavigation(pub fn(&mut World, Entity, &KeyEvent) -> bool);
 impl Component for KeyNavigation {}
@@ -423,6 +435,14 @@ pub fn request_focus(world: &mut World, entity: Entity) -> bool {
     if !access_details(world, entity).focus {
         return false;
     }
+    let entity = world
+        .get::<FocusTarget>(entity)
+        .copied()
+        .map(|target| (target.0)(world, entity))
+        .unwrap_or(entity);
+    if !access_details(world, entity).focus {
+        return false;
+    }
     if world.resource::<Focus>().and_then(|f| f.entity) != Some(entity) {
         crate::field::transaction_focus_lost(world, Some(entity));
         cancel_activation(world);
@@ -669,9 +689,6 @@ pub(crate) fn apply_generic_input(world: &mut World) {
     };
     let mut retained = Vec::new();
     for event in keys {
-        let focus = world.resource::<Focus>().and_then(|f| f.entity);
-        let editor_owns = focus
-            .is_some_and(|e| world.has::<CapturesKeys>(e) && !world.has::<FieldTransactions>(e));
         let plain = !event.modifiers.command() && !event.modifiers.alt;
         // Resolve every Space up, even if modifiers/ownership changed. Never
         // leave an unmatched arm for a later unrelated release to commit.
@@ -692,7 +709,7 @@ pub(crate) fn apply_generic_input(world: &mut World) {
         let focus = world.resource::<Focus>().and_then(|f| f.entity);
         let mut consumed = scope_consumed
             || focus.is_some_and(|e| crate::field::transaction_key(world, e, &event));
-        if !consumed && !editor_owns && plain {
+        if !consumed && plain {
             let navigation = focus.and_then(|e| world.get::<KeyNavigation>(e).map(|n| (e, n.0)));
             let handled = navigation.is_some_and(|(e, handler)| handler(world, e, &event));
             // A composite hook may normalize an auxiliary focus target to its

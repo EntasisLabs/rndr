@@ -201,6 +201,33 @@ impl Scroll {
 
 /// Parent-before-child placement after a bottom-up hug measure.
 pub fn layout_propagate(world: &mut World) {
+    reconcile_viewports(world);
+    layout_once(world);
+    // A first frame/resize establishes viewport geometry. Reconcile once more,
+    // then measure/place the realized rows before any hit testing or paint.
+    if reconcile_viewports(world) {
+        layout_once(world);
+    }
+}
+
+/// Uniform-window content reconciliation inside canonical layout/scroll refresh.
+/// Return true only when geometry/topology changed. Must not invoke layout,
+/// scroll or focus reveal recursively. Called at most twice per propagation.
+#[derive(Clone, Copy)]
+pub struct ViewportRows(pub fn(&mut World, Entity) -> bool);
+impl Component for ViewportRows {}
+
+fn reconcile_viewports(world: &mut World) -> bool {
+    let mut changed = false;
+    for entity in world.entities_with::<ViewportRows>() {
+        if let Some(callback) = world.get::<ViewportRows>(entity).copied() {
+            changed |= (callback.0)(world, entity);
+        }
+    }
+    changed
+}
+
+fn layout_once(world: &mut World) {
     let viewport = world.resource::<Viewport>().copied().unwrap_or_default();
     let root_ids: Vec<Entity> = roots::<Layout>(world);
     for root in root_ids {

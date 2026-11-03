@@ -1,8 +1,10 @@
 //! Retained, application-owned data browsers. See docs/data-components.md.
 //! No Shell, filesystem, global Selection, or pooled index identity is used.
+mod virtual_list;
 use crate::{text, Corner, Token, Typography, UiError, UiId, UiRecipe, UiStyle, UiTheme};
 use rndr_core::*;
 use std::collections::{BTreeMap, BTreeSet};
+pub use virtual_list::{VirtualCompose, VirtualListPolicy, VirtualViewHandle};
 
 /// Deliberate retained-data safety budget, not a virtualization claim.
 pub const MAX_ITEMS: usize = 1024;
@@ -87,20 +89,23 @@ pub enum CollectionEventKind {
     Focused(Option<ItemId>),
     /// Selection changed or was reconciled away.
     Selected(Option<ItemId>),
-    /// Enter requested host activation, independently of selection.
+    /// Enter requested host activation, independently of selection. A virtual
+    /// list may explicitly opt into palette double-click activation too.
     /// This is not the screen-reader Activate action: on a row that follows
     /// canonical click/Space selection (or no selection in None mode).
     Activated(ItemId),
     /// Branch expansion changed.
     Expanded(ItemId, bool),
 }
-/// Stable composed slots. Only passive content belongs under `content`; nested
-/// interactive controls/editors are deliberately unsupported in this milestone.
+/// Composed slots. Retained ListView/TreeView support passive content with a
+/// stable subtree lifetime. `mount_virtual` supports nested controls but recycles
+/// slots: keep application state by ItemId and never persist these entities.
 #[derive(Clone, Copy, Debug)]
 pub struct RowSlot {
     /// Managed canonical interaction target. Do not remove/reparent/replace.
     pub root: Entity,
-    /// Caller-populated passive subtree, preserved for the lifetime of this ID.
+    /// Caller-populated subtree. Retained: preserved while this ID is present.
+    /// Virtual: ephemeral; destroyed before recycling to another key.
     pub content: Entity,
 }
 #[derive(Clone)]
@@ -182,10 +187,16 @@ impl TreeView {
     }
 }
 pub(crate) fn key_at(world: &World, e: Entity) -> Option<UiId> {
-    world.get::<View>(e).map(|v| v.key)
+    world
+        .get::<View>(e)
+        .map(|v| v.key)
+        .or_else(|| virtual_list::key_at(world, e))
 }
 pub(crate) fn owns_entity(world: &World, e: Entity) -> bool {
-    world.has::<View>(e) || world.has::<RowOwner>(e) || ancestor_with::<View>(world, e).is_some()
+    virtual_list::owns(world, e)
+        || world.has::<View>(e)
+        || world.has::<RowOwner>(e)
+        || ancestor_with::<View>(world, e).is_some()
 }
 fn emit(world: &mut World, view: Entity, kind: CollectionEventKind) {
     send(world, CollectionEvent { view, kind });
@@ -931,6 +942,7 @@ fn activate(world: &mut World, entity: Entity) {
     }
 }
 pub(crate) fn requests(world: &mut World) {
+    virtual_list::requests(world);
     for root in world.entities_with::<View>() {
         if validate(world, root).is_err() {
             continue;

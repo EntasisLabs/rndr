@@ -41,7 +41,7 @@ Publishing is deliberately not enabled: `rndr_ui` stays `publish = false`, and t
 | Crate | Role |
 | --- | --- |
 | `rndr` | Desktop facade; legacy root exports preserved. Optional `ui` feature exposes semantic components as `rndr::ui`; renderer features are forwarded |
-| `rndr_ui` | GPU-free semantic themes/styles, controls, retained ListView/TreeView, DataTable, PropertyInspector, Checkbox and single/multi selects. `UiPlugin` installs canonical interaction and scrolling. Internal, `publish = false` |
+| `rndr_ui` | GPU-free semantic themes/styles, controls, retained ListView/TreeView and uniform virtual ListView, DataTable, PropertyInspector, Checkbox and single/multi selects. `UiPlugin` installs canonical interaction and scrolling. Internal, `publish = false` |
 | `rndr_core` | ECS, layout, clip, scroll, disclosure, focus, pane, split, caret, body, wrap, `Font`, `Files`, `Chrome`, events, tasks, timers, markdown |
 | `rndr_paint` | `frame`: update, then quads in points plus a display list of paths, images, and layers. Reads a `TextLayout`. The bitmap face is an 8×8 ASCII atlas |
 | `rndr_std` | `std::fs` plugin |
@@ -50,7 +50,7 @@ Publishing is deliberately not enabled: `rndr_ui` stays `publish = false`, and t
 | `examples/expand` | File-backed expand demo: folder tree, pane, splitter, caret, create, delete |
 | `examples/idle` | Empty window. `ControlFlow::Wait` when nothing is scheduled |
 | `examples/overlay` | Frameless centered panel. Hides on blur and Escape, returns on Alt+Space |
-| `examples/palette` | Command palette: debounced filter, virtual list, shortcuts |
+| `examples/palette` | Command palette: debounced filter, semantic virtual ListView, shortcuts |
 | `examples/stream` | Streamed markdown answer: a background feed appends tokens into a pinned text view |
 | `examples/terminal` | Shell in a window. `cargo run -p terminal` |
 | `examples/windows` | Two windows. A Save button tells the other window. `cargo run -p two-windows` |
@@ -256,6 +256,13 @@ cargo run -p expand -- /path/to/dir
 ```
 
 `overlay` opens a frameless, always-on-top panel in the center of the screen. Escape or a click away hides it. Alt+Space shows it again, from any application, and hides it if it is already visible. `RNDR_HOTKEY` or `--hotkey` replaces Alt+Space (`cargo run -p overlay -- --hotkey Ctrl+Space`).
+
+The palette now uses `rndr_ui::collections::ListView::mount_virtual`, sharing core
+windowing and Scroll rather than a separate core-only list route. Stable command
+keys survive filtering/reorder; its hover/selection/double-click conventions and
+search-field focus ownership are explicit opt-ins. Ordinary semantic lists still
+separate selection from Enter activation. See [virtual list API and 100,000-record
+gallery](docs/virtual-list.md) and [evidence](evidence/unified-list/report.md).
 
 `palette` is a command list in that same kind of window: frameless, centered, always on top, hidden on blur and on Escape, and summoned by the same hotkey. On macOS it runs as an accessory app, so the Dock stays out of it. A tray icon remains: Show Palette (the global hotkey, `⌥Space` on macOS and `Alt+Space` elsewhere, unless `--hotkey` or `RNDR_HOTKEY` changed it), Settings (disabled), and Quit. Left click toggles the window. The search field emits `TextChanged`. Each change starts a background feed that waits, then filters thirty commands. A reply stamped with an older epoch is dropped, so a slow result cannot replace a newer query. A virtual list shows the matches with shortcuts from `Keymap::shortcut` (`⌘K` on macOS, `Ctrl+K` elsewhere, `Ctrl+G M` for a two-stroke chord). The shortcut is a label with its own dim color. Letters the filter hit are painted with a highlight. Up and Down move the selection, Enter runs it, and the run is a task whose handle sits in ordinary app state. The field and the row labels measure through `TextEngine`. Activating Ask Medousa switches that field to a multi-line prompt: Enter sends, Shift+Enter inserts a newline, and Ctrl+Enter or Cmd+Enter returns to the list. Esc returns when the prompt is empty, and the unsent draft is still there the next time Ask opens. Filter replies stay ignored while the prompt is open.
 
