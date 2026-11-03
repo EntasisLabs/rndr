@@ -28,11 +28,20 @@ Application
 
 `mob3` is the prototype of this cut: application structure in the core, the renderer as a plugin that never owns parenting. Expand is a hierarchy walk. Opening a node spawns children; collapse cascade-despawns them. The next layout pass rewrites rectangles. The GPU never hears about expand.
 
+## Semantic UI and live observation
+
+[`rndr_ui`](crates/rndr_ui/README.md) is the semantic composition layer above core, not a replacement runtime. Enable `rndr` feature `ui` for `rndr::ui::{UiPlugin, UiTheme}` and `rndr::ui::controls::Button`; existing core `rndr::Button`, `Theme`, `List` and tray `Item` keep their meanings. UI collection `Item` stays under `rndr::ui::collections`. The feature is off by default for compatibility. [Current status](docs/ui-status.md) distinguishes implemented components, integrated baseline and remaining native certification.
+
+Try `cargo run -p rndr --example selection_gallery --features observe` (also `ui_gallery`, `data_gallery`, `data_editors_gallery`). These synthetic hosts use the ordinary frame/window lifecycle. `observe` is an opt-in feature **and** an explicit session opt-in: live whole-window surface pixels plus the matching flattened accessibility tree from one paint boundary, with fail-closed whole-frame privacy denial. It is Unix-only, not a Windows transport, component/UiId/layout-tree capture, headless rendering or confirmation that the OS compositor displayed the frame. See [native observation](docs/native-observation.md) for privacy, protocol and Python tests.
+
+Publishing is deliberately not enabled: `rndr_ui` stays `publish = false`, and the facade's optional local UI dependency has no registry release policy yet. Updated metadata is not a publication-readiness claim. Existing registry release instructions/scripts must not be used to publish this consolidation candidate.
+
 ## Crates
 
 | Crate | Role |
 | --- | --- |
-| `rndr` | Facade. Re-exports the libraries below so `cargo add rndr` is the desktop entry point. Features match `rndr_render` |
+| `rndr` | Desktop facade; legacy root exports preserved. Optional `ui` feature exposes semantic components as `rndr::ui`; renderer features are forwarded |
+| `rndr_ui` | GPU-free semantic themes/styles, controls, retained ListView/TreeView, DataTable, PropertyInspector, Checkbox and single/multi selects. `UiPlugin` installs canonical interaction and scrolling. Internal, `publish = false` |
 | `rndr_core` | ECS, layout, clip, scroll, disclosure, focus, pane, split, caret, body, wrap, `Font`, `Files`, `Chrome`, events, tasks, timers, markdown |
 | `rndr_paint` | `frame`: update, then quads in points plus a display list of paths, images, and layers. Reads a `TextLayout`. The bitmap face is an 8×8 ASCII atlas |
 | `rndr_std` | `std::fs` plugin |

@@ -473,7 +473,9 @@ pub(crate) fn begin(world: &World, width: u32, height: u32, scale: f32) -> Optio
         let entity = rndr_core::entity_from_access_id(node.id);
         let d = entity.map(|e| rndr_core::access_details(world, e)).unwrap_or_default();
         let mut actions = Vec::new();
-        if d.focus { actions.push("focus"); } if d.activate { actions.push("activate"); } if d.set_value { actions.push("set_value"); }
+        if d.focus { actions.push("focus"); }
+        if d.activate { actions.push("activate"); }
+        if d.set_value { actions.push("set_value"); }
         json!({"id":node.id.to_string(), "role":format!("{:?}",node.role), "label":node.name, "value":node.value,
             "bounds":[node.bounds.x,node.bounds.y,node.bounds.w,node.bounds.h], "children":node.children.iter().map(u64::to_string).collect::<Vec<_>>(),
             "focusable":node.focusable,"focused":node.focused,"selected":node.selected,"enabled":node.enabled,"expanded":node.expanded,

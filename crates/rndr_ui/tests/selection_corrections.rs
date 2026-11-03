@@ -43,7 +43,7 @@ fn mount(a: &mut App, r: Entity, p: &Property) -> InspectorHandle {
             id: GroupId(1),
             label: "Settings".into(),
         }],
-        &[p.clone()],
+        std::slice::from_ref(p),
         |_, _, _| {},
     )
     .unwrap();

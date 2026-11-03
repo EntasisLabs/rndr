@@ -352,11 +352,12 @@ fn semantics_reuse_actions_states_focus_and_unflattened_scroll() {
     assert_eq!(meta["png_bytes"], png.len());
     assert_eq!(meta["presented_confirmation"], false);
     assert_eq!(meta["device_scale"], 2.);
+    let button_id = access_id(button).to_string();
     let node = meta["nodes"]
         .as_array()
         .unwrap()
         .iter()
-        .find(|n| n["id"] == access_id(button).to_string())
+        .find(|n| n["id"].as_str() == Some(button_id.as_str()))
         .unwrap();
     assert_eq!(node["label"], "Save \"draft\"");
     assert_eq!(node["focused"], true);

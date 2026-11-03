@@ -1,6 +1,8 @@
-# rndr_ui — foundations and contracted A2 components
+# rndr_ui — semantic components and data editors
 
-An additive, opt-in, GPU-free library above `rndr_core`. The owner accepted exact04642's **HEADLESS A0/A1 core-contract checkpoint** and lifted the A2 gate. Operating A2 controls and a synthetic-host gallery are now implemented for fresh independent review. This is **not** native certification, integration or whole-project acceptance. Historical checkpoints/proposals remain unchanged; see `docs/design/implementation-tracking.md` and `docs/design/A2-components.md` for the current boundary.
+An additive, opt-in, GPU-free library above `rndr_core`. Current main baseline `fe9e679` includes semantic foundations, operating controls, ListView/TreeView, DataTable, PropertyInspector, Checkbox, SingleSelect and MultiSelect. The owner integrated the data editors and selection controls after review/corrections and hands-on gallery testing. That is not cross-platform native certification. [Current status and boundaries](../../docs/ui-status.md) supersede stale candidate/gate prose in historical A0/A1/A2 records; archived evidence and canonical proposals remain unchanged.
+
+Use this crate directly for headless composition, or enable the facade's `ui` feature and import `rndr::ui`. No semantic names are glob-exported into `rndr`'s legacy root. `rndr_ui` remains **publish = false**. The facade's optional local UI dependency is not registry-release ready; metadata improvements do not authorize publication.
 
 ## Data browsers (first milestone)
 
@@ -12,8 +14,9 @@ activation, themed scrolling and hierarchical navigation. The standalone interac
 
 See [API, exact dependency prep/launch commands, limits and roadmap](../../docs/data-components.md).
 Selection modes are None/Single only; retained rows are budgeted, **not virtualized**.
-Current implementation/visual evidence is separate from the historical reports below;
-independent sender review and integration remain required.
+[DataTable/PropertyInspector](../../docs/data-editors.md) compose application-owned data and draft → validate → explicit commit. [Selection controls](../../docs/selection-controls.md) are reusable independently and inside the inspector; selecting a draft does not silently write the application model.
+
+On collection rows, screen-reader **Activate selects**, like clicking; keyboard **Enter emits `Activated(id)` without selecting**. These are deliberately separate contracts, not interchangeable action names.
 
 ## Install and compose
 
@@ -21,7 +24,7 @@ independent sender review and integration remain required.
 use rndr_core::*;
 use rndr_ui::*;
 let mut app = App::new();
-app.add_plugin(UiPlugin); // idempotent; reuses Chrome/GenericInteraction, not Shell
+app.add_plugin(UiPlugin); // interaction + scrolling + styling; idempotent, no Shell
 let parent = app.world_mut().spawn((Layout { width: Size::Fill, ..Layout::column() },));
 let card = Card::mount(app.world_mut(), parent, UiId(1), "Reading").unwrap();
 let paragraph = text(app.world_mut(), card.content, "Quiet document content", Typography::Reading).unwrap();
@@ -43,11 +46,11 @@ app.update();
 - Direct content-slot attachments are **borrowed**. `adopt` explicitly transfers a plain subtree; adoption rejects cycles/existing owned UI components. Destroy deletes only owned nodes and detaches borrowed subtrees alive. It clears only owned focus/capture/intents through core teardown APIs. Hosts retain borrowed handles and are responsible for reparenting them after detachment.
 - Installation lasts for the App lifetime. Plugin uninstall is intentionally unsupported; repeated installation is a no-op, not a duplicate set of bindings/systems or a reset of queues.
 
-## Desktop foundation candidate
+## Desktop foundation
 
 The first post-observation pass uses Inter UI/reading requests, a restrained neutral palette, separate neutral hover/pressed surfaces, rounded controls, transparent inactive focus layers, and compact supporting hierarchy. `Typography::Emphasis` is the small semibold supporting role; `UiStyle::editor()` supplies semantic ink/surface/code typography without replacing core input/history. A direct toolbar control can opt into `controls::ToolbarContentWidth` for measured action widths in rows and full-width stacked fallback. That marker owns `Layout.width` while attached; unmarked controls keep their authored sizing contract. The next layout after marker removal, leaving a toolbar or toolbar teardown restores the saved authored width, without undoing a subsequent caller takeover. Caller width changes made while attached are saved for eventual release.
 
-Native startup now upgrades only core's untouched implicit bitmap engine, even after an early `App::update`. Explicit/custom engines, customized fallback configuration and TextFace are preserved. Cached label UVs/metrics are invalidated on engine replacement. This is not a promise of smooth typography in a no-Parley build. See [pass details and remaining visual gate](../../docs/design/visual-polish-pass-1.md): live surface captures were obtained, but actual image inspection is blocked by the current tool surface and aesthetic approval remains pending.
+Native startup now upgrades only core's untouched implicit bitmap engine, even after an early `App::update`. Explicit/custom engines, customized fallback configuration and TextFace are preserved. Cached label UVs/metrics are invalidated on engine replacement. This is not a promise of smooth typography in a no-Parley build. See [historical pass details](../../docs/design/visual-polish-pass-1.md). The later owner gallery checks and integrations are summarized in [current status](../../docs/ui-status.md); historical tool image-delivery failures are not a claim that the saved PNGs were invalid.
 
 ## Fonts and honest limits
 
@@ -72,4 +75,4 @@ The **preserved passive gallery** creates surfaces, Card/Callout, separators, ty
 
 The first display-list audit exposed a real nested wrapped-Hug clipping defect despite simpler world tests passing. The reproduced core fix resolves width-constrained heights before ancestor clips. Baseline/fixed logs and separate core commits preserve that evidence rather than silently blessing incomplete gallery output.
 
-See historical `docs/design/A0-A1-checkpoint.md` for its exact checkpoint evidence. Current control purpose/props/slots, keyboard/pointer/AT behavior, overflow, lifecycle/state/unsupported contracts and native launch matrix are in `docs/design/A2-components.md`. New A2 display-list evidence is separate from all six old passive goldens and historical reports. Native windows/screenshots/capture-blur/OS AT/preferences/fonts/shaping/physical DPI remain **UNVERIFIED**.
+See historical `docs/design/A0-A1-checkpoint.md` for its exact checkpoint evidence. Current control purpose/props/slots, keyboard/pointer/AT behavior, overflow, lifecycle/state/unsupported contracts and native launch matrix are in `docs/design/A2-components.md`. New A2 display-list evidence is separate from all six old passive goldens and historical reports. Native OS AT, preferences, complex-script shaping/IME and physical-DPI certification remain **UNVERIFIED**; prior gallery testing is not a certification matrix. Live `observe` captures are whole-window surface copies with a matching flattened accessibility tree, not component/headless captures, layout trees or UiId maps. Transport is Unix-only and requires explicit opt-in; see [observe](../../docs/native-observation.md).

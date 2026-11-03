@@ -53,7 +53,7 @@
 //!
 //! # Features
 //!
-//! The feature flags match `rndr_render` and are on by default:
+//! Desktop defaults mirror `rndr_render`; additional opt-ins are listed below:
 //!
 //! - `hotkey` grabs system-wide chords on macOS, Windows, X11, and the Wayland
 //!   global shortcuts portal.
@@ -63,6 +63,11 @@
 //! - `dialog` shows native open and save dialogs. It is off by default.
 //! - `term` re-exports the embedded terminal. It is off by default, so a
 //!   normal desktop build does not link a pseudoterminal.
+//! - `ui` is off by default and exposes semantic components at `rndr::ui`, never
+//!   glob-reexporting their names into the legacy root API.
+//! - `observe` is off by default. It enables opt-in live whole-window screenshots
+//!   and a matching flattened accessibility tree over a Unix socket. It is not
+//!   headless component capture; non-Unix transport is unsupported.
 //! - `tokio` is off by default. It forwards to `rndr_core` and spawns a feed
 //!   producer on a tokio runtime the application already started.
 //!
@@ -81,12 +86,58 @@ pub use rndr_paint::*;
 pub use rndr_render::*;
 pub use rndr_std::*;
 
+/// Semantic UI components, enabled with the `ui` feature.
+///
+/// Legacy core names stay at the root; semantic names are explicitly scoped.
+/// Collections retain bounded rows, not a viewport-virtualized list.
+///
+/// ```
+/// use rndr::{App, Button, Item, List, Theme}; // existing core/tray API
+/// use rndr::ui::{UiPlugin, UiTheme};
+/// use rndr::ui::controls::Button as UiButton;
+/// use rndr::ui::collections::{Item as UiItem, ListView};
+/// let mut app = App::new();
+/// app.add_plugin(UiPlugin);
+/// let _ = std::any::type_name::<(Button, Item, List, Theme)>();
+/// let _ = std::any::type_name::<(UiButton, UiItem, ListView, UiTheme)>();
+/// ```
+#[cfg(feature = "ui")]
+pub use rndr_ui as ui;
+
 /// Embedded terminal. Enable the `term` feature.
 #[cfg(feature = "term")]
 pub use rndr_term::*;
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "ui")]
+    #[test]
+    fn semantic_namespace_preserves_legacy_types() {
+        use std::any::{type_name, TypeId};
+        assert_eq!(
+            TypeId::of::<crate::Button>(),
+            TypeId::of::<rndr_core::Button>()
+        );
+        assert_eq!(
+            TypeId::of::<crate::Theme>(),
+            TypeId::of::<rndr_core::Theme>()
+        );
+        assert_eq!(TypeId::of::<crate::List>(), TypeId::of::<rndr_core::List>());
+        assert_eq!(TypeId::of::<crate::Item>(), TypeId::of::<rndr_core::Item>());
+        assert_eq!(
+            type_name::<crate::ui::UiPlugin>(),
+            type_name::<rndr_ui::UiPlugin>()
+        );
+        assert_ne!(
+            TypeId::of::<crate::Button>(),
+            TypeId::of::<crate::ui::controls::Button>()
+        );
+        assert_ne!(
+            TypeId::of::<crate::Item>(),
+            TypeId::of::<crate::ui::collections::Item>()
+        );
+    }
+
     #[test]
     fn reexports_cover_the_desktop_stack() {
         let _ = (

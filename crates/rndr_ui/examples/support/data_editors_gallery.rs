@@ -86,7 +86,6 @@ fn panel(w: &mut World, p: Entity, title: &str) -> Entity {
 pub fn create(width: f32, height: f32, theme: UiTheme) -> App {
     let mut app = App::new();
     app.add_plugin(UiPlugin);
-    app.add_system_front(Schedule::Input, apply_scroll);
     app.world_mut()
         .insert_resource(Viewport::new(width, height));
     app.world_mut().insert_resource(theme);

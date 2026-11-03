@@ -1,4 +1,6 @@
-# A2 contracted operating components — review candidate, not native acceptance
+# A2 contracted operating components — historical implementation/review record
+
+> Controls, data editors and selection controls are integrated at baseline `fe9e679`. See [current UI status](../ui-status.md); old candidate/held wording below does not reopen completed integration or certify untested native platforms. The facade now has an opt-in normal `ui` dependency, not only the original gallery dev dependency described below.
 
 This continues the SAME owner-authorized A0→A1→A2 undertaking from accepted **04642fe03f7603f228eaf9b83611641a95676e8d**. The new acceptance section in `implementation-tracking.md` records the owner decision; earlier checkpoints remain historical. The Specification and Review Guide are unchanged. A2 requires a fresh independent review and owner assessment; this document does not approve, integrate, publish or certify the project.
 

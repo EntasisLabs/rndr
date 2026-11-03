@@ -36,7 +36,7 @@ table.rows.select(app.world_mut(), Some(rows[0].id)).unwrap();
   retained row/cell entities and passive custom content. Removed rows/columns
   retire their owned entities and armed interaction targets.
 * Rows compose the existing `ListView`, sharing its single/no-selection policy,
-  roving row focus, Up/Down/Home/End/PageUp/PageDown, Space-to-select,
+  roving row focus, Up/Down/Home/End, Space-to-select,
   Enter-to-activate, Tab, focus reveal and collection events. Focus, selection
   and activation are distinct. Use `table.rows` for its public handle API.
 * Headers are canonical controls: click, Enter or Space release requests sorting
@@ -48,8 +48,9 @@ table.rows.select(app.world_mut(), Some(rows[0].id)).unwrap();
   control. There is **no pointer drag handle**, auto-size, pinned columns,
   spreadsheet cell editing/navigation, multi-selection or grouped headers.
 * Header and rows share the table's horizontal `Scroll`; the backing list owns
-  vertical scrolling. The host must install canonical `apply_scroll` when using
-  a bare `App` (the native gallery does this). Table-body height is 80–2000.
+  vertical scrolling. `UiPlugin` installs canonical `apply_scroll` itself, before
+  Input focus/activation; existing explicit host registration remains safe.
+  Table-body height is 80–2000.
 * Cell roots/aligner spacers are component-owned. Compose only under
   `CellSlot.content`. Content is **passive**, not nested interactive controls.
   Start cells fill the column. Center/end cells use intrinsic content widths;
@@ -91,9 +92,10 @@ assert_eq!(inspector.draft(app.world(), PropertyId(1)).unwrap().raw, "Project A"
   editor identity. `ObjectId` is part of transaction identity; hosts must change
   it when selection changes, never reuse it for a different logical object.
 * Text/number use the canonical `TextField`, caret/selection, clipboard, typing
-  history and IME filter. Boolean/choice use existing canonical buttons (activate
-  to toggle/cycle **draft**, not commit). Choice IDs are separate from display
-  labels. The milestone does not introduce a second dropdown/form engine.
+  history and IME filter. Boolean/choice/multiple-choice use reusable
+  [Checkbox, SingleSelect and MultiSelect](selection-controls.md), changing only
+  the **draft**, not committing. Choice IDs are separate from display labels.
+  The controls reuse core activation and anchored-popup/focus behavior.
 * Text has a positive Unicode-scalar-count limit (up to 65,536); numbers accept
   only finite `f64` values within finite inclusive min/max. Intermediate numeric
   strings (such as `-`) remain editable, visible and invalid. Choice IDs must

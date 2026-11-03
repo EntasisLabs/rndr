@@ -1,6 +1,6 @@
 # Native read-only observation v1
 
-Status: opt-in implementation candidate, not full A2/native certification or approval to integrate. Existing gates in [design/A2-remaining-gates.md](design/A2-remaining-gates.md) remain open. This pass does not change visual styling or application adoption.
+Status: implemented opt-in live observation at baseline `fe9e679`, not full native certification. [Current UI status](ui-status.md) supersedes historical candidate/integration wording; [design/A2-remaining-gates.md](design/A2-remaining-gates.md) records the earlier gate scope, not a fresh approval requirement for already integrated components. No Windows transport, component/UiId targeting, full layout tree or headless capture is provided here. The matching tree is flattened accessibility metadata; surface-copy success does not prove compositor presentation or appearance.
 
 ## Obtain a live gallery frame
 

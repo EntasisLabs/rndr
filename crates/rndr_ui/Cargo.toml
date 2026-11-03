@@ -6,7 +6,11 @@ license.workspace = true
 repository.workspace = true
 homepage.workspace = true
 rust-version.workspace = true
-description = "Opt-in semantic UI foundations for rndr (A0/A1)"
+description = "GPU-free semantic components, collections and data editors for rndr"
+readme = "README.md"
+keywords = ["gui", "ui", "components", "ecs", "desktop"]
+categories = ["gui"]
+# Internal consolidation: dependency/publication policy is not release-ready.
 publish = false
 
 [dependencies]

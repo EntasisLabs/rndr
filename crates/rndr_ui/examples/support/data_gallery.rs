@@ -118,8 +118,7 @@ fn forest(records: &[Item], query: &str) -> Vec<TreeNode> {
 pub fn create(width: f32, height: f32, theme: UiTheme) -> App {
     let mut app = App::new();
     app.add_plugin(UiPlugin);
-    // Core scrolling, without Shell's filesystem/global-selection side effects.
-    app.add_system_front(Schedule::Input, apply_scroll);
+    // UiPlugin owns scrolling without Shell's filesystem/global-selection effects.
     app.world_mut()
         .insert_resource(Viewport::new(width, height));
     app.world_mut().insert_resource(theme);

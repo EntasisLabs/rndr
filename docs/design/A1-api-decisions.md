@@ -1,6 +1,6 @@
 # A1 API / cardinality review decision record
 
-Status: implementation candidate for independent owner review, **not A2 clearance**.
+Historical status at this review: implementation candidate, **not A2 clearance**. Later controls/data/selection work is integrated at `fe9e679`; [current UI status](../ui-status.md) supersedes old gate/acceptance prose, not the historical contracts/results recorded here.
 
 ## Additive spellings and ownership
 

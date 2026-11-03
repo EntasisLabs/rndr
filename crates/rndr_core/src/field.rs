@@ -157,8 +157,10 @@ pub(crate) fn transaction_key(world: &mut World, entity: Entity, event: &KeyEven
     }
     // Use the canonical IME filter, without replaying the Input resource. The
     // aggregate commit is inserted once at the field stage, never as a submit.
-    let mut one = Input::default();
-    one.keys = vec![event.clone()];
+    let mut one = Input {
+        keys: vec![event.clone()],
+        ..Input::default()
+    };
     if let Some(input) = world.resource::<Input>() {
         one.ime_enabled = input.ime_enabled;
         one.ime_preedit = input.ime_preedit.clone();

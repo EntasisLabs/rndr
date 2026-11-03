@@ -88,6 +88,8 @@ pub enum CollectionEventKind {
     /// Selection changed or was reconciled away.
     Selected(Option<ItemId>),
     /// Enter requested host activation, independently of selection.
+    /// This is not the screen-reader Activate action: on a row that follows
+    /// canonical click/Space selection (or no selection in None mode).
     Activated(ItemId),
     /// Branch expansion changed.
     Expanded(ItemId, bool),
@@ -318,7 +320,7 @@ fn mount(
     for node in nodes {
         let id = node.item.id;
         let depth = depths[&id];
-        if !view.rows.contains_key(&id) {
+        if let std::collections::btree_map::Entry::Vacant(entry) = view.rows.entry(id) {
             let row = world.spawn((
                 Layout {
                     width: Size::Fill,
@@ -373,19 +375,16 @@ fn mount(
                 ..Layout::column()
             },));
             set_parent(world, content, inner);
-            view.rows.insert(
-                id,
-                Row {
-                    item: node.item.clone(),
-                    parent: node.parent,
-                    depth,
-                    slot: RowSlot { root: row, content },
-                    inner,
-                    chevron,
-                    branch: false,
-                    visible: true,
-                },
-            );
+            entry.insert(Row {
+                item: node.item.clone(),
+                parent: node.parent,
+                depth,
+                slot: RowSlot { root: row, content },
+                inner,
+                chevron,
+                branch: false,
+                visible: true,
+            });
         }
         let row = view.rows.get_mut(&id).unwrap();
         if row.item.enabled != node.item.enabled
@@ -412,12 +411,11 @@ fn mount(
     let label = world.get_mut::<Label>(view.empty).unwrap();
     label.text = view.props.empty.clone();
     label.overflow = TextOverflow::Wrap;
-    if view.selected.is_some_and(|id| !node_enabled(&view, id))
-        || view.props.selection == SelectionMode::None
+    if (view.selected.is_some_and(|id| !node_enabled(&view, id))
+        || view.props.selection == SelectionMode::None)
+        && view.selected.take().is_some()
     {
-        if view.selected.take().is_some() {
-            emit(world, root, CollectionEventKind::Selected(None));
-        }
+        emit(world, root, CollectionEventKind::Selected(None));
     }
     sync(world, root, &mut view);
     if let Some(id) = focused {

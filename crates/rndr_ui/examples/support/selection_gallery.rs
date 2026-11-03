@@ -79,7 +79,6 @@ pub fn create(width: f32, height: f32, theme: UiTheme, flags: &[String]) -> App 
     let has = |s: &str| flags.iter().any(|a| a == s);
     let mut a = App::new();
     a.add_plugin(UiPlugin);
-    a.add_system_front(Schedule::Input, apply_scroll);
     a.world_mut().insert_resource(Viewport::new(width, height));
     a.world_mut().insert_resource(theme);
     let w = a.world_mut();

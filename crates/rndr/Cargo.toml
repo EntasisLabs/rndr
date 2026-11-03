@@ -14,6 +14,8 @@ categories = ["gui", "graphics", "rendering"]
 exclude = ["**/*.snap.new"]
 
 [features]
+# Semantic components under rndr::ui; leaves legacy root exports untouched.
+ui = ["dep:rndr_ui"]
 # Native read-only observation; still requires explicit per-app session opt-in.
 observe = ["rndr_render/observe"]
 default = ["hotkey", "tray", "parley", "accesskit"]
@@ -34,6 +36,7 @@ dialog = ["rndr_render/dialog"]
 tokio = ["rndr_core/tokio"]
 
 [dependencies]
+rndr_ui = { path = "../rndr_ui", optional = true }
 rndr_core = { workspace = true }
 rndr_paint = { workspace = true }
 rndr_std = { workspace = true }

@@ -719,6 +719,9 @@ pub enum PropertyKind {
     /// Explicit caller-defined kind name or custom string value.
     Custom(String),
 }
+/// Pure deterministic property validation after parsing and again at commit.
+pub type PropertyValidator = fn(&PropertyValue) -> Result<(), String>;
+
 #[derive(Clone, Debug)]
 /// Host-owned committed property definition and validation policy.
 pub struct Property {
@@ -741,7 +744,7 @@ pub struct Property {
     /// Host-supplied validation error; blocks commit until reconciled away.
     pub validation: Option<String>,
     /// Pure deterministic validator after parsing and again at commit.
-    pub validate: Option<fn(&PropertyValue) -> Result<(), String>>,
+    pub validate: Option<PropertyValidator>,
 }
 #[derive(Clone, Debug)]
 /// Ordered, labelled group of properties.

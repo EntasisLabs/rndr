@@ -201,8 +201,10 @@ fn chronological_tab_navigation_and_enter_share_one_dispatcher() {
         app.world().resource::<Focus>().unwrap().entity,
         Some(after.root)
     );
-    let mut shift = Modifiers::default();
-    shift.shift = true;
+    let shift = Modifiers {
+        shift: true,
+        ..Modifiers::default()
+    };
     app.world_mut().resource_mut::<Input>().unwrap().keys =
         vec![KeyEvent::named(NamedKey::Tab, shift)];
     frame(&mut app);

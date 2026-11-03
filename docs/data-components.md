@@ -1,6 +1,6 @@
 # Composable data browsers — milestone 1
 
-`rndr_ui::collections::{ListView, TreeView}` are framework components, independent of Blooey, Shell, filesystems, databases and document editing. The gallery is a separate synthetic application. DataTable, PropertyInspector and Charts are **roadmap**, not implemented here.
+`rndr_ui::collections::{ListView, TreeView}` are framework components, independent of Blooey, Shell, filesystems, databases and document editing. The gallery is a separate synthetic application. `data::DataTable` and `data::PropertyInspector` are implemented; see [data editors](data-editors.md). Reusable Checkbox, SingleSelect and MultiSelect and their inspector integration are also implemented; see [selection controls](selection-controls.md). Charts remain roadmap. This page describes the retained ListView/TreeView contract, not a unified virtualized list.
 
 ## Launch the actual interactive gallery
 
@@ -38,14 +38,14 @@ Try:
 Use explicit imports for `collections::Item`; core also has a legacy `Item` type. `UiId` identifies a component under its layout parent; `ItemId` identifies a data row **inside one view**. Never use the current row index as an ID.
 
 ```rust
-use rndr_core::{App, Layout, Schedule, Size, children_of, apply_scroll, Label};
+use rndr_core::{App, Layout, Size, children_of, Label};
 use rndr_ui::{UiPlugin, UiId, text, Typography};
 use rndr_ui::collections::{Item, ItemId, ListView, RowSlot, ViewProps};
 
 let mut app = App::new();
 app.add_plugin(UiPlugin); // idempotent; Chrome/GenericInteraction, not Shell
-// Hosts install core scrolling ONCE. Omit this if your host already installs it.
-app.add_system_front(Schedule::Input, apply_scroll);
+// UiPlugin installs scrolling before canonical Input interaction.
+// Older hosts may retain apply_scroll: consumed wheel/drag deltas are not doubled.
 let parent = app.world_mut().spawn((Layout {
     width: Size::Fill, height: Size::Fill, ..Layout::column()
 },));
@@ -101,6 +101,7 @@ Initial modes: `SelectionMode::Single` (default: zero or one selected ID) and `S
 | Tree Right | Open a closed branch; otherwise move to its first enabled visible direct child. |
 | Tree Left | Close an open branch; otherwise move to nearest available ancestor. |
 | Primary pointer release / Space release | Select the row, separately from focus. Pointer press focuses. Crossing core scroll-drag slop, Escape, blur, retargeting or removal cancels pending release. |
+| Screen-reader / AT Activate on a row | Canonical click action: selects (Single mode), not host `Activated`. In None mode it does not select. |
 | Enter | One explicit `Activated(id)` per non-repeat key press; does not select. Enter/Space on a separately focused disclosure button uses canonical button expansion instead. |
 | `set_expanded` | Retains subtree IDs/content/selection, hides descendants from layout/input/AT when collapsed. Focus inside that subtree moves to nearest visible enabled ancestor. |
 | Reorder / rename | Stable row entities/content, selection and focus follow the ID, not an index. Expansion follows persistent node IDs while they remain branches; losing the last child retires expansion with an explicit event. Leaf indentation remains passive selectable row area. |
@@ -125,7 +126,7 @@ The gallery's pragmatic large-data strategy is **host-owned paging**: 10,000 log
 - Core `List` already pools uniform-height rows but selection/focus is index-based; composition callbacks run each frame on recycled entities. Reusing it unchanged would violate stable-ID composed subtree lifetime and independent selection. It remains unchanged, including its virtualization tests.
 - Core `Disclosure` / `Shell` mix hierarchy navigation with filesystem expansion, saves, editor/global Selection behavior. They remain unchanged; collections use ordinary `Children`/`Parent`, `Hidden` and application metadata.
 - Core `Scroll`, layout, clip/hit testing, GenericInteraction/Chrome, Focus, canonical release activation, accessible-name/style machinery are reused. `reveal_entity` extracts the existing core reveal path, rather than introducing a second scrolling engine.
-- Later DataTable can share stable identity/events/roving navigation but needs real column/cell/resize/sort contracts; an Inspector should compose existing typed editors and commit/validation events; Charts should separate series/domain data from rendering and provide an accessible alternative. None is stubbed or presented as finished here.
+- DataTable now supplies stable row/column identities, sort requests and declarative column widths; PropertyInspector supplies typed drafts, validation and explicit commit/cancel. Their contracts live in [data-editors.md](data-editors.md), with reusable boolean/choice controls in [selection-controls.md](selection-controls.md). Charts and unified virtualization remain future work.
 
 ## Verification and remaining gates
 

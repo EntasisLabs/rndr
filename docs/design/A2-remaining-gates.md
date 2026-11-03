@@ -1,4 +1,6 @@
-# Current A2 gate matrix — scoped R1 accepted, A2 decision still open
+# Historical A2 gate matrix — scoped R1 review boundary
+
+> This matrix records its 2026-11-01 task and exact scope, not current integration status. Controls/data editors/selection controls are integrated at baseline `fe9e679`; see [current UI status](../ui-status.md) for superseding status and still-unverified native certification. Historical commands/reviews/results below remain intact and must not be rerun over archived evidence.
 
 Date: 2026-11-01. This is a documentation/evidence reconciliation, **not a new independent review**.
 Authority: sender's current instruction accepts the scoped headless R1 review at exact

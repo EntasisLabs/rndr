@@ -1,7 +1,10 @@
-//! GPU-free, opt-in A0/A1 foundations and operating A2 components above rndr_core.
-//! Core contract acceptance is scoped; native platform acceptance remains separate.
-//! See docs/design/A1-api-decisions.md for the bounded interaction contract.
-#![warn(missing_docs)]
+//! GPU-free semantic components, styling and application-owned data editors.
+//!
+//! Install [`UiPlugin`] for core interaction, scrolling and semantic styling.
+//! No window, GPU, filesystem runtime or parallel focus dispatcher is installed.
+//! Collections retain bounded rows; they are not virtualized. Native screen-reader,
+//! IME and cross-platform visual certification remain separate from headless tests.
+#![deny(missing_docs)]
 pub mod collections;
 pub mod composition;
 pub mod controls;
@@ -18,6 +21,9 @@ pub use tokens::{Appearance, Contrast, Density, Space, Token, Typography, UiThem
 
 /// Sole installation owner for UI styling and reusable core interaction.
 /// Uses idempotent Chrome through GenericInteraction; never Shell or a new runtime.
+/// Scrolling runs at the front of Input, before focus/activation can reveal rows.
+/// Existing host `apply_scroll` registrations are safe: wheel deltas are consumed
+/// and drag movement is measured from the last applied position, not accumulated twice.
 /// Resources and systems live for the App lifetime; plugin uninstall unsupported.
 pub struct UiPlugin;
 struct Installed;
@@ -27,6 +33,7 @@ impl Plugin for UiPlugin {
             return;
         }
         app.add_plugin(rndr_core::GenericInteraction);
+        app.add_system_front(Schedule::Input, rndr_core::apply_scroll);
         if !app.world().has_resource::<UiTheme>() {
             app.world_mut().insert_resource(UiTheme::default());
         }

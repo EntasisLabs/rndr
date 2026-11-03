@@ -1,5 +1,7 @@
 # rndr_ui A0/A1 implementation checkpoint
 
+> This is a historical execution record. [Current UI status](../ui-status.md) describes the integrated `fe9e679` baseline and supersedes old A2 gate/acceptance wording. Historical commands, hashes, evidence and scoped results below remain unchanged.
+
 Human approval: conversation entry 124 (2026-11-01) approved the council direction and whole A0 → A1 → A2 undertaking. This assignment implements A0+A1 only; A2 requires owner-led independent A1 API/cardinality review. The adjacent canonical proposals are byte-for-byte copies, including their historical held wording; this record, not an edited proposal, records approval.
 
 Baseline: `291ab05493a59732f891dd762bf90c64e79a48d0`; isolated Forge worktree initially clean. Disk preflight: 5.2 GiB available; no existing worktree target cache. Builds use jobs=2, debug=0, incremental=false and offline resolution; reuse the resulting local target, no broad cleanup.

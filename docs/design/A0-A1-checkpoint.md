@@ -1,4 +1,6 @@
-# A0+A1 checkpoint — ready for independent A1 review, not A2 clearance
+# A0+A1 checkpoint — historical independent A1 review boundary
+
+> Historical checkpoint, not current acceptance status. See [current UI status](../ui-status.md) for the integrated `fe9e679` baseline and remaining native limits. Exact historical scope/results below are preserved.
 
 This delivers **A0+A1 only** within the user-approved whole A0→A1→A2 undertaking. Approval is human conversation entry **124**, 2026-11-01. Owner retains orchestration, independent A1 API/cardinality review, A2 continuation, native verification and integration. No approval/integration/push was performed here.
 

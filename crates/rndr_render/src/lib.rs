@@ -7,6 +7,17 @@
 //! window stays 800×600, decorated, resizable, and titled `rndr`. Hide and
 //! show leave the wgpu surface in place.
 //!
+//! # Live observation
+//!
+//! Feature `observe` is off by default and also requires an explicit session
+//! and whole-frame public-content attestation. It captures the live whole-window
+//! surface after ordinary draw commands, with the matching flattened accessibility
+//! tree from the paint boundary; privacy or supported post-paint state changes
+//! deny both channels. The transport is Unix-only. It is not component/UiId or
+//! layout-tree capture, headless rendering, automatic secret detection, or proof
+//! that the OS compositor displayed the frame. See `docs/native-observation.md`
+//! in the repository for limits, privacy policy and the Python client/tests.
+//!
 //! # Example
 //!
 //! ```no_run

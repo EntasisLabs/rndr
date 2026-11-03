@@ -500,9 +500,7 @@ fn window_blur_cancels_draft_and_access_setvalue_remains_honestly_unsupported() 
     send(a.world_mut(), WindowFocus::Blurred);
     frame(&mut a);
     assert_eq!(h.draft(a.world(), PropertyId(1)).unwrap().raw, "A");
-    assert!(property_events(&a)
-        .iter()
-        .any(|e| *e == PropertyEventKind::Cancelled(CancelReason::Blur)));
+    assert!(property_events(&a).contains(&PropertyEventKind::Cancelled(CancelReason::Blur)));
 }
 #[test]
 fn bounded_components_reject_oversized_or_duplicate_input_before_mutating() {

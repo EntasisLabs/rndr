@@ -28,7 +28,7 @@ let multi = MultiSelect::mount(world, form, UiId(3), SelectionProps::new("Teams"
 
 Normal hosts read `events::<SelectionChange>(world)` in Update, validate that `control` is still their live generation-checked handle and the IDs/permissions still exist, assign their own state, then remount with accepted values. `SelectionValue` is `Checked(bool)` or `Selected(Vec<OptionId>)`. It is a complete desired state. No request mutates the application model or silently normalizes it. Remount is an explicit reconciliation boundary, resetting the pending-request baseline. Delaying/declining a request keeps the old checked/selected visual state; queued toggles within one batch derive from preceding requests rather than stale acknowledgement. Options are retained across reorder; only removed identities are destroyed. Summaries show up to three labels and a remaining/total count. Every option still has its own projected selected state.
 
-`ChangeHandler(fn(&mut World, Entity, &SelectionValue))` is an optional synchronous adapter for hosts needing exact activation chronology. Installing it replaces event delivery for that control; do not apply both routes. PropertyInspector uses it to update the local draft before the next queued event, with canonical activation and focus-boundary notification unchanged. The control has no separate dispatcher. Use normal core `apply_scroll` when your application wants wheel/drag scrolling (the gallery does).
+`ChangeHandler(fn(&mut World, Entity, &SelectionValue))` is an optional synchronous adapter for hosts needing exact activation chronology. Installing it replaces event delivery for that control; do not apply both routes. PropertyInspector uses it to update the local draft before the next queued event, with canonical activation and focus-boundary notification unchanged. The control has no separate dispatcher. `UiPlugin` installs normal core wheel/drag scrolling before canonical Input interaction; older explicit host `apply_scroll` registrations remain safe and are no longer required.
 
 ## Inspector compatibility and commit
 
@@ -44,7 +44,7 @@ Disabled ancestors block focus and activation; readonly ancestors permit focus b
 
 ## Launch and test
 
-Run in this isolated checkout until the owner integrates it. Explicitly reuse the retained compatible cache; the new scripts refuse an unset cache rather than creating a duplicate target directory:
+The controls are integrated at baseline `fe9e679`; run from your current rndr checkout. This hygiene candidate still requires owner review/integration. Explicitly reuse the retained compatible cache; the new scripts refuse an unset cache rather than creating a duplicate target directory:
 
 ```sh
 export PATH="$HOME/.cargo/bin:$PATH"
@@ -56,8 +56,8 @@ cargo run --offline --locked -p rndr --example selection_gallery --features obse
 cargo run --offline --locked -p rndr --example selection_gallery --features observe -- --narrow --compact --hc --200 --many --single-open
 cargo run --offline --locked -p rndr --example selection_gallery --features observe -- --invalid --inspector-open
 # Also: --empty --readonly --disabled; --single-open --multi-open --inspector-open
-bash scripts/verify-selection-controls.sh evidence/selection-controls/verification-NEW
-bash scripts/capture-selection-controls.sh evidence/selection-controls/native-NEW
+bash scripts/verify-selection-controls.sh /tmp/rndr-selection-verification-NEW
+bash scripts/capture-selection-controls.sh /tmp/rndr-selection-native-NEW
 ```
 
 The interactive synthetic host applies standalone requests to standalone state only, and inspector CommitRequested to separate committed property records. Reorder/remove/reset commands demonstrate identity reconciliation. Both panes respond to viewport/text scale; root and inspector scroll rather than hide overflow. Readonly/disabled/empty examples remain independently present. Run tests with `cargo test --offline --locked -p rndr_ui --test selection --test selection_scope --test selection_gallery` for the focused increment, or the bounded gate above (includes all existing data verification, historical interaction fixtures, canonical core/paint/UI, native/fallback rendering, facade builds and Python tests). Two jobs, no incremental/debug bloat, and a 2 GiB free-space floor are enforced by the new scripts. No cache cleanup is performed.

@@ -47,7 +47,7 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Clippy without default features
-        run: cargo clippy -p rndr_render -p rndr --no-default-features --all-targets -- -D warnings
+        run: cargo clippy -p rndr_render -p rndr -p rndr_ui --no-default-features --all-targets -- -D warnings
 
       - name: Clippy with dialogs
         run: cargo clippy -p rndr_render -p rndr --features dialog --all-targets -- -D warnings
@@ -57,6 +57,26 @@ jobs:
 
       - name: Test all features
         run: cargo test --workspace --all-features
+
+      - name: Semantic facade feature configurations
+        run: |
+          cargo test -p rndr --no-default-features --lib
+          cargo test -p rndr --no-default-features --features ui --lib
+          cargo test -p rndr --no-default-features --features ui --doc
+          cargo test -p rndr --features ui --lib
+          cargo test -p rndr --features ui --doc
+          cargo clippy -p rndr --no-default-features --features ui --all-targets -- -D warnings
+
+      - uses: actions/setup-python@v5
+        if: runner.os != 'Windows'
+        with:
+          python-version: '3.x'
+
+      # These tests require POSIX permissions, FIFOs and Unix sockets, not only
+      # AF_UNIX availability. The live observe transport is unsupported on Windows.
+      - name: Python observe protocol and security regressions
+        if: runner.os != 'Windows'
+        run: python3 -m unittest discover -s tools -p 'test_observe*.py' -v
 
       - name: Feed tokio feature
         run: |
@@ -69,12 +89,18 @@ jobs:
       - name: Build examples and rndr_render
         run: cargo build -p expand -p idle -p overlay -p palette -p terminal -p stream -p two-windows -p pen-probe -p canvas-scene -p create-view -p rndr_render
 
+      - name: Build native semantic galleries with observation
+        run: cargo build -p rndr --features observe,ui --example ui_gallery --example data_gallery --example data_editors_gallery --example selection_gallery
+
       - name: Package and docs
         if: runner.os == 'Linux'
         run: |
+          # rndr_ui stays publish=false. The facade now has an optional local UI
+          # dependency without a registry version; neither is release-ready.
+          # Validate facade via feature builds/doctests, not a misleading package gate.
           # Builds each packaged crate from the tarball. Cargo does not execute
           # tests here, so the archive checks below guard the snapshot suite.
-          cargo package --workspace --locked --exclude expand --exclude idle --exclude overlay --exclude palette --exclude terminal --exclude stream --exclude two-windows --exclude pen-probe --exclude canvas-scene --exclude create-view
+          cargo package --workspace --locked --exclude rndr_ui --exclude rndr --exclude expand --exclude idle --exclude overlay --exclude palette --exclude terminal --exclude stream --exclude two-windows --exclude pen-probe --exclude canvas-scene --exclude create-view
           paint_crate=(target/package/rndr_paint-*.crate)
           render_crate=(target/package/rndr_render-*.crate)
           test "${#paint_crate[@]}" -eq 1
