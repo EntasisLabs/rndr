@@ -1,0 +1,20 @@
+{
+  "current_source_files": 16,
+  "correction_evidence_files": 165,
+  "historical_source_files": 15,
+  "historical_evidence_files": 231,
+  "preserved_original_and_review_files": 264,
+  "binary_sha256": "88924c9429fedb4efcad3ee221a7cfb7ebd2a54974c0684031d8d8573b97ef1e",
+  "native_states": [
+    "light",
+    "dark",
+    "narrow",
+    "tree-focus",
+    "disabled",
+    "empty",
+    "filtered",
+    "compact-hc-200",
+    "large"
+  ],
+  "note": "Current bindings are separate from historical manifests. Pixel inspection is a recorded human-facing model assessment, not inferred from hashes. Physical input/platform checks are not certified."
+}

@@ -1,0 +1,30 @@
+$ cargo test --offline --locked -p rndr_ui --test collections -- --nocapture 
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-composable-listview-and-treeview-foundation/crates/rndr_ui)
+    Finished `test` profile [unoptimized] target(s) in 0.36s
+     Running tests/collections.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/collections-06ed4ce65a6bb4cb)
+
+running 17 tests
+test malformed_or_oversize_inputs_reject_atomically_and_lifetimes_are_generation_checked ... ok
+test filtering_or_removing_an_armed_id_cannot_select_a_replacement ... ok
+test disabled_tree_ancestry_reconciles_selection_and_focus_without_hidden_targets ... ok
+test chronological_tab_navigation_and_enter_share_one_dispatcher ... ok
+test keyboard_focus_space_selection_and_enter_activation_are_distinct ... ok
+test scoped_collection_drain_leaves_unrelated_host_requests_in_order ... ok
+test pointer_disclosure_and_accessibility_use_the_same_canonical_targets ... ok
+test nested_tree_navigation_collapse_and_removal_have_safe_focus ... ok
+test stable_identity_and_composed_subtrees_survive_reorder_updates_and_reconciliation ... ok
+test surviving_branch_becoming_leaf_retires_disclosure_and_indent_selects_row ... ok
+test pointer_release_selects_and_drag_escape_blur_cancel ... ok
+test core_scroll_drag_cancels_pointer_selection_and_nested_hierarchy_is_projected ... ok
+test gallery_public_components_render_mutate_filter_resize_and_show_empty_states ... ok
+test painted_theme_density_clips_and_independent_states_are_real_component_output ... ok
+test scroll_reveal_clipping_empty_disabled_and_none_selection_are_integrated ... ok
+application_paging records=10000 page_rows=128 mounted_layout_entities=1639
+test gallery_large_dataset_pages_bound_mounted_rows_and_keep_data_app_owned ... ok
+retained_budget rows=1024 layout_entities=6147 first_frame_ms=275.46; layout/accessibility remain O(N), not virtualized
+test retained_budget_is_measured_honestly_not_virtualized ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.99s
+
+
+EXIT=0

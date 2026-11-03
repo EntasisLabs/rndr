@@ -1,0 +1,7 @@
+{
+  "path": "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/examples/data_gallery",
+  "sha256": "854fe83c942d656e6b4ec7e21e6f5cdf5def307b313a8b1298337ed1a39e05a8",
+  "build_log": "verification/gallery-build.log",
+  "source_binding": "source.sha256",
+  "note": "Built from this correction worktree using documented compatible output cache; not historical binary."
+}
