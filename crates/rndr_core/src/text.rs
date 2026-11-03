@@ -67,7 +67,7 @@ pub enum FontStyle {
 ///
 /// On a label, this replaces [`style_of`] for that entity's measurement and
 /// shaping. Headings and code blocks store one. A label without it uses the
-/// world's face.
+/// world's explicit `TextStyle` resource, or its face when absent.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextStyle {
     /// Family name passed to the engine. The default is `"bitmap"`.
@@ -139,9 +139,14 @@ impl TextStyle {
     }
 }
 
-/// Style of the world's [`crate::TextFace`], or the bitmap face when none is set.
+/// Explicit world `TextStyle` resource, otherwise the world's [`crate::TextFace`]
+/// style (bitmap when absent). Installing a resource opts into a default font
+/// request without replacing the engine/face. Per-entity styles still win.
 pub fn style_of(world: &World) -> TextStyle {
-    TextStyle::from_face(text_face(world).as_ref())
+    world
+        .resource::<TextStyle>()
+        .cloned()
+        .unwrap_or_else(|| TextStyle::from_face(text_face(world).as_ref()))
 }
 
 /// [`TextStyle`] stored on `entity`, or [`style_of`] when it has none.

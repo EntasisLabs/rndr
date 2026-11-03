@@ -1,6 +1,72 @@
 use super::*;
 use rndr_core::{set_parent, Color, Component, Layout, Schedule, Size};
 
+#[test]
+fn markdown_embedded_controls_use_unchanged_whole_frame_privacy_gate() {
+    use rndr_core::{
+        markdown_view, mount_markdown_slot, Button, Label, MarkdownPlugin, MarkdownSlotId,
+        MarkdownView,
+    };
+    let mut app = App::new();
+    app.add_plugin(MarkdownPlugin);
+    app.world_mut().insert_resource(Viewport::new(320., 240.));
+    app.world_mut()
+        .insert_resource(observe::ObservationContent::Public);
+    let view = markdown_view(app.world_mut(), "Public fallback");
+    app.update();
+    let block = app.world().get::<MarkdownView>(view).unwrap().blocks()[0].clone();
+    let slot =
+        mount_markdown_slot(app.world_mut(), view, 0, &block, MarkdownSlotId(1), 40.).unwrap();
+    let button = app.world_mut().spawn((
+        Layout {
+            width: Size::Fill,
+            height: Size::Px(32.),
+            ..Layout::column()
+        },
+        Label::new("Private control value"),
+        Button::new("private_command"),
+        Key(91),
+    ));
+    set_parent(app.world_mut(), button, slot.root);
+    app.update();
+    let m = metadata(app.world(), Target::Entity(view), &ids).unwrap();
+    assert!(m
+        .nodes
+        .iter()
+        .any(|node| node.entity == button && node.ui_id == Some(91)));
+    assert!(!m.to_json().to_string().contains("Private control value"));
+    assert!(!m.to_json().to_string().contains("private_command"));
+    // All hierarchy positions, hidden nodes and unrelated targets deny before
+    // identity lookup. No masking/partial subtree metadata is released.
+    for entity in [slot.root, button] {
+        app.world_mut()
+            .insert(entity, observe::ObservationSensitive);
+        for hidden in [false, true] {
+            if hidden {
+                app.world_mut().insert(entity, Hidden);
+            }
+            for target in [view, button] {
+                assert_eq!(
+                    metadata(app.world(), Target::Entity(target), &|_, _| panic!(
+                        "identity must not run"
+                    )),
+                    Err(Error::Sensitive)
+                );
+            }
+        }
+        app.world_mut()
+            .remove::<observe::ObservationSensitive>(entity);
+        app.world_mut().remove::<Hidden>(entity);
+    }
+    app.world_mut()
+        .insert_resource(observe::ObservationContent::Deny);
+    assert_eq!(
+        metadata(app.world(), Target::Entity(button), &ids),
+        Err(Error::Sensitive)
+    );
+    assert!(!permitted(app.world()).is_ok());
+}
+
 #[derive(Clone, Copy)]
 struct Key(u64);
 impl Component for Key {}

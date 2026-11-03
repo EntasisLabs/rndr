@@ -10,6 +10,34 @@ use crate::world::{Component, World};
 
 impl Component for Pane {}
 
+#[derive(Clone, Copy)]
+enum PaneColor {
+    Title,
+    Body,
+    Status,
+    Child,
+    Empty,
+}
+#[derive(Clone, Copy)]
+struct PanePaint {
+    role: PaneColor,
+    applied: Color,
+    owned: bool,
+}
+impl Component for PanePaint {}
+impl PaneColor {
+    fn color(self, world: &World) -> Color {
+        let theme = theme_of(world);
+        match self {
+            Self::Title => theme.title,
+            Self::Body => theme.body,
+            Self::Status => theme.status,
+            Self::Child => theme.child,
+            Self::Empty => theme.empty,
+        }
+    }
+}
+
 /// The entity whose interior is shown in a [`Pane`].
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Selection {
@@ -109,7 +137,8 @@ pub fn set_selection(world: &mut World, entity: Option<Entity>) {
 /// pane despawns [`Pane::spawned`] and rebuilds: an editable title (the
 /// node's label, or "Untitled"), an editable body from [`crate::Body`], a
 /// status line (`Open`, `Closed`, or `Leaf`), then one row per disclosure
-/// child label.
+/// child label. Retained generated row fills follow theme changes without
+/// rebuilding text/edit state; explicit host color overrides are preserved.
 pub fn apply_pane(world: &mut World) {
     let selected = world
         .resource::<Selection>()
@@ -118,6 +147,21 @@ pub fn apply_pane(world: &mut World) {
     let panes = world.entities_with::<Pane>();
     for pane in panes {
         sync_pane(world, pane, selected);
+    }
+    // Refresh only colors still owned by the pane. Never rebuild editable rows
+    // or replace host-authored Color overrides merely to update a theme.
+    for row in world.entities_with::<PanePaint>() {
+        let mut paint = *world.get::<PanePaint>(row).unwrap();
+        if paint.owned {
+            if world.get::<Color>(row).copied() == Some(paint.applied) {
+                let next = paint.role.color(world);
+                world.insert(row, next);
+                paint.applied = next;
+            } else {
+                paint.owned = false;
+            }
+        }
+        world.insert(row, paint);
     }
 }
 
@@ -130,7 +174,7 @@ fn sync_pane(world: &mut World, pane: Entity, selected: Option<Entity>) {
             return;
         }
         clear_pane(world, pane);
-        let empty = body_row(world, pane, "Nothing open", theme_of(world).empty);
+        let empty = body_row(world, pane, "Nothing open", PaneColor::Empty);
         if let Some(p) = world.get_mut::<Pane>(pane) {
             p.spawned = vec![empty];
             p.shown = None;
@@ -193,12 +237,11 @@ fn spawn_body(world: &mut World, pane: Entity, selected: Entity) -> Vec<Entity> 
         .unwrap_or_default();
 
     let mut spawned = Vec::new();
-    let theme = theme_of(world);
     spawned.push(field_row(
         world,
         pane,
         title,
-        theme.title,
+        PaneColor::Title,
         Some(EditField::Title),
         36.0,
     ));
@@ -206,13 +249,20 @@ fn spawn_body(world: &mut World, pane: Entity, selected: Entity) -> Vec<Entity> 
         world,
         pane,
         body.clone(),
-        theme.body,
+        PaneColor::Body,
         Some(EditField::Body),
         field_height(&body),
     ));
-    spawned.push(field_row(world, pane, status, theme.status, None, 36.0));
+    spawned.push(field_row(
+        world,
+        pane,
+        status,
+        PaneColor::Status,
+        None,
+        36.0,
+    ));
     for label in child_labels {
-        spawned.push(field_row(world, pane, label, theme.child, None, 36.0));
+        spawned.push(field_row(world, pane, label, PaneColor::Child, None, 36.0));
     }
     spawned
 }
@@ -221,7 +271,7 @@ fn field_row(
     world: &mut World,
     pane: Entity,
     text: impl Into<String>,
-    color: Color,
+    role: PaneColor,
     field: Option<EditField>,
     height: f32,
 ) -> Entity {
@@ -235,17 +285,26 @@ fn field_row(
         layout.height = Size::Px(height);
     }
     let text = text.into();
+    let color = role.color(world);
     let row = if let Some(kind) = field {
         world.spawn((layout, color, Label::new(text), Field { kind }))
     } else {
         world.spawn((layout, color, Label::new(text)))
     };
+    world.insert(
+        row,
+        PanePaint {
+            role,
+            applied: color,
+            owned: true,
+        },
+    );
     set_parent(world, row, pane);
     row
 }
 
-fn body_row(world: &mut World, pane: Entity, text: impl Into<String>, color: Color) -> Entity {
-    field_row(world, pane, text, color, None, 36.0)
+fn body_row(world: &mut World, pane: Entity, text: impl Into<String>, role: PaneColor) -> Entity {
+    field_row(world, pane, text, role, None, 36.0)
 }
 
 fn node_label(world: &World, entity: Entity) -> Option<String> {

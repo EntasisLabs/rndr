@@ -13,11 +13,13 @@ pub mod data;
 pub mod selection;
 pub mod style;
 pub mod surfaces;
+pub mod theme_bridge;
 pub mod tokens;
 pub use composition::{section_layout, WorkspaceLayout};
 use rndr_core::{App, Layout, Plugin, Schedule, Size};
 pub use style::{detach_style, resolve_styles, Corner, UiColor, UiRecipe, UiStyle};
 pub use surfaces::{separator, text, Callout, Card, Feedback, Surface, UiError, UiHandle, UiId};
+pub use theme_bridge::apply_theme_bridge;
 pub use tokens::{Appearance, Contrast, Density, Space, Token, Typography, UiTheme};
 
 /// Read the caller-stable key of a mounted component root. Internal decoration,

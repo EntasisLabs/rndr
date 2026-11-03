@@ -196,8 +196,9 @@ pub use list::{
     LIST_END, LIST_HOME, LIST_PAGE_DOWN, LIST_PAGE_UP, LIST_UP,
 };
 pub use markdown::{
-    markdown_view, parse_markdown, LinkActivated, MarkdownBlock, MarkdownKind, MarkdownLink,
-    MarkdownPlugin, MarkdownTheme, MarkdownView,
+    markdown_view, mount_markdown_slot, parse_markdown, LinkActivated, MarkdownBlock, MarkdownKind,
+    MarkdownLink, MarkdownPlugin, MarkdownSlot, MarkdownSlotError, MarkdownSlotId, MarkdownTheme,
+    MarkdownView,
 };
 pub use memory_fs::{MemoryFs, MemoryFsPlugin};
 pub use mono::{

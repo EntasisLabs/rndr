@@ -1,0 +1,2 @@
+rustfmt --edition 2021 --config skip_children=true --check crates/rndr/examples/markdown_gallery.rs crates/rndr_core/src/lib.rs crates/rndr_core/src/markdown.rs crates/rndr_core/src/markdown/host.rs crates/rndr_core/src/pane.rs crates/rndr_core/src/text.rs crates/rndr_render/src/capture/tests.rs crates/rndr_ui/examples/support/markdown_gallery.rs crates/rndr_ui/src/lib.rs crates/rndr_ui/src/theme_bridge.rs crates/rndr_ui/tests/markdown_gallery.rs crates/rndr_ui/tests/markdown_slots.rs
+Exit: 0; 12 changed Rust files

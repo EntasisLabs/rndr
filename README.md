@@ -36,6 +36,8 @@ Try `cargo run -p rndr --example selection_gallery --features observe` (also `ui
 
 Publishing is deliberately not enabled: `rndr_ui` stays `publish = false`, and the facade's optional local UI dependency has no registry release policy yet. Updated metadata is not a publication-readiness claim. Existing registry release instructions/scripts must not be used to publish this consolidation candidate.
 
+Core markdown now supports explicit [host-filled block slots](docs/markdown-host-slots.md) for retained live values and real controls. `rndr_ui::apply_theme_bridge` opts one World into UiTheme-derived core/markdown colors and default typography; `UiPlugin` alone remains unchanged. Try `cargo run --offline --locked -p rndr --example markdown_gallery --features observe` for streaming, focus, resize and light/dark controls.
+
 ## Crates
 
 | Crate | Role |

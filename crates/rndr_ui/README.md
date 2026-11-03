@@ -42,6 +42,10 @@ adapter to [component-targeted headless capture](../../docs/component-capture.md
 for real offscreen pixels and same-frame subtree geometry. Internal/borrowed
 nodes and virtual row logical ItemIds are not component UiIds.
 
+## Markdown and core theme integration
+
+[Host-filled markdown blocks and the theme bridge](../../docs/markdown-host-slots.md) keep parsing/streaming in core while trusted hosts mount real controls/live values. `UiTheme::core_theme()` / `markdown_theme()` are pure mappings; `apply_theme_bridge(world, theme)` explicitly replaces this world's UI/core/markdown/default-reading-style resources. Reapply on each theme change; installing UiPlugin alone still leaves core themes untouched. The bridge updates retained markdown/editor/default core consumers without a reverse dependency or global watcher. Explicit per-entity styling remains an override. Markdown slots own attached descendants and cascade on removal, unlike Card's borrowed/adopted-content contract. See the `markdown_gallery` example for streaming, real focus/activation and theme toggling.
+
 ## Ownership and precedence
 
 - Existing authored core `Color` (including alpha-zero), `Label.color`, `TextStyle`, `Radius`, and nonzero padding/gap win. Unstyled entities and the core `Theme` resource are untouched.

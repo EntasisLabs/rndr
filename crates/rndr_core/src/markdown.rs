@@ -60,8 +60,19 @@
 //! Italic is stored on the span. The desktop shaper slants that run. The
 //! builtin bitmap face has no italic outlines, so those glyphs stay upright.
 //!
+//! # Host-filled block bodies
+//!
+//! [`mount_markdown_slot`] replaces a last-synced block body with a retained
+//! container for real host-owned UI. [`MarkdownSlotId`] is view-local and never
+//! reused; source/content changes retire bindings instead of guessing identity.
+//! Core still owns parsing, streaming, layout and clipping. No markdown syntax
+//! executes host code. See the mount/handle docs for ownership and focus rules.
+//!
 //! The optional `highlight` feature colors fenced code by token class. Without
 //! it, a code block is one color.
+
+mod host;
+pub use host::{mount_markdown_slot, MarkdownSlot, MarkdownSlotError, MarkdownSlotId};
 
 use std::borrow::Cow;
 use std::collections::hash_map::DefaultHasher;
@@ -302,6 +313,10 @@ pub struct MarkdownView {
     commit: usize,
     parsed_from: usize,
     slots: Vec<Slot>,
+    hosts: Vec<host::Binding>,
+    used_host_ids: std::collections::HashSet<MarkdownSlotId>,
+    hosts_dirty: bool,
+    style_key: u64,
     theme: MarkdownTheme,
     width: f32,
     follow: bool,
@@ -323,6 +338,10 @@ impl MarkdownView {
             commit: 0,
             parsed_from: 0,
             slots: Vec::new(),
+            hosts: Vec::new(),
+            used_host_ids: Default::default(),
+            hosts_dirty: false,
+            style_key: 0,
             theme: MarkdownTheme::default(),
             width: 0.0,
             follow: true,
@@ -589,6 +608,16 @@ fn sync_one(world: &mut World, entity: Entity) {
     let Some(mut view) = world.remove::<MarkdownView>(entity) else {
         return;
     };
+    let style_key = crate::text::style_key(&base);
+    let refresh = view.theme != theme || view.style_key != style_key;
+    view.style_key = style_key;
+    if refresh {
+        // Explicit label styles and solid fills must update even for unstyled
+        // paragraphs whose parse fingerprints contain no colored spans.
+        for slot in &mut view.slots {
+            slot.width_bits = !width.to_bits();
+        }
+    }
     if view.theme != theme {
         view.theme = theme;
         view.commit = 0;
@@ -613,7 +642,13 @@ fn sync_one(world: &mut World, entity: Entity) {
     }
     let columns = list_columns(world, &base, &view.blocks);
     let width_changed = (view.width - width).abs() > 0.5;
-    if width_changed || view.slots.len() != view.blocks.len() || slots_stale(&view, &columns) {
+    if refresh
+        || view.hosts_dirty
+        || width_changed
+        || view.slots.len() != view.blocks.len()
+        || slots_stale(&view, &columns)
+        || host::stale(world, &view)
+    {
         reconcile(world, entity, &mut view, width, &base, &columns);
         view.width = width;
     }
@@ -677,18 +712,54 @@ fn reconcile(
     base: &TextStyle,
     columns: &ListColumns,
 ) {
+    host::retire_stale(world, doc);
+    doc.hosts_dirty = false;
     let theme = doc.theme;
     let mut index = 0;
     while index < doc.blocks.len() {
         let shape = shape_of(&doc.blocks[index], columns);
         let fingerprint = fingerprint(&doc.blocks[index], columns);
+        if let Some(binding) = doc.hosts.iter().find(|binding| binding.index == index) {
+            let root = binding.root;
+            if let Some(old) = doc.slots.get(index) {
+                if old.entity != root {
+                    despawn(world, old.entity);
+                }
+            }
+            world.insert(
+                root,
+                Layout {
+                    width: Size::Fill,
+                    height: Size::Px(binding.height + trail_after(&doc.blocks, index)),
+                    ..Layout::column()
+                },
+            );
+            let slot = Slot {
+                entity: root,
+                shape,
+                fingerprint,
+                width_bits: width.to_bits(),
+                index: index as u32,
+            };
+            if index == doc.slots.len() {
+                doc.slots.push(slot);
+            } else {
+                doc.slots[index] = slot;
+            }
+            index += 1;
+            continue;
+        }
         let alive = doc
             .slots
             .get(index)
             .is_some_and(|slot| slot.shape == shape && world.is_alive(slot.entity));
         if !alive {
-            while doc.slots.len() > index {
-                despawn(world, doc.slots.pop().expect("slot").entity);
+            if let Some(slot) = doc.slots.get(index) {
+                despawn(world, slot.entity);
+            }
+            // Replace this block only. Later retained host subtrees are independent.
+            if let Some(slot) = doc.slots.get_mut(index) {
+                slot.fingerprint = !fingerprint;
             }
         }
         let content = block_height(world, base, &doc.blocks[index], width, columns);
@@ -712,22 +783,25 @@ fn reconcile(
                 width_bits: width.to_bits(),
                 index: index as u32,
             });
-        } else if doc.slots[index].fingerprint != fingerprint
+        } else if !alive
+            || doc.slots[index].fingerprint != fingerprint
             || doc.slots[index].width_bits != width.to_bits()
         {
             let entity = doc.slots[index].entity;
-            if !update_block(
-                world,
-                view,
-                entity,
-                index,
-                &doc.blocks[index],
-                content,
-                outer,
-                &theme,
-                base,
-                columns,
-            ) {
+            if !alive
+                || !update_block(
+                    world,
+                    view,
+                    entity,
+                    index,
+                    &doc.blocks[index],
+                    content,
+                    outer,
+                    &theme,
+                    base,
+                    columns,
+                )
+            {
                 despawn(world, entity);
                 let entity = spawn_block(
                     world,
@@ -761,6 +835,13 @@ fn reconcile(
     while doc.slots.len() > doc.blocks.len() {
         despawn(world, doc.slots.pop().expect("slot").entity);
     }
+    // Replacements append in hierarchy order; restore document reading order.
+    world.insert(
+        view,
+        crate::Children {
+            list: doc.slots.iter().map(|slot| slot.entity).collect(),
+        },
+    );
 }
 
 fn shape_of(block: &MarkdownBlock, columns: &ListColumns) -> u16 {
@@ -1588,7 +1669,12 @@ fn markdown_input(world: &mut World) {
         .unwrap_or((false, false, false, PointerButton::Left, 0.0, 0.0, false));
     let ids = world.entities_with::<MarkdownView>();
     if pressed && button == PointerButton::Left {
-        let hit = hit_block(world, x, y);
+        let embedded = hit_test(world, x, y).is_some_and(|hit| host::contains(world, hit));
+        let hit = if embedded {
+            None
+        } else {
+            hit_block(world, x, y)
+        };
         let pressed_at = hit
             .map(|hit| {
                 (
@@ -1600,6 +1686,9 @@ fn markdown_input(world: &mut World) {
                 )
             })
             .or_else(|| {
+                if embedded {
+                    return None;
+                }
                 let view = view_at(world, x, y)?;
                 locate(world, view, x, y).map(|pos| (view, pos))
             });
@@ -1691,6 +1780,13 @@ fn release_selection(world: &mut World, ids: &[Entity]) {
 }
 
 fn apply_keys(world: &mut World, ids: &[Entity]) {
+    if world
+        .resource::<crate::Focus>()
+        .and_then(|focus| focus.entity)
+        .is_some_and(|entity| host::contains(world, entity))
+    {
+        return;
+    }
     let (select_all, copy) = edit_keys(world);
     if !select_all && !copy {
         return;
