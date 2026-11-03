@@ -19,6 +19,12 @@ Default features:
 
 docs.rs builds every feature. Its Linux image includes fontconfig, libxkbcommon, Wayland, and Vulkan. The hotkey and tray features do not link libdbus.
 
+Opt-in `observe` also exposes `capture::capture` and the portable `rndr-capture`
+CLI: offscreen Entity/scoped-UiId pixels plus same-frame subtree layout/identity,
+with whole-frame privacy denial. This creates no window/socket and is not native
+presentation evidence. See [component capture](../../docs/component-capture.md)
+for API, scene format, examples, clipping/scale/error semantics and limitations.
+
 Font licenses are in `fonts/`.
 
 License: MIT AND OFL-1.1.

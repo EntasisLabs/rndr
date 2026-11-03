@@ -330,7 +330,7 @@ fn engine_kind(engine: &dyn rndr_core::TextEngine) -> &'static str {
     }
     "custom"
 }
-fn semantic_details(
+pub(crate) fn semantic_details(
     world: &World,
     tree: &rndr_core::AccessTree,
 ) -> Vec<(u64, rndr_core::AccessDetails)> {
@@ -346,7 +346,7 @@ fn semantic_details(
         })
         .collect()
 }
-fn scroll_state(world: &World) -> Vec<(u64, rndr_core::Scroll, rndr_core::Rect)> {
+pub(crate) fn scroll_state(world: &World) -> Vec<(u64, rndr_core::Scroll, rndr_core::Rect)> {
     let mut ports: Vec<_> = world
         .query::<rndr_core::Scroll>()
         .into_iter()
@@ -361,13 +361,13 @@ fn scroll_state(world: &World) -> Vec<(u64, rndr_core::Scroll, rndr_core::Rect)>
     ports.sort_by_key(|p| p.0);
     ports
 }
-fn public(world: &World) -> bool {
+pub(crate) fn public(world: &World) -> bool {
     matches!(
         world.resource::<ObservationContent>(),
         Some(ObservationContent::Public)
     ) && world.entities_with::<ObservationSensitive>().is_empty()
 }
-fn theme(world: &World) -> &str {
+pub(crate) fn theme(world: &World) -> &str {
     world
         .resource::<ObservationTheme>()
         .map(|t| t.0.as_str())
@@ -411,7 +411,7 @@ pub(crate) fn validate(world: &World, capture: Capture, scale: f32) -> Option<Ca
         Some(capture)
     }
 }
-fn engine_epoch(engine: &dyn rndr_core::TextEngine) -> (u64, u64) {
+pub(crate) fn engine_epoch(engine: &dyn rndr_core::TextEngine) -> (u64, u64) {
     #[cfg(feature = "parley")]
     if let Some(parley) = engine.as_any().downcast_ref::<crate::text::ParleyText>() {
         return parley.paint_epoch();

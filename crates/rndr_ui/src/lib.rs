@@ -20,6 +20,14 @@ pub use style::{detach_style, resolve_styles, Corner, UiColor, UiRecipe, UiStyle
 pub use surfaces::{separator, text, Callout, Card, Feedback, Surface, UiError, UiHandle, UiId};
 pub use tokens::{Appearance, Contrast, Density, Space, Token, Typography, UiTheme};
 
+/// Read the caller-stable key of a mounted component root. Internal decoration,
+/// row children and borrowed nodes have no component key. Keys are unique only
+/// under their direct parent, not globally. This read-only adapter can be passed
+/// to headless capture without introducing a renderer dependency into UI/core.
+pub fn identity(world: &rndr_core::World, entity: rndr_core::Entity) -> Option<UiId> {
+    controls::key_at(world, entity).or_else(|| surfaces::key_at(world, entity))
+}
+
 /// Sole installation owner for UI styling and reusable core interaction.
 /// Uses idempotent Chrome through GenericInteraction; never Shell or a new runtime.
 /// Scrolling runs at the front of Input, before focus/activation can reveal rows.

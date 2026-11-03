@@ -42,6 +42,9 @@
 
 #[cfg(feature = "accesskit")]
 mod a11y;
+/// Opt-in component-targeted offscreen rendering; no native window or socket.
+#[cfg(feature = "observe")]
+pub mod capture;
 mod clipboard;
 mod close;
 mod color;

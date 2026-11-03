@@ -1,0 +1,27 @@
+PASS ui-id: exit=0
+PASS entity: exit=0
+PASS parent-scope: exit=0
+PASS missing: exit=3
+PASS stale: exit=3
+PASS stale-parent: exit=3
+PASS invalid-target: exit=2
+PASS conflicting-targets: exit=2
+PASS unknown-arg: exit=2
+PASS denied: exit=4
+PASS missing-attestation: exit=4
+PASS sensitive-elsewhere: exit=4
+PASS ambiguous: exit=3
+PASS disambiguated: exit=0
+PASS zero-target: exit=3
+PASS hidden-ancestor: exit=3
+PASS out-of-bounds: exit=3
+PASS invalid-scale: exit=2
+PASS size-cap: exit=3
+PASS malformed-json: exit=2
+PASS oversize-input: exit=2
+PASS cycle: exit=2
+PASS unknown-field: exit=2
+PASS negative-size: exit=2
+PASS output-collision: exit=1; existing metadata preserved; no orphan PNG
+PASS help: exit=0
+26 CLI subprocess checks passed; real PNG decoded and pixel-checked

@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "public": true,
+  "viewport": [128, 96, 2],
+  "nodes": [
+    {"id": "1", "size": [100, 72], "padding": 8, "color": [0.1, 0.2, 0.4, 1]},
+    {"id": "42", "parent": 0, "size": [64, 32], "color": [0.1, 0.8, 0.3, 1]}
+  ]
+}

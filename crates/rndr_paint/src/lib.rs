@@ -141,19 +141,26 @@ pub fn frame(app: &mut App) -> Frame {
 /// Consumers that depend on resources used during GPU submission must also
 /// validate those resources after Render systems run.
 pub fn frame_with_snapshot<T>(app: &mut App, snapshot: impl FnOnce(&World) -> T) -> (Frame, T) {
+    frame_with_snapshot_frame(app, |world, _| snapshot(world))
+}
+
+/// The [`frame_with_snapshot`] boundary with access to the exact painted frame.
+/// Headless consumers can submit and read back while paint-time resources are
+/// still borrowed, before Render systems run. No second paint or update occurs.
+pub fn frame_with_snapshot_frame<T>(
+    app: &mut App,
+    snapshot: impl FnOnce(&World, &Frame) -> T,
+) -> (Frame, T) {
     app.update();
     let (quads, draws) = paint_parts(app.world());
-    let slots = surface_slots(app.world());
-    let snapshot = snapshot(app.world());
+    let frame = Frame {
+        quads,
+        draws,
+        slots: surface_slots(app.world()),
+    };
+    let snapshot = snapshot(app.world(), &frame);
     app.render();
-    (
-        Frame {
-            quads,
-            slots,
-            draws,
-        },
-        snapshot,
-    )
+    (frame, snapshot)
 }
 
 fn surface_slots(world: &World) -> Vec<SurfaceRect> {

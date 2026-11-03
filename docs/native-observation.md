@@ -2,6 +2,11 @@
 
 Status: implemented opt-in live observation at baseline `fe9e679`, not full native certification. [Current UI status](ui-status.md) supersedes historical candidate/integration wording; [design/A2-remaining-gates.md](design/A2-remaining-gates.md) records the earlier gate scope, not a fresh approval requirement for already integrated components. No Windows transport, component/UiId targeting, full layout tree or headless capture is provided here. The matching tree is flattened accessibility metadata; surface-copy success does not prove compositor presentation or appearance.
 
+For the separate offscreen Entity/UiId API and portable declarative-scene CLI,
+see [component-targeted headless capture](component-capture.md). That path uses a
+new offscreen render target; it is never substituted for a native observation.
+The whole-frame public/sensitive policy is shared by both paths.
+
 ## Obtain a live gallery frame
 
 Unix local sessions (macOS/Linux) only; no Windows transport/TCP fallback. Python 3 standard library is sufficient for the example client. Use a synthetic gallery, not a private application. Build with bounded settings:

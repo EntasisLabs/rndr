@@ -1,0 +1,10 @@
+   Compiling rndr_render v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-component-targeted-headless-capture/crates/rndr_render)
+    Finished `test` profile [unoptimized] target(s) in 2.55s
+     Running unittests src/bin/rndr-capture.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/rndr_capture-772e69ab565b13e1)
+
+running 2 tests
+test tests::arguments_are_strict ... ok
+test tests::scene_rejects_unsupported_input ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

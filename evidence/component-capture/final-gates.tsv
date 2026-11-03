@@ -1,0 +1,12 @@
+capture-tests	cargo test --offline --locked -p rndr_render --lib --features observe capture::tests -- --test-threads=1 	0
+clippy	cargo clippy --offline --locked -p rndr_render --features observe --lib --bin rndr-capture --no-deps -- -D warnings 	0
+ui-clippy	cargo clippy --offline --locked -p rndr_ui --lib --no-deps -- -D warnings 	0
+docs	env RUSTDOCFLAGS=-Dwarnings cargo doc --offline --locked -p rndr_render -p rndr_ui --features rndr_render/observe --no-deps 	0
+no-default-capture	cargo check --offline --locked -p rndr_render --no-default-features --features observe --bin rndr-capture 	0
+no-observe	cargo check --offline --locked -p rndr_render --no-default-features --lib 	0
+cli-build	cargo build --offline --locked -p rndr_render --bin rndr-capture --features observe 	0
+cli-contract-tests	python3 scripts/test-component-capture.py /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/rndr-capture 	0
+ui-example	cargo run --offline --locked -p rndr --example component_capture --features observe -- evidence/component-capture/ui-card-final 	0
+cli-sample	/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/rndr-capture --scene examples/component-capture.json --ui-id 42 --parent 0:0 --output evidence/component-capture/cli-sample 	0
+formatting	rustfmt --edition 2021 --check --config skip_children=true crates/rndr_paint/src/lib.rs crates/rndr_ui/src/lib.rs crates/rndr_render/src/lib.rs crates/rndr_render/src/observe.rs crates/rndr_render/src/capture.rs crates/rndr_render/src/capture/tests.rs crates/rndr_render/src/bin/rndr-capture.rs crates/rndr_ui/tests/capture_identity.rs crates/rndr/examples/component_capture.rs 	0
+diff-check	git diff --check 	0

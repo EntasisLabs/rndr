@@ -15,6 +15,11 @@ keywords = ["gui", "wgpu", "winit", "window", "desktop"]
 categories = ["gui", "graphics", "rendering"]
 exclude = ["**/*.snap.new"]
 
+[[bin]]
+name = "rndr-capture"
+path = "src/bin/rndr-capture.rs"
+required-features = ["observe"]
+
 [features]
 # Read-only per-session native surface observation. No listener without app opt-in.
 observe = ["dep:serde_json", "dep:getrandom"]

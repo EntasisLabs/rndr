@@ -1,0 +1,25 @@
+2026-11-03T18:59:48Z
+Darwin 27.0.0 arm64
+ProductName:		macOS
+ProductVersion:		27.0.1
+BuildVersion:		26A434
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+binary: rustc
+commit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea
+commit-date: 2026-08-18
+host: aarch64-apple-darwin
+release: 1.98.0
+LLVM version: 22.1.8
+HEAD/main before candidate commit:
+318edfba9d609a1aba088d53aacfb8cf0c0d0840
+318edfba9d609a1aba088d53aacfb8cf0c0d0840
+Shared target: /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target
+Jobs: 2
+Incremental: 0
+Dev debug: 0
+Test debug: 0
+Filesystem      Size    Used   Avail Capacity iused ifree %iused  Mounted on
+/dev/disk3s5   228Gi   201Gi   1.7Gi   100%    1.9M   17M   10%   /System/Volumes/Data
+Built binaries (not copied):
+864dce809b992b839b4503862c1cd8e853cd2d47c8d4d3a8b075ca4c849e8aa1  /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/rndr-capture
+fb3212de0e5056d9f4a83c88e8475650a2b04c2cfaeb024c1f09c3f7abe665a1  /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/examples/component_capture

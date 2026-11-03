@@ -36,6 +36,12 @@ app.update();
 
 `reading_layout` / `reading_layout_at_measure` return ordinary core Layout values, with a nominal adjustable 55–75 character reading measure and narrow-width padding. Hosts supply available width on resize. These are passive recipes, not a second layout engine or window lifecycle. All text heights hug real wrapped content. Separator is decorative, not the sole boundary for a future interactive control.
 
+`rndr_ui::identity(world, entity)` reads a mounted component root's parent-scoped
+UiId without a registry or renderer dependency. Pass it as the read-only identity
+adapter to [component-targeted headless capture](../../docs/component-capture.md)
+for real offscreen pixels and same-frame subtree geometry. Internal/borrowed
+nodes and virtual row logical ItemIds are not component UiIds.
+
 ## Ownership and precedence
 
 - Existing authored core `Color` (including alpha-zero), `Label.color`, `TextStyle`, `Radius`, and nonzero padding/gap win. Unstyled entities and the core `Theme` resource are untouched.

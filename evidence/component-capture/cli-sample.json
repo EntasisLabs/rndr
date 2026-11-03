@@ -1,0 +1,45 @@
+{
+  "nodes": [
+    {
+      "bounds_points": [
+        8.0,
+        8.0,
+        64.0,
+        32.0
+      ],
+      "clip_points": [
+        8.0,
+        8.0,
+        64.0,
+        32.0
+      ],
+      "entity": {
+        "generation": 0,
+        "index": 1
+      },
+      "hidden": false,
+      "parent": {
+        "generation": 0,
+        "index": 0
+      },
+      "ui_id": "42"
+    }
+  ],
+  "pixel_rect": [
+    16,
+    16,
+    128,
+    64
+  ],
+  "protocol": "rndr-component-capture-1",
+  "renderer": "headless_offscreen_viewport_composite",
+  "scale": 2.0,
+  "target": {
+    "generation": 0,
+    "index": 1
+  },
+  "viewport_points": [
+    128.0,
+    96.0
+  ]
+}
