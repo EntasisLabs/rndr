@@ -1,0 +1,160 @@
+{
+  "source_head": "586c6e732f50aefc07ffae98b05a5b6423e41a81",
+  "binary": "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/examples/selection_gallery",
+  "binary_sha256": "293fea0cae46f220f5afb7189d06b4de4d5485d1d9ce43018dda4c09576ea2e8",
+  "source_manifest_sha256": "7c4002a493e9811dbe8d6a2becbff2c9a334cb674ff95849b5c4daa739642840",
+  "origin": "Native macOS Metal GPU live-surface-copy-before-present, synthetic preset model/focus; not physical input, after-present/compositor or live AT validation.",
+  "runs": [
+    {
+      "name": "light",
+      "command": [
+        "python3",
+        "tools/validate_observation_native.py",
+        "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/examples/selection_gallery",
+        "evidence/selection-controls/corrections/native/light"
+      ],
+      "exit": 0,
+      "frames": [
+        {
+          "revision": "3",
+          "png_sha256": "e48e034a559b8f4eae8817fee7b0ae1b07f04aed7b0324222583ce2174b712e2",
+          "metadata_sha256": "bede359312a97b0e1e7e0077382797713bcb7a4a705dad0e176abdc45cd4590b",
+          "source": "live-surface-copy-before-present"
+        },
+        {
+          "revision": "4",
+          "png_sha256": "e48e034a559b8f4eae8817fee7b0ae1b07f04aed7b0324222583ce2174b712e2",
+          "metadata_sha256": "fd73aac874564f7062f60ca9928b3708d32fcc15b119584fc99cc179e272195c",
+          "source": "live-surface-copy-before-present"
+        }
+      ]
+    },
+    {
+      "name": "invalid-inspector",
+      "command": [
+        "python3",
+        "tools/validate_observation_native.py",
+        "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/examples/selection_gallery",
+        "evidence/selection-controls/corrections/native/invalid-inspector",
+        "--invalid",
+        "--inspector-open"
+      ],
+      "exit": 0,
+      "frames": [
+        {
+          "revision": "4",
+          "png_sha256": "da196ad4e470ed83c8898d279fb2f78c7a220dfdd26fbd85d55db9efbe5ff6c6",
+          "metadata_sha256": "0ebb6a708228c525350648310845ed368448d68b1dfda337e618620cf601e9fc",
+          "source": "live-surface-copy-before-present"
+        },
+        {
+          "revision": "5",
+          "png_sha256": "da196ad4e470ed83c8898d279fb2f78c7a220dfdd26fbd85d55db9efbe5ff6c6",
+          "metadata_sha256": "218deceb28751829ff3b67dac506452194c934403a8cdd892e5f029214bcdb1c",
+          "source": "live-surface-copy-before-present"
+        }
+      ]
+    },
+    {
+      "name": "readonly",
+      "command": [
+        "python3",
+        "tools/validate_observation_native.py",
+        "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/examples/selection_gallery",
+        "evidence/selection-controls/corrections/native/readonly",
+        "--readonly"
+      ],
+      "exit": 0,
+      "frames": [
+        {
+          "revision": "4",
+          "png_sha256": "1c60638e623024ae04c4baa520036c1fe8529ef8aced45efd5d234c82fc79606",
+          "metadata_sha256": "12dfc7167eaae6d78f656b1477593d9119f86885c8a14f0e64568835d2f23cba",
+          "source": "live-surface-copy-before-present"
+        },
+        {
+          "revision": "5",
+          "png_sha256": "1c60638e623024ae04c4baa520036c1fe8529ef8aced45efd5d234c82fc79606",
+          "metadata_sha256": "91af794a68f009124bd3cdb59209cc64d99234b2fc946e5eda6efe682bf21851",
+          "source": "live-surface-copy-before-present"
+        }
+      ]
+    },
+    {
+      "name": "disabled",
+      "command": [
+        "python3",
+        "tools/validate_observation_native.py",
+        "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/examples/selection_gallery",
+        "evidence/selection-controls/corrections/native/disabled",
+        "--disabled"
+      ],
+      "exit": 0,
+      "frames": [
+        {
+          "revision": "3",
+          "png_sha256": "d1a86a360a0e02ffa4437de55a71b9b942a8642130991cd9639b552d5f796b7c",
+          "metadata_sha256": "d282bffaf71be7a1fb278392c8c452879ccdc66f5fc288286011ee92db156bd1",
+          "source": "live-surface-copy-before-present"
+        },
+        {
+          "revision": "4",
+          "png_sha256": "d1a86a360a0e02ffa4437de55a71b9b942a8642130991cd9639b552d5f796b7c",
+          "metadata_sha256": "5cd0fde4e6913f80b9f9945fb041ee9a5188bd41aeb57cef42f4e41b85a2d4f4",
+          "source": "live-surface-copy-before-present"
+        }
+      ]
+    },
+    {
+      "name": "inspector-multi",
+      "command": [
+        "python3",
+        "tools/validate_observation_native.py",
+        "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/examples/selection_gallery",
+        "evidence/selection-controls/corrections/native/inspector-multi",
+        "--inspector-open"
+      ],
+      "exit": 0,
+      "frames": [
+        {
+          "revision": "3",
+          "png_sha256": "7edfc017bac0b4eae2a5f012a4d12142d939e025ccad2ad26826b192cc82b91d",
+          "metadata_sha256": "befd965b90be49a3a4077b9921a897f00543ef12db241ff276c54b24cbd4243e",
+          "source": "live-surface-copy-before-present"
+        },
+        {
+          "revision": "4",
+          "png_sha256": "7edfc017bac0b4eae2a5f012a4d12142d939e025ccad2ad26826b192cc82b91d",
+          "metadata_sha256": "35f441bd235fe22eb6a848be028604406bb9cb2b8abbf1462ecce88e9fecde0a",
+          "source": "live-surface-copy-before-present"
+        }
+      ]
+    },
+    {
+      "name": "narrow-inspector",
+      "command": [
+        "python3",
+        "tools/validate_observation_native.py",
+        "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/examples/selection_gallery",
+        "evidence/selection-controls/corrections/native/narrow-inspector",
+        "--narrow",
+        "--inspector-open"
+      ],
+      "exit": 0,
+      "frames": [
+        {
+          "revision": "3",
+          "png_sha256": "772ce89bb7113d6fc9c1114e69cdb66738230a46729fa0261c7162539add8c6f",
+          "metadata_sha256": "2beaadf5d43264704e5a2d9fe69323982e40a62b238201924c5e060c21747ff6",
+          "source": "live-surface-copy-before-present"
+        },
+        {
+          "revision": "4",
+          "png_sha256": "772ce89bb7113d6fc9c1114e69cdb66738230a46729fa0261c7162539add8c6f",
+          "metadata_sha256": "66056a489f8b557748c5f8609d76fb148da482d5e11d4a7275c6d2196d86451a",
+          "source": "live-surface-copy-before-present"
+        }
+      ]
+    }
+  ]
+}

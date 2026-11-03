@@ -1,0 +1,31 @@
+$ cargo test --offline --locked -p rndr_ui --test selection_independent_review --test selection_corrections 
+    Finished `test` profile [unoptimized] target(s) in 0.05s
+     Running tests/selection_corrections.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/selection_corrections-c305671bba811dac)
+
+running 6 tests
+test ack_matching_current_reordered_draft_clears_dirty_without_rewriting_host ... ok
+test reordered_same_set_is_clean_for_cancel_reconcile_and_unmount ... ok
+test delayed_reordered_ack_preserves_later_draft_and_drains_pending ... ok
+test reordered_host_reconcile_preserves_dirty_draft_without_ack ... ok
+test disabled_readonly_and_validator_rejected_summary_stays_truthful ... ok
+test summary_tracks_empty_draft_invalid_and_open_closed ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/selection_independent_review.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/selection_independent_review-b77b06cc3a88e202)
+
+running 9 tests
+test checkbox_ime_space_release_never_emits ... ok
+test noncanonical_host_multi_value_does_not_request_spurious_commit ... ok
+test removed_armed_option_cannot_retarget_its_space_release ... ok
+test multi_inspector_accessible_name_includes_current_value ... ok
+test keyboard_roundtrip_same_set_does_not_request_spurious_commit ... ok
+test inspector_popup_blur_cancels_dirty_draft ... ok
+test readonly_invalidation_swallows_matching_outside_release ... ok
+test initial_selected_last_row_is_visible_after_open_and_settle ... ok
+test end_navigation_reveals_last_row ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+
+EXIT=0

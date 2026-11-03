@@ -1,0 +1,22 @@
+{
+  "baseline": "97091b8c8c0baf0db0dc8817727e24ab2e244230",
+  "corrected_source": "586c6e732f50aefc07ffae98b05a5b6423e41a81",
+  "historical_evidence_files_unchanged": 3668,
+  "original_independent_probes_unchanged": true,
+  "source_files_bound": 278,
+  "native_presets": 6,
+  "native_frames": 12,
+  "binary_sha256": "293fea0cae46f220f5afb7189d06b4de4d5485d1d9ce43018dda4c09576ea2e8",
+  "test_executions": {
+    "probes": 15,
+    "core-paint": 484,
+    "ui-focused": 93,
+    "native-observe": 76
+  },
+  "total_gate_executions": 668,
+  "counts_caveat": "Executions, not unique tests; earlier fixture runs overlap and are excluded; gallery cases are inside one test.",
+  "visual_acceptance": false,
+  "visual_note": "One direct correction image call delivered metadata only; appearance claims were immediately retracted. Historical dark-single owner claim also retracted. Old DataTable screenshots are not selection-control evidence.",
+  "old_capture_status": "Historical native captures bind old source only; new affected subset is in corrections/native.",
+  "disk_free_bytes": 6834503680
+}

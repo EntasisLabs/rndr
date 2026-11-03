@@ -1,0 +1,6 @@
+$ rustfmt --check --edition 2021 crates/rndr_ui/src/data.rs crates/rndr_ui/tests/selection_corrections.rs
+EXIT=0
+$ git diff --check 97091b8 -- crates/rndr_ui/src/data.rs crates/rndr_ui/tests/selection_corrections.rs docs/selection-controls.md
+EXIT=0
+Filesystem      Size    Used   Avail Capacity iused ifree %iused  Mounted on
+/dev/disk3s5   228Gi   197Gi   6.4Gi    97%    1.9M   67M    3%   /System/Volumes/Data

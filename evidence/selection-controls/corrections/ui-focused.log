@@ -1,0 +1,164 @@
+$ cargo test --offline --locked -p rndr_ui --lib --test selection --test selection_scope --test selection_gallery --test data_editors --test data_editors_gallery --test field_transactions --test collections --test collection_chronology --test foundations --test malformed_lifecycle 
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-checkbox-and-single-multi-select-controls/crates/rndr_ui)
+    Finished `test` profile [unoptimized] target(s) in 2.19s
+     Running unittests src/lib.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/rndr_ui-be434b2df1868d91)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/collection_chronology.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/collection_chronology-bfab587edc729b22)
+
+running 12 tests
+test disclosure_rejects_repeat_synthetic_readonly_disabled_and_hidden ... ok
+test disclosure_enter_then_right_in_one_batch_respects_chronology ... ok
+test focused_disclosure_becoming_leaf_normalizes_to_surviving_row ... ok
+test at_disclosure_activate_then_tab_does_not_steal_focus_back ... ok
+test disclosure_admission_preserves_capacity_and_unrelated_fifo ... ok
+test collapse_preserves_unrelated_host_space_release ... ok
+test collapse_cancels_hidden_owned_space_even_after_reopen ... ok
+test disclosure_enter_then_right_in_separate_frames_is_control ... ok
+test pointer_disclosure_release_then_tab_does_not_steal_focus_back ... ok
+test programmatic_expansion_does_not_cancel_unrelated_armed_host_button ... ok
+test disclosure_space_release_is_chronological_and_escape_cancels ... ok
+test unrelated_branch_changes_preserve_surviving_armed_disclosure ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/collections.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/collections-06ed4ce65a6bb4cb)
+
+running 17 tests
+test malformed_or_oversize_inputs_reject_atomically_and_lifetimes_are_generation_checked ... ok
+test disabled_tree_ancestry_reconciles_selection_and_focus_without_hidden_targets ... ok
+test filtering_or_removing_an_armed_id_cannot_select_a_replacement ... ok
+test keyboard_focus_space_selection_and_enter_activation_are_distinct ... ok
+test chronological_tab_navigation_and_enter_share_one_dispatcher ... ok
+test scoped_collection_drain_leaves_unrelated_host_requests_in_order ... ok
+test pointer_disclosure_and_accessibility_use_the_same_canonical_targets ... ok
+test nested_tree_navigation_collapse_and_removal_have_safe_focus ... ok
+test stable_identity_and_composed_subtrees_survive_reorder_updates_and_reconciliation ... ok
+test pointer_release_selects_and_drag_escape_blur_cancel ... ok
+test surviving_branch_becoming_leaf_retires_disclosure_and_indent_selects_row ... ok
+test painted_theme_density_clips_and_independent_states_are_real_component_output ... ok
+test core_scroll_drag_cancels_pointer_selection_and_nested_hierarchy_is_projected ... ok
+test gallery_public_components_render_mutate_filter_resize_and_show_empty_states ... ok
+test scroll_reveal_clipping_empty_disabled_and_none_selection_are_integrated ... ok
+test gallery_large_dataset_pages_bound_mounted_rows_and_keep_data_app_owned ... ok
+test retained_budget_is_measured_honestly_not_virtualized ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.01s
+
+     Running tests/data_editors.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/data_editors-10dbcaf7a40a8f64)
+
+running 20 tests
+test custom_editor_uses_explicit_typed_draft_without_reflection ... ok
+test bounded_components_reject_oversized_or_duplicate_input_before_mutating ... ok
+test grouping_reparent_custom_draft_validator_and_stale_handles_are_safe ... ok
+test inspector_invalid_number_range_nonfinite_validation_and_cancel ... ok
+test inspector_same_identity_draft_retained_then_reconciled_disabled_readonly_removed_unmount ... ok
+test inspector_precise_multiple_commit_boundaries_and_no_hidden_model_mutation ... ok
+test multiple_outstanding_acknowledgements_preserve_invalid_later_draft_and_contract_change_cancels ... ok
+test custom_descendant_focus_retains_within_property_then_blur_or_departure_cancels ... ok
+test table_invalid_atomic_identity_conflict_disabled_and_unmount ... ok
+test acknowledged_submit_retains_later_draft_caret_history_and_external_replacement_resets ... ok
+test inspector_object_switch_cancels_old_identity_and_clears_history ... ok
+test reviewer_boolean_window_blur_cancels_draft ... ok
+test table_preserves_cells_selection_focus_across_row_column_reorder_and_resize ... ok
+test inspector_tab_cancels_at_boundary_before_other_field_changes_and_commit_action_keeps_draft ... ok
+test reviewer_commit_control_window_blur_cancels_draft ... ok
+test table_keyboard_sort_request_never_sorts_host_data_and_semantics_are_table_rows_cells ... ok
+test inspector_boolean_choice_keyboard_explicit_commit_and_invalid_mount_atomic ... ok
+test reviewer_leave_and_return_in_one_batch_must_cancel_before_commit ... ok
+test window_blur_cancels_draft_and_access_setvalue_remains_honestly_unsupported ... ok
+test choice_window_blur_and_queued_departure_cancel_without_commit ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/data_editors_gallery.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/data_editors_gallery-3bb7ddce9410ec0e)
+
+running 6 tests
+test independent_reading_scale_enlarges_builtin_editor_line_boxes ... ok
+test reviewer_host_ack_preserves_text_queued_after_submit ... ok
+test joint_gallery_nonzero_visible_cell_geometry_and_column_header_associations ... ok
+test narrow_and_scaled_layout_remain_scroll_reachable_not_compressed_to_zero ... ok
+test joint_gallery_commits_model_repaints_cells_and_switches_objects_without_draft_leak ... ok
+test every_synthetic_preset_reconciles_without_disabled_selection_mutation_or_panic ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+     Running tests/field_transactions.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/field_transactions-9d5d2337e980b9d0)
+
+running 10 tests
+test text_on_each_side_of_tab_goes_only_to_its_chronological_target ... ok
+test enter_snapshot_precedes_later_typing_in_same_native_batch ... ok
+test readonly_allows_select_copy_but_not_paste_delete_or_submit ... ok
+test capture_field_can_reach_canonical_escape_hook ... ok
+test reviewer_ime_enabled_commit_strips_different_key_text ... ok
+test two_enter_boundaries_keep_distinct_snapshots ... ok
+test reset_discards_local_undo_history_and_rejects_other_entities ... ok
+test released_synthetic_and_repeat_cancel_never_transact ... ok
+test repeated_enter_is_not_a_second_commit_request ... ok
+test ime_preedit_and_commit_do_not_submit_or_duplicate_text ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/foundations.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/foundations-bff31284ef787389)
+
+running 8 tests
+test resolved_documented_pairs_have_required_contrast ... ok
+test density_does_not_shrink_type_scaling_and_invalid_preferences_are_bounded ... ok
+test stable_lifecycle_borrowed_and_adopted_ownership_stale_handles ... ok
+test owned_teardown_cleans_only_owned_focus_capture_queue_and_access_nodes ... ok
+test install_and_unopted_legacy_appearance_are_unchanged ... ok
+test existing_primitives_win_and_property_reattach_is_fresh ... ok
+test theme_override_ownership_transparency_takeover_and_detach ... ok
+test headless_gallery_emits_real_glyphs_fills_wrapped_layout_at_200_percent ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
+
+     Running tests/malformed_lifecycle.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/malformed_lifecycle-7a549aa2a9fed27a)
+
+running 1 test
+test malformed_title_is_rejected_before_any_recipe_update ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/selection.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/selection-87e9482afe3877a1)
+
+running 13 tests
+test duplicate_and_oversize_options_fail_atomically_and_key_conflicts_rejected ... ok
+test empty_all_disabled_and_semantics_are_truthful ... ok
+test checkbox_requests_do_not_mutate_acknowledged_state_and_space_requires_release ... ok
+test multi_toggles_stay_open_and_escape_closes_without_rollback ... ok
+test pointer_option_release_selects_and_does_not_toggle_on_press ... ok
+test reorder_remove_reconcile_retains_ids_and_moves_stale_highlight ... ok
+test tab_closes_and_walks_from_trigger_not_into_other_popup_rows ... ok
+test single_queued_open_navigate_choose_keeps_highlight_separate_from_selection ... ok
+test outside_press_release_never_clicks_through_and_at_background_is_blocked ... ok
+test repeated_synthetic_modified_and_ime_edges_do_not_act ... ok
+test ancestor_disabled_readonly_hidden_and_window_blur_close_scopes ... ok
+test inspector_multi_popup_focus_boundary_draft_validation_commit_and_delayed_ack ... ok
+test placement_many_rows_constrained_scroll_and_dead_anchor_cleanup ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running tests/selection_gallery.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/selection_gallery-f299e32e413aed1b)
+
+running 3 tests
+test gallery_invalid_multi_selection_shows_empty_draft_and_rejects_commit ... ok
+test gallery_host_applies_standalone_but_keeps_inspector_drafts_until_commit ... ok
+test gallery_matrix_keeps_focus_popup_clipping_and_readable_named_roles ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.13s
+
+     Running tests/selection_scope.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/selection_scope-4e48077e9d418692)
+
+running 3 tests
+test offscreen_anchor_placement_stays_in_viewport_on_both_sides ... ok
+test higher_modal_takes_focus_scope_and_unmount_retires_detached_popup ... ok
+test invalid_escape_tab_edges_never_close_or_transact_and_real_escape_does_not_dismiss_background_layer ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+
+EXIT=0

@@ -1,0 +1,86 @@
+$ cargo test --offline --locked -p rndr_render --lib --features observe 
+    Finished `test` profile [unoptimized] target(s) in 0.29s
+     Running unittests src/lib.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/rndr_render-33ebdf27a082fccd)
+
+running 76 tests
+test close::tests::process_exit_waits_for_secondary_and_cancel_resets_all ... ok
+test close::tests::pending_cancel_quit_is_consumed_and_stale_success_rejected ... ok
+test close::tests::ordinary_apps_keep_primary_secondary_and_quit_behavior ... ok
+test close::tests::secondary_failure_explicit_discard_closes_only_that_window ... ok
+test color::tests::srgb_transfer_decodes_known_channels ... ok
+test color::tests::theme_canvas_matches_on_srgb_and_unorm_surfaces ... ok
+test close::tests::unguarded_primary_cannot_destroy_guarded_secondary_or_new_window ... ok
+test close::tests::mutation_after_completion_invalidates_ready_before_destruction ... ok
+test decode::tests::downsample_averages_a_two_by_two ... ok
+test export::tests::rejects_an_oversized_export ... ok
+test a11y::tests::manual_orientation_selected_and_disabled_matrix_reaches_accesskit ... ok
+test a11y::tests::selection_checked_expanded_multiselect_and_option_states_reach_accesskit ... ok
+test a11y::tests::table_roles_values_header_description_and_no_cell_focus_reach_accesskit ... ok
+test a11y::tests::composed_tree_roles_hierarchy_level_selection_and_focus_reach_native_adapter ... ok
+test a11y::tests::actions_descriptions_and_real_panel_relations_match_dispatch ... ok
+test hotkey::repeat::tests::only_the_first_press_while_held_is_delivered ... ok
+test hotkey::repeat::tests::a_release_and_press_with_the_same_timestamp_is_a_repeat ... ok
+test hotkey::repeat::tests::a_different_key_still_fires_while_another_is_held ... ok
+test gpu::tests::upload_encodes_fill_border_and_glyph_tint_for_both_formats ... ok
+test decode::tests::png_round_trips_a_red_pixel ... ok
+test observe::tests::disabled_by_default_and_auth_is_exact ... ok
+test decode::tests::webp_round_trips_rgba ... ok
+test close::tests::failure_never_exits_or_destroys_in_memory_text_retry_drains ... ok
+test observe::tests::invalid_and_oversized_viewports_are_denied_before_allocation ... ok
+test observe::tests::missing_or_deny_attestation_exposes_neither_pixels_nor_semantics ... ok
+test observe::tests::correction_custom_epoch_change_in_render_is_denied ... ok
+test decode::tests::garbage_is_unknown_and_a_bad_jpeg_is_invalid ... ok
+test observe::tests::correction_render_engine_replacements_are_denied_even_same_kind ... ok
+test observe::tests::render_stall_expiry_is_denied_before_gpu_allocation ... ok
+test observe::tests::correction_unchanged_builtin_and_custom_keep_paint_provenance ... ok
+test observe::tests::correction_builtin_mutations_in_render_are_denied ... ok
+test observe::tests::sensitive_hidden_or_unsemantic_entity_denies_whole_frame ... ok
+test observe::tests::same_frame_resize_revision_and_image_dimensions_remain_bound ... ok
+test observe::tests::semantics_reuse_actions_states_focus_and_unflattened_scroll ... ok
+test observe::tests::post_paint_sensitive_state_scale_theme_and_scroll_are_validated ... ok
+test observe::tests::shutdown_revokes_pending_capture_and_never_restarts_implicitly ... ok
+test observe::tests::stale_future_and_expired_requests_never_return_cached_frame ... ok
+test observe::tests::snapshot_precedes_render_and_mutations_fail_closed ... ok
+test observe::tests::surface_loss_readback_failure_or_mismatched_image_exposes_nothing ... ok
+test observe::tests::supplemental_description_and_action_changes_cannot_escape_frame_binding ... ok
+test scene::tests::a_rotated_child_runs_before_the_camera ... ok
+test observe::tests::selection_state_and_relationship_changes_cannot_escape_frame_binding ... ok
+test scene::tests::a_zoomed_shadow_stays_on_a_fine_grid_and_keeps_its_tail ... ok
+test scene::tests::an_integer_pan_slides_the_shadow_texture_without_resizing_it ... ok
+test scene::tests::rotated_glyphs_use_outlines_and_a_linear_fallback ... ok
+test tests::hotkey_argument_beats_the_environment ... ok
+test tests::idle_flow_waits_until_a_future_deadline ... ok
+test tests::reported_text_survives_ctrl_and_alt_but_not_super ... ok
+test tests::native_startup_preserves_text_face_before_first_update ... ok
+test observe::tests::correction_parley_configuration_versions_and_unchanged_path ... ok
+test observe::tests::metadata_limit_denies_without_exposing_large_or_sensitive_strings ... ok
+test text::tests::cjk_breaks_inside_a_narrow_measure ... ok
+test text::tests::arabic_runs_right_to_left ... ok
+test text::tests::engine_in_the_world_is_the_one_paint_uses ... ok
+test text::tests::bold_italic_ink_is_heavier_than_italic ... ok
+test text::tests::emoji_flag_is_one_color_cluster ... ok
+test text::tests::idle_frames_keep_packed_glyphs ... ok
+test text::tests::hard_break_left_edge_stays_on_that_line ... ok
+test text::tests::scale_change_reshapes ... ok
+test text::tests::latin_kerning_pulls_av_together ... ok
+test text::tests::line_height_multiplier_spaces_the_lines ... ok
+test text::tests::unused_glyphs_are_evicted_when_the_shelf_is_full ... ok
+test text::tests::uploads_are_dirty_rects_until_the_atlas_grows ... ok
+test tray::tests::host_edge_matches_the_backend ... ok
+test tray::tests::left_press_is_one_click_and_right_click_is_not ... ok
+test tray::tests::menu_rows_show_the_hotkey_on_linux_and_keep_other_accelerators ... ok
+test tray::tests::png_bytes_become_rgba ... ok
+test text::tests::scrolling_a_virtual_list_reshapes_only_new_rows ... ok
+test text::tests::wrapped_line_start_stays_on_that_line ... ok
+test text::tests::bundled_hello_and_resume_snapshots ... ok
+test tests::native_startup_preserves_application_owned_text ... ok
+test tests::native_startup_after_headless_update_selects_the_platform_default ... ok
+test observe::tests::foreign_surface_and_oversized_node_tree_are_denied ... ok
+test observe::tests::real_local_transport_permissions_bad_auth_then_coherent_packet_and_cleanup ... ok
+test observe::tests::truncated_oversized_and_slow_requests_are_bounded ... ok
+test observe::tests::slow_reader_and_shutdown_with_pending_request_have_absolute_deadlines ... ok
+
+test result: ok. 76 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.65s
+
+
+EXIT=0

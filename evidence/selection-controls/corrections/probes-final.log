@@ -1,0 +1,44 @@
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-checkbox-and-single-multi-select-controls/crates/rndr_ui)
+    Finished `test` profile [unoptimized] target(s) in 0.26s
+     Running tests/selection_corrections.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/selection_corrections-c305671bba811dac)
+
+running 6 tests
+test reordered_host_reconcile_preserves_dirty_draft_without_ack ... FAILED
+test ack_matching_current_reordered_draft_clears_dirty_without_rewriting_host ... ok
+test reordered_same_set_is_clean_for_cancel_reconcile_and_unmount ... ok
+test delayed_reordered_ack_preserves_later_draft_and_drains_pending ... ok
+test summary_tracks_empty_draft_invalid_and_open_closed ... FAILED
+test disabled_readonly_and_validator_rejected_summary_stays_truthful ... FAILED
+
+failures:
+
+---- reordered_host_reconcile_preserves_dirty_draft_without_ack stdout ----
+
+thread 'reordered_host_reconcile_preserves_dirty_draft_without_ack' (4317670) panicked at crates/rndr_ui/tests/selection_corrections.rs:177:5:
+assertion failed: es.iter().any(|e|
+        matches!(&e.kind,PropertyEventKind::CommitRequested
+            {
+                before: PropertyValue::Choices(b), after:
+                PropertyValue::Choices(v)
+            } if b==&vec![1,2] && v==&vec![3]))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- summary_tracks_empty_draft_invalid_and_open_closed stdout ----
+
+thread 'summary_tracks_empty_draft_invalid_and_open_closed' (4317672) panicked at crates/rndr_ui/tests/selection_corrections.rs:66:5:
+AccessNode { id: 9, role: ComboBox, name: "Channels: Two", value: "", bounds: Rect { x: 16.0, y: 88.0, w: 568.0, h: 38.0 }, children: [], focusable: true, focused: false, selected: false, enabled: true, expanded: Some(false) }
+
+---- disabled_readonly_and_validator_rejected_summary_stays_truthful stdout ----
+
+thread 'disabled_readonly_and_validator_rejected_summary_stays_truthful' (4317669) panicked at crates/rndr_ui/tests/selection_corrections.rs:66:5:
+AccessNode { id: 9, role: ComboBox, name: "Channels: Two", value: "", bounds: Rect { x: 16.0, y: 88.0, w: 568.0, h: 38.0 }, children: [], focusable: true, focused: false, selected: false, enabled: true, expanded: Some(false) }
+
+
+failures:
+    disabled_readonly_and_validator_rejected_summary_stays_truthful
+    reordered_host_reconcile_preserves_dirty_draft_without_ack
+    summary_tracks_empty_draft_invalid_and_open_closed
+
+test result: FAILED. 3 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+error: test failed, to rerun pass `-p rndr_ui --test selection_corrections`
