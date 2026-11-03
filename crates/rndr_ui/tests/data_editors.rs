@@ -407,7 +407,17 @@ fn inspector_boolean_choice_keyboard_explicit_commit_and_invalid_mount_atomic() 
     for id in [PropertyId(3), PropertyId(4)] {
         let slot = h.slot(a.world(), id).unwrap();
         request_focus(a.world_mut(), slot.editor);
-        batch(&mut a, vec![key(NamedKey::Enter)]);
+        // Checkbox toggles; Choice now opens a real popup, then chooses explicitly.
+        let keys = if id == PropertyId(4) {
+            vec![
+                key(NamedKey::Enter),
+                key(NamedKey::ArrowDown),
+                key(NamedKey::Enter),
+            ]
+        } else {
+            vec![key(NamedKey::Enter)]
+        };
+        batch(&mut a, keys);
         assert!(!property_events(&a)
             .iter()
             .any(|e| matches!(e, PropertyEventKind::CommitRequested { .. })));
@@ -666,7 +676,15 @@ fn choice_window_blur_and_queued_departure_cancel_without_commit() {
         frame(&mut a);
         let slot = h.slot(a.world(), PropertyId(4)).unwrap();
         request_focus(a.world_mut(), slot.editor);
-        batch(&mut a, vec![key(NamedKey::Enter), key(NamedKey::Tab)]);
+        batch(
+            &mut a,
+            vec![
+                key(NamedKey::Enter),
+                key(NamedKey::ArrowDown),
+                key(NamedKey::Enter),
+                key(NamedKey::Tab),
+            ],
+        );
         assert_eq!(
             h.draft(a.world(), PropertyId(4)).unwrap().value,
             Some(PropertyValue::Choice(2))

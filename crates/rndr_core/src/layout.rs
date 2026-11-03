@@ -212,7 +212,26 @@ pub fn layout_propagate(world: &mut World) {
         w: viewport.width,
         h: viewport.height,
     };
-    for root in roots::<Layout>(world) {
+    let mut ordered = roots::<Layout>(world);
+    ordered.sort_by_key(|e| world.has::<crate::AnchoredPopup>(*e));
+    for root in ordered {
+        if world.has::<crate::Hidden>(root) {
+            continue;
+        }
+        if let Some(popup) = world.get::<crate::AnchoredPopup>(root).copied() {
+            let anchor = world.get::<Rect>(popup.anchor).copied().unwrap_or_default();
+            let width = anchor.w.max(240.0).min(viewport.content_width().max(0.0));
+            refine_wrapped_heights(world, root, width, 0.0);
+            let wanted = world.get::<Rect>(root).copied().unwrap_or_default();
+            let r = crate::popup_rect(anchor, viewport, width, wanted.h.min(popup.max_height));
+            // Keep Hug intrinsic content for Scroll while constraining its viewport.
+            world.insert(root, r);
+            let original = *world.get::<Layout>(root).unwrap();
+            world.get_mut::<Layout>(root).unwrap().height = Size::Fill;
+            place(world, root, r.x, r.y, r.w, r.h, parent_clip);
+            world.insert(root, original);
+            continue;
+        }
         // Fill widths are unknown during the intrinsic measure. Resolve those
         // widths and wrapped Hug heights before committing any ancestor clip.
         refine_wrapped_heights(world, root, viewport.content_width(), viewport.insets.left);

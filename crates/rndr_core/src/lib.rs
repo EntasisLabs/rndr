@@ -205,6 +205,7 @@ pub use mono::{
     MonoRun, MonoStyle, MonoUnderline,
 };
 pub use overlay::{Layer, Modal, DISMISS};
+mod popup;
 pub use pane::{
     apply_pane, detail_pane, field_height, set_selection, shell, splitter, tree_column, Pane,
     Selection,
@@ -215,6 +216,7 @@ pub use pointers::{
 };
 #[cfg(feature = "pool")]
 pub use pool::thread_pool;
+pub use popup::{close_popup, open_popup, popup_rect, AnchoredPopup, FocusOwner};
 pub use prompt::{Placeholder, Prompt, PromptHistory};
 pub use runtime::{
     after, cancel_debounce, debounce, debounce_local, every, frame_wake, run_until_parked, sleep,
@@ -267,4 +269,4 @@ pub use interaction::{
     forget_interaction_targets, link_tab_panel, move_tab_focus, TabFocusMove, TabLinkError,
 };
 
-pub use access::{try_apply_access, AccessCommandResult};
+pub use access::{try_apply_access, AccessCommandResult, SelectionAccess};

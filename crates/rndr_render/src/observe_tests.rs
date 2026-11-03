@@ -501,6 +501,41 @@ fn supplemental_description_and_action_changes_cannot_escape_frame_binding() {
     }
 }
 #[test]
+fn selection_state_and_relationship_changes_cannot_escape_frame_binding() {
+    for change in 0..4 {
+        let (mut app, send) = fixture();
+        app.add_plugin(GenericInteraction);
+        app.world_mut().insert_resource(ObservationContent::Public);
+        let other = app.world_mut().spawn((Label::new("Popup"),));
+        let target = app.world_mut().spawn((
+            Button::new("selection"),
+            Semantics {
+                name: Some("Selection".into()),
+                ..Default::default()
+            },
+            SelectionAccess {
+                role: AccessRole::CheckBox,
+                checked: Some(false),
+                expanded: None,
+                multiselect: false,
+                controls: None,
+                labelled_by: None,
+            },
+        ));
+        let recv = request(&send, 0);
+        let capture = begin(app.world(), 2, 2, 1.).unwrap();
+        let state = app.world_mut().get_mut::<SelectionAccess>(target).unwrap();
+        match change {
+            0 => state.checked = Some(true),
+            1 => state.multiselect = true,
+            2 => state.controls = Some(other),
+            _ => state.labelled_by = Some(other),
+        }
+        assert!(validate(app.world(), capture, 1.).is_none());
+        assert_error(recv, "post_paint_mutation");
+    }
+}
+#[test]
 fn shutdown_revokes_pending_capture_and_never_restarts_implicitly() {
     let (mut app, send) = fixture();
     app.world_mut().insert_resource(ObservationContent::Public);

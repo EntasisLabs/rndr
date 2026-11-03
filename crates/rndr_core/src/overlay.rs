@@ -46,6 +46,9 @@ pub fn apply_overlay(world: &mut World) {
 fn top_layer(world: &World) -> Option<crate::entity::Entity> {
     let mut best: Option<(i32, crate::entity::Entity)> = None;
     for root in roots::<Layer>(world) {
+        if world.has::<crate::Hidden>(root) || world.has::<crate::AnchoredPopup>(root) {
+            continue;
+        }
         let layer = world.get::<Layer>(root).map(|layer| layer.0).unwrap_or(0);
         if best.map(|(current, _)| layer >= current).unwrap_or(true) {
             best = Some((layer, root));

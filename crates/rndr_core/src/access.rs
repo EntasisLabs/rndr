@@ -64,7 +64,32 @@ pub enum AccessRole {
     ColumnHeader,
     /// Passive data cell.
     Cell,
+    /// Two-state checked control.
+    CheckBox,
+    /// Noneditable popup selection trigger.
+    ComboBox,
+    /// Single or multiple selection popup.
+    ListBox,
+    /// Stable option in a ListBox.
+    Option,
 }
+/// Supplemental selection projection; input still uses canonical Button admission.
+#[derive(Clone, Debug)]
+pub struct SelectionAccess {
+    /// Projected role.
+    pub role: AccessRole,
+    /// Checked state for CheckBox only.
+    pub checked: Option<bool>,
+    /// Expanded state for trigger only.
+    pub expanded: Option<bool>,
+    /// True for multiple-selection ListBox.
+    pub multiselect: bool,
+    /// Live controlled popup, only while expanded.
+    pub controls: Option<Entity>,
+    /// Live trigger labelling the popup.
+    pub labelled_by: Option<Entity>,
+}
+impl crate::Component for SelectionAccess {}
 /// Passive table projection; does not add cell focus, input or model ownership.
 #[derive(Clone, Debug)]
 pub struct DataAccess {
@@ -342,7 +367,13 @@ fn collect(
     let mut children = Vec::new();
     if !matches!(
         role,
-        AccessRole::Button | AccessRole::ListItem | AccessRole::TreeItem | AccessRole::Label
+        AccessRole::Button
+            | AccessRole::CheckBox
+            | AccessRole::ComboBox
+            | AccessRole::Option
+            | AccessRole::ListItem
+            | AccessRole::TreeItem
+            | AccessRole::Label
     ) {
         for child in children_of(world, entity) {
             children.extend(collect(world, child, focus, out));
@@ -380,7 +411,8 @@ fn collect(
             h: 0.0,
         }),
         children,
-        focusable: if world.has::<CollectionAccess>(entity) {
+        focusable: if world.has::<CollectionAccess>(entity) || world.has::<SelectionAccess>(entity)
+        {
             crate::access_details(world, entity).focus
         } else {
             world.has::<Focusable>(entity)
@@ -394,15 +426,16 @@ fn collect(
                 || (!world.has::<CollectionAccess>(entity) && focus_inside(world, entity, focus))
         }),
         selected: selected(world, entity, role),
-        enabled: !world.has::<crate::ControlDisabled>(entity)
-            && world
-                .get::<Button>(entity)
-                .map(|button| button.enabled)
-                .unwrap_or(true),
+        enabled: crate::interaction::policy(world, entity).0,
         expanded: world
-            .get::<CollectionAccess>(entity)
-            .and_then(|a| a.expanded)
-            .or_else(|| world.get::<Disclosure>(entity).map(|d| d.open)),
+            .get::<SelectionAccess>(entity)
+            .and_then(|s| s.expanded)
+            .or_else(|| {
+                world
+                    .get::<CollectionAccess>(entity)
+                    .and_then(|a| a.expanded)
+                    .or_else(|| world.get::<Disclosure>(entity).map(|d| d.open))
+            }),
     };
     out.push(node);
     vec![id]
@@ -430,6 +463,9 @@ fn collection_commands(
 }
 
 fn role_of(world: &World, entity: Entity) -> Option<AccessRole> {
+    if let Some(access) = world.get::<SelectionAccess>(entity) {
+        return Some(access.role);
+    }
     if let Some(access) = world.get::<DataAccess>(entity) {
         return Some(access.role);
     }

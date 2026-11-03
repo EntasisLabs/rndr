@@ -477,7 +477,7 @@ pub(crate) fn begin(world: &World, width: u32, height: u32, scale: f32) -> Optio
         json!({"id":node.id.to_string(), "role":format!("{:?}",node.role), "label":node.name, "value":node.value,
             "bounds":[node.bounds.x,node.bounds.y,node.bounds.w,node.bounds.h], "children":node.children.iter().map(u64::to_string).collect::<Vec<_>>(),
             "focusable":node.focusable,"focused":node.focused,"selected":node.selected,"enabled":node.enabled,"expanded":node.expanded,
-            "readonly":d.readonly,"description":d.description,"actions":actions,"panel":d.panel,"controls":d.controls.map(|id|id.to_string()),"labelled_by":d.labelled_by.map(|id|id.to_string()),"orientation":d.orientation.map(|o|format!("{o:?}"))})
+            "checked":d.checked,"multiselect":d.multiselect,"readonly":d.readonly,"description":d.description,"actions":actions,"panel":d.panel,"controls":d.controls.map(|id|id.to_string()),"labelled_by":d.labelled_by.map(|id|id.to_string()),"orientation":d.orientation.map(|o|format!("{o:?}"))})
     }).collect();
     // Scroll ports can be flattened out of the accessibility tree; expose those
     // separately with generation-safe entity ids and actual logical geometry.

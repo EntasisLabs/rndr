@@ -91,7 +91,10 @@ fn focus_ancestors(world: &World, mut entity: Option<Entity>) -> Vec<Entity> {
             break;
         }
         result.push(e);
-        entity = world.get::<Parent>(e).map(|p| p.entity);
+        entity = world
+            .get::<crate::FocusOwner>(e)
+            .map(|p| p.0)
+            .or_else(|| world.get::<Parent>(e).map(|p| p.entity));
     }
     result
 }

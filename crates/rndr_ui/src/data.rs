@@ -682,6 +682,8 @@ pub enum PropertyValue {
     Boolean(bool),
     /// Stable choice ID, not its label.
     Choice(u64),
+    /// Stable multiple-choice IDs; empty is valid. Canonical order is numeric ID.
+    Choices(Vec<u64>),
     /// Explicit caller-defined kind name or custom string value.
     Custom(String),
 }
@@ -712,6 +714,8 @@ pub enum PropertyKind {
     Boolean,
     /// Nonempty bounded set of stable choices.
     Choice(Vec<Choice>),
+    /// Bounded multiple-choice draft editor; selection does not commit records.
+    MultiChoice(Vec<Choice>),
     /// Explicit caller-defined kind name or custom string value.
     Custom(String),
 }
@@ -875,6 +879,7 @@ fn display(v: &PropertyValue) -> String {
         PropertyValue::Number(n) => n.to_string(),
         PropertyValue::Boolean(b) => b.to_string(),
         PropertyValue::Choice(id) => id.to_string(),
+        PropertyValue::Choices(ids) => ids.iter().map(u64::to_string).collect::<Vec<_>>().join(","),
     }
 }
 fn parsed(p: &Property, raw: &str) -> PropertyDraft {
@@ -901,6 +906,24 @@ fn parsed(p: &Property, raw: &str) -> PropertyDraft {
             .filter(|id| options.iter().any(|o| o.id == *id))
             .map(PropertyValue::Choice)
             .ok_or("Choose an available value".into()),
+        PropertyKind::MultiChoice(options) => {
+            let ids: Result<Vec<u64>, _> = if raw.trim().is_empty() {
+                Ok(vec![])
+            } else {
+                raw.split(',').map(str::parse::<u64>).collect()
+            };
+            ids.ok()
+                .filter(|ids| {
+                    ids.len() <= 64
+                        && ids.iter().all(|id| options.iter().any(|o| o.id == *id))
+                        && ids.iter().collect::<BTreeSet<_>>().len() == ids.len()
+                })
+                .map(|mut ids| {
+                    ids.sort();
+                    PropertyValue::Choices(ids)
+                })
+                .ok_or("Choose available values without duplicates".into())
+        }
         PropertyKind::Custom(_) => Ok(PropertyValue::Custom(raw.into())),
     };
     match parsed.and_then(|v| {
@@ -972,6 +995,16 @@ fn inspector_valid(props: &InspectorProps, groups: &[PropertyGroup], fields: &[P
                     && options.iter().map(|o| o.id).collect::<BTreeSet<_>>().len() == options.len()
                     && options.iter().any(|o| o.id == *id)
             }
+            (PropertyKind::MultiChoice(options), PropertyValue::Choices(ids)) => {
+                options.len() <= 64
+                    && ids.len() <= 64
+                    && options
+                        .iter()
+                        .all(|o| o.id != 0 && !o.label.trim().is_empty())
+                    && options.iter().map(|o| o.id).collect::<BTreeSet<_>>().len() == options.len()
+                    && ids.iter().collect::<BTreeSet<_>>().len() == ids.len()
+                    && ids.iter().all(|id| options.iter().any(|o| o.id == *id))
+            }
             (PropertyKind::Custom(name), PropertyValue::Custom(s)) => {
                 !name.trim().is_empty() && s.len() <= 65536
             }
@@ -1025,7 +1058,8 @@ fn property_departure(w: &mut World, e: Entity, _: Option<Entity>) {
     }
 }
 fn property_key(w: &mut World, e: Entity, k: &KeyEvent) -> bool {
-    if k.logical == LogicalKey::Named(NamedKey::Escape) && !k.repeat && !k.released {
+    if k.logical == LogicalKey::Named(NamedKey::Escape) && !k.repeat && !k.released && !k.synthetic
+    {
         if let Some(o) = owner(w, e) {
             let _ =
                 InspectorHandle { root: o.inspector }.cancel(w, o.property, CancelReason::Escape);
@@ -1033,6 +1067,59 @@ fn property_key(w: &mut World, e: Entity, k: &KeyEvent) -> bool {
         }
     }
     false
+}
+fn mount_selection(
+    w: &mut World,
+    parent: Entity,
+    p: &Property,
+    value: &PropertyValue,
+    enabled: bool,
+) -> Result<Entity, UiError> {
+    use selection::*;
+    let mut props = SelectionProps::new(&p.label);
+    props.description = p.description.clone();
+    props.enabled = enabled;
+    props.readonly = p.readonly;
+    let options = match &p.kind {
+        PropertyKind::Choice(o) | PropertyKind::MultiChoice(o) => o
+            .iter()
+            .map(|o| SelectOption::new(o.id, &o.label))
+            .collect::<Vec<_>>(),
+        _ => vec![],
+    };
+    let h = match (&p.kind, value) {
+        (PropertyKind::Boolean, PropertyValue::Boolean(b)) => {
+            Checkbox::mount(w, parent, UiId(2), props, *b)?
+        }
+        (PropertyKind::Choice(_), PropertyValue::Choice(id)) => {
+            SingleSelect::mount(w, parent, UiId(2), props, &options, Some(OptionId(*id)))?
+        }
+        (PropertyKind::MultiChoice(_), PropertyValue::Choices(ids)) => MultiSelect::mount(
+            w,
+            parent,
+            UiId(2),
+            props,
+            &options,
+            &ids.iter().map(|id| OptionId(*id)).collect::<Vec<_>>(),
+        )?,
+        _ => return Err(UiError::InvalidProps),
+    };
+    Ok(h.root)
+}
+fn property_selection(w: &mut World, e: Entity, value: &selection::SelectionValue) {
+    let Some(o) = owner(w, e) else { return };
+    let raw = match value {
+        selection::SelectionValue::Checked(b) => b.to_string(),
+        selection::SelectionValue::Selected(ids) => ids
+            .iter()
+            .map(|id| id.0.to_string())
+            .collect::<Vec<_>>()
+            .join(","),
+    };
+    let _ = (InspectorHandle { root: o.inspector }).set_draft(w, o.property, &raw);
+}
+fn property_selection_key(w: &mut World, e: Entity, k: &KeyEvent) -> bool {
+    selection::navigate(w, e, k) || property_key(w, e, k)
 }
 fn property_activate(w: &mut World, e: Entity) {
     let Some(o) = owner(w, e) else {
@@ -1046,46 +1133,7 @@ fn property_activate(w: &mut World, e: Entity) {
         2 => {
             let _ = h.cancel(w, o.property, CancelReason::Escape);
         }
-        _ => {
-            let Some(state) = w
-                .get::<Inspector>(o.inspector)
-                .and_then(|i| i.fields.get(&o.property))
-                .cloned()
-            else {
-                return;
-            };
-            let raw = match &state.property.kind {
-                PropertyKind::Boolean => {
-                    if state.draft.value == Some(PropertyValue::Boolean(true)) {
-                        "false".into()
-                    } else {
-                        "true".into()
-                    }
-                }
-                PropertyKind::Choice(options) => {
-                    let current = state.draft.value.as_ref().and_then(|v| {
-                        if let PropertyValue::Choice(id) = v {
-                            Some(*id)
-                        } else {
-                            None
-                        }
-                    });
-                    let index = options
-                        .iter()
-                        .position(|c| Some(c.id) == current)
-                        .unwrap_or(0);
-                    options[(index + 1) % options.len()].id.to_string()
-                }
-                _ => return,
-            };
-            if h.set_draft(w, o.property, &raw).is_err() {
-                if let Some(d) = h.draft(w, o.property) {
-                    if let Some(slot) = h.slot(w, o.property) {
-                        reset_field_draft(w, slot.editor, &d.raw);
-                    }
-                }
-            }
-        }
+        _ => {} // Selection editors use their typed ChangeHandler; custom editors own drafts.
     }
 }
 fn update_field(w: &mut World, i: &Inspector, s: &PropertyState) {
@@ -1107,17 +1155,24 @@ fn update_field(w: &mut World, i: &Inspector, s: &PropertyState) {
         if let Some(l) = w.get_mut::<Label>(s.slot.editor) {
             l.text = shown.clone();
         }
-    } else if matches!(p.kind, PropertyKind::Boolean | PropertyKind::Choice(_)) {
-        // Existing control owns visible title; replace through public reconciler.
-        let mut bp =
-            controls::ButtonProps::new(shown.clone(), controls::HostIntent::Command(p.id.0));
-        bp.enabled = editing;
-        bp.name = Some(format!(
-            "{}: {} (draft; activate to cycle)",
-            p.label, s.draft.raw
-        ));
-        let _ = controls::Button::mount(w, s.slot.root, UiId(2), bp);
-        w.insert(s.slot.editor, ActivationHandler(property_activate));
+    } else if matches!(
+        p.kind,
+        PropertyKind::Boolean | PropertyKind::Choice(_) | PropertyKind::MultiChoice(_)
+    ) {
+        // A validator can reject an otherwise well-typed selection. Still show
+        // the requested draft (including empty multi-selection), not the old model.
+        let mut unvalidated = p.clone();
+        unvalidated.validate = None;
+        let candidate = parsed(&unvalidated, &s.draft.raw).value;
+        let value = s
+            .draft
+            .value
+            .as_ref()
+            .or(candidate.as_ref())
+            .unwrap_or(&p.value);
+        let _ = mount_selection(w, s.slot.root, p, value, enabled);
+        w.insert(s.slot.editor, selection::ChangeHandler(property_selection));
+        w.insert(s.slot.editor, KeyNavigation(property_selection_key));
     }
     if enabled {
         w.remove::<ControlDisabled>(s.slot.editor);
@@ -1170,6 +1225,11 @@ fn update_field(w: &mut World, i: &Inspector, s: &PropertyState) {
         ),
         (s.slot.cancel, 2, "Cancel", editing && s.dirty),
     ] {
+        // Do not strand focus on an action that becomes disabled after a request.
+        // Staying inside this property preserves later drafts/pending acknowledgements.
+        if editing && !ok && w.resource::<Focus>().and_then(|f| f.entity) == Some(entity) {
+            request_focus(w, s.slot.editor);
+        }
         if let Some(parent) = w.get::<Parent>(entity).map(|p| p.entity) {
             let mut bp = controls::ButtonProps::new(title, controls::HostIntent::Command(p.id.0));
             bp.enabled = ok;
@@ -1412,17 +1472,10 @@ impl PropertyInspector {
                         w.insert(e, UiStyle::editor());
                         e
                     }
-                    PropertyKind::Boolean | PropertyKind::Choice(_) => {
-                        controls::Button::mount(
-                            w,
-                            r,
-                            UiId(2),
-                            controls::ButtonProps::new(
-                                display(&p.value),
-                                controls::HostIntent::Command(p.id.0),
-                            ),
-                        )?
-                        .root
+                    PropertyKind::Boolean
+                    | PropertyKind::Choice(_)
+                    | PropertyKind::MultiChoice(_) => {
+                        mount_selection(w, r, p, &p.value, props.enabled && p.enabled)?
                     }
                     PropertyKind::Custom(_) => node(
                         w,
@@ -1465,13 +1518,22 @@ impl PropertyInspector {
                             action,
                         },
                     );
-                    w.insert(e, KeyNavigation(property_key));
-                    if !matches!(
-                        p.kind,
-                        PropertyKind::Text { .. } | PropertyKind::Number { .. }
-                    ) || e != editor
-                    {
+                    if e != editor {
+                        w.insert(e, KeyNavigation(property_key));
                         w.insert(e, ActivationHandler(property_activate));
+                    } else if matches!(
+                        p.kind,
+                        PropertyKind::Boolean
+                            | PropertyKind::Choice(_)
+                            | PropertyKind::MultiChoice(_)
+                    ) {
+                        w.insert(e, selection::ChangeHandler(property_selection));
+                        w.insert(e, KeyNavigation(property_selection_key));
+                    } else {
+                        w.insert(e, KeyNavigation(property_key));
+                        if matches!(p.kind, PropertyKind::Custom(_)) {
+                            w.insert(e, ActivationHandler(property_activate));
+                        }
                     }
                 }
                 let feedback = label(w, r, "", Typography::Secondary);
@@ -1754,7 +1816,10 @@ pub(crate) fn inspector_blur(w: &mut World) {
                     inside = true;
                     break;
                 }
-                target = w.get::<Parent>(e).map(|p| p.entity);
+                target = w
+                    .get::<FocusOwner>(e)
+                    .map(|o| o.0)
+                    .or_else(|| w.get::<Parent>(e).map(|p| p.entity));
             }
             if !inside {
                 cancellations.push(*id);

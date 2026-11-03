@@ -79,6 +79,10 @@ pub struct AccessDetails {
     pub labelled_by: Option<u64>,
     /// Explicit orientation for opted-in manual tablists.
     pub orientation: Option<TabOrientation>,
+    /// Checked state for two-state Checkbox controls.
+    pub checked: Option<bool>,
+    /// Multiple selection supported by a ListBox.
+    pub multiselect: bool,
 }
 
 /// Validate generation and every ancestor's visibility.
@@ -106,19 +110,46 @@ pub(crate) fn valid_tab_relation(world: &World, tab: Entity) -> Option<TabRelati
     .then_some(relation)
 }
 
+/// Inherited availability and readonly policy, including logical popup ownership.
+pub(crate) fn policy(world: &World, mut entity: Entity) -> (bool, bool) {
+    let mut readonly = false;
+    for _ in 0..256 {
+        if !world.is_alive(entity)
+            || world.has::<Hidden>(entity)
+            || world.has::<ControlDisabled>(entity)
+            || world.get::<Button>(entity).is_some_and(|b| !b.enabled)
+        {
+            return (false, readonly);
+        }
+        readonly |= world.get::<Semantics>(entity).is_some_and(|s| s.readonly);
+        match world
+            .get::<crate::FocusOwner>(entity)
+            .map(|o| o.0)
+            .or_else(|| world.get::<Parent>(entity).map(|p| p.entity))
+        {
+            Some(parent) => entity = parent,
+            None => return (true, readonly),
+        }
+    }
+    (false, readonly)
+}
+
 /// Current allowed-action matrix; platform advertising and dispatch share it.
 pub fn access_details(world: &World, entity: Entity) -> AccessDetails {
     if !interaction_visible(world, entity) {
         return AccessDetails::default();
     }
     let semantics = world.get::<Semantics>(entity).cloned().unwrap_or_default();
-    let enabled = !world.has::<ControlDisabled>(entity)
-        && world.get::<Button>(entity).is_none_or(|b| b.enabled);
+    let (available, inherited_readonly) = policy(world, entity);
+    let enabled = available
+        && crate::overlay::modal_floor(world)
+            .is_none_or(|floor| crate::overlay::layer_of(world, entity) >= floor);
     let relation = valid_tab_relation(world, entity);
+    let selection = world.get::<crate::SelectionAccess>(entity);
     let valid_row = valid_list_row(world, entity);
     AccessDetails {
         description: semantics.description,
-        readonly: semantics.readonly,
+        readonly: inherited_readonly,
         focus: enabled
             && (world.has::<Focusable>(entity)
                 || world.has::<Button>(entity)
@@ -129,7 +160,7 @@ pub fn access_details(world: &World, entity: Entity) -> AccessDetails {
                 || world.has::<Tab>(entity)
                 || valid_row),
         activate: enabled
-            && !semantics.readonly
+            && !inherited_readonly
             && (world.has::<Button>(entity)
                 || world
                     .get::<List>(entity)
@@ -145,12 +176,24 @@ pub fn access_details(world: &World, entity: Entity) -> AccessDetails {
         set_value: false,
         orientation: world.get::<ManualTabs>(entity).map(|p| p.0),
         panel: world.has::<TabPanel>(entity),
-        controls: relation.map(|r| access_id(r.panel)),
-        labelled_by: world
-            .entities_with::<TabRelation>()
-            .into_iter()
-            .find(|tab| valid_tab_relation(world, *tab).is_some_and(|r| r.panel == entity))
-            .map(access_id),
+        checked: selection.and_then(|s| s.checked),
+        multiselect: selection.is_some_and(|s| s.multiselect),
+        controls: selection
+            .and_then(|s| s.controls)
+            .filter(|e| world.is_alive(*e))
+            .map(access_id)
+            .or_else(|| relation.map(|r| access_id(r.panel))),
+        labelled_by: selection
+            .and_then(|s| s.labelled_by)
+            .filter(|e| world.is_alive(*e))
+            .map(access_id)
+            .or_else(|| {
+                world
+                    .entities_with::<TabRelation>()
+                    .into_iter()
+                    .find(|tab| valid_tab_relation(world, *tab).is_some_and(|r| r.panel == entity))
+                    .map(access_id)
+            }),
     }
 }
 
@@ -172,7 +215,7 @@ fn valid_list_row(world: &World, entity: Entity) -> bool {
 }
 
 pub(crate) fn readonly(world: &World, entity: Entity) -> bool {
-    world.get::<Semantics>(entity).is_some_and(|s| s.readonly)
+    policy(world, entity).1
 }
 
 // Constrain user input, not programmatic validated source-edit operations.
@@ -497,6 +540,7 @@ pub(crate) fn apply_generic_input(world: &mut World) {
     if !world.has_resource::<InteractionState>() {
         return;
     }
+    crate::popup::prepare(world);
     sync_related_panels(world);
     let Some(input) = world.resource::<Input>().cloned() else {
         return;
@@ -643,7 +687,10 @@ pub(crate) fn apply_generic_input(world: &mut World) {
         if event.synthetic || !plain {
             cancel_activation(world);
         }
-        let mut consumed = focus.is_some_and(|e| crate::field::transaction_key(world, e, &event));
+        let scope_consumed = crate::popup::key(world, &event);
+        let focus = world.resource::<Focus>().and_then(|f| f.entity);
+        let mut consumed = scope_consumed
+            || focus.is_some_and(|e| crate::field::transaction_key(world, e, &event));
         if !consumed && !editor_owns && plain {
             let navigation = focus.and_then(|e| world.get::<KeyNavigation>(e).map(|n| (e, n.0)));
             let handled = navigation.is_some_and(|(e, handler)| handler(world, e, &event));

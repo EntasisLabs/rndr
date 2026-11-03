@@ -110,13 +110,33 @@ fn platform_node(world: &World, node: &rndr_core::AccessNode) -> Node {
             rndr_core::TabOrientation::Vertical => accesskit::Orientation::Vertical,
         });
     }
+    if let Some(s) =
+        entity_from_access_id(node.id).and_then(|e| world.get::<rndr_core::SelectionAccess>(e))
+    {
+        if let Some(checked) = s.checked {
+            out.set_toggled(if checked {
+                accesskit::Toggled::True
+            } else {
+                accesskit::Toggled::False
+            });
+        }
+        if s.multiselect {
+            out.set_multiselectable();
+        }
+        if let Some(e) = s.controls.filter(|e| world.is_alive(*e)) {
+            out.set_controls(vec![NodeId(rndr_core::access_id(e))]);
+        }
+        if let Some(e) = s.labelled_by.filter(|e| world.is_alive(*e)) {
+            out.set_labelled_by(vec![NodeId(rndr_core::access_id(e))]);
+        }
+    }
     if !node.enabled {
         out.set_disabled();
     }
     if node.selected
         || matches!(
             node.role,
-            AccessRole::ListItem | AccessRole::TreeItem | AccessRole::Row
+            AccessRole::ListItem | AccessRole::TreeItem | AccessRole::Row | AccessRole::Option
         )
     {
         out.set_selected(node.selected);
@@ -151,6 +171,10 @@ fn role(role: AccessRole) -> Role {
         AccessRole::Row => Role::Row,
         AccessRole::ColumnHeader => Role::ColumnHeader,
         AccessRole::Cell => Role::Cell,
+        AccessRole::CheckBox => Role::CheckBox,
+        AccessRole::ComboBox => Role::ComboBox,
+        AccessRole::ListBox => Role::ListBox,
+        AccessRole::Option => Role::ListBoxOption,
     }
 }
 
@@ -336,6 +360,84 @@ mod tests {
         assert!(!node(row).supports_action(accesskit::Action::Focus));
         assert!(!node(row).supports_action(accesskit::Action::Click));
         assert_eq!(node(row).label(), Some("Draft, unsaved"));
+    }
+    #[test]
+    fn selection_checked_expanded_multiselect_and_option_states_reach_accesskit() {
+        use rndr_core::*;
+        let mut app = App::new();
+        app.add_plugin(GenericInteraction);
+        let w = app.world_mut();
+        let meta = |role| SelectionAccess {
+            role,
+            checked: None,
+            expanded: None,
+            multiselect: false,
+            controls: None,
+            labelled_by: None,
+        };
+        let check = w.spawn((
+            Layout::row(),
+            Button::new("check"),
+            Focusable,
+            Semantics {
+                name: Some("Enabled".into()),
+                ..Default::default()
+            },
+        ));
+        let mut cm = meta(AccessRole::CheckBox);
+        cm.checked = Some(true);
+        w.insert(check, cm);
+        let trigger = w.spawn((
+            Layout::row(),
+            Button::new("trigger"),
+            Focusable,
+            Semantics {
+                name: Some("Channels".into()),
+                ..Default::default()
+            },
+        ));
+        let popup = w.spawn((Layout::column(), Focusable));
+        let mut lm = meta(AccessRole::ListBox);
+        lm.multiselect = true;
+        lm.labelled_by = Some(trigger);
+        w.insert(popup, lm);
+        let mut tm = meta(AccessRole::ComboBox);
+        tm.expanded = Some(true);
+        tm.controls = Some(popup);
+        w.insert(trigger, tm);
+        let option = w.spawn((
+            Layout::row(),
+            Button::new("option"),
+            Focusable,
+            SelectedState(true),
+            Semantics {
+                name: Some("Design".into()),
+                readonly: true,
+                ..Default::default()
+            },
+            meta(AccessRole::Option),
+        ));
+        set_parent(w, option, popup);
+        let t = tree_update(w);
+        let native = |e| {
+            &t.nodes
+                .iter()
+                .find(|(id, _)| *id == NodeId(access_id(e)))
+                .unwrap()
+                .1
+        };
+        assert_eq!(native(check).role(), Role::CheckBox);
+        assert_eq!(native(check).toggled(), Some(accesskit::Toggled::True));
+        assert_eq!(native(trigger).role(), Role::ComboBox);
+        assert_eq!(native(trigger).is_expanded(), Some(true));
+        assert_eq!(native(trigger).controls(), &[NodeId(access_id(popup))]);
+        assert_eq!(native(popup).role(), Role::ListBox);
+        assert!(native(popup).is_multiselectable());
+        assert_eq!(native(popup).labelled_by(), &[NodeId(access_id(trigger))]);
+        assert_eq!(native(option).role(), Role::ListBoxOption);
+        assert_eq!(native(option).is_selected(), Some(true));
+        assert!(native(option).is_read_only());
+        assert!(!native(option).supports_action(Action::Click));
     }
     #[test]
     fn table_roles_values_header_description_and_no_cell_focus_reach_accesskit() {

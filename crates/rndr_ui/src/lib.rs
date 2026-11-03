@@ -6,6 +6,7 @@ pub mod collections;
 pub mod composition;
 pub mod controls;
 pub mod data;
+pub mod selection;
 pub mod style;
 pub mod surfaces;
 pub mod tokens;
@@ -35,6 +36,7 @@ impl Plugin for UiPlugin {
         app.add_system(Schedule::Layout, collections::styles);
         app.add_system(Schedule::Layout, data::styles);
         app.add_system(Schedule::Layout, controls::resolve_controls);
+        app.add_system(Schedule::Layout, selection::styles);
         app.add_system(Schedule::Layout, resolve_styles);
         app.add_system(Schedule::Layout, data::measure_cells);
         app.add_system(Schedule::Layout, controls::resolve_toolbars);
