@@ -1,0 +1,8 @@
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-hands-on-visual-and-nested-scroll-polish/crates/rndr_ui)
+    Finished `test` profile [unoptimized] target(s) in 0.23s
+     Running tests/polish_review_editor.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/polish_review_editor-74c78b2cae8aaca5)
+
+running 1 test
+test wheel_over_focused_editor_moves_only_scroll_ancestry_and_preserves_selection ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

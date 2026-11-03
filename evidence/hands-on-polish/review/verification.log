@@ -1,0 +1,15 @@
+baseline-source.sha256 matches exact Git objects / disclosed fixtures
+after-source.sha256 matches exact Git objects / disclosed fixtures
+evidence/hands-on-polish/artifact-sha256.txt all checksums match
+evidence/hands-on-polish/review/reviewed-source.sha256 all checksums match
+baseline-captures actual decoded PNG ink centroid (8.296032553407935, 10.824008138351983)
+baseline-captures 13 decoded PNG / same-frame JSON pairs
+captures actual decoded PNG ink centroid (8.5, 8.5)
+captures 13 decoded PNG / same-frame JSON pairs
+core 415 passed, 0 failed/ignored
+paint 64 passed, 0 failed/ignored
+ui 212 passed, 0 failed/ignored
+render 96 passed, 0 failed/ignored
+gpu 2 passed, 0 failed/ignored
+privacy 1 passed, 0 failed/ignored
+790 fresh passing executions in non-overlapping primary suite set

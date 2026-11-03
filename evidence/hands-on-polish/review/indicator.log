@@ -1,0 +1,9 @@
+   Compiling rndr_paint v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-hands-on-visual-and-nested-scroll-polish/crates/rndr_paint)
+    Finished `test` profile [unoptimized] target(s) in 0.24s
+     Running tests/scroll_indicator_review.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/scroll_indicator_review-bddb772df18a7eed)
+
+running 2 tests
+test near_empty_cross_axis_clip_does_not_emit_outside_indicator_geometry ... ok
+test clipped_thumb_intervals_are_correct_on_both_axes_and_do_not_change_hits ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

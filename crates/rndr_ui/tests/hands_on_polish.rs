@@ -170,6 +170,64 @@ fn non_scrollable_inner_axis_chains_without_remapping() {
     assert_eq!(a.world().get::<Scroll>(o).unwrap().offset, [0., -40.]);
 }
 #[test]
+fn fractional_wheel_residuals_and_overlapping_roots_preserve_hit_ownership() {
+    let (mut a, outer, inner) = nested();
+    a.world_mut().get_mut::<Scroll>(inner).unwrap().offset = [-219.75, -199.75];
+    layout_propagate(a.world_mut());
+    wheel(&mut a, [50., 50.], [-0.5, -0.5]);
+    assert_eq!(
+        a.world().get::<Scroll>(inner).unwrap().offset,
+        [-220., -200.]
+    );
+    assert_eq!(a.world().get::<Scroll>(outer).unwrap().offset, [0., -0.25]);
+    wheel(&mut a, [50., 50.], [0.125, 0.125]);
+    assert_eq!(
+        a.world().get::<Scroll>(inner).unwrap().offset,
+        [-219.875, -199.875]
+    );
+    // A higher-layer root covers the point but is unrelated to either port.
+    // Equal-layer ECS iteration order is not a creation-order guarantee.
+    a.world_mut().spawn((
+        Layout {
+            width: Size::Px(200.),
+            height: Size::Px(150.),
+            ..Layout::column()
+        },
+        Layer(10),
+    ));
+    layout_propagate(a.world_mut());
+    wheel(&mut a, [50., 50.], [-10., -10.]);
+    assert_eq!(
+        a.world().get::<Scroll>(inner).unwrap().offset,
+        [-219.875, -199.875]
+    );
+    assert_eq!(a.world().get::<Scroll>(outer).unwrap().offset, [0., -0.25]);
+}
+
+#[test]
+fn leading_clip_thumb_position_describes_visible_content_not_hidden_prefix() {
+    let (mut a, outer, inner) = nested();
+    a.world_mut().get_mut::<Scroll>(outer).unwrap().offset[1] = -30.;
+    a.world_mut().get_mut::<Scroll>(inner).unwrap().offset[1] = -50.;
+    let output = rndr_paint::frame(&mut a);
+    let rect = *a.world().get::<Rect>(inner).unwrap();
+    let clip = *a.world().get::<Clip>(inner).unwrap();
+    assert_eq!(clip.h, 70.);
+    let color = a.world().get::<ScrollIndicator>(inner).unwrap().color;
+    let thumb = output
+        .quads
+        .iter()
+        .find(|q| q.color == color && q.clip == clip && q.rect.w == 3.)
+        .unwrap();
+    let track = clip.h - 8.;
+    let length = (track * clip.h / 300.).max(18.).min(track);
+    let start = 50. + clip.y - rect.y;
+    let position = start / (300. - clip.h) * (track - length);
+    assert!((thumb.rect.h - length).abs() < 0.001);
+    assert!((thumb.rect.y - (clip.y + 4. + position)).abs() < 0.001);
+}
+
+#[test]
 fn checkbox_indicator_uses_face_geometry_and_keeps_disabled_checked_semantics() {
     use rndr_ui::selection::{Checkbox, SelectionProps};
     for scale in [1., 1.5, 2.] {
@@ -317,6 +375,13 @@ fn scroll_affordances_dock_inside_partially_clipped_inner_viewports() {
         .collect();
     assert_eq!(thumbs.len(), 2);
     for thumb in thumbs {
+        if thumb.rect.w == 3. {
+            // Only 40 of this 100-point viewport's 300-point content is
+            // visible. The old full-port ratio incorrectly reports 100/300.
+            let track = clip.h - 8.;
+            let expected = (track * clip.h / 300.).max(18.).min(track);
+            assert!((thumb.rect.h - expected).abs() < 0.001);
+        }
         assert!(thumb.rect.x >= clip.x && thumb.rect.y >= clip.y);
         assert!(thumb.rect.x + thumb.rect.w <= clip.x + clip.w);
         assert!(thumb.rect.y + thumb.rect.h <= clip.y + clip.h);

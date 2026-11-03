@@ -1,0 +1,15 @@
+   Compiling rndr_render v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-hands-on-visual-and-nested-scroll-polish/crates/rndr_render)
+    Finished `test` profile [unoptimized] target(s) in 3.29s
+     Running tests/hands_on_polish_pixels.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/hands_on_polish_pixels-674015335dfed53c)
+
+running 2 tests
+size=18 scale=1: centroid=(8.50000,8.50000) expected=8.50000, mirror_error=0.00000, max_sample_difference=0
+size=18 scale=2: centroid=(17.50000,17.50000) expected=17.50000, mirror_error=0.05896, max_sample_difference=71
+size=27 scale=1: centroid=(13.00000,13.00000) expected=13.00000, mirror_error=0.07486, max_sample_difference=67
+test rounded_outline_is_uniform_inset_clipped_and_above_opaque_descendants ... ok
+size=27 scale=2: centroid=(26.50000,26.50000) expected=26.50000, mirror_error=0.00941, max_sample_difference=67
+size=36 scale=1: centroid=(17.50000,17.50000) expected=17.50000, mirror_error=0.05896, max_sample_difference=71
+size=36 scale=2: centroid=(35.50000,35.50000) expected=35.50000, mirror_error=0.01108, max_sample_difference=67
+test centered_cross_ink_is_symmetric_at_1x_2x_and_text_scaled_sizes ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s

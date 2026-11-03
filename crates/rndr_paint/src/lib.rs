@@ -567,6 +567,9 @@ fn record_scroll_indicator(
     // Keep the affordance on the visible clipped edge, even when an outer
     // document clips this viewport's far edge. Input ownership is unchanged.
     let visible = clip.intersect(Clip::from_rect(*rect));
+    if visible.w < 8. || visible.h < 8. {
+        return;
+    }
     for axis in 0..2 {
         let length = if axis == 0 { rect.w } else { rect.h };
         let visible_length = if axis == 0 { visible.w } else { visible.h };
@@ -580,8 +583,17 @@ fn record_scroll_indicator(
             continue;
         }
         let track = visible_length - 8.;
-        let thumb = (track * length / content).max(18.).min(track);
-        let position = (-scroll.offset[axis] / (content - length)).clamp(0., 1.) * (track - thumb);
+        let thumb = (track * visible_length / content).max(18.).min(track);
+        // Ancestor clipping can hide either end of this port. Describe the
+        // content interval actually visible, including its hidden prefix.
+        // The minimum thumb size preserves legibility, not an extra hit area.
+        let hidden_prefix = if axis == 0 {
+            visible.x - rect.x
+        } else {
+            visible.y - rect.y
+        };
+        let start = -scroll.offset[axis] + hidden_prefix;
+        let position = (start / (content - visible_length)).clamp(0., 1.) * (track - thumb);
         let thumb_rect = if axis == 0 {
             Rect {
                 x: visible.x + 4. + position,

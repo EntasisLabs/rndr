@@ -1,0 +1,42 @@
+   Compiling rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-hands-on-visual-and-nested-scroll-polish/crates/rndr_core)
+   Compiling rndr_paint v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-hands-on-visual-and-nested-scroll-polish/crates/rndr_paint)
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-hands-on-visual-and-nested-scroll-polish/crates/rndr_ui)
+    Finished `test` profile [unoptimized] target(s) in 5.35s
+     Running tests/hands_on_polish.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/hands_on_polish-3936908bca3c103e)
+
+running 11 tests
+test nested_wheel_consumes_only_available_distance_and_chains_each_axis ... ok
+test leading_clip_thumb_position_describes_visible_content_not_hidden_prefix ... FAILED
+test outside_or_clipped_content_never_targets_an_unrelated_scrollport ... ok
+test fractional_wheel_residuals_and_overlapping_roots_preserve_hit_ownership ... FAILED
+test revealing_an_oversized_already_visible_target_does_not_jump_to_trailing_edge ... ok
+test scroll_affordances_dock_inside_partially_clipped_inner_viewports ... ok
+test non_scrollable_inner_axis_chains_without_remapping ... ok
+test collection_focus_never_becomes_a_filled_viewport_and_disabled_rows_stay_quiet ... ok
+test checkbox_indicator_uses_face_geometry_and_keeps_disabled_checked_semantics ... ok
+test focus_ring_layers_are_concentric_in_light_dark_and_high_contrast ... ok
+test table_column_boundaries_share_one_grid_in_both_densities_and_after_scroll ... ok
+
+failures:
+
+---- leading_clip_thumb_position_describes_visible_content_not_hidden_prefix stdout ----
+
+thread 'leading_clip_thumb_position_describes_visible_content_not_hidden_prefix' (4952564) panicked at crates/rndr_ui/tests/hands_on_polish.rs:205:5:
+assertion failed: (thumb.rect.h - length).abs() < 0.001
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- fractional_wheel_residuals_and_overlapping_roots_preserve_hit_ownership stdout ----
+
+thread 'fractional_wheel_residuals_and_overlapping_roots_preserve_hit_ownership' (4952563) panicked at crates/rndr_ui/tests/hands_on_polish.rs:186:5:
+assertion `left == right` failed
+  left: [-220.0, -200.0]
+ right: [-219.875, -199.875]
+
+
+failures:
+    fractional_wheel_residuals_and_overlapping_roots_preserve_hit_ownership
+    leading_clip_thumb_position_describes_visible_content_not_hidden_prefix
+
+test result: FAILED. 9 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+error: test failed, to rerun pass `-p rndr_ui --test hands_on_polish`

@@ -1,0 +1,21 @@
+   Compiling rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-hands-on-visual-and-nested-scroll-polish/target/reviewer-polish-baseline-src/crates/rndr_core)
+   Compiling rndr_paint v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-hands-on-visual-and-nested-scroll-polish/target/reviewer-polish-baseline-src/crates/rndr_paint)
+   Compiling rndr_render v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-hands-on-visual-and-nested-scroll-polish/target/reviewer-polish-baseline-src/crates/rndr_render)
+   Compiling rndr_std v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-hands-on-visual-and-nested-scroll-polish/target/reviewer-polish-baseline-src/crates/rndr_std)
+   Compiling rndr v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-hands-on-visual-and-nested-scroll-polish/target/reviewer-polish-baseline-src/crates/rndr)
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-hands-on-visual-and-nested-scroll-polish/target/reviewer-polish-baseline-src/crates/rndr_ui)
+    Finished `dev` profile [unoptimized] target(s) in 7.78s
+headless selection: 1000x960 scale 1
+headless selection: 2000x1920 scale 2
+headless selection: 760x1920 scale 2
+headless selection: 380x960 scale 1
+headless data: 1000x960 scale 1
+headless data: 2000x1920 scale 2
+headless data: 760x1920 scale 2
+headless data: 380x960 scale 1
+headless editors: 1000x960 scale 1
+headless editors: 2000x1920 scale 2
+headless editors: 760x1920 scale 2
+headless editors: 380x960 scale 1
+headless editors: 2000x1920 scale 2
+13 PNG/JSON pairs: headless viewport-composite pixels, real text shaping; not native input certification.
