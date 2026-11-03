@@ -1,0 +1,28 @@
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-composable-datatable-and-propertyinspector/crates/rndr_ui)
+    Finished `test` profile [unoptimized] target(s) in 0.36s
+     Running tests/reviewer_gallery.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/reviewer_gallery-859684780b1c618d)
+
+running 6 tests
+test independent_reading_scale_enlarges_builtin_editor_line_boxes ... ok
+
+thread 'reviewer_host_ack_preserves_text_queued_after_submit' (4011563) panicked at crates/rndr_ui/tests/reviewer_gallery.rs:226:2:
+assertion `left == right` failed: later typing must remain an uncommitted draft after host acknowledges the earlier Submit
+  left: "Brand refresh1"
+ right: "Brand refresh12"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test reviewer_host_ack_preserves_text_queued_after_submit ... FAILED
+test joint_gallery_nonzero_visible_cell_geometry_and_column_header_associations ... ok
+test narrow_and_scaled_layout_remain_scroll_reachable_not_compressed_to_zero ... ok
+test joint_gallery_commits_model_repaints_cells_and_switches_objects_without_draft_leak ... ok
+test every_synthetic_preset_reconciles_without_disabled_selection_mutation_or_panic ... ok
+
+failures:
+
+failures:
+    reviewer_host_ack_preserves_text_queued_after_submit
+
+test result: FAILED. 5 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+error: test failed, to rerun pass `-p rndr_ui --test reviewer_gallery`
+
+EXIT=101

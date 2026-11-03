@@ -1,0 +1,10 @@
+{
+  "comparison": "whitespace and rustfmt trailing-comma normalized; assertion literals and event order also reviewed manually",
+  "tests": {
+    "reviewer_boolean_window_blur_cancels_draft": true,
+    "reviewer_commit_control_window_blur_cancels_draft": true,
+    "reviewer_leave_and_return_in_one_batch_must_cancel_before_commit": true,
+    "reviewer_ime_enabled_commit_strips_different_key_text": true,
+    "reviewer_host_ack_preserves_text_queued_after_submit": true
+  }
+}

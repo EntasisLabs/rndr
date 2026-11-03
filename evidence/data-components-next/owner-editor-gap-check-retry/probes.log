@@ -1,0 +1,52 @@
+$ ['/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/property_editor_prerequisites-438f5c055e01006f', '--ignored', '--nocapture', '--test-threads=1']
+
+running 5 tests
+test capture_field_can_reach_canonical_escape_hook ... cancel_hook_calls=0, remaining_keys=[]
+
+thread 'capture_field_can_reach_canonical_escape_hook' (3781902) panicked at crates/rndr_ui/tests/property_editor_prerequisites.rs:159:5:
+assertion `left == right` failed: Escape must be visible at the editor's ordered transaction boundary
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test enter_snapshot_precedes_later_typing_in_same_native_batch ... draft="12", submitted=["12"]
+
+thread 'enter_snapshot_precedes_later_typing_in_same_native_batch' (3781903) panicked at crates/rndr_ui/tests/property_editor_prerequisites.rs:73:5:
+assertion `left == right` failed: commit must not include text typed after Enter
+  left: ["12"]
+ right: ["1"]
+FAILED
+test repeated_enter_is_not_a_second_commit_request ... repeat submitted=["1"]
+
+thread 'repeated_enter_is_not_a_second_commit_request' (3781904) panicked at crates/rndr_ui/tests/property_editor_prerequisites.rs:111:5:
+held Enter must not produce repeat transactions
+FAILED
+test text_on_each_side_of_tab_goes_only_to_its_chronological_target ... first="", second="ab", focus=Some(Entity { index: 2, generation: 0 })
+
+thread 'text_on_each_side_of_tab_goes_only_to_its_chronological_target' (3781905) panicked at crates/rndr_ui/tests/property_editor_prerequisites.rs:131:5:
+assertion `left == right` failed: text before Tab must not migrate into the next property
+  left: ("", "ab")
+ right: ("a", "b")
+FAILED
+test two_enter_boundaries_keep_distinct_snapshots ... submitted=["12"]
+
+thread 'two_enter_boundaries_keep_distinct_snapshots' (3781906) panicked at crates/rndr_ui/tests/property_editor_prerequisites.rs:94:5:
+assertion `left == right` failed: one snapshot per non-repeat submit boundary
+  left: ["12"]
+ right: ["1", "12"]
+FAILED
+
+failures:
+
+failures:
+    capture_field_can_reach_canonical_escape_hook
+    enter_snapshot_precedes_later_typing_in_same_native_batch
+    repeated_enter_is_not_a_second_commit_request
+    text_on_each_side_of_tab_goes_only_to_its_chronological_target
+    two_enter_boundaries_keep_distinct_snapshots
+
+test result: FAILED. 0 passed; 5 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+EXIT=101
+ELAPSED_SECONDS=0.241777

@@ -1,0 +1,254 @@
+[
+  {
+    "preset": "compact-hc-200",
+    "width": 1180,
+    "height": 960,
+    "sha256": "1ae245543c8cd62ba740fffea33eb775d4622fd5c82e01ab00ea2fdf46ca7a68",
+    "presented_confirmation": false,
+    "provenance": {
+      "adapter": "Apple M4",
+      "alpha_mode": "Auto",
+      "backend": "Metal",
+      "parley_feature": true,
+      "path": "quads",
+      "present_mode": "AutoVsync",
+      "scene_samples": 4,
+      "surface_format": "Bgra8UnormSrgb",
+      "text_engine": "parley",
+      "transparent_clear": false
+    },
+    "exit_code": 0,
+    "pixel_review": "UNVERIFIED: image-view returned metadata, no inspectable attachment"
+  },
+  {
+    "preset": "compact-hc-200-bottom",
+    "width": 1180,
+    "height": 960,
+    "sha256": "c79a4c049d124e06278c0bdca5775c25a80eba6294108b6adb32ee412729be7c",
+    "presented_confirmation": false,
+    "provenance": {
+      "adapter": "Apple M4",
+      "alpha_mode": "Auto",
+      "backend": "Metal",
+      "parley_feature": true,
+      "path": "quads",
+      "present_mode": "AutoVsync",
+      "scene_samples": 4,
+      "surface_format": "Bgra8UnormSrgb",
+      "text_engine": "parley",
+      "transparent_clear": false
+    },
+    "exit_code": 0,
+    "pixel_review": "UNVERIFIED: image-view returned metadata, no inspectable attachment"
+  },
+  {
+    "preset": "compact-hc-200-inspector",
+    "width": 1180,
+    "height": 960,
+    "sha256": "562a3586980625a071087fe43f931a0c236bc872a853150c7bb58aa3d0c7128d",
+    "presented_confirmation": false,
+    "provenance": {
+      "adapter": "Apple M4",
+      "alpha_mode": "Auto",
+      "backend": "Metal",
+      "parley_feature": true,
+      "path": "quads",
+      "present_mode": "AutoVsync",
+      "scene_samples": 4,
+      "surface_format": "Bgra8UnormSrgb",
+      "text_engine": "parley",
+      "transparent_clear": false
+    },
+    "exit_code": 0,
+    "pixel_review": "UNVERIFIED: image-view returned metadata, no inspectable attachment"
+  },
+  {
+    "preset": "dark",
+    "width": 1180,
+    "height": 960,
+    "sha256": "511691797894389f26c0719ac2238d32431dbc0a2bfc98f0f8c1ad19f63f7ef6",
+    "presented_confirmation": false,
+    "provenance": {
+      "adapter": "Apple M4",
+      "alpha_mode": "Auto",
+      "backend": "Metal",
+      "parley_feature": true,
+      "path": "quads",
+      "present_mode": "AutoVsync",
+      "scene_samples": 4,
+      "surface_format": "Bgra8UnormSrgb",
+      "text_engine": "parley",
+      "transparent_clear": false
+    },
+    "exit_code": 0,
+    "pixel_review": "UNVERIFIED: image-view returned metadata, no inspectable attachment"
+  },
+  {
+    "preset": "disabled",
+    "width": 1180,
+    "height": 960,
+    "sha256": "f7a11b2fe9286f8d3de895917cc8e41d31171bede1c187fa8b6e59beed8f5b87",
+    "presented_confirmation": false,
+    "provenance": {
+      "adapter": "Apple M4",
+      "alpha_mode": "Auto",
+      "backend": "Metal",
+      "parley_feature": true,
+      "path": "quads",
+      "present_mode": "AutoVsync",
+      "scene_samples": 4,
+      "surface_format": "Bgra8UnormSrgb",
+      "text_engine": "parley",
+      "transparent_clear": false
+    },
+    "exit_code": 0,
+    "pixel_review": "UNVERIFIED: image-view returned metadata, no inspectable attachment"
+  },
+  {
+    "preset": "empty",
+    "width": 1180,
+    "height": 960,
+    "sha256": "e0682b1fdb32ebe4fed04ab0e098cd48b5eebae2c8799fc8299df00e1298091c",
+    "presented_confirmation": false,
+    "provenance": {
+      "adapter": "Apple M4",
+      "alpha_mode": "Auto",
+      "backend": "Metal",
+      "parley_feature": true,
+      "path": "quads",
+      "present_mode": "AutoVsync",
+      "scene_samples": 4,
+      "surface_format": "Bgra8UnormSrgb",
+      "text_engine": "parley",
+      "transparent_clear": false
+    },
+    "exit_code": 0,
+    "pixel_review": "UNVERIFIED: image-view returned metadata, no inspectable attachment"
+  },
+  {
+    "preset": "invalid",
+    "width": 1180,
+    "height": 960,
+    "sha256": "312a1ac4e71cfb253211ffeb74bd0e13e0d08ce0c32aee3fd21ac4f6805c9f66",
+    "presented_confirmation": false,
+    "provenance": {
+      "adapter": "Apple M4",
+      "alpha_mode": "Auto",
+      "backend": "Metal",
+      "parley_feature": true,
+      "path": "quads",
+      "present_mode": "AutoVsync",
+      "scene_samples": 4,
+      "surface_format": "Bgra8UnormSrgb",
+      "text_engine": "parley",
+      "transparent_clear": false
+    },
+    "exit_code": 0,
+    "pixel_review": "UNVERIFIED: image-view returned metadata, no inspectable attachment"
+  },
+  {
+    "preset": "light",
+    "width": 1180,
+    "height": 960,
+    "sha256": "1d0b4fa200acdc4c7297b126ec6f47870a9216b55b8a2cfbc48a77196fd0e653",
+    "presented_confirmation": false,
+    "provenance": {
+      "adapter": "Apple M4",
+      "alpha_mode": "Auto",
+      "backend": "Metal",
+      "parley_feature": true,
+      "path": "quads",
+      "present_mode": "AutoVsync",
+      "scene_samples": 4,
+      "surface_format": "Bgra8UnormSrgb",
+      "text_engine": "parley",
+      "transparent_clear": false
+    },
+    "exit_code": 0,
+    "pixel_review": "UNVERIFIED: image-view returned metadata, no inspectable attachment"
+  },
+  {
+    "preset": "narrow",
+    "width": 380,
+    "height": 920,
+    "sha256": "204bed26145b2d6e11b9306f35397a255ab0754a51eef7841dddf65819e62e19",
+    "presented_confirmation": false,
+    "provenance": {
+      "adapter": "Apple M4",
+      "alpha_mode": "Auto",
+      "backend": "Metal",
+      "parley_feature": true,
+      "path": "quads",
+      "present_mode": "AutoVsync",
+      "scene_samples": 4,
+      "surface_format": "Bgra8UnormSrgb",
+      "text_engine": "parley",
+      "transparent_clear": false
+    },
+    "exit_code": 0,
+    "pixel_review": "UNVERIFIED: image-view returned metadata, no inspectable attachment"
+  },
+  {
+    "preset": "narrow-inspector",
+    "width": 380,
+    "height": 920,
+    "sha256": "bab82674d76a7ff9bc803029451556445c19bf3c728af547c97d0ca8d4807189",
+    "presented_confirmation": false,
+    "provenance": {
+      "adapter": "Apple M4",
+      "alpha_mode": "Auto",
+      "backend": "Metal",
+      "parley_feature": true,
+      "path": "quads",
+      "present_mode": "AutoVsync",
+      "scene_samples": 4,
+      "surface_format": "Bgra8UnormSrgb",
+      "text_engine": "parley",
+      "transparent_clear": false
+    },
+    "exit_code": 0,
+    "pixel_review": "UNVERIFIED: image-view returned metadata, no inspectable attachment"
+  },
+  {
+    "preset": "readonly",
+    "width": 1180,
+    "height": 960,
+    "sha256": "2d3bc20a9c60ddedb344429f4ba87dc26f54a48de76ee69403d7f194b2d51674",
+    "presented_confirmation": false,
+    "provenance": {
+      "adapter": "Apple M4",
+      "alpha_mode": "Auto",
+      "backend": "Metal",
+      "parley_feature": true,
+      "path": "quads",
+      "present_mode": "AutoVsync",
+      "scene_samples": 4,
+      "surface_format": "Bgra8UnormSrgb",
+      "text_engine": "parley",
+      "transparent_clear": false
+    },
+    "exit_code": 0,
+    "pixel_review": "UNVERIFIED: image-view returned metadata, no inspectable attachment"
+  },
+  {
+    "preset": "workflow-bottom",
+    "width": 1180,
+    "height": 960,
+    "sha256": "fd8d019db79523ff20b6f5d90ab6252bcb3b6cea213e3c9605a3318e2f89760b",
+    "presented_confirmation": false,
+    "provenance": {
+      "adapter": "Apple M4",
+      "alpha_mode": "Auto",
+      "backend": "Metal",
+      "parley_feature": true,
+      "path": "quads",
+      "present_mode": "AutoVsync",
+      "scene_samples": 4,
+      "surface_format": "Bgra8UnormSrgb",
+      "text_engine": "parley",
+      "transparent_clear": false
+    },
+    "exit_code": 0,
+    "pixel_review": "UNVERIFIED: image-view returned metadata, no inspectable attachment"
+  }
+]

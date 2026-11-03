@@ -1,0 +1,15 @@
+{
+  "base": "132258c535b7c75dcc7256b1eea89e913eaaed15",
+  "historical_evidence_files": 3073,
+  "historical_evidence_bytes": 57991081,
+  "owner_reproduction_files_preserved": 8,
+  "owner_snapshot_note": "End-of-implementation preservation snapshot; not claimed as a start-of-turn snapshot. These untracked owner directories were never written by this assignment.",
+  "source_files_bound": 131,
+  "native_states": 12,
+  "native_frames": 24,
+  "binary_sha256": "c236f2b15821d4a3572b86aefe5a2189f319ecff2896bc54ed9447250ffb5d2d",
+  "test_source_files_bound": 90,
+  "total_passing_test_executions": 708,
+  "note": "Execution count includes repeated suites in native/fallback configurations, not unique tests. No presented/compositor, physical input, real IME or live AT proof."
+}
+COMMAND COUNTS {"core-paint-ui.log": 599, "facade-fallback.log": 1, "facade.log": 1, "fallback-renderer.log": 25, "formatting.log": 0, "gallery-build.log": 0, "gallery-fallback.log": 0, "historical-six-and-activation.log": 8, "native-observe.log": 74, "whitespace.log": 0}

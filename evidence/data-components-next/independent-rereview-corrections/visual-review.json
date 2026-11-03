@@ -1,0 +1,36 @@
+{
+  "status": "BLOCKED",
+  "independent_pixel_signoff": false,
+  "attempted_direct_tool": "cognition_image_view",
+  "attempted_paths": [
+    "evidence/data-components-next/review-corrections/native/light/frame-2.png",
+    "evidence/data-components-next/review-corrections/native/dark/frame-2.png",
+    "evidence/data-components-next/review-corrections/native/narrow/frame-2.png",
+    "evidence/data-components-next/review-corrections/native/narrow-inspector/frame-2.png",
+    "evidence/data-components-next/review-corrections/native/compact-hc-200/frame-2.png",
+    "evidence/data-components-next/review-corrections/native/compact-hc-200-inspector/frame-2.png",
+    "evidence/data-components-next/review-corrections/native/compact-hc-200-bottom/frame-2.png",
+    "evidence/data-components-next/review-corrections/native/invalid/frame-2.png",
+    "evidence/data-components-next/review-corrections/native/readonly/frame-2.png",
+    "evidence/data-components-next/review-corrections/native/disabled/frame-2.png",
+    "evidence/data-components-next/review-corrections/native/empty/frame-2.png",
+    "evidence/data-components-next/review-corrections/native/workflow-bottom/frame-2.png"
+  ],
+  "inspectable_pixel_coverage": [],
+  "result": "Direct image calls returned image metadata including vision_available=true but no inspectable pixel attachment in reviewer context. Repeated retries did not establish visual correctness. No visual defects alleged without pixels.",
+  "validated_provenance": {
+    "states": 12,
+    "png_metadata_pairs": 24,
+    "source_files": 131,
+    "all_source_files_match_git_commit": "d9d9c3c998e67c8da332167cc7f179e4d373508b",
+    "presented_confirmation": false
+  },
+  "limits": [
+    "pre-present GPU copies are not compositor proof",
+    "physical input",
+    "real OS IME",
+    "live assistive technology",
+    "physical DPI",
+    "Windows/Linux"
+  ]
+}

@@ -1,0 +1,82 @@
+{
+  "head": "39b049feb32b50a7000bcb60ead62e16ee4fe8e2",
+  "tracked_diff_empty": true,
+  "captured_source_files_revalidated": 131,
+  "owner_files_revalidated": 8,
+  "native_frames_revalidated": 24,
+  "visual_pixel_inspection": "BLOCKED: retry image-view returned metadata only; vision_available is not pixel review",
+  "commands": {
+    "core-paint-ui.log": {
+      "command": "$ cargo test --offline --locked -p rndr_core -p rndr_paint -p rndr_ui ",
+      "exit": 0,
+      "passing_executions": 599,
+      "sha256": "327ae00caa8a6b444a7792d298df959f9902ee3d245e881414d96220fbd8d312"
+    },
+    "facade-fallback.log": {
+      "command": "$ cargo test --offline --locked -p rndr --lib --no-default-features ",
+      "exit": 0,
+      "passing_executions": 1,
+      "sha256": "fcf0b71734770b2b38de3f50305550b7ff1cdadd8160cbb265734b0d82f67482"
+    },
+    "facade.log": {
+      "command": "$ cargo test --offline --locked -p rndr --lib --features observe ",
+      "exit": 0,
+      "passing_executions": 1,
+      "sha256": "8b4688fd28c4bc899f11b238a66ba0785fec97261140adc0f81a50385f5b5751"
+    },
+    "fallback-renderer.log": {
+      "command": "$ cargo test --offline --locked -p rndr_render --lib --no-default-features ",
+      "exit": 0,
+      "passing_executions": 25,
+      "sha256": "2098f429bb0676cf54d6c0f844350e975cc044c45b088b70fad54e1f00cf251a"
+    },
+    "formatting.log": {
+      "command": "$ rustfmt --edition 2021 --config skip_children=true --check crates/rndr_core/src/access.rs crates/rndr_core/src/field.rs crates/rndr_core/src/interaction.rs crates/rndr_core/src/lib.rs crates/rndr_render/src/a11y.rs crates/rndr_ui/src/collections.rs crates/rndr_ui/src/controls.rs crates/rndr_ui/src/data.rs crates/rndr_ui/src/lib.rs crates/rndr_ui/tests/data_editors.rs crates/rndr_ui/tests/data_editors_gallery.rs crates/rndr_ui/tests/field_transactions.rs crates/rndr_ui/examples/support/data_editors_gallery.rs crates/rndr/examples/data_editors_gallery.rs ",
+      "exit": 0,
+      "passing_executions": 0,
+      "sha256": "30a463846e222207c8d4d90a739cfbeb9be39692237d537fd70f4f72ae6876f9"
+    },
+    "gallery-build.log": {
+      "command": "$ cargo build --offline --locked -p rndr --example data_editors_gallery --features observe ",
+      "exit": 0,
+      "passing_executions": 0,
+      "sha256": "ac72b3408ae0b9cdf58032f3879f82ef1e434110f6fb26133d3d8de46ec8219c"
+    },
+    "gallery-fallback.log": {
+      "command": "$ cargo check --offline --locked -p rndr --example data_editors_gallery --no-default-features ",
+      "exit": 0,
+      "passing_executions": 0,
+      "sha256": "73b5619a5450fc990f3a2d8212efb51d6950be77e5cdc47d985297339ee01287"
+    },
+    "historical-six-and-activation.log": {
+      "command": "$ cargo test --offline --locked -p rndr_ui --test combined_original_six --test combined_activation_policy ",
+      "exit": 0,
+      "passing_executions": 8,
+      "sha256": "baaf6fcb30e28e7e5a33e32925ece40d3f17a0a94d20ad5b1611c9f20b2e7e0b"
+    },
+    "native-observe.log": {
+      "command": "$ cargo test --offline --locked -p rndr_render --lib --features observe ",
+      "exit": 0,
+      "passing_executions": 74,
+      "sha256": "5f24a47ed34a8d69cb395e915e7fd1396c8d503143b6d4d4814dafbc675c4fbd"
+    },
+    "whitespace.log": {
+      "command": "$ git diff --check ",
+      "exit": 0,
+      "passing_executions": 0,
+      "sha256": "f15d65fc6e496b7135a7d00f38f18e8e84a3e4440f575b0021068b4665c2a318"
+    }
+  },
+  "review_probe_files": {
+    "evidence/data-components-next/independent-combined-review/reviewer_gallery.rs": "564afc1ece2a2d3d62ac93e7cef8f14924025cba8d00bfbd48f6f4292a20dba7",
+    "evidence/data-components-next/independent-combined-review/reviewer_field.rs": "eec8739d7efaad42572a2c1994d1619c4e0d48094cc0daa288f72d826f10eebd",
+    "evidence/data-components-next/independent-combined-review/reviewer_data.rs": "fe70ef3780134d173f5fab328095df76e2d4176ef0ecfb241caf431cf67ad886"
+  },
+  "retry_logs": {
+    "evidence/data-components-next/independent-combined-review/retry/data.log": "a50ac971232d07c99ccc5f2a0bee204c743960471cb9e6d485735dfde255e195",
+    "evidence/data-components-next/independent-combined-review/retry/field.log": "125d0501029ad09e254c9d856bc7d2a287d66080927d8b3fb70c37afb7bd43da",
+    "evidence/data-components-next/independent-combined-review/retry/confirmed-probes.log": "031311b68a0763166db69a94b409f772e6a43ef43b9fbc0347e04e09713ab099",
+    "evidence/data-components-next/independent-combined-review/retry/gallery.log": "c42abe707a11a7cdf2858a1d5054b142cd31b89e39029759859f0a52e9575ab6"
+  },
+  "native_receipt_sha256": "3a68d5ddcbbff791bae25970df89edfa6a8a91323fff9fe8728d5f4bad21e447"
+}

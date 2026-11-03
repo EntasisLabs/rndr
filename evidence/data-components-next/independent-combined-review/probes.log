@@ -1,0 +1,28 @@
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-composable-datatable-and-propertyinspector/crates/rndr_ui)
+    Finished `test` profile [unoptimized] target(s) in 1.60s
+     Running tests/reviewer_data.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/reviewer_data-6f433678b5a07e8c)
+
+running 2 tests
+
+thread 'reviewer_boolean_window_blur_cancels_draft' (3993065) panicked at crates/rndr_ui/tests/reviewer_data.rs:549:2:
+assertion `left == right` failed
+  left: Some(Boolean(true))
+ right: Some(Boolean(false))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test reviewer_boolean_window_blur_cancels_draft ... FAILED
+
+thread 'reviewer_commit_control_window_blur_cancels_draft' (3993066) panicked at crates/rndr_ui/tests/reviewer_data.rs:558:2:
+assertion `left == right` failed
+  left: "Ax"
+ right: "A"
+test reviewer_commit_control_window_blur_cancels_draft ... FAILED
+
+failures:
+
+failures:
+    reviewer_boolean_window_blur_cancels_draft
+    reviewer_commit_control_window_blur_cancels_draft
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 13 filtered out; finished in 0.03s
+
+error: test failed, to rerun pass `-p rndr_ui --test reviewer_data`

@@ -1,0 +1,24 @@
+error: no test target named `reviewer_ack_contract` in `rndr_ui` package
+help: available test targets:
+    a2_adoption_boundary
+    a2_malformed_controls
+    a2_nested_paint
+    a2_operating
+    a2_states
+    a2_toolbar_allocation
+    a2_toolbar_content_fit
+    a2_toolbar_type_update
+    collection_chronology
+    collections
+    complete_gallery
+    data_editors
+    data_editors_gallery
+    desktop_foundations
+    field_transactions
+    foundations
+    gallery_polish
+    malformed_lifecycle
+    paint_evidence
+    refinement
+    refinement_release
+EXIT=101

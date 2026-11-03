@@ -1,0 +1,37 @@
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-composable-datatable-and-propertyinspector/crates/rndr_ui)
+    Finished `test` profile [unoptimized] target(s) in 0.21s
+     Running tests/reviewer_field.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/reviewer_field-0637ae837b4d7a57)
+
+running 10 tests
+draft="12", submitted=["1"]
+submitted=["1", "12"]
+test released_synthetic_and_repeat_cancel_never_transact ... ok
+test enter_snapshot_precedes_later_typing_in_same_native_batch ... ok
+test readonly_allows_select_copy_but_not_paste_delete_or_submit ... ok
+test two_enter_boundaries_keep_distinct_snapshots ... ok
+
+thread 'reviewer_ime_enabled_commit_strips_different_key_text' (4011479) panicked at crates/rndr_ui/tests/reviewer_field.rs:243:2:
+assertion `left == right` failed
+  left: "n日"
+ right: "日"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+repeat submitted=[]
+cancel_hook_calls=1, remaining_keys=[]
+test reset_discards_local_undo_history_and_rejects_other_entities ... ok
+test repeated_enter_is_not_a_second_commit_request ... ok
+test capture_field_can_reach_canonical_escape_hook ... ok
+first="a", second="b", focus=Some(Entity { index: 2, generation: 0 })
+test reviewer_ime_enabled_commit_strips_different_key_text ... FAILED
+test text_on_each_side_of_tab_goes_only_to_its_chronological_target ... ok
+test ime_preedit_and_commit_do_not_submit_or_duplicate_text ... ok
+
+failures:
+
+failures:
+    reviewer_ime_enabled_commit_strips_different_key_text
+
+test result: FAILED. 9 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p rndr_ui --test reviewer_field`
+
+EXIT=101

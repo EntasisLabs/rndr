@@ -1,0 +1,8 @@
+$ ['cargo', 'test', '--offline', '--locked', '-p', 'rndr_ui', '--test', 'property_editor_prerequisites', '--no-run', '--message-format=json']
+error: failed to open: /Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/.cargo-build-lock
+
+Caused by:
+  Operation not permitted (os error 1)
+
+EXIT=101
+ELAPSED_SECONDS=0.136004

@@ -1,0 +1,110 @@
+{
+  "focused": {
+    "data.log": {
+      "command": "$ cargo test --offline --locked -p rndr_ui --test reviewer_data -- --nocapture",
+      "exit": [
+        "0"
+      ],
+      "passed": 16,
+      "sha256": "aaa65e8c9087e1e224d3c646c4da46b0137728c26c047e8fa31f07a431da7778"
+    },
+    "field.log": {
+      "command": "$ cargo test --offline --locked -p rndr_ui --test reviewer_field -- --nocapture",
+      "exit": [
+        "0"
+      ],
+      "passed": 10,
+      "sha256": "0ae25914d9c5fd52bfa2a662fabd27a34430e5c72e39adf2294c8f2716a4e3d6"
+    },
+    "gallery.log": {
+      "command": "$ cargo test --offline --locked -p rndr_ui --test reviewer_gallery -- --nocapture",
+      "exit": [
+        "0"
+      ],
+      "passed": 6,
+      "sha256": "78795357c75455b7c021663188c3d018544e40c5161a421259769a3099e58d3d"
+    }
+  },
+  "verification": {
+    "core-paint-ui.log": {
+      "command": "$ cargo test --offline --locked -p rndr_core -p rndr_paint -p rndr_ui ",
+      "exit": [
+        "0"
+      ],
+      "passed": 608,
+      "sha256": "ac0b0be87557c349d54a523ff887ee84211363664a050f21a9f57df2c1c3c3a6"
+    },
+    "facade-fallback.log": {
+      "command": "$ cargo test --offline --locked -p rndr --lib --no-default-features ",
+      "exit": [
+        "0"
+      ],
+      "passed": 1,
+      "sha256": "fcf0b71734770b2b38de3f50305550b7ff1cdadd8160cbb265734b0d82f67482"
+    },
+    "facade.log": {
+      "command": "$ cargo test --offline --locked -p rndr --lib --features observe ",
+      "exit": [
+        "0"
+      ],
+      "passed": 1,
+      "sha256": "5e854d1e1b531d8596292c23b0e979bd30700c8ed60d56c81488a24d2d4f3db7"
+    },
+    "fallback-renderer.log": {
+      "command": "$ cargo test --offline --locked -p rndr_render --lib --no-default-features ",
+      "exit": [
+        "0"
+      ],
+      "passed": 25,
+      "sha256": "9bde262b0fd1ce3ab11dafe3cafd55b6847438787c911d2a4e66e6390ba440fc"
+    },
+    "formatting.log": {
+      "command": "$ rustfmt --edition 2021 --config skip_children=true --check crates/rndr_core/src/access.rs crates/rndr_core/src/field.rs crates/rndr_core/src/interaction.rs crates/rndr_core/src/lib.rs crates/rndr_render/src/a11y.rs crates/rndr_ui/src/collections.rs crates/rndr_ui/src/controls.rs crates/rndr_ui/src/data.rs crates/rndr_ui/src/lib.rs crates/rndr_ui/tests/data_editors.rs crates/rndr_ui/tests/data_editors_gallery.rs crates/rndr_ui/tests/field_transactions.rs crates/rndr_ui/examples/support/data_editors_gallery.rs crates/rndr/examples/data_editors_gallery.rs ",
+      "exit": [
+        "0"
+      ],
+      "passed": 0,
+      "sha256": "30a463846e222207c8d4d90a739cfbeb9be39692237d537fd70f4f72ae6876f9"
+    },
+    "gallery-build.log": {
+      "command": "$ cargo build --offline --locked -p rndr --example data_editors_gallery --features observe ",
+      "exit": [
+        "0"
+      ],
+      "passed": 0,
+      "sha256": "ac72b3408ae0b9cdf58032f3879f82ef1e434110f6fb26133d3d8de46ec8219c"
+    },
+    "gallery-fallback.log": {
+      "command": "$ cargo check --offline --locked -p rndr --example data_editors_gallery --no-default-features ",
+      "exit": [
+        "0"
+      ],
+      "passed": 0,
+      "sha256": "e37da9d76d73be0524205f193c4367cfb7b3d2f0078ed9cfac0df87861894bcc"
+    },
+    "historical-six-and-activation.log": {
+      "command": "$ cargo test --offline --locked -p rndr_ui --test combined_original_six --test combined_activation_policy ",
+      "exit": [
+        "0"
+      ],
+      "passed": 8,
+      "sha256": "fc69aff4a22d9a735976c978b39f6bb61bd6e45e75963be712e4d024c4d760ca"
+    },
+    "native-observe.log": {
+      "command": "$ cargo test --offline --locked -p rndr_render --lib --features observe ",
+      "exit": [
+        "0"
+      ],
+      "passed": 74,
+      "sha256": "56c349268afae0b4c7ba7636ed32c8aeb9b9f2133a96bc1e834512fee1bfda70"
+    },
+    "whitespace.log": {
+      "command": "$ git diff --check ",
+      "exit": [
+        "0"
+      ],
+      "passed": 0,
+      "sha256": "f15d65fc6e496b7135a7d00f38f18e8e84a3e4440f575b0021068b4665c2a318"
+    }
+  }
+}

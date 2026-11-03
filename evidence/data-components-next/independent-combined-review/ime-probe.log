@@ -1,0 +1,21 @@
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-composable-datatable-and-propertyinspector/crates/rndr_ui)
+    Finished `test` profile [unoptimized] target(s) in 0.24s
+     Running tests/reviewer_field.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/reviewer_field-0637ae837b4d7a57)
+
+running 1 test
+
+thread 'reviewer_ime_enabled_commit_strips_different_key_text' (3993428) panicked at crates/rndr_ui/tests/reviewer_field.rs:243:2:
+assertion `left == right` failed
+  left: "n日"
+ right: "日"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test reviewer_ime_enabled_commit_strips_different_key_text ... FAILED
+
+failures:
+
+failures:
+    reviewer_ime_enabled_commit_strips_different_key_text
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p rndr_ui --test reviewer_field`
