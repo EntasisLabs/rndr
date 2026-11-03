@@ -35,7 +35,8 @@ run formatting rustfmt --edition 2021 --config skip_children=true --check \
     crates/rndr_core/src/interaction.rs crates/rndr_core/src/lib.rs \
     crates/rndr_render/src/a11y.rs crates/rndr_ui/src/controls.rs \
     crates/rndr_ui/src/lib.rs crates/rndr_ui/src/collections.rs \
-    crates/rndr_ui/tests/collections.rs crates/rndr_ui/examples/support/data_gallery.rs \
+    crates/rndr_ui/tests/collections.rs crates/rndr_ui/tests/collection_chronology.rs \
+    crates/rndr_ui/examples/support/data_gallery.rs \
     crates/rndr/examples/data_gallery.rs
 run core-paint-ui cargo test --offline --locked -p rndr_core -p rndr_paint -p rndr_ui
 run collection-metrics cargo test --offline --locked -p rndr_ui --test collections -- --nocapture

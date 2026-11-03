@@ -20,6 +20,14 @@ impl Component for TabStop {}
 pub struct KeyNavigation(pub fn(&mut World, Entity, &KeyEvent) -> bool);
 impl Component for KeyNavigation {}
 
+/// Component-owned semantic effect at the canonical accepted-activation boundary.
+/// Runs synchronously for pointer, keyboard and accessibility, after eligibility
+/// and FIFO capacity checks. Consumes its own intent; unrelated host intents stay
+/// queued in order. Use for composite state, never a second raw-input dispatcher.
+#[derive(Clone, Copy)]
+pub struct ActivationHandler(pub fn(&mut World, Entity));
+impl Component for ActivationHandler {}
+
 /// Explicit persistent name, supplementary description and readonly state.
 /// Placeholder and current value are never used as persistent names.
 #[derive(Clone, Debug, Default)]
@@ -301,6 +309,17 @@ pub fn try_activate(world: &mut World, entity: Entity) -> ActivationResult {
                 entity,
                 name: button.action,
             });
+            if let Some(handler) = world.get::<ActivationHandler>(entity).copied() {
+                // Admission used the same FIFO64 policy. Consume exactly this
+                // accepted request before its semantic effect can invalidate
+                // targets or recursively activate another component.
+                world
+                    .resource_mut::<ActionIntents>()
+                    .unwrap()
+                    .pending
+                    .pop_back();
+                (handler.0)(world, entity);
+            }
         } else if let Some(fired) = world.resource_mut::<Fired>() {
             fired.name = Some(button.action);
         } else {

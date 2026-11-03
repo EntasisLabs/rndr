@@ -537,9 +537,17 @@ fn sync(world: &mut World, root: Entity, view: &mut View) {
             (*id, visible)
         })
         .collect();
+    // Only newly hidden owned subtrees lose armed/queued interactions. In
+    // particular, expansion must not cancel an unrelated host's Space release.
+    let mut invalidated = Vec::new();
     for (id, row) in &mut view.rows {
+        if row.visible && !visible[id] {
+            invalidated.push(row.slot.root);
+            descendants(world, row.slot.root, &mut invalidated);
+        }
         row.visible = visible[id];
     }
+    forget_interaction_targets(world, &invalidated);
     let available = available(view);
     if !view.active.is_some_and(|id| available.contains(&id)) {
         view.active = available.first().copied();
@@ -587,6 +595,7 @@ fn sync(world: &mut World, root: Entity, view: &mut View) {
                 enabled,
             },
         );
+        world.insert(row.slot.root, ActivationHandler(activate));
         world.insert(row.slot.root, SelectedState(view.selected == Some(*id)));
         world.insert(row.slot.root, TabStop(view.active == Some(*id)));
         world.insert(
@@ -637,6 +646,7 @@ fn sync(world: &mut World, root: Entity, view: &mut View) {
                 },
             );
             world.insert(row.chevron, ReleaseActivation);
+            world.insert(row.chevron, ActivationHandler(activate));
             world.insert(row.chevron, KeyNavigation(navigate));
             world.insert(
                 row.chevron,
@@ -651,6 +661,7 @@ fn sync(world: &mut World, root: Entity, view: &mut View) {
             // disabled button that swallows pointer selection.
             world.remove::<Button>(row.chevron);
             world.remove::<ReleaseActivation>(row.chevron);
+            world.remove::<ActivationHandler>(row.chevron);
             world.remove::<KeyNavigation>(row.chevron);
             world.remove::<RowOwner>(row.chevron);
         }
@@ -740,13 +751,20 @@ impl ViewHandle {
             v.expanded.remove(&id)
         };
         if changed {
-            cancel_activation(world);
             emit(world, self.root, CollectionEventKind::Expanded(id, open));
         }
         sync(world, self.root, &mut v);
         if let Some(f) = focused {
             let target = safe_target(&v, f);
-            focus_target(world, self.root, &mut v, target);
+            // Preserve a surviving canonical target, including an armed
+            // disclosure in another branch. Normalize only invalidated focus.
+            let still_focusable = world
+                .resource::<Focus>()
+                .and_then(|focus| focus.entity)
+                .is_some_and(|entity| access_details(world, entity).focus);
+            if target != Some(f) || !still_focusable {
+                focus_target(world, self.root, &mut v, target);
+            }
         }
         world.insert(self.root, v);
         Ok(())
@@ -895,18 +913,20 @@ fn navigate(world: &mut World, _entity: Entity, event: &KeyEvent) -> bool {
     }
     consumed
 }
-pub(crate) fn requests(world: &mut World) {
-    let intents = take_action_intents_matching(world, |w, i| w.has::<RowOwner>(i.entity));
-    for intent in intents {
-        let owner = *world.get::<RowOwner>(intent.entity).unwrap();
-        let handle = ViewHandle { root: owner.view };
-        if owner.toggle {
-            let _ = handle.set_expanded(world, owner.id, !handle.expanded(world, owner.id));
-            let _ = handle.focus(world, owner.id);
-        } else {
-            let _ = handle.select(world, Some(owner.id));
-        }
+// Runs only after canonical activation admission, before later navigation.
+fn activate(world: &mut World, entity: Entity) {
+    let Some(owner) = world.get::<RowOwner>(entity).copied() else {
+        return;
+    };
+    let handle = ViewHandle { root: owner.view };
+    if owner.toggle {
+        let _ = handle.set_expanded(world, owner.id, !handle.expanded(world, owner.id));
+        let _ = handle.focus(world, owner.id);
+    } else {
+        let _ = handle.select(world, Some(owner.id));
     }
+}
+pub(crate) fn requests(world: &mut World) {
     for root in world.entities_with::<View>() {
         if validate(world, root).is_err() {
             continue;

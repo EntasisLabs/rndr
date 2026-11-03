@@ -256,8 +256,8 @@ pub use manual_tabs::{ControlDisabled, ManualTabs, ResolvedColor, SelectedState,
 pub use interaction::{
     access_details, cancel_activation, interaction_pressed, interaction_visible, request_focus,
     take_action_intents, take_action_intents_matching, try_activate, AccessDetails, ActionIntent,
-    ActionIntents, ActivationResult, GenericInteraction, KeyNavigation, ReleaseActivation,
-    Semantics, TabRelation, TabStop,
+    ActionIntents, ActivationHandler, ActivationResult, GenericInteraction, KeyNavigation,
+    ReleaseActivation, Semantics, TabRelation, TabStop,
 };
 
 pub use interaction::{
