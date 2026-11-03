@@ -1,0 +1,13 @@
+PASS native light
+PASS native dark-single
+PASS native multi
+PASS native narrow-multi
+PASS native compact-hc-200
+PASS native invalid-inspector
+PASS native readonly
+PASS native disabled
+PASS native empty-popup
+PASS native many-popup
+PASS native inspector-multi
+PASS native narrow-inspector
+PASS source/binary/frame integrity (appearance requires actual pixel inspection)

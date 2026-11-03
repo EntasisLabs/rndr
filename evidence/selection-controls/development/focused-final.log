@@ -1,0 +1,13 @@
+   Compiling rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-checkbox-and-single-multi-select-controls/crates/rndr_core)
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-checkbox-and-single-multi-select-controls/crates/rndr_ui)
+error[E0609]: no field `enabled` on type `AccessDetails`
+   --> crates/rndr_ui/src/selection.rs:510:49
+    |
+510 |         let available = access_details(w, root).enabled;
+    |                                                 ^^^^^^^ unknown field
+    |
+    = note: available fields are: `description`, `readonly`, `focus`, `activate`, `set_value` ... and 6 others
+
+For more information about this error, try `rustc --explain E0609`.
+error: could not compile `rndr_ui` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

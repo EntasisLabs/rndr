@@ -1,0 +1,14 @@
+{
+  "baseline": "c9536acba3914a3be39c53c6bffe42a9b9c40c42",
+  "historical_evidence_files_verified": 3534,
+  "historical_changes": [],
+  "capture_source_head": "19f553c0d57339ee666d9752dedca861331209f1",
+  "source_manifest_files_verified": 276,
+  "source_changes": [],
+  "native_states": 12,
+  "native_frames": 24,
+  "frame_changes": [],
+  "binary_sha256_matches_current": true,
+  "appearance_signoff": false,
+  "pixel_tool_limitation": "Direct tool returned metadata only; no actual pixels inspected."
+}

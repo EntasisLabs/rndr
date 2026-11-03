@@ -1,0 +1,54 @@
+   Compiling rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-checkbox-and-single-multi-select-controls/crates/rndr_core)
+   Compiling rndr_paint v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-checkbox-and-single-multi-select-controls/crates/rndr_paint)
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-checkbox-and-single-multi-select-controls/crates/rndr_ui)
+warning: unused import: `selection::*`
+ --> crates/rndr_ui/tests/selection_gallery.rs:4:24
+  |
+4 | use rndr_ui::{data::*, selection::*, Appearance, Contrast, Density, UiThe...
+  |                        ^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `rndr_ui` (test "selection_gallery") generated 1 warning (run `cargo fix --test "selection_gallery" -p rndr_ui` to apply 1 suggestion)
+    Finished `test` profile [unoptimized] target(s) in 2.95s
+     Running tests/selection.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/selection-87e9482afe3877a1)
+
+running 13 tests
+test duplicate_and_oversize_options_fail_atomically_and_key_conflicts_rejected ... ok
+test checkbox_requests_do_not_mutate_acknowledged_state_and_space_requires_release ... ok
+test empty_all_disabled_and_semantics_are_truthful ... ok
+test reorder_remove_reconcile_retains_ids_and_moves_stale_highlight ... ok
+test multi_toggles_stay_open_and_escape_closes_without_rollback ... ok
+test outside_press_release_never_clicks_through_and_at_background_is_blocked ... ok
+test tab_closes_and_walks_from_trigger_not_into_other_popup_rows ... ok
+test single_queued_open_navigate_choose_keeps_highlight_separate_from_selection ... ok
+test pointer_option_release_selects_and_does_not_toggle_on_press ... ok
+test repeated_synthetic_modified_and_ime_edges_do_not_act ... ok
+test ancestor_disabled_readonly_hidden_and_window_blur_close_scopes ... ok
+test inspector_multi_popup_focus_boundary_draft_validation_commit_and_delayed_ack ... ok
+test placement_many_rows_constrained_scroll_and_dead_anchor_cleanup ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running tests/selection_gallery.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/selection_gallery-f299e32e413aed1b)
+
+running 3 tests
+test gallery_invalid_multi_selection_shows_empty_draft_and_rejects_commit ... ok
+test gallery_host_applies_standalone_but_keeps_inspector_drafts_until_commit ... ok
+test gallery_matrix_keeps_focus_popup_clipping_and_readable_named_roles ... FAILED
+
+failures:
+
+---- gallery_matrix_keeps_focus_popup_clipping_and_readable_named_roles stdout ----
+
+thread 'gallery_matrix_keeps_focus_popup_clipping_and_readable_named_roles' (4275606) panicked at crates/rndr_ui/tests/selection_gallery.rs:111:21:
+assertion failed: r.x >= 0. && r.y >= 0. && r.x + r.w <= width + 0.1 && r.y + r.h <= 960.1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    gallery_matrix_keeps_focus_popup_clipping_and_readable_named_roles
+
+test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.61s
+
+error: test failed, to rerun pass `-p rndr_ui --test selection_gallery`

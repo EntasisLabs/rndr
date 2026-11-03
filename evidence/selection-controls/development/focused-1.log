@@ -1,0 +1,56 @@
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-checkbox-and-single-multi-select-controls/crates/rndr_ui)
+error[E0277]: the trait bound `String: From<{integer}>` is not satisfied
+   --> crates/rndr_ui/tests/selection.rs:84:143
+    |
+ 84 | ...d_mut(),r,UiId(99),InspectorProps::new(1,"Form"),&[PropertyGroup{id:...
+    |                       ------------------- ^ the trait `From<{integer}>` is not implemented for `String`
+    |                       |
+    |                       required by a bound introduced by this call
+    |
+    = help: `String` implements trait `From<T>`:
+              From<&String>
+              From<&mut str>
+              From<&str>
+              From<Box<str>>
+              From<Cow<'_, str>>
+              From<char>
+              From<pulldown_cmark::strings::CowStr<'_>>
+    = note: required for `{integer}` to implement `Into<String>`
+note: required by a bound in `rndr_ui::data::InspectorProps::new`
+   --> crates/rndr_ui/src/data.rs:768:27
+    |
+768 |     pub fn new(name: impl Into<String>, object: ObjectId) -> Self {
+    |                           ^^^^^^^^^^^^ required by this bound in `InspectorProps::new`
+
+error[E0308]: mismatched types
+   --> crates/rndr_ui/tests/selection.rs:84:145
+    |
+ 84 | ...9),InspectorProps::new(1,"Form"),&[PropertyGroup{id:GroupId(1),label...
+    |       -------------------   ^^^^^^ expected `ObjectId`, found `&str`
+    |       |
+    |       arguments to this function are incorrect
+    |
+note: associated function defined here
+   --> crates/rndr_ui/src/data.rs:768:12
+    |
+768 |     pub fn new(name: impl Into<String>, object: ObjectId) -> Self {
+    |            ^^^
+
+error[E0063]: missing field `validation` in initializer of `rndr_ui::data::Property`
+  --> crates/rndr_ui/tests/selection.rs:85:70
+   |
+85 | ...tyValue)->Property {Property{id:PropertyId(id),group:GroupId(1),label...
+   |                        ^^^^^^^^ missing `validation`
+
+error[E0502]: cannot borrow `a` as immutable because it is also borrowed as mutable
+  --> crates/rndr_ui/tests/selection.rs:65:224
+   |
+65 | ...q!(try_apply_access(a.world_mut(),AccessCommand::Activate(h.option(a.wo...
+   |       ---------------- - mutable borrow occurs here                   ^ immutable borrow occurs here
+   |       |
+   |       mutable borrow later used by call
+
+Some errors have detailed explanations: E0063, E0277, E0308, E0502.
+For more information about an error, try `rustc --explain E0063`.
+error: could not compile `rndr_ui` (test "selection") due to 4 previous errors
+warning: build failed, waiting for other jobs to finish...

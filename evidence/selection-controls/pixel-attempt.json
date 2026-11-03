@@ -1,0 +1,17 @@
+{
+  "tool": "cognition_image_view",
+  "path": "evidence/selection-controls/native/light/frame-2.png",
+  "result": {
+    "ok": true,
+    "vision_available": true,
+    "artifact_id": "art:ses_peer:cognition_image_view:output:fffc35ba794c",
+    "width": 1180,
+    "height": 960,
+    "byte_size": 188429,
+    "sha256": "fffc35ba794c87ed4240a0764c32f93f3db6cc808cf3f2d84ecbd1165987b37b"
+  },
+  "inspectable_pixels_received": false,
+  "model_observation": "The direct tool result delivered JSON image metadata but no inspectable raster pixels in this model input. vision_available=true is not evidence of visual inspection.",
+  "appearance_signoff": false,
+  "policy": "No repeated identical retries. Native files and source bindings are retained; the owner can inspect the actual gallery and PNGs later. No claims about appearance are made from metadata."
+}

@@ -1,0 +1,90 @@
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-checkbox-and-single-multi-select-controls/crates/rndr_ui)
+    Finished `test` profile [unoptimized] target(s) in 0.29s
+     Running tests/data_editors.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/data_editors-10dbcaf7a40a8f64)
+
+running 20 tests
+test custom_editor_uses_explicit_typed_draft_without_reflection ... ok
+test bounded_components_reject_oversized_or_duplicate_input_before_mutating ... ok
+test grouping_reparent_custom_draft_validator_and_stale_handles_are_safe ... ok
+test inspector_same_identity_draft_retained_then_reconciled_disabled_readonly_removed_unmount ... ok
+test inspector_invalid_number_range_nonfinite_validation_and_cancel ... ok
+test inspector_precise_multiple_commit_boundaries_and_no_hidden_model_mutation ... ok
+test multiple_outstanding_acknowledgements_preserve_invalid_later_draft_and_contract_change_cancels ... ok
+test custom_descendant_focus_retains_within_property_then_blur_or_departure_cancels ... ok
+test inspector_object_switch_cancels_old_identity_and_clears_history ... ok
+test table_invalid_atomic_identity_conflict_disabled_and_unmount ... ok
+test acknowledged_submit_retains_later_draft_caret_history_and_external_replacement_resets ... ok
+test table_preserves_cells_selection_focus_across_row_column_reorder_and_resize ... ok
+test reviewer_boolean_window_blur_cancels_draft ... ok
+test inspector_tab_cancels_at_boundary_before_other_field_changes_and_commit_action_keeps_draft ... ok
+test reviewer_commit_control_window_blur_cancels_draft ... ok
+test table_keyboard_sort_request_never_sorts_host_data_and_semantics_are_table_rows_cells ... ok
+test reviewer_leave_and_return_in_one_batch_must_cancel_before_commit ... ok
+test inspector_boolean_choice_keyboard_explicit_commit_and_invalid_mount_atomic ... ok
+test window_blur_cancels_draft_and_access_setvalue_remains_honestly_unsupported ... ok
+test choice_window_blur_and_queued_departure_cancel_without_commit ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests/field_transactions.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/field_transactions-9d5d2337e980b9d0)
+
+running 10 tests
+test capture_field_can_reach_canonical_escape_hook ... ok
+test two_enter_boundaries_keep_distinct_snapshots ... ok
+test enter_snapshot_precedes_later_typing_in_same_native_batch ... ok
+test repeated_enter_is_not_a_second_commit_request ... ok
+test readonly_allows_select_copy_but_not_paste_delete_or_submit ... ok
+test reviewer_ime_enabled_commit_strips_different_key_text ... ok
+test reset_discards_local_undo_history_and_rejects_other_entities ... ok
+test released_synthetic_and_repeat_cancel_never_transact ... ok
+test text_on_each_side_of_tab_goes_only_to_its_chronological_target ... ok
+test ime_preedit_and_commit_do_not_submit_or_duplicate_text ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/selection.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/selection-87e9482afe3877a1)
+
+running 13 tests
+test duplicate_and_oversize_options_fail_atomically_and_key_conflicts_rejected ... ok
+test checkbox_requests_do_not_mutate_acknowledged_state_and_space_requires_release ... ok
+test multi_toggles_stay_open_and_escape_closes_without_rollback ... ok
+test reorder_remove_reconcile_retains_ids_and_moves_stale_highlight ... ok
+test empty_all_disabled_and_semantics_are_truthful ... ok
+test repeated_synthetic_modified_and_ime_edges_do_not_act ... ok
+test tab_closes_and_walks_from_trigger_not_into_other_popup_rows ... ok
+test outside_press_release_never_clicks_through_and_at_background_is_blocked ... FAILED
+test single_queued_open_navigate_choose_keeps_highlight_separate_from_selection ... ok
+test pointer_option_release_selects_and_does_not_toggle_on_press ... ok
+test inspector_multi_popup_focus_boundary_draft_validation_commit_and_delayed_ack ... FAILED
+test ancestor_disabled_readonly_hidden_and_window_blur_close_scopes ... FAILED
+test placement_many_rows_constrained_scroll_and_dead_anchor_cleanup ... ok
+
+failures:
+
+---- outside_press_release_never_clicks_through_and_at_background_is_blocked stdout ----
+
+thread 'outside_press_release_never_clicks_through_and_at_background_is_blocked' (4265452) panicked at crates/rndr_ui/tests/selection.rs:49:49:
+assertion failed: changes(&a).is_empty()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- inspector_multi_popup_focus_boundary_draft_validation_commit_and_delayed_ack stdout ----
+
+thread 'inspector_multi_popup_focus_boundary_draft_validation_commit_and_delayed_ack' (4265450) panicked at crates/rndr_ui/tests/selection.rs:90:58:
+assertion `left == right` failed
+  left: None
+ right: Some(Entity { index: 27, generation: 0 })
+
+---- ancestor_disabled_readonly_hidden_and_window_blur_close_scopes stdout ----
+
+thread 'ancestor_disabled_readonly_hidden_and_window_blur_close_scopes' (4265446) panicked at crates/rndr_ui/tests/selection.rs:71:319:
+assertion failed: !access_details(a.world(), h.root).activate
+
+
+failures:
+    ancestor_disabled_readonly_hidden_and_window_blur_close_scopes
+    inspector_multi_popup_focus_boundary_draft_validation_commit_and_delayed_ack
+    outside_press_release_never_clicks_through_and_at_background_is_blocked
+
+test result: FAILED. 10 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+error: test failed, to rerun pass `-p rndr_ui --test selection`

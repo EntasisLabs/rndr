@@ -1,0 +1,47 @@
+{
+  "source_head": "19f553c0d57339ee666d9752dedca861331209f1",
+  "gate_logs": {
+    "verification/data-verification/core-paint-ui.log": {
+      "passed_executions": 627,
+      "failed": 0,
+      "ignored": 0,
+      "summaries": 88
+    },
+    "verification/data-verification/facade-fallback.log": {
+      "passed_executions": 1,
+      "failed": 0,
+      "ignored": 0,
+      "summaries": 1
+    },
+    "verification/data-verification/facade.log": {
+      "passed_executions": 1,
+      "failed": 0,
+      "ignored": 0,
+      "summaries": 1
+    },
+    "verification/data-verification/fallback-renderer.log": {
+      "passed_executions": 25,
+      "failed": 0,
+      "ignored": 0,
+      "summaries": 1
+    },
+    "verification/data-verification/historical-six-and-activation.log": {
+      "passed_executions": 8,
+      "failed": 0,
+      "ignored": 0,
+      "summaries": 2
+    },
+    "verification/data-verification/native-observe.log": {
+      "passed_executions": 76,
+      "failed": 0,
+      "ignored": 0,
+      "summaries": 1
+    },
+    "verification/python.log": {
+      "python_test_executions": 20
+    }
+  },
+  "rust_passed_executions": 738,
+  "python_test_executions": 20,
+  "caveat": "Execution counts, not unique tests; excludes development reruns and counts overlap independent focused runs. The 3 gallery tests include a 24-case matrix inside one test."
+}

@@ -1,0 +1,17 @@
+PASS formatting
+PASS core-paint-ui
+PASS historical-six-and-activation
+PASS native-observe
+PASS fallback-renderer
+PASS facade
+PASS facade-fallback
+PASS gallery-build
+PASS gallery-fallback
+PASS whitespace
+Verification complete. PNG capture and pixel inspection remain a separate gate.
+PASS new-formatting
+PASS python
+PASS selection-native-build
+PASS selection-fallback-check
+PASS whitespace
+PASS bounded selection gate (test execution totals overlap other runs; native capture is separate)

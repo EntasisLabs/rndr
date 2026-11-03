@@ -1,0 +1,3 @@
+$ rustfmt --edition 2021 --config skip_children=true --check crates/rndr_core/src/popup.rs crates/rndr_core/src/layout.rs crates/rndr_core/src/overlay.rs crates/rndr_ui/src/selection.rs crates/rndr_ui/tests/selection.rs crates/rndr_ui/tests/selection_scope.rs crates/rndr_ui/tests/selection_gallery.rs crates/rndr_ui/examples/support/selection_gallery.rs crates/rndr/examples/selection_gallery.rs 
+
+EXIT=0

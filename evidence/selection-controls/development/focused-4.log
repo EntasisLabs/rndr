@@ -1,0 +1,14 @@
+   Compiling rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-checkbox-and-single-multi-select-controls/crates/rndr_core)
+error[E0615]: attempted to take value of method `command` on type `keys::Modifiers`
+   --> crates/rndr_core/src/popup.rs:147:32
+    |
+147 |             || event.modifiers.command
+    |                                ^^^^^^^ method, not a field
+    |
+help: use parentheses to call the method
+    |
+147 |             || event.modifiers.command()
+    |                                       ++
+
+For more information about this error, try `rustc --explain E0615`.
+error: could not compile `rndr_core` (lib) due to 1 previous error
