@@ -1,0 +1,3180 @@
+{
+  "bounds_units": "logical_points",
+  "device_scale": 1.0,
+  "frame_revision": "4",
+  "height": 960,
+  "nodes": [
+    {
+      "actions": [],
+      "bounds": [
+        0.0,
+        0.0,
+        1180.0,
+        960.0
+      ],
+      "children": [
+        "2",
+        "3",
+        "5",
+        "10",
+        "15",
+        "20",
+        "25",
+        "31",
+        "36",
+        "41",
+        "46",
+        "51",
+        "56",
+        "59",
+        "62",
+        "61",
+        "209"
+      ],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "18446744073709551615",
+      "label": "rndr / Data editors",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Window",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        16.0,
+        16.0,
+        1148.0,
+        34.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "2",
+      "label": "Data, with intent",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        16.0,
+        60.0,
+        1148.0,
+        16.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "3",
+      "label": "Reusable table + property inspector / synthetic, application-owned data",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        16.0,
+        86.0,
+        225.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "5",
+      "label": "Reset",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        247.0,
+        86.0,
+        225.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "10",
+      "label": "Empty",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        478.0,
+        86.0,
+        224.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "15",
+      "label": "Remove selected",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        708.0,
+        86.0,
+        225.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "20",
+      "label": "Filter",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        939.0,
+        86.0,
+        225.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "25",
+      "label": "Resize name",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        16.0,
+        134.0,
+        225.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "31",
+      "label": "Read only",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        247.0,
+        134.0,
+        225.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "36",
+      "label": "Disable",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        478.0,
+        134.0,
+        224.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "41",
+      "label": "Light / dark",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        708.0,
+        134.0,
+        225.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "46",
+      "label": "Density",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        939.0,
+        134.0,
+        225.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "51",
+      "label": "Text scale",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        16.0,
+        182.0,
+        1148.0,
+        16.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "56",
+      "label": "8 records \u00b7 selected Some(1) \u00b7 Selection switched; any old draft is explicitly cancelled.",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        28.0,
+        220.0,
+        543.0,
+        28.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "59",
+      "label": "Projects",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        49.0,
+        277.0,
+        230.0,
+        24.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "70",
+      "label": "Project",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        44.0,
+        272.0,
+        240.0,
+        36.0
+      ],
+      "children": [
+        "70"
+      ],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "66",
+      "label": "Project, not sorted; activate to sort",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "ColumnHeader",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        289.0,
+        277.0,
+        120.0,
+        24.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "75",
+      "label": "Progress",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        284.0,
+        272.0,
+        130.0,
+        36.0
+      ],
+      "children": [
+        "75"
+      ],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "71",
+      "label": "Progress, not sorted; activate to sort",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "ColumnHeader",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        419.0,
+        277.0,
+        100.0,
+        44.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "80",
+      "label": "Enabled (read only)",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus"
+      ],
+      "bounds": [
+        414.0,
+        272.0,
+        110.0,
+        36.0
+      ],
+      "children": [
+        "80"
+      ],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "76",
+      "label": "Enabled, not sortable",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": true,
+      "role": "ColumnHeader",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        28.0,
+        256.0,
+        512.0,
+        52.0
+      ],
+      "children": [
+        "66",
+        "71",
+        "76"
+      ],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "63",
+      "label": "",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Row",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        38.0,
+        318.0,
+        240.0,
+        20.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "87",
+      "label": "Brand refresh",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        38.0,
+        318.0,
+        240.0,
+        20.0
+      ],
+      "children": [
+        "87"
+      ],
+      "controls": null,
+      "description": "Column: Project",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "85",
+      "label": "Brand refresh",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": true,
+      "role": "Cell",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        408.0,
+        318.0,
+        0.0,
+        40.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "91",
+      "label": "0 %",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        278.0,
+        318.0,
+        130.0,
+        40.0
+      ],
+      "children": [
+        "91"
+      ],
+      "controls": null,
+      "description": "Column: Progress",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "88",
+      "label": "0 %",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": true,
+      "role": "Cell",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        463.0,
+        318.0,
+        0.0,
+        20.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "96",
+      "label": "Yes",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        408.0,
+        318.0,
+        110.0,
+        20.0
+      ],
+      "children": [
+        "96"
+      ],
+      "controls": null,
+      "description": "Column: Enabled",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "92",
+      "label": "Yes",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": true,
+      "role": "Cell",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        28.0,
+        308.0,
+        512.0,
+        60.0
+      ],
+      "children": [
+        "85",
+        "88",
+        "92"
+      ],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "81",
+      "label": "Brand refresh, 0 percent, enabled",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Row",
+      "selected": true,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        38.0,
+        378.0,
+        240.0,
+        20.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "103",
+      "label": "Mobile patterns",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        38.0,
+        378.0,
+        240.0,
+        20.0
+      ],
+      "children": [
+        "103"
+      ],
+      "controls": null,
+      "description": "Column: Project",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "101",
+      "label": "Mobile patterns",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": true,
+      "role": "Cell",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        408.0,
+        378.0,
+        0.0,
+        40.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "107",
+      "label": "12 %",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        278.0,
+        378.0,
+        130.0,
+        40.0
+      ],
+      "children": [
+        "107"
+      ],
+      "controls": null,
+      "description": "Column: Progress",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "104",
+      "label": "12 %",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": true,
+      "role": "Cell",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        463.0,
+        378.0,
+        0.0,
+        20.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "112",
+      "label": "No",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        408.0,
+        378.0,
+        110.0,
+        20.0
+      ],
+      "children": [
+        "112"
+      ],
+      "controls": null,
+      "description": "Column: Enabled",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "108",
+      "label": "No",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": true,
+      "role": "Cell",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        28.0,
+        368.0,
+        512.0,
+        60.0
+      ],
+      "children": [
+        "101",
+        "104",
+        "108"
+      ],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "97",
+      "label": "Mobile patterns, 12 percent, not enabled",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Row",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        38.0,
+        438.0,
+        240.0,
+        20.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "119",
+      "label": "Release checklist",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        38.0,
+        438.0,
+        240.0,
+        20.0
+      ],
+      "children": [
+        "119"
+      ],
+      "controls": null,
+      "description": "Column: Project",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "117",
+      "label": "Release checklist",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": true,
+      "role": "Cell",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        408.0,
+        438.0,
+        0.0,
+        40.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "123",
+      "label": "24 %",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        278.0,
+        438.0,
+        130.0,
+        40.0
+      ],
+      "children": [
+        "123"
+      ],
+      "controls": null,
+      "description": "Column: Progress",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "120",
+      "label": "24 %",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": true,
+      "role": "Cell",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        463.0,
+        438.0,
+        0.0,
+        20.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "128",
+      "label": "Yes",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        408.0,
+        438.0,
+        110.0,
+        20.0
+      ],
+      "children": [
+        "128"
+      ],
+      "controls": null,
+      "description": "Column: Enabled",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "124",
+      "label": "Yes",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": true,
+      "role": "Cell",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        28.0,
+        428.0,
+        512.0,
+        60.0
+      ],
+      "children": [
+        "117",
+        "120",
+        "124"
+      ],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "113",
+      "label": "Release checklist, 24 percent, enabled",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Row",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        38.0,
+        498.0,
+        240.0,
+        20.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "135",
+      "label": "Color studies",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        38.0,
+        498.0,
+        240.0,
+        20.0
+      ],
+      "children": [
+        "135"
+      ],
+      "controls": null,
+      "description": "Column: Project",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "133",
+      "label": "Color studies",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": true,
+      "role": "Cell",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        408.0,
+        498.0,
+        0.0,
+        40.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "139",
+      "label": "36 %",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        278.0,
+        498.0,
+        130.0,
+        40.0
+      ],
+      "children": [
+        "139"
+      ],
+      "controls": null,
+      "description": "Column: Progress",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "136",
+      "label": "36 %",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": true,
+      "role": "Cell",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        463.0,
+        498.0,
+        0.0,
+        20.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "144",
+      "label": "No",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        408.0,
+        498.0,
+        110.0,
+        20.0
+      ],
+      "children": [
+        "144"
+      ],
+      "controls": null,
+      "description": "Column: Enabled",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "140",
+      "label": "No",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": true,
+      "role": "Cell",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        28.0,
+        488.0,
+        512.0,
+        60.0
+      ],
+      "children": [
+        "133",
+        "136",
+        "140"
+      ],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "129",
+      "label": "Color studies, 36 percent, not enabled",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Row",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        38.0,
+        558.0,
+        240.0,
+        20.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "151",
+      "label": "Typography",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        38.0,
+        558.0,
+        240.0,
+        20.0
+      ],
+      "children": [
+        "151"
+      ],
+      "controls": null,
+      "description": "Column: Project",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "149",
+      "label": "Typography",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": true,
+      "role": "Cell",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        408.0,
+        558.0,
+        0.0,
+        40.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "155",
+      "label": "48 %",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        278.0,
+        558.0,
+        130.0,
+        40.0
+      ],
+      "children": [
+        "155"
+      ],
+      "controls": null,
+      "description": "Column: Progress",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "152",
+      "label": "48 %",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": true,
+      "role": "Cell",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        463.0,
+        558.0,
+        0.0,
+        20.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "160",
+      "label": "Yes",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        408.0,
+        558.0,
+        110.0,
+        20.0
+      ],
+      "children": [
+        "160"
+      ],
+      "controls": null,
+      "description": "Column: Enabled",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "156",
+      "label": "Yes",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": true,
+      "role": "Cell",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        28.0,
+        548.0,
+        512.0,
+        60.0
+      ],
+      "children": [
+        "149",
+        "152",
+        "156"
+      ],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "145",
+      "label": "Typography, 48 percent, enabled",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Row",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        38.0,
+        618.0,
+        240.0,
+        20.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "167",
+      "label": "Motion principles",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        38.0,
+        618.0,
+        240.0,
+        20.0
+      ],
+      "children": [
+        "167"
+      ],
+      "controls": null,
+      "description": "Column: Project",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "165",
+      "label": "Motion principles",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": true,
+      "role": "Cell",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        408.0,
+        618.0,
+        0.0,
+        40.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "171",
+      "label": "60 %",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        278.0,
+        618.0,
+        130.0,
+        40.0
+      ],
+      "children": [
+        "171"
+      ],
+      "controls": null,
+      "description": "Column: Progress",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "168",
+      "label": "60 %",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": true,
+      "role": "Cell",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        463.0,
+        618.0,
+        0.0,
+        20.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "176",
+      "label": "No",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        408.0,
+        618.0,
+        110.0,
+        20.0
+      ],
+      "children": [
+        "176"
+      ],
+      "controls": null,
+      "description": "Column: Enabled",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "172",
+      "label": "No",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": true,
+      "role": "Cell",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        28.0,
+        608.0,
+        512.0,
+        60.0
+      ],
+      "children": [
+        "165",
+        "168",
+        "172"
+      ],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "161",
+      "label": "Motion principles, 60 percent, not enabled",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Row",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        38.0,
+        678.0,
+        240.0,
+        20.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "183",
+      "label": "Component audit",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        38.0,
+        678.0,
+        240.0,
+        20.0
+      ],
+      "children": [
+        "183"
+      ],
+      "controls": null,
+      "description": "Column: Project",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "181",
+      "label": "Component audit",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": true,
+      "role": "Cell",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        408.0,
+        678.0,
+        0.0,
+        40.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "187",
+      "label": "72 %",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        278.0,
+        678.0,
+        130.0,
+        40.0
+      ],
+      "children": [
+        "187"
+      ],
+      "controls": null,
+      "description": "Column: Progress",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "184",
+      "label": "72 %",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": true,
+      "role": "Cell",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        463.0,
+        678.0,
+        0.0,
+        20.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "192",
+      "label": "Yes",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        408.0,
+        678.0,
+        110.0,
+        20.0
+      ],
+      "children": [
+        "192"
+      ],
+      "controls": null,
+      "description": "Column: Enabled",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "188",
+      "label": "Yes",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": true,
+      "role": "Cell",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        28.0,
+        668.0,
+        512.0,
+        60.0
+      ],
+      "children": [
+        "181",
+        "184",
+        "188"
+      ],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "177",
+      "label": "Component audit, 72 percent, enabled",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Row",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        38.0,
+        738.0,
+        240.0,
+        20.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "199",
+      "label": "Research synthesis",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        38.0,
+        738.0,
+        240.0,
+        20.0
+      ],
+      "children": [
+        "199"
+      ],
+      "controls": null,
+      "description": "Column: Project",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "197",
+      "label": "Research synthesis",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": true,
+      "role": "Cell",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        408.0,
+        738.0,
+        0.0,
+        40.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "203",
+      "label": "84 %",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        278.0,
+        738.0,
+        130.0,
+        40.0
+      ],
+      "children": [
+        "203"
+      ],
+      "controls": null,
+      "description": "Column: Progress",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "200",
+      "label": "84 %",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": true,
+      "role": "Cell",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        463.0,
+        738.0,
+        0.0,
+        20.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "208",
+      "label": "No",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        408.0,
+        738.0,
+        110.0,
+        20.0
+      ],
+      "children": [
+        "208"
+      ],
+      "controls": null,
+      "description": "Column: Enabled",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "204",
+      "label": "No",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": true,
+      "role": "Cell",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        28.0,
+        728.0,
+        512.0,
+        60.0
+      ],
+      "children": [
+        "197",
+        "200",
+        "204"
+      ],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "193",
+      "label": "Research synthesis, 84 percent, not enabled",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Row",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus"
+      ],
+      "bounds": [
+        28.0,
+        308.0,
+        512.0,
+        320.0
+      ],
+      "children": [
+        "81",
+        "97",
+        "113",
+        "129",
+        "145",
+        "161",
+        "177",
+        "193"
+      ],
+      "controls": null,
+      "description": "Arrows move focus. Space or click selects. Enter activates. Tree Left/Right collapses/expands.",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "64",
+      "label": "Synthetic projects",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Group",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        28.0,
+        256.0,
+        543.0,
+        380.0
+      ],
+      "children": [
+        "63",
+        "64"
+      ],
+      "controls": null,
+      "description": "Row focus only; Arrow keys move rows, Space selects, Enter activates. Headers request application-owned sorting. Horizontal overflow scrolls; no spreadsheet editing or drag resizing.",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "62",
+      "label": "Synthetic projects",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Table",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        609.0,
+        220.0,
+        543.0,
+        28.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "61",
+      "label": "Properties",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        617.0,
+        264.0,
+        527.0,
+        20.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "212",
+      "label": "Identity & progress",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        625.0,
+        300.0,
+        511.0,
+        20.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "216",
+      "label": "Name",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        625.0,
+        324.0,
+        511.0,
+        16.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "217",
+      "label": "Text \u00b7 at most 48 characters",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus"
+      ],
+      "bounds": [
+        625.0,
+        344.0,
+        511.0,
+        40.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "Text \u00b7 at most 48 characters Draft; Enter commits text/number, Escape cancels; leaving property cancels",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "218",
+      "label": "Name",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "TextInput",
+      "selected": false,
+      "value": "Brand refresh"
+    },
+    {
+      "actions": [],
+      "bounds": [
+        625.0,
+        388.0,
+        254.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": false,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "220",
+      "label": "Commit",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        883.0,
+        388.0,
+        253.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": false,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "225",
+      "label": "Cancel",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        625.0,
+        430.0,
+        511.0,
+        16.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "230",
+      "label": "Committed value",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        617.0,
+        292.0,
+        527.0,
+        162.0
+      ],
+      "children": [
+        "216",
+        "217",
+        "218",
+        "220",
+        "225",
+        "230"
+      ],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "215",
+      "label": "Name Text \u00b7 at most 48 characters Committed value",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Group",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        625.0,
+        470.0,
+        511.0,
+        20.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "232",
+      "label": "Progress",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        625.0,
+        494.0,
+        511.0,
+        16.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "233",
+      "label": "Number \u00b7 finite, 0 to 100",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus"
+      ],
+      "bounds": [
+        625.0,
+        514.0,
+        511.0,
+        40.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "Number \u00b7 finite, 0 to 100 Draft; Enter commits text/number, Escape cancels; leaving property cancels",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "234",
+      "label": "Progress",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "TextInput",
+      "selected": false,
+      "value": "0"
+    },
+    {
+      "actions": [],
+      "bounds": [
+        625.0,
+        558.0,
+        254.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": false,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "236",
+      "label": "Commit",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        883.0,
+        558.0,
+        253.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": false,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "241",
+      "label": "Cancel",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        625.0,
+        600.0,
+        511.0,
+        16.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "246",
+      "label": "Committed value",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        617.0,
+        462.0,
+        527.0,
+        162.0
+      ],
+      "children": [
+        "232",
+        "233",
+        "234",
+        "236",
+        "241",
+        "246"
+      ],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "231",
+      "label": "Progress Number \u00b7 finite, 0 to 100 Committed value",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Group",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        617.0,
+        264.0,
+        527.0,
+        360.0
+      ],
+      "children": [
+        "212",
+        "215",
+        "231"
+      ],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "211",
+      "label": "Identity & progress",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Group",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        617.0,
+        632.0,
+        527.0,
+        20.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "214",
+      "label": "Workflow",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        625.0,
+        668.0,
+        511.0,
+        20.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "248",
+      "label": "Enabled",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        625.0,
+        692.0,
+        511.0,
+        16.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "249",
+      "label": "Boolean \u00b7 activate to change draft",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        625.0,
+        712.0,
+        511.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "Boolean \u00b7 activate to change draft Draft; Enter commits text/number, Escape cancels; leaving property cancels",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "250",
+      "label": "Enabled: true",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        625.0,
+        754.0,
+        254.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": false,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "256",
+      "label": "Commit",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        883.0,
+        754.0,
+        253.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": false,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "261",
+      "label": "Cancel",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        625.0,
+        796.0,
+        511.0,
+        16.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "266",
+      "label": "Committed value",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        617.0,
+        660.0,
+        527.0,
+        160.0
+      ],
+      "children": [
+        "248",
+        "249",
+        "250",
+        "256",
+        "261",
+        "266"
+      ],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "247",
+      "label": "Enabled Boolean \u00b7 activate to change draft Committed value",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Group",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        625.0,
+        836.0,
+        511.0,
+        20.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "268",
+      "label": "Phase",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        625.0,
+        860.0,
+        511.0,
+        16.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "269",
+      "label": "Choice \u00b7 activate to cycle draft",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [
+        "focus",
+        "activate"
+      ],
+      "bounds": [
+        625.0,
+        880.0,
+        511.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "Choice \u00b7 activate to cycle draft Draft; Enter commits text/number, Escape cancels; leaving property cancels",
+      "enabled": true,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "270",
+      "label": "Phase: Plan",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        625.0,
+        922.0,
+        254.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": false,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "276",
+      "label": "Commit",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        883.0,
+        922.0,
+        253.0,
+        38.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": false,
+      "expanded": null,
+      "focusable": true,
+      "focused": false,
+      "id": "281",
+      "label": "Cancel",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Button",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        625.0,
+        964.0,
+        511.0,
+        16.0
+      ],
+      "children": [],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "286",
+      "label": "Committed value",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Label",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        617.0,
+        828.0,
+        527.0,
+        160.0
+      ],
+      "children": [
+        "268",
+        "269",
+        "270",
+        "276",
+        "281",
+        "286"
+      ],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "267",
+      "label": "Phase Choice \u00b7 activate to cycle draft Committed value",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Group",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        617.0,
+        632.0,
+        527.0,
+        356.0
+      ],
+      "children": [
+        "214",
+        "247",
+        "267"
+      ],
+      "controls": null,
+      "description": "",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "213",
+      "label": "Workflow",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Group",
+      "selected": false,
+      "value": ""
+    },
+    {
+      "actions": [],
+      "bounds": [
+        609.0,
+        256.0,
+        543.0,
+        676.0
+      ],
+      "children": [
+        "211",
+        "213"
+      ],
+      "controls": null,
+      "description": "Application-owned typed properties; draft edits are not model mutations.",
+      "enabled": true,
+      "expanded": null,
+      "focusable": false,
+      "focused": false,
+      "id": "209",
+      "label": "Properties for project 1",
+      "labelled_by": null,
+      "orientation": null,
+      "panel": false,
+      "readonly": false,
+      "role": "Group",
+      "selected": false,
+      "value": ""
+    }
+  ],
+  "png_bytes": 84886,
+  "presented_confirmation": false,
+  "protocol": "rndr-observe-1",
+  "render_provenance": {
+    "adapter": "Apple M4",
+    "alpha_mode": "Auto",
+    "backend": "Metal",
+    "parley_feature": true,
+    "path": "quads",
+    "present_mode": "AutoVsync",
+    "scene_samples": 4,
+    "surface_format": "Bgra8UnormSrgb",
+    "text_engine": "parley",
+    "transparent_clear": false
+  },
+  "root": "18446744073709551615",
+  "scroll": [
+    {
+      "bounds": [
+        28.0,
+        308.0,
+        512.0,
+        320.0
+      ],
+      "content": [
+        512.0,
+        480.0
+      ],
+      "id": "64",
+      "offset": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "bounds": [
+        0.0,
+        0.0,
+        1180.0,
+        960.0
+      ],
+      "content": [
+        1180.0,
+        224.0
+      ],
+      "id": "1",
+      "offset": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "bounds": [
+        609.0,
+        256.0,
+        543.0,
+        676.0
+      ],
+      "content": [
+        543.0,
+        740.0
+      ],
+      "id": "209",
+      "offset": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "bounds": [
+        28.0,
+        256.0,
+        543.0,
+        380.0
+      ],
+      "content": [
+        512.0,
+        372.0
+      ],
+      "id": "62",
+      "offset": [
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "source": "live-surface-copy-before-present",
+  "theme": "UiTheme { appearance: Light, contrast: Standard, density: Comfortable, text_scale: 1.0, reading_scale: 1.0, ui_family: \"Inter\", reading_family: \"Inter\", code_family: \"monospace\" }",
+  "width": 1180
+}

@@ -56,7 +56,24 @@ pub enum AccessRole {
     Tree,
     /// One node in an application-owned tree.
     TreeItem,
+    /// Row-focused data table, not an editable grid.
+    Table,
+    /// Stable data row.
+    Row,
+    /// Named table column header.
+    ColumnHeader,
+    /// Passive data cell.
+    Cell,
 }
+/// Passive table projection; does not add cell focus, input or model ownership.
+#[derive(Clone, Debug)]
+pub struct DataAccess {
+    /// Table, Row, ColumnHeader, Cell or an internal Group.
+    pub role: AccessRole,
+    /// Stable live column header entities labelling this cell.
+    pub headers: Vec<Entity>,
+}
+impl crate::Component for DataAccess {}
 
 /// Semantic projection for composed collections; does not install input or data ownership.
 #[derive(Clone, Copy, Debug)]
@@ -413,6 +430,9 @@ fn collection_commands(
 }
 
 fn role_of(world: &World, entity: Entity) -> Option<AccessRole> {
+    if let Some(access) = world.get::<DataAccess>(entity) {
+        return Some(access.role);
+    }
     if let Some(access) = world.get::<CollectionAccess>(entity) {
         return Some(access.role);
     }

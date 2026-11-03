@@ -1,0 +1,66 @@
+PASS formatting
+test nested_tree_navigation_collapse_and_removal_have_safe_focus ... ok
+test stable_identity_and_composed_subtrees_survive_reorder_updates_and_reconciliation ... ok
+test surviving_branch_becoming_leaf_retires_disclosure_and_indent_selects_row ... ok
+test pointer_release_selects_and_drag_escape_blur_cancel ... ok
+test gallery_public_components_render_mutate_filter_resize_and_show_empty_states ... ok
+test core_scroll_drag_cancels_pointer_selection_and_nested_hierarchy_is_projected ... ok
+test painted_theme_density_clips_and_independent_states_are_real_component_output ... ok
+test scroll_reveal_clipping_empty_disabled_and_none_selection_are_integrated ... ok
+test gallery_large_dataset_pages_bound_mounted_rows_and_keep_data_app_owned ... ok
+test retained_budget_is_measured_honestly_not_virtualized ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.06s
+
+     Running tests/complete_gallery.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/complete_gallery-1f670810ad5ea69b)
+
+running 1 test
+test full_gallery_has_no_unintentional_nested_hug_clipping_in_any_a0_state ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+
+     Running tests/data_editors.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/data_editors-63258e8b2cde4d66)
+
+running 13 tests
+test custom_editor_uses_explicit_typed_draft_without_reflection ... ok
+test bounded_components_reject_oversized_or_duplicate_input_before_mutating ... ok
+test grouping_reparent_custom_draft_validator_and_stale_handles_are_safe ... ok
+test inspector_same_identity_draft_retained_then_reconciled_disabled_readonly_removed_unmount ... ok
+test table_invalid_atomic_identity_conflict_disabled_and_unmount ... ok
+test inspector_invalid_number_range_nonfinite_validation_and_cancel ... ok
+test inspector_precise_multiple_commit_boundaries_and_no_hidden_model_mutation ... ok
+test table_preserves_cells_selection_focus_across_row_column_reorder_and_resize ... ok
+test table_keyboard_sort_request_never_sorts_host_data_and_semantics_are_table_rows_cells ... ok
+test window_blur_cancels_draft_and_access_setvalue_remains_honestly_unsupported ... ok
+test inspector_tab_cancels_at_boundary_before_other_field_changes_and_commit_action_keeps_draft ... ok
+test inspector_object_switch_cancels_old_identity_and_clears_history ... ok
+test inspector_boolean_choice_keyboard_explicit_commit_and_invalid_mount_atomic ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/data_editors_gallery.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/data_editors_gallery-0c0245a69f407802)
+
+running 5 tests
+test independent_reading_scale_enlarges_builtin_editor_line_boxes ... FAILED
+test joint_gallery_nonzero_visible_cell_geometry_and_column_header_associations ... ok
+test narrow_and_scaled_layout_remain_scroll_reachable_not_compressed_to_zero ... ok
+test joint_gallery_commits_model_repaints_cells_and_switches_objects_without_draft_leak ... ok
+test every_synthetic_preset_reconciles_without_disabled_selection_mutation_or_panic ... ok
+
+failures:
+
+---- independent_reading_scale_enlarges_builtin_editor_line_boxes stdout ----
+
+thread 'independent_reading_scale_enlarges_builtin_editor_line_boxes' (3868110) panicked at crates/rndr_ui/tests/data_editors_gallery.rs:206:5:
+assertion failed: style.size >= 28.
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    independent_reading_scale_enlarges_builtin_editor_line_boxes
+
+test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+
+error: test failed, to rerun pass `-p rndr_ui --test data_editors_gallery`
+
+EXIT=101

@@ -1,0 +1,19 @@
+{
+  "head_before_candidate_commit": "132258c535b7c75dcc7256b1eea89e913eaaed15",
+  "binary": "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/examples/data_editors_gallery",
+  "binary_sha256": "07b06952fce12e9ee8d6717bd45ca4c849dfc4f2d544df928347a78b3e50a0e3",
+  "source_manifest_sha256": "2e884499aa4f124e85e2cddbc4aac9c3a10ff8d7c4848199733d925ec113193f",
+  "origin": "Actual native macOS GPU window-surface readback; synthetic preset model/focus/scroll, not human input.",
+  "runs": [
+    {
+      "name": "light",
+      "command": [
+        "python3",
+        "tools/validate_observation_native.py",
+        "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/examples/data_editors_gallery",
+        "evidence/data-components-next/combined-candidate/native-final-2/light"
+      ],
+      "exit": 0
+    }
+  ]
+}

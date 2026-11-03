@@ -201,27 +201,29 @@ pub(crate) fn sanitize_readonly_input(world: &mut World) {
             Key::Up | Key::Down | Key::Left | Key::Right | Key::Copy | Key::Tab | Key::Escape
         )
     });
-    input.keys.retain(|event| {
-        matches!(
-            event.logical,
-            LogicalKey::Named(
-                NamedKey::ArrowUp
-                    | NamedKey::ArrowDown
-                    | NamedKey::ArrowLeft
-                    | NamedKey::ArrowRight
-                    | NamedKey::Home
-                    | NamedKey::End
-                    | NamedKey::PageUp
-                    | NamedKey::PageDown
-                    | NamedKey::Tab
-                    | NamedKey::Escape
-            )
-        ) || (event.modifiers.command()
-            && matches!(event.logical, LogicalKey::Character('c' | 'C' | 'a' | 'A')))
-    });
+    input.keys.retain(readonly_field_key);
     for event in &mut input.keys {
         event.text = None;
     }
+}
+
+pub(crate) fn readonly_field_key(event: &KeyEvent) -> bool {
+    matches!(
+        event.logical,
+        LogicalKey::Named(
+            NamedKey::ArrowUp
+                | NamedKey::ArrowDown
+                | NamedKey::ArrowLeft
+                | NamedKey::ArrowRight
+                | NamedKey::Home
+                | NamedKey::End
+                | NamedKey::PageUp
+                | NamedKey::PageDown
+                | NamedKey::Tab
+                | NamedKey::Escape
+        )
+    ) || (event.modifiers.command()
+        && matches!(event.logical, LogicalKey::Character('c' | 'C' | 'a' | 'A')))
 }
 
 /// Canonical intent from an opted-in button. Never also copied into `Fired`.
@@ -379,7 +381,11 @@ pub fn request_focus(world: &mut World, entity: Entity) -> bool {
         return false;
     }
     if world.resource::<Focus>().and_then(|f| f.entity) != Some(entity) {
+        crate::field::transaction_focus_lost(world, Some(entity));
         cancel_activation(world);
+    }
+    if let Some(state) = world.resource_mut::<InteractionState>() {
+        state.focus = Some(entity);
     }
     world.insert_resource(Focus {
         entity: Some(entity),
@@ -497,7 +503,9 @@ pub(crate) fn apply_generic_input(world: &mut World) {
     };
     let focus = world.resource::<Focus>().and_then(|f| f.entity);
     let blur = events::<WindowFocus>(world).contains(&WindowFocus::Blurred);
-    if blur || world.resource::<InteractionState>().unwrap().focus != focus {
+    let previous = world.resource::<InteractionState>().unwrap().focus;
+    if blur || previous != focus {
+        crate::field::notify_focus_lost(world, previous, if blur { None } else { focus });
         cancel_activation(world);
     }
     let had_armed = world
@@ -517,6 +525,9 @@ pub(crate) fn apply_generic_input(world: &mut World) {
                 input.keys.clear();
                 input.key = None;
                 input.chars.clear();
+                input.ime_commit.clear();
+                input.ime_preedit.clear();
+                input.ime_cursor = None;
             }
             return;
         }
@@ -581,6 +592,7 @@ pub(crate) fn apply_generic_input(world: &mut World) {
             }
         }
     }
+    crate::field::prepare_transaction_field(world);
     // Rich queue owns its legacy shim. Never process both representations.
     let keys = if input.keys.is_empty() {
         input
@@ -613,7 +625,8 @@ pub(crate) fn apply_generic_input(world: &mut World) {
     let mut retained = Vec::new();
     for event in keys {
         let focus = world.resource::<Focus>().and_then(|f| f.entity);
-        let editor_owns = focus.is_some_and(|e| world.has::<CapturesKeys>(e));
+        let editor_owns = focus
+            .is_some_and(|e| world.has::<CapturesKeys>(e) && !world.has::<FieldTransactions>(e));
         let plain = !event.modifiers.command() && !event.modifiers.alt;
         // Resolve every Space up, even if modifiers/ownership changed. Never
         // leave an unmatched arm for a later unrelated release to commit.
@@ -630,8 +643,8 @@ pub(crate) fn apply_generic_input(world: &mut World) {
         if event.synthetic || !plain {
             cancel_activation(world);
         }
-        let mut consumed = false;
-        if !editor_owns && plain {
+        let mut consumed = focus.is_some_and(|e| crate::field::transaction_key(world, e, &event));
+        if !consumed && !editor_owns && plain {
             let navigation = focus.and_then(|e| world.get::<KeyNavigation>(e).map(|n| (e, n.0)));
             let handled = navigation.is_some_and(|(e, handler)| handler(world, e, &event));
             // A composite hook may normalize an auxiliary focus target to its
@@ -640,7 +653,9 @@ pub(crate) fn apply_generic_input(world: &mut World) {
             let focus = world.resource::<Focus>().and_then(|f| f.entity);
             if handled {
                 consumed = true;
-            } else if focus.is_some_and(|e| world.has::<CapturesKeys>(e)) {
+            } else if focus
+                .is_some_and(|e| world.has::<CapturesKeys>(e) && !world.has::<FieldTransactions>(e))
+            {
                 // Retain this event for the editor's canonical input stage.
             } else if event.logical == LogicalKey::Named(NamedKey::Tab) && !event.released {
                 let order = focus_order(world);

@@ -121,7 +121,7 @@ mod wrap;
 
 pub use access::{
     access_id, access_tree, apply_access, entity_from_access_id, AccessCommand, AccessNode,
-    AccessRole, AccessTree, CollectionAccess, ACCESS_ROOT,
+    AccessRole, AccessTree, CollectionAccess, DataAccess, ACCESS_ROOT,
 };
 pub use action::{apply_actions, Actions, Binding, Chord, Fired, COPY, CUT, PASTE};
 pub use app::{App, Plugin, Schedule, System};
@@ -154,7 +154,10 @@ pub use editor::{
 pub use entity::Entity;
 pub use event::{events, send, Event, Events};
 pub use feed::{Epoch, Feed, FeedConfig, FeedError, OnFull};
-pub use field::{CapturesKeys, ImePreview, Submitted, TextChanged, TextField};
+pub use field::{
+    reset_field_draft, CapturesKeys, FieldTransaction, FieldTransactions, ImePreview, Submitted,
+    TextChanged, TextField,
+};
 pub use file_drop::{FileDrop, FileHover, FileHoverCancel};
 pub use focus::{apply_focus, reveal_entity};
 pub use font::{

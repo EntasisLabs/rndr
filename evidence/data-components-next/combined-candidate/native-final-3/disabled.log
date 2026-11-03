@@ -1,0 +1,17 @@
+$ ['python3', 'tools/validate_observation_native.py', '/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/examples/data_editors_gallery', 'evidence/data-components-next/combined-candidate/native-final-3/disabled', '--disabled']
+{
+  "command": [
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/examples/data_editors_gallery",
+    "--observe",
+    "--observe-exit-after-15s",
+    "--disabled"
+  ],
+  "binary_sha256": "07b06952fce12e9ee8d6717bd45ca4c849dfc4f2d544df928347a78b3e50a0e3",
+  "source": "native-synthetic-gallery-session",
+  "presented_confirmation": false,
+  "status": "blocked-or-failed",
+  "error": "native startup unavailable; see native-process.log",
+  "exit_code": 101
+}
+
+EXIT=1

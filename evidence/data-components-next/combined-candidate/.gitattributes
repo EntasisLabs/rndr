@@ -1,0 +1,3 @@
+# Raw command receipts retain their exact output bytes, including trailing spaces.
+# Disable whitespace lint for these logs only; production source remains checked.
+*.log -whitespace

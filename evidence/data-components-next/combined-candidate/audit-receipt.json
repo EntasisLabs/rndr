@@ -1,0 +1,440 @@
+{
+  "base": "132258c535b7c75dcc7256b1eea89e913eaaed15",
+  "binary_sha256": "c236f2b15821d4a3572b86aefe5a2189f319ecff2896bc54ed9447250ffb5d2d",
+  "commands": {
+    "core-paint-ui.log": {
+      "command": "$ cargo test --offline --locked -p rndr_core -p rndr_paint -p rndr_ui ",
+      "exit": 0,
+      "ignored_executions": 0,
+      "log_sha256": "ddd2ba1aca665777c7f98d60c313d68bfac5f9ddd3674e715450bd474ba26847",
+      "passed_executions": 599
+    },
+    "facade-fallback.log": {
+      "command": "$ cargo test --offline --locked -p rndr --lib --no-default-features ",
+      "exit": 0,
+      "ignored_executions": 0,
+      "log_sha256": "34c2dff81ef7b9fc5e8626acf31b3bdf6d396f43c6ffde848ea8676567231281",
+      "passed_executions": 1
+    },
+    "facade.log": {
+      "command": "$ cargo test --offline --locked -p rndr --lib --features observe ",
+      "exit": 0,
+      "ignored_executions": 0,
+      "log_sha256": "97923f9cd486815afd7534f2c59f30451ad5e9faa23e18067f07436933fbc90e",
+      "passed_executions": 1
+    },
+    "fallback-renderer.log": {
+      "command": "$ cargo test --offline --locked -p rndr_render --lib --no-default-features ",
+      "exit": 0,
+      "ignored_executions": 0,
+      "log_sha256": "ede3ad8b98797a6179bcc4a67bdf68ad2822371277433e5811463d331717e3a1",
+      "passed_executions": 25
+    },
+    "formatting.log": {
+      "command": "$ rustfmt --edition 2021 --config skip_children=true --check crates/rndr_core/src/access.rs crates/rndr_core/src/field.rs crates/rndr_core/src/interaction.rs crates/rndr_core/src/lib.rs crates/rndr_render/src/a11y.rs crates/rndr_ui/src/collections.rs crates/rndr_ui/src/controls.rs crates/rndr_ui/src/data.rs crates/rndr_ui/src/lib.rs crates/rndr_ui/tests/data_editors.rs crates/rndr_ui/tests/data_editors_gallery.rs crates/rndr_ui/tests/field_transactions.rs crates/rndr_ui/examples/support/data_editors_gallery.rs crates/rndr/examples/data_editors_gallery.rs ",
+      "exit": 0,
+      "ignored_executions": 0,
+      "log_sha256": "30a463846e222207c8d4d90a739cfbeb9be39692237d537fd70f4f72ae6876f9",
+      "passed_executions": 0
+    },
+    "gallery-build.log": {
+      "command": "$ cargo build --offline --locked -p rndr --example data_editors_gallery --features observe ",
+      "exit": 0,
+      "ignored_executions": 0,
+      "log_sha256": "f464e5452a7ae9be26407680342759d5898ccc5680a36e0dc3a0d187376b4cd1",
+      "passed_executions": 0
+    },
+    "gallery-fallback.log": {
+      "command": "$ cargo check --offline --locked -p rndr --example data_editors_gallery --no-default-features ",
+      "exit": 0,
+      "ignored_executions": 0,
+      "log_sha256": "7f3d0b90ae93d9b2caac96046944d9e0a66674280aa8b19974930bc608d318d9",
+      "passed_executions": 0
+    },
+    "historical-six-and-activation.log": {
+      "command": "$ cargo test --offline --locked -p rndr_ui --test combined_original_six --test combined_activation_policy ",
+      "exit": 0,
+      "ignored_executions": 0,
+      "log_sha256": "b65d290c82e3d922985a9697769624d1fc3d23b21b2e9ed5b4b762cfa8d61bad",
+      "passed_executions": 8
+    },
+    "native-observe.log": {
+      "command": "$ cargo test --offline --locked -p rndr_render --lib --features observe ",
+      "exit": 0,
+      "ignored_executions": 0,
+      "log_sha256": "b20af6e5afcbe4b18d3aae87b4d517ba505fc07f659bbc54dc2827cd2d722b29",
+      "passed_executions": 74
+    },
+    "whitespace.log": {
+      "command": "$ git diff --check ",
+      "exit": 0,
+      "ignored_executions": 0,
+      "log_sha256": "f15d65fc6e496b7135a7d00f38f18e8e84a3e4440f575b0021068b4665c2a318",
+      "passed_executions": 0
+    }
+  },
+  "compiled_test_executables": {
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/a1_cancellation_edges-4b7398e011b5d17f": {
+      "bytes": 4999680,
+      "sha256": "af00d6c99186516b9e6c792da055919e604e17e15f02e57f3cb934a976b579f0"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/a1_hotkey_ownership-7f34e633b9b68ad1": {
+      "bytes": 5172944,
+      "sha256": "f2af8677d32961717ec4baf27e67cbda0f5f8e084a6f3c6567a30a6f87405ed2"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/a1_interaction-1d8b94398e43c906": {
+      "bytes": 5606256,
+      "sha256": "2926c56a112843bfa9d61ad6e3d5ebdec714ee194ff7bdd04b5c2f6c76c5de86"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/a1_lifecycle-f53b9ae9e2f12e9a": {
+      "bytes": 5268976,
+      "sha256": "2a91a7ff793a06325e8de84fad1bada76e412a03608ec4b0701301e112679159"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/a1_logical_only-6b55ffec53fec984": {
+      "bytes": 5105632,
+      "sha256": "c66a0e9d437ba01a10e14c0d5ea5da3431199ac2cc178d5bd7413d95c5603102"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/a1_relation_lifecycle-5138ec088858fbf4": {
+      "bytes": 4909008,
+      "sha256": "cdba94cc0f4efd075c4fed65a0ccf0e447480b7b0d535f02369d6475078f8fd0"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/a1_reproductions-429edb2dcdc05121": {
+      "bytes": 2422976,
+      "sha256": "ff38fdacbc6f91cf9c7ba4c5d9bcf9f88df335ac1b7a29f0f9dc4d66902948d1"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/a1_review_corrections-3e52b3817fcb2ba4": {
+      "bytes": 5518304,
+      "sha256": "01a4d3715bea7f7ca336e99fadbe8f16a53718ab9fbfe82bb2835d14f57f0ed3"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/a1_wrapped_hug-20a040ec5d08241f": {
+      "bytes": 4800496,
+      "sha256": "06e5ed819efcc117fb199b1682ee85dbe5c5896ca985a50952d32f5d14367314"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/a2_adoption_boundary-620325fd7038566f": {
+      "bytes": 5788448,
+      "sha256": "6e3dfeed8fed02d759572b4542b1b52bc2b745ae08339054da010b76f56d01ea"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/a2_core_contracts-c0c12aaf545695d4": {
+      "bytes": 5359344,
+      "sha256": "3139c4e81eb30eda5d99f3642582125e27cde08b5f463aa7da87a70c13d611f0"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/a2_malformed_controls-706c59365356bdae": {
+      "bytes": 6576640,
+      "sha256": "0b1c99c68a1356981ccc716a9e61c912af4bad7a6b401b2f01ce1b2c4246afc3"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/a2_nested_focus-009ca5a66286cb40": {
+      "bytes": 4875120,
+      "sha256": "1f2328f2b906fd7d0bd1a6ab5bbd7ce056d965639e3dab447dc9d13b91c183dd"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/a2_nested_paint-c614275533920a86": {
+      "bytes": 6555840,
+      "sha256": "21ae49edf8174941ba31f58cdafadf6ddffc57557f01fa04ffd915dcf9dad7f5"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/a2_operating-5dcc7952345ea9c0": {
+      "bytes": 7619152,
+      "sha256": "430a28015175878a65385a9bf2e8abfe98e60a3700485669c83d97c4fa87ae6a"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/a2_resolved_color-93745427043395e2": {
+      "bytes": 5043248,
+      "sha256": "c9f1aee93d6973267fb92ad7e73dc94654ac8923173d1e91f937d2701ba15397"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/a2_states-0739c36a8713869b": {
+      "bytes": 6578112,
+      "sha256": "20da6da1bf75bae902c783d687588e2e084ef913fca80474f5ecad15cb95db4e"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/a2_toolbar_allocation-74e4b4fdd161a233": {
+      "bytes": 6508240,
+      "sha256": "c5373684bd1ac97711e09eacecfb21c4f0f0646779513802e7c1ff38eb417f57"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/a2_toolbar_content_fit-26996472b7bf3008": {
+      "bytes": 6489872,
+      "sha256": "74c4cfafa4b603f719d2b96cf6ae116689b7bfd6598d5041316715d352b71d0a"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/a2_toolbar_type_update-6804eef88a083c03": {
+      "bytes": 6561296,
+      "sha256": "0a448a1821e4083c5f4376169c8d72dc71e1df6ba8cd03471cf2cf9205255825"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/actions-a98406c51900a351": {
+      "bytes": 5384800,
+      "sha256": "3e24401224a37cd3503fdea9b2e5a735f814c5e168707ff52b40d3b022ec6220"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/body-84c4081d75f34852": {
+      "bytes": 4430288,
+      "sha256": "caf4e15e739aea77deeeaa36730239808c40e29795df78ad2c8615697ccdf8fd"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/button-c8fc9960f1d8a9f9": {
+      "bytes": 4832272,
+      "sha256": "4b8d2d8b6f10a0363dd596d16e4f9cac343343456e0c29c3fae21b9c38e36e54"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/caret-847fc548f5447be4": {
+      "bytes": 4464736,
+      "sha256": "1c4ace467005ad8fff6f8b351d039b02fbb320c539dee08b6b88027ab36fb97c"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/click_caret-1a9439923feefe68": {
+      "bytes": 4411600,
+      "sha256": "7f2d5a8d4ef7f09d849ca9b6f20aa8a2946ca15edaad05c3f9623a6d66488abc"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/clipboard-e50d06bcc0658b26": {
+      "bytes": 5396272,
+      "sha256": "d4036c330298295d4674560a3929ff40526f6278c928ca052f486f9a0d9dfae7"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/collection_chronology-3dada1fc1453f578": {
+      "bytes": 7375488,
+      "sha256": "d136fe3e56577bc2f7c482890c343653b058ad756ce3cd3c3b42ee53cbae827a"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/collections-993191d5871a36b6": {
+      "bytes": 7894016,
+      "sha256": "f6e21e56d93f1546ef9730d4762314897fa1e4678084d27e4297219149c949ba"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/combined_activation_policy-ce95a4f8956abec8": {
+      "bytes": 3809632,
+      "sha256": "0aaef1258a3789ba82f37ba982ce613ca2011b216f44bafe8c135d20fd83c918"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/combined_original_six-321544405557eb41": {
+      "bytes": 7235040,
+      "sha256": "17e5fbc05c27713cf0746517ad8112169058610d6798c4d0a38876be8b543065"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/complete_gallery-1f670810ad5ea69b": {
+      "bytes": 6941888,
+      "sha256": "102e19c2f0341810e8110ada8dde7918834fa66fa8a2a0d704dee89e312a194d"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/data_editors-63258e8b2cde4d66": {
+      "bytes": 8714800,
+      "sha256": "ddfaf23c15ebb99031da80a57e0b9a0717d0ccfc116ac928b8ea92c1b35d4324"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/data_editors_gallery-0c0245a69f407802": {
+      "bytes": 8360992,
+      "sha256": "dc00fc89d41f28874ef2d7934c27936b76179fa2cc0933cc137a32d3d93c5e15"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/decorations-6cb5b6102d778c10": {
+      "bytes": 4856208,
+      "sha256": "aaae8499e08b6c52b889acf9aee05a9b32d3cfc981e49f93c27afb6f0afb8977"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/desktop_exit-0009caf50d15850f": {
+      "bytes": 1420112,
+      "sha256": "052bec24d685f108633d77bd10d821e1e9c58d3f5e7612bfcf633259464b3ea3"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/desktop_foundations-6a0fc36aa6054c90": {
+      "bytes": 6736912,
+      "sha256": "16eb93e7829a9e83b79566e4ad6f1768894b2b0e748b7126ce2e7024b9a7a038"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/ecs-bfbfd26003d5ac2b": {
+      "bytes": 3507616,
+      "sha256": "6c4f4f94433ce4a2bffb0792b3f424715d62752e1f4c46b9285cadc93dfc0f43"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/edit-d0958c30f0592655": {
+      "bytes": 1101824,
+      "sha256": "071dcdbdfe3907ffe3287db366a9d71ac2288d02478f681e4b7fdba78f507acc"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/editor-7acd93c9357bebba": {
+      "bytes": 5033920,
+      "sha256": "c2d1dde8ad4e3949eb1201e976e48aec4dbb7814585a4bfae8e0fbbeb2d633d8"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/editor-ca477aaec8e638c4": {
+      "bytes": 4892576,
+      "sha256": "88d84d7dd115f1e0d66d196e422dea708f9c44acdda48f0b039c83702422518b"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/editor_drag-a9b42d81091eca72": {
+      "bytes": 4910768,
+      "sha256": "7149089202abf36a04a5f661e25fdd32a81d77b3ae2cc2e316cb472d23a4e78a"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/editor_navigation-2b0d79c6677b7e97": {
+      "bytes": 4970544,
+      "sha256": "2a7beae1b8308a98251fa244724cab85deb78b46a4412bd1a3bc3941cb92f6de"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/feed-42eb5494d84702e9": {
+      "bytes": 3831648,
+      "sha256": "afd603ff8af15182593a9262f14819348b1ec15de04a2d48541008500cd7f309"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/field-b2f36e640382780e": {
+      "bytes": 5451776,
+      "sha256": "b1a2f8b1f4927672daaff111beb5f6db667e22f09cb3f8713c4e5b8b69368242"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/field_transactions-55317ad03eaac92f": {
+      "bytes": 6688112,
+      "sha256": "d1beffc582e4d8b4b2eef3a8f77c698d91a24c32926d78996007c909dba1929b"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/focus-daedcb0f7ac72bd7": {
+      "bytes": 4406736,
+      "sha256": "8d23c33c2ea57cce34cb674bb3d3bef48a46e1231e5e67c41c35eef92a461a5a"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/font-3ff9c3ca7f43ed68": {
+      "bytes": 2106480,
+      "sha256": "c31eff03b40544428b959bc7cef4d4abb1412cc5a1e2ddc98c7b6eb641d38696"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/foundations-7f3f5b07fb6d38f6": {
+      "bytes": 7036032,
+      "sha256": "c60a606dee277e48279eeb3818e3a33bf576d532c049d93b8587c36ae3ad1643"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/fs-9213062e6e8f6efa": {
+      "bytes": 4563872,
+      "sha256": "412750659d03832dd018c7e334bc0cfee6f0bcc921b6f51afd0dcb0c8d3e0c24"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/gallery_polish-112572b590c46ad0": {
+      "bytes": 6849568,
+      "sha256": "d0f6b7be811a778db7c19e2f7ce2b0e589b76be4b99b4534bcf7201088a79a19"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/hotkey-54ac2db7d3ffaac8": {
+      "bytes": 5257664,
+      "sha256": "6c2881c9292fb7b2bfdf91c22435505fb2367f6125915df6e3108f7f8a9cefcf"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/ime-630201d1fbb0ab2c": {
+      "bytes": 5425200,
+      "sha256": "30d4ddf1d655b4072e7374ebc26efcf8f359398a419499076da5db8ea0a7e922"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/input_platform-016718d324fd222e": {
+      "bytes": 5577232,
+      "sha256": "cc6caea205e863c98c2f5c4fb84acae5286690d43f11a7cbf3a8fb670f70e354"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/keyboard-68dde58102e63b8f": {
+      "bytes": 5072096,
+      "sha256": "80215ccf3c8e1ef8d039b1032db676c65115e08b9b4c3c9ced0bcdef83c2e2ba"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/layout-c497995b0cc4dc14": {
+      "bytes": 4420624,
+      "sha256": "c5cf2fb185d9f81140737a3682c463ada08fea6135e0c68d984542ad518d1eaa"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/list-7fa80fd97ab5d5e0": {
+      "bytes": 4944928,
+      "sha256": "f5987f7b802b781269022255b25c338faf044a3c8d5d7260a3c29fcdbe78a014"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/list-b401955cf895b67c": {
+      "bytes": 7692256,
+      "sha256": "9c0100a263eadecbde7e4d189480c0a5ccb45de66c8d41b66169267954ee6ea4"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/malformed_lifecycle-fe4c058dfd5ab4d0": {
+      "bytes": 5599504,
+      "sha256": "1f9afb24be156dff4a3d1a37a99320f4c134c5473349ba3ef51d72a4f26d2e82"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/markdown-5004bbde1da82b5f": {
+      "bytes": 4901824,
+      "sha256": "7e2432fb01bb4e07d26993c79012f2f4f6114d944251561e0a4301b53ddf0cdf"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/markdown-7562c48956550c67": {
+      "bytes": 7546624,
+      "sha256": "2079bfd1cfa32bf8b68179a47fdddf94d3008faa789411aa3bc7cf0bbf568b9d"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/mono-59fe2324899b9241": {
+      "bytes": 3468640,
+      "sha256": "2c6ba9aa52efc67e41a2acebe2f364bca92eeac155a8c867f148cb8765beb390"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/overlay-b821329a639b6184": {
+      "bytes": 5394608,
+      "sha256": "20ea6a3af0db3e60f440d454631dde60d98c1b2c2706cc0729cc56a59ad23898"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/paint-53360726317710d7": {
+      "bytes": 7793280,
+      "sha256": "a104ff5124d3555200856c46a573a6fea40493a611143564b685c71dce89989f"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/paint_evidence-24a4ca2ba3a0f4ab": {
+      "bytes": 7034528,
+      "sha256": "2e575495d919dfacebc984762909d35edcf1aae286b76a724c7f27345a061007"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/pane-dd7d1ba3df6db345": {
+      "bytes": 4433456,
+      "sha256": "58898f27adf19e8f934b4bd98a3286e0c838ac0e62f57a76666c5227146805fa"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/pattern-b3a1837db03d765e": {
+      "bytes": 7596544,
+      "sha256": "23b672baf11e3bde883438106da1ed7b7b3620b328f33405c832d2a32fe54ff3"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/pointers-69a4065d3d705bd7": {
+      "bytes": 1084224,
+      "sha256": "ab24a2d669e5dd295d7fbfd75b10154264b718dba6bed4edf373964f7ba2914a"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/prompt-ea05dd1c9459b9bb": {
+      "bytes": 4964512,
+      "sha256": "85944193dba4aec47be02ceefcea8ea9d36b9a89d2c92652602fda95cada77d5"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/refinement-b804c85c19368a99": {
+      "bytes": 6919312,
+      "sha256": "e91f840881bada0a0e25b9d42f35cac2c12ec85f29e93f91b272453b0d905bbb"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/refinement_release-b8a8ec87f62dca89": {
+      "bytes": 6644576,
+      "sha256": "3ea63705a598511d348bec45628055977432dec07e036e8d7fb96d2d01a3658f"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/rndr-53973104d13aa5c8": {
+      "bytes": 947728,
+      "sha256": "faad9432b70d7c14c87f6cbb7faeba935becacddad6e8206d37bb54c131fe825"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/rndr-d1d4b8400376c232": {
+      "bytes": 947856,
+      "sha256": "a8b4680a882beb4b875658f7a3abcca54ce2c1f5c8a54299dc58d456cd50505e"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/rndr_core-9f09f9eec776bfd8": {
+      "bytes": 2894016,
+      "sha256": "3316ab655e82a4abf7d21388833b70e6f256b09ed42e68baab69c0316502492a"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/rndr_paint-255db0da892d9bcb": {
+      "bytes": 1900896,
+      "sha256": "79f92f4575b150b225dac54b6df1d4f45f077b4dc69b702b2b72911b8324282a"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/rndr_render-33ebdf27a082fccd": {
+      "bytes": 36203680,
+      "sha256": "1eac9ddd08c96d4d3a82130aeb8219af9313c83bdaa57dcab5831c84cb250e9b"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/rndr_render-ef5c3dbb4c1c1e67": {
+      "bytes": 7387120,
+      "sha256": "4f6e13589fbaf6caffabba6c150f3052a73060e473a96ae63ebb64e6be9b372b"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/rndr_ui-6a5ed49be598d74e": {
+      "bytes": 944736,
+      "sha256": "1afa58c06a43843978379084bc912eb72f444b4cf8807bf52bc3d111acd874fb"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/runtime-4558652d06e617a9": {
+      "bytes": 3772528,
+      "sha256": "90fd1483533e7fc1a7e87511eb94f55bf2e08bf1266e0b6cfb67643d5bce85d7"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/slot-6b939f38487a3501": {
+      "bytes": 4593424,
+      "sha256": "76637fb596ed9e6fe17c416a6b9dc6aba4c47bb25885cbfc6892e63390562fe5"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/source_edit-f130156ff9a7e301": {
+      "bytes": 4904752,
+      "sha256": "f457a27ffa0d371854e93d94f4c28c8340bfdac55ad8bca2082b315cf6db9573"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/split-c4ef85ba30e3863d": {
+      "bytes": 4437312,
+      "sha256": "e803b0f9a9b2c1efc25ea4716e5babf644f89d68eb6d121c9d5a24282a9c2995"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/tabs-9ea04bb2c3d860b9": {
+      "bytes": 4865472,
+      "sha256": "450087a5e5557df386446d46ac26a6dfc3df147eb3cd9d408317c7494e02619e"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/text_engine-110c11607ec384a4": {
+      "bytes": 5455008,
+      "sha256": "393a35edd8f435df8c0aa66f5757c78f8efb881af5e2c61a17c843fff528ee89"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/text_snapshot-1ef003903ac1045d": {
+      "bytes": 4691072,
+      "sha256": "271cb5ad3f96feddbaa69ae1741111e9539da59bf3c685ffab00207e4812f2df"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/tray-277b482fe69a330e": {
+      "bytes": 3661424,
+      "sha256": "8ad684d424836463ba92672ae7cdc7e8e05d2869b17a84e3a592c9a571bafd32"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/uncolored_text-1f9cd1081267877a": {
+      "bytes": 3762080,
+      "sha256": "77e7de141737f26d15c98bdbe53999a17e3b0867790a5039e0f1d8a6478c65d8"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/window-d1ea577cea80ddcc": {
+      "bytes": 3678272,
+      "sha256": "410c70c8a350ead1eb8dfe1948b64157c57cafaa31c7f56cf33bf9044e21e793"
+    },
+    "/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/wrap-4ddfc869c0aa604e": {
+      "bytes": 4441264,
+      "sha256": "b0c1d3950f0da4b972f197e9fe03800c770cef6d29945a4ef44022b84377841c"
+    }
+  },
+  "historical_evidence_bytes": 57991081,
+  "historical_evidence_files": 3073,
+  "native_frames": 24,
+  "native_states": 12,
+  "note": "Execution count includes repeated suites in native/fallback configurations, not unique tests. No presented/compositor, physical input, real IME or live AT proof.",
+  "owner_reproduction_files_preserved": 8,
+  "owner_snapshot_note": "End-of-implementation preservation snapshot; not claimed as a start-of-turn snapshot. These untracked owner directories were never written by this assignment.",
+  "source_files_bound": 131,
+  "test_source_files_bound": 90,
+  "total_passing_test_executions": 708
+}

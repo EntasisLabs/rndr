@@ -1,0 +1,84 @@
+{
+  "inspection": "Assistant inspected actual frame-2.png pixels for all twelve final states using cognition_image_view; not inferred from metadata. Frame-1 captures are hash/provenance checked, not separately pixel-inspected.",
+  "origin": "Native macOS GPU pre-present surface copy; synthetic preset model/focus/scroll, not human input or after-present/compositor confirmation.",
+  "limitations": [
+    "Pre-present surface copies, not compositor or physical monitor confirmation.",
+    "Preset model/focus/scroll state is synthetic, not physical input.",
+    "Fixed-width columns clip long labels; narrow layout scrolls rather than auto-fitting all data.",
+    "Physical input, live OS IME, live AT and Windows/Linux were not verified."
+  ],
+  "states": [
+    {
+      "name": "light",
+      "path": "evidence/data-components-next/combined-candidate/native-final-4/light/frame-2.png",
+      "sha256": "1d0b4fa200acdc4c7297b126ec6f47870a9216b55b8a2cfbc48a77196fd0e653",
+      "finding": "Visible table values and selected row, grouped fields and explicit commit/cancel. The earlier zero-height cells and fractional-width percent soft-wrap are corrected."
+    },
+    {
+      "name": "dark",
+      "path": "evidence/data-components-next/combined-candidate/native-final-4/dark/frame-2.png",
+      "sha256": "511691797894389f26c0719ac2238d32431dbc0a2bfc98f0f8c1ad19f63f7ef6",
+      "finding": "Readable shared dark theme with retained selected row and raised inspector surfaces."
+    },
+    {
+      "name": "narrow",
+      "path": "evidence/data-components-next/combined-candidate/native-final-4/narrow/frame-2.png",
+      "sha256": "204bed26145b2d6e11b9306f35397a255ab0754a51eef7841dddf65819e62e19",
+      "finding": "380-point viewport: toolbar stacks, panes stack vertically; fixed-width columns intentionally require horizontal table scrolling and lower panes require outer scrolling."
+    },
+    {
+      "name": "narrow-inspector",
+      "path": "evidence/data-components-next/combined-candidate/native-final-4/narrow-inspector/frame-2.png",
+      "sha256": "bab82674d76a7ff9bc803029451556445c19bf3c728af547c97d0ca8d4807189",
+      "finding": "Outer scroll preset reaches property text/number/boolean editors. Inspector itself scrolls to lower properties/actions."
+    },
+    {
+      "name": "compact-hc-200",
+      "path": "evidence/data-components-next/combined-candidate/native-final-4/compact-hc-200/frame-2.png",
+      "sha256": "1ae245543c8cd62ba740fffea33eb775d4622fd5c82e01ab00ea2fdf46ca7a68",
+      "finding": "Both UI and reading scales at 200%; compact high-contrast toolbar/title remain rendered and vertically scrollable. Table lies below the first viewport."
+    },
+    {
+      "name": "compact-hc-200-inspector",
+      "path": "evidence/data-components-next/combined-candidate/native-final-4/compact-hc-200-inspector/frame-2.png",
+      "sha256": "562a3586980625a071087fe43f931a0c236bc872a853150c7bb58aa3d0c7128d",
+      "finding": "Outer scroll reaches enlarged code/text fields and explicit Commit/Cancel. Fixed-width headers/cells can clip long labels by declared policy; no autosize or ellipsis claimed."
+    },
+    {
+      "name": "compact-hc-200-bottom",
+      "path": "evidence/data-components-next/combined-candidate/native-final-4/compact-hc-200-bottom/frame-2.png",
+      "sha256": "c79a4c049d124e06278c0bdca5775c25a80eba6294108b6adb32ee412729be7c",
+      "finding": "Inspector scroll reaches enlarged workflow Boolean/Choice controls and commit/cancel actions."
+    },
+    {
+      "name": "invalid",
+      "path": "evidence/data-components-next/combined-candidate/native-final-4/invalid/frame-2.png",
+      "sha256": "312a1ac4e71cfb253211ffeb74bd0e13e0d08ce0c32aee3fd21ac4f6805c9f66",
+      "finding": "Focused numeric intermediate dash remains editable; invalid feedback and disabled Commit are visible, with focused field background/caret."
+    },
+    {
+      "name": "readonly",
+      "path": "evidence/data-components-next/combined-candidate/native-final-4/readonly/frame-2.png",
+      "sha256": "2d3bc20a9c60ddedb344429f4ba87dc26f54a48de76ee69403d7f194b2d51674",
+      "finding": "Read-only status and inactive commit/cancel are visible without hiding values; copy/focus policy is separately unit-tested."
+    },
+    {
+      "name": "disabled",
+      "path": "evidence/data-components-next/combined-candidate/native-final-4/disabled/frame-2.png",
+      "sha256": "f7a11b2fe9286f8d3de895917cc8e41d31171bede1c187fa8b6e59beed8f5b87",
+      "finding": "Disabled table/inspector show values but no actionable focus/edit permission. Final preset no longer panics on a forbidden disabled selection setter."
+    },
+    {
+      "name": "empty",
+      "path": "evidence/data-components-next/combined-candidate/native-final-4/empty/frame-2.png",
+      "sha256": "e0682b1fdb32ebe4fed04ab0e098cd48b5eebae2c8799fc8299df00e1298091c",
+      "finding": "Table no-record feedback and inspector no-selection feedback are visible; reset remains available."
+    },
+    {
+      "name": "workflow-bottom",
+      "path": "evidence/data-components-next/combined-candidate/native-final-4/workflow-bottom/frame-2.png",
+      "sha256": "fd8d019db79523ff20b6f5d90ab6252bcb3b6cea213e3c9605a3318e2f89760b",
+      "finding": "Inner inspector scroll exposes Boolean draft, stable-ID choice draft and explicit lower actions."
+    }
+  ]
+}

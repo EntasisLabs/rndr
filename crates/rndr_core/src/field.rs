@@ -45,6 +45,165 @@ pub struct ImePreview {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct TextField;
 
+/// Opt-in synchronous transaction boundary on a single-line TextField.
+/// The canonical generic loop applies each real queued key to the existing
+/// field/history engine before delivering this callback and the next key.
+/// Tab remains canonical focus traversal; Escape cancels; repeat Enter is ignored.
+/// Hosts own validation, committed models and cancellation on model reconciliation.
+#[derive(Clone, Copy)]
+pub struct FieldTransactions(pub fn(&mut World, Entity, FieldTransaction));
+impl Component for FieldTransactions {}
+
+/// A draft edit or explicit transaction request, never committed model mutation.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum FieldTransaction {
+    /// Current draft after one chronological edit.
+    Changed(String),
+    /// Non-repeat plain Enter snapshot at exactly this input boundary.
+    Submit(String),
+    /// Plain Escape request. The owner decides how to restore its draft.
+    Cancel,
+    /// Focus leaves this field. None denotes window blur or loss of focus.
+    FocusLost(Option<Entity>),
+}
+fn transaction_notify(world: &mut World, entity: Entity, signal: FieldTransaction) {
+    if let Some(handler) = world.get::<FieldTransactions>(entity).copied() {
+        (handler.0)(world, entity, signal);
+    }
+}
+pub(crate) fn transaction_focus_lost(world: &mut World, next: Option<Entity>) {
+    let old = world.resource::<Focus>().and_then(|f| f.entity);
+    notify_focus_lost(world, old, next);
+}
+pub(crate) fn notify_focus_lost(world: &mut World, old: Option<Entity>, next: Option<Entity>) {
+    if let Some(e) =
+        old.filter(|e| world.has::<TextField>(*e) && world.has::<FieldTransactions>(*e))
+    {
+        break_typing_at(world, e);
+        world.remove::<ImePreview>(e);
+        transaction_notify(world, e, FieldTransaction::FocusLost(next));
+    }
+}
+fn ensure_field_caret(world: &mut World, entity: Entity) {
+    if !world.has::<Caret>(entity) {
+        let len = world
+            .get::<Label>(entity)
+            .map(|l| l.text.len())
+            .unwrap_or(0);
+        world.insert(
+            entity,
+            Caret {
+                index: len,
+                anchor: len,
+            },
+        );
+    }
+}
+pub(crate) fn prepare_transaction_field(world: &mut World) {
+    let Some(entity) = world
+        .resource::<Focus>()
+        .and_then(|f| f.entity)
+        .filter(|e| world.has::<TextField>(*e) && world.has::<FieldTransactions>(*e))
+    else {
+        return;
+    };
+    let existed = world.has::<Caret>(entity);
+    ensure_field_caret(world, entity);
+    place_from_pointer(world, entity, existed);
+    publish_field_primary(world, entity);
+}
+pub(crate) fn transaction_key(world: &mut World, entity: Entity, event: &KeyEvent) -> bool {
+    if !world.has::<TextField>(entity) || !world.has::<FieldTransactions>(entity) {
+        return false;
+    }
+    if event.released || event.synthetic {
+        return true;
+    }
+    if !crate::interaction::access_details(world, entity).focus {
+        return true;
+    }
+    // Use the canonical IME filter, without replaying the Input resource. The
+    // aggregate commit is inserted once at the field stage, never as a submit.
+    let mut one = Input::default();
+    one.keys = vec![event.clone()];
+    if let Some(input) = world.resource::<Input>() {
+        one.ime_preedit = input.ime_preedit.clone();
+        one.ime_commit = input.ime_commit.clone();
+    }
+    let filtered = crate::ime::text_frame(&one);
+    let Some(event) = filtered.keys.first() else {
+        return true;
+    };
+    let plain = !event.modifiers.command() && !event.modifiers.alt;
+    if plain && event.logical == LogicalKey::Named(crate::NamedKey::Tab) {
+        break_typing_at(world, entity);
+        return false;
+    }
+    ensure_field_caret(world, entity);
+    if plain
+        && matches!(
+            event.logical,
+            LogicalKey::Named(crate::NamedKey::Enter | crate::NamedKey::Escape)
+        )
+    {
+        break_typing_at(world, entity);
+        if !event.repeat && !crate::interaction::readonly(world, entity) {
+            if event.logical == LogicalKey::Named(crate::NamedKey::Escape) {
+                transaction_notify(world, entity, FieldTransaction::Cancel);
+            } else if world
+                .resource::<Input>()
+                .is_none_or(|i| i.ime_preedit.is_empty() && i.ime_commit.is_empty())
+            {
+                let text = world
+                    .get::<Label>(entity)
+                    .map(|l| l.text.clone())
+                    .unwrap_or_default();
+                send(
+                    world,
+                    Submitted {
+                        entity,
+                        text: text.clone(),
+                    },
+                );
+                transaction_notify(world, entity, FieldTransaction::Submit(text));
+            }
+        }
+        return true;
+    }
+    let before = world
+        .get::<Label>(entity)
+        .map(|l| l.text.clone())
+        .unwrap_or_default();
+    // The exact native event is borrowed, not synthesized/replayed. Readonly
+    // filtering uses the same canonical sanitizer/selection-only key policy.
+    let mut readonly_event = event.clone();
+    let event = if crate::interaction::readonly(world, entity) {
+        if !crate::interaction::readonly_field_key(event) {
+            return true;
+        }
+        readonly_event.text = None;
+        &readonly_event
+    } else {
+        event
+    };
+    edit_label_queue(world, entity, std::slice::from_ref(event), "", false);
+    let after = world
+        .get::<Label>(entity)
+        .map(|l| l.text.clone())
+        .unwrap_or_default();
+    if before != after {
+        send(
+            world,
+            TextChanged {
+                entity,
+                text: after.clone(),
+            },
+        );
+        transaction_notify(world, entity, FieldTransaction::Changed(after));
+    }
+    true
+}
+
 /// The focused field's label changed while it applied this frame's keys.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TextChanged {
@@ -120,9 +279,46 @@ pub fn apply_fields(world: &mut World) {
                 },
             );
         }
-        place_from_pointer(world, entity, existed);
-        publish_field_primary(world, entity);
-        edit_label(world, entity);
+        if world.has::<FieldTransactions>(entity) {
+            // Queued events were already consumed chronologically. Legacy chars
+            // and IME commits still use the existing engine at the frame boundary.
+            let before = world
+                .get::<Label>(entity)
+                .map(|l| l.text.clone())
+                .unwrap_or_default();
+            paste_field_primary(world, entity);
+            let commit = world
+                .resource::<Input>()
+                .map(|i| {
+                    let f = crate::ime::text_frame(i);
+                    let mut text = f.chars;
+                    text.push_str(&f.commit);
+                    text
+                })
+                .unwrap_or_default();
+            if !commit.is_empty() && !crate::interaction::readonly(world, entity) {
+                edit_label_queue(world, entity, &[], &commit, true);
+            }
+            let after = world
+                .get::<Label>(entity)
+                .map(|l| l.text.clone())
+                .unwrap_or_default();
+            if before != after {
+                send(
+                    world,
+                    TextChanged {
+                        entity,
+                        text: after.clone(),
+                    },
+                );
+                transaction_notify(world, entity, FieldTransaction::Changed(after));
+            }
+            sync_preview(world, entity);
+        } else {
+            place_from_pointer(world, entity, existed);
+            publish_field_primary(world, entity);
+            edit_label(world, entity);
+        }
     }
 }
 
@@ -319,6 +515,11 @@ fn focus_pressed_field(world: &mut World) {
     let Some(target) = target else {
         return;
     };
+    // GenericInteraction already focused/placed opted-in fields before keys;
+    // refocusing the press origin here would undo a later chronological Tab.
+    if world.has::<FieldTransactions>(target) {
+        return;
+    }
     if let Some(focus) = world.resource_mut::<Focus>() {
         focus.entity = Some(target);
     }
@@ -343,7 +544,7 @@ fn edit_label(world: &mut World, entity: crate::entity::Entity) {
     if keys.is_empty() {
         edit_label_legacy(world, entity, key, shift, &chars, &commit);
     } else {
-        edit_label_queue(world, entity, &keys, &commit);
+        edit_label_queue(world, entity, &keys, &commit, true);
     }
     let after = world
         .get::<Label>(entity)
@@ -428,6 +629,7 @@ fn edit_label_queue(
     entity: crate::entity::Entity,
     keys: &[KeyEvent],
     commit: &str,
+    consume_input: bool,
 ) {
     let platform = platform_of(world);
     let mut text = world
@@ -504,7 +706,7 @@ fn edit_label_queue(
     if clipboard_action {
         note_clipboard(world, copied.as_deref());
     }
-    if let Some(input) = world.resource_mut::<Input>() {
+    if let Some(input) = world.resource_mut::<Input>().filter(|_| consume_input) {
         input.keys.clear();
         input.chars.clear();
         input.ime_commit.clear();
@@ -528,4 +730,21 @@ pub(crate) fn sync_preview(world: &mut World, entity: crate::entity::Entity) {
             },
         );
     }
+}
+
+/// Owner-driven draft replacement, not a user edit or property model transaction.
+/// Only opted-in TextFields are accepted. Discards local caret/typing history so
+/// undo cannot resurrect an old object/property draft. Emits no typing events.
+pub fn reset_field_draft(world: &mut World, entity: Entity, text: &str) -> bool {
+    if !world.has::<TextField>(entity)
+        || !world.has::<FieldTransactions>(entity)
+        || !world.has::<Label>(entity)
+    {
+        return false;
+    }
+    world.get_mut::<Label>(entity).unwrap().text = text.into();
+    world.remove::<Caret>(entity);
+    world.remove::<EditHistory>(entity);
+    world.remove::<ImePreview>(entity);
+    true
 }

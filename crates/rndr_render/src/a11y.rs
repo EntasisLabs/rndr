@@ -88,6 +88,19 @@ fn platform_node(world: &World, node: &rndr_core::AccessNode) -> Node {
     if let Some(id) = details.controls {
         out.set_controls(vec![NodeId(id)]);
     }
+    if let Some(data) =
+        entity_from_access_id(node.id).and_then(|e| world.get::<rndr_core::DataAccess>(e))
+    {
+        if !data.headers.is_empty() {
+            out.set_described_by(
+                data.headers
+                    .iter()
+                    .filter(|e| world.is_alive(**e))
+                    .map(|e| NodeId(rndr_core::access_id(*e)))
+                    .collect::<Vec<_>>(),
+            );
+        }
+    }
     if let Some(id) = details.labelled_by {
         out.set_labelled_by(vec![NodeId(id)]);
     }
@@ -100,7 +113,12 @@ fn platform_node(world: &World, node: &rndr_core::AccessNode) -> Node {
     if !node.enabled {
         out.set_disabled();
     }
-    if node.selected || matches!(node.role, AccessRole::ListItem | AccessRole::TreeItem) {
+    if node.selected
+        || matches!(
+            node.role,
+            AccessRole::ListItem | AccessRole::TreeItem | AccessRole::Row
+        )
+    {
         out.set_selected(node.selected);
     }
     if let Some(level) = entity_from_access_id(node.id)
@@ -129,6 +147,10 @@ fn role(role: AccessRole) -> Role {
         AccessRole::Disclosure => Role::DisclosureTriangle,
         AccessRole::Tree => Role::Tree,
         AccessRole::TreeItem => Role::TreeItem,
+        AccessRole::Table => Role::Table,
+        AccessRole::Row => Role::Row,
+        AccessRole::ColumnHeader => Role::ColumnHeader,
+        AccessRole::Cell => Role::Cell,
     }
 }
 
@@ -314,5 +336,72 @@ mod tests {
         assert!(!node(row).supports_action(accesskit::Action::Focus));
         assert!(!node(row).supports_action(accesskit::Action::Click));
         assert_eq!(node(row).label(), Some("Draft, unsaved"));
+    }
+    #[test]
+    fn table_roles_values_header_description_and_no_cell_focus_reach_accesskit() {
+        use rndr_core::*;
+        let mut app = App::new();
+        app.add_plugin(GenericInteraction);
+        let w = app.world_mut();
+        let table = w.spawn((
+            Layout::column(),
+            DataAccess {
+                role: AccessRole::Table,
+                headers: vec![],
+            },
+            Semantics {
+                name: Some("Projects".into()),
+                ..Semantics::default()
+            },
+        ));
+        let header = w.spawn((
+            Label::new("Progress"),
+            DataAccess {
+                role: AccessRole::ColumnHeader,
+                headers: vec![],
+            },
+        ));
+        set_parent(w, header, table);
+        let row = w.spawn((
+            Button::new("row"),
+            ReleaseActivation,
+            Focusable,
+            SelectedState(true),
+            CollectionAccess {
+                role: AccessRole::Row,
+                expanded: None,
+                level: None,
+                parent: None,
+            },
+        ));
+        set_parent(w, row, table);
+        let cell = w.spawn((
+            Layout::column(),
+            DataAccess {
+                role: AccessRole::Cell,
+                headers: vec![header],
+            },
+        ));
+        set_parent(w, cell, row);
+        let text = w.spawn((Label::new("35 percent"),));
+        set_parent(w, text, cell);
+        let t = tree_update(w);
+        let native = |e| {
+            &t.nodes
+                .iter()
+                .find(|(id, _)| *id == NodeId(access_id(e)))
+                .unwrap()
+                .1
+        };
+        assert_eq!(native(table).role(), Role::Table);
+        assert_eq!(native(header).role(), Role::ColumnHeader);
+        assert_eq!(native(row).role(), Role::Row);
+        assert_eq!(native(row).is_selected(), Some(true));
+        assert_eq!(native(cell).role(), Role::Cell);
+        assert_eq!(native(cell).label(), Some("35 percent"));
+        assert_eq!(native(cell).described_by(), &[NodeId(access_id(header))]);
+        assert!(native(cell).labelled_by().is_empty());
+        assert!(!native(cell).supports_action(Action::Focus));
+        assert!(!native(cell).supports_action(Action::Click));
     }
 }

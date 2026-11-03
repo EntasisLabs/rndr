@@ -1,0 +1,4 @@
+
+thread 'main' (3861004) panicked at crates/rndr/examples/../../rndr_ui/examples/support/data_editors_gallery.rs:354:50:
+called `Result::unwrap()` on an `Err` value: InvalidProps
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

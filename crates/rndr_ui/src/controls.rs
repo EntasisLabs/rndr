@@ -217,7 +217,9 @@ pub(crate) fn owns_entity(world: &World, entity: Entity) -> bool {
 
 /// Shared identity check also used by passive surfaces; no global registry.
 pub(crate) fn key_at(world: &World, entity: Entity) -> Option<UiId> {
-    if let Some(key) = crate::collections::key_at(world, entity) {
+    if let Some(key) =
+        crate::data::key_at(world, entity).or_else(|| crate::collections::key_at(world, entity))
+    {
         return Some(key);
     }
     world

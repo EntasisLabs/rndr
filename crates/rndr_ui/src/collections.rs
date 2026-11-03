@@ -698,6 +698,12 @@ fn sync(world: &mut World, root: Entity, view: &mut View) {
     }
 }
 impl ViewHandle {
+    /// Validate generation and the owned interaction/content slot topology.
+    /// Wrapping compositions use this before their own atomic reconciliation.
+    pub fn validate(self, world: &World) -> Result<(), UiError> {
+        validate(world, self.root)
+    }
+
     /// Current selected stable ID. Collapsing a branch does not clear selection.
     pub fn selected(self, world: &World) -> Option<ItemId> {
         world.get::<View>(self.root).and_then(|v| v.selected)

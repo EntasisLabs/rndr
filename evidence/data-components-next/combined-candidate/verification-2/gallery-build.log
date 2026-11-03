@@ -1,0 +1,5 @@
+$ cargo build --offline --locked -p rndr --example data_editors_gallery --features observe 
+   Compiling rndr v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-composable-datatable-and-propertyinspector/crates/rndr)
+    Finished `dev` profile [unoptimized] target(s) in 0.87s
+
+EXIT=0

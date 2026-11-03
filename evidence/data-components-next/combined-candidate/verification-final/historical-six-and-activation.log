@@ -1,0 +1,25 @@
+$ cargo test --offline --locked -p rndr_ui --test combined_original_six --test combined_activation_policy 
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-composable-datatable-and-propertyinspector/crates/rndr_ui)
+    Finished `test` profile [unoptimized] target(s) in 0.76s
+     Running tests/combined_activation_policy.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/combined_activation_policy-ce95a4f8956abec8)
+
+running 2 tests
+test nested_handlers_self_invalidation_and_host_fifo ... ok
+test nested_handlers_at_last_fifo_slot_consume_only_their_own_admission ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/combined_original_six.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/combined_original_six-321544405557eb41)
+
+running 6 tests
+test focused_disclosure_becoming_leaf_normalizes_to_surviving_row ... ok
+test at_disclosure_activate_then_tab_does_not_steal_focus_back ... ok
+test disclosure_enter_then_right_in_one_batch_respects_chronology ... ok
+test programmatic_expansion_does_not_cancel_unrelated_armed_host_button ... ok
+test disclosure_enter_then_right_in_separate_frames_is_control ... ok
+test pointer_disclosure_release_then_tab_does_not_steal_focus_back ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+EXIT=0
