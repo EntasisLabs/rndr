@@ -1,0 +1,22 @@
+ui available KiB=1261240 command: cargo test --offline --locked -p rndr_ui --tests
+ui PASS
+core available KiB=1262912 command: cargo test --offline --locked -p rndr_core --test markdown --test layout --test text_engine --test editor --test editor_navigation --test editor_drag --test a1_interaction --test pane
+core PASS
+parser available KiB=1262584 command: cargo test --offline --locked -p rndr_core --lib markdown
+parser PASS
+highlight available KiB=1262500 command: cargo test --offline --locked -p rndr_core --features highlight --test markdown
+highlight PASS
+paint available KiB=1262356 command: cargo test --offline --locked -p rndr_paint --tests
+paint PASS
+capture available KiB=1261928 command: cargo test --offline --locked -p rndr_render --features observe --lib capture::tests
+capture PASS
+gallery available KiB=1261424 command: cargo build --offline --locked -p rndr --example markdown_gallery --features observe
+gallery PASS
+fallback available KiB=1261292 command: cargo check --offline --locked -p rndr --example markdown_gallery --no-default-features
+fallback PASS
+docs available KiB=1261220 command: cargo doc --offline --locked -p rndr_ui --no-deps
+docs PASS
+light available KiB=1261016 command: /Users/theelevators/Library/Application\ Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/examples/markdown_gallery --complete --capture-prefix evidence/markdown-slots-review/final/light
+light PASS
+dark-narrow available KiB=1260908 command: /Users/theelevators/Library/Application\ Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/examples/markdown_gallery --complete --dark --narrow --capture-prefix evidence/markdown-slots-review/final/dark-narrow
+dark-narrow PASS

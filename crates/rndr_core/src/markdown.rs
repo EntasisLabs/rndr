@@ -1702,6 +1702,10 @@ fn markdown_input(world: &mut World) {
             }
         }
         if let Some((view_id, pos)) = pressed_at {
+            // Generic background clicks retain focus. A text press instead
+            // transfers keyboard ownership away from embedded controls, with
+            // normal blur notification and armed activation cancellation.
+            crate::interaction::release_focus(world);
             let scroll = world
                 .get::<Scroll>(view_id)
                 .map(|scroll| scroll.offset)

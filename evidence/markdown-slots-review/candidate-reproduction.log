@@ -1,0 +1,36 @@
+   Compiling rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-markdown-host-slots-and-theme-bridge/crates/rndr_core)
+   Compiling rndr_paint v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-markdown-host-slots-and-theme-bridge/crates/rndr_paint)
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-markdown-host-slots-and-theme-bridge/crates/rndr_ui)
+    Finished `test` profile [unoptimized] target(s) in 3.31s
+     Running tests/markdown_adversarial.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/markdown_adversarial-7d482271276bdad8)
+
+running 3 tests
+test fabricated_public_handle_fields_cannot_mutate_another_binding ... ok
+test clicking_fallback_after_embedded_focus_restores_markdown_copy ... FAILED
+test embedded_editor_drag_does_not_scroll_markdown_parent ... FAILED
+
+failures:
+
+---- clicking_fallback_after_embedded_focus_restores_markdown_copy stdout ----
+
+thread 'clicking_fallback_after_embedded_focus_restores_markdown_copy' (4864905) panicked at crates/rndr_ui/tests/markdown_adversarial.rs:41:5:
+assertion `left == right` failed
+  left: ""
+ right: "Live\n\nFallback paragraph"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- embedded_editor_drag_does_not_scroll_markdown_parent stdout ----
+
+thread 'embedded_editor_drag_does_not_scroll_markdown_parent' (4864906) panicked at crates/rndr_ui/tests/markdown_adversarial.rs:70:5:
+assertion `left == right` failed
+  left: [0.0, -20.0]
+ right: [0.0, 0.0]
+
+
+failures:
+    clicking_fallback_after_embedded_focus_restores_markdown_copy
+    embedded_editor_drag_does_not_scroll_markdown_parent
+
+test result: FAILED. 1 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p rndr_ui --test markdown_adversarial`

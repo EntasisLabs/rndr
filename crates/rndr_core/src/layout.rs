@@ -299,7 +299,8 @@ pub fn hit_test(world: &World, x: f32, y: f32) -> Option<Entity> {
 
 /// Apply the wheel, then a held contact.
 /// The wheel goes to the deepest [`Scroll`] under the pointer.
-/// A press that is not on a [`Splitter`] captures that scrollport. Once the
+/// A press that is not on a [`Splitter`] captures that scrollport, except a
+/// left press inside an [`crate::Editor`] (which owns selection drag). Once the
 /// contact moves [`SCROLL_DRAG_SLOP`] points, further movement is added to its
 /// offset. The press itself is left for focus. Offset changes are clamped and
 /// laid out immediately so later capture, hit testing and focus reveal read
@@ -342,7 +343,13 @@ fn apply_pointer_drag(world: &mut World, input: &Input) {
     let position = input.pointer.position;
     if input.pointer.pressed {
         let entity = hit_test(world, position[0], position[1]).and_then(|hit| {
-            if ancestor_with::<Splitter>(world, hit).is_some() {
+            if ancestor_with::<Splitter>(world, hit).is_some()
+                || (input.pointer.button == crate::PointerButton::Left
+                    && ancestor_with::<crate::Editor>(world, hit).is_some())
+            {
+                // Editors own left-drag text selection (and bounded internal
+                // autoscroll), including inside retained markdown host slots.
+                // Do not simultaneously move their ancestor scrollport.
                 None
             } else {
                 ancestor_with::<Scroll>(world, hit)

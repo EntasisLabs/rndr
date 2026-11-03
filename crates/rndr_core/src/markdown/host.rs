@@ -21,8 +21,10 @@ pub enum MarkdownSlotError {
 
 /// Retained root owned by the markdown view. Add real child entities with
 /// `set_parent`, or mount a semantic UI component under `root`. The host owns
-/// descendant content/updates, not the root's layout or parent. All descendants
-/// die on detach, block replacement/removal, or view despawn. No callbacks run.
+/// descendant content/updates, not the root's layout or parent. Descendants
+/// still attached at removal die on detach, block replacement/removal, or view
+/// despawn; explicitly reparented descendants follow their new owner. No
+/// removal callbacks run.
 /// Copying a handle does not extend lifetime; methods validate it each time.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MarkdownSlot {
@@ -69,7 +71,9 @@ fn same(a: &MarkdownBlock, b: &MarkdownBlock) -> bool {
 /// Replace the complete visual body of one last-synced block with a host root.
 /// `expected` must match `MarkdownView::blocks()[index]`; pending source edits
 /// are rejected. Binding is positional and content-checked, not a fuzzy text
-/// search: insertion/replacement at that index retires it on the next sync.
+/// search: different semantic content at that index retires it on the next
+/// sync. Identical content remaining at that index is indistinguishable from
+/// an inserted/reordered copy; no source-location identity is promised.
 /// Append/reparse and theme/width changes preserve its root and descendants
 /// while that block's semantic content remains unchanged. Identical blocks at
 /// distinct indexes are independent. No special markdown syntax is interpreted.

@@ -1,0 +1,16 @@
+   Compiling rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-markdown-host-slots-and-theme-bridge/crates/rndr_core)
+   Compiling rndr_paint v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-markdown-host-slots-and-theme-bridge/crates/rndr_paint)
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-markdown-host-slots-and-theme-bridge/crates/rndr_ui)
+    Finished `test` profile [unoptimized] target(s) in 4.76s
+     Running tests/markdown_adversarial.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/markdown_adversarial-7d482271276bdad8)
+
+running 7 tests
+test reparented_descendant_is_no_longer_owned_by_slot_subtree ... ok
+test positional_identity_preserves_indistinguishable_same_index_not_relocation ... ok
+test text_press_notifies_focus_boundary_once_and_cancels_armed_space ... ok
+test fabricated_public_handle_fields_cannot_mutate_another_binding ... ok
+test text_click_in_another_view_reclaims_copy_from_old_host_focus ... ok
+test clicking_fallback_after_embedded_focus_restores_markdown_copy ... ok
+test embedded_editor_drag_does_not_scroll_markdown_parent ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s

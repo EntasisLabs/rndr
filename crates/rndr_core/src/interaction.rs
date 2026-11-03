@@ -457,6 +457,20 @@ pub fn request_focus(world: &mut World, entity: Entity) -> bool {
     true
 }
 
+// Passive surfaces (e.g. markdown text) can take keyboard ownership without
+// creating a focusable control. Keep synchronous blur and armed-input cleanup
+// on the same path as request_focus, and avoid a duplicate blur next frame.
+pub(crate) fn release_focus(world: &mut World) {
+    crate::field::transaction_focus_lost(world, None);
+    cancel_activation(world);
+    if let Some(state) = world.resource_mut::<InteractionState>() {
+        state.focus = None;
+    }
+    if let Some(focus) = world.resource_mut::<Focus>() {
+        focus.entity = None;
+    }
+}
+
 /// Generic focus policy, no Shell/file-tree selection, edit, filesystem, or quit side effects.
 /// Installs Chrome idempotently and uses its existing Input stage, not another dispatcher.
 pub struct GenericInteraction;

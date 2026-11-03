@@ -1,0 +1,26 @@
+   Compiling rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-markdown-host-slots-and-theme-bridge/crates/rndr_ui)
+    Finished `test` profile [unoptimized] target(s) in 1.67s
+     Running tests/markdown_adversarial.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-refined-cross-platform-ui-framework/target/debug/deps/markdown_adversarial-7d482271276bdad8)
+
+running 3 tests
+test fabricated_public_handle_fields_cannot_mutate_another_binding ... ok
+test clicking_fallback_after_embedded_focus_restores_markdown_copy ... ok
+test embedded_editor_drag_does_not_scroll_markdown_parent ... FAILED
+
+failures:
+
+---- embedded_editor_drag_does_not_scroll_markdown_parent stdout ----
+
+thread 'embedded_editor_drag_does_not_scroll_markdown_parent' (4863445) panicked at crates/rndr_ui/tests/markdown_adversarial.rs:70:5:
+assertion `left == right` failed
+  left: [0.0, -20.0]
+ right: [0.0, 0.0]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    embedded_editor_drag_does_not_scroll_markdown_parent
+
+test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p rndr_ui --test markdown_adversarial`

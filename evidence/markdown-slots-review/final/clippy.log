@@ -1,0 +1,22 @@
+    Checking rndr_core v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-markdown-host-slots-and-theme-bridge/crates/rndr_core)
+    Checking rndr_paint v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-markdown-host-slots-and-theme-bridge/crates/rndr_paint)
+    Checking rndr_ui v0.3.1 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-markdown-host-slots-and-theme-bridge/crates/rndr_ui)
+error: the borrowed expression implements the required traits
+  --> crates/rndr_core/tests/a1_wrapped_hug.rs:79:24
+   |
+79 | ...ew(&"Nested reading content wraps without clipping. ".repeat(8))
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: change this to: `"Nested reading content wraps without clipping. ".repeat(8)`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#needless_borrows_for_generic_args
+   = note: `-D clippy::needless-borrows-for-generic-args` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::needless_borrows_for_generic_args)]`
+
+error: the borrowed expression implements the required traits
+   --> crates/rndr_core/tests/a1_wrapped_hug.rs:125:28
+    |
+125 | ...Label::new(&"Long wrapping row content. ".repeat(10)).overflow(TextO...
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: change this to: `"Long wrapping row content. ".repeat(10)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#needless_borrows_for_generic_args
+
+error: could not compile `rndr_core` (test "a1_wrapped_hug") due to 2 previous errors

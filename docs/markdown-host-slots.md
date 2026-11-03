@@ -51,9 +51,12 @@ shows the complete path.
   and preserves state. This is NOT a source-position ID or content-search API.
 - Appending/streaming, a full reparse with that block unchanged, changes before
   it that preserve its index, theme changes and width-only resizing preserve
-  root/child identities, host state and focus. Inserting before it, changing its
-  content/kind/formatting, removing it or externally deleting the root retires
-  the binding on the next sync. There is no automatic migration to a new index.
+  root/child identities, host state and focus. An insertion/removal before it
+  retires the binding only if the resulting block at the bound index differs;
+  an identical block left at that index is indistinguishable, even if it came
+  from a different source location. Changing that index's content/kind/formatting,
+  removing the index or externally deleting the root retires the binding on the
+  next sync. There is no automatic migration to a new index.
 - Pending source edits reject new mounts conservatively (`StaleBlock`). Wrong
   expected content, missing view/index, duplicate block/ID and invalid height
   reject without partial mutation. Use a new ID to deliberately remount.
@@ -64,7 +67,9 @@ shows the complete path.
   binding even while parsing is pending; a dead/removed handle is rejected.
 - The markdown view **owns the root and all descendants**. Attachments are
   transferred, not borrowed: detach, replacement/removal and view `despawn`
-  cascade through them. Keep durable models/resources outside the subtree.
+  cascade through them. A descendant explicitly reparented outside the root
+  before removal is no longer in the owned subtree and survives, per the normal
+  core hierarchy contract. Keep durable models/resources outside the subtree.
   This is deliberately different from UI Card's borrowed/adopted-slot contract.
   Do not reparent the root, replace its Layout/Children, remove MarkdownView
   directly, or attach unrelated direct children to the markdown view.
@@ -85,7 +90,12 @@ Embedded controls use the **existing** core hit testing, Tab/Shift+Tab order,
 focus, activation FIFO, Enter and Space release behavior. No second dispatcher.
 A press in a host root does not start markdown text selection/link activation.
 Markdown copy/select-all shortcuts yield while focus is within a host subtree.
-Outside it, normal markdown selection, copy, links and streaming remain intact.
+A press on ordinary markdown text releases the previous control focus, notifies
+its normal focus boundary and cancels armed activation; subsequent copy/select-all
+belong to that text view, even if a control in another view was focused. Editor
+left-drag selection owns its gesture instead of dragging the ancestor scrollport;
+wheel scrolling over it still works. Outside hosts, normal markdown selection,
+copy, links and streaming remain intact.
 Text copied across a replaced block is its original markdown **fallback**, not
 embedded control labels/values. Selection does not introspect host controls.
 Host-side direct programmatic activation still goes through core admission.
