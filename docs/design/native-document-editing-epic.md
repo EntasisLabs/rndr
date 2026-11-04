@@ -1,6 +1,8 @@
 # Epic: composable native document editing through rndr_ui
 
-**Status: exploration complete / proposal for user decisions. Implementation not started or authorized by this document.**
+**Status: exploration complete; E1 experimental source slice implemented for review. Native/platform and performance gates remain open.**
+
+2026-11-04 continuation: the user authorized the first slice (source session, retained surface, fake host). See the [E1 implementation record](native-document-editing-e1.md) for actual API, decisions, verification and limitations. This is not approval of later milestones, release integration or the entire epic. The exploration scope below describes the original docs-only assignment.
 
 Created 2026-11-04 against rndr `40a19db725771fcad8199de96638e7b5be557fc9`. This assignment permits exploration and docs only. No production editor changes, external issue publication, integration or self-approval. Sender retains review/native integration. Subsequent user discussion may authorize bounded implementation; unchecked tasks below are not that authority.
 

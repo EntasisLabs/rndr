@@ -220,6 +220,7 @@ pub(crate) fn key_at(world: &World, entity: Entity) -> Option<UiId> {
     if let Some(key) = crate::selection::key_at(world, entity)
         .or_else(|| crate::data::key_at(world, entity))
         .or_else(|| crate::collections::key_at(world, entity))
+        .or_else(|| crate::editing::key_at(world, entity))
     {
         return Some(key);
     }

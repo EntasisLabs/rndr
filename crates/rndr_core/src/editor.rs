@@ -213,6 +213,8 @@ pub enum BufferEditError {
     InvalidRange,
     /// The target has an active IME preedit. Retry after composition ends.
     Composing,
+    /// A managed source view must use its revisioned SourceSession instead.
+    ManagedDocument,
 }
 
 impl std::fmt::Display for BufferEditError {
@@ -221,6 +223,7 @@ impl std::fmt::Display for BufferEditError {
             Self::MissingBuffer => "entity has no Buffer",
             Self::InvalidRange => "range is not an in-bounds UTF-8 byte range",
             Self::Composing => "buffer has an active IME composition",
+            Self::ManagedDocument => "managed document requires a revisioned source batch",
         })
     }
 }
@@ -267,6 +270,9 @@ pub fn edit_buffer(
     range: std::ops::Range<usize>,
     replacement: &str,
 ) -> Result<bool, BufferEditError> {
+    if world.has::<crate::editing::SourceBinding>(entity) {
+        return Err(BufferEditError::ManagedDocument);
+    }
     let buffer = world
         .get::<Buffer>(entity)
         .ok_or(BufferEditError::MissingBuffer)?;
@@ -517,11 +523,16 @@ fn move_vertical(
 }
 
 pub fn apply_editor(world: &mut World) {
+    crate::editing::prepare_source_input(world);
     let editors = world.entities_with::<Editor>();
     for entity in editors {
         if !world.has::<Buffer>(entity) {
             world.remove::<EditorDrag>(entity);
             continue;
+        }
+        let managed = world.has::<crate::editing::SourceBinding>(entity);
+        if managed {
+            crate::editing::project_source(world, entity);
         }
         let focused = world.resource::<Focus>().and_then(|focus| focus.entity) == Some(entity);
         let mut reveal = focused
@@ -563,7 +574,20 @@ pub fn apply_editor(world: &mut World) {
             });
         if focused {
             edit_focused(world, entity);
-            reveal |= place_from_pointer(world, entity);
+            let composing = world
+                .get::<crate::editing::SourceBinding>(entity)
+                .and_then(|b| {
+                    world
+                        .resource::<crate::editing::SourceDocuments>()?
+                        .get(b.document)
+                })
+                .is_some_and(crate::editing::SourceSession::is_composing);
+            if !composing {
+                reveal |= place_from_pointer(world, entity);
+            }
+            if managed {
+                crate::editing::sync_selection(world, entity);
+            }
         } else {
             world.remove::<VerticalGoal>(entity);
             world.remove::<EditorDrag>(entity);
@@ -578,6 +602,10 @@ pub fn apply_editor(world: &mut World) {
 }
 
 fn edit_focused(world: &mut World, entity: crate::entity::Entity) {
+    if world.has::<crate::editing::SourceBinding>(entity) {
+        edit_managed(world, entity);
+        return;
+    }
     let frame = match world.resource::<Input>() {
         Some(input) => crate::ime::text_frame(input),
         None => return,
@@ -710,6 +738,160 @@ fn edit_focused(world: &mut World, entity: crate::entity::Entity) {
     }
 }
 
+// Managed input reuses key semantics and shaping, but history and mutation live
+// in SourceSession. The entity never receives a competing EditHistory.
+fn edit_managed(world: &mut World, entity: crate::Entity) {
+    use crate::editing::{EditOrigin, SourceBinding, SourceDocuments, SourceSelection};
+    let Some(input) = world.resource::<Input>() else {
+        return;
+    };
+    let frame = crate::ime::text_frame(input);
+    let binding = *world.get::<SourceBinding>(entity).expect("managed view");
+    let platform = platform_of(world);
+    let now = crate::typing::frame_now(world);
+    let readonly = crate::interaction::readonly(world, entity);
+    let mut clip = world
+        .resource::<Clipboard>()
+        .map(|c| c.text.clone())
+        .unwrap_or_default();
+    let mut keys = frame.keys;
+    if keys.is_empty() {
+        let mut mods = Modifiers::new();
+        mods.shift = frame.shift;
+        let named = match frame.legacy_key {
+            Some(Key::Up) => Some(crate::NamedKey::ArrowUp),
+            Some(Key::Down) => Some(crate::NamedKey::ArrowDown),
+            Some(Key::Left) => Some(crate::NamedKey::ArrowLeft),
+            Some(Key::Right) => Some(crate::NamedKey::ArrowRight),
+            Some(Key::Backspace) => Some(crate::NamedKey::Backspace),
+            Some(Key::Delete) => Some(crate::NamedKey::Delete),
+            Some(Key::Enter) => Some(crate::NamedKey::Enter),
+            _ => None,
+        };
+        if let Some(named) = named {
+            keys.push(KeyEvent::named(named, mods));
+        }
+        if matches!(frame.legacy_key, Some(Key::Copy | Key::Cut | Key::Paste)) {
+            let ch = match frame.legacy_key {
+                Some(Key::Copy) => 'c',
+                Some(Key::Cut) => 'x',
+                _ => 'v',
+            };
+            if platform == crate::Platform::Mac {
+                mods.super_key = true;
+            } else {
+                mods.ctrl = true;
+            }
+            keys.push(KeyEvent::character(ch, mods));
+        }
+        if !frame.chars.is_empty() {
+            keys.push(KeyEvent {
+                logical: LogicalKey::Unidentified,
+                text: Some(frame.chars),
+                code: None,
+                modifiers: Modifiers::new(),
+                repeat: false,
+                released: false,
+                synthetic: false,
+                order: KeyEvent::UNORDERED,
+            });
+        }
+    }
+    let mut copied = None;
+    let mut clipboard_action = false;
+    for event in keys {
+        if event.released || event.synthetic {
+            continue;
+        }
+        let composing = world
+            .resource::<SourceDocuments>()
+            .and_then(|d| d.get(binding.document))
+            .is_some_and(crate::editing::SourceSession::is_composing);
+        if composing {
+            continue;
+        }
+        let delta = match steer(&event, platform) {
+            Steer::Up => Some(-1),
+            Steer::Down => Some(1),
+            _ => None,
+        };
+        if let Some(delta) = delta {
+            let Some(doc) = world
+                .resource::<SourceDocuments>()
+                .and_then(|d| d.get(binding.document))
+            else {
+                break;
+            };
+            let text = doc.text().to_string();
+            let s = doc.selection();
+            let (head, anchor) = move_vertical(
+                world,
+                entity,
+                &text,
+                s.head,
+                s.anchor,
+                delta,
+                event.modifiers.shift,
+            );
+            let _ = world
+                .resource_mut::<SourceDocuments>()
+                .unwrap()
+                .get_mut(binding.document)
+                .unwrap()
+                .set_selection(SourceSelection { head, anchor });
+            continue;
+        }
+        world.remove::<VerticalGoal>(entity);
+        let result = world
+            .resource_mut::<SourceDocuments>()
+            .and_then(|d| d.get_mut(binding.document))
+            .map(|d| d.native_key(&event, platform, now, &clip, EditOrigin::Keyboard, readonly));
+        match result {
+            Some(Ok(step)) => {
+                if let Some(text) = step.copied {
+                    clip = text.clone();
+                    copied = Some(text);
+                }
+                clipboard_action |= step.clipboard_action;
+            }
+            Some(Err(error)) => {
+                world.insert(entity, crate::editing::SourceInputError(error));
+            }
+            None => {}
+        }
+    }
+    if !frame.commit.is_empty() {
+        crate::editing::finish_composition(world, entity);
+        let event = KeyEvent {
+            logical: LogicalKey::Unidentified,
+            text: Some(frame.commit),
+            code: None,
+            modifiers: Modifiers::new(),
+            repeat: false,
+            released: false,
+            synthetic: false,
+            order: KeyEvent::UNORDERED,
+        };
+        if let Some(Err(error)) = world
+            .resource_mut::<SourceDocuments>()
+            .and_then(|d| d.get_mut(binding.document))
+            .map(|d| d.native_key(&event, platform, now, &clip, EditOrigin::Ime, readonly))
+        {
+            world.insert(entity, crate::editing::SourceInputError(error));
+        }
+    }
+    crate::editing::project_source(world, entity);
+    if clipboard_action {
+        note_clipboard(world, copied.as_deref());
+    }
+    if let Some(input) = world.resource_mut::<Input>() {
+        input.keys.clear();
+        input.chars.clear();
+        input.ime_commit.clear();
+        input.key = None;
+    }
+}
+
 fn edit_queue(world: &mut World, entity: crate::entity::Entity, keys: &[KeyEvent], commit: &str) {
     let platform = platform_of(world);
     let Some(buffer) = world.get::<Buffer>(entity) else {
@@ -809,7 +991,7 @@ fn edit_queue(world: &mut World, entity: crate::entity::Entity, keys: &[KeyEvent
     }
 }
 
-fn replace_buffer(buffer: &mut Buffer, text: &str, caret: usize, anchor: usize) {
+pub(crate) fn replace_buffer(buffer: &mut Buffer, text: &str, caret: usize, anchor: usize) {
     if buffer.text() != text {
         let len = buffer.len();
         buffer.delete_range(0, len);
@@ -821,6 +1003,16 @@ fn replace_buffer(buffer: &mut Buffer, text: &str, caret: usize, anchor: usize) 
 }
 
 fn sync_ime_preview(world: &mut World, entity: crate::entity::Entity) {
+    if let Some(binding) = world.get::<crate::editing::SourceBinding>(entity) {
+        let composing = world
+            .resource::<crate::editing::SourceDocuments>()
+            .and_then(|docs| docs.get(binding.document))
+            .is_some_and(|doc| doc.is_composing() && !doc.is_readonly());
+        if !composing {
+            world.remove::<crate::ImePreview>(entity);
+            return;
+        }
+    }
     let preedit = world
         .resource::<Input>()
         .map(|input| input.ime_preedit.clone())

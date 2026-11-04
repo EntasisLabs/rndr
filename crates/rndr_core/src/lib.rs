@@ -76,6 +76,8 @@ mod desktop;
 mod dialog;
 mod disclosure;
 mod edit;
+/// Experimental revisioned source document sessions and view attachment.
+pub mod editing;
 mod editor;
 mod entity;
 mod event;

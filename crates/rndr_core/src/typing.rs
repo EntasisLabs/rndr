@@ -39,6 +39,27 @@ pub struct EditHistory {
 }
 
 impl EditHistory {
+    /// Enforce the managed-session snapshot budget, evicting oldest steps.
+    pub(crate) fn trim_bytes(&mut self, limit: usize) {
+        let mut bytes: usize = self
+            .undo
+            .iter()
+            .chain(&self.redo)
+            .map(|s| s.text.capacity() + std::mem::size_of::<Snap>())
+            .sum();
+        while bytes > limit {
+            let snap = if !self.undo.is_empty() {
+                self.undo.remove(0)
+            } else if !self.redo.is_empty() {
+                self.redo.remove(0)
+            } else {
+                break;
+            };
+            bytes = bytes.saturating_sub(snap.text.capacity() + std::mem::size_of::<Snap>());
+            self.break_run();
+        }
+    }
+
     /// Record a validated external source edit in the keyboard history.
     pub(crate) fn record_source_edit(&mut self, text: String, index: usize, anchor: usize) {
         self.push_undo(Snap {
@@ -386,7 +407,7 @@ fn apply_action(
     }
 }
 
-fn restore(
+pub(crate) fn restore(
     text: &mut String,
     index: &mut usize,
     anchor: &mut usize,

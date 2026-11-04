@@ -10,6 +10,7 @@ pub mod collections;
 pub mod composition;
 pub mod controls;
 pub mod data;
+pub mod editing;
 pub mod selection;
 pub mod style;
 pub mod surfaces;
@@ -27,7 +28,9 @@ pub use tokens::{Appearance, Contrast, Density, Space, Token, Typography, UiThem
 /// under their direct parent, not globally. This read-only adapter can be passed
 /// to headless capture without introducing a renderer dependency into UI/core.
 pub fn identity(world: &rndr_core::World, entity: rndr_core::Entity) -> Option<UiId> {
-    controls::key_at(world, entity).or_else(|| surfaces::key_at(world, entity))
+    controls::key_at(world, entity)
+        .or_else(|| surfaces::key_at(world, entity))
+        .or_else(|| editing::key_at(world, entity))
 }
 
 /// Sole installation owner for UI styling and reusable core interaction.

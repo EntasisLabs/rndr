@@ -2,6 +2,8 @@
 
 **Proposal, not an approved or implemented API.** Names in `text` fences are illustrative Rust-like pseudocode, deliberately not compilable doctests. Existing APIs such as `Button::mount`, `UiId`, `Buffer`, `edit_buffer` and `UiTheme` are real; all `editing::*` names below are proposed. The [evidence matrix](native-document-editing-evidence.md) establishes the baseline; the [epic](native-document-editing-epic.md) scopes delivery.
 
+**Implementation follow-up:** the [E1 record](native-document-editing-e1.md) documents the experimental source-only subset now implemented. Its concrete API differs from the illustrative sketches below; source/tree/projection/extensions and multi-view proposals remain future work.
+
 ## 1. Boundaries: cohesive sessions, composable presentation
 
 | Layer | Proposed responsibility | Reuse / constraint |

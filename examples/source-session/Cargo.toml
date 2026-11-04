@@ -1,0 +1,13 @@
+[package]
+name = "source-session"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Experimental retained source document with an explicit fake save host"
+
+[dependencies]
+rndr_core = { workspace = true }
+rndr_ui = { path = "../../crates/rndr_ui" }
+rndr_paint = { workspace = true }
+rndr_render = { workspace = true, features = ["observe"] }

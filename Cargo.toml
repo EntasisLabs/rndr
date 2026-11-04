@@ -18,6 +18,7 @@ members = [
     "examples/pen-probe",
     "examples/canvas-scene",
     "examples/create-view",
+    "examples/source-session",
 ]
 
 [workspace.package]

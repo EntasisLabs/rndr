@@ -37,6 +37,16 @@ fn chord(app: &mut App, ch: char) {
 
 #[test]
 fn styled_unicode_source_edit_undo_resize_and_hit_testing_use_shaped_rows() {
+    shaped_source(false);
+}
+
+#[test]
+fn managed_session_unicode_source_edit_undo_resize_and_hit_testing_use_shaped_rows() {
+    shaped_source(true);
+}
+
+fn shaped_source(managed: bool) {
+    use rndr_core::editing::*;
     let mut app = App::new();
     app.add_plugin(Chrome);
     app.world_mut().insert_resource(Focus::default());
@@ -61,6 +71,15 @@ fn styled_unicode_source_edit_undo_resize_and_hit_testing_use_shaped_rows() {
             ..Default::default()
         },
     ));
+    let document = if managed {
+        let mut docs = SourceDocuments::default();
+        let document = docs.open(source);
+        app.world_mut().insert_resource(docs);
+        attach_source(app.world_mut(), entity, document).unwrap();
+        Some(document)
+    } else {
+        None
+    };
     app.world_mut().resource_mut::<Focus>().unwrap().entity = Some(entity);
     refresh_spans(&mut app, entity);
     frame(&mut app);
@@ -75,7 +94,27 @@ fn styled_unicode_source_edit_undo_resize_and_hit_testing_use_shaped_rows() {
             .any(|g| g.atlas == 1),
         "real emoji shaping"
     );
-    edit_buffer(app.world_mut(), entity, 3..4, "done").unwrap();
+    if let Some(document) = document {
+        let session = app
+            .world_mut()
+            .resource_mut::<SourceDocuments>()
+            .unwrap()
+            .get_mut(document)
+            .unwrap();
+        session
+            .commit(SourceBatch {
+                document,
+                base: session.revision(),
+                origin: EditOrigin::Host(1),
+                changes: vec![SourceChange {
+                    range: 3..4,
+                    replacement: "done".into(),
+                }],
+            })
+            .unwrap();
+    } else {
+        edit_buffer(app.world_mut(), entity, 3..4, "done").unwrap();
+    }
     refresh_spans(&mut app, entity);
     frame(&mut app);
     let changed = source.replacen("[ ]", "[done]", 1);
