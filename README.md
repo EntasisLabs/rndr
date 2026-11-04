@@ -148,6 +148,8 @@ On macOS, `PinchGesture` and `RotationGesture` are also `Gesture` events and are
 
 ## Text input
 
+Planning the next editing layer: the [composable native document-editing epic](docs/design/native-document-editing-epic.md) links a source-evidenced capability matrix and architecture/API sketches. It is an exploration proposal, not an implemented API or authorization to build the whole editor.
+
 For app-owned source-range edits that must share keyboard Undo/Redo, use
 `edit_buffer` rather than the history-free `Buffer` mutations. See the
 [source-backed editing contract and example](docs/source-backed-editing.md),

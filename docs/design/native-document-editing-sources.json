@@ -1,0 +1,280 @@
+{
+  "schema_version": 1,
+  "observed_on": "2026-11-04",
+  "purpose": "Source audit inventory, not execution evidence. Files supplied bounded excerpts or symbol inventories; no claim of full-file review. Hashes identify working bytes at inspection; hashes match Git HEAD blobs below.",
+  "repositories": [
+    {
+      "repository": "rndr",
+      "revision": "40a19db725771fcad8199de96638e7b5be557fc9",
+      "files": [
+        {
+          "path": "README.md",
+          "sha256": "776936b6bb4382c4370e6c4a9526b221fc7c7c1f9379ccea6ae9fd06cd096029",
+          "matches_head_blob": true
+        },
+        {
+          "path": "docs/design/A1-api-decisions.md",
+          "sha256": "adf816c2b3c7272a68dd4dca07999a8af921673980a12bf19b6a55958d701010",
+          "matches_head_blob": true
+        },
+        {
+          "path": "docs/design/A2-components.md",
+          "sha256": "0a756b9957b0653fd9b482c6570eaa2fa02915939fe64bef31dd0ef373ecaa75",
+          "matches_head_blob": true
+        },
+        {
+          "path": "docs/design/implementation-tracking.md",
+          "sha256": "fc3a6961ac083fd68532cfa0708b257ac123e74dfb127e0640fdb5e5825d5053",
+          "matches_head_blob": true
+        },
+        {
+          "path": "docs/source-backed-editing.md",
+          "sha256": "1725d0eb329628d299f11df2a61644585b8b68c7a79b006027bd94e559ee02c0",
+          "matches_head_blob": true
+        },
+        {
+          "path": "docs/markdown-host-slots.md",
+          "sha256": "8d54c148f7012819684eb41e3aa964465c55521a5b8a2bc962be4bba0a08a348",
+          "matches_head_blob": true
+        },
+        {
+          "path": "docs/ui-polish.md",
+          "sha256": "f9f51cd21ddb42a4b23dd53da9ab40fd803ad735769e58cf251534dd1264a142",
+          "matches_head_blob": true
+        },
+        {
+          "path": "crates/rndr_core/src/editor.rs",
+          "sha256": "fe6887e3a8a8d79f1a55ae54ef61a332b159be83184b67e11c644e1663310909",
+          "matches_head_blob": true
+        },
+        {
+          "path": "crates/rndr_core/src/typing.rs",
+          "sha256": "67b342ba9a1a6d4b5a8fb22defed39c7131fc4523eb4392c28b4b61af258c339",
+          "matches_head_blob": true
+        },
+        {
+          "path": "crates/rndr_core/src/text.rs",
+          "sha256": "0d26ef4bfc14f054bae691a4043db99f4231ac395ea0256cc4cab41cd076147c",
+          "matches_head_blob": true
+        },
+        {
+          "path": "crates/rndr_core/src/font.rs",
+          "sha256": "edff24f5c4ca9753491c1c3eee1a45fdbcca6d14cc965d042759f9e21db75c9b",
+          "matches_head_blob": true
+        },
+        {
+          "path": "crates/rndr_core/src/ime.rs",
+          "sha256": "1d6454823a4555bfad3ab5a6dd2dfd002fbef3f31b85c0e1530e527732929a5e",
+          "matches_head_blob": true
+        },
+        {
+          "path": "crates/rndr_core/src/clipboard.rs",
+          "sha256": "c8d83bb797d9084fce3ffcdb603fc04ef26235d60468649055111d28a3e68aa7",
+          "matches_head_blob": true
+        },
+        {
+          "path": "crates/rndr_core/src/access.rs",
+          "sha256": "3cd7bd5e7a74c785607e37daf1685365c482644ba5c8aad95c2b048dd7896332",
+          "matches_head_blob": true
+        },
+        {
+          "path": "crates/rndr_core/src/layout.rs",
+          "sha256": "4505560b492105ceb5276a5ce23d22bdf17adfac88bca23a4b185fc613b09149",
+          "matches_head_blob": true
+        },
+        {
+          "path": "crates/rndr_core/src/style.rs",
+          "sha256": "c2d2bfd7f20e22ba461f9af3424e28980fc8ecff509300934f7708bbb8418ac8",
+          "matches_head_blob": true
+        },
+        {
+          "path": "crates/rndr_core/src/markdown.rs",
+          "sha256": "0893f8b1648fb3452432a3616a2f059d5e7e9ddf254c0e9b9900b0dc9f2bdb73",
+          "matches_head_blob": true
+        },
+        {
+          "path": "crates/rndr_core/src/markdown/host.rs",
+          "sha256": "d1469d420fb902b81fc30837d4fd813c62eeb0065483cdc96cba2dff63c137b8",
+          "matches_head_blob": true
+        },
+        {
+          "path": "crates/rndr_paint/src/lib.rs",
+          "sha256": "b459cb6d672e8ac09b355473975f52c26415e6b2ad405bf0cc55d2c537992759",
+          "matches_head_blob": true
+        },
+        {
+          "path": "crates/rndr_render/src/lib.rs",
+          "sha256": "e085a641d4c6d6b5e77be5eb920df7081326025c231b2efd60811e9a653c1af1",
+          "matches_head_blob": true
+        },
+        {
+          "path": "crates/rndr_render/src/a11y.rs",
+          "sha256": "72fc385be701e19f98cf54797d94e806e9b57069ed82fe86402f935d40edf4d2",
+          "matches_head_blob": true
+        },
+        {
+          "path": "crates/rndr_core/tests/source_edit.rs",
+          "sha256": "88350a04e3a2fcc05c5e87269f522879dd3f3737dbc5271edbf4b79b5a42c0ac",
+          "matches_head_blob": true
+        },
+        {
+          "path": "crates/rndr_render/tests/source_edit.rs",
+          "sha256": "16e786468fabe14be3fa1878d7e70e69e8d8ca02f343a0b7cfe27157e06df3f0",
+          "matches_head_blob": true
+        },
+        {
+          "path": "crates/rndr_ui/src/controls.rs",
+          "sha256": "165f23c896c35224ca41baeede93307d2749dfb2a8fc224034ba6a98072eb46d",
+          "matches_head_blob": true
+        },
+        {
+          "path": "crates/rndr_ui/src/composition.rs",
+          "sha256": "b284fb2ae20d82b7c2606a173b5cdbf6c8c1a76ec20f0609b83df8ddecc46b89",
+          "matches_head_blob": true
+        },
+        {
+          "path": "crates/rndr_ui/src/theme_bridge.rs",
+          "sha256": "753918a0554c8261a25ac4ebced58d9b71f58c1f8bd4bf7f721ecb643aafd9e5",
+          "matches_head_blob": true
+        },
+        {
+          "path": "crates/rndr_render/src/text/mod.rs",
+          "sha256": "7bba2175a0a0f42669767783b76652efaa38877edac3092d37e3dc8db26e7ab0",
+          "matches_head_blob": true
+        }
+      ]
+    },
+    {
+      "repository": "medousa",
+      "revision": "aa1aa02e339f354c2554c5f4cf0aee7e79676a8f",
+      "files": [
+        {
+          "path": "crates/medousa-app-core/README.md",
+          "sha256": "8dee7408c9293a6309fc9f9bb6146d397ff8b54e53fac4ffae70450108c05362",
+          "matches_head_blob": true
+        },
+        {
+          "path": "crates/medousa-app-core/src/vault_buffer.rs",
+          "sha256": "9ee715dd7398de43b936ecd11ad84bea9d50c3e0e81214a37e362f3c382eb402",
+          "matches_head_blob": true
+        },
+        {
+          "path": "apps/medousa-home/src/lib/components/code/CodeMirrorHost.svelte",
+          "sha256": "9899a416e4147d1daa7d36c3958825439f12249d70c145e1ad10cedbafb41cf5",
+          "matches_head_blob": true
+        },
+        {
+          "path": "apps/medousa-home/src/lib/components/vault/VaultMarkdownCodeMirror.svelte",
+          "sha256": "2b38222f8fa940aca3e1e75fbbf8276e0c593f3447531604e8163c76428f6c5e",
+          "matches_head_blob": true
+        },
+        {
+          "path": "apps/medousa-home/src/lib/components/vault/VaultLiveEditor.svelte",
+          "sha256": "7964efa5ac3915b42381fb526db7afe2321547d7e7ef0786354bdb19a1e3ff3a",
+          "matches_head_blob": true
+        },
+        {
+          "path": "apps/medousa-home/src/lib/vault/vaultEditorController.ts",
+          "sha256": "05680fae23bee7a8161cbe5632a563001397e9a215537759c40d1286267d7edf",
+          "matches_head_blob": true
+        },
+        {
+          "path": "apps/medousa-home/src/lib/vault/live/liveExtensions.ts",
+          "sha256": "efff60aed985b42bbb7d68c5fe0b40fe92cf73c3c7738d68614d74dfaed9207e",
+          "matches_head_blob": true
+        },
+        {
+          "path": "apps/medousa-home/src/lib/vault/live/liveMarkdownCodec.ts",
+          "sha256": "f8ff4ba71720cb1c8037d7db107b14bf5e28532f91037def11a564910b18cf62",
+          "matches_head_blob": true
+        },
+        {
+          "path": "apps/medousa-home/src/lib/vault/live/fenceBlockExtension.ts",
+          "sha256": "6243f2e626f5ae203ee7a59d8906d53330077bc129782795dc2643db24461229",
+          "matches_head_blob": true
+        },
+        {
+          "path": "apps/medousa-home/src/lib/vault/live/embedBlockExtension.ts",
+          "sha256": "0973ee160af8cd17f214e37e87356b1b795875e8a71bf47887cd1ba9b8cc0b02",
+          "matches_head_blob": true
+        },
+        {
+          "path": "apps/medousa-home/src/lib/vault/live/liveForeignUndo.ts",
+          "sha256": "fc7a0936c9ef7c205c8271927da47b0451287d0c46f33fac45239ba4cc176758",
+          "matches_head_blob": true
+        },
+        {
+          "path": "apps/medousa-home/src/lib/markdown/document/markdownSourceDocument.ts",
+          "sha256": "84d105b1d2344a17d95aa3683eed5e5fb3c236625a966d99eaa28f03c2b679f7",
+          "matches_head_blob": true
+        },
+        {
+          "path": "apps/medousa-home/src/lib/markdown/document/markdownSourceExtensions.ts",
+          "sha256": "863861e1a8e4ac1139400b8c49bded03df095b2b7d1bf688c2c10c3bbadf64e6",
+          "matches_head_blob": true
+        },
+        {
+          "path": "apps/medousa-home/src/lib/components/code/CodeMarkdownDocument.svelte",
+          "sha256": "c7f5199c81dbe2f61b2eb126792fcd654809f3c044bb8070d3939f71be834d87",
+          "matches_head_blob": true
+        },
+        {
+          "path": "apps/medousa-home/src/lib/components/code/CodeMarkdownWriter.svelte",
+          "sha256": "730283e1fdcd67ccaf4effd7745a2a830e26962c53390b494dac317d84387bf3",
+          "matches_head_blob": true
+        },
+        {
+          "path": "apps/medousa-home/src/lib/components/code/CodeEditorWorkspace.svelte",
+          "sha256": "40798b3c144792cd106f44b95ee333e24b0e77a2d67030e7a6e4cc39a9a2c79c",
+          "matches_head_blob": true
+        },
+        {
+          "path": "apps/medousa-home/src/lib/components/automations/ScriptsWorkbenchPanel.svelte",
+          "sha256": "394c1136de27a5f1c27d728c071e96bba66c83b0a2ff0a9c01491afa66a5ba1f",
+          "matches_head_blob": true
+        },
+        {
+          "path": "apps/medousa-home/src/lib/components/grapheme/GraphemeScriptEditorPanel.svelte",
+          "sha256": "9ca96ccb40c68c6dc8f9c4f0d4bc5bb283a61bbebde2503d861b404aae6c0689",
+          "matches_head_blob": true
+        },
+        {
+          "path": "apps/medousa-home/src/lib/components/work/CodeSourceEditor.svelte",
+          "sha256": "73539adebb765649f2b330b2a6bd5581c375902e122c00fdb59111a56192401f",
+          "matches_head_blob": true
+        },
+        {
+          "path": "apps/medousa-home/src/lib/files/FileTextDocument.svelte",
+          "sha256": "345fd568cda0d1e43519673918d436182bc66e93f37bb47897693b1c09426a10",
+          "matches_head_blob": true
+        },
+        {
+          "path": "apps/medousa-home/src/lib/components/vault/VaultLiveTableChrome.svelte",
+          "sha256": "292f3df0c78dfc68ee2085c8ddaef3f56d157bce070c5ec3f58607e76828b26b",
+          "matches_head_blob": true
+        }
+      ]
+    },
+    {
+      "repository": "blooey",
+      "revision": "4343e9715029ac61dc1aa2b8d2325ea30e75ae64",
+      "files": [
+        {
+          "path": "src/document.rs",
+          "sha256": "5ae2b259a6ecf0267b24e5f993b2e6ba278f7a7d070d4bc14ada0f2ba9235fb1",
+          "matches_head_blob": true
+        },
+        {
+          "path": "src/lib.rs",
+          "sha256": "7dd73bb7c4b4e25ce36deb9ed49dab57aeb269e06a4740cbc4b03f34672c4d86",
+          "matches_head_blob": true
+        },
+        {
+          "path": "PRODUCT.md",
+          "sha256": "2f68c5aa91a03a154a35ba916f0349142fb3fc4d723a678b02b386ae4997e99f",
+          "matches_head_blob": true
+        }
+      ]
+    }
+  ]
+}
