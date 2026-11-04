@@ -162,15 +162,37 @@ fn secondary_press_and_hover_do_not_select() {
 }
 
 #[test]
-fn autoscroll_is_one_row_per_update_clamps_at_edges_and_stops_on_release() {
+fn autoscroll_uses_elapsed_time_clamps_at_edges_and_stops_on_release() {
     let text = "line\n".repeat(20);
     let (mut app, e) = boot(&text);
+    let wake = std::sync::Arc::new(rndr_core::CountingWake::new());
+    app.set_wake(wake.clone());
+    let clock = rndr_core::ManualClock::handle();
+    app.set_clock(clock.clone());
     let full = rndr_core::layout_of(app.world(), e, &text);
     let left = point(&app, e, 0.0, 1.0);
     frame(&mut app, left, true, true, false);
     let below = point(&app, e, 0.0, 10000.0);
+    frame(&mut app, below, false, true, false);
+    assert!(
+        app.next_deadline().is_some(),
+        "stationary drag must wake the runner"
+    );
+    let wakes = wake.hits();
+    for _ in 0..20 {
+        app.update();
+    }
+    assert_eq!(
+        wake.hits(),
+        wakes,
+        "idle redraws must not rearm native wakes"
+    );
+    assert_eq!(app.world().get::<Editor>(e).unwrap().offset, 0.0);
     for expected in 1..=5 {
-        frame(&mut app, below, false, true, false);
+        clock.advance(std::time::Duration::from_millis(50));
+        assert!(app.wants_frame(), "due drag timer must request a frame");
+        // No pointer motion: only the clock drives these frames.
+        app.update();
         assert_eq!(
             app.world().get::<Editor>(e).unwrap().offset,
             full.lines[expected].y
@@ -179,21 +201,110 @@ fn autoscroll_is_one_row_per_update_clamps_at_edges_and_stops_on_release() {
         assert!(selection(&app, e).0 < text.len());
     }
     for _ in 0..40 {
-        frame(&mut app, below, false, true, false);
+        clock.advance(std::time::Duration::from_millis(50));
+        app.update();
     }
+    assert!(
+        app.next_deadline().is_none(),
+        "no idle wake at document edge"
+    );
     let bottom = full.lines.last().unwrap().y;
     assert_eq!(app.world().get::<Editor>(e).unwrap().offset, bottom);
     frame(&mut app, below, false, false, true);
+    assert!(app.next_deadline().is_none());
     let above = point(&app, e, 0.0, -10000.0);
     frame(&mut app, above, false, true, false);
     assert_eq!(app.world().get::<Editor>(e).unwrap().offset, bottom);
     // New capture can scroll back to the document start, but never below zero.
     frame(&mut app, left, true, true, false);
+    frame(&mut app, above, false, true, false);
     for _ in 0..40 {
-        frame(&mut app, above, false, true, false);
+        clock.advance(std::time::Duration::from_millis(50));
+        app.update();
     }
     assert_eq!(app.world().get::<Editor>(e).unwrap().offset, 0.0);
     assert_eq!(selection(&app, e).0, 0);
+}
+
+#[test]
+fn stationary_drag_rate_is_independent_of_frame_count_and_caps_stalls() {
+    for cadence in [10, 50, 100] {
+        let text = "line\n".repeat(100);
+        let (mut app, e) = boot(&text);
+        let clock = rndr_core::ManualClock::handle();
+        app.set_clock(clock.clone());
+        let full = rndr_core::layout_of(app.world(), e, &text);
+        let left = point(&app, e, 0.0, 1.0);
+        let below = point(&app, e, 0.0, 1000.0);
+        frame(&mut app, left, true, true, false);
+        frame(&mut app, below, false, true, false);
+        for _ in 0..(500 / cadence) {
+            clock.advance(std::time::Duration::from_millis(cadence));
+            app.update();
+        }
+        assert_eq!(
+            app.world().get::<Editor>(e).unwrap().offset,
+            full.lines[10].y
+        );
+        clock.advance(std::time::Duration::from_secs(60));
+        app.update();
+        assert_eq!(
+            app.world().get::<Editor>(e).unwrap().offset,
+            full.lines[15].y
+        );
+        // Returning inside cancels the wake; elapsed inside time cannot accrue.
+        frame(&mut app, left, false, true, false);
+        assert!(app.next_deadline().is_none());
+        clock.advance(std::time::Duration::from_secs(5));
+        let above = point(&app, e, 0.0, -1000.0);
+        frame(&mut app, above, false, true, false);
+        assert_eq!(
+            app.world().get::<Editor>(e).unwrap().offset,
+            full.lines[15].y
+        );
+        clock.advance(std::time::Duration::from_millis(50));
+        app.update();
+        assert_eq!(
+            app.world().get::<Editor>(e).unwrap().offset,
+            full.lines[14].y
+        );
+    }
+}
+
+#[test]
+fn stationary_drag_timer_cancels_on_release_blur_focus_loss_and_destruction() {
+    for reason in 0..4 {
+        let (mut app, e) = boot(&"line\n".repeat(40));
+        rndr_core::window::platform_focused(app.world());
+        app.update();
+        let clock = rndr_core::ManualClock::handle();
+        app.set_clock(clock.clone());
+        let left = point(&app, e, 0.0, 1.0);
+        let below = point(&app, e, 0.0, 1000.0);
+        frame(&mut app, left, true, true, false);
+        frame(&mut app, below, false, true, false);
+        assert!(app.next_deadline().is_some());
+        let before = selection(&app, e);
+        match reason {
+            0 => frame(&mut app, below, false, false, true),
+            1 => {
+                rndr_core::window::platform_blurred(app.world());
+                app.update();
+            }
+            2 => {
+                app.world_mut().resource_mut::<Focus>().unwrap().entity = None;
+                app.update();
+            }
+            _ => app.world_mut().despawn_entity(e),
+        }
+        assert!(app.next_deadline().is_none(), "reason {reason}");
+        clock.advance(std::time::Duration::from_secs(1));
+        app.update();
+        if reason < 3 {
+            assert_eq!(selection(&app, e), before);
+            assert_eq!(app.world().get::<Editor>(e).unwrap().offset, 0.0);
+        }
+    }
 }
 
 #[test]

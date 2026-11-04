@@ -498,6 +498,18 @@ pub(crate) fn positive_scale(factor: f64) -> f32 {
     }
 }
 
+// Winit uses native implicit mouse capture (AppKit drag/up delivery, Windows
+// SetCapture, X11/Wayland button grabs). CursorGrabMode confines/locks the
+// cursor and is not selection capture. Keep coordinates free to leave the
+// window; clear held state on blur in case capture/release delivery was lost.
+fn cancel_pointer_input(pointer: &mut Pointer, pointers: &mut Pointers) {
+    pointer.down = false;
+    pointer.pressed = false;
+    pointer.released = true;
+    pointer.press_at = None;
+    *pointers = Pointers::default();
+}
+
 fn gesture_phase(phase: TouchPhase) -> GesturePhase {
     match phase {
         TouchPhase::Started => GesturePhase::Started,
@@ -1407,6 +1419,11 @@ impl ApplicationHandler<RunnerEvent> for Handler {
                 if focused {
                     rndr_core::window::platform_focused(self.app.world());
                 } else {
+                    cancel_pointer_input(&mut self.pointer, &mut self.pointers);
+                    self.press_px = None;
+                    self.accepts_pen = false;
+                    self.gestures = GestureState::default();
+                    self.queued_gestures.clear();
                     rndr_core::window::platform_blurred(self.app.world());
                 }
                 self.request_redraw();
@@ -1913,6 +1930,23 @@ mod tests {
             super::select_hotkey(std::iter::empty::<&str>(), None),
             super::DEFAULT_HOTKEY
         );
+    }
+
+    #[test]
+    fn blur_cancels_native_held_pointer_and_pending_press() {
+        let mut pointer = super::Pointer {
+            down: true,
+            pressed: true,
+            press_at: Some([1.0, 2.0]),
+            ..Default::default()
+        };
+        let mut pointers = super::Pointers::default();
+        super::cancel_pointer_input(&mut pointer, &mut pointers);
+        assert!(!pointer.down);
+        assert!(!pointer.pressed);
+        assert!(pointer.released);
+        assert!(pointer.press_at.is_none());
+        assert!(pointers.mirror().is_none());
     }
 
     #[test]

@@ -185,7 +185,9 @@ pub fn access_details(world: &World, entity: Entity) -> AccessDetails {
                     } else {
                         crate::tabs::tab_group(world, entity).is_some()
                     }))),
-        set_value: false,
+        set_value: enabled
+            && world.has::<crate::Scrollbar>(entity)
+            && crate::scrollbar_geometry(world, entity).is_some(),
         orientation: world.get::<ManualTabs>(entity).map(|p| p.0),
         panel: world.has::<TabPanel>(entity),
         checked: selection.and_then(|s| s.checked),

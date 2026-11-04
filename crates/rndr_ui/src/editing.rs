@@ -20,6 +20,9 @@ pub struct EditorSurfaceProps {
     pub readonly: bool,
     /// Show a sibling line-number gutter.
     pub gutter: bool,
+    /// Show a focusable vertical scrollbar bound to this soft-wrapped editor.
+    /// Disable for a host-supplied viewport control; selection/history stay intact.
+    pub scrollbar: bool,
 }
 impl EditorSurfaceProps {
     /// Editable view with line numbers and a persistent name.
@@ -30,6 +33,7 @@ impl EditorSurfaceProps {
             description: String::new(),
             readonly: false,
             gutter: true,
+            scrollbar: true,
         }
     }
 }
@@ -57,6 +61,7 @@ struct Node {
     document: DocumentId,
     editor: Entity,
     gutter: Option<Entity>,
+    scrollbar: Option<Entity>,
 }
 impl Component for Node {}
 /// Read identity through the library's unified adapter.
@@ -156,6 +161,7 @@ impl EditorSurface {
                     document: props.document,
                     editor,
                     gutter: None,
+                    scrollbar: None,
                 },
             );
             EditorSurfaceHandle { root, editor }
@@ -200,6 +206,40 @@ impl EditorSurface {
             }
             _ => {}
         }
+        let scrollbar = world.get::<Node>(handle.root).unwrap().scrollbar;
+        match (props.scrollbar, scrollbar) {
+            (true, None) => {
+                let scrollbar = world.spawn((
+                    Layout {
+                        width: Size::Px(24.0),
+                        height: Size::Fill,
+                        ..Layout::column()
+                    },
+                    Scrollbar {
+                        target: handle.editor,
+                        axis: Axis::Column,
+                    },
+                    Focusable,
+                    Semantics {
+                        name: Some("Document scroll position".into()),
+                        ..Default::default()
+                    },
+                    UiRecipe(UiStyle {
+                        background: Some(Token::Content.into()),
+                        foreground: Some(Token::Secondary.into()),
+                        ..Default::default()
+                    }),
+                ));
+                set_parent(world, scrollbar, handle.root);
+                world.get_mut::<Node>(handle.root).unwrap().scrollbar = Some(scrollbar);
+            }
+            (false, Some(scrollbar)) => {
+                forget_interaction_targets(world, &[scrollbar]);
+                despawn(world, scrollbar);
+                world.get_mut::<Node>(handle.root).unwrap().scrollbar = None;
+            }
+            _ => {}
+        }
         Ok(handle)
     }
 }
@@ -214,6 +254,12 @@ impl EditorSurfaceHandle {
             || rndr_core::editing::attached_source(world, self.editor) != Some(node.document)
             || !world.has::<Label>(self.editor)
             || world.get::<Parent>(self.editor).map(|p| p.entity) != Some(self.root)
+            || node.scrollbar.is_some_and(|bar| {
+                !world
+                    .get::<Scrollbar>(bar)
+                    .is_some_and(|b| b.target == self.editor && b.axis == Axis::Column)
+                    || world.get::<Parent>(bar).map(|p| p.entity) != Some(self.root)
+            })
             || node.gutter.is_some_and(|g| {
                 !world.has::<Gutter>(g)
                     || !world.has::<Label>(g)
@@ -232,7 +278,7 @@ impl EditorSurfaceHandle {
         detach_source(world, self.editor)?;
         let node = *world.get::<Node>(self.root).unwrap();
         for child in children_of(world, self.root) {
-            if child != self.editor && Some(child) != node.gutter {
+            if child != self.editor && Some(child) != node.gutter && Some(child) != node.scrollbar {
                 world.remove::<Parent>(child);
                 if let Some(children) = world.get_mut::<Children>(self.root) {
                     children.list.retain(|e| *e != child);

@@ -1,4 +1,4 @@
-# Experimental source session (E1)
+# Experimental source session (E1 + E2)
 
 Run `cargo run -p source-session` on a native desktop. This is a fake host:
 **nothing is written to disk**. It shows exact-source editing, revision/change
@@ -6,14 +6,25 @@ counts and host-owned dirty/save state, not structured Markdown editing.
 
 - Type, select, undo/redo, and try native IME in the editor.
 - Page Up/Down moves by a shaped viewport; hold Shift to extend selection.
-- Tab/Shift-Tab traverses to a command; press Enter/Space (or click). Tab does
+- Drag the vertical scrollbar or click its track to page. When focused, arrows,
+  Page Up/Down and Home/End adjust the same document viewport; readonly permits
+  scrolling. Tab/Shift-Tab traverses the editor, scrollbar and host commands.
+  Disable retained chrome with `EditorSurfaceProps::scrollbar = false` when
+  composing a host-supplied control.
+- Hold selection drag above/below the editor for scheduled timed autoscroll.
+  Release or blur cancels it; outside-window delivery depends on the desktop
+  backend, not a global pointer-capture promise.
+- Tab does
   not insert indentation. During active managed IME composition candidate keys
   remain owned by the IME rather than menus or focus traversal.
 - The [E2.1 input candidate](../../docs/design/native-document-editing-e2-input.md)
   records the exact keyboard/composition contract and remaining native gates.
-- The [E2.2 semantic range candidate](../../docs/design/native-document-editing-e2-semantics.md)
+- The [E2.2 semantic ranges](../../docs/design/native-document-editing-e2-semantics.md)
   adds AccessKit editor text ranges and directed selection for focused editable
   and readonly source. Headless bridge tests are not VoiceOver/NVDA certification.
+- The [E2 viewport/closeout ledger](../../docs/design/native-document-editing-e2-viewport.md)
+  records scrollbar, drag and shaped Unicode tests and the still-open native
+  certification cells. E2 implementation is not a blanket platform pass.
 - **Host splice** submits an explicit revisioned append, without serializing Markdown.
 - **Capture save**, edit more, then **Ack save**: only the captured snapshot is
   acknowledged; newer local edits must remain dirty and intact.

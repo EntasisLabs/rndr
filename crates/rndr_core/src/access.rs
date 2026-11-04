@@ -72,6 +72,8 @@ pub enum AccessRole {
     ListBox,
     /// Stable option in a ListBox.
     Option,
+    /// Interactive canonical viewport scroll track.
+    ScrollBar,
 }
 /// Supplemental selection projection; input still uses canonical Button admission.
 #[derive(Clone, Debug)]
@@ -246,7 +248,7 @@ pub enum AccessCommand {
         /// Directed document byte endpoints.
         selection: crate::editing::SourceSelection,
     },
-    /// Replace all text (currently unsupported).
+    /// Set a scrollbar's positive numeric offset. Replacing text is unsupported.
     SetValue {
         /// Target entity.
         entity: Entity,
@@ -273,7 +275,7 @@ pub enum AccessCommandResult {
     Applied,
     /// Canonical button/tab result, including cardinality and overflow.
     Activation(crate::ActivationResult),
-    /// SetValue requires a validated editor-history operation, not a raw write.
+    /// Text SetValue requires a validated editor-history operation, not a raw write.
     UnsupportedSetValue,
     /// Invalid/hidden/disabled/readonly/unsupported target.
     Rejected,
@@ -305,6 +307,17 @@ pub fn try_apply_access(world: &mut World, command: AccessCommand) -> AccessComm
             state,
             selection,
         } => crate::access_text::set_selection(world, entity, state, selection),
+        AccessCommand::SetValue { entity, value } if world.has::<crate::Scrollbar>(entity) => {
+            if value
+                .parse::<f32>()
+                .ok()
+                .is_some_and(|v| crate::set_scrollbar_value(world, entity, v))
+            {
+                AccessCommandResult::Applied
+            } else {
+                AccessCommandResult::Rejected
+            }
+        }
         AccessCommand::SetValue { .. } => AccessCommandResult::UnsupportedSetValue,
     }
 }
@@ -478,6 +491,9 @@ fn collection_commands(
 }
 
 fn role_of(world: &World, entity: Entity) -> Option<AccessRole> {
+    if world.has::<crate::Scrollbar>(entity) {
+        return Some(AccessRole::ScrollBar);
+    }
     if let Some(access) = world.get::<SelectionAccess>(entity) {
         return Some(access.role);
     }

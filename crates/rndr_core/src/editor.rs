@@ -371,13 +371,18 @@ struct EditorWindow {
 }
 impl Component for EditorWindow {}
 
-// Logical capture only: the desktop backend must still deliver held/release
-// frames. No global/native window capture is requested here.
-#[derive(Clone, Copy)]
+// Logical selection capture. Native backends provide implicit button capture;
+// the timer drives stationary off-viewport motion without confining the cursor.
 struct EditorDrag {
     id: u64,
     anchor: usize,
+    direction: i8,
+    next_step: std::time::Duration,
+    // Dropping capture (release, blur, destruction) cancels its pending wake.
+    _wake: Option<crate::TimerHandle>,
 }
+
+const DRAG_ROW_PERIOD: std::time::Duration = std::time::Duration::from_millis(50);
 impl Component for EditorDrag {}
 
 // Keep row geometry, not document glyph quads. Only the visible Label is
@@ -651,6 +656,8 @@ pub fn apply_editor(world: &mut World) {
                 .is_some_and(crate::editing::SourceSession::is_composing);
             if !composing {
                 reveal |= place_from_pointer(world, entity);
+            } else {
+                world.remove::<EditorDrag>(entity);
             }
             if managed {
                 crate::editing::sync_selection(world, entity);
@@ -1099,7 +1106,15 @@ fn place_from_pointer(world: &mut World, entity: crate::entity::Entity) -> bool 
     };
     let pointer = input.pointer;
     let shift = input.shift;
-    let previous = world.remove::<EditorDrag>(entity);
+    let mut previous = world.remove::<EditorDrag>(entity);
+    if crate::events::<crate::window::WindowFocus>(world)
+        .contains(&crate::window::WindowFocus::Blurred)
+    {
+        return false;
+    }
+    let now = world
+        .resource::<crate::Time>()
+        .map_or(std::time::Duration::ZERO, |time| time.now);
     if pointer.button != crate::PointerButton::Left
         || !pointer.position.iter().all(|v| v.is_finite())
     {
@@ -1114,7 +1129,7 @@ fn place_from_pointer(world: &mut World, entity: crate::entity::Entity) -> bool 
         && hit_test(world, start[0], start[1])
             .is_some_and(|hit| ancestor_with::<Editor>(world, hit) == Some(entity));
     let continuing = !pointer.pressed
-        && previous.is_some_and(|drag| drag.id == pointer.id)
+        && previous.as_ref().is_some_and(|drag| drag.id == pointer.id)
         && (pointer.down || pointer.released);
     if !starting && !continuing {
         return false;
@@ -1169,18 +1184,44 @@ fn place_from_pointer(world: &mut World, entity: crate::entity::Entity) -> bool 
     } else {
         floor_grapheme(
             &text,
-            previous.expect("continuing drag").anchor.min(text.len()),
+            previous
+                .as_ref()
+                .expect("continuing drag")
+                .anchor
+                .min(text.len()),
         )
     };
-    // Never let a distant coordinate jump to a distant document row. Release
-    // applies its final position but does not add another autoscroll step.
-    if continuing && pointer.down && !pointer.released {
-        if pointer.position[1] < rect.y {
-            first = first.saturating_sub(1);
-        } else if pointer.position[1] >= rect.y + rect.h {
-            first = (first + 1).min(layout.lines.len() - 1);
-        }
+    // Fixed elapsed-time rate, independent of delivered pointer/redraw count.
+    // Entering/reversing the edge starts a fresh period; release maps its final
+    // coordinate without scrolling. Limit catch-up after a stalled UI to 5 rows.
+    let direction = if pointer.position[1] < rect.y {
+        -1
+    } else if pointer.position[1] >= rect.y + rect.h {
+        1
+    } else {
+        0
+    };
+    let mut next_step = previous
+        .as_ref()
+        .filter(|drag| continuing && drag.direction == direction && direction != 0)
+        .map_or(now.saturating_add(DRAG_ROW_PERIOD), |drag| drag.next_step);
+    if continuing && pointer.down && !pointer.released && direction != 0 && now >= next_step {
+        let elapsed = now.saturating_sub(next_step);
+        let due = 1 + elapsed.as_nanos() / DRAG_ROW_PERIOD.as_nanos();
+        let steps = due.min(5) as usize;
+        first = if direction < 0 {
+            first.saturating_sub(steps)
+        } else {
+            first.saturating_add(steps).min(layout.lines.len() - 1)
+        };
+        next_step = if due > 5 {
+            now.saturating_add(DRAG_ROW_PERIOD)
+        } else {
+            next_step.saturating_add(DRAG_ROW_PERIOD * steps as u32)
+        };
     }
+    let can_scroll =
+        (direction < 0 && first > 0) || (direction > 0 && first + 1 < layout.lines.len());
     if let Some(editor) = world.get_mut::<Editor>(entity) {
         editor.offset = layout.lines[first].y;
     }
@@ -1191,15 +1232,100 @@ fn place_from_pointer(world: &mut World, entity: crate::entity::Entity) -> bool 
     }
     world.insert(entity, VerticalGoal { x, index, row });
     if pointer.down && !pointer.released {
+        // Arming a timer wakes the native loop. Reuse the existing future
+        // timer on unrelated redraws, or each wake would rearm another wake
+        // forever even though no elapsed-time scroll step was due.
+        let wake = if can_scroll {
+            previous
+                .as_mut()
+                .filter(|drag| drag.direction == direction && drag.next_step == next_step)
+                .and_then(|drag| drag._wake.take())
+                .or_else(|| {
+                    Some(crate::runtime::call_after(
+                        world,
+                        next_step.saturating_sub(now),
+                        |_| {},
+                    ))
+                })
+        } else {
+            None
+        };
         world.insert(
             entity,
             EditorDrag {
                 id: pointer.id,
                 anchor,
+                direction,
+                next_step,
+                _wake: wake,
             },
         );
     }
     starting
+}
+
+#[derive(Clone, Copy)]
+struct WheelPosition {
+    rows_key: u64,
+    published: f32,
+    requested: f32,
+}
+impl crate::Component for WheelPosition {}
+
+pub(crate) fn reset_editor_wheel(world: &mut World, entity: crate::Entity) {
+    world.remove::<WheelPosition>(entity);
+}
+
+// Return the bounded signed consumption for ancestor wheel chaining. Keep
+// sub-row motion separately: publish_window deliberately snaps to row tops.
+pub(crate) fn scroll_editor_wheel(world: &mut World, entity: crate::Entity, delta: f32) -> f32 {
+    if !delta.is_finite() || delta == 0.0 {
+        return 0.0;
+    }
+    let Some((content, page)) = editor_scroll_metrics(world, entity) else {
+        return 0.0;
+    };
+    let Some(editor) = world.get::<Editor>(entity) else {
+        return 0.0;
+    };
+    let max = (content - page).max(0.0);
+    let offset = editor.offset.clamp(0.0, max);
+    let rows_key = world.get::<DocumentRows>(entity).unwrap().key;
+    let before = world
+        .get::<WheelPosition>(entity)
+        .filter(|state| state.published == offset && state.rows_key == rows_key)
+        .map_or(offset, |state| state.requested.clamp(0.0, max));
+    let requested = (before - delta).clamp(0.0, max);
+    let rows = &world.get::<DocumentRows>(entity).unwrap().layout.lines;
+    let published = rows
+        .iter()
+        .rfind(|row| row.y <= requested)
+        .map_or(0.0, |row| row.y);
+    world.get_mut::<Editor>(entity).unwrap().offset = published;
+    world.insert(
+        entity,
+        WheelPosition {
+            rows_key,
+            published,
+            requested,
+        },
+    );
+    if requested != before {
+        crate::focus::pause_focus_reveal(world);
+    }
+    before - requested
+}
+
+/// Cached canonical row range for editor scrollbar controls. The editor permits
+/// the final row at the viewport top (also used by wheel/selection dragging),
+/// so the virtual extent includes the trailing viewport, not just ink height.
+/// Returns None until layout has published the document rows.
+pub(crate) fn editor_scroll_metrics(world: &World, entity: crate::Entity) -> Option<(f32, f32)> {
+    let rows = world.get::<DocumentRows>(entity)?;
+    let rect = world.get::<Rect>(entity)?;
+    let page = (rect.h - 2.0 * TEXT_ORIGIN_Y).max(1.0);
+    let last = rows.layout.lines.last()?;
+    Some((last.y + page, page))
 }
 
 pub(crate) fn access_caret_row(

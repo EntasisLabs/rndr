@@ -67,6 +67,7 @@ impl Plugin for Chrome {
 /// the events this pass sends.
 fn apply_input(world: &mut crate::world::World) {
     crate::editing::prepare_chrome_source_input(world);
+    crate::apply_scrollbars(world);
     crate::interaction::apply_generic_input(world);
     crate::editing::guard_source_owner(world);
     crate::interaction::sanitize_readonly_input(world);

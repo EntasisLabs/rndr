@@ -24,6 +24,7 @@ impl Plugin for Shell {
         app.world_mut().insert_resource(Editing::default());
         app.world_mut().insert_resource(Drag::default());
         app.world_mut().insert_resource(ScrollDrag::default());
+        app.add_system_front(Schedule::Input, crate::apply_scrollbars);
         app.add_system(Schedule::Update, apply_scroll);
         app.add_system(Schedule::Update, apply_split);
         app.add_system(Schedule::Update, apply_focus);

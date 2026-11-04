@@ -1,6 +1,6 @@
 # Epic: composable native document editing through rndr_ui
 
-**Status: exploration complete; E1 experimental source slice implemented for review. Native/platform and performance gates remain open.**
+**Status: E1 and E2.1/E2.2 committed; E2 viewport closeout implemented and verified as an uncommitted candidate. Native/platform certification and performance gates remain open.**
 
 2026-11-04 continuation: the user authorized the first slice (source session, retained surface, fake host). See the [E1 implementation record](native-document-editing-e1.md) for actual API, decisions, verification and limitations. This is not approval of later milestones, release integration or the entire epic. The exploration scope below describes the original docs-only assignment.
 
@@ -91,10 +91,15 @@ Each milestone below is a **bounded review unit**, not a single massive assignme
 **Implementation status:** E1 plus demo polish committed as `aab3860`;
 [E2.1 input](native-document-editing-e2-input.md) committed as `3042621` adds
 shaped Page navigation, explicit Tab ownership and composition lifetime guards.
-The next [E2.2 semantic range candidate](native-document-editing-e2-semantics.md)
-adds source-fenced selection and shaped geometry through the AccessKit runner.
-Acceptance checkboxes remain open pending native/affinity certification;
-E2.3 interactive scrollbars and capture/autoscroll are not included.
+[E2.2 semantic ranges](native-document-editing-e2-semantics.md), accepted and
+committed as `6afdb36`, add source-fenced selection and shaped geometry through
+the AccessKit runner. The user then authorized finishing E2; the
+[E2.3 viewport and closeout ledger](native-document-editing-e2-viewport.md)
+records interactive scrollbars, elapsed-time selection autoscroll, input ownership,
+896 passing integrated tests (one opt-in probe ignored), final independent review,
+and exact certification limitations. Implementation closure is distinct from the
+original native acceptance gate: the checkboxes below remain open until the named
+native/affinity checks are actually exercised. No E3 implementation is included.
 
 - [ ] Define visual/logical movement and endpoint affinity across wraps/bidi; platform word/Home/End/Page, Shift extension, selection reversal and Tab/Escape ownership. Complete composition lifecycle across focus loss, readonly, teardown and external changes.
 - [ ] Add native text-range/selection/caret actions and geometry; focused editable/readonly exposure. Reuse AccessKit and runner boundaries, not direct OS access in UI.

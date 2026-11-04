@@ -108,6 +108,11 @@ mod pointers;
 mod pool;
 mod prompt;
 mod runtime;
+mod scrollbar;
+pub use scrollbar::{
+    apply_scrollbars, scrollbar_dragging, scrollbar_geometry, set_scrollbar_value, Scrollbar,
+    ScrollbarGeometry,
+};
 mod shell;
 mod sim;
 mod slot;

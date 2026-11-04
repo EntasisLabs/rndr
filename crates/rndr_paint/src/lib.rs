@@ -548,6 +548,58 @@ fn walk(
     }
     record_geometry(world, entity, quads.borrow().len() as u32, draws, true);
     record_scroll_indicator(world, entity, quads, solid);
+    record_scrollbar(world, entity, quads, solid, theme);
+}
+
+// Interactive controls use exactly core's pointer/accessibility range. The
+// narrower painted thumb does not shrink the full-width accessible hit track.
+fn record_scrollbar(
+    world: &World,
+    entity: rndr_core::Entity,
+    quads: &RefCell<Vec<Quad>>,
+    solid: [f32; 4],
+    theme: &Theme,
+) {
+    let Some(geometry) = rndr_core::scrollbar_geometry(world, entity) else {
+        return;
+    };
+    let Some(bar) = world.get::<rndr_core::Scrollbar>(entity) else {
+        return;
+    };
+    let active = rndr_core::scrollbar_dragging(world, entity)
+        || world.resource::<Focus>().and_then(|f| f.entity) == Some(entity);
+    let mut color = if active { theme.caret } else { theme.text };
+    color.a *= if geometry.max <= 0.0 {
+        0.15
+    } else if active {
+        0.85
+    } else {
+        0.4
+    };
+    let mut thumb = geometry.thumb;
+    let cross = if bar.axis == rndr_core::Axis::Row {
+        thumb.h
+    } else {
+        thumb.w
+    };
+    let inset = (cross * 0.25).min(4.0);
+    if bar.axis == rndr_core::Axis::Row {
+        thumb.y += inset;
+        thumb.h -= inset * 2.0;
+    } else {
+        thumb.x += inset;
+        thumb.w -= inset * 2.0;
+    }
+    let radius = thumb.w.min(thumb.h) * 0.5;
+    push(
+        &mut quads.borrow_mut(),
+        thumb,
+        color,
+        solid,
+        Clip::from_rect(geometry.track),
+        radius,
+        0,
+    );
 }
 
 fn record_scroll_indicator(

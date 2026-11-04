@@ -14,6 +14,7 @@ pub(crate) struct Bridge {
     next: u64,
     active: std::collections::HashMap<NodeId, rndr_core::Entity>,
     text: super::a11y_text::PublishedText,
+    scrollbars: std::collections::HashMap<NodeId, (rndr_core::Entity, rndr_core::Axis)>,
 }
 impl Bridge {
     fn allocate(&mut self) -> NodeId {
@@ -50,10 +51,14 @@ impl Bridge {
     pub(crate) fn update(&mut self, world: &World) -> TreeUpdate {
         let tree = access_tree(world);
         self.active.clear();
+        self.scrollbars.clear();
         for node in &tree.nodes {
             let id = self.id(node.id);
             if let Some(entity) = entity_from_access_id(node.id) {
                 self.active.insert(id, entity);
+                if let Some(bar) = world.get::<rndr_core::Scrollbar>(entity) {
+                    self.scrollbars.insert(id, (bar.target, bar.axis));
+                }
             }
         }
         let mut published = super::a11y_text::PublishedText::default();
@@ -143,12 +148,44 @@ impl Bridge {
         if request.action == Action::SetTextSelection {
             return self.text.command(world, entity, request);
         }
+        if world.has::<rndr_core::Scrollbar>(entity)
+            && !self.scrollbars.contains_key(&request.target_node)
+        {
+            return None;
+        }
+        if let Some((target, axis)) = self.scrollbars.get(&request.target_node) {
+            let bar = world.get::<rndr_core::Scrollbar>(entity)?;
+            if (bar.target, bar.axis) != (*target, *axis)
+                || rndr_core::scrollbar_geometry(world, entity).is_none()
+            {
+                return None;
+            }
+        }
         match request.action {
+            Action::Increment | Action::Decrement if world.has::<rndr_core::Scrollbar>(entity) => {
+                let g = rndr_core::scrollbar_geometry(world, entity)?;
+                let value = (g.value
+                    + if request.action == Action::Increment {
+                        40.
+                    } else {
+                        -40.
+                    })
+                .clamp(0., g.max);
+                Some(AccessCommand::SetValue {
+                    entity,
+                    value: value.to_string(),
+                })
+            }
             Action::Focus => Some(AccessCommand::Focus(entity)),
             Action::Click => Some(AccessCommand::Activate(entity)),
             Action::SetValue => {
                 let value = match request.data.as_ref() {
                     Some(ActionData::Value(value)) => value.to_string(),
+                    Some(ActionData::NumericValue(value))
+                        if world.has::<rndr_core::Scrollbar>(entity) =>
+                    {
+                        value.to_string()
+                    }
                     _ => return None,
                 };
                 Some(AccessCommand::SetValue { entity, value })
@@ -251,6 +288,30 @@ fn platform_node(world: &World, node: &rndr_core::AccessNode) -> Node {
             out.set_labelled_by(vec![NodeId(rndr_core::access_id(e))]);
         }
     }
+    if let Some(entity) =
+        entity_from_access_id(node.id).filter(|e| world.has::<rndr_core::Scrollbar>(*e))
+    {
+        if let Some(g) = rndr_core::scrollbar_geometry(world, entity) {
+            let bar = world.get::<rndr_core::Scrollbar>(entity).unwrap();
+            out.set_numeric_value(f64::from(g.value));
+            out.set_min_numeric_value(0.);
+            out.set_max_numeric_value(f64::from(g.max));
+            out.set_numeric_value_step(40.);
+            out.set_numeric_value_jump(f64::from(g.page));
+            out.set_orientation(if bar.axis == rndr_core::Axis::Row {
+                accesskit::Orientation::Horizontal
+            } else {
+                accesskit::Orientation::Vertical
+            });
+            out.set_controls(vec![NodeId(rndr_core::access_id(bar.target))]);
+            out.add_action(Action::SetValue);
+            out.add_action(Action::Increment);
+            out.add_action(Action::Decrement);
+        } else {
+            out.set_disabled();
+            out.remove_action(Action::Focus);
+        }
+    }
     if !node.enabled {
         out.set_disabled();
     }
@@ -296,6 +357,97 @@ fn role(role: AccessRole) -> Role {
         AccessRole::ComboBox => Role::ComboBox,
         AccessRole::ListBox => Role::ListBox,
         AccessRole::Option => Role::ListBoxOption,
+        AccessRole::ScrollBar => Role::ScrollBar,
+    }
+}
+
+#[cfg(test)]
+mod scrollbar_tests {
+    use super::*;
+    use rndr_core::*;
+    #[test]
+    fn native_scrollbar_range_actions_and_retarget_fence() {
+        let mut w = World::new();
+        w.insert_resource(Viewport::new(400., 300.));
+        let port = w.spawn((
+            Layout {
+                width: Size::Px(100.),
+                height: Size::Px(100.),
+                ..Layout::column()
+            },
+            Scroll::default(),
+        ));
+        let content = w.spawn((Layout {
+            width: Size::Px(100.),
+            height: Size::Px(500.),
+            ..Layout::column()
+        },));
+        set_parent(&mut w, content, port);
+        let bar = w.spawn((
+            Layout {
+                width: Size::Px(24.),
+                height: Size::Px(100.),
+                ..Layout::column()
+            },
+            Focusable,
+            Scrollbar {
+                target: port,
+                axis: Axis::Column,
+            },
+        ));
+        layout_propagate(&mut w);
+        let mut bridge = Bridge::default();
+        let tree = bridge.update(&w);
+        let id = bridge.id(access_id(bar));
+        let node = &tree.nodes.iter().find(|(n, _)| *n == id).unwrap().1;
+        assert_eq!(node.role(), Role::ScrollBar);
+        assert_eq!(node.numeric_value(), Some(0.));
+        assert_eq!(node.max_numeric_value(), Some(400.));
+        assert_eq!(node.orientation(), Some(accesskit::Orientation::Vertical));
+        assert!(node.supports_action(Action::SetValue));
+        assert!(node.supports_action(Action::Increment));
+        assert!(node.supports_action(Action::Decrement));
+        let request = accesskit::ActionRequest {
+            action: Action::SetValue,
+            target_tree: TreeId::ROOT,
+            target_node: id,
+            data: Some(ActionData::NumericValue(120.)),
+        };
+        let command = bridge.command(&w, &request).unwrap();
+        assert_eq!(
+            try_apply_access(&mut w, command),
+            AccessCommandResult::Applied
+        );
+        assert_eq!(w.get::<Scroll>(port).unwrap().offset[1], -120.);
+        let mut increment = request.clone();
+        increment.action = Action::Increment;
+        increment.data = None;
+        let command = bridge.command(&w, &increment).unwrap();
+        assert_eq!(
+            try_apply_access(&mut w, command),
+            AccessCommandResult::Applied
+        );
+        assert_eq!(w.get::<Scroll>(port).unwrap().offset[1], -160.);
+        let other = w.spawn((
+            Layout {
+                width: Size::Px(100.),
+                height: Size::Px(100.),
+                ..Layout::column()
+            },
+            Scroll::default(),
+        ));
+        w.get_mut::<Scrollbar>(bar).unwrap().target = other;
+        assert!(
+            bridge.command(&w, &request).is_none(),
+            "queued action must not acquire a retargeted viewport"
+        );
+        w.get_mut::<Scrollbar>(bar).unwrap().target = port;
+        w.despawn_entity(port);
+        assert!(bridge.command(&w, &request).is_none());
+        let tree = bridge.update(&w);
+        let node = &tree.nodes.iter().find(|(n, _)| *n == id).unwrap().1;
+        assert!(node.is_disabled());
+        assert!(!node.supports_action(Action::SetValue));
     }
 }
 

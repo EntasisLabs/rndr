@@ -298,8 +298,10 @@ pub fn hit_test(world: &World, x: f32, y: f32) -> Option<Entity> {
 }
 
 /// Apply the wheel, then a held contact.
-/// Each wheel axis goes to the deepest visible [`Scroll`] under the pointer
-/// that can move on that axis. Only its bounded consumption is removed; the
+/// Each wheel axis goes to the deepest visible viewport under the pointer
+/// that can move on that axis. An [`crate::Editor`] consumes vertical motion
+/// first (including sub-row deltas); its sibling [`crate::Gutter`] routes to it
+/// when unambiguous. Ordinary [`Scroll`] ancestors consume the remainder. Only its bounded consumption is removed; the
 /// remainder chains through ancestors at boundaries. A miss never scrolls an
 /// unrelated root. Pointer dragging retains its existing captured ownership.
 /// A press that is not on a [`Splitter`] captures that scrollport, except a
@@ -328,6 +330,29 @@ fn apply_wheel(world: &mut World, input: &Input) {
     // remapping. Defer relayout until consumption is complete so recycling
     // cannot change this event's ownership midway through the chain.
     while let Some(entity) = target {
+        let editor = if world.has::<crate::Editor>(entity) {
+            Some(entity)
+        } else if world.has::<crate::Gutter>(entity) {
+            // Gutters are sibling chrome, not scrollports. Only route when
+            // their documented sibling-editor relationship is unambiguous.
+            world.get::<Parent>(entity).and_then(|parent| {
+                let siblings = children_of(world, parent.entity);
+                let mut editors = siblings
+                    .into_iter()
+                    .filter(|e| world.has::<crate::Editor>(*e));
+                let editor = editors.next()?;
+                editors.next().is_none().then_some(editor)
+            })
+        } else {
+            None
+        };
+        if let Some(editor) = editor.filter(|e| {
+            crate::interaction_visible(world, *e) && crate::interaction::policy(world, *e).0
+        }) {
+            let consumed = crate::editor::scroll_editor_wheel(world, editor, remaining[1]);
+            remaining[1] -= consumed;
+            changed |= consumed != 0.0;
+        }
         if let Some(rect) = world.get::<Rect>(entity).copied() {
             if let Some(scroll) = world.get_mut::<Scroll>(entity) {
                 let before = scroll.offset;

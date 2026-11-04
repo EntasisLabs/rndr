@@ -111,6 +111,12 @@ fn embedded_editor_drag_does_not_scroll_markdown_parent() {
     let input = app.world_mut().resource_mut::<Input>().unwrap();
     input.pointer.released = false;
     input.scroll = [0., -20.];
+    let editor_before = app.world().get::<Editor>(editor).unwrap().offset;
+    rndr_paint::frame(&mut app);
+    assert!(app.world().get::<Editor>(editor).unwrap().offset > editor_before);
+    assert_eq!(app.world().get::<Scroll>(view).unwrap().offset, before);
+    // Only the remainder at the editor's canonical boundary reaches markdown.
+    app.world_mut().resource_mut::<Input>().unwrap().scroll = [0., -100_000.];
     rndr_paint::frame(&mut app);
     assert!(app.world().get::<Scroll>(view).unwrap().offset[1] < before[1]);
 }

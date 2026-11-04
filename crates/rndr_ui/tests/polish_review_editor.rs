@@ -2,7 +2,7 @@ use rndr_core::*;
 use rndr_ui::UiPlugin;
 
 #[test]
-fn wheel_over_focused_editor_moves_only_scroll_ancestry_and_preserves_selection() {
+fn wheel_over_focused_editor_accumulates_locally_and_preserves_selection() {
     let mut app = App::new();
     app.add_plugin(UiPlugin);
     app.world_mut().insert_resource(Viewport::new(200., 150.));
@@ -14,7 +14,7 @@ fn wheel_over_focused_editor_moves_only_scroll_ancestry_and_preserves_selection(
         },
         Scroll::default(),
     ));
-    let mut buffer = Buffer::from_str("one two three");
+    let mut buffer = Buffer::from_str("one two three\nfour\nfive\nsix");
     buffer.caret = 7;
     buffer.anchor = 4;
     let editor = app.world_mut().spawn((
@@ -45,7 +45,8 @@ fn wheel_over_focused_editor_moves_only_scroll_ancestry_and_preserves_selection(
     input.pointer.position = [50., 50.];
     input.scroll = [0., -0.25];
     rndr_paint::frame(&mut app);
-    assert_eq!(app.world().get::<Scroll>(root).unwrap().offset, [0., -0.25]);
+    // Sub-row motion belongs to the editor, not its ancestor scrollport.
+    assert_eq!(app.world().get::<Scroll>(root).unwrap().offset, [0., 0.]);
     assert_eq!(app.world().get::<Editor>(editor).unwrap().offset, 0.);
     let caret = app.world().get::<Caret>(editor).unwrap();
     assert_eq!((caret.index, caret.anchor), (7, 4));
@@ -53,7 +54,14 @@ fn wheel_over_focused_editor_moves_only_scroll_ancestry_and_preserves_selection(
         app.world().resource::<Focus>().unwrap().entity,
         Some(editor)
     );
+    app.world_mut().resource_mut::<Input>().unwrap().scroll = [0., -32.];
+    rndr_paint::frame(&mut app);
+    let offset = app.world().get::<Editor>(editor).unwrap().offset;
+    assert!(offset > 0.);
+    assert_eq!(app.world().get::<Scroll>(root).unwrap().offset[1], 0.);
     // An idle frame must not undo explicit wheel movement via focus reveal.
     rndr_paint::frame(&mut app);
-    assert_eq!(app.world().get::<Scroll>(root).unwrap().offset[1], -0.25);
+    assert_eq!(app.world().get::<Editor>(editor).unwrap().offset, offset);
+    let buffer = app.world().get::<Buffer>(editor).unwrap();
+    assert_eq!((buffer.caret, buffer.anchor), (7, 4));
 }

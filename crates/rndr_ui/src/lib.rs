@@ -48,6 +48,9 @@ impl Plugin for UiPlugin {
         }
         app.add_plugin(rndr_core::GenericInteraction);
         app.add_system_front(Schedule::Input, rndr_core::apply_scroll);
+        // Installed after the front scroll registration, so a track claims its
+        // input before parent scrolling regardless of Shell installation order.
+        app.add_system_front(Schedule::Input, rndr_core::apply_scrollbars);
         if !app.world().has_resource::<UiTheme>() {
             app.world_mut().insert_resource(UiTheme::default());
         }
