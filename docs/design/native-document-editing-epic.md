@@ -88,11 +88,13 @@ Each milestone below is a **bounded review unit**, not a single massive assignme
 
 **Depends:** E1; implement as E2.1 input, E2.2 semantics, E2.3 scrollbar units.
 
-**Implementation status:** E1 plus demo polish committed as `aab3860`. The next
-[E2.1 input candidate](native-document-editing-e2-input.md) adds shaped Page
-navigation, explicit editor Tab ownership and composition teardown/focus guards.
-The acceptance checkbox below remains open pending the native/affinity ledger;
-E2.2 semantic ranges and E2.3 interactive scrollbars are not included.
+**Implementation status:** E1 plus demo polish committed as `aab3860`;
+[E2.1 input](native-document-editing-e2-input.md) committed as `3042621` adds
+shaped Page navigation, explicit Tab ownership and composition lifetime guards.
+The next [E2.2 semantic range candidate](native-document-editing-e2-semantics.md)
+adds source-fenced selection and shaped geometry through the AccessKit runner.
+Acceptance checkboxes remain open pending native/affinity certification;
+E2.3 interactive scrollbars and capture/autoscroll are not included.
 
 - [ ] Define visual/logical movement and endpoint affinity across wraps/bidi; platform word/Home/End/Page, Shift extension, selection reversal and Tab/Escape ownership. Complete composition lifecycle across focus loss, readonly, teardown and external changes.
 - [ ] Add native text-range/selection/caret actions and geometry; focused editable/readonly exposure. Reuse AccessKit and runner boundaries, not direct OS access in UI.

@@ -3164,6 +3164,7 @@ dependencies = [
  "swash",
  "tokio",
  "tray-icon",
+ "unicode-segmentation",
  "wgpu",
  "windows-sys 0.59.0",
  "winit",

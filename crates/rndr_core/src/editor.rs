@@ -1202,6 +1202,32 @@ fn place_from_pointer(world: &mut World, entity: crate::entity::Entity) -> bool 
     starting
 }
 
+pub(crate) fn access_caret_row(
+    world: &World,
+    entity: crate::Entity,
+    layout: &crate::TextLayout,
+    index: usize,
+) -> usize {
+    if let Some(goal) = world
+        .get::<VerticalGoal>(entity)
+        .filter(|goal| goal.index == index && row_contains(layout, goal.row, index))
+    {
+        return goal.row;
+    }
+    let (_, y) = layout.caret_xy(index);
+    layout
+        .lines
+        .iter()
+        .position(|line| line.y == y)
+        .unwrap_or(0)
+}
+
+pub(crate) fn reveal_access_selection(world: &mut World, entity: crate::Entity) {
+    world.remove::<VerticalGoal>(entity);
+    world.remove::<EditorDrag>(entity);
+    publish_window(world, entity, true);
+}
+
 fn publish_window(world: &mut World, entity: crate::entity::Entity, reveal: bool) {
     let height = world.get::<Rect>(entity).map(|rect| rect.h).unwrap_or(0.0);
     let offset = world

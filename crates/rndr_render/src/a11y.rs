@@ -5,41 +5,162 @@ use rndr_core::{
     access_tree, entity_from_access_id, AccessCommand, AccessRole, World, ACCESS_ROOT,
 };
 
-pub(crate) fn tree_update(world: &World) -> TreeUpdate {
-    let tree = access_tree(world);
-    let mut focus = NodeId(ACCESS_ROOT);
-    let nodes = tree
-        .nodes
-        .into_iter()
-        .map(|node| {
-            if node.focused {
-                focus = NodeId(node.id);
+#[derive(Default)]
+pub(crate) struct Bridge {
+    // All node IDs, including entity IDs, share this retained allocator. Never
+    // recycle an ID: queued actions must not acquire a new owner after removal.
+    ids: std::collections::HashMap<u64, NodeId>,
+    used: std::collections::HashSet<NodeId>,
+    next: u64,
+    active: std::collections::HashMap<NodeId, rndr_core::Entity>,
+    text: super::a11y_text::PublishedText,
+}
+impl Bridge {
+    fn allocate(&mut self) -> NodeId {
+        if self.next == 0 {
+            self.next = ACCESS_ROOT - 1;
+        }
+        loop {
+            let id = NodeId(self.next);
+            self.next = self
+                .next
+                .checked_sub(1)
+                .expect("accessibility ID space exhausted");
+            if id.0 != 0 && self.used.insert(id) {
+                return id;
             }
-            (NodeId(node.id), platform_node(world, &node))
-        })
-        .collect();
-    TreeUpdate {
-        nodes,
-        tree: Some(TreeInfo::new(NodeId(tree.root))),
-        tree_id: TreeId::ROOT,
-        focus,
+        }
+    }
+    fn id(&mut self, raw: u64) -> NodeId {
+        if raw == ACCESS_ROOT {
+            return NodeId(ACCESS_ROOT);
+        }
+        if let Some(id) = self.ids.get(&raw) {
+            return *id;
+        }
+        let preferred = NodeId(raw);
+        let id = if self.used.insert(preferred) {
+            preferred
+        } else {
+            self.allocate()
+        };
+        self.ids.insert(raw, id);
+        id
+    }
+    pub(crate) fn update(&mut self, world: &World) -> TreeUpdate {
+        let tree = access_tree(world);
+        self.active.clear();
+        for node in &tree.nodes {
+            let id = self.id(node.id);
+            if let Some(entity) = entity_from_access_id(node.id) {
+                self.active.insert(id, entity);
+            }
+        }
+        let mut published = super::a11y_text::PublishedText::default();
+        let mut focus = NodeId(ACCESS_ROOT);
+        let mut extra = Vec::new();
+        let mut nodes: Vec<_> = tree
+            .nodes
+            .into_iter()
+            .map(|node| {
+                if node.focused {
+                    focus = self.id(node.id);
+                }
+                let id = self.id(node.id);
+                let mut out = platform_node(world, &node);
+                // Remap every relationship, not just tree children.
+                out.set_children(
+                    node.children
+                        .iter()
+                        .map(|id| self.id(*id))
+                        .collect::<Vec<_>>(),
+                );
+                out.set_controls(
+                    out.controls()
+                        .iter()
+                        .map(|id| self.id(id.0))
+                        .collect::<Vec<_>>(),
+                );
+                out.set_labelled_by(
+                    out.labelled_by()
+                        .iter()
+                        .map(|id| self.id(id.0))
+                        .collect::<Vec<_>>(),
+                );
+                out.set_described_by(
+                    out.described_by()
+                        .iter()
+                        .map(|id| self.id(id.0))
+                        .collect::<Vec<_>>(),
+                );
+                if let Some(snapshot) =
+                    entity_from_access_id(node.id).and_then(|e| rndr_core::access_text(world, e))
+                {
+                    let old = self.text.editors.remove(&id);
+                    if let Some(mut text) =
+                        super::a11y_text::publish(id, snapshot, old.as_ref(), || self.allocate())
+                    {
+                        out.set_role(Role::MultilineTextInput);
+                        out.clear_value();
+                        out.set_clips_children();
+                        if text.snapshot.readonly {
+                            out.set_read_only();
+                            out.remove_action(Action::SetValue);
+                        }
+                        if text.snapshot.selectable {
+                            out.add_action(Action::SetTextSelection);
+                        }
+                        out.set_children(text.runs.iter().map(|r| r.id).collect::<Vec<_>>());
+                        if let Some(selection) = text.selection() {
+                            out.set_text_selection(selection);
+                        }
+                        extra.append(&mut text.nodes);
+                        published.editors.insert(id, text);
+                    }
+                }
+                (id, out)
+            })
+            .collect();
+        nodes.extend(extra);
+        self.text = published;
+        TreeUpdate {
+            nodes,
+            tree: Some(TreeInfo::new(NodeId(tree.root))),
+            tree_id: TreeId::ROOT,
+            focus,
+        }
+    }
+
+    pub(crate) fn command(
+        &self,
+        world: &World,
+        request: &accesskit::ActionRequest,
+    ) -> Option<AccessCommand> {
+        if request.target_tree != TreeId::ROOT {
+            return None;
+        }
+        let entity = *self.active.get(&request.target_node)?;
+        if request.action == Action::SetTextSelection {
+            return self.text.command(world, entity, request);
+        }
+        match request.action {
+            Action::Focus => Some(AccessCommand::Focus(entity)),
+            Action::Click => Some(AccessCommand::Activate(entity)),
+            Action::SetValue => {
+                let value = match request.data.as_ref() {
+                    Some(ActionData::Value(value)) => value.to_string(),
+                    _ => return None,
+                };
+                Some(AccessCommand::SetValue { entity, value })
+            }
+            _ => None,
+        }
     }
 }
 
-pub(crate) fn command(request: &accesskit::ActionRequest) -> Option<AccessCommand> {
-    let entity = entity_from_access_id(request.target_node.0)?;
-    match request.action {
-        Action::Focus => Some(AccessCommand::Focus(entity)),
-        Action::Click => Some(AccessCommand::Activate(entity)),
-        Action::SetValue => {
-            let value = match request.data.as_ref() {
-                Some(ActionData::Value(value)) => value.to_string(),
-                _ => return None,
-            };
-            Some(AccessCommand::SetValue { entity, value })
-        }
-        _ => None,
-    }
+#[cfg(test)]
+fn tree_update(world: &World) -> TreeUpdate {
+    Bridge::default().update(world)
 }
 
 fn platform_node(world: &World, node: &rndr_core::AccessNode) -> Node {
@@ -183,6 +304,22 @@ mod tests {
     use super::*;
     use rndr_core::*;
 
+    #[test]
+    fn synthetic_ids_and_future_entity_ids_share_one_non_recycled_namespace() {
+        let mut bridge = Bridge::default();
+        let synthetic = bridge.allocate();
+        assert_ne!(synthetic, NodeId(ACCESS_ROOT));
+        let entity_id = bridge.id(synthetic.0);
+        assert_ne!(
+            entity_id, synthetic,
+            "future entity must not alias an old text run"
+        );
+        assert_eq!(bridge.id(synthetic.0), entity_id);
+        let another = bridge.allocate();
+        assert_ne!(another, synthetic);
+        assert_ne!(another, entity_id);
+        assert_eq!(bridge.id(ACCESS_ROOT), NodeId(ACCESS_ROOT));
+    }
     #[test]
     fn composed_tree_roles_hierarchy_level_selection_and_focus_reach_native_adapter() {
         let mut app = App::new();

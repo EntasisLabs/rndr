@@ -236,7 +236,17 @@ pub enum AccessCommand {
     Focus(Entity),
     /// Press a button, activate a list row, or toggle a disclosure.
     Activate(Entity),
-    /// Replace the text of a field, prompt, or editor.
+    /// Set a focused editor's directed selection against a published text state.
+    /// Readonly selection is allowed; this does not replace text or steal focus.
+    SetTextSelection {
+        /// Target generation-qualified view.
+        entity: Entity,
+        /// Exact previously published source state.
+        state: crate::AccessTextState,
+        /// Directed document byte endpoints.
+        selection: crate::editing::SourceSelection,
+    },
+    /// Replace all text (currently unsupported).
     SetValue {
         /// Target entity.
         entity: Entity,
@@ -290,6 +300,11 @@ pub fn try_apply_access(world: &mut World, command: AccessCommand) -> AccessComm
                 AccessCommandResult::Applied
             }
         }
+        AccessCommand::SetTextSelection {
+            entity,
+            state,
+            selection,
+        } => crate::access_text::set_selection(world, entity, state, selection),
         AccessCommand::SetValue { .. } => AccessCommandResult::UnsupportedSetValue,
     }
 }
@@ -592,6 +607,7 @@ fn widget_roots(world: &World) -> Vec<Entity> {
     consider.extend(world.entities_with::<List>());
     consider.extend(world.entities_with::<TextField>());
     consider.extend(world.entities_with::<Prompt>());
+    consider.extend(world.entities_with::<crate::Editor>());
     consider.extend(world.entities_with::<Focusable>());
     consider.extend(world.entities_with::<Disclosure>());
     consider.extend(world.entities_with::<Tabs>());

@@ -42,6 +42,8 @@
 
 #[cfg(feature = "accesskit")]
 mod a11y;
+#[cfg(feature = "accesskit")]
+mod a11y_text;
 /// Opt-in component-targeted offscreen rendering; no native window or socket.
 #[cfg(feature = "observe")]
 pub mod capture;
@@ -412,6 +414,8 @@ struct Handler {
     proxy: EventLoopProxy<RunnerEvent>,
     #[cfg(feature = "accesskit")]
     access: Option<accesskit_winit::Adapter>,
+    #[cfg(feature = "accesskit")]
+    access_bridge: a11y::Bridge,
     #[cfg(feature = "tray")]
     tray: tray::Session,
 }
@@ -465,6 +469,8 @@ impl Handler {
             proxy,
             #[cfg(feature = "accesskit")]
             access: None,
+            #[cfg(feature = "accesskit")]
+            access_bridge: a11y::Bridge::default(),
             #[cfg(feature = "tray")]
             tray: tray::Session::new(),
         }
@@ -776,9 +782,8 @@ impl Handler {
     fn publish_access(&mut self) {
         #[cfg(feature = "accesskit")]
         if self.access.is_some() {
-            let update = a11y::tree_update(self.app.world());
             if let Some(access) = self.access.as_mut() {
-                access.update_if_active(|| update);
+                access.update_if_active(|| self.access_bridge.update(self.app.world()));
             }
         }
     }
@@ -806,7 +811,7 @@ impl Handler {
         match &event.window_event {
             AccessEvent::InitialTreeRequested => self.publish_access(),
             AccessEvent::ActionRequested(request) => {
-                if let Some(command) = a11y::command(request) {
+                if let Some(command) = self.access_bridge.command(self.app.world(), request) {
                     rndr_core::apply_access(self.app.world_mut(), command);
                 }
                 self.request_redraw();

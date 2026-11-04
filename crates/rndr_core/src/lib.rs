@@ -63,6 +63,7 @@
 #![deny(missing_docs)]
 
 mod access;
+mod access_text;
 mod action;
 mod app;
 mod button;
@@ -125,6 +126,7 @@ pub use access::{
     access_id, access_tree, apply_access, entity_from_access_id, AccessCommand, AccessNode,
     AccessRole, AccessTree, CollectionAccess, DataAccess, ACCESS_ROOT,
 };
+pub use access_text::{access_text, AccessTextSnapshot, AccessTextState};
 pub use action::{apply_actions, Actions, Binding, Chord, Fired, COPY, CUT, PASTE};
 pub use app::{App, Plugin, Schedule, System};
 pub use button::Button;

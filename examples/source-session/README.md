@@ -11,6 +11,9 @@ counts and host-owned dirty/save state, not structured Markdown editing.
   remain owned by the IME rather than menus or focus traversal.
 - The [E2.1 input candidate](../../docs/design/native-document-editing-e2-input.md)
   records the exact keyboard/composition contract and remaining native gates.
+- The [E2.2 semantic range candidate](../../docs/design/native-document-editing-e2-semantics.md)
+  adds AccessKit editor text ranges and directed selection for focused editable
+  and readonly source. Headless bridge tests are not VoiceOver/NVDA certification.
 - **Host splice** submits an explicit revisioned append, without serializing Markdown.
 - **Capture save**, edit more, then **Ack save**: only the captured snapshot is
   acknowledged; newer local edits must remain dirty and intact.
