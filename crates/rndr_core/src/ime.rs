@@ -6,7 +6,8 @@
 //! inserted once and a preedit does not also type the keys that built it.
 //!
 //! While a preedit is showing, character keys, Space, Enter, Backspace, Delete,
-//! and the arrows are dropped unless Ctrl, Alt, or Super is held. A commit
+//! the arrows, Home/End, and PageUp/PageDown are dropped unless Ctrl, Alt,
+//! or Super is held. A commit
 //! clears text on the keys that led up to it. A key after the commit whose text
 //! repeats the committed string loses that text. Shortcuts are kept.
 
@@ -203,6 +204,10 @@ fn is_composition_key(event: &KeyEvent) -> bool {
                 | NamedKey::ArrowRight
                 | NamedKey::ArrowUp
                 | NamedKey::ArrowDown
+                | NamedKey::Home
+                | NamedKey::End
+                | NamedKey::PageUp
+                | NamedKey::PageDown
                 | NamedKey::Space
         )
     )

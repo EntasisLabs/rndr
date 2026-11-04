@@ -443,6 +443,69 @@ fn row_contains(layout: &crate::TextLayout, row: usize, index: usize) -> bool {
         .is_some_and(|line| index >= line.start && index <= line.end)
 }
 
+fn vertical_key(event: &KeyEvent, platform: crate::Platform) -> Option<(isize, bool)> {
+    match steer(event, platform) {
+        Steer::Up => return Some((-1, false)),
+        Steer::Down => return Some((1, false)),
+        _ => {}
+    }
+    if event.modifiers.ctrl || event.modifiers.alt || event.modifiers.super_key {
+        return None;
+    }
+    match event.logical {
+        LogicalKey::Named(crate::NamedKey::PageUp) => Some((-1, true)),
+        LogicalKey::Named(crate::NamedKey::PageDown) => Some((1, true)),
+        _ => None,
+    }
+}
+
+// Page motion uses shaped row geometry and leaves one row of overlap. Like
+// Up/Down it retains preferred x and the wrap-row hint; it never invents byte
+// columns (which would split Unicode or drift across short rows).
+fn vertical_delta(
+    world: &mut World,
+    entity: crate::Entity,
+    text: &str,
+    index: usize,
+    event: &KeyEvent,
+) -> Option<isize> {
+    let (direction, page) = vertical_key(event, platform_of(world))?;
+    if !page {
+        return Some(direction);
+    }
+    let layout = document_rows(world, entity, text);
+    let (_, y) = layout.caret_xy(index);
+    let row = world
+        .get::<VerticalGoal>(entity)
+        .filter(|goal| goal.index == index && row_contains(&layout, goal.row, index))
+        .map_or_else(
+            || {
+                layout
+                    .lines
+                    .iter()
+                    .position(|line| line.y == y)
+                    .unwrap_or(0)
+            },
+            |goal| goal.row,
+        );
+    let Some(line) = layout.lines.get(row) else {
+        return Some(direction);
+    };
+    let height = world.get::<Rect>(entity).map_or(line.h, |rect| rect.h);
+    let distance = (height - 2.0 * TEXT_ORIGIN_Y - line.h).max(line.h);
+    let target_y = line.y + direction as f32 * distance;
+    let target = layout
+        .lines
+        .iter()
+        .enumerate()
+        .min_by(|(_, a), (_, b)| (a.y - target_y).abs().total_cmp(&(b.y - target_y).abs()))
+        .map_or(row, |(i, _)| i);
+    // A tiny viewport still advances one row. move_vertical clamps at the
+    // document boundary without clearing the preferred horizontal position.
+    let delta = target as isize - row as isize;
+    Some(if delta == 0 { direction } else { delta })
+}
+
 fn move_vertical(
     world: &mut World,
     entity: crate::entity::Entity,
@@ -523,7 +586,7 @@ fn move_vertical(
 }
 
 pub fn apply_editor(world: &mut World) {
-    crate::editing::prepare_source_input(world);
+    crate::editing::prepare_editor_source_input(world);
     let editors = world.entities_with::<Editor>();
     for entity in editors {
         if !world.has::<Buffer>(entity) {
@@ -563,7 +626,11 @@ pub fn apply_editor(world: &mut World) {
                                     || matches!(
                                         event.logical,
                                         LogicalKey::Named(
-                                            crate::NamedKey::ArrowLeft
+                                            crate::NamedKey::PageUp
+                                                | crate::NamedKey::PageDown
+                                                | crate::NamedKey::Home
+                                                | crate::NamedKey::End
+                                                | crate::NamedKey::ArrowLeft
                                                 | crate::NamedKey::ArrowRight
                                                 | crate::NamedKey::Backspace
                                                 | crate::NamedKey::Delete
@@ -810,12 +877,7 @@ fn edit_managed(world: &mut World, entity: crate::Entity) {
         if composing {
             continue;
         }
-        let delta = match steer(&event, platform) {
-            Steer::Up => Some(-1),
-            Steer::Down => Some(1),
-            _ => None,
-        };
-        if let Some(delta) = delta {
+        if vertical_key(&event, platform).is_some() {
             let Some(doc) = world
                 .resource::<SourceDocuments>()
                 .and_then(|d| d.get(binding.document))
@@ -824,6 +886,8 @@ fn edit_managed(world: &mut World, entity: crate::Entity) {
             };
             let text = doc.text().to_string();
             let s = doc.selection();
+            let delta = vertical_delta(world, entity, &text, s.head, &event)
+                .expect("vertical key already admitted");
             let (head, anchor) = move_vertical(
                 world,
                 entity,
@@ -910,12 +974,7 @@ fn edit_queue(world: &mut World, entity: crate::entity::Entity, keys: &[KeyEvent
     let now = crate::typing::frame_now(world);
     for event in keys {
         if !event.released && !event.synthetic {
-            let delta = match steer(event, platform) {
-                Steer::Up => Some(-1),
-                Steer::Down => Some(1),
-                _ => None,
-            };
-            if let Some(delta) = delta {
+            if let Some(delta) = vertical_delta(world, entity, &text, index, event) {
                 history.break_run();
                 (index, anchor) = move_vertical(
                     world,

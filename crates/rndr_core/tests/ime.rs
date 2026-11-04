@@ -57,6 +57,32 @@ fn editor() -> (App, rndr_core::Entity) {
 }
 
 #[test]
+fn preedit_owns_range_navigation_in_resolver_and_widget_snapshot() {
+    use rndr_core::{resolve_ime, ImeEvent, KeyEvent, Modifiers, NamedKey};
+    for key in [
+        NamedKey::Home,
+        NamedKey::End,
+        NamedKey::PageUp,
+        NamedKey::PageDown,
+    ] {
+        let event = KeyEvent::named(key, Modifiers::new());
+        let resolved = resolve_ime(&[
+            ImeEvent::Preedit("に".into(), None),
+            ImeEvent::Key(event.clone()),
+        ]);
+        assert!(resolved.keys.is_empty());
+        let (mut app, entity) = editor();
+        let input = app.world_mut().resource_mut::<Input>().unwrap();
+        input.ime_preedit = "に".into();
+        input.keys.push(event);
+        app.update();
+        let buffer = app.world().get::<Buffer>(entity).unwrap();
+        assert_eq!((buffer.caret, buffer.anchor), (2, 2));
+        assert_eq!(buffer.text(), "hi");
+    }
+}
+
+#[test]
 fn preedit_cursor_places_the_ime_caret() {
     let (mut app, entity) = field();
     let input = app.world_mut().resource_mut::<Input>().unwrap();

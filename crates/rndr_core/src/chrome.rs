@@ -66,8 +66,9 @@ impl Plugin for Chrome {
 /// move the list selection, then edit the focused text field. Update reads
 /// the events this pass sends.
 fn apply_input(world: &mut crate::world::World) {
+    crate::editing::prepare_chrome_source_input(world);
     crate::interaction::apply_generic_input(world);
-    crate::editing::prepare_source_input(world);
+    crate::editing::guard_source_owner(world);
     crate::interaction::sanitize_readonly_input(world);
     crate::list::prepare_list_keys(world);
     apply_keymap(world);

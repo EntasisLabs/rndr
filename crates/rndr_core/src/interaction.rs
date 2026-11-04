@@ -732,13 +732,18 @@ pub(crate) fn apply_generic_input(world: &mut World) {
             let focus = world.resource::<Focus>().and_then(|f| f.entity);
             if handled {
                 consumed = true;
-            } else if focus
-                .is_some_and(|e| world.has::<CapturesKeys>(e) && !world.has::<FieldTransactions>(e))
-            {
+            } else if focus.is_some_and(|e| {
+                world.has::<CapturesKeys>(e) && !world.has::<FieldTransactions>(e)
+                    // Source and legacy editors use Tab for focus traversal,
+                    // including Tab returned by popup dismissal. No implicit
+                    // indentation policy is installed by the generic surface.
+                    && !(world.has::<Editor>(e)
+                        && event.logical == LogicalKey::Named(NamedKey::Tab))
+            }) {
                 // Retain this event for the editor's canonical input stage.
-            } else if event.logical == LogicalKey::Named(NamedKey::Tab) && !event.released {
+            } else if event.logical == LogicalKey::Named(NamedKey::Tab) {
                 let order = focus_order(world);
-                if !order.is_empty() {
+                if !order.is_empty() && !event.released && !event.synthetic && !event.repeat {
                     let index = focus.and_then(|f| order.iter().position(|e| *e == f));
                     let index = match index {
                         Some(i) if event.modifiers.shift => (i + order.len() - 1) % order.len(),

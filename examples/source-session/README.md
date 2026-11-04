@@ -5,7 +5,12 @@ Run `cargo run -p source-session` on a native desktop. This is a fake host:
 counts and host-owned dirty/save state, not structured Markdown editing.
 
 - Type, select, undo/redo, and try native IME in the editor.
-- Tab to a command and press Enter/Space (or click).
+- Page Up/Down moves by a shaped viewport; hold Shift to extend selection.
+- Tab/Shift-Tab traverses to a command; press Enter/Space (or click). Tab does
+  not insert indentation. During active managed IME composition candidate keys
+  remain owned by the IME rather than menus or focus traversal.
+- The [E2.1 input candidate](../../docs/design/native-document-editing-e2-input.md)
+  records the exact keyboard/composition contract and remaining native gates.
 - **Host splice** submits an explicit revisioned append, without serializing Markdown.
 - **Capture save**, edit more, then **Ack save**: only the captured snapshot is
   acknowledged; newer local edits must remain dirty and intact.

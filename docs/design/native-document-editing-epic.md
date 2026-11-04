@@ -88,6 +88,12 @@ Each milestone below is a **bounded review unit**, not a single massive assignme
 
 **Depends:** E1; implement as E2.1 input, E2.2 semantics, E2.3 scrollbar units.
 
+**Implementation status:** E1 plus demo polish committed as `aab3860`. The next
+[E2.1 input candidate](native-document-editing-e2-input.md) adds shaped Page
+navigation, explicit editor Tab ownership and composition teardown/focus guards.
+The acceptance checkbox below remains open pending the native/affinity ledger;
+E2.2 semantic ranges and E2.3 interactive scrollbars are not included.
+
 - [ ] Define visual/logical movement and endpoint affinity across wraps/bidi; platform word/Home/End/Page, Shift extension, selection reversal and Tab/Escape ownership. Complete composition lifecycle across focus loss, readonly, teardown and external changes.
 - [ ] Add native text-range/selection/caret actions and geometry; focused editable/readonly exposure. Reuse AccessKit and runner boundaries, not direct OS access in UI.
 - [ ] Bind an interactive scrollbar to the same editor viewport controller: thumb drag/capture, track paging, keyboard/a11y actions, minimum hit area, clipped interval and both axes. Retain existing passive indicators for noninteractive consumers; no DataTable redesign.

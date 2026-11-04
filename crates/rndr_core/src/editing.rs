@@ -702,30 +702,105 @@ pub(crate) fn project_source(world: &mut World, entity: Entity) {
         binding.selection = s;
     }
 }
+// A dead view remains a tombstone until a native commit/cancel boundary.
+#[derive(Default)]
+struct SourceImeOwner(Option<(Entity, DocumentId)>);
+#[derive(Default)]
+struct SourceInputPrepared(bool);
+
+pub(crate) fn prepare_chrome_source_input(world: &mut World) {
+    prepare_source_input(world);
+    world.insert_resource(SourceInputPrepared(true));
+}
+pub(crate) fn prepare_editor_source_input(world: &mut World) {
+    let prepared = world
+        .resource_mut::<SourceInputPrepared>()
+        .is_some_and(|p| {
+            let prepared = p.0;
+            p.0 = false;
+            prepared
+        });
+    if !prepared {
+        prepare_source_input(world);
+    } else {
+        // Update systems may destroy or move the owner after Input preparation.
+        guard_source_owner(world);
+    }
+}
+fn clear_source_composition(world: &mut World, document: DocumentId) {
+    if let Some(doc) = world
+        .resource_mut::<SourceDocuments>()
+        .and_then(|d| d.get_mut(document))
+    {
+        doc.composition = None;
+    }
+}
+pub(crate) fn guard_source_owner(world: &mut World) {
+    let Some((view, document)) = world.resource::<SourceImeOwner>().and_then(|o| o.0) else {
+        return;
+    };
+    let live = attached_source(world, view) == Some(document)
+        && world.has::<crate::Editor>(view)
+        && world.has::<crate::Buffer>(view);
+    if !live {
+        clear_source_composition(world, document);
+    }
+    let focused = world.resource::<Focus>().and_then(|f| f.entity) == Some(view);
+    if let Some(input) = world.resource_mut::<Input>() {
+        // Candidate keys (including Tab/Escape) belong to the native IME.
+        // Suppress duplicate key text too, not just an orphan commit string.
+        input.keys.clear();
+        input.key = None;
+        input.chars.clear();
+        if !live || !focused {
+            input.ime_commit.clear();
+            input.ime_preedit.clear();
+            input.ime_cursor = None;
+        }
+    }
+}
+
 /// Synchronize native composition ownership before host Update systems run.
-/// Chrome calls this in Input. Standalone apply_editor also calls it.
+/// Chrome snapshots before consumer filtering: sanitized widget text must never
+/// be mistaken for native cancellation. Standalone apply_editor prepares too.
 pub fn prepare_source_input(world: &mut World) {
     let focused = world.resource::<Focus>().and_then(|f| f.entity);
-    let (preedit, mut commit) = world
+    let (mut preedit, mut commit) = world
         .resource::<Input>()
         .map(|i| (!i.ime_preedit.is_empty(), !i.ime_commit.is_empty()))
         .unwrap_or_default();
-    // Composition remains owned by its original view until native commit/cancel.
-    // A focus move never transfers its captured range to another document. An
-    // orphan commit is discarded, not inserted into the new focus target.
-    let orphan = world.entities_with::<SourceBinding>().into_iter().any(|e| {
-        focused != Some(e)
-            && world
-                .get::<SourceBinding>(e)
-                .and_then(|b| world.resource::<SourceDocuments>()?.get(b.document))
-                .is_some_and(SourceSession::is_composing)
-    });
-    if orphan && commit {
-        if let Some(input) = world.resource_mut::<Input>() {
-            input.ime_commit.clear();
-        }
+    if crate::events::<crate::WindowFocus>(world).contains(&crate::WindowFocus::Blurred) {
+        // Blur is a native cancellation boundary, not consumer text filtering.
+        preedit = false;
         commit = false;
+        if let Some(input) = world.resource_mut::<Input>() {
+            input.ime_preedit.clear();
+            input.ime_commit.clear();
+            input.ime_cursor = None;
+            input.chars.clear();
+            input.keys.clear();
+            input.key = None;
+        }
     }
+    let owner = world.resource::<SourceImeOwner>().and_then(|o| o.0);
+    if let Some((view, document)) = owner {
+        if !preedit && !commit {
+            clear_source_composition(world, document);
+            world.insert_resource(SourceImeOwner::default());
+        } else {
+            guard_source_owner(world);
+            let orphan = focused != Some(view) || attached_source(world, view) != Some(document);
+            if commit && orphan {
+                clear_source_composition(world, document);
+                world.insert_resource(SourceImeOwner::default());
+                commit = false;
+            }
+        }
+    }
+    let occupied = world
+        .resource::<SourceImeOwner>()
+        .and_then(|o| o.0)
+        .is_some();
     for entity in world.entities_with::<SourceBinding>() {
         sync_selection(world, entity);
         let b = *world.get::<SourceBinding>(entity).unwrap();
@@ -735,7 +810,8 @@ pub fn prepare_source_input(world: &mut World) {
         {
             if !preedit && !commit {
                 doc.composition = None;
-            } else if !orphan
+            } else if !occupied
+                && owner.is_none()
                 && focused == Some(entity)
                 && preedit
                 && !doc.readonly
@@ -743,12 +819,21 @@ pub fn prepare_source_input(world: &mut World) {
             {
                 doc.composition = Some(doc.selection);
                 doc.history.break_run();
+                world.insert_resource(SourceImeOwner(Some((entity, b.document))));
             }
         }
         project_source(world, entity);
     }
+    guard_source_owner(world);
 }
 pub(crate) fn finish_composition(world: &mut World, entity: Entity) {
+    if world
+        .resource::<SourceImeOwner>()
+        .and_then(|o| o.0)
+        .is_some_and(|(view, _)| view == entity)
+    {
+        world.insert_resource(SourceImeOwner::default());
+    }
     let Some(b) = world.get::<SourceBinding>(entity).copied() else {
         return;
     };
