@@ -741,9 +741,11 @@ pub(crate) fn apply_generic_input(world: &mut World) {
             let focus = world.resource::<Focus>().and_then(|f| f.entity);
             if handled {
                 consumed = true;
-            } else if crate::source_extensions::reserves_key(world, &event) {
-                // Source completion/IME controls are executed chronologically by
-                // edit_managed, never by this prefilter ahead of earlier text.
+            } else if crate::source_extensions::reserves_key(world, &event)
+                || crate::structured_native::reserves_key(world, &event)
+            {
+                // Source completion/IME and structured list controls execute in
+                // the canonical editor stage, not the global focus prefilter.
             } else if focus.is_some_and(|e| {
                 world.has::<CapturesKeys>(e) && !world.has::<FieldTransactions>(e)
                     // Source and legacy editors use Tab for focus traversal,

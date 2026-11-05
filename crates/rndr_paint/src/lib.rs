@@ -546,6 +546,20 @@ fn walk(
                 rndr_core::label_box(world, entity),
                 &rndr_core::source_presentation::secondary_selection_marks(world, entity),
             );
+            // Structural markers occupy a host-reserved sibling gutter, not editable bytes.
+            for mark in rndr_core::structured_chrome::structured_marks(world, entity) {
+                for r in rndr_core::structured_chrome::mark_rectangles(&mark) {
+                    push(
+                        &mut guard,
+                        snap_box(r.x, r.y, r.w, r.h, scale),
+                        theme.text,
+                        solid,
+                        mark.clip,
+                        0.0,
+                        0,
+                    );
+                }
+            }
             // Provider overlays are additive and revalidated at the actual
             // paint boundary, never cached in host Decorations or Spans.
             let provider_clip = clip.intersect(Clip::from_rect(rect));

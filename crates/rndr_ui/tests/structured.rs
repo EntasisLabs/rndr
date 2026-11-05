@@ -6,12 +6,573 @@ use rndr_core::structured_native::*;
 use rndr_core::*;
 use rndr_ui::structured::*;
 use rndr_ui::{UiId, UiPlugin};
+#[test]
+fn structured_nested_commands_keep_tree_identity_and_shared_history() {
+    use rndr_core::structured::{ContainerKind, ListKind};
+    let (mut app, _, view, id) = setup();
+    select(&mut app, view, 0, 11);
+    view.command(app.world_mut(), StructuredCommand::List(ListKind::Task))
+        .unwrap();
+    let before = app
+        .world()
+        .resource::<StructuredDocuments>()
+        .unwrap()
+        .get(id)
+        .unwrap()
+        .containers()
+        .to_vec();
+    select(&mut app, view, 7, 7);
+    view.command(app.world_mut(), StructuredCommand::Indent)
+        .unwrap();
+    let doc = app
+        .world()
+        .resource::<StructuredDocuments>()
+        .unwrap()
+        .get(id)
+        .unwrap();
+    assert_eq!(doc.plain_text(), "abcdef\nnext");
+    assert_eq!(
+        doc.ancestors(doc.blocks()[1].id)
+            .unwrap()
+            .iter()
+            .filter(|c| matches!(c.kind, ContainerKind::Item { .. }))
+            .count(),
+        2
+    );
+    view.command(app.world_mut(), StructuredCommand::ToggleTask)
+        .unwrap();
+    let doc = app
+        .world()
+        .resource::<StructuredDocuments>()
+        .unwrap()
+        .get(id)
+        .unwrap();
+    assert!(matches!(
+        doc.ancestors(doc.blocks()[1].id).unwrap()[0].kind,
+        ContainerKind::Item {
+            checked: Some(true)
+        }
+    ));
+    view.command(app.world_mut(), StructuredCommand::Undo)
+        .unwrap();
+    view.command(app.world_mut(), StructuredCommand::Undo)
+        .unwrap();
+    let doc = app
+        .world()
+        .resource::<StructuredDocuments>()
+        .unwrap()
+        .get(id)
+        .unwrap();
+    assert_eq!(doc.containers(), before);
+    assert_eq!(
+        app.world().get::<Buffer>(view.editor).unwrap().text(),
+        "abcdef\nnext"
+    );
+}
+#[test]
+fn structured_styles_metadata_and_readonly_are_atomic() {
+    use rndr_core::structured::TextStyle;
+    let (mut app, _, view, id) = setup();
+    select(&mut app, view, 5, 1);
+    let style = TextStyle {
+        color: Some([20, 100, 210]),
+        family: Some("monospace".into()),
+        ..Default::default()
+    };
+    view.command(app.world_mut(), StructuredCommand::TextStyle(style.clone()))
+        .unwrap();
+    let spans = &app.world().get::<Spans>(view.editor).unwrap().runs;
+    assert!(spans
+        .iter()
+        .any(|s| s.family.as_deref() == Some("monospace")
+            && s.color == Color::rgb(20.0 / 255.0, 100.0 / 255.0, 210.0 / 255.0)));
+    let before = app
+        .world()
+        .resource::<StructuredDocuments>()
+        .unwrap()
+        .get(id)
+        .unwrap()
+        .revision();
+    assert!(view
+        .command(
+            app.world_mut(),
+            StructuredCommand::Attributes([("bad key".into(), "x".into())].into())
+        )
+        .is_err());
+    assert_eq!(
+        app.world()
+            .resource::<StructuredDocuments>()
+            .unwrap()
+            .get(id)
+            .unwrap()
+            .revision(),
+        before
+    );
+    view.command(
+        app.world_mut(),
+        StructuredCommand::Attributes([("label".into(), "inert".into())].into()),
+    )
+    .unwrap();
+    app.world_mut()
+        .resource_mut::<StructuredDocuments>()
+        .unwrap()
+        .get_mut(id)
+        .unwrap()
+        .set_readonly(true);
+    for command in [
+        StructuredCommand::Quote,
+        StructuredCommand::Indent,
+        StructuredCommand::ToggleTask,
+        StructuredCommand::TextStyle(style),
+    ] {
+        assert!(view.command(app.world_mut(), command).is_err());
+    }
+}
+#[test]
+fn structured_gutter_is_owned_and_never_clipboard_text() {
+    let (mut app, _, view, _) = setup();
+    let owned = app.world().get::<Children>(view.root).unwrap().list.clone();
+    assert_eq!(owned.len(), 2);
+    assert!(app
+        .world()
+        .has::<rndr_core::structured_chrome::StructuredChromeGutter>(view.editor));
+    assert_eq!(
+        app.world().get::<Buffer>(view.editor).unwrap().text(),
+        "abcdef\nnext"
+    );
+    view.destroy(app.world_mut()).unwrap();
+    assert!(owned.iter().all(|e| !app.world().is_alive(*e)));
+}
+#[test]
+fn structured_nested_text_pointer_uses_the_painted_indent() {
+    use rndr_core::structured::ListKind;
+    let (mut app, _, view, id) = setup();
+    select(&mut app, view, 0, 11);
+    view.command(app.world_mut(), StructuredCommand::List(ListKind::Task))
+        .unwrap();
+    select(&mut app, view, 7, 7);
+    view.command(app.world_mut(), StructuredCommand::Indent)
+        .unwrap();
+    app.update();
+    app.update();
+    let layout = app.world().get::<TextLayout>(view.editor).unwrap();
+    let (x, y) = layout.caret_xy(8);
+    assert!(x > 48.0);
+    let rect = app.world().get::<Rect>(view.editor).unwrap();
+    let point = [rect.x + TEXT_ORIGIN_X + x, rect.y + TEXT_ORIGIN_Y + y + 2.0];
+    *app.world_mut().resource_mut::<Input>().unwrap() = Input {
+        pointer: Pointer {
+            position: point,
+            press_at: Some(point),
+            pressed: true,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    app.update();
+    *app.world_mut().resource_mut::<Input>().unwrap() = Input::default();
+    let doc = app
+        .world()
+        .resource::<StructuredDocuments>()
+        .unwrap()
+        .get(id)
+        .unwrap();
+    let selection = doc.text_selection().unwrap();
+    assert_eq!(selection.head.block, doc.blocks()[1].id);
+    assert_eq!(selection.head.offset, 1);
+    assert_eq!(selection.anchor, selection.head);
+}
+
+fn click_mark(app: &mut App, view: StructuredSurfaceHandle, rule: bool) {
+    use rndr_core::structured_chrome::{structured_marks, StructuredMarkKind};
+    let mark = structured_marks(app.world(), view.editor)
+        .into_iter()
+        .find(|m| {
+            if rule {
+                m.kind == StructuredMarkKind::HorizontalRule
+            } else {
+                matches!(m.kind, StructuredMarkKind::Task(_))
+            }
+        })
+        .unwrap();
+    let point = [
+        mark.rect.x + mark.rect.w * 0.5,
+        mark.rect.y + mark.rect.h * 0.5,
+    ];
+    *app.world_mut().resource_mut::<Input>().unwrap() = Input {
+        pointer: Pointer {
+            position: point,
+            press_at: Some(point),
+            pressed: true,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    app.update();
+    *app.world_mut().resource_mut::<Input>().unwrap() = Input::default();
+}
+#[test]
+fn structured_tab_routes_through_full_frame_without_focusing_toolbar() {
+    use rndr_core::structured::{ContainerKind, ListKind};
+    for legacy in [false, true] {
+        let (mut app, _, view, id) = setup();
+        let button = app
+            .world_mut()
+            .spawn((Focusable, Layout::column(), Label::new("Toolbar")));
+        select(&mut app, view, 0, 11);
+        view.command(app.world_mut(), StructuredCommand::List(ListKind::Task))
+            .unwrap();
+        select(&mut app, view, 7, 7);
+        app.update();
+        for (shift, depth) in [(false, 2), (true, 1)] {
+            *app.world_mut().resource_mut::<Input>().unwrap() = if legacy {
+                Input {
+                    key: Some(Key::Tab),
+                    shift,
+                    ..Default::default()
+                }
+            } else {
+                Input {
+                    keys: vec![KeyEvent::named(
+                        NamedKey::Tab,
+                        Modifiers {
+                            shift,
+                            ..Modifiers::new()
+                        },
+                    )],
+                    ..Default::default()
+                }
+            };
+            app.update();
+            assert_eq!(
+                app.world().resource::<Focus>().unwrap().entity,
+                Some(view.editor)
+            );
+            let doc = app
+                .world()
+                .resource::<StructuredDocuments>()
+                .unwrap()
+                .get(id)
+                .unwrap();
+            assert_eq!(
+                doc.ancestors(doc.blocks()[1].id)
+                    .unwrap()
+                    .iter()
+                    .filter(|c| matches!(c.kind, ContainerKind::Item { .. }))
+                    .count(),
+                depth
+            );
+            assert_eq!(doc.plain_text(), "abcdef\nnext");
+        }
+        *app.world_mut().resource_mut::<Input>().unwrap() = Input::default();
+        app.world_mut()
+            .resource_mut::<StructuredDocuments>()
+            .unwrap()
+            .get_mut(id)
+            .unwrap()
+            .set_readonly(true);
+        app.world_mut().resource_mut::<Input>().unwrap().keys =
+            vec![KeyEvent::named(NamedKey::Tab, Modifiers::new())];
+        app.update();
+        assert_eq!(
+            app.world().resource::<Focus>().unwrap().entity,
+            Some(view.editor)
+        );
+        assert_ne!(
+            app.world().resource::<Focus>().unwrap().entity,
+            Some(button)
+        );
+    }
+    // Ordinary paragraphs retain the generic editor's focus-traversal policy.
+    let (mut app, _, view, _) = setup();
+    app.world_mut()
+        .spawn((Focusable, Layout::column(), Label::new("Toolbar")));
+    app.world_mut().resource_mut::<Input>().unwrap().keys =
+        vec![KeyEvent::named(NamedKey::Tab, Modifiers::new())];
+    app.update();
+    assert_ne!(
+        app.world().resource::<Focus>().unwrap().entity,
+        Some(view.editor)
+    );
+}
+#[test]
+fn structured_checkbox_preserves_scrolled_viewport_with_distant_caret() {
+    use rndr_core::structured::{ContainerKind, ListKind};
+    let text = (0..100).map(|i| format!("task {i}\n")).collect::<String>();
+    for focused in [true, false] {
+        let (mut app, _, view, id) = setup_text(&text);
+        select(&mut app, view, 0, text.len());
+        view.command(app.world_mut(), StructuredCommand::List(ListKind::Task))
+            .unwrap();
+        select(&mut app, view, text.len() - 1, text.len() - 1);
+        app.update();
+        app.update();
+        let before = app
+            .world()
+            .resource::<StructuredDocuments>()
+            .unwrap()
+            .get(id)
+            .unwrap()
+            .selection();
+        app.world_mut()
+            .get_mut::<Editor>(view.editor)
+            .unwrap()
+            .offset = 0.0;
+        app.update();
+        if !focused {
+            app.world_mut().insert_resource(Focus { entity: None });
+        }
+        click_mark(&mut app, view, false);
+        app.update();
+        let doc = app
+            .world()
+            .resource::<StructuredDocuments>()
+            .unwrap()
+            .get(id)
+            .unwrap();
+        assert_eq!(doc.selection(), before);
+        assert!(matches!(
+            doc.ancestors(doc.blocks()[0].id).unwrap()[0].kind,
+            ContainerKind::Item {
+                checked: Some(true)
+            }
+        ));
+        assert_eq!(app.world().get::<Editor>(view.editor).unwrap().offset, 0.0);
+        // Keyboard navigation still deliberately reveals the text caret.
+        app.world_mut().resource_mut::<Input>().unwrap().keys =
+            vec![KeyEvent::named(NamedKey::ArrowLeft, Modifiers::new())];
+        app.update();
+        assert!(app.world().get::<Editor>(view.editor).unwrap().offset > 0.0);
+    }
+}
+#[test]
+fn structured_checkbox_pointer_preserves_selection_and_has_one_history_step() {
+    use rndr_core::structured::{ContainerKind, ListKind};
+    let (mut app, _, view, id) = setup();
+    select(&mut app, view, 0, 11);
+    view.command(app.world_mut(), StructuredCommand::List(ListKind::Task))
+        .unwrap();
+    select(&mut app, view, 5, 1);
+    app.update();
+    app.update();
+    let before = app
+        .world()
+        .resource::<StructuredDocuments>()
+        .unwrap()
+        .get(id)
+        .unwrap()
+        .selection();
+    app.world_mut().insert_resource(Focus { entity: None });
+    click_mark(&mut app, view, false);
+    let d = app
+        .world()
+        .resource::<StructuredDocuments>()
+        .unwrap()
+        .get(id)
+        .unwrap();
+    assert_eq!(d.selection(), before);
+    assert!(matches!(
+        d.ancestors(d.blocks()[0].id).unwrap()[0].kind,
+        ContainerKind::Item {
+            checked: Some(true)
+        }
+    ));
+    assert_eq!(
+        app.world().resource::<Focus>().unwrap().entity,
+        Some(view.editor)
+    );
+    view.command(app.world_mut(), StructuredCommand::Undo)
+        .unwrap();
+    let d = app
+        .world()
+        .resource::<StructuredDocuments>()
+        .unwrap()
+        .get(id)
+        .unwrap();
+    assert_eq!(d.selection(), before);
+    assert!(matches!(
+        d.ancestors(d.blocks()[0].id).unwrap()[0].kind,
+        ContainerKind::Item {
+            checked: Some(false)
+        }
+    ));
+    app.update();
+    app.update();
+    app.world_mut()
+        .resource_mut::<StructuredDocuments>()
+        .unwrap()
+        .get_mut(id)
+        .unwrap()
+        .set_readonly(true);
+    let revision = app
+        .world()
+        .resource::<StructuredDocuments>()
+        .unwrap()
+        .get(id)
+        .unwrap()
+        .revision();
+    click_mark(&mut app, view, false);
+    let d = app
+        .world()
+        .resource::<StructuredDocuments>()
+        .unwrap()
+        .get(id)
+        .unwrap();
+    assert_eq!(d.revision(), revision);
+    assert_eq!(d.selection(), before);
+}
+#[test]
+fn structured_rule_pointer_selects_node_and_readonly_does_not_delete() {
+    let (mut app, _, view, id) = setup();
+    select(&mut app, view, 3, 3);
+    view.command(app.world_mut(), StructuredCommand::HorizontalRule)
+        .unwrap();
+    app.update();
+    app.update();
+    click_mark(&mut app, view, true);
+    let d = app
+        .world()
+        .resource::<StructuredDocuments>()
+        .unwrap()
+        .get(id)
+        .unwrap();
+    let StructuredSelection::Node(rule) = d.selection() else {
+        panic!("rule must be a node selection")
+    };
+    assert_eq!(
+        d.blocks().iter().find(|b| b.id == rule).unwrap().kind,
+        BlockKind::HorizontalRule
+    );
+    app.world_mut()
+        .resource_mut::<StructuredDocuments>()
+        .unwrap()
+        .get_mut(id)
+        .unwrap()
+        .set_readonly(true);
+    assert!(view
+        .command(app.world_mut(), StructuredCommand::DeleteBlock)
+        .is_err());
+    assert_eq!(
+        app.world()
+            .resource::<StructuredDocuments>()
+            .unwrap()
+            .get(id)
+            .unwrap()
+            .selection(),
+        StructuredSelection::Node(rule)
+    );
+}
+#[test]
+fn structured_quoted_task_pointer_targets_nearest_item() {
+    use rndr_core::structured::{ContainerKind, ListKind};
+    let (mut app, _, view, id) = setup();
+    select(&mut app, view, 1, 1);
+    view.command(app.world_mut(), StructuredCommand::List(ListKind::Task))
+        .unwrap();
+    view.command(app.world_mut(), StructuredCommand::Quote)
+        .unwrap();
+    app.update();
+    app.update();
+    click_mark(&mut app, view, false);
+    let d = app
+        .world()
+        .resource::<StructuredDocuments>()
+        .unwrap()
+        .get(id)
+        .unwrap();
+    assert!(d
+        .ancestors(d.blocks()[0].id)
+        .unwrap()
+        .iter()
+        .any(|c| matches!(
+            c.kind,
+            ContainerKind::Item {
+                checked: Some(true)
+            }
+        )));
+    view.command(app.world_mut(), StructuredCommand::Undo)
+        .unwrap();
+    let d = app
+        .world()
+        .resource::<StructuredDocuments>()
+        .unwrap()
+        .get(id)
+        .unwrap();
+    assert_eq!(
+        d.ancestors(d.blocks()[0].id).unwrap()[0].kind,
+        ContainerKind::Quote
+    );
+}
+#[test]
+fn structured_task_pointer_refuses_stale_projection_and_native_preedit() {
+    use rndr_core::structured::ListKind;
+    use rndr_core::structured_chrome::structured_marks;
+    for composing in [false, true] {
+        let (mut app, _, view, id) = setup();
+        view.command(app.world_mut(), StructuredCommand::List(ListKind::Task))
+            .unwrap();
+        app.update();
+        app.update();
+        let mark = structured_marks(app.world(), view.editor)
+            .into_iter()
+            .next()
+            .unwrap();
+        let point = [mark.rect.x + 5.0, mark.rect.y + 5.0];
+        if !composing {
+            app.world_mut()
+                .resource_mut::<StructuredDocuments>()
+                .unwrap()
+                .get_mut(id)
+                .unwrap()
+                .set_block_kind(BlockKind::Heading(2), EditOrigin::Host(7))
+                .unwrap();
+        }
+        let before = app
+            .world()
+            .resource::<StructuredDocuments>()
+            .unwrap()
+            .get(id)
+            .unwrap()
+            .revision();
+        *app.world_mut().resource_mut::<Input>().unwrap() = Input {
+            pointer: Pointer {
+                position: point,
+                press_at: Some(point),
+                pressed: true,
+                ..Default::default()
+            },
+            ime_preedit: if composing {
+                "仮".into()
+            } else {
+                String::new()
+            },
+            ..Default::default()
+        };
+        app.update();
+        let d = app
+            .world()
+            .resource::<StructuredDocuments>()
+            .unwrap()
+            .get(id)
+            .unwrap();
+        assert_eq!(d.revision(), before);
+        assert!(d.containers().iter().all(|c| !matches!(
+            c.kind,
+            rndr_core::structured::ContainerKind::Item {
+                checked: Some(true)
+            }
+        )));
+    }
+}
 fn setup() -> (App, Entity, StructuredSurfaceHandle, StructuredHandle) {
+    setup_text("abcdef\nnext")
+}
+fn setup_text(text: &str) -> (App, Entity, StructuredSurfaceHandle, StructuredHandle) {
     let mut app = App::new();
     app.add_plugin(UiPlugin);
     app.world_mut().insert_resource(Viewport::new(640.0, 480.0));
     let mut docs = StructuredDocuments::default();
-    let id = docs.insert(StructuredDocument::new("abcdef\nnext"));
+    let id = docs.insert(StructuredDocument::new(text));
     app.world_mut().insert_resource(docs);
     let parent = app.world_mut().spawn((Layout {
         width: Size::Fill,

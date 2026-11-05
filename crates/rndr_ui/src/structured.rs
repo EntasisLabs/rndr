@@ -4,7 +4,8 @@
 use crate::{Token, Typography, UiError, UiId, UiRecipe, UiStyle};
 use rndr_core::editing::{Affinity, EditOrigin};
 use rndr_core::structured::{
-    BlockKind, Operation, StructuredSelection, TextSelection, Transaction,
+    Attributes, BlockKind, ContainerKind, ListKind, Operation, StructuredSelection, TextSelection,
+    TextStyle, Transaction,
 };
 use rndr_core::structured_native::*;
 use rndr_core::*;
@@ -54,6 +55,7 @@ struct Node {
     id: UiId,
     document: StructuredHandle,
     editor: Entity,
+    gutter: Entity,
 }
 impl Component for Node {}
 pub(crate) fn key_at(world: &World, entity: Entity) -> Option<UiId> {
@@ -119,8 +121,16 @@ impl StructuredSurface {
             let root = world.spawn((Layout {
                 width: Size::Fill,
                 height: Size::Fill,
+                ..Layout::row()
+            },));
+            // Keep only a small retained margin; paragraph indentation owns
+            // marker space. Chrome never enters input or clipboard bytes.
+            let gutter = world.spawn((Layout {
+                width: Size::Px(4.0),
+                height: Size::Fill,
                 ..Layout::column()
             },));
+            set_parent(world, gutter, root);
             let editor = world.spawn((
                 Layout {
                     width: Size::Fill,
@@ -134,6 +144,14 @@ impl StructuredSurface {
                 Focusable,
             ));
             set_parent(world, editor, root);
+            world.insert(
+                gutter,
+                rndr_core::structured_chrome::StructuredChromeTarget(editor),
+            );
+            world.insert(
+                editor,
+                rndr_core::structured_chrome::StructuredChromeGutter { width: 4.0 },
+            );
             world.insert(
                 editor,
                 UiRecipe(UiStyle {
@@ -154,6 +172,7 @@ impl StructuredSurface {
                     id,
                     document: props.document,
                     editor,
+                    gutter,
                 },
             );
             StructuredSurfaceHandle { root, editor }
@@ -184,6 +203,22 @@ pub enum StructuredCommand {
     Link(Option<String>),
     /// Paragraph/heading conversion, preserving identity and text selection.
     Block(BlockKind),
+    /// Wrap selected sibling blocks/subtrees in an explicit quote container.
+    Quote,
+    /// Wrap selected sibling blocks in a schema-owned list and item containers.
+    List(ListKind),
+    /// Nest the moving endpoint's entire item under its preceding sibling.
+    Indent,
+    /// Promote the moving endpoint's item or exit its outer list/quote.
+    Outdent,
+    /// Toggle the moving endpoint's task item; checked state is model history.
+    ToggleTask,
+    /// Insert a nontext rule at a collapsed text caret.
+    HorizontalRule,
+    /// Replace validated inert metadata on the moving endpoint's block.
+    Attributes(Attributes),
+    /// Replace color/family styles on selected text, preserving semantic marks.
+    TextStyle(TextStyle),
     /// Document-owned undo.
     Undo,
     /// Document-owned redo.
@@ -229,11 +264,60 @@ impl StructuredSurfaceHandle {
             )
             .into());
         }
-        let origin = EditOrigin::Host(0xE5);
+        let origin = EditOrigin::Host(0xE6);
         let result = match command {
             StructuredCommand::Undo => doc.undo(),
             StructuredCommand::Redo => doc.redo(),
             StructuredCommand::Block(kind) => doc.set_block_kind(kind, origin),
+            command @ (StructuredCommand::Quote
+            | StructuredCommand::List(_)
+            | StructuredCommand::Indent
+            | StructuredCommand::Outdent
+            | StructuredCommand::ToggleTask
+            | StructuredCommand::HorizontalRule
+            | StructuredCommand::Attributes(_)) => {
+                let block = match doc.selection() {
+                    StructuredSelection::Text(s) => s.head.block,
+                    StructuredSelection::Node(id) => id,
+                };
+                let operation = match command {
+                    StructuredCommand::Quote | StructuredCommand::List(_) => {
+                        let range = doc
+                            .text_selection()
+                            .ok_or(StructuredSurfaceError::SelectText)?;
+                        let kind = match command {
+                            StructuredCommand::List(kind) => ContainerKind::List(kind),
+                            _ => ContainerKind::Quote,
+                        };
+                        Operation::Wrap { range, kind }
+                    }
+                    StructuredCommand::Indent => Operation::Indent { block },
+                    StructuredCommand::Outdent => Operation::Outdent { block },
+                    StructuredCommand::ToggleTask => Operation::ToggleTask { block },
+                    StructuredCommand::Attributes(attributes) => {
+                        Operation::SetAttributes { block, attributes }
+                    }
+                    StructuredCommand::HorizontalRule => {
+                        let range = doc
+                            .text_selection()
+                            .ok_or(StructuredSurfaceError::SelectText)?;
+                        if range.anchor.block != range.head.block
+                            || range.anchor.offset != range.head.offset
+                        {
+                            return Err(StructuredSurfaceError::SelectText);
+                        }
+                        Operation::InsertHorizontalRule { at: range.head }
+                    }
+                    _ => unreachable!(),
+                };
+                doc.apply(Transaction {
+                    document: doc.id(),
+                    base: doc.revision(),
+                    origin,
+                    group: None,
+                    operations: vec![operation],
+                })
+            }
             StructuredCommand::SelectBlock => {
                 let block = match doc.selection() {
                     StructuredSelection::Text(s) => s.head.block,
@@ -292,6 +376,7 @@ impl StructuredSurfaceHandle {
                         StructuredCommand::Strong => marks.strong = enable,
                         StructuredCommand::Emphasis => marks.emphasis = enable,
                         StructuredCommand::Link(link) => marks.link = link.clone(),
+                        StructuredCommand::TextStyle(style) => marks.text_style = style.clone(),
                         _ => unreachable!(),
                     }
                     operations.push(Operation::SetMarks {
@@ -323,6 +408,8 @@ impl StructuredSurfaceHandle {
     pub fn destroy(self, world: &mut World) -> Result<(), StructuredSurfaceError> {
         self.validate(world)?;
         detach_structured(world, self.editor)?;
+        let gutter = world.get::<Node>(self.root).ok_or(UiError::Stale)?.gutter;
+        despawn(world, gutter);
         for child in children_of(world, self.root) {
             if child != self.editor {
                 world.remove::<Parent>(child);

@@ -1,7 +1,8 @@
-//! E5 generic structured document demo. No Markdown, filesystem or persistence.
+//! E6.1 nested structured document demo. No Markdown, filesystem or persistence.
 use rndr_core::editing::{Affinity, EditOrigin};
 use rndr_core::structured::{
-    BlockKind, Marks, StructuredDocument, StructuredSelection, TextSelection,
+    BlockKind, ContainerKind, ListKind, Marks, Operation, StructuredDocument, StructuredSelection,
+    TextSelection, TextStyle, Transaction,
 };
 use rndr_core::structured_native::*;
 use rndr_core::*;
@@ -10,7 +11,7 @@ use rndr_ui::structured::*;
 use rndr_ui::{apply_theme_bridge, Token, Typography, UiId, UiPlugin, UiRecipe, UiStyle, UiTheme};
 use std::sync::Arc;
 
-const INITIAL:&str="A real structured document\nSelect text, then use Strong, Emphasis or Link. This is a tree, not Markdown.\nEnter splits a block. Backspace at its start joins it. Try é, مرحبا and 👩‍💻.\nEvery edit and format command shares the document’s undo history.";
+const INITIAL: &str = "A real structured document\nSelect text, then format a tree, not Markdown.\nA task item — click its checkbox.\nNested task — Tab / Shift-Tab changes ownership.\nAnother task — Enter continues; empty Enter exits.\nQuoted text: é, مرحبا and 👩‍💻.\nEvery edit shares tree-owned undo history.";
 #[derive(Clone)]
 struct Demo {
     root: Entity,
@@ -61,6 +62,45 @@ fn setup(world: &mut World) {
     let mut doc = StructuredDocument::new(INITIAL);
     doc.set_block_kind(BlockKind::Heading(1), EditOrigin::Host(0))
         .unwrap();
+    let first = doc.blocks()[2].id;
+    let last = doc.blocks()[4].id;
+    let range = TextSelection {
+        anchor: rndr_core::structured::Position {
+            block: first,
+            offset: 0,
+            affinity: Affinity::After,
+        },
+        head: rndr_core::structured::Position {
+            block: last,
+            offset: doc.blocks()[4].len(),
+            affinity: Affinity::After,
+        },
+    };
+    let nested = doc.blocks()[3].id;
+    let quote = doc.blocks()[5].id;
+    let q = rndr_core::structured::Position {
+        block: quote,
+        offset: 0,
+        affinity: Affinity::After,
+    };
+    doc.apply(Transaction {
+        document: doc.id(),
+        base: doc.revision(),
+        origin: EditOrigin::Host(0),
+        group: None,
+        operations: vec![
+            Operation::Wrap {
+                range,
+                kind: ContainerKind::List(ListKind::Task),
+            },
+            Operation::Indent { block: nested },
+            Operation::Wrap {
+                range: TextSelection { anchor: q, head: q },
+                kind: ContainerKind::Quote,
+            },
+        ],
+    })
+    .unwrap();
     let start = INITIAL.find("a tree").unwrap();
     let a = doc.position_at(start, Affinity::After).unwrap();
     let h = doc.position_at(start + 6, Affinity::After).unwrap();
@@ -93,11 +133,11 @@ fn setup(world: &mut World) {
             ..Default::default()
         }),
     ));
-    label(world, root, "Structured / E5", Typography::Heading);
+    label(world, root, "Structured / E6.1", Typography::Heading);
     label(
         world,
         root,
-        "Paragraphs · headings · inline marks · one tree-owned history",
+        "Real nested lists · tasks · quotes · rules · one tree-owned history",
         Typography::Secondary,
     );
     let toolbar = row(world, root);
@@ -108,16 +148,32 @@ fn setup(world: &mut World) {
         (4, "Unlink"),
         (5, "Heading"),
         (6, "Paragraph"),
+        (7, "Undo"),
+        (8, "Redo"),
     ] {
         button(world, toolbar, id, text);
     }
     let toolbar = row(world, root);
     for (id, text) in [
-        (7, "Undo"),
-        (8, "Redo"),
+        (12, "Quote"),
+        (13, "Bullet"),
+        (14, "Ordered"),
+        (15, "Tasks"),
+        (16, "Indent"),
+        (17, "Outdent"),
+        (18, "Check"),
+        (19, "Rule"),
+    ] {
+        button(world, toolbar, id, text);
+    }
+    let toolbar = row(world, root);
+    for (id, text) in [
         (9, "Select block"),
         (10, "Delete block"),
         (11, "Readonly"),
+        (20, "Blue mono"),
+        (21, "Clear style"),
+        (22, "Metadata"),
     ] {
         button(world, toolbar, id, text);
     }
@@ -143,8 +199,13 @@ fn setup(world: &mut World) {
     )
     .unwrap();
     let tree = label(world, root, "", Typography::Code);
-    world.get_mut::<Layout>(tree).unwrap().height = Size::Px(132.0);
-    label(world,root,"Select a range before inline formatting. IME preedit is transient; readonly still permits selection and copy.",Typography::Secondary);
+    world.get_mut::<Layout>(tree).unwrap().height = Size::Px(88.0);
+    label(
+        world,
+        root,
+        "Tab nests items; Shift-Tab promotes. Rule needs a caret. Readonly permits selection/copy.",
+        Typography::Secondary,
+    );
     world.insert_resource(Demo {
         root,
         view,
@@ -180,6 +241,22 @@ fn update(world: &mut World) {
             8 => Some(StructuredCommand::Redo),
             9 => Some(StructuredCommand::SelectBlock),
             10 => Some(StructuredCommand::DeleteBlock),
+            12 => Some(StructuredCommand::Quote),
+            13 => Some(StructuredCommand::List(ListKind::Bullet)),
+            14 => Some(StructuredCommand::List(ListKind::Ordered { start: 1 })),
+            15 => Some(StructuredCommand::List(ListKind::Task)),
+            16 => Some(StructuredCommand::Indent),
+            17 => Some(StructuredCommand::Outdent),
+            18 => Some(StructuredCommand::ToggleTask),
+            19 => Some(StructuredCommand::HorizontalRule),
+            20 => Some(StructuredCommand::TextStyle(TextStyle {
+                color: Some([60, 145, 230]),
+                family: Some("monospace".into()),
+            })),
+            21 => Some(StructuredCommand::TextStyle(TextStyle::default())),
+            22 => Some(StructuredCommand::Attributes(
+                [("label".into(), "Host-owned inert metadata".into())].into(),
+            )),
             _ => None,
         };
         if let Some(command) = command {
@@ -237,8 +314,8 @@ fn update(world: &mut World) {
             .collect::<Vec<_>>()
             .join(" | ");
         tree.push_str(&format!(
-            "node {}  {:?}  [{}]\n",
-            block.id.0, block.kind, marks
+            "node {}  {:?} parent={:?}  [{}]\n",
+            block.id.0, block.kind, block.parent, marks
         ));
     }
     if doc.blocks().len() > 5 {
@@ -354,7 +431,9 @@ mod tests {
         let _ = rndr_paint::frame(&mut app);
         let demo = app.world().resource::<Demo>().unwrap().clone();
         let display = structured_display(app.world(), demo.view.editor).unwrap();
-        assert_eq!(display.blocks.len(), 4);
+        assert_eq!(display.blocks.len(), 7);
+        assert!(!display.containers.is_empty());
+        assert!(display.blocks[2].parent.is_some());
         assert_eq!(display.blocks[0].kind, BlockKind::Heading(1));
         let access = access_text(app.world_mut(), demo.view.editor).unwrap();
         assert!(!access.layout.lines.is_empty());

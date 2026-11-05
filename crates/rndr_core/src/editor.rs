@@ -531,6 +531,7 @@ fn document_rows(
     let font = crate::font::text_face(world);
     let mut context = crate::font::layout_cache_key(font.as_ref(), "", width, &[], "", 0);
     context ^= crate::text::style_key(&style);
+    context ^= crate::structured_chrome::layout_key(world, entity);
     context ^= (std::sync::Arc::as_ptr(&engine) as *const () as usize as u64).rotate_left(17);
     context ^= engine.cache_epoch().wrapping_mul(0x9E37_79B9_7F4A_7C15);
     let mut key = context.rotate_left(23)
@@ -571,17 +572,35 @@ fn document_rows(
             Some(map_scroll_anchor(&rows.text, text, at))
         })
     });
-    let (mut layout, cache, work) = geometry::build(
-        engine.as_ref(),
-        font.as_ref(),
-        &style,
-        width,
-        text,
-        spans,
-        previous
-            .filter(|rows| rows.context == context)
-            .map(|rows| &rows.cache),
-    );
+    let (mut layout, cache, work) = if let Some(mut layout) =
+        crate::structured_chrome::text_layout(world, entity, spans, text, width, (0, 0, 0))
+    {
+        // Native input/scrolling and visible paint must use identical paragraph
+        // origins and wrap widths. Retain only row geometry in this cache.
+        layout.glyphs = Vec::new();
+        layout.highlights = Vec::new();
+        (
+            layout,
+            geometry::Cache::default(),
+            geometry::Work {
+                paragraphs: text.split('\n').count() as u64,
+                bytes: text.len() as u64,
+                reused: 0,
+            },
+        )
+    } else {
+        geometry::build(
+            engine.as_ref(),
+            font.as_ref(),
+            &style,
+            width,
+            text,
+            spans,
+            previous
+                .filter(|rows| rows.context == context)
+                .map(|rows| &rows.cache),
+        )
+    };
     crate::source_folding::project_fold_layout(world, entity, &mut layout);
     let mut stats = world
         .get::<EditorLayoutStats>(entity)
@@ -820,6 +839,7 @@ pub(crate) fn move_vertical(
 pub fn apply_editor(world: &mut World) {
     crate::editing::prepare_editor_source_input(world);
     crate::structured_native::prepare_input(world);
+    let structural_pointer = crate::structured_native::place_from_pointer(world);
     let editors = world.entities_with::<Editor>();
     let mut publication = Vec::new();
     for entity in editors {
@@ -885,7 +905,15 @@ pub fn apply_editor(world: &mut World) {
                 })
                 .is_some_and(crate::editing::SourceSession::is_composing);
             if !composing && !crate::structured_native::is_composing(world, entity) {
-                reveal |= place_from_pointer(world, entity);
+                if let Some((_, pointer_reveal)) = structural_pointer.filter(|(e, _)| *e == entity)
+                {
+                    // Task toggles retain the saved selection, which may be
+                    // offscreen. Rule clicks explicitly select/reveal a node.
+                    reveal |= pointer_reveal;
+                    world.remove::<EditorDrag>(entity);
+                } else {
+                    reveal |= place_from_pointer(world, entity);
+                }
             } else {
                 world.remove::<EditorDrag>(entity);
             }

@@ -718,7 +718,7 @@ impl TextLayout {
             if line.start == line.end {
                 if line.start >= start && line.start < end {
                     boxes.push(SelectionBox {
-                        x: 0.0,
+                        x: line.edges.first().map_or(0.0, |edge| edge.1),
                         y: line.y,
                         w: 2.0,
                         h: line.h,
@@ -892,6 +892,7 @@ pub fn apply_text_layout(world: &mut World) {
         let mut key = layout_cache_key(font.as_ref(), &source, max_width, &spans, &preview, at);
         key ^= crate::text::style_key(&style);
         key ^= overflow_bits(overflow);
+        key ^= crate::structured_chrome::layout_key(world, entity);
         if !preview.is_empty() {
             if let Some((start, end)) = cursor {
                 key ^= (start as u64)
@@ -915,7 +916,19 @@ pub fn apply_text_layout(world: &mut World) {
             max_width
         };
         // Always shape through the engine so the line cache records this frame.
-        let mut layout = engine.layout(&text, &style, &spans, shape_width);
+        let mut layout = crate::structured_chrome::text_layout(
+            world,
+            entity,
+            &spans,
+            &text,
+            shape_width,
+            (
+                crate::editor::window_base(world, entity),
+                insert_at,
+                preview.len(),
+            ),
+        )
+        .unwrap_or_else(|| engine.layout(&text, &style, &spans, shape_width));
         let epoch = engine.cache_epoch();
         if epoch != 0 {
             key ^= epoch.wrapping_mul(0x9E37_79B9_7F4A_7C15);

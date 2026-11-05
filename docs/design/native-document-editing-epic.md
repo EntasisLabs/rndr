@@ -157,7 +157,7 @@ Implementation, contract review and verification: [E5 evidence](native-document-
 
 **Depends:** E5; each line below is a separate bounded slice/review.
 
-- [ ] E6.1 Quote/HR, ordered/bullet/nested task lists, generic attributes, text-style marks and optional annotation/footnote extension points matching M3. Define nesting/merge/split and checkbox commands through model history.
+- [x] E6.1 Quote/HR, ordered/bullet/nested task lists, generic attributes, text-style marks and optional annotation/footnote extension points matching M3. Define nesting/merge/split and checkbox commands through model history. Accepted 2026-11-05 after principal desktop rendering/interaction recheck; see [E6.1 evidence](native-document-editing-e6.md).
 - [ ] E6.2 Editable tables: rows/cells/headers, cell/rectangle selection, Tab navigation, insert/delete row/column, fragment copy/paste and selection repair. Resize handles are **not** required for current Medousa parity; keep them deferred.
 - [ ] E6.3 Atomic block/image extension with retained mount/update/detach, model-stable node identity, selection/copy fallback and permission-free host intent. Same-document nested commit uses parent history; foreign-document commit remains host responsibility.
 

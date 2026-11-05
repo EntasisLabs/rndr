@@ -129,6 +129,8 @@ pub mod source_search;
 mod split;
 /// Experimental structured tree model; separate from source sessions.
 pub mod structured;
+/// Typed noneditable list, task, quote and rule paint projection.
+pub mod structured_chrome;
 /// Native projection and input for structured documents, not source storage.
 pub mod structured_native;
 mod style;

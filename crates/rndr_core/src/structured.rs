@@ -24,6 +24,59 @@ pub enum BlockKind {
     Paragraph,
     /// Heading with a schema-validated level in 1..=6.
     Heading(u8),
+    /// A whole-node nontext boundary; text positions inside it are invalid.
+    HorizontalRule,
+}
+/// Stable identity of a structural container, independent of editable leaf IDs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct ContainerId(pub u64);
+/// List numbering policy; starts are positive and explicit, never inferred from paint.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ListKind {
+    /// Unordered list.
+    Bullet,
+    /// Ordered list with an explicit first ordinal.
+    Ordered {
+        /// Positive ordinal of the first item.
+        start: u32,
+    },
+    /// List of independently checked items.
+    Task,
+}
+/// Structural nodes own children through their validated parent identities.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ContainerKind {
+    /// Quote containing leaves or further containers.
+    Quote,
+    /// List containing only item containers.
+    List(ListKind),
+    /// Item containing leaves and nested lists/quotes; checked is Some only in task lists.
+    Item {
+        /// Task checked state; None for ordinary lists.
+        checked: Option<bool>,
+    },
+}
+/// Canonical structural container. Sibling order is induced by descendant leaf order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Container {
+    /// Stable document-local identity.
+    pub id: ContainerId,
+    /// Parent container; None is the document root.
+    pub parent: Option<ContainerId>,
+    /// Schema-validated semantics.
+    pub kind: ContainerKind,
+}
+/// Host-owned inert attributes, sorted by key and validated before publication.
+/// Keys are ASCII identifiers (1..=64 bytes); values are control-free, <=1024 bytes.
+/// No URL, code, annotation or footnote execution is implied.
+pub type Attributes = std::collections::BTreeMap<String, String>;
+/// Typed text style values; no CSS strings or executable expressions.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct TextStyle {
+    /// Optional opaque RGB color.
+    pub color: Option<[u8; 3]>,
+    /// Optional literal family name, 1..=80 bytes, no controls or CSS delimiters.
+    pub family: Option<String>,
 }
 /// Canonical mark set. Links accept http(s) DNS/IPv4 hosts (optional numeric
 /// port), simple mailto addresses, and nonempty local anchors. Credentials,
@@ -37,6 +90,8 @@ pub struct Marks {
     pub emphasis: bool,
     /// Validated destination; None removes a link.
     pub link: Option<String>,
+    /// Validated presentational text styling; defaults inherit from the view.
+    pub text_style: TextStyle,
 }
 /// Canonical nonempty inline run (empty blocks have no runs).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -53,6 +108,10 @@ pub struct Block {
     pub id: BlockId,
     /// Paragraph or heading semantics.
     pub kind: BlockKind,
+    /// Explicit structural parent, or document root.
+    pub parent: Option<ContainerId>,
+    /// Inert host metadata in deterministic key order.
+    pub attributes: Attributes,
     /// Canonical runs; empty for an empty editable block.
     pub runs: Vec<Run>,
 }
@@ -99,6 +158,40 @@ pub enum StructuredSelection {
 /// Operations are sequential, each in the candidate state produced by its predecessor.
 #[derive(Clone, Debug)]
 pub enum Operation {
+    /// Wrap selected sibling leaves/subtrees in a quote or list (not a bare item).
+    Wrap {
+        /// Leaf range; all intersecting leaves are included.
+        range: TextSelection,
+        /// Quote or List semantics.
+        kind: ContainerKind,
+    },
+    /// Nest an entire item under its previous sibling; nonitems are refused.
+    Indent {
+        /// Any leaf in the item.
+        block: BlockId,
+    },
+    /// Promote an entire item, or split its top-level list around the exited item.
+    Outdent {
+        /// Any leaf in the item/quote.
+        block: BlockId,
+    },
+    /// Toggle a task item's checked state without modifying text or selection.
+    ToggleTask {
+        /// Any leaf within the nearest task item, including quoted content.
+        block: BlockId,
+    },
+    /// Replace inert block metadata with schema-validated canonical attributes.
+    SetAttributes {
+        /// Target leaf.
+        block: BlockId,
+        /// Complete attribute set.
+        attributes: Attributes,
+    },
+    /// Split at a text caret and insert a whole-node horizontal rule between leaves.
+    InsertHorizontalRule {
+        /// Editable insertion boundary.
+        at: Position,
+    },
     /// Replace text across runs/blocks. Newlines create paragraph boundaries.
     Replace {
         /// Directed range in the current candidate state.
@@ -173,6 +266,7 @@ pub enum StructuredError {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct State {
     blocks: Vec<Block>,
+    containers: Vec<Container>,
     selection: StructuredSelection,
 }
 #[derive(Clone, Debug)]
@@ -209,6 +303,8 @@ impl StructuredDocument {
             .map(|(i, t)| Block {
                 id: BlockId(i as u64 + 1),
                 kind: BlockKind::Paragraph,
+                parent: None,
+                attributes: Attributes::new(),
                 runs: if t.is_empty() {
                     vec![]
                 } else {
@@ -230,6 +326,7 @@ impl StructuredDocument {
             next_block: blocks.len() as u64 + 1,
             state: State {
                 blocks,
+                containers: vec![],
                 selection: StructuredSelection::Text(TextSelection { anchor: p, head: p }),
             },
             readonly: false,
@@ -251,7 +348,23 @@ impl StructuredDocument {
     pub fn blocks(&self) -> &[Block] {
         &self.state.blocks
     }
+    /// Structural containers. Parent links plus leaf order define the authoritative tree.
+    pub fn containers(&self) -> &[Container] {
+        &self.state.containers
+    }
+    /// Ancestors from immediate parent to root, useful for typed structural chrome.
+    pub fn ancestors(&self, block: BlockId) -> Result<Vec<&Container>, StructuredError> {
+        let mut parent = self.state.blocks[block_index(&self.state, block)?].parent;
+        let mut result = vec![];
+        while let Some(id) = parent {
+            let c = container(&self.state, id)?;
+            result.push(c);
+            parent = c.parent;
+        }
+        Ok(result)
+    }
     /// Ephemeral layout/clipboard text, with one newline between adjacent blocks.
+    /// Horizontal rules contribute no editable bytes; consumers must fence them as nodes.
     pub fn plain_text(&self) -> String {
         self.state
             .blocks
@@ -259,6 +372,34 @@ impl StructuredDocument {
             .map(Block::text)
             .collect::<Vec<_>>()
             .join("\n")
+    }
+    /// Ordered ordinal for the nearest containing item, or None for nonordered content.
+    /// Explicit starts and sibling item order survive splits, outdents and undo.
+    pub fn list_number(&self, block: BlockId) -> Result<Option<u32>, StructuredError> {
+        block_index(&self.state, block)?;
+        let Ok(item) = item_for(&self.state, block) else {
+            return Ok(None);
+        };
+        let list = container(&self.state, item)?
+            .parent
+            .ok_or(StructuredError::InvalidSchema)?;
+        let ContainerKind::List(ListKind::Ordered { start }) = container(&self.state, list)?.kind
+        else {
+            return Ok(None);
+        };
+        let first = subtree_bounds(&self.state, item)?.0;
+        let count = self
+            .state
+            .containers
+            .iter()
+            .filter(|c| c.parent == Some(list))
+            .filter(|c| subtree_bounds(&self.state, c.id).is_ok_and(|(n, _)| n < first))
+            .count();
+        Ok(Some(
+            start
+                .checked_add(count as u32)
+                .ok_or(StructuredError::InvalidSchema)?,
+        ))
     }
     /// Current directed text or whole-node selection.
     pub fn selection(&self) -> StructuredSelection {
@@ -330,7 +471,7 @@ impl StructuredDocument {
         }
         normalize(&mut candidate)?;
         validate_selection(&candidate, candidate.selection)?;
-        if candidate.blocks == self.state.blocks {
+        if candidate.blocks == self.state.blocks && candidate.containers == self.state.containers {
             return Ok(false);
         }
         let before = self.state.clone();
@@ -353,6 +494,187 @@ impl StructuredDocument {
         self.group = tx.group;
         Ok(true)
     }
+    fn command(
+        &mut self,
+        operations: Vec<Operation>,
+        origin: EditOrigin,
+    ) -> Result<bool, StructuredError> {
+        self.apply(Transaction {
+            document: self.id,
+            base: self.revision,
+            origin,
+            group: None,
+            operations,
+        })
+    }
+    /// Wrap the selected sibling leaves in a quote or list. Nested selection must
+    /// address complete direct siblings; partial subtrees are refused atomically.
+    pub fn wrap_selection(
+        &mut self,
+        kind: ContainerKind,
+        origin: EditOrigin,
+    ) -> Result<bool, StructuredError> {
+        let range = self
+            .text_selection()
+            .ok_or(StructuredError::InvalidPosition)?;
+        self.command(vec![Operation::Wrap { range, kind }], origin)
+    }
+    /// Short command spelling for wrapping the active selection.
+    pub fn wrap(
+        &mut self,
+        kind: ContainerKind,
+        origin: EditOrigin,
+    ) -> Result<bool, StructuredError> {
+        self.wrap_selection(kind, origin)
+    }
+    /// Insert a nontext rule at the active collapsed text caret, selecting the rule.
+    /// A noncollapsed range is refused; callers may replace it in an atomic transaction.
+    pub fn insert_horizontal_rule(&mut self, origin: EditOrigin) -> Result<bool, StructuredError> {
+        let range = self
+            .text_selection()
+            .ok_or(StructuredError::InvalidPosition)?;
+        if range.anchor.block != range.head.block || range.anchor.offset != range.head.offset {
+            return Err(StructuredError::InvalidPosition);
+        }
+        self.command(
+            vec![Operation::InsertHorizontalRule { at: range.head }],
+            origin,
+        )
+    }
+    /// Indent the selected item's whole subtree under its preceding sibling.
+    pub fn indent(&mut self, origin: EditOrigin) -> Result<bool, StructuredError> {
+        let block = self.command_block()?;
+        self.command(vec![Operation::Indent { block }], origin)
+    }
+    /// Outdent the selected item's subtree, or exit a quote/list at root level.
+    pub fn outdent(&mut self, origin: EditOrigin) -> Result<bool, StructuredError> {
+        let block = self.command_block()?;
+        self.command(vec![Operation::Outdent { block }], origin)
+    }
+    /// Toggle the selected task item, preserving text and directed selection.
+    pub fn toggle_task(&mut self, origin: EditOrigin) -> Result<bool, StructuredError> {
+        let block = self.command_block()?;
+        self.command(vec![Operation::ToggleTask { block }], origin)
+    }
+    fn command_block(&self) -> Result<BlockId, StructuredError> {
+        Ok(match self.selection() {
+            StructuredSelection::Node(id) => id,
+            StructuredSelection::Text(r) => r.head.block,
+        })
+    }
+    /// Enter splits an ordinary/list leaf; an empty item exits one nesting level.
+    pub fn enter(&mut self, origin: EditOrigin) -> Result<bool, StructuredError> {
+        let r = self
+            .text_selection()
+            .ok_or(StructuredError::InvalidPosition)?;
+        let b = &self.state.blocks[block_index(&self.state, r.head.block)?];
+        if r.anchor == r.head && b.is_empty() && b.parent.is_some() {
+            return self.outdent(origin);
+        }
+        self.command(
+            vec![Operation::Replace {
+                range: r,
+                text: "\n".into(),
+            }],
+            origin,
+        )
+    }
+    /// Backspace at a structural start outdents first. Adjacent HR is selected,
+    /// never treated as an editable byte. Character deletion uses grapheme boundaries.
+    pub fn backspace(&mut self, origin: EditOrigin) -> Result<bool, StructuredError> {
+        let Some(r) = self.text_selection() else {
+            return self.replace_selection("", origin);
+        };
+        if r.anchor != r.head {
+            return self.replace_selection("", origin);
+        }
+        let (i, o) = local(&self.state, r.head)?;
+        if o == 0 {
+            if self.state.blocks[i].parent.is_some() {
+                return self.outdent(origin);
+            }
+            if i == 0 {
+                return self.command(vec![], origin);
+            }
+            if self.state.blocks[i - 1].kind == BlockKind::HorizontalRule {
+                if self.readonly {
+                    return Err(StructuredError::Readonly);
+                }
+                self.set_selection(StructuredSelection::Node(self.state.blocks[i - 1].id))?;
+                return Ok(false);
+            }
+            return self.command(
+                vec![Operation::Join {
+                    left: self.state.blocks[i - 1].id,
+                }],
+                origin,
+            );
+        }
+        use unicode_segmentation::UnicodeSegmentation;
+        let text = self.state.blocks[i].text();
+        let start = text[..o]
+            .grapheme_indices(true)
+            .next_back()
+            .map_or(0, |(n, _)| n);
+        self.command(
+            vec![Operation::Replace {
+                range: TextSelection {
+                    anchor: Position {
+                        offset: start,
+                        ..r.head
+                    },
+                    head: r.head,
+                },
+                text: String::new(),
+            }],
+            origin,
+        )
+    }
+    /// Delete forward by one grapheme or join with the next text leaf. An
+    /// adjacent HR receives whole-node selection before any destructive action.
+    pub fn delete_forward(&mut self, origin: EditOrigin) -> Result<bool, StructuredError> {
+        let Some(r) = self.text_selection() else {
+            return self.replace_selection("", origin);
+        };
+        if r.anchor != r.head {
+            return self.replace_selection("", origin);
+        }
+        let (i, o) = local(&self.state, r.head)?;
+        if o == self.state.blocks[i].len() {
+            if i + 1 == self.state.blocks.len() {
+                return self.command(vec![], origin);
+            }
+            if self.state.blocks[i + 1].kind == BlockKind::HorizontalRule {
+                if self.readonly {
+                    return Err(StructuredError::Readonly);
+                }
+                self.set_selection(StructuredSelection::Node(self.state.blocks[i + 1].id))?;
+                return Ok(false);
+            }
+            return self.command(
+                vec![Operation::Join {
+                    left: self.state.blocks[i].id,
+                }],
+                origin,
+            );
+        }
+        use unicode_segmentation::UnicodeSegmentation;
+        let text = self.state.blocks[i].text();
+        let end = o + text[o..].graphemes(true).next().unwrap().len();
+        self.command(
+            vec![Operation::Replace {
+                range: TextSelection {
+                    anchor: r.head,
+                    head: Position {
+                        offset: end,
+                        ..r.head
+                    },
+                },
+                text: String::new(),
+            }],
+            origin,
+        )
+    }
     /// Replace active text or whole-node contents and collapse to an end caret.
     pub fn replace_selection(
         &mut self,
@@ -364,6 +686,36 @@ impl StructuredDocument {
                 range,
                 text: text.into(),
             }],
+            StructuredSelection::Node(block)
+                if self
+                    .blocks()
+                    .iter()
+                    .any(|b| b.id == block && b.kind == BlockKind::HorizontalRule) =>
+            {
+                // Whole HR replacement removes the node, then inserts into repaired caret.
+                if self.readonly {
+                    return Err(StructuredError::Readonly);
+                }
+                if self.is_composing() {
+                    return Err(StructuredError::CompositionActive);
+                }
+                let mut candidate = self.state.clone();
+                let mut next = self.next_block;
+                apply_operation(&mut candidate, &mut next, Operation::DeleteNode { block })?;
+                let StructuredSelection::Text(range) = candidate.selection else {
+                    return Err(StructuredError::InvalidPosition);
+                };
+                return self.command(
+                    vec![
+                        Operation::DeleteNode { block },
+                        Operation::Replace {
+                            range,
+                            text: text.into(),
+                        },
+                    ],
+                    origin,
+                );
+            }
             StructuredSelection::Node(block) => {
                 let b = self
                     .blocks()
@@ -522,6 +874,9 @@ fn block_index(s: &State, id: BlockId) -> Result<usize, StructuredError> {
 }
 fn local(s: &State, p: Position) -> Result<(usize, usize), StructuredError> {
     let i = block_index(s, p.block)?;
+    if s.blocks[i].kind == BlockKind::HorizontalRule {
+        return Err(StructuredError::InvalidPosition);
+    }
     let t = s.blocks[i].text();
     if p.offset > t.len() || !t.is_char_boundary(p.offset) {
         return Err(StructuredError::InvalidPosition);
@@ -540,6 +895,9 @@ fn offset(s: &State, p: Position) -> Result<usize, StructuredError> {
 }
 fn position_at(s: &State, mut n: usize, affinity: Affinity) -> Result<Position, StructuredError> {
     for b in &s.blocks {
+        if b.kind == BlockKind::HorizontalRule && n == 0 {
+            return Err(StructuredError::InvalidPosition);
+        }
         if n <= b.len() {
             let p = Position {
                 block: b.id,
@@ -566,6 +924,14 @@ fn validate_selection(s: &State, selection: StructuredSelection) -> Result<(), S
     Ok(())
 }
 fn valid_marks(m: &Marks) -> Result<(), StructuredError> {
+    if m.text_style.family.as_ref().is_some_and(|s| {
+        s.is_empty()
+            || s.len() > 80
+            || s.chars()
+                .any(|c| c.is_control() || matches!(c, ';' | '{' | '}' | '<' | '>'))
+    }) {
+        return Err(StructuredError::InvalidSchema);
+    }
     if let Some(link) = &m.link {
         let valid = ["https://", "http://", "mailto:", "#"]
             .iter()
@@ -611,8 +977,141 @@ fn valid_marks(m: &Marks) -> Result<(), StructuredError> {
     }
     Ok(())
 }
+fn container(s: &State, id: ContainerId) -> Result<&Container, StructuredError> {
+    s.containers
+        .iter()
+        .find(|c| c.id == id)
+        .ok_or(StructuredError::InvalidSchema)
+}
+fn container_mut(s: &mut State, id: ContainerId) -> Result<&mut Container, StructuredError> {
+    s.containers
+        .iter_mut()
+        .find(|c| c.id == id)
+        .ok_or(StructuredError::InvalidSchema)
+}
+fn descends(s: &State, mut parent: Option<ContainerId>, id: ContainerId) -> bool {
+    for _ in 0..=s.containers.len() {
+        let Some(p) = parent else { return false };
+        if p == id {
+            return true;
+        }
+        parent = s
+            .containers
+            .iter()
+            .find(|c| c.id == p)
+            .and_then(|c| c.parent);
+    }
+    false
+}
+fn fresh_container(
+    s: &mut State,
+    next: &mut u64,
+    parent: Option<ContainerId>,
+    kind: ContainerKind,
+) -> ContainerId {
+    let id = ContainerId(fresh(next).0);
+    s.containers.push(Container { id, parent, kind });
+    id
+}
+fn valid_attributes(attributes: &Attributes) -> Result<(), StructuredError> {
+    if attributes.len() > 32
+        || attributes.iter().any(|(k, v)| {
+            k.is_empty()
+                || k.len() > 64
+                || !k
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.'))
+                || v.len() > 1024
+                || v.chars().any(char::is_control)
+        })
+    {
+        return Err(StructuredError::InvalidSchema);
+    }
+    Ok(())
+}
 fn normalize(s: &mut State) -> Result<(), StructuredError> {
+    // Validate all relationships before pruning empty containers. Missing parents/cycles
+    // are not silently repaired, even if the malformed node has no leaves.
+    let mut ids = std::collections::HashSet::new();
+    for c in &s.containers {
+        if !ids.insert(c.id) {
+            return Err(StructuredError::InvalidSchema);
+        }
+        let mut p = c.parent;
+        let mut seen = std::collections::HashSet::from([c.id]);
+        while let Some(id) = p {
+            if !seen.insert(id) {
+                return Err(StructuredError::InvalidSchema);
+            }
+            p = container(s, id)?.parent;
+        }
+        match c.kind {
+            ContainerKind::List(ListKind::Ordered { start: 0 }) => {
+                return Err(StructuredError::InvalidSchema)
+            }
+            ContainerKind::Item { checked } => {
+                let parent = container(s, c.parent.ok_or(StructuredError::InvalidSchema)?)?;
+                let ContainerKind::List(kind) = parent.kind else {
+                    return Err(StructuredError::InvalidSchema);
+                };
+                if checked.is_some() != (kind == ListKind::Task) {
+                    return Err(StructuredError::InvalidSchema);
+                }
+            }
+            _ => {
+                if let Some(p) = c.parent {
+                    if matches!(container(s, p)?.kind, ContainerKind::List(_)) {
+                        return Err(StructuredError::InvalidSchema);
+                    }
+                }
+            }
+        }
+    }
+    let mut block_ids = std::collections::HashSet::new();
+    for b in &s.blocks {
+        if !block_ids.insert(b.id) {
+            return Err(StructuredError::InvalidSchema);
+        }
+        if let Some(p) = b.parent {
+            if matches!(container(s, p)?.kind, ContainerKind::List(_)) {
+                return Err(StructuredError::InvalidSchema);
+            }
+        }
+    }
+    let retained: std::collections::HashSet<_> = s
+        .containers
+        .iter()
+        .filter(|c| s.blocks.iter().any(|b| descends(s, b.parent, c.id)))
+        .map(|c| c.id)
+        .collect();
+    s.containers.retain(|c| retained.contains(&c.id));
+    for c in &s.containers {
+        if let ContainerKind::List(ListKind::Ordered { start }) = c.kind {
+            let count = s
+                .containers
+                .iter()
+                .filter(|child| child.parent == Some(c.id))
+                .count();
+            if start.checked_add(count.saturating_sub(1) as u32).is_none() {
+                return Err(StructuredError::InvalidSchema);
+            }
+        }
+        let positions: Vec<_> = s
+            .blocks
+            .iter()
+            .enumerate()
+            .filter(|(_, b)| descends(s, b.parent, c.id))
+            .map(|(i, _)| i)
+            .collect();
+        if positions.last().unwrap() - positions[0] + 1 != positions.len() {
+            return Err(StructuredError::InvalidSchema);
+        }
+    }
     for b in &mut s.blocks {
+        valid_attributes(&b.attributes)?;
+        if b.kind == BlockKind::HorizontalRule && !b.runs.is_empty() {
+            return Err(StructuredError::InvalidSchema);
+        }
         if matches!(b.kind,BlockKind::Heading(n) if !(1..=6).contains(&n)) {
             return Err(StructuredError::InvalidSchema);
         }
@@ -666,10 +1165,246 @@ fn fresh(next: &mut u64) -> BlockId {
     *next += 1;
     id
 }
+fn wrap(
+    s: &mut State,
+    next: &mut u64,
+    range: TextSelection,
+    kind: ContainerKind,
+) -> Result<(), StructuredError> {
+    if !matches!(kind, ContainerKind::Quote | ContainerKind::List(_)) {
+        return Err(StructuredError::InvalidSchema);
+    }
+    let (a, z) = ordered(s, range)?;
+    let parent = s.blocks[a.0].parent;
+    if s.blocks[a.0..=z.0].iter().any(|b| b.parent != parent) {
+        return Err(StructuredError::InvalidSchema);
+    }
+    let id = fresh_container(s, next, parent, kind);
+    for i in a.0..=z.0 {
+        s.blocks[i].parent = Some(match kind {
+            ContainerKind::List(k) => fresh_container(
+                s,
+                next,
+                Some(id),
+                ContainerKind::Item {
+                    checked: (k == ListKind::Task).then_some(false),
+                },
+            ),
+            _ => id,
+        });
+    }
+    Ok(())
+}
+fn item_for(s: &State, block: BlockId) -> Result<ContainerId, StructuredError> {
+    let mut p = s.blocks[block_index(s, block)?].parent;
+    while let Some(id) = p {
+        let c = container(s, id)?;
+        if matches!(c.kind, ContainerKind::Item { .. }) {
+            return Ok(id);
+        }
+        p = c.parent;
+    }
+    Err(StructuredError::InvalidSchema)
+}
+fn subtree_bounds(s: &State, id: ContainerId) -> Result<(usize, usize), StructuredError> {
+    let first = s
+        .blocks
+        .iter()
+        .position(|b| descends(s, b.parent, id))
+        .ok_or(StructuredError::InvalidSchema)?;
+    let last = s
+        .blocks
+        .iter()
+        .rposition(|b| descends(s, b.parent, id))
+        .unwrap();
+    Ok((first, last))
+}
+fn indent(s: &mut State, next: &mut u64, block: BlockId) -> Result<(), StructuredError> {
+    let item = item_for(s, block)?;
+    let list = container(s, item)?
+        .parent
+        .ok_or(StructuredError::InvalidSchema)?;
+    let kind = container(s, list)?.kind;
+    let (start, _) = subtree_bounds(s, item)?;
+    let previous = s
+        .containers
+        .iter()
+        .filter(|c| c.parent == Some(list) && c.id != item)
+        .filter_map(|c| subtree_bounds(s, c.id).ok().map(|(_, end)| (end, c.id)))
+        .filter(|(end, _)| *end < start)
+        .max_by_key(|(end, _)| *end)
+        .map(|(_, id)| id)
+        .ok_or(StructuredError::InvalidSchema)?;
+    let nested = s
+        .containers
+        .iter()
+        .find(|c| c.parent == Some(previous) && c.kind == kind)
+        .filter(|c| subtree_bounds(s, c.id).is_ok_and(|(_, end)| end + 1 == start))
+        .map(|c| c.id);
+    let nested = nested.unwrap_or_else(|| fresh_container(s, next, Some(previous), kind));
+    container_mut(s, item)?.parent = Some(nested);
+    Ok(())
+}
+fn outdent(s: &mut State, next: &mut u64, block: BlockId) -> Result<(), StructuredError> {
+    let i = block_index(s, block)?;
+    let direct = s.blocks[i].parent.ok_or(StructuredError::InvalidSchema)?;
+    if container(s, direct)?.kind == ContainerKind::Quote {
+        // Split the quote around this leaf; never reorder user text to repair a tree.
+        let parent = container(s, direct)?.parent;
+        let tail: Vec<_> = s
+            .containers
+            .iter()
+            .filter(|c| c.parent == Some(direct))
+            .filter(|c| subtree_bounds(s, c.id).is_ok_and(|(start, _)| start > i))
+            .map(|c| c.id)
+            .collect();
+        if s.blocks[i + 1..].iter().any(|b| b.parent == Some(direct)) || !tail.is_empty() {
+            let after = fresh_container(s, next, parent, ContainerKind::Quote);
+            for b in &mut s.blocks[i + 1..] {
+                if b.parent == Some(direct) {
+                    b.parent = Some(after);
+                }
+            }
+            for id in tail {
+                container_mut(s, id)?.parent = Some(after);
+            }
+        }
+        s.blocks[i].parent = parent;
+        return Ok(());
+    }
+    let item = item_for(s, block)?;
+    let list = container(s, item)?
+        .parent
+        .ok_or(StructuredError::InvalidSchema)?;
+    let list_parent = container(s, list)?.parent;
+    let (_, z) = subtree_bounds(s, item)?;
+    let mut siblings: Vec<_> = s
+        .containers
+        .iter()
+        .filter(|c| c.parent == Some(list))
+        .filter_map(|c| subtree_bounds(s, c.id).ok().map(|(start, _)| (start, c.id)))
+        .collect();
+    siblings.sort_by_key(|(start, _)| *start);
+    let ordinal = siblings
+        .iter()
+        .position(|(_, id)| *id == item)
+        .ok_or(StructuredError::InvalidSchema)?;
+    let following: Vec<_> = siblings
+        .iter()
+        .filter(|(start, _)| *start > z)
+        .map(|(_, id)| *id)
+        .collect();
+    let kind = container(s, list)?.kind;
+    let continuation = match kind {
+        ContainerKind::List(ListKind::Ordered { start }) => {
+            ContainerKind::List(ListKind::Ordered {
+                start: start
+                    .checked_add(ordinal as u32 + 1)
+                    .ok_or(StructuredError::InvalidSchema)?,
+            })
+        }
+        _ => kind,
+    };
+    if let Some(outer_item) = list_parent.filter(|id| {
+        matches!(
+            container(s, *id).map(|c| c.kind),
+            Ok(ContainerKind::Item { .. })
+        )
+    }) {
+        let outer_list = container(s, outer_item)?
+            .parent
+            .ok_or(StructuredError::InvalidSchema)?;
+        let ContainerKind::List(outer_kind) = container(s, outer_list)?.kind else {
+            return Err(StructuredError::InvalidSchema);
+        };
+        // Trailing nested siblings become children of the promoted item. This keeps
+        // leaf order and the original item's descendant identities intact.
+        if !following.is_empty() {
+            let after = fresh_container(s, next, Some(item), continuation);
+            for id in following {
+                container_mut(s, id)?.parent = Some(after);
+            }
+        }
+        let c = container_mut(s, item)?;
+        c.parent = Some(outer_list);
+        let checked = match c.kind {
+            ContainerKind::Item { checked } => checked,
+            _ => None,
+        };
+        c.kind = ContainerKind::Item {
+            checked: if outer_kind == ListKind::Task {
+                Some(checked.unwrap_or(false))
+            } else {
+                None
+            },
+        };
+    } else {
+        // Split a top-level list around the exited item. Ordered tail numbering
+        // explicitly continues at its previous ordinal rather than resetting to 1.
+        if !following.is_empty() {
+            let after = fresh_container(s, next, list_parent, continuation);
+            for id in following {
+                container_mut(s, id)?.parent = Some(after);
+            }
+        }
+        for b in &mut s.blocks {
+            if b.parent == Some(item) {
+                b.parent = list_parent;
+            }
+        }
+        for c in &mut s.containers {
+            if c.parent == Some(item) {
+                c.parent = list_parent;
+            }
+        }
+        s.containers.retain(|c| c.id != item);
+    }
+    Ok(())
+}
 fn apply_operation(s: &mut State, next: &mut u64, op: Operation) -> Result<(), StructuredError> {
     match op {
+        Operation::Wrap { range, kind } => wrap(s, next, range, kind)?,
+        Operation::Indent { block } => indent(s, next, block)?,
+        Operation::Outdent { block } => outdent(s, next, block)?,
+        Operation::ToggleTask { block } => {
+            let parent = item_for(s, block)?;
+            let ContainerKind::Item {
+                checked: Some(value),
+            } = container(s, parent)?.kind
+            else {
+                return Err(StructuredError::InvalidSchema);
+            };
+            container_mut(s, parent)?.kind = ContainerKind::Item {
+                checked: Some(!value),
+            };
+        }
+        Operation::SetAttributes { block, attributes } => {
+            valid_attributes(&attributes)?;
+            let i = block_index(s, block)?;
+            s.blocks[i].attributes = attributes;
+        }
+        Operation::InsertHorizontalRule { at } => {
+            local(s, at)?;
+            apply_operation(s, next, Operation::Split { at })?;
+            let i = block_index(s, at.block)?;
+            let id = fresh(next);
+            s.blocks.insert(
+                i + 1,
+                Block {
+                    id,
+                    kind: BlockKind::HorizontalRule,
+                    parent: s.blocks[i].parent,
+                    attributes: Attributes::new(),
+                    runs: vec![],
+                },
+            );
+            s.selection = StructuredSelection::Node(id);
+        }
         Operation::SetBlockKind { block, kind } => {
             let i = block_index(s, block)?;
+            if kind == BlockKind::HorizontalRule {
+                return Err(StructuredError::InvalidSchema);
+            }
             s.blocks[i].kind = kind;
         }
         Operation::SetMarks { range, marks } => {
@@ -758,6 +1493,14 @@ fn apply_operation(s: &mut State, next: &mut u64, op: Operation) -> Result<(), S
             let suffix = slice(&s.blocks[z.0], z.1, s.blocks[z.0].len());
             let parts: Vec<_> = text.split('\n').collect();
             let mut new_blocks = vec![];
+            let original_parent = s.blocks[a.0].parent;
+            let item = original_parent.filter(|id| {
+                matches!(
+                    container(s, *id).map(|c| c.kind),
+                    Ok(ContainerKind::Item { .. })
+                )
+            });
+            let mut last_parent = original_parent;
             for (i, part) in parts.iter().enumerate() {
                 let mut runs = if i == 0 { prefix.clone() } else { vec![] };
                 if !part.is_empty() {
@@ -769,6 +1512,26 @@ fn apply_operation(s: &mut State, next: &mut u64, op: Operation) -> Result<(), S
                 if i + 1 == parts.len() {
                     runs.extend(suffix.clone());
                 }
+                let parent = if i > 0 {
+                    if let Some(item) = item {
+                        let c = container(s, item)?.clone();
+                        let checked = match c.kind {
+                            ContainerKind::Item { checked } => checked.map(|_| false),
+                            _ => None,
+                        };
+                        Some(fresh_container(
+                            s,
+                            next,
+                            c.parent,
+                            ContainerKind::Item { checked },
+                        ))
+                    } else {
+                        original_parent
+                    }
+                } else {
+                    original_parent
+                };
+                last_parent = parent;
                 new_blocks.push(Block {
                     id: if i == 0 {
                         s.blocks[a.0].id
@@ -780,8 +1543,23 @@ fn apply_operation(s: &mut State, next: &mut u64, op: Operation) -> Result<(), S
                     } else {
                         BlockKind::Paragraph
                     },
+                    parent,
+                    attributes: if i == 0 {
+                        s.blocks[a.0].attributes.clone()
+                    } else {
+                        Attributes::new()
+                    },
                     runs,
                 });
+            }
+            if parts.len() > 1 && item.is_some() {
+                // Descendant lists follow the rightmost split item rather than
+                // crossing the newly created sibling boundary.
+                for c in &mut s.containers {
+                    if c.parent == item {
+                        c.parent = last_parent;
+                    }
+                }
             }
             let selected_node_replaced = match old_selection {
                 StructuredSelection::Node(id) => s.blocks[a.0..=z.0].iter().any(|b| b.id == id),
@@ -819,14 +1597,24 @@ fn apply_operation(s: &mut State, next: &mut u64, op: Operation) -> Result<(), S
         Operation::DeleteNode { block } => {
             let i = block_index(s, block)?;
             s.blocks.remove(i);
-            if s.blocks.is_empty() {
+            if !s.blocks.iter().any(|b| b.kind != BlockKind::HorizontalRule) {
                 s.blocks.push(Block {
                     id: fresh(next),
                     kind: BlockKind::Paragraph,
+                    parent: None,
+                    attributes: Attributes::new(),
                     runs: vec![],
                 });
             }
-            let b = &s.blocks[i.min(s.blocks.len() - 1)];
+            let j = (i..s.blocks.len())
+                .find(|&j| s.blocks[j].kind != BlockKind::HorizontalRule)
+                .or_else(|| {
+                    (0..i.min(s.blocks.len()))
+                        .rev()
+                        .find(|&j| s.blocks[j].kind != BlockKind::HorizontalRule)
+                })
+                .ok_or(StructuredError::InvalidSchema)?;
+            let b = &s.blocks[j];
             let fallback = Position {
                 block: b.id,
                 offset: 0,
@@ -854,6 +1642,10 @@ fn apply_operation(s: &mut State, next: &mut u64, op: Operation) -> Result<(), S
     }
     normalize(s)
 }
+
+#[cfg(test)]
+#[path = "structured_e6_tests.rs"]
+mod e6_tests;
 
 #[cfg(test)]
 mod tests {
@@ -1002,6 +1794,7 @@ mod tests {
             strong: true,
             emphasis: true,
             link: Some("https://example.org".into()),
+            ..Marks::default()
         };
         run(
             &mut d,

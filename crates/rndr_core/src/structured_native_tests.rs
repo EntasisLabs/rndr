@@ -1,5 +1,145 @@
 use super::*;
 use crate::structured::{Marks, StructuredError};
+#[test]
+fn native_structured_list_keys_are_tree_commands_not_prefix_edits() {
+    use crate::structured::{ContainerKind, ListKind};
+    let (mut w, e, _) = setup("one\ntwo");
+    select(&mut w, e, 0, 7);
+    let d = document_mut(&mut w, e).unwrap();
+    let range = d.text_selection().unwrap();
+    d.apply(Transaction {
+        document: d.id(),
+        base: d.revision(),
+        origin: EditOrigin::Host(6),
+        group: None,
+        operations: vec![Operation::Wrap {
+            range,
+            kind: ContainerKind::List(ListKind::Task),
+        }],
+    })
+    .unwrap();
+    project(&mut w, e);
+    select(&mut w, e, 4, 4);
+    key(&mut w, e, NamedKey::Tab);
+    let d = document(&w, e).unwrap();
+    assert_eq!(d.plain_text(), "one\ntwo");
+    assert_eq!(
+        d.ancestors(d.blocks()[1].id)
+            .unwrap()
+            .iter()
+            .filter(|c| matches!(c.kind, ContainerKind::Item { .. }))
+            .count(),
+        2
+    );
+    *w.resource_mut::<Input>().unwrap() = Input::default();
+    key(&mut w, e, NamedKey::Backspace);
+    let d = document(&w, e).unwrap();
+    assert_eq!(
+        d.ancestors(d.blocks()[1].id)
+            .unwrap()
+            .iter()
+            .filter(|c| matches!(c.kind, ContainerKind::Item { .. }))
+            .count(),
+        1
+    );
+    *w.resource_mut::<Input>().unwrap() = Input::default();
+    select(&mut w, e, 7, 7);
+    key(&mut w, e, NamedKey::Enter);
+    assert!(document(&w, e)
+        .unwrap()
+        .blocks()
+        .last()
+        .unwrap()
+        .parent
+        .is_some());
+    *w.resource_mut::<Input>().unwrap() = Input::default();
+    key(&mut w, e, NamedKey::Enter);
+    assert!(document(&w, e)
+        .unwrap()
+        .blocks()
+        .last()
+        .unwrap()
+        .parent
+        .is_none());
+}
+#[test]
+fn native_structured_horizontal_rule_selection_delete_copy_and_undo() {
+    let (mut w, e, _) = setup("ab");
+    select(&mut w, e, 1, 1);
+    let d = document_mut(&mut w, e).unwrap();
+    let at = d.text_selection().unwrap().head;
+    d.apply(Transaction {
+        document: d.id(),
+        base: d.revision(),
+        origin: EditOrigin::Host(6),
+        group: None,
+        operations: vec![Operation::InsertHorizontalRule { at }],
+    })
+    .unwrap();
+    let rule = d.blocks()[1].id;
+    project(&mut w, e);
+    select(&mut w, e, 2, 2);
+    assert_eq!(
+        document(&w, e).unwrap().selection(),
+        StructuredSelection::Node(rule)
+    );
+    assert_eq!(document(&w, e).unwrap().plain_text(), "a\n\nb");
+    let copy = apply_key(
+        &mut w,
+        e,
+        &KeyEvent::character(
+            'c',
+            Modifiers {
+                super_key: true,
+                ..Modifiers::new()
+            },
+        ),
+        "",
+    )
+    .unwrap();
+    assert_eq!(copy.copied.as_deref(), Some("---"));
+    key(&mut w, e, NamedKey::ArrowRight);
+    assert!(matches!(
+        document(&w, e).unwrap().selection(),
+        StructuredSelection::Text(_)
+    ));
+    *w.resource_mut::<Input>().unwrap() = Input::default();
+    key(&mut w, e, NamedKey::Backspace);
+    assert_eq!(
+        document(&w, e).unwrap().selection(),
+        StructuredSelection::Node(rule)
+    );
+    *w.resource_mut::<Input>().unwrap() = Input::default();
+    key(&mut w, e, NamedKey::Delete);
+    assert_eq!(document(&w, e).unwrap().plain_text(), "a\nb");
+    document_mut(&mut w, e).unwrap().undo().unwrap();
+    project(&mut w, e);
+    assert_eq!(
+        document(&w, e).unwrap().selection(),
+        StructuredSelection::Node(rule)
+    );
+    assert_eq!(
+        document(&w, e).unwrap().blocks()[1].kind,
+        BlockKind::HorizontalRule
+    );
+}
+#[test]
+fn native_structured_structural_keyboard_respects_readonly_and_composition() {
+    let (mut w, e, _) = setup("a\nb");
+    document_mut(&mut w, e).unwrap().set_readonly(true);
+    key(&mut w, e, NamedKey::Enter);
+    assert_eq!(document(&w, e).unwrap().plain_text(), "a\nb");
+    document_mut(&mut w, e).unwrap().set_readonly(false);
+    *w.resource_mut::<Input>().unwrap() = Input::default();
+    w.resource_mut::<Input>().unwrap().ime_preedit = "仮".into();
+    crate::editor::apply_editor(&mut w);
+    let before = document(&w, e).unwrap().revision();
+    w.resource_mut::<Input>().unwrap().keys =
+        vec![KeyEvent::named(NamedKey::Tab, Modifiers::new())];
+    crate::editor::apply_editor(&mut w);
+    assert_eq!(document(&w, e).unwrap().revision(), before);
+    assert!(document(&w, e).unwrap().is_composing());
+}
 fn setup(text: &str) -> (World, Entity, StructuredHandle) {
     let mut world = World::new();
     world.insert_resource(Input::default());

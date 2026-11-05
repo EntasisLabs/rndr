@@ -181,8 +181,12 @@ fn document_mut(world: &mut World, entity: Entity) -> Option<&mut StructuredDocu
 pub struct StructuredBlockDisplay {
     /// Stable structural identity; not an ECS handle or byte index.
     pub block: BlockId,
-    /// Paragraph or heading with explicit level.
+    /// Text leaf or nontext horizontal-rule semantics.
     pub kind: BlockKind,
+    /// Structural parent, never an editable depth-prefix string.
+    pub parent: Option<crate::structured::ContainerId>,
+    /// Canonical inert metadata; interpretation belongs to the host.
+    pub attributes: crate::structured::Attributes,
     /// Half-open display range, excluding the block separator.
     pub range: std::ops::Range<usize>,
 }
@@ -199,6 +203,8 @@ pub struct StructuredDisplay {
     pub text: String,
     /// Ordered structural boundaries for block navigation and accessible adapters.
     pub blocks: Vec<StructuredBlockDisplay>,
+    /// Identity-bearing quote/list/item structure for native and AT adapters.
+    pub containers: Vec<crate::structured::Container>,
 }
 /// Snapshot the typed structural display contract without publishing stale layout.
 pub fn structured_display(world: &World, entity: Entity) -> Option<StructuredDisplay> {
@@ -222,6 +228,8 @@ pub fn structured_display(world: &World, entity: Entity) -> Option<StructuredDis
             StructuredBlockDisplay {
                 block: b.id,
                 kind: b.kind,
+                parent: b.parent,
+                attributes: b.attributes.clone(),
                 range,
             }
         })
@@ -232,6 +240,7 @@ pub fn structured_display(world: &World, entity: Entity) -> Option<StructuredDis
         selection: doc.selection(),
         text,
         blocks,
+        containers: doc.containers().to_vec(),
     })
 }
 fn display_selection(doc: &StructuredDocument) -> Result<(usize, usize), StructuredError> {
@@ -245,11 +254,12 @@ fn display_selection(doc: &StructuredDocument) -> Result<(usize, usize), Structu
                 .iter()
                 .find(|b| b.id == id)
                 .ok_or(StructuredError::InvalidPosition)?;
-            let at = doc.display_offset(Position {
-                block: id,
-                offset: 0,
-                affinity: Affinity::After,
-            })?;
+            let at = doc
+                .blocks()
+                .iter()
+                .take_while(|b| b.id != id)
+                .map(|b| b.len() + 1)
+                .sum::<usize>();
             Ok((at, at + block.len()))
         }
     }
@@ -272,11 +282,66 @@ pub fn set_display_selection(
     if !text.is_char_boundary(anchor) || !text.is_char_boundary(head) {
         return Err(StructuredError::InvalidPosition.into());
     }
-    let anchor = doc.position_at(crate::edit::floor_grapheme(&text, anchor), Affinity::After)?;
-    let head = doc.position_at(crate::edit::floor_grapheme(&text, head), Affinity::After)?;
-    doc.set_selection(StructuredSelection::Text(TextSelection { anchor, head }))?;
+    let anchor = crate::edit::floor_grapheme(&text, anchor);
+    let head = crate::edit::floor_grapheme(&text, head);
+    let selection = display_to_selection(doc, anchor, head)?;
+    doc.set_selection(selection)?;
     project(world, entity);
     Ok(())
+}
+// A horizontal rule has a display row but no legal text position. Pointer/AT
+// and key motion select the actual node at that seam, not an empty paragraph.
+fn display_to_selection(
+    doc: &StructuredDocument,
+    anchor: usize,
+    head: usize,
+) -> Result<StructuredSelection, StructuredError> {
+    let mut start = 0;
+    for block in doc.blocks() {
+        if block.kind == BlockKind::HorizontalRule && anchor == start && head == start {
+            return Ok(StructuredSelection::Node(block.id));
+        }
+        start += block.len() + 1;
+    }
+    let endpoint = |at: usize, forward: bool| -> Result<Position, StructuredError> {
+        if let Ok(p) = doc.position_at(at, Affinity::After) {
+            return Ok(p);
+        }
+        let mut start = 0;
+        let candidates = doc
+            .blocks()
+            .iter()
+            .filter_map(|block| {
+                let offset = start;
+                start += block.len() + 1;
+                (block.kind != BlockKind::HorizontalRule).then_some((block, offset))
+            })
+            .collect::<Vec<_>>();
+        let (block, offset) = if forward {
+            candidates
+                .iter()
+                .copied()
+                .find(|(_, offset)| *offset > at)
+                .or_else(|| candidates.last().copied())
+        } else {
+            candidates
+                .iter()
+                .copied()
+                .rev()
+                .find(|(_, offset)| *offset < at)
+                .or_else(|| candidates.first().copied())
+        }
+        .ok_or(StructuredError::InvalidPosition)?;
+        Ok(Position {
+            block: block.id,
+            offset: if offset < at { block.len() } else { 0 },
+            affinity: Affinity::After,
+        })
+    };
+    Ok(StructuredSelection::Text(TextSelection {
+        anchor: endpoint(anchor, anchor > head)?,
+        head: endpoint(head, head >= anchor)?,
+    }))
 }
 /// Rebuild disposable text and rich spans from the canonical tree.
 pub fn project(world: &mut World, entity: Entity) {
@@ -300,7 +365,9 @@ pub fn project(world: &mut World, entity: Entity) {
             let mut span = TextSpan::new(
                 offset,
                 offset + run.text.len(),
-                if run.marks.link.is_some() {
+                if let Some([r, g, b]) = run.marks.text_style.color {
+                    Color::rgb(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0)
+                } else if run.marks.link.is_some() {
                     Color::rgb(0.35, 0.65, 1.0)
                 } else {
                     color
@@ -313,6 +380,7 @@ pub fn project(world: &mut World, entity: Entity) {
                     400
                 },
             );
+            span.family = run.marks.text_style.family.clone();
             span.italic = run.marks.emphasis;
             span.underline = run.marks.link.is_some();
             spans.push(span);
@@ -349,6 +417,111 @@ pub(crate) fn sync_selection(world: &mut World, entity: Entity) {
         return;
     }
     let _ = set_display_selection(world, entity, binding.revision, anchor, head);
+}
+/// Route only explicit, freshly shaped structural hit targets. Gutter clicks
+/// never become synthetic display bytes or retarget the saved text selection.
+pub(crate) fn place_from_pointer(world: &mut World) -> Option<(Entity, bool)> {
+    use crate::structured_chrome::{structured_marks, StructuredChromeTarget, StructuredMarkKind};
+    let pointer = world.resource::<Input>()?.pointer;
+    if !pointer.pressed
+        || pointer.button != PointerButton::Left
+        || crate::events::<crate::window::WindowFocus>(world)
+            .contains(&crate::window::WindowFocus::Blurred)
+    {
+        return None;
+    }
+    let [x, y] = pointer.press_at.unwrap_or(pointer.position);
+    if !x.is_finite() || !y.is_finite() {
+        return None;
+    }
+    let hit = hit_test(world, x, y)?;
+    let entity = if let Some(target) = world.get::<StructuredChromeTarget>(hit) {
+        let entity = target.0;
+        // A stale/reparented gutter cannot act on another retained surface.
+        if world.get::<Parent>(hit).map(|p| p.entity)
+            != world.get::<Parent>(entity).map(|p| p.entity)
+            || !world.has::<Parent>(entity)
+        {
+            return None;
+        }
+        entity
+    } else {
+        ancestor_with::<Editor>(world, hit)?
+    };
+    if !crate::interaction::policy(world, entity).0 || is_composing(world, entity) {
+        return None;
+    }
+    let mark = structured_marks(world, entity)
+        .into_iter()
+        .rev()
+        .find(|m| {
+            matches!(
+                m.kind,
+                StructuredMarkKind::Task(_) | StructuredMarkKind::HorizontalRule
+            ) && m.rect.contains(x, y)
+                && m.clip.contains(x, y)
+        })?;
+    if !crate::interaction::request_focus(world, entity) {
+        return None;
+    }
+    let readonly = crate::interaction::readonly(world, entity);
+    let result = (|| -> Result<(), StructuredViewError> {
+        let doc = document_mut(world, entity).ok_or(StructuredViewError::Unavailable)?;
+        if doc.revision() != mark.revision {
+            return Err(StructuredViewError::Unavailable);
+        }
+        match mark.kind {
+            StructuredMarkKind::Task(_) => {
+                if readonly {
+                    return Err(StructuredError::Readonly.into());
+                }
+                doc.apply(Transaction {
+                    document: doc.id(),
+                    base: mark.revision,
+                    origin: EditOrigin::Host(6),
+                    group: None,
+                    operations: vec![Operation::ToggleTask { block: mark.block }],
+                })?;
+            }
+            StructuredMarkKind::HorizontalRule => {
+                doc.set_selection(StructuredSelection::Node(mark.block))?
+            }
+            _ => unreachable!(),
+        }
+        Ok(())
+    })();
+    if let Err(error) = result {
+        world.insert(entity, error);
+    }
+    project(world, entity);
+    Some((entity, mark.kind == StructuredMarkKind::HorizontalRule))
+}
+/// Structural Tab belongs to the tree interpreter, not global focus traversal.
+/// Inspect without mutating: the canonical editor stage executes the command.
+pub(crate) fn reserves_key(world: &World, event: &KeyEvent) -> bool {
+    if event.logical != LogicalKey::Named(NamedKey::Tab)
+        || event.modifiers.ctrl
+        || event.modifiers.super_key
+        || event.modifiers.alt
+    {
+        return false;
+    }
+    let Some(entity) = world.resource::<Focus>().and_then(|f| f.entity) else {
+        return false;
+    };
+    let Some(doc) = document(world, entity) else {
+        return false;
+    };
+    if is_composing(world, entity) || matches!(doc.selection(), StructuredSelection::Node(_)) {
+        return true;
+    }
+    doc.text_selection().is_some_and(|selection| {
+        doc.ancestors(selection.head.block).is_ok_and(|ancestors| {
+            ancestors
+                .iter()
+                .any(|c| matches!(c.kind, crate::structured::ContainerKind::Item { .. }))
+        })
+    })
 }
 /// Capture/cancel native preedit against a typed selection before any key input.
 pub(crate) fn prepare_input(world: &mut World) {
@@ -478,6 +651,67 @@ fn apply_key(
     }
     let doc = document(world, entity).ok_or(StructuredViewError::Unavailable)?;
     if let StructuredSelection::Node(block) = doc.selection() {
+        let atomic = doc
+            .blocks()
+            .iter()
+            .position(|b| b.id == block)
+            .filter(|i| doc.blocks()[*i].kind == BlockKind::HorizontalRule);
+        if let Some(i) = atomic {
+            let action = crate::keys::standard_action(platform, event);
+            if action == Some(EditAction::Copy) {
+                return Ok(crate::typing::StepResult {
+                    copied: Some("---".into()),
+                    clipboard_action: true,
+                });
+            }
+            let forward = match event.logical {
+                LogicalKey::Named(NamedKey::ArrowRight | NamedKey::ArrowDown | NamedKey::Enter) => {
+                    Some(true)
+                }
+                LogicalKey::Named(NamedKey::Tab) => Some(!event.modifiers.shift),
+                LogicalKey::Named(NamedKey::ArrowLeft | NamedKey::ArrowUp) => Some(false),
+                _ => None,
+            };
+            if let Some(forward) = forward {
+                let next = if forward {
+                    doc.blocks()[i + 1..]
+                        .iter()
+                        .find(|b| b.kind != BlockKind::HorizontalRule)
+                } else {
+                    doc.blocks()[..i]
+                        .iter()
+                        .rev()
+                        .find(|b| b.kind != BlockKind::HorizontalRule)
+                }
+                .or_else(|| {
+                    doc.blocks()
+                        .iter()
+                        .find(|b| b.kind != BlockKind::HorizontalRule)
+                })
+                .ok_or(StructuredError::InvalidPosition)?;
+                let p = Position {
+                    block: next.id,
+                    offset: if forward { 0 } else { next.len() },
+                    affinity: Affinity::After,
+                };
+                document_mut(world, entity)
+                    .ok_or(StructuredViewError::Unavailable)?
+                    .set_selection(StructuredSelection::Text(TextSelection {
+                        anchor: p,
+                        head: p,
+                    }))?;
+                return Ok(Default::default());
+            }
+            // Plain typing/paste/IME may not silently turn a nontext rule into
+            // an editable paragraph. Arrow/Enter/Tab explicitly leave the node.
+            if !matches!(
+                event.logical,
+                LogicalKey::Named(NamedKey::Backspace | NamedKey::Delete)
+            ) && action != Some(EditAction::Cut)
+            {
+                return Ok(Default::default());
+            }
+        }
         let action = crate::keys::standard_action(platform, event);
         if matches!(
             event.logical,
@@ -488,10 +722,13 @@ fn apply_key(
                 return Err(StructuredError::Readonly.into());
             }
             let copied = if action == Some(EditAction::Cut) {
-                doc.blocks()
-                    .iter()
-                    .find(|b| b.id == block)
-                    .map(|b| b.text())
+                doc.blocks().iter().find(|b| b.id == block).map(|b| {
+                    if b.kind == BlockKind::HorizontalRule {
+                        "---".into()
+                    } else {
+                        b.text()
+                    }
+                })
             } else {
                 None
             };
@@ -507,6 +744,80 @@ fn apply_key(
                 clipboard_action: copied.is_some(),
                 copied,
             });
+        }
+    }
+    let doc = document(world, entity).ok_or(StructuredViewError::Unavailable)?;
+    if let Some(selection) = doc.text_selection() {
+        let collapsed = selection.anchor.block == selection.head.block
+            && selection.anchor.offset == selection.head.offset;
+        let head = selection.head;
+        let index = doc
+            .blocks()
+            .iter()
+            .position(|b| b.id == head.block)
+            .ok_or(StructuredError::InvalidPosition)?;
+        let bare = !event.modifiers.ctrl && !event.modifiers.super_key && !event.modifiers.alt;
+        if collapsed && bare {
+            let neighbor = match event.logical {
+                LogicalKey::Named(NamedKey::Backspace) if head.offset == 0 && index > 0 => {
+                    Some(index - 1)
+                }
+                LogicalKey::Named(NamedKey::Delete)
+                    if head.offset == doc.blocks()[index].len()
+                        && index + 1 < doc.blocks().len() =>
+                {
+                    Some(index + 1)
+                }
+                _ => None,
+            };
+            if let Some(i) = neighbor.filter(|i| doc.blocks()[*i].kind == BlockKind::HorizontalRule)
+            {
+                let id = doc.blocks()[i].id;
+                document_mut(world, entity)
+                    .ok_or(StructuredViewError::Unavailable)?
+                    .set_selection(StructuredSelection::Node(id))?;
+                return Ok(Default::default());
+            }
+        }
+        let structural = bare
+            && (event.logical == LogicalKey::Named(NamedKey::Enter)
+                || (collapsed
+                    && head.offset == 0
+                    && event.logical == LogicalKey::Named(NamedKey::Backspace))
+                || (event.logical == LogicalKey::Named(NamedKey::Tab)
+                    && doc
+                        .ancestors(head.block)?
+                        .iter()
+                        .any(|c| matches!(c.kind, crate::structured::ContainerKind::Item { .. }))));
+        if structural {
+            if readonly {
+                return Err(StructuredError::Readonly.into());
+            }
+            let doc = document_mut(world, entity).ok_or(StructuredViewError::Unavailable)?;
+            match event.logical {
+                LogicalKey::Named(NamedKey::Enter) => {
+                    doc.enter(EditOrigin::Keyboard)?;
+                }
+                LogicalKey::Named(NamedKey::Backspace) => {
+                    doc.backspace(EditOrigin::Keyboard)?;
+                }
+                LogicalKey::Named(NamedKey::Tab) => {
+                    let operation = if event.modifiers.shift {
+                        Operation::Outdent { block: head.block }
+                    } else {
+                        Operation::Indent { block: head.block }
+                    };
+                    doc.apply(Transaction {
+                        document: doc.id(),
+                        base: doc.revision(),
+                        origin: EditOrigin::Keyboard,
+                        group: None,
+                        operations: vec![operation],
+                    })?;
+                }
+                _ => unreachable!(),
+            }
+            return Ok(Default::default());
         }
     }
     let doc = document(world, entity).ok_or(StructuredViewError::Unavailable)?;
@@ -569,10 +880,7 @@ fn apply_key(
             }],
         })?;
     }
-    let selection = StructuredSelection::Text(TextSelection {
-        anchor: doc.position_at(anchor, Affinity::After)?,
-        head: doc.position_at(index, Affinity::After)?,
-    });
+    let selection = display_to_selection(doc, anchor, index)?;
     if doc.selection() != selection {
         doc.set_selection(selection)?;
     }
