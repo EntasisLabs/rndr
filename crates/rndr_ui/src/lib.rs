@@ -7,11 +7,13 @@
 //! separate from headless tests.
 #![deny(missing_docs)]
 pub mod collections;
+pub mod completion;
 pub mod composition;
 pub mod controls;
 pub mod data;
 pub mod editing;
 pub mod selection;
+pub mod source_tools;
 pub mod style;
 pub mod surfaces;
 pub mod theme_bridge;

@@ -734,13 +734,17 @@ pub(crate) fn apply_generic_input(world: &mut World) {
             let focus = world.resource::<Focus>().and_then(|f| f.entity);
             if handled {
                 consumed = true;
+            } else if crate::source_extensions::reserves_key(world, &event) {
+                // Source completion/IME controls are executed chronologically by
+                // edit_managed, never by this prefilter ahead of earlier text.
             } else if focus.is_some_and(|e| {
                 world.has::<CapturesKeys>(e) && !world.has::<FieldTransactions>(e)
                     // Source and legacy editors use Tab for focus traversal,
                     // including Tab returned by popup dismissal. No implicit
                     // indentation policy is installed by the generic surface.
                     && !(world.has::<Editor>(e)
-                        && event.logical == LogicalKey::Named(NamedKey::Tab))
+                        && event.logical == LogicalKey::Named(NamedKey::Tab)
+                        && !crate::source_extensions::reserves_key(world, &event))
             }) {
                 // Retain this event for the editor's canonical input stage.
             } else if event.logical == LogicalKey::Named(NamedKey::Tab) {

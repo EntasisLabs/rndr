@@ -13,6 +13,12 @@ pub struct AnchoredPopup {
     pub closed: fn(&mut World, Entity),
 }
 impl Component for AnchoredPopup {}
+/// Nonmodal informational popup whose anchor retains keyboard/IME ownership.
+/// The source controller owns its visibility and key admission. It never participates
+/// in generic popup focus, dismissal, or modal capture.
+#[derive(Clone, Copy, Debug)]
+pub struct PassivePopup;
+impl Component for PassivePopup {}
 /// Logical focus ownership only, not layout/paint parenting.
 #[derive(Clone, Copy)]
 pub struct FocusOwner(pub Entity);
@@ -24,7 +30,7 @@ pub(crate) fn active(world: &World) -> Option<Entity> {
     world
         .entities_with::<AnchoredPopup>()
         .into_iter()
-        .find(|e| !world.has::<Hidden>(*e))
+        .find(|e| !world.has::<Hidden>(*e) && !world.has::<PassivePopup>(*e))
 }
 /// Open one popup, replacing any previous scope. Caller then focuses its row/surface.
 /// Rejects unavailable anchors and popups below a higher modal layer.
@@ -32,6 +38,9 @@ pub fn open_popup(world: &mut World, root: Entity) -> bool {
     let Some(p) = world.get::<AnchoredPopup>(root).copied() else {
         return false;
     };
+    if world.has::<PassivePopup>(root) {
+        return false;
+    }
     if !crate::interaction::policy(world, p.anchor).0
         || crate::interaction::policy(world, p.anchor).1
     {

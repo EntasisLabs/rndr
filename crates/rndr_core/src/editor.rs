@@ -415,9 +415,11 @@ impl Default for Editor {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Gutter;
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 struct EditorWindow {
     base: usize,
+    end: usize,
+    hidden: Vec<std::ops::Range<usize>>,
 }
 impl Component for EditorWindow {}
 
@@ -513,6 +515,7 @@ fn document_rows(
     entity: crate::entity::Entity,
     text: &str,
 ) -> std::sync::Arc<crate::TextLayout> {
+    crate::source_folding::prepare(world, entity);
     let mapped_anchor = world.remove::<MappedScrollAnchor>(entity).map(|a| a.0);
     let style = crate::text::style_for(world, entity);
     let engine = crate::text::text_engine(world);
@@ -528,8 +531,14 @@ fn document_rows(
     context ^= crate::text::style_key(&style);
     context ^= (std::sync::Arc::as_ptr(&engine) as *const () as usize as u64).rotate_left(17);
     context ^= engine.cache_epoch().wrapping_mul(0x9E37_79B9_7F4A_7C15);
-    let key = context.rotate_left(23)
+    let mut key = context.rotate_left(23)
         ^ crate::font::layout_cache_key(font.as_ref(), "", width, spans, "", 0);
+    if let Some(folds) = crate::source_folding::current(world, entity) {
+        use std::hash::{Hash, Hasher};
+        let mut hash = std::collections::hash_map::DefaultHasher::new();
+        folds.ranges.hash(&mut hash);
+        key ^= hash.finish();
+    }
     if let Some(rows) = world.get::<DocumentRows>(entity).filter(|rows| {
         rows.key == key && (std::ptr::eq(rows.text.as_ref(), text) || rows.text.as_ref() == text)
     }) {
@@ -560,7 +569,7 @@ fn document_rows(
             Some(map_scroll_anchor(&rows.text, text, at))
         })
     });
-    let (layout, cache, work) = geometry::build(
+    let (mut layout, cache, work) = geometry::build(
         engine.as_ref(),
         font.as_ref(),
         &style,
@@ -571,6 +580,7 @@ fn document_rows(
             .filter(|rows| rows.context == context)
             .map(|rows| &rows.cache),
     );
+    crate::source_folding::project_fold_layout(world, entity, &mut layout);
     let mut stats = world
         .get::<EditorLayoutStats>(entity)
         .copied()
@@ -1064,6 +1074,8 @@ fn edit_managed(world: &mut World, entity: crate::Entity) {
             Some(Key::Backspace) => Some(crate::NamedKey::Backspace),
             Some(Key::Delete) => Some(crate::NamedKey::Delete),
             Some(Key::Enter) => Some(crate::NamedKey::Enter),
+            Some(Key::Tab) => Some(crate::NamedKey::Tab),
+            Some(Key::Escape) => Some(crate::NamedKey::Escape),
             _ => None,
         };
         if let Some(named) = named {
@@ -1106,6 +1118,9 @@ fn edit_managed(world: &mut World, entity: crate::Entity) {
             .and_then(|d| d.get(binding.document))
             .is_some_and(crate::editing::SourceSession::is_composing);
         if composing {
+            continue;
+        }
+        if crate::source_extensions::native_completion_key(world, entity, &event) {
             continue;
         }
         if vertical_key(&event, platform).is_some() {
@@ -1677,7 +1692,26 @@ fn publish_window(world: &mut World, entity: crate::entity::Entity, reveal: bool
         }
         (base, end, top, visible, numbers, first, caret_row)
     };
-    let window = text[base..end].to_string();
+    let hidden: Vec<_> = crate::source_folding::current(world, entity)
+        .map(|folds| {
+            folds
+                .ranges
+                .iter()
+                .filter_map(|r| {
+                    let start = r.start.max(base);
+                    let stop = r.end.min(end);
+                    (start < stop).then_some(start..stop)
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let mut window = String::with_capacity(end - base);
+    let mut cursor = base;
+    for range in &hidden {
+        window.push_str(&text[cursor..range.start]);
+        cursor = range.end;
+    }
+    window.push_str(&text[cursor..end]);
     if let Some(editor) = world.get_mut::<Editor>(entity) {
         editor.offset = top;
     }
@@ -1695,7 +1729,9 @@ fn publish_window(world: &mut World, entity: crate::entity::Entity, reveal: bool
             }
         }
     }
-    world.insert(entity, EditorWindow { base });
+    world.insert(entity, EditorWindow { base, end, hidden });
+    let paint_caret = window_offset(world, entity, caret);
+    let paint_anchor = window_offset(world, entity, anchor);
     if let Some(label) = world.get_mut::<Label>(entity) {
         label.text = window;
     }
@@ -1703,15 +1739,15 @@ fn publish_window(world: &mut World, entity: crate::entity::Entity, reveal: bool
         world.insert(
             entity,
             crate::CaretRow {
-                index: caret - base,
+                index: paint_caret,
                 row: caret_row - first,
             },
         );
         world.insert(
             entity,
             Caret {
-                index: caret - base,
-                anchor: anchor.clamp(base, end) - base,
+                index: paint_caret,
+                anchor: paint_anchor,
             },
         );
     } else {
@@ -1729,6 +1765,64 @@ pub(crate) fn window_base(world: &World, entity: crate::entity::Entity) -> usize
     world
         .get::<EditorWindow>(entity)
         .map_or(0, |window| window.base)
+}
+
+// Convert document source positions into the non-contiguous visible Label.
+// Hidden interiors collapse to their seam; this maps cross-fold selections
+// without painting the hidden bytes. Input hit testing uses document rows.
+pub(crate) fn window_offset(world: &World, entity: crate::Entity, byte: usize) -> usize {
+    let Some(window) = world.get::<EditorWindow>(entity) else {
+        return byte;
+    };
+    let byte = byte.clamp(window.base, window.end);
+    let removed: usize = window
+        .hidden
+        .iter()
+        .map(|r| byte.min(r.end).saturating_sub(r.start))
+        .sum();
+    byte - window.base - removed
+}
+
+/// Visible selection fragments for document-byte source positions. Folded
+/// interiors and offscreen ranges produce no fragments. Coordinates are
+/// relative to the visible Label text origin, not the viewport rectangle.
+pub fn source_range_boxes(
+    world: &World,
+    entity: crate::Entity,
+    start: usize,
+    end: usize,
+) -> Vec<crate::font::SelectionBox> {
+    let Some(layout) = world.get::<crate::TextLayout>(entity) else {
+        return Vec::new();
+    };
+    layout.selection_boxes(
+        window_offset(world, entity, start),
+        window_offset(world, entity, end),
+    )
+}
+
+/// Visible caret rectangle for one document-byte source position. Hidden and
+/// offscreen positions return None rather than attaching to a fold seam.
+pub fn source_position_box(
+    world: &World,
+    entity: crate::Entity,
+    at: usize,
+) -> Option<crate::font::SelectionBox> {
+    let window = world.get::<EditorWindow>(entity)?;
+    if at < window.base || at > window.end || window.hidden.iter().any(|r| r.contains(&at)) {
+        return None;
+    }
+    let layout = world.get::<crate::TextLayout>(entity)?;
+    let at = window_offset(world, entity, at);
+    let row = document_row_at(layout, at);
+    let line = layout.lines.get(row)?;
+    let (x, y) = layout.caret_xy_on_line(at, row);
+    Some(crate::font::SelectionBox {
+        x,
+        y,
+        w: 1.0,
+        h: line.h,
+    })
 }
 
 /// Copy the entity's styled spans for shaping or painting `text`.
@@ -1755,7 +1849,9 @@ pub fn spans_for_text(
         return spans.to_vec();
     }
     let base = window_base(world, entity);
-    let end = base.saturating_add(text.len());
+    let end = world
+        .get::<EditorWindow>(entity)
+        .map_or(base.saturating_add(text.len()), |w| w.end);
     spans
         .iter()
         .filter_map(|span| {
@@ -1763,9 +1859,9 @@ pub fn spans_for_text(
                 return None;
             }
             let mut span = span.clone();
-            span.start = span.start.max(base) - base;
-            span.end = span.end.min(end) - base;
-            Some(span)
+            span.start = window_offset(world, entity, span.start.max(base));
+            span.end = window_offset(world, entity, span.end.min(end));
+            (span.start < span.end).then_some(span)
         })
         .collect()
 }
@@ -1870,11 +1966,23 @@ fn decoration_marks(world: &World, entity: crate::entity::Entity) -> Vec<Decorat
         .unwrap_or(&[]);
     let mut marks = Vec::new();
     for decoration in list {
-        if decoration.end <= base || decoration.start >= base + window_len {
+        let document_end = world
+            .get::<EditorWindow>(entity)
+            .map_or(base + window_len, |w| w.end);
+        if decoration.end <= base || decoration.start >= document_end {
             continue;
         }
-        let start = decoration.start.saturating_sub(base).min(window_len);
-        let end = decoration.end.saturating_sub(base).min(window_len);
+        let (start, end) = if world.has::<Buffer>(entity) {
+            (
+                window_offset(world, entity, decoration.start),
+                window_offset(world, entity, decoration.end),
+            )
+        } else {
+            (
+                decoration.start.min(window_len),
+                decoration.end.min(window_len),
+            )
+        };
         if start >= end {
             continue;
         }

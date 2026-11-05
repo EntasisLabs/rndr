@@ -85,6 +85,9 @@ impl_bundle_tuple!(A, B, C, D, E, F);
 /// `Send`: [`Self::insert_local`] keeps UI-thread state, which is why
 /// [`World`] is not `Send`.
 pub struct World {
+    // Raw mutable policy access fences ABA only for affected targets/ancestors.
+    pub(crate) source_focus_epoch: u64,
+    source_entity_epochs: Vec<u64>,
     generations: Vec<u32>,
     alive: Vec<bool>,
     free: Vec<u32>,
@@ -95,9 +98,40 @@ pub struct World {
 }
 
 impl World {
+    fn source_policy_mutation<T: 'static>(&mut self, entity: Entity) {
+        let ty = TypeId::of::<T>();
+        if ty == TypeId::of::<crate::interaction::Semantics>()
+            || ty == TypeId::of::<crate::ImePreview>()
+            || ty == TypeId::of::<crate::Parent>()
+        {
+            self.bump_source_entity_epoch(entity);
+        }
+    }
+    fn bump_source_entity_epoch(&mut self, entity: Entity) {
+        if self.is_alive(entity) {
+            let epoch = &mut self.source_entity_epochs[entity.index() as usize];
+            *epoch = epoch.checked_add(1).expect("source policy epoch exhausted");
+        }
+    }
+    fn source_focus_mutation<T: 'static>(&mut self) {
+        if TypeId::of::<T>() == TypeId::of::<crate::Focus>() {
+            self.source_focus_epoch = self
+                .source_focus_epoch
+                .checked_add(1)
+                .expect("source focus epoch exhausted");
+        }
+    }
+    pub(crate) fn source_entity_epoch(&self, entity: Entity) -> u64 {
+        self.source_entity_epochs
+            .get(entity.index() as usize)
+            .copied()
+            .unwrap_or(0)
+    }
     /// An empty world: no entities, no resources, and no locals.
     pub fn new() -> Self {
         Self {
+            source_focus_epoch: 0,
+            source_entity_epochs: Vec::new(),
             generations: Vec::new(),
             alive: Vec::new(),
             free: Vec::new(),
@@ -136,6 +170,7 @@ impl World {
         if !self.is_alive(entity) {
             return;
         }
+        self.bump_source_entity_epoch(entity);
         let i = entity.index() as usize;
         self.alive[i] = false;
         self.generations[i] = self.generations[i].wrapping_add(1);
@@ -151,6 +186,7 @@ impl World {
     /// includes a stale generation and an id that was never spawned. `T` is
     /// [`Component`], so it is `'static + Send + Sync`.
     pub fn insert<T: Component>(&mut self, entity: Entity, value: T) {
+        self.source_policy_mutation::<T>(entity);
         if !self.is_alive(entity) {
             return;
         }
@@ -162,6 +198,16 @@ impl World {
     /// Returns `None` when `T` is absent. Despawn already cleared every
     /// component, so a dead entity returns `None`.
     pub fn remove<T: Component>(&mut self, entity: Entity) -> Option<T> {
+        if self.has::<T>(entity) {
+            self.source_policy_mutation::<T>(entity);
+        }
+        if self.has::<T>(entity)
+            && (TypeId::of::<T>() == TypeId::of::<crate::editing::SourceBinding>()
+                || TypeId::of::<T>() == TypeId::of::<crate::Editor>()
+                || TypeId::of::<T>() == TypeId::of::<crate::Buffer>())
+        {
+            self.bump_source_entity_epoch(entity);
+        }
         self.store_mut::<T>().map.remove(&entity)
     }
 
@@ -188,6 +234,9 @@ impl World {
     /// Returns `None` in the same cases as [`Self::get`], including a dead
     /// entity.
     pub fn get_mut<T: Component>(&mut self, entity: Entity) -> Option<&mut T> {
+        if self.has::<T>(entity) {
+            self.source_policy_mutation::<T>(entity);
+        }
         self.store_mut::<T>().map.get_mut(&entity)
     }
 
@@ -217,6 +266,16 @@ impl World {
     /// One resource exists per type. Values that are not `Send` belong in
     /// [`Self::insert_local`].
     pub fn insert_resource<T: 'static + Send + Sync>(&mut self, value: T) {
+        // Repeating native request_focus on the current target is not a transition.
+        // Raw resource_mut remains conservative to fence ABA within one borrow.
+        if TypeId::of::<T>() != TypeId::of::<crate::Focus>()
+            || self.resource::<crate::Focus>().map(|f| f.entity)
+                != (&value as &dyn Any)
+                    .downcast_ref::<crate::Focus>()
+                    .map(|f| f.entity)
+        {
+            self.source_focus_mutation::<T>();
+        }
         self.resources.insert(TypeId::of::<T>(), Box::new(value));
     }
 
@@ -242,6 +301,9 @@ impl World {
     ///
     /// Returns `None` when that resource was never inserted.
     pub fn resource_mut<T: 'static + Send + Sync>(&mut self) -> Option<&mut T> {
+        if self.has_resource::<T>() {
+            self.source_focus_mutation::<T>();
+        }
         self.resources
             .get_mut(&TypeId::of::<T>())
             .and_then(|value| value.downcast_mut::<T>())
@@ -292,6 +354,7 @@ impl World {
         } else {
             let index = self.generations.len() as u32;
             self.generations.push(0);
+            self.source_entity_epochs.push(0);
             self.alive.push(true);
             Entity::new(index, 0)
         }

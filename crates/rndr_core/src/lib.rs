@@ -109,6 +109,14 @@ mod pool;
 mod prompt;
 mod runtime;
 mod scrollbar;
+/// Owned revision-fenced asynchronous source extension protocols.
+pub mod source_extensions;
+/// Experimental whole-line source folds and optional language hooks.
+pub mod source_folding;
+/// Live additive provider decoration and gutter paint projection.
+pub mod source_presentation;
+/// Normalized directed multi-selections and visual rectangular selection policy.
+pub mod source_selection;
 pub use scrollbar::{
     apply_scrollbars, scrollbar_dragging, scrollbar_geometry, set_scrollbar_value, Scrollbar,
     ScrollbarGeometry,
@@ -116,6 +124,8 @@ pub use scrollbar::{
 mod shell;
 mod sim;
 mod slot;
+/// Revision-bound literal source search and atomic replacements.
+pub mod source_search;
 mod split;
 mod style;
 mod tabs;
@@ -226,7 +236,7 @@ pub use pointers::{
 };
 #[cfg(feature = "pool")]
 pub use pool::thread_pool;
-pub use popup::{close_popup, open_popup, popup_rect, AnchoredPopup, FocusOwner};
+pub use popup::{close_popup, open_popup, popup_rect, AnchoredPopup, FocusOwner, PassivePopup};
 pub use prompt::{Placeholder, Prompt, PromptHistory};
 pub use runtime::{
     after, cancel_debounce, debounce, debounce_local, every, frame_wake, run_until_parked, sleep,

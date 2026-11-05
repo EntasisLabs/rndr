@@ -368,10 +368,17 @@ pub fn apply_keymap(world: &mut World) {
         .map(|input| input.keys.clone())
         .unwrap_or_default();
     let had_keys = !events.is_empty();
-    let dispatch = {
+    let reserved: Vec<_> = events
+        .iter()
+        .map(|e| crate::source_extensions::reserves_key(world, e))
+        .collect();
+    let indexes: Vec<_> = (0..events.len()).filter(|i| !reserved[*i]).collect();
+    let dispatch_events: Vec<_> = indexes.iter().map(|i| events[*i].clone()).collect();
+    let mut dispatch = {
         let keymap = world.resource_mut::<Keymap>().unwrap();
-        keymap.dispatch(&stack, &events, platform, now)
+        keymap.dispatch(&stack, &dispatch_events, platform, now)
     };
+    dispatch.consumed = dispatch.consumed.into_iter().map(|i| indexes[i]).collect();
     if world.resource::<KeymapFired>().is_some() {
         world.resource_mut::<KeymapFired>().unwrap().actions = dispatch.actions;
     } else {

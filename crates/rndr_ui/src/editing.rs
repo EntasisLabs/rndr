@@ -167,6 +167,9 @@ impl EditorSurface {
             );
             EditorSurfaceHandle { root, editor }
         };
+        // Let the source owner publish document policy before replacing metadata,
+        // so its own readonly value is not mistaken for a host view-policy override.
+        rndr_core::editing::project_source(world, handle.editor);
         world.insert(
             handle.editor,
             Semantics {

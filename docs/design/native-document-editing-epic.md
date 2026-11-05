@@ -126,12 +126,14 @@ native/affinity checks are actually exercised. No E3 implementation is included.
 
 ## E4 — source selection and extension composition
 
+2026-11-05: implementation accepted by the principal after native demo retest. See the [E4 closeout and verification boundaries](native-document-editing-e4.md); this does not certify separate native IME/accessibility/platform or E3 performance gates.
+
 **Depends:** E1; performance acceptance relies on E3; source features can be reviewed individually.
 
-- [ ] E4.1 Normalize multiple directed selections and rectangular visual selections; multi-paste/delete/undo as a batch, explicit tab/bidi column policy.
-- [ ] E4.2 Revisioned decoration/provider lifetimes and priority; search/replace controller + optional find bar and generic gutter markers.
-- [ ] E4.3 Optional syntax/indent/bracket/fold provider hooks; one representative provider and fold geometry, not all language packs.
-- [ ] E4.4 Completion popup + diagnostics/navigation hooks with a fake asynchronous provider. UTF-16 conversion seam for a future LSP adapter; stale result/edit refusal and cancellation.
+- [x] E4.1 Normalize multiple directed selections and rectangular visual selections; multi-paste/delete/undo as a batch, explicit tab/bidi column policy.
+- [x] E4.2 Revisioned decoration/provider lifetimes and priority; search/replace controller + optional find bar and generic gutter markers.
+- [x] E4.3 Optional syntax/indent/bracket/fold provider hooks; one representative provider and fold geometry, not all language packs.
+- [x] E4.4 Completion popup + diagnostics/navigation hooks with a fake asynchronous provider. UTF-16 conversion seam for a future LSP adapter; stale result/edit refusal and cancellation.
 
 **Acceptance:** composition can express M1/M2/M9's needed capabilities without special cases named Medousa; replace-all one history step, zero-length search bounded; fold selection/copy explicit; provider detach causes no stale popup/decoration; key precedence deterministic under IME and completion. App supplies language service transport, review semantics and grammar/slash commands.
 

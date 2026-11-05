@@ -18,12 +18,14 @@ struct Snap {
     anchor: usize,
     // Forward source operations from this snapshot to the current state.
     source_changes: Option<Vec<crate::editing::SourceChange>>,
+    selections: Option<crate::source_selection::SourceSelections>,
 }
 
 impl Snap {
     fn retained_bytes(&self) -> usize {
         self.text.capacity()
             + std::mem::size_of::<Self>()
+            + self.selections.as_ref().map_or(0, |s| s.retained_bytes())
             + self.source_changes.as_ref().map_or(0, |changes| {
                 changes.capacity() * std::mem::size_of::<crate::editing::SourceChange>()
                     + changes
@@ -55,6 +57,7 @@ pub struct EditHistory {
     run: Option<TypingRun>,
     // Transient exact operation for the current native event, consumed by a session.
     native_change: Option<SourceChange>,
+    pub(crate) source_selections: Option<crate::source_selection::SourceSelections>,
 }
 
 impl EditHistory {
@@ -86,6 +89,7 @@ impl EditHistory {
             index,
             anchor,
             source_changes: None,
+            selections: None,
         });
         self.break_run();
     }
@@ -102,6 +106,7 @@ impl EditHistory {
             index,
             anchor,
             source_changes: Some(changes),
+            selections: None,
         });
         self.break_run();
     }
@@ -111,7 +116,8 @@ impl EditHistory {
         self.native_change.take()
     }
 
-    fn push_undo(&mut self, snap: Snap) {
+    fn push_undo(&mut self, mut snap: Snap) {
+        snap.selections = self.source_selections.clone();
         self.undo.push(snap);
         if self.undo.len() > 100 {
             self.undo.remove(0);
@@ -479,7 +485,9 @@ pub(crate) fn restore(
         index: *index,
         anchor: *anchor,
         source_changes: changes.clone(),
+        selections: history.source_selections.clone(),
     };
+    history.source_selections = prev.selections;
     if undo {
         history.redo.push(current);
     } else {
@@ -549,6 +557,7 @@ fn change(
         index: *index,
         anchor: *anchor,
         source_changes: None,
+        selections: None,
     };
     let change = mutate(text, index, anchor);
     if *text == before.text {

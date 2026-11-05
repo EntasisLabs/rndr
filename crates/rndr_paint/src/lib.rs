@@ -260,6 +260,7 @@ fn paint_visited(
     clip_text: bool,
     caret_row: Option<&rndr_core::CaretRow>,
     metrics: rndr_core::LabelBox,
+    secondary: &[rndr_core::source_presentation::SecondarySelectionMark],
 ) {
     let text_clip = if clip_text {
         clip.intersect(Clip {
@@ -284,6 +285,23 @@ fn paint_visited(
         y: rect.y + metrics.inset_y - TEXT_ORIGIN_Y,
         ..rect
     };
+    for mark in secondary.iter().filter(|m| !m.caret) {
+        push(
+            out,
+            snap_box(
+                rect.x + TEXT_ORIGIN_X + mark.x,
+                rect.y + TEXT_ORIGIN_Y + mark.y + shift_y,
+                mark.w,
+                mark.h,
+                scale,
+            ),
+            theme.selection,
+            solid,
+            text_clip,
+            0.0,
+            0,
+        );
+    }
     if let (Some(layout), Some(caret)) = (layout, caret) {
         push_selection(
             out,
@@ -407,6 +425,23 @@ fn paint_visited(
             0,
         );
     }
+    for mark in secondary.iter().filter(|m| m.caret) {
+        push(
+            out,
+            snap_box(
+                rect.x + TEXT_ORIGIN_X + mark.x,
+                rect.y + TEXT_ORIGIN_Y + mark.y + shift_y,
+                mark.w,
+                mark.h,
+                scale,
+            ),
+            theme.caret,
+            solid,
+            text_clip,
+            0.0,
+            0,
+        );
+    }
     if let Some(caret) = caret {
         push_caret(
             out,
@@ -509,7 +544,33 @@ fn walk(
                 clip_text,
                 world.get::<rndr_core::CaretRow>(entity),
                 rndr_core::label_box(world, entity),
+                &rndr_core::source_presentation::secondary_selection_marks(world, entity),
             );
+            // Provider overlays are additive and revalidated at the actual
+            // paint boundary, never cached in host Decorations or Spans.
+            let provider_clip = clip.intersect(Clip::from_rect(rect));
+            for mark in rndr_core::source_presentation::provider_marks(world, entity) {
+                push(
+                    &mut guard,
+                    snap_box(
+                        rect.x
+                            + if mark.gutter {
+                                1.0
+                            } else {
+                                TEXT_ORIGIN_X + mark.x
+                            },
+                        rect.y + TEXT_ORIGIN_Y + mark.y + shift_y,
+                        mark.w,
+                        mark.h,
+                        scale,
+                    ),
+                    mark.color,
+                    solid,
+                    provider_clip,
+                    0.0,
+                    0,
+                );
+            }
         };
         if needs_fallback {
             let text = world

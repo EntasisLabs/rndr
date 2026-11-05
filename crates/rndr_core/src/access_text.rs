@@ -134,7 +134,8 @@ pub fn access_text(world: &World, entity: Entity) -> Option<AccessTextSnapshot> 
     let spans = world
         .get::<crate::Spans>(entity)
         .map_or(&[][..], |s| s.runs.as_slice());
-    let layout = engine.layout(state.text(), &style, spans, width);
+    let mut layout = engine.layout(state.text(), &style, spans, width);
+    crate::source_folding::project_fold_layout(world, entity, &mut layout);
     let offset = world.get::<crate::Editor>(entity)?.offset;
     let offset = if offset.is_finite() {
         offset.max(0.0)
