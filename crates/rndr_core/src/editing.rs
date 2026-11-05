@@ -1,11 +1,12 @@
-//! Experimental single-view source document sessions.
+//! Experimental shared source document sessions.
 //!
 //! Documents outlive their retained views. All managed mutations use the same
 //! snapshot history as native typing; a Buffer is only a layout/input projection.
 //! Raw Buffer writes on a managed entity are not a supported editing API.
 //! Batches use ordered, nonoverlapping UTF-8 byte ranges in one base revision.
 //! Duplicate starts (including adjacent insertion/replacement ambiguity) refuse.
-//! This additive API is intentionally not a multi-view or collaborative editor.
+//! Views own selections and viewport state; documents own content and history.
+//! This additive API is not a collaborative editor.
 use std::collections::{HashMap, VecDeque};
 use std::ops::Range;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -147,7 +148,7 @@ pub enum EditError {
     Readonly,
     /// Composition owns its captured range; retry after native commit/cancel.
     Composing,
-    /// E1 supports only one attached view per document.
+    /// Entity is already attached to a different document.
     AlreadyAttached,
     /// Stale or malformed view.
     InvalidView,
@@ -169,12 +170,14 @@ impl std::error::Error for EditError {}
 pub struct SourceInputError(pub EditError);
 impl Component for SourceInputError {}
 
-/// Document-owned history memory ceiling (snapshots only); oldest steps evict.
+/// Document-owned history memory ceiling (snapshots and splice metadata); oldest steps evict.
 pub const HISTORY_BYTES: usize = 16 * 1024 * 1024;
 /// Undrained event count ceiling. Backpressure refuses edits rather than losing events.
 pub const EVENT_LIMIT: usize = 256;
 
-/// Durable plain-source state. One selection is retained across E1 detach/reattach.
+/// Durable plain-source state. The last invoking selection survives detach/reattach.
+/// Attached views retain independent directed selections. Undo restores the history
+/// selection in the invoking view, maps other views, and never changes focus.
 /// Each accepted keyboard mutation emits an event even when typing shares undo.
 /// The host must drain events; mutations stop at [`EVENT_LIMIT`].
 pub struct SourceSession {
@@ -183,6 +186,9 @@ pub struct SourceSession {
     text: String,
     selection: SourceSelection,
     history: EditHistory,
+    views: HashMap<Entity, SourceSelection>,
+    scroll_anchors: HashMap<Entity, usize>,
+    active_view: Option<Entity>,
     readonly: bool,
     composition: Option<SourceSelection>,
     events: VecDeque<ChangeEvent>,
@@ -196,9 +202,62 @@ impl SourceSession {
     pub fn revision(&self) -> Revision {
         self.revision
     }
-    /// Current single-view selection.
+    /// Last invoking view selection (also the legacy host-command selection).
     pub fn selection(&self) -> SourceSelection {
         self.selection
+    }
+    /// Current directed selection for an attached view, in the current revision.
+    pub fn view_selection(&self, view: Entity) -> Option<SourceSelection> {
+        self.views.get(&view).copied()
+    }
+    /// Canonical viewport byte offset, eagerly mapped into the current revision.
+    pub(crate) fn view_scroll_anchor(&self, view: Entity) -> Option<usize> {
+        self.scroll_anchors.get(&view).copied()
+    }
+    /// Record a published viewport only for a currently attached view.
+    pub(crate) fn set_view_scroll_anchor(&mut self, view: Entity, at: usize) {
+        if self.views.contains_key(&view) && self.text.is_char_boundary(at) {
+            self.scroll_anchors.insert(view, at);
+        }
+    }
+    /// Set one attached view's selection against an explicit current revision.
+    /// Stale callers and composition refuse without changing history or focus.
+    pub fn set_view_selection(
+        &mut self,
+        view: Entity,
+        base: Revision,
+        selection: SourceSelection,
+    ) -> Result<(), EditError> {
+        if base != self.revision {
+            return Err(EditError::StaleRevision);
+        }
+        if !self.views.contains_key(&view) {
+            return Err(EditError::InvalidView);
+        }
+        if self.composition.is_some() {
+            return Err(EditError::Composing);
+        }
+        if !self.text.is_char_boundary(selection.anchor)
+            || !self.text.is_char_boundary(selection.head)
+        {
+            return Err(EditError::InvalidRange);
+        }
+        let s = snapped_selection(&self.text, selection);
+        self.views.insert(view, s);
+        if self.active_view == Some(view) {
+            self.selection = s;
+        }
+        self.history.break_run();
+        Ok(())
+    }
+    fn activate_view(&mut self, view: Entity) {
+        if self.active_view != Some(view) {
+            if let Some(s) = self.views.get(&view).copied() {
+                self.selection = s;
+                self.active_view = Some(view);
+                self.history.break_run();
+            }
+        }
     }
     /// True when document-owned admission is readonly.
     pub fn is_readonly(&self) -> bool {
@@ -231,10 +290,10 @@ impl SourceSession {
         Ok(())
     }
     fn select(&mut self, s: SourceSelection) {
-        self.selection = SourceSelection {
-            anchor: crate::edit::floor_grapheme(&self.text, s.anchor.min(self.text.len())),
-            head: crate::edit::floor_grapheme(&self.text, s.head.min(self.text.len())),
-        };
+        self.selection = snapped_selection(&self.text, s);
+        if let Some(view) = self.active_view {
+            self.views.insert(view, self.selection);
+        }
     }
     /// Capture a host/save snapshot, without changing dirty state or history.
     pub fn snapshot(&self) -> SourceSnapshot {
@@ -301,49 +360,35 @@ impl SourceSession {
         if next == self.text {
             return Ok(None);
         }
-        self.history.record_source_edit(
+        self.history.record_source_changes(
             self.text.clone(),
             self.selection.head,
             self.selection.anchor,
+            changes.clone(),
         );
         let event = self.apply(changes, batch.origin);
         self.history.trim_bytes(HISTORY_BYTES);
         Ok(Some(event))
     }
     fn apply(&mut self, changes: Vec<SourceChange>, origin: EditOrigin) -> ChangeEvent {
-        let mut inverse = Vec::new();
-        let mut removed = 0;
-        let mut inserted = 0;
-        for c in &changes {
-            let start = c.range.start - removed + inserted;
-            inverse.push(SourceChange {
-                range: start..start + c.replacement.len(),
-                replacement: self.text[c.range.clone()].to_string(),
-            });
-            removed += c.range.len();
-            inserted += c.replacement.len();
-        }
-        // Adjacent deletions can produce identical inverse insertion offsets.
-        // Coalesce touching inverse ranges so every emitted inverse is itself a
-        // valid base-coordinate batch under the same duplicate-start rule.
-        let mut merged: Vec<SourceChange> = Vec::new();
-        for c in inverse {
-            if let Some(last) = merged
-                .last_mut()
-                .filter(|last| last.range.end == c.range.start)
-            {
-                last.range.end = c.range.end;
-                last.replacement.push_str(&c.replacement);
-            } else {
-                merged.push(c);
-            }
-        }
-        let inverse = merged;
+        let inverse = inverse_changes(&self.text, &changes);
         let map = SourceMap {
             changes: changes.clone(),
         };
         for c in changes.iter().rev() {
             self.text.replace_range(c.range.clone(), &c.replacement);
+        }
+        for at in self.scroll_anchors.values_mut() {
+            *at = map.map(*at, Affinity::After);
+        }
+        for s in self.views.values_mut() {
+            *s = snapped_selection(
+                &self.text,
+                SourceSelection {
+                    anchor: map.map(s.anchor, Affinity::After),
+                    head: map.map(s.head, Affinity::After),
+                },
+            );
         }
         self.select(SourceSelection {
             anchor: map.map(self.selection.anchor, Affinity::After),
@@ -377,7 +422,7 @@ impl SourceSession {
     fn restore(&mut self, undo: bool) -> Result<Option<ChangeEvent>, EditError> {
         self.admit()?;
         let old = self.text.clone();
-        crate::typing::restore(
+        let changes = crate::typing::restore(
             &mut self.text,
             &mut self.selection.head,
             &mut self.selection.anchor,
@@ -389,9 +434,9 @@ impl SourceSession {
             return Ok(None);
         }
         let selection = self.selection;
-        let change = minimal_change(&self.text, &next);
+        let changes = changes.unwrap_or_else(|| vec![minimal_change(&self.text, &next)]);
         let event = self.apply(
-            vec![change],
+            changes,
             if undo {
                 EditOrigin::Undo
             } else {
@@ -501,7 +546,10 @@ impl SourceSession {
         let next = std::mem::replace(&mut self.text, old);
         let selection = self.selection;
         if self.text != next {
-            let change = minimal_change(&self.text, &next);
+            let change = self
+                .history
+                .take_native_change()
+                .expect("native mutation must retain its exact source operation");
             self.apply(vec![change], origin);
         }
         self.select(selection);
@@ -510,7 +558,39 @@ impl SourceSession {
     }
 }
 
-fn minimal_change(before: &str, after: &str) -> SourceChange {
+/// Invert exact base-coordinate splices, retaining unchanged interior gaps.
+pub(crate) fn inverse_changes(text: &str, changes: &[SourceChange]) -> Vec<SourceChange> {
+    let mut inverse: Vec<SourceChange> = Vec::new();
+    let mut removed = 0;
+    let mut inserted = 0;
+    for c in changes {
+        let start = c.range.start - removed + inserted;
+        let next = SourceChange {
+            range: start..start + c.replacement.len(),
+            replacement: text[c.range.clone()].to_string(),
+        };
+        // Touching inverse ranges must coalesce: adjacent deletions otherwise
+        // create duplicate insertion offsets, which source batches prohibit.
+        if let Some(last) = inverse.last_mut().filter(|last| last.range.end == start) {
+            last.range.end = next.range.end;
+            last.replacement.push_str(&next.replacement);
+        } else {
+            inverse.push(next);
+        }
+        removed += c.range.len();
+        inserted += c.replacement.len();
+    }
+    inverse
+}
+
+fn snapped_selection(text: &str, s: SourceSelection) -> SourceSelection {
+    SourceSelection {
+        anchor: crate::edit::floor_grapheme(text, s.anchor.min(text.len())),
+        head: crate::edit::floor_grapheme(text, s.head.min(text.len())),
+    }
+}
+
+pub(crate) fn minimal_change(before: &str, after: &str) -> SourceChange {
     let mut start = before
         .bytes()
         .zip(after.bytes())
@@ -562,6 +642,9 @@ impl SourceDocuments {
                 text,
                 selection,
                 history: EditHistory::default(),
+                views: HashMap::new(),
+                scroll_anchors: HashMap::new(),
+                active_view: None,
                 readonly: false,
                 composition: None,
                 events: VecDeque::new(),
@@ -592,7 +675,8 @@ pub fn attached_source(world: &World, entity: Entity) -> Option<DocumentId> {
     world.get::<SourceBinding>(entity).map(|b| b.document)
 }
 
-/// Attach one existing Buffer/Editor entity. A second view explicitly refuses.
+/// Attach an existing Buffer/Editor entity as an independent view.
+/// New views start at the last invoking selection; their Editor scroll is local.
 /// Documents/history survive detach and entity teardown. Install Chrome normally.
 pub fn attach_source(
     world: &mut World,
@@ -603,25 +687,44 @@ pub fn attach_source(
         return Err(EditError::InvalidView);
     }
     if let Some(b) = world.get::<SourceBinding>(entity) {
-        return if b.document == document {
-            Ok(())
-        } else {
-            Err(EditError::AlreadyAttached)
-        };
+        if b.document != document {
+            return Err(EditError::AlreadyAttached);
+        }
+        if world
+            .resource::<SourceDocuments>()
+            .and_then(|d| d.get(document))
+            .is_some_and(|d| d.view_selection(entity).is_some())
+        {
+            return Ok(());
+        }
+        // A malformed view may have been retired during input preparation.
+        // Repaired components can explicitly reattach to the durable session.
     }
-    if world.entities_with::<SourceBinding>().iter().any(|&e| {
-        world
-            .get::<SourceBinding>(e)
-            .is_some_and(|b| b.document == document)
-    }) {
-        return Err(EditError::AlreadyAttached);
+    // Destroying the owner cancels its range, but retain the IME tombstone so
+    // its eventual native commit cannot target this newly attached view.
+    let dead_owner = world
+        .resource::<SourceImeOwner>()
+        .and_then(|o| o.0)
+        .is_some_and(|(view, id)| {
+            id == document
+                && (attached_source(world, view) != Some(id)
+                    || !world.has::<crate::Editor>(view)
+                    || !world.has::<Buffer>(view))
+        });
+    if dead_owner {
+        clear_source_composition(world, document);
     }
     let doc = world
         .resource_mut::<SourceDocuments>()
         .and_then(|d| d.get_mut(document))
         .ok_or(EditError::MissingDocument)?;
-    // A view destroyed outside detach is a cancellation of its transient preedit.
-    doc.composition = None;
+    if doc.is_composing() {
+        return Err(EditError::Composing);
+    }
+    if doc.views.is_empty() {
+        doc.active_view = Some(entity);
+    }
+    doc.views.insert(entity, doc.selection);
     let revision = doc.revision;
     let selection = doc.selection;
     world.remove::<EditHistory>(entity);
@@ -649,6 +752,17 @@ pub fn detach_source(world: &mut World, entity: Entity) -> Result<(), EditError>
         return Err(EditError::Composing);
     }
     sync_selection(world, entity);
+    if let Some(doc) = world
+        .resource_mut::<SourceDocuments>()
+        .and_then(|d| d.get_mut(binding.document))
+    {
+        doc.views.remove(&entity);
+        doc.scroll_anchors.remove(&entity);
+        if doc.active_view == Some(entity) {
+            doc.active_view = None;
+            doc.history.break_run();
+        }
+    }
     world.remove::<SourceBinding>(entity);
     world.remove::<crate::ImePreview>(entity);
     if let Some(focus) = world.resource_mut::<Focus>() {
@@ -674,11 +788,22 @@ pub(crate) fn sync_selection(world: &mut World, entity: Entity) {
         .and_then(|d| d.get_mut(b.document))
     {
         if doc.revision == b.revision && doc.composition.is_none() && b.selection != selection {
-            doc.select(selection);
+            let s = snapped_selection(&doc.text, selection);
+            doc.views.insert(entity, s);
+            if doc.active_view == Some(entity) {
+                doc.selection = s;
+            }
             doc.history.break_run();
         }
     }
 }
+struct SourceProjection {
+    text: std::sync::Arc<str>,
+    document: DocumentId,
+    revision: Revision,
+}
+impl crate::Component for SourceProjection {}
+
 pub(crate) fn project_source(world: &mut World, entity: Entity) {
     let Some(b) = world.get::<SourceBinding>(entity).copied() else {
         return;
@@ -689,17 +814,68 @@ pub(crate) fn project_source(world: &mut World, entity: Entity) {
     else {
         return;
     };
-    let (text, s, revision, readonly) =
-        (doc.text.clone(), doc.selection, doc.revision, doc.readonly);
+    let Some(s) = doc.view_selection(entity) else {
+        return;
+    };
+    let unchanged = world
+        .get::<SourceProjection>(entity)
+        .is_some_and(|projection| {
+            projection.document == b.document
+                && projection.revision == doc.revision
+                && b.revision == doc.revision
+                && world.get::<Buffer>(entity).is_some_and(|buffer| {
+                    std::sync::Arc::ptr_eq(&buffer.snapshot(), &projection.text)
+                })
+        });
+    let mapped_anchor = world
+        .get::<SourceProjection>(entity)
+        .filter(|p| p.document == b.document && p.revision != doc.revision)
+        .and_then(|_| doc.view_scroll_anchor(entity));
+    let (text, revision, readonly) = (
+        (!unchanged).then(|| doc.text.clone()),
+        doc.revision,
+        doc.readonly,
+    );
+    if let Some(byte) = mapped_anchor {
+        crate::editor::project_scroll_anchor(world, entity, byte);
+    }
     if let Some(semantics) = world.get_mut::<crate::Semantics>(entity) {
         semantics.readonly = readonly;
     }
     if let Some(buffer) = world.get_mut::<Buffer>(entity) {
-        crate::editor::replace_buffer(buffer, &text, s.head, s.anchor);
+        if let Some(text) = &text {
+            crate::editor::replace_buffer(buffer, text, s.head, s.anchor);
+        } else {
+            buffer.caret = s.head;
+            buffer.anchor = s.anchor;
+        }
+    }
+    if let Some(buffer) = world.get::<Buffer>(entity) {
+        let text = buffer.snapshot();
+        world.insert(
+            entity,
+            SourceProjection {
+                text,
+                document: b.document,
+                revision,
+            },
+        );
     }
     if let Some(binding) = world.get_mut::<SourceBinding>(entity) {
         binding.revision = revision;
         binding.selection = s;
+    }
+}
+/// Activate an invoking pane without transferring keyboard focus.
+pub(crate) fn activate_source_view(world: &mut World, entity: Entity) {
+    let Some(b) = world.get::<SourceBinding>(entity).copied() else {
+        return;
+    };
+    if let Some(doc) = world
+        .resource_mut::<SourceDocuments>()
+        .and_then(|d| d.get_mut(b.document))
+    {
+        doc.activate_view(entity);
     }
 }
 // A dead view remains a tombstone until a native commit/cancel boundary.
@@ -764,6 +940,22 @@ pub(crate) fn guard_source_owner(world: &mut World) {
 /// Chrome snapshots before consumer filtering: sanitized widget text must never
 /// be mistaken for native cancellation. Standalone apply_editor prepares too.
 pub fn prepare_source_input(world: &mut World) {
+    let live: HashMap<_, _> = world
+        .entities_with::<SourceBinding>()
+        .into_iter()
+        .filter(|&e| world.has::<Buffer>(e) && world.has::<crate::Editor>(e))
+        .filter_map(|e| attached_source(world, e).map(|d| (e, d)))
+        .collect();
+    if let Some(docs) = world.resource_mut::<SourceDocuments>() {
+        for doc in docs.documents.values_mut() {
+            doc.views.retain(|e, _| live.get(e) == Some(&doc.id));
+            doc.scroll_anchors.retain(|e, _| doc.views.contains_key(e));
+            if doc.active_view.is_some_and(|e| !doc.views.contains_key(&e)) {
+                doc.active_view = None;
+                doc.history.break_run();
+            }
+        }
+    }
     let focused = world.resource::<Focus>().and_then(|f| f.entity);
     let (mut preedit, mut commit) = world
         .resource::<Input>()
@@ -802,12 +994,19 @@ pub fn prepare_source_input(world: &mut World) {
         .and_then(|o| o.0)
         .is_some();
     for entity in world.entities_with::<SourceBinding>() {
+        if !live.contains_key(&entity) {
+            continue;
+        }
+        crate::editor::sync_source_scroll_anchor(world, entity);
         sync_selection(world, entity);
         let b = *world.get::<SourceBinding>(entity).unwrap();
         if let Some(doc) = world
             .resource_mut::<SourceDocuments>()
             .and_then(|d| d.get_mut(b.document))
         {
+            if focused == Some(entity) && doc.composition.is_none() {
+                doc.activate_view(entity);
+            }
             if !preedit && !commit {
                 doc.composition = None;
             } else if !occupied
@@ -842,7 +1041,207 @@ pub(crate) fn finish_composition(world: &mut World, entity: Entity) {
         .and_then(|d| d.get_mut(b.document))
     {
         if let Some(selection) = doc.composition.take() {
-            doc.selection = selection;
+            doc.select(selection);
         }
+    }
+}
+
+#[cfg(test)]
+mod scroll_anchor_tests {
+    use super::*;
+
+    fn setup() -> (World, DocumentId, Entity) {
+        let mut world = World::new();
+        let mut docs = SourceDocuments::default();
+        let id = docs.open("first\nmiddle\nlast");
+        world.insert_resource(docs);
+        let view = world.spawn((Buffer::from_str(""), crate::Editor::default()));
+        attach_source(&mut world, view, id).unwrap();
+        (world, id, view)
+    }
+    fn session(world: &mut World, id: DocumentId) -> &mut SourceSession {
+        world
+            .resource_mut::<SourceDocuments>()
+            .unwrap()
+            .get_mut(id)
+            .unwrap()
+    }
+
+    #[test]
+    fn repeated_newlines_map_canonical_anchor_at_actual_native_insertion() {
+        let (mut world, id, view) = setup();
+        let doc = session(&mut world, id);
+        doc.reload(doc.revision(), "\n\n\n\n").unwrap();
+        doc.drain_events().for_each(drop);
+        doc.set_selection(SourceSelection { anchor: 0, head: 0 })
+            .unwrap();
+        doc.set_view_scroll_anchor(view, 2);
+        let event = KeyEvent::named(crate::NamedKey::Enter, crate::Modifiers::new());
+        for i in 0..2 {
+            doc.native_key(
+                &event,
+                Platform::Windows,
+                Duration::ZERO,
+                "",
+                EditOrigin::Keyboard,
+                false,
+            )
+            .unwrap();
+            assert_eq!(doc.view_scroll_anchor(view), Some(3 + i));
+            let change = doc.drain_events().next().unwrap();
+            assert_eq!(
+                change.changes,
+                vec![SourceChange {
+                    range: i..i,
+                    replacement: "\n".into()
+                }]
+            );
+        }
+        doc.undo().unwrap();
+        assert_eq!(doc.view_scroll_anchor(view), Some(3));
+        doc.undo().unwrap();
+        assert_eq!(doc.view_scroll_anchor(view), Some(2));
+        doc.redo().unwrap();
+        doc.redo().unwrap();
+        assert_eq!(doc.view_scroll_anchor(view), Some(4));
+    }
+
+    #[test]
+    fn repeated_clipboard_and_word_delete_operations_keep_exact_ranges() {
+        let (mut world, id, view) = setup();
+        let doc = session(&mut world, id);
+        doc.reload(doc.revision(), "aaaa aaaa aaaa").unwrap();
+        doc.drain_events().for_each(drop);
+        let mut command = crate::Modifiers::new();
+        command.ctrl = true;
+        for (event, selection, clip, range, replacement) in [
+            (
+                KeyEvent::character('v', command),
+                SourceSelection { anchor: 0, head: 0 },
+                "a",
+                0..0,
+                "a",
+            ),
+            (
+                KeyEvent::character('x', command),
+                SourceSelection { anchor: 1, head: 0 },
+                "",
+                0..1,
+                "",
+            ),
+            (
+                KeyEvent::named(crate::NamedKey::Backspace, command),
+                SourceSelection { anchor: 4, head: 4 },
+                "",
+                0..4,
+                "",
+            ),
+        ] {
+            doc.set_selection(selection).unwrap();
+            doc.set_view_scroll_anchor(view, 5);
+            doc.native_key(
+                &event,
+                Platform::Windows,
+                Duration::ZERO,
+                clip,
+                EditOrigin::Keyboard,
+                false,
+            )
+            .unwrap();
+            let event = doc.drain_events().next().unwrap();
+            assert_eq!(
+                event.changes,
+                vec![SourceChange {
+                    range: range.clone(),
+                    replacement: replacement.into()
+                }]
+            );
+            assert_eq!(
+                doc.view_scroll_anchor(view),
+                Some(5 - range.len() + replacement.len())
+            );
+            doc.undo().unwrap();
+            assert_eq!(doc.text(), "aaaa aaaa aaaa");
+            assert_eq!(doc.view_scroll_anchor(view), Some(5));
+            doc.drain_events().for_each(drop);
+        }
+    }
+
+    #[test]
+    fn exact_anchors_compose_without_projection_or_event_journal() {
+        let (mut world, id, view) = setup();
+        let doc = session(&mut world, id);
+        doc.set_view_scroll_anchor(view, 6);
+        let len = doc.text.len();
+        doc.commit(SourceBatch {
+            document: id,
+            base: doc.revision(),
+            origin: EditOrigin::Host(1),
+            changes: vec![
+                SourceChange {
+                    range: 0..0,
+                    replacement: "prefix\n".into(),
+                },
+                SourceChange {
+                    range: len..len,
+                    replacement: "\nsuffix".into(),
+                },
+            ],
+        })
+        .unwrap();
+        assert_eq!(doc.view_scroll_anchor(view), Some(13));
+        doc.drain_events().for_each(drop);
+        doc.commit(SourceBatch {
+            document: id,
+            base: doc.revision(),
+            origin: EditOrigin::Host(2),
+            changes: vec![SourceChange {
+                range: 0..0,
+                replacement: "x\n".into(),
+            }],
+        })
+        .unwrap();
+        assert_eq!(doc.view_scroll_anchor(view), Some(15));
+        doc.undo().unwrap();
+        assert_eq!(doc.view_scroll_anchor(view), Some(13));
+        doc.undo().unwrap();
+        assert_eq!(doc.view_scroll_anchor(view), Some(6));
+        doc.redo().unwrap();
+        assert_eq!(doc.view_scroll_anchor(view), Some(13));
+        doc.redo().unwrap();
+        assert_eq!(doc.view_scroll_anchor(view), Some(15));
+    }
+
+    #[test]
+    fn anchors_follow_native_reload_and_retire_with_views() {
+        let (mut world, id, view) = setup();
+        let stray = world.spawn((Buffer::from_str(""),));
+        let doc = session(&mut world, id);
+        doc.set_view_scroll_anchor(stray, 0);
+        assert_eq!(doc.view_scroll_anchor(stray), None);
+        doc.set_view_scroll_anchor(view, 6);
+        doc.select(SourceSelection { anchor: 0, head: 0 });
+        doc.native_key(
+            &KeyEvent::character('x', crate::Modifiers::new()),
+            Platform::Windows,
+            Duration::ZERO,
+            "",
+            EditOrigin::Keyboard,
+            false,
+        )
+        .unwrap();
+        assert_eq!(doc.view_scroll_anchor(view), Some(7));
+        doc.reload(doc.revision(), "é").unwrap();
+        assert_eq!(doc.view_scroll_anchor(view), Some(2));
+        doc.set_view_scroll_anchor(view, 1); // Invalid UTF-8 boundary is ignored.
+        assert_eq!(doc.view_scroll_anchor(view), Some(2));
+        detach_source(&mut world, view).unwrap();
+        assert_eq!(session(&mut world, id).view_scroll_anchor(view), None);
+        attach_source(&mut world, view, id).unwrap();
+        session(&mut world, id).set_view_scroll_anchor(view, 0);
+        world.remove::<Buffer>(view);
+        prepare_source_input(&mut world);
+        assert_eq!(session(&mut world, id).view_scroll_anchor(view), None);
+        assert!(session(&mut world, id).scroll_anchors.is_empty());
     }
 }

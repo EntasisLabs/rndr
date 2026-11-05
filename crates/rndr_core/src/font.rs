@@ -1035,10 +1035,21 @@ fn wrap_part(
         lines.push((origin, origin + part.len()));
         return;
     }
+    // A nonnegative pen cannot come back below the limit after overflowing.
+    // Check both standalone and paired advances: each wrapped row resets its
+    // first character's kerning. Keep the historical suffix-measure path for
+    // unusual faces whose negative/nonfinite steps can invalidate that rule.
+    let mut prev = None;
+    let monotone = part.chars().all(|ch| {
+        let advance = font.advance(ch);
+        let paired = prev.map(|p| font.kerning(p, ch)).unwrap_or(0.0) + advance;
+        prev = Some(ch);
+        advance.is_finite() && advance >= 0.0 && paired.is_finite() && paired >= 0.0
+    });
     let mut at = 0usize;
     while at < part.len() {
         let rest = &part[at..];
-        if measure(font, rest) <= max_width {
+        if !monotone && measure(font, rest) <= max_width {
             lines.push((origin + at, origin + part.len()));
             return;
         }
@@ -1062,6 +1073,13 @@ fn wrap_part(
             }
         }
         if accepted == 0 {
+            return;
+        }
+        // The whole remainder fits: retain its internal spaces rather than
+        // breaking at the last one. This replaces the old full-suffix prepass
+        // without changing floating-point accumulation or UTF-8 byte offsets.
+        if monotone && accepted == rest.len() && pen <= max_width {
+            lines.push((origin + at, origin + part.len()));
             return;
         }
         if let Some(space) = last_space {
@@ -1091,7 +1109,191 @@ fn step(font: &dyn Font, prev: Option<char>, ch: char) -> f32 {
 
 #[cfg(test)]
 mod tests {
-    use super::{TextLayout, TextLine};
+    use super::{wrap_ranges, Font, GlyphBox, TextLayout, TextLine};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct WrapFont {
+        mode: u8,
+        advances: AtomicUsize,
+    }
+
+    impl WrapFont {
+        fn new(mode: u8) -> Self {
+            Self {
+                mode,
+                advances: AtomicUsize::new(0),
+            }
+        }
+    }
+
+    impl Font for WrapFont {
+        fn line_height(&self) -> f32 {
+            16.0
+        }
+        fn advance(&self, ch: char) -> f32 {
+            self.advances.fetch_add(1, Ordering::Relaxed);
+            match (self.mode, ch) {
+                (1, 'b') => -3.0,
+                (2, 'b') => f32::NAN,
+                (3, 'b') => f32::INFINITY,
+                (4, 'b') => f32::NEG_INFINITY,
+                (5, _) => 0.0,
+                (6, _) => 0.1,
+                (9, _) => f32::MAX,
+                (_, ' ') => 1.0,
+                _ => 2.0,
+            }
+        }
+        fn kerning(&self, left: char, right: char) -> f32 {
+            match (self.mode, left, right) {
+                (7, 'a', 'b') => -5.0,
+                (8, 'a', 'b') => -1.0,
+                // A negative standalone advance hidden by positive kerning
+                // still has to disable the monotone path at row boundaries.
+                (1, _, 'b') => 4.0,
+                _ => 0.0,
+            }
+        }
+        fn glyph_box(&self, _: char) -> Option<GlyphBox> {
+            None
+        }
+    }
+
+    // Independent copy of the pre-optimization algorithm, including its
+    // whole-suffix measurement, whitespace decisions and special-float rules.
+    fn historical_wrap(font: &dyn Font, text: &str, width: f32) -> Vec<(usize, usize)> {
+        fn advance(font: &dyn Font, previous: Option<char>, ch: char) -> f32 {
+            previous.map(|p| font.kerning(p, ch)).unwrap_or(0.0) + font.advance(ch)
+        }
+        let mut result = Vec::new();
+        let mut origin = 0;
+        for part in text.split('\n') {
+            if part.is_empty() || width.is_infinite() {
+                result.push((origin, origin + part.len()));
+            } else {
+                let mut at = 0;
+                while at < part.len() {
+                    let rest = &part[at..];
+                    let mut measured = 0.0;
+                    let mut previous = None;
+                    for ch in rest.chars() {
+                        measured += advance(font, previous, ch);
+                        previous = Some(ch);
+                    }
+                    if measured <= width {
+                        result.push((origin + at, origin + part.len()));
+                        break;
+                    }
+                    let mut pen = 0.0;
+                    let mut accepted = 0;
+                    let mut space = None;
+                    let mut previous = None;
+                    for (i, ch) in rest.char_indices() {
+                        let step = advance(font, previous, ch);
+                        if accepted > 0 && pen + step > width {
+                            break;
+                        }
+                        pen += step;
+                        if ch == ' ' && i > 0 {
+                            space = Some(i);
+                        }
+                        accepted = i + ch.len_utf8();
+                        previous = Some(ch);
+                        if pen > width {
+                            break;
+                        }
+                    }
+                    if accepted == 0 {
+                        break;
+                    }
+                    if let Some(space) = space {
+                        result.push((origin + at, origin + at + space));
+                        at += space + 1;
+                    } else {
+                        result.push((origin + at, origin + at + accepted));
+                        at += accepted;
+                    }
+                }
+            }
+            origin += part.len() + 1;
+        }
+        result
+    }
+
+    #[test]
+    fn fallback_wrap_matches_historical_ranges() {
+        let mut fixtures = vec![
+            String::new(),
+            "\n\n".into(),
+            "one two three four\nlast line\n".into(),
+            "  a  b   ".into(),
+            "é🙂 e\u{301} 漢字\n a b".into(),
+            "a b".into(), // A fitting last line must keep its internal space.
+        ];
+        let mut generation = vec![String::new()];
+        for _ in 0..4 {
+            let mut next = Vec::new();
+            for prefix in &generation {
+                for ch in ['a', 'b', ' ', 'é', '\n'] {
+                    let mut text = prefix.clone();
+                    text.push(ch);
+                    fixtures.push(text.clone());
+                    next.push(text);
+                }
+            }
+            generation = next;
+        }
+        for mode in 0..=9 {
+            let font = WrapFont::new(mode);
+            for text in &fixtures {
+                for width in [
+                    f32::NEG_INFINITY,
+                    -3.0,
+                    -0.0,
+                    0.1,
+                    0.3,
+                    1.0,
+                    2.0,
+                    3.0,
+                    4.0,
+                    5.0,
+                    8.0,
+                    20.0,
+                    f32::MAX,
+                    f32::INFINITY,
+                    f32::NAN,
+                ] {
+                    assert_eq!(
+                        wrap_ranges(&font, text, width),
+                        historical_wrap(&font, text, width),
+                        "mode={mode} width={width:?} text={text:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn fallback_wrap_huge_paragraph_has_linear_advance_cost() {
+        for text in ["é".repeat(600_000), "a bbbbbbbbbbbbbbb ".repeat(40_000)] {
+            let font = WrapFont::new(0);
+            let chars = text.chars().count();
+            let ranges = wrap_ranges(&font, &text, 80.0);
+            assert!(ranges.len() > 10_000);
+            assert_eq!(ranges.last().unwrap().1, text.len());
+            let calls = font.advances.load(Ordering::Relaxed);
+            eprintln!(
+                "{} bytes, {chars} scalars, {} rows, {calls} advance calls",
+                text.len(),
+                ranges.len()
+            );
+            assert!(calls <= 4 * chars, "{calls} advances for {chars} scalars");
+            for (start, end) in ranges {
+                assert!(text.is_char_boundary(start));
+                assert!(text.is_char_boundary(end));
+            }
+        }
+    }
 
     fn rtl_line() -> TextLayout {
         // Byte 0 sits on the right, byte 2 in the middle, byte 4 on the left.

@@ -4,6 +4,7 @@
 use std::time::Duration;
 
 use crate::edit::{edit_string, floor_boundary, prev_boundary};
+use crate::editing::SourceChange;
 use crate::input::Key;
 use crate::keys::{standard_action, EditAction, KeyEvent, LogicalKey, NamedKey, Platform};
 use crate::world::Component;
@@ -15,6 +16,22 @@ struct Snap {
     text: String,
     index: usize,
     anchor: usize,
+    // Forward source operations from this snapshot to the current state.
+    source_changes: Option<Vec<crate::editing::SourceChange>>,
+}
+
+impl Snap {
+    fn retained_bytes(&self) -> usize {
+        self.text.capacity()
+            + std::mem::size_of::<Self>()
+            + self.source_changes.as_ref().map_or(0, |changes| {
+                changes.capacity() * std::mem::size_of::<crate::editing::SourceChange>()
+                    + changes
+                        .iter()
+                        .map(|c| c.replacement.capacity())
+                        .sum::<usize>()
+            })
+    }
 }
 
 /// How long a typed run may pause before the next character is a new undo step.
@@ -36,6 +53,8 @@ pub struct EditHistory {
     undo: Vec<Snap>,
     redo: Vec<Snap>,
     run: Option<TypingRun>,
+    // Transient exact operation for the current native event, consumed by a session.
+    native_change: Option<SourceChange>,
 }
 
 impl EditHistory {
@@ -45,7 +64,7 @@ impl EditHistory {
             .undo
             .iter()
             .chain(&self.redo)
-            .map(|s| s.text.capacity() + std::mem::size_of::<Snap>())
+            .map(Snap::retained_bytes)
             .sum();
         while bytes > limit {
             let snap = if !self.undo.is_empty() {
@@ -55,7 +74,7 @@ impl EditHistory {
             } else {
                 break;
             };
-            bytes = bytes.saturating_sub(snap.text.capacity() + std::mem::size_of::<Snap>());
+            bytes = bytes.saturating_sub(snap.retained_bytes());
             self.break_run();
         }
     }
@@ -66,8 +85,30 @@ impl EditHistory {
             text,
             index,
             anchor,
+            source_changes: None,
         });
         self.break_run();
+    }
+
+    pub(crate) fn record_source_changes(
+        &mut self,
+        text: String,
+        index: usize,
+        anchor: usize,
+        changes: Vec<crate::editing::SourceChange>,
+    ) {
+        self.push_undo(Snap {
+            text,
+            index,
+            anchor,
+            source_changes: Some(changes),
+        });
+        self.break_run();
+    }
+
+    /// Consume the operation captured from input semantics, never a text diff.
+    pub(crate) fn take_native_change(&mut self) -> Option<SourceChange> {
+        self.native_change.take()
     }
 
     fn push_undo(&mut self, snap: Snap) {
@@ -167,6 +208,7 @@ pub(crate) fn apply_text_event(
     history: &mut EditHistory,
     clip: &str,
 ) -> StepResult {
+    history.native_change = None;
     // A named Space with no text inserts a character, so a focus-in synthetic
     // has to be rejected here and not only by dropping its reported text.
     if event.released || event.synthetic {
@@ -197,22 +239,12 @@ pub(crate) fn apply_text_event(
                 now,
                 None,
                 |text, index, anchor| {
-                    step_key(text, index, anchor, Some(Key::Backspace), false, "", false);
+                    step_key(text, index, anchor, Some(Key::Backspace), false, "", false)
                 },
             );
         }
         LogicalKey::Named(NamedKey::Delete) => {
-            change(
-                text,
-                index,
-                anchor,
-                history,
-                now,
-                None,
-                |text, index, anchor| {
-                    delete_forward(text, index, anchor);
-                },
-            );
+            change(text, index, anchor, history, now, None, delete_forward);
         }
         LogicalKey::Named(NamedKey::Enter) if newline && !event.modifiers.command() => {
             change(
@@ -223,7 +255,7 @@ pub(crate) fn apply_text_event(
                 now,
                 None,
                 |text, index, anchor| {
-                    step_key(text, index, anchor, Some(Key::Enter), false, "", true);
+                    step_key(text, index, anchor, Some(Key::Enter), false, "", true)
                 },
             );
         }
@@ -250,9 +282,7 @@ pub(crate) fn apply_text_event(
                 history,
                 now,
                 Some(" "),
-                |text, index, anchor| {
-                    step_key(text, index, anchor, None, false, " ", false);
-                },
+                |text, index, anchor| step_key(text, index, anchor, None, false, " ", false),
             );
         }
         _ => {
@@ -265,9 +295,7 @@ pub(crate) fn apply_text_event(
                     history,
                     now,
                     Some(&typed_for_run),
-                    |text, index, anchor| {
-                        step_key(text, index, anchor, None, false, &typed, false);
-                    },
+                    |text, index, anchor| step_key(text, index, anchor, None, false, &typed, false),
                 );
             }
         }
@@ -320,6 +348,10 @@ fn apply_action(
                     text.replace_range(start..end, "");
                     *index = start;
                     *anchor = start;
+                    SourceChange {
+                        range: start..end,
+                        replacement: String::new(),
+                    }
                 },
             );
             StepResult {
@@ -342,6 +374,10 @@ fn apply_action(
                     let next = start + clip.len();
                     *index = next;
                     *anchor = next;
+                    SourceChange {
+                        range: start..end,
+                        replacement: clip.clone(),
+                    }
                 },
             );
             StepResult {
@@ -391,14 +427,26 @@ fn apply_action(
                 None,
                 |text, index, anchor| {
                     if *index != *anchor {
-                        step_key(text, index, anchor, Some(Key::Backspace), false, "", false);
-                        return;
+                        return step_key(
+                            text,
+                            index,
+                            anchor,
+                            Some(Key::Backspace),
+                            false,
+                            "",
+                            false,
+                        );
                     }
-                    let start = word_left(text, *index);
-                    if start < *index {
-                        text.replace_range(start..*index, "");
+                    let end = *index;
+                    let start = word_left(text, end);
+                    if start < end {
+                        text.replace_range(start..end, "");
                         *index = start;
                         *anchor = start;
+                    }
+                    SourceChange {
+                        range: start..end,
+                        replacement: String::new(),
                     }
                 },
             );
@@ -413,19 +461,24 @@ pub(crate) fn restore(
     anchor: &mut usize,
     history: &mut EditHistory,
     undo: bool,
-) {
+) -> Option<Vec<crate::editing::SourceChange>> {
     let prev = if undo {
         history.undo.pop()
     } else {
         history.redo.pop()
     };
-    let Some(prev) = prev else {
-        return;
-    };
+    let prev = prev?;
+    let changes = prev
+        .source_changes
+        .as_ref()
+        .map(|changes| crate::editing::inverse_changes(&prev.text, changes));
     let current = Snap {
-        text: text.clone(),
+        // Transfer the current allocation to the opposite stack instead of
+        // copying the entire document merely to restore an owned snapshot.
+        text: std::mem::replace(text, prev.text),
         index: *index,
         anchor: *anchor,
+        source_changes: changes.clone(),
     };
     if undo {
         history.redo.push(current);
@@ -433,9 +486,9 @@ pub(crate) fn restore(
         history.undo.push(current);
     }
     history.run = None;
-    *text = prev.text;
     *index = prev.index.min(text.len());
     *anchor = prev.anchor.min(text.len());
+    changes
 }
 
 /// Replace the whole buffer and record one undo step when the text changes.
@@ -453,10 +506,15 @@ pub(crate) fn rewrite(surface: &mut EditSurface<'_>, history: &mut EditHistory, 
         Duration::ZERO,
         None,
         |text, index, anchor| {
+            let end = text.len();
             text.clear();
             text.push_str(&next);
             *index = text.len();
             *anchor = *index;
+            SourceChange {
+                range: 0..end,
+                replacement: next.clone(),
+            }
         },
     );
 }
@@ -472,9 +530,7 @@ pub(crate) fn insert_plain(surface: &mut EditSurface<'_>, history: &mut EditHist
         history,
         Duration::ZERO,
         None,
-        |text, index, anchor| {
-            step_key(text, index, anchor, None, false, &pasted, false);
-        },
+        |text, index, anchor| step_key(text, index, anchor, None, false, &pasted, false),
     );
 }
 
@@ -485,22 +541,44 @@ fn change(
     history: &mut EditHistory,
     now: Duration,
     typed: Option<&str>,
-    mutate: impl FnOnce(&mut String, &mut usize, &mut usize),
+    mutate: impl FnOnce(&mut String, &mut usize, &mut usize) -> SourceChange,
 ) {
     let extend = typed.is_some_and(|typed| history.can_extend(*index, *anchor, now, typed));
-    let before = Snap {
+    let mut before = Snap {
         text: text.clone(),
         index: *index,
         anchor: *anchor,
+        source_changes: None,
     };
-    mutate(text, index, anchor);
+    let change = mutate(text, index, anchor);
     if *text == before.text {
         return;
     }
+    history.native_change = Some(change.clone());
     if extend {
+        // Only consecutive insertions at the previous run end can extend.
+        // Keep the initial base range (possibly a replaced selection) and
+        // append newly typed bytes in operation order, even on repeated text.
+        let previous = history
+            .undo
+            .last_mut()
+            .unwrap()
+            .source_changes
+            .as_mut()
+            .unwrap()
+            .last_mut()
+            .unwrap();
+        debug_assert!(change.range.is_empty());
+        debug_assert_eq!(
+            change.range.start,
+            previous.range.start + previous.replacement.len()
+        );
+        previous.replacement.push_str(&change.replacement);
+        history.redo.clear();
         history.note_typed(*index, now);
         return;
     }
+    before.source_changes = Some(vec![change]);
     history.push_undo(before);
     if typed.is_some_and(is_typed_run) && *index == *anchor {
         history.note_typed(*index, now);
@@ -517,10 +595,31 @@ fn step_key(
     shift: bool,
     chars: &str,
     newline: bool,
-) {
+) -> SourceChange {
+    // Capture the same replacement range used by edit_string before mutation.
+    // Selection replacement and backward grapheme deletion are deliberately
+    // not reconstructed by matching equal prefix/suffix bytes afterwards.
+    let caret = floor_boundary(text.len(), *index, &|i| text.as_bytes()[i]);
+    let editing =
+        !chars.is_empty() || key == Some(Key::Backspace) || (newline && key == Some(Key::Enter));
+    let range = if editing && *index != *anchor {
+        let (start, end) = span(text, *index, *anchor);
+        start..end
+    } else if key == Some(Key::Backspace) {
+        crate::edit::delete_prev_grapheme(text, *index)
+            .map_or(caret..caret, |(start, end)| start..end)
+    } else {
+        caret..caret
+    };
     let (next, next_anchor) = edit_string(text, *index, *anchor, key, shift, chars, newline);
+    let replacement = if editing {
+        text[range.start..next].to_string()
+    } else {
+        String::new()
+    };
     *index = next;
     *anchor = next_anchor;
+    SourceChange { range, replacement }
 }
 
 fn place(index: &mut usize, anchor: &mut usize, dest: usize, shift: bool) -> StepResult {
@@ -540,13 +639,16 @@ fn span(text: &str, index: usize, anchor: usize) -> (usize, usize) {
     crate::edit::grapheme_selection(text, anchor, index)
 }
 
-fn delete_forward(text: &mut String, index: &mut usize, anchor: &mut usize) {
+fn delete_forward(text: &mut String, index: &mut usize, anchor: &mut usize) -> SourceChange {
     if *index != *anchor {
         let (start, end) = span(text, *index, *anchor);
         text.replace_range(start..end, "");
         *index = start;
         *anchor = start;
-        return;
+        return SourceChange {
+            range: start..end,
+            replacement: String::new(),
+        };
     }
     let start = crate::edit::floor_grapheme(text, *index);
     let end = crate::edit::next_grapheme(text, start);
@@ -554,6 +656,10 @@ fn delete_forward(text: &mut String, index: &mut usize, anchor: &mut usize) {
         text.replace_range(start..end, "");
         *index = start;
         *anchor = start;
+    }
+    SourceChange {
+        range: start..end,
+        replacement: String::new(),
     }
 }
 
@@ -639,4 +745,98 @@ pub(crate) fn word_right(text: &str, index: usize) -> usize {
         index = end;
     }
     index
+}
+
+#[cfg(test)]
+mod storage_tests {
+    use super::*;
+
+    #[test]
+    fn source_metadata_evicts_with_snapshots_and_redo_invalidation() {
+        use crate::editing::SourceChange;
+        let mut history = EditHistory::default();
+        history.record_source_changes(
+            "abcd".into(),
+            2,
+            2,
+            vec![SourceChange {
+                range: 0..0,
+                replacement: "x".repeat(4096),
+            }],
+        );
+        assert!(history.undo[0].retained_bytes() > 4096);
+        // A budget large enough for the text alone must still evict metadata.
+        history.trim_bytes(1024);
+        assert!(history.undo.is_empty());
+        history.record_source_changes(
+            "abcd".into(),
+            2,
+            2,
+            vec![
+                SourceChange {
+                    range: 0..0,
+                    replacement: "X".into(),
+                },
+                SourceChange {
+                    range: 4..4,
+                    replacement: "Y".into(),
+                },
+            ],
+        );
+        let mut text = "XabcdY".into();
+        let (mut index, mut anchor) = (3, 3);
+        let inverse = restore(&mut text, &mut index, &mut anchor, &mut history, true).unwrap();
+        assert_eq!(inverse.len(), 2);
+        assert!(history.redo[0].source_changes.is_some());
+        history.record_source_edit(text, index, anchor);
+        assert!(history.redo.is_empty());
+        assert!(history.undo[0].source_changes.is_none());
+    }
+
+    #[test]
+    fn restore_transfers_owned_allocations_and_directed_selection() {
+        let before = String::from("é before");
+        let before_ptr = before.as_ptr();
+        let mut text = String::from("after 👩‍💻");
+        let after_ptr = text.as_ptr();
+        let mut history = EditHistory::default();
+        history.record_source_edit(before, 2, 0);
+        let (mut index, mut anchor) = (0, text.len());
+        restore(&mut text, &mut index, &mut anchor, &mut history, true);
+        assert_eq!(text.as_ptr(), before_ptr);
+        assert_eq!(history.redo[0].text.as_ptr(), after_ptr);
+        assert_eq!((index, anchor), (2, 0));
+        restore(&mut text, &mut index, &mut anchor, &mut history, false);
+        assert_eq!(text.as_ptr(), after_ptr);
+        assert_eq!(history.undo[0].text.as_ptr(), before_ptr);
+        assert_eq!((index, anchor), (0, text.len()));
+    }
+
+    #[test]
+    #[ignore = "opt-in retained history capacity accounting, not RSS or allocator overhead"]
+    fn snapshot_storage_accounting() {
+        fn retained(history: &EditHistory) -> usize {
+            history
+                .undo
+                .iter()
+                .chain(&history.redo)
+                .map(Snap::retained_bytes)
+                .sum()
+        }
+        println!("document_bytes,snapshots_before_trim,retained_snapshot_bytes_before,retained_snapshot_bytes_after,vector_capacity_bytes_after");
+        for bytes in [10_240, 1_048_576, 10_485_760] {
+            let mut history = EditHistory::default();
+            for _ in 0..8 {
+                history.record_source_edit("x".repeat(bytes), bytes, bytes);
+            }
+            let before = retained(&history);
+            history.trim_bytes(32 * 1024 * 1024);
+            let after = retained(&history);
+            assert!(after <= 32 * 1024 * 1024);
+            println!(
+                "{bytes},8,{before},{after},{}",
+                (history.undo.capacity() + history.redo.capacity()) * std::mem::size_of::<Snap>()
+            );
+        }
+    }
 }

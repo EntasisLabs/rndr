@@ -1,8 +1,8 @@
 # Epic: composable native document editing through rndr_ui
 
-**Status: E1 and E2.1/E2.2 committed; E2 viewport closeout implemented and verified as an uncommitted candidate. Native/platform certification and performance gates remain open.**
+**Status: E1/E2 committed (E2 viewport/wheel closeout `792d3f0`); E3 implementation candidate under review. Native/platform certification and ratified native performance acceptance remain open.**
 
-2026-11-04 continuation: the user authorized the first slice (source session, retained surface, fake host). See the [E1 implementation record](native-document-editing-e1.md) for actual API, decisions, verification and limitations. This is not approval of later milestones, release integration or the entire epic. The exploration scope below describes the original docs-only assignment.
+2026-11-04 continuation: the user subsequently authorized E1, E2 and E3 implementation. See the [E1 record](native-document-editing-e1.md), E2 ledgers, and [E3 implementation/evidence record](native-document-editing-e3.md). Later milestones, release integration and whole-epic acceptance are not implied. The exploration scope below describes the original docs-only assignment.
 
 Created 2026-11-04 against rndr `40a19db725771fcad8199de96638e7b5be557fc9`. This assignment permits exploration and docs only. No production editor changes, external issue publication, integration or self-approval. Sender retains review/native integration. Subsequent user discussion may authorize bounded implementation; unchecked tasks below are not that authority.
 
@@ -113,6 +113,8 @@ native/affinity checks are actually exercised. No E3 implementation is included.
 ## E3 — document-scale performance and multi-view ownership
 
 **Depends:** E1; coordinate viewport semantics with E2.
+
+2026-11-04: [E3 source implementation candidate and measured limits](native-document-editing-e3.md). Shared views, exact peer/viewport maps, incremental paragraph geometry, idle snapshots and demonstrated model hot-path improvements are implemented. The milestone remains unaccepted until native budgets are ratified/measured or explicitly renegotiated; folding/provider hooks remain E4-dependent. These original checklist items are not a blanket native performance pass.
 
 - [ ] Replace demonstrably costly whole-document edit/index/history paths as measurements warrant; select storage only after E0. Incremental paragraph/line layout and bounded cache/map retention; huge-line behavior explicit.
 - [ ] Add per-view selection/scroll over one document history; map inactive view positions and keep focus stable. Retire/reopen views without losing document state.

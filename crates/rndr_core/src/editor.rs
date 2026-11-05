@@ -38,6 +38,8 @@ pub struct Buffer {
     gap_start: usize,
     gap_end: usize,
     lines: Vec<usize>,
+    // Immutable decoded snapshots are shared by geometry/input until bytes change.
+    snapshot: std::sync::OnceLock<std::sync::Arc<str>>,
     /// Document caret, in bytes. Not a char index, and not the window-relative
     /// [`crate::Caret`] published for drawing.
     pub caret: usize,
@@ -63,6 +65,7 @@ impl Buffer {
             gap_start,
             gap_end: gap_start + 32,
             lines: vec![0],
+            snapshot: std::sync::OnceLock::new(),
             caret: text.len(),
             anchor: text.len(),
         };
@@ -102,7 +105,14 @@ impl Buffer {
     /// codepoint are substituted, so the result is not a raw dump of the gap
     /// buffer. Other methods still count those stored bytes.
     pub fn text(&self) -> String {
-        self.slice(0, self.len())
+        self.snapshot().to_string()
+    }
+
+    pub(crate) fn snapshot(&self) -> std::sync::Arc<str> {
+        std::sync::Arc::clone(
+            self.snapshot
+                .get_or_init(|| self.slice(0, self.len()).into()),
+        )
     }
 
     /// Bytes in `[start, end)`, clamped to the document.
@@ -114,8 +124,14 @@ impl Buffer {
         let end = end.min(self.len());
         let start = start.min(end);
         let mut bytes = Vec::with_capacity(end - start);
-        for index in start..end {
-            bytes.push(self.byte(index));
+        let left_end = end.min(self.gap_start);
+        if start < left_end {
+            bytes.extend_from_slice(&self.data[start..left_end]);
+        }
+        let right_start = start.max(self.gap_start);
+        if right_start < end {
+            let gap = self.gap_end - self.gap_start;
+            bytes.extend_from_slice(&self.data[right_start + gap..end + gap]);
         }
         String::from_utf8_lossy(&bytes).into_owned()
     }
@@ -124,18 +140,20 @@ impl Buffer {
     ///
     /// An empty `text` returns without moving the gap or rebuilding lines.
     /// Does not move [`Self::caret`] or [`Self::anchor`]. A mid-codepoint
-    /// index splits that scalar. The line index is rebuilt. This is history-free;
+    /// index splits that scalar. The line index is updated. This is history-free;
     /// use [`edit_buffer`] for undoable app-owned source operations.
     pub fn insert_str(&mut self, index: usize, text: &str) {
         if text.is_empty() {
             return;
         }
-        self.move_gap_to(index.min(self.len()));
+        let index = index.min(self.len());
+        self.snapshot.take();
+        self.move_gap_to(index);
         let bytes = text.as_bytes();
         self.ensure_gap(bytes.len());
         self.data[self.gap_start..self.gap_start + bytes.len()].copy_from_slice(bytes);
         self.gap_start += bytes.len();
-        self.rebuild_lines();
+        self.update_lines(index, index, bytes);
     }
 
     /// Delete bytes in `[start, end)`, clamped into order inside the document.
@@ -150,9 +168,10 @@ impl Buffer {
         if start == end {
             return;
         }
+        self.snapshot.take();
         self.move_gap_to(start);
         self.gap_end += end - start;
-        self.rebuild_lines();
+        self.update_lines(start, end, &[]);
     }
 
     fn byte(&self, logical: usize) -> u8 {
@@ -180,15 +199,46 @@ impl Buffer {
         if index == self.gap_start {
             return;
         }
-        let gap = self.gap_end - self.gap_start;
-        let mut next = Vec::with_capacity(self.len() + gap);
-        next.extend_from_slice(self.slice(0, index).as_bytes());
-        let gap_at = next.len();
-        next.resize(next.len() + gap, 0);
-        next.extend_from_slice(self.slice(index, self.len()).as_bytes());
-        self.data = next;
-        self.gap_start = gap_at;
-        self.gap_end = gap_at + gap;
+        // Moving a gap is a memmove, not a document serialization. In
+        // particular, do not run lossy UTF-8 decoding on raw byte edits.
+        if index < self.gap_start {
+            let count = self.gap_start - index;
+            self.data
+                .copy_within(index..self.gap_start, self.gap_end - count);
+            self.gap_end -= count;
+        } else {
+            let count = index - self.gap_start;
+            self.data
+                .copy_within(self.gap_end..self.gap_end + count, self.gap_start);
+            self.gap_end += count;
+        }
+        self.gap_start = index;
+    }
+
+    // Keep unaffected line starts and shift the suffix; scan only inserted
+    // bytes. A final newline is deliberately not an extra empty legacy row.
+    fn update_lines(&mut self, start: usize, end: usize, inserted: &[u8]) {
+        let len = self.len();
+        let first = self.lines.partition_point(|&at| at < start || at == 0);
+        let last = self.lines.partition_point(|&at| at <= end);
+        let mut next = Vec::new();
+        if start > 0 && start < len && self.byte(start - 1) == b'\n' {
+            next.push(start);
+        }
+        for (offset, &byte) in inserted.iter().enumerate() {
+            let at = start + offset + 1;
+            if byte == b'\n' && at < len {
+                next.push(at);
+            }
+        }
+        for at in &mut self.lines[last..] {
+            *at = *at - (end - start) + inserted.len();
+        }
+        self.lines.splice(first..last, next);
+        // Deletion can expose a formerly internal newline at EOF.
+        if len > 0 && self.lines.last() == Some(&len) {
+            self.lines.pop();
+        }
     }
 
     fn rebuild_lines(&mut self) {
@@ -385,19 +435,85 @@ struct EditorDrag {
 const DRAG_ROW_PERIOD: std::time::Duration = std::time::Duration::from_millis(50);
 impl Component for EditorDrag {}
 
-// Keep row geometry, not document glyph quads. Only the visible Label is
-// published for painting. An idle editor must not reshape the whole document.
+#[path = "editor_geometry.rs"]
+mod geometry;
+
+/// Deterministic per-view geometry costs, separate from visible glyph publication.
+/// Counters accumulate until the view is destroyed. Retained byte counts include
+/// row/edge vector capacities and paragraph payloads, not allocator overhead,
+/// source/history, engine caches or the visible label's paint layout.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct EditorLayoutStats {
+    /// Paragraph layout requests since attachment (engine caches may also hit).
+    pub paragraphs_shaped: u64,
+    /// UTF-8 bytes submitted to paragraph layout.
+    pub bytes_shaped: u64,
+    /// Paragraphs reused without a layout request.
+    pub paragraphs_reused: u64,
+    /// Full row assemblies; idle scroll does not increase this counter.
+    pub assemblies: u64,
+    /// Current retained paragraph payload, capped at 8 MiB per view.
+    pub paragraph_cache_bytes: usize,
+    /// Current assembled document row/edge geometry (document-size dependent).
+    pub row_geometry_bytes: usize,
+}
+impl Component for EditorLayoutStats {}
+
+// Only geometry is retained here; glyphs belong to the visible Label.
 struct DocumentRows {
     key: u64,
+    context: u64,
+    text: std::sync::Arc<str>,
+    cache: geometry::Cache,
+    // Keep engine allocation identity alive, so pointer-derived keys cannot alias.
+    _engine: std::sync::Arc<dyn crate::TextEngine>,
     layout: std::sync::Arc<crate::TextLayout>,
 }
 impl Component for DocumentRows {}
+
+struct MappedScrollAnchor(usize);
+impl Component for MappedScrollAnchor {}
+pub(crate) fn sync_source_scroll_anchor(world: &mut World, entity: crate::Entity) {
+    let Some(binding) = world.get::<crate::editing::SourceBinding>(entity).copied() else {
+        return;
+    };
+    let Some(rows) = world.get::<DocumentRows>(entity) else {
+        return;
+    };
+    let Some(editor) = world.get::<Editor>(entity) else {
+        return;
+    };
+    let row = rows
+        .layout
+        .lines
+        .partition_point(|l| l.y <= editor.offset)
+        .saturating_sub(1);
+    let Some(at) = rows.layout.lines.get(row).map(|l| l.start) else {
+        return;
+    };
+    if let Some(doc) = world
+        .resource_mut::<crate::editing::SourceDocuments>()
+        .and_then(|d| d.get_mut(binding.document))
+    {
+        // Never overwrite an eagerly mapped anchor with old-revision geometry.
+        if doc.revision() == binding.revision {
+            doc.set_view_scroll_anchor(entity, at);
+        }
+    }
+}
+
+pub(crate) fn project_scroll_anchor(world: &mut World, entity: crate::Entity, byte: usize) {
+    if world.has::<DocumentRows>(entity) {
+        world.insert(entity, MappedScrollAnchor(byte));
+    }
+}
 
 fn document_rows(
     world: &mut World,
     entity: crate::entity::Entity,
     text: &str,
 ) -> std::sync::Arc<crate::TextLayout> {
+    let mapped_anchor = world.remove::<MappedScrollAnchor>(entity).map(|a| a.0);
     let style = crate::text::style_for(world, entity);
     let engine = crate::text::text_engine(world);
     let width = world.get::<Rect>(entity).map_or(f32::INFINITY, |rect| {
@@ -408,29 +524,128 @@ fn document_rows(
         .map(|spans| spans.runs.as_slice())
         .unwrap_or(&[]);
     let font = crate::font::text_face(world);
-    let mut key = crate::font::layout_cache_key(font.as_ref(), text, width, spans, "", 0);
-    key ^= crate::text::style_key(&style);
-    key ^= (std::sync::Arc::as_ptr(&engine) as *const () as usize as u64).rotate_left(17);
-    key ^= engine.cache_epoch().wrapping_mul(0x9E37_79B9_7F4A_7C15);
-    if let Some(rows) = world
-        .get::<DocumentRows>(entity)
-        .filter(|rows| rows.key == key)
-    {
-        return std::sync::Arc::clone(&rows.layout);
+    let mut context = crate::font::layout_cache_key(font.as_ref(), "", width, &[], "", 0);
+    context ^= crate::text::style_key(&style);
+    context ^= (std::sync::Arc::as_ptr(&engine) as *const () as usize as u64).rotate_left(17);
+    context ^= engine.cache_epoch().wrapping_mul(0x9E37_79B9_7F4A_7C15);
+    let key = context.rotate_left(23)
+        ^ crate::font::layout_cache_key(font.as_ref(), "", width, spans, "", 0);
+    if let Some(rows) = world.get::<DocumentRows>(entity).filter(|rows| {
+        rows.key == key && (std::ptr::eq(rows.text.as_ref(), text) || rows.text.as_ref() == text)
+    }) {
+        let layout = std::sync::Arc::clone(&rows.layout);
+        if let Some(byte) = mapped_anchor {
+            let row = layout
+                .lines
+                .partition_point(|l| l.start <= byte)
+                .saturating_sub(1);
+            if let (Some(line), Some(editor)) =
+                (layout.lines.get(row), world.get_mut::<Editor>(entity))
+            {
+                editor.offset = line.y;
+            }
+        }
+        return layout;
     }
-    let mut layout = engine.layout(text, &style, spans, width);
+    let previous = world.get::<DocumentRows>(entity);
+    let old_anchor = mapped_anchor.or_else(|| {
+        previous.and_then(|rows| {
+            let offset = world.get::<Editor>(entity)?.offset;
+            let row = rows
+                .layout
+                .lines
+                .partition_point(|l| l.y <= offset)
+                .saturating_sub(1);
+            let at = rows.layout.lines.get(row)?.start;
+            Some(map_scroll_anchor(&rows.text, text, at))
+        })
+    });
+    let (layout, cache, work) = geometry::build(
+        engine.as_ref(),
+        font.as_ref(),
+        &style,
+        width,
+        text,
+        spans,
+        previous
+            .filter(|rows| rows.context == context)
+            .map(|rows| &rows.cache),
+    );
+    let mut stats = world
+        .get::<EditorLayoutStats>(entity)
+        .copied()
+        .unwrap_or_default();
+    stats.paragraphs_shaped += work.paragraphs;
+    stats.bytes_shaped += work.bytes;
+    stats.paragraphs_reused += work.reused;
+    stats.assemblies += 1;
+    stats.paragraph_cache_bytes = cache.bytes;
+    stats.row_geometry_bytes = geometry::geometry_bytes(&layout);
+    world.insert(entity, stats);
+    if let Some(at) = old_anchor {
+        let row = layout
+            .lines
+            .partition_point(|l| l.start <= at)
+            .saturating_sub(1);
+        if let (Some(line), Some(editor)) = (layout.lines.get(row), world.get_mut::<Editor>(entity))
+        {
+            editor.offset = line.y;
+        }
+    }
     world.remove::<VerticalGoal>(entity);
-    layout.glyphs = Vec::new();
-    layout.highlights = Vec::new();
     let layout = std::sync::Arc::new(layout);
+    let snapshot = world
+        .get::<Buffer>(entity)
+        .map(Buffer::snapshot)
+        .filter(|snapshot| std::ptr::eq(snapshot.as_ref(), text))
+        .unwrap_or_else(|| std::sync::Arc::from(text));
     world.insert(
         entity,
         DocumentRows {
             key,
+            context,
+            text: snapshot,
+            cache,
+            _engine: engine,
             layout: std::sync::Arc::clone(&layout),
         },
     );
     layout
+}
+
+// Conservative single-replacement map for legacy buffers and style reflow.
+// Managed batches supply an exact eagerly mapped per-view anchor instead. No stale map is
+// retained: deleted anchors collapse to the start of the changed region.
+fn map_scroll_anchor(before: &str, after: &str, at: usize) -> usize {
+    if before == after {
+        return at.min(after.len());
+    }
+    let mut prefix = before
+        .bytes()
+        .zip(after.bytes())
+        .take_while(|(a, b)| a == b)
+        .count();
+    while !before.is_char_boundary(prefix) || !after.is_char_boundary(prefix) {
+        prefix -= 1;
+    }
+    let mut suffix = before[prefix..]
+        .bytes()
+        .rev()
+        .zip(after[prefix..].bytes().rev())
+        .take_while(|(a, b)| a == b)
+        .count();
+    while !before.is_char_boundary(before.len() - suffix)
+        || !after.is_char_boundary(after.len() - suffix)
+    {
+        suffix -= 1;
+    }
+    if at < prefix {
+        at
+    } else if at >= before.len() - suffix {
+        after.len() - (before.len() - at)
+    } else {
+        prefix
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -593,6 +808,7 @@ fn move_vertical(
 pub fn apply_editor(world: &mut World) {
     crate::editing::prepare_editor_source_input(world);
     let editors = world.entities_with::<Editor>();
+    let mut publication = Vec::new();
     for entity in editors {
         if !world.has::<Buffer>(entity) {
             world.remove::<EditorDrag>(entity);
@@ -666,6 +882,13 @@ pub fn apply_editor(world: &mut World) {
             world.remove::<VerticalGoal>(entity);
             world.remove::<EditorDrag>(entity);
         }
+        publication.push((entity, focused, reveal));
+    }
+    // Publish after every edit, so peer views never lag by ECS iteration order.
+    for (entity, focused, reveal) in publication {
+        if world.has::<crate::editing::SourceBinding>(entity) {
+            crate::editing::project_source(world, entity);
+        }
         publish_window(world, entity, reveal);
         if focused {
             sync_ime_preview(world, entity);
@@ -730,7 +953,7 @@ fn edit_focused(world: &mut World, entity: crate::entity::Entity) {
     let Some(buffer) = world.get_mut::<Buffer>(entity) else {
         return;
     };
-    let snapshot = buffer.text();
+    let snapshot = buffer.snapshot();
     let len = buffer.len();
     let mut index = floor_grapheme(&snapshot, buffer.caret.min(len));
     let mut anchor = floor_grapheme(&snapshot, buffer.anchor.min(len));
@@ -815,6 +1038,7 @@ fn edit_focused(world: &mut World, entity: crate::entity::Entity) {
 // Managed input reuses key semantics and shaping, but history and mutation live
 // in SourceSession. The entity never receives a competing EditHistory.
 fn edit_managed(world: &mut World, entity: crate::Entity) {
+    crate::editing::activate_source_view(world, entity);
     use crate::editing::{EditOrigin, SourceBinding, SourceDocuments, SourceSelection};
     let Some(input) = world.resource::<Input>() else {
         return;
@@ -1058,7 +1282,7 @@ fn edit_queue(world: &mut World, entity: crate::entity::Entity, keys: &[KeyEvent
 }
 
 pub(crate) fn replace_buffer(buffer: &mut Buffer, text: &str, caret: usize, anchor: usize) {
-    if buffer.text() != text {
+    if buffer.snapshot().as_ref() != text {
         let len = buffer.len();
         buffer.delete_range(0, len);
         buffer.insert_str(0, text);
@@ -1137,7 +1361,7 @@ fn place_from_pointer(world: &mut World, entity: crate::entity::Entity) -> bool 
     let Some(buffer) = world.get::<Buffer>(entity) else {
         return false;
     };
-    let text = buffer.text();
+    let text = buffer.snapshot();
     let old_anchor = buffer.anchor;
     let layout = document_rows(world, entity, &text);
     if layout.lines.is_empty() {
@@ -1354,17 +1578,41 @@ pub(crate) fn reveal_access_selection(world: &mut World, entity: crate::Entity) 
     publish_window(world, entity, true);
 }
 
+// Same downstream shared-edge affinity as font::line_col, without allocating
+// a full-document range vector or scanning rows before each idle publication.
+fn document_row_at(layout: &crate::TextLayout, index: usize) -> usize {
+    let mut low = 0;
+    let mut high = layout.lines.len();
+    while low < high {
+        let mid = low + (high - low) / 2;
+        let line = &layout.lines[mid];
+        let before = index >= line.start
+            && (line.end < index
+                || (line.end == index
+                    && layout
+                        .lines
+                        .get(mid + 1)
+                        .is_some_and(|next| next.start == index)));
+        if before {
+            low = mid + 1;
+        } else {
+            high = mid;
+        }
+    }
+    low.min(layout.lines.len().saturating_sub(1))
+}
+
 fn publish_window(world: &mut World, entity: crate::entity::Entity, reveal: bool) {
     let height = world.get::<Rect>(entity).map(|rect| rect.h).unwrap_or(0.0);
-    let offset = world
-        .get::<Editor>(entity)
-        .map(|editor| editor.offset)
-        .unwrap_or(0.0);
     let Some(buffer) = world.get::<Buffer>(entity) else {
         return;
     };
-    let text = buffer.text();
+    let text = buffer.snapshot();
     let layout = document_rows(world, entity, &text);
+    // Reflow/edit invalidation may have restored the source-byte scroll anchor.
+    let offset = world
+        .get::<Editor>(entity)
+        .map_or(0.0, |editor| editor.offset);
     let buffer = world.get::<Buffer>(entity).expect("buffer exists");
     let caret = floor_grapheme(&text, buffer.caret.min(text.len()));
     let anchor = floor_grapheme(&text, buffer.anchor.min(text.len()));
@@ -1380,37 +1628,27 @@ fn publish_window(world: &mut World, entity: crate::entity::Entity, reveal: bool
         };
         let mut first = layout
             .lines
-            .iter()
-            .rposition(|line| line.y <= offset)
-            .unwrap_or(0);
-        let (_, caret_y) = layout.caret_xy(caret);
-        let caret_row = affinity.map_or_else(
-            || {
-                layout
-                    .lines
-                    .iter()
-                    .position(|line| line.y == caret_y)
-                    .unwrap_or(0)
-            },
-            |goal| goal.row,
-        );
+            .partition_point(|line| line.y <= offset)
+            .saturating_sub(1);
+        let caret_row = affinity.map_or_else(|| document_row_at(&layout, caret), |goal| goal.row);
         if reveal && height > 0.0 {
             if caret_row < first {
                 first = caret_row;
             }
-            while first < caret_row
-                && layout.lines[caret_row].y + layout.lines[caret_row].h
-                    > layout.lines[first].y + available
-            {
-                first += 1;
-            }
+            let needed = layout.lines[caret_row].y + layout.lines[caret_row].h - available;
+            first = first.max(
+                layout
+                    .lines
+                    .partition_point(|line| line.y < needed)
+                    .min(caret_row),
+            );
         }
         let top = layout.lines.get(first).map_or(0.0, |line| line.y);
         let last = layout
             .lines
-            .iter()
-            .rposition(|line| line.y < top + available)
-            .unwrap_or(first);
+            .partition_point(|line| line.y < top + available)
+            .saturating_sub(1)
+            .max(first);
         let base = layout.lines.get(first).map_or(0, |line| line.start);
         let end = layout
             .lines
@@ -1446,6 +1684,16 @@ fn publish_window(world: &mut World, entity: crate::entity::Entity, reveal: bool
     if let Some(buffer) = world.get_mut::<Buffer>(entity) {
         buffer.caret = caret;
         buffer.anchor = anchor;
+    }
+    if let Some(binding) = world.get::<crate::editing::SourceBinding>(entity).copied() {
+        if let Some(doc) = world
+            .resource_mut::<crate::editing::SourceDocuments>()
+            .and_then(|d| d.get_mut(binding.document))
+        {
+            if doc.revision() == binding.revision {
+                doc.set_view_scroll_anchor(entity, base);
+            }
+        }
     }
     world.insert(entity, EditorWindow { base });
     if let Some(label) = world.get_mut::<Label>(entity) {
@@ -1651,6 +1899,51 @@ fn decoration_marks(world: &World, entity: crate::entity::Entity) -> Vec<Decorat
 mod tests {
     use super::*;
     use std::sync::Arc;
+
+    #[test]
+    fn buffer_snapshots_reuse_until_bytes_change_and_clones_detach() {
+        let mut buffer = Buffer::from_str("é\nsource");
+        let first = buffer.snapshot();
+        assert!(Arc::ptr_eq(&first, &buffer.snapshot()));
+        buffer.caret = 0;
+        buffer.insert_str(0, "");
+        buffer.delete_range(1, 1);
+        assert!(Arc::ptr_eq(&first, &buffer.snapshot()));
+        let mut clone = buffer.clone();
+        clone.insert_str(2, "!");
+        assert_eq!(clone.snapshot().as_ref(), "é!\nsource");
+        assert_eq!(first.as_ref(), buffer.text());
+        assert!(!Arc::ptr_eq(&first, &clone.snapshot()));
+        buffer.delete_range(0, 1); // Preserve lossy legacy mid-scalar decoding.
+        assert_eq!(buffer.snapshot().as_ref(), buffer.slice(0, buffer.len()));
+        assert!(!Arc::ptr_eq(&first, &buffer.snapshot()));
+    }
+
+    #[test]
+    fn binary_document_row_matches_public_line_col_at_all_bytes() {
+        let world = World::new();
+        let engine = crate::text::text_engine(&world);
+        let style = crate::TextStyle::default();
+        for text in [
+            "",
+            "\n",
+            "a\n\nβ\r\n",
+            "é 👩‍💻 العربية\nend",
+            "long long long line\nnext",
+        ] {
+            for width in [20.0, 200.0, f32::INFINITY] {
+                let layout = engine.layout(text, &style, &[], width);
+                let ranges: Vec<_> = layout.lines.iter().map(|l| (l.start, l.end)).collect();
+                for index in 0..=text.len() + 1 {
+                    assert_eq!(
+                        document_row_at(&layout, index),
+                        crate::font::line_col(&ranges, index).0,
+                        "{text:?} {width} {index}"
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn document_rows_cache_geometry_and_invalidate_for_text_width_style_and_engine() {

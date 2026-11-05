@@ -1,7 +1,7 @@
 //! Experimental retained source editing on core's document-owned sessions.
 //!
-//! This is one view per document in E1, not structured editing or a persistence
-//! service. Install `UiPlugin`, and explicitly use `apply_theme_bridge` for core
+//! Multiple retained views may share one document history, with independent
+//! directed selections and viewports. This is not structured editing or persistence. Install `UiPlugin`, and explicitly use `apply_theme_bridge` for core
 //! caret/selection colors. Native IME and accessibility need platform review.
 use crate::{Token, Typography, UiError, UiId, UiRecipe, UiStyle};
 use rndr_core::editing::{attach_source, detach_source, DocumentId, EditError, SourceDocuments};
@@ -16,7 +16,8 @@ pub struct EditorSurfaceProps {
     pub name: String,
     /// Supplementary accessible help.
     pub description: String,
-    /// Authoritative session readonly setting; navigation remains enabled.
+    /// Authoritative session readonly setting, shared by every pane. Mounting or
+    /// updating a pane changes that document-wide policy; navigation remains enabled.
     pub readonly: bool,
     /// Show a sibling line-number gutter.
     pub gutter: bool,

@@ -158,7 +158,7 @@ pub use disclosure::{
 pub use edit::edit_string;
 pub use editor::{
     edit_buffer, spans_for_text, Buffer, BufferEditError, Decoration, DecorationKind,
-    DecorationMark, DecorationMarks, Decorations, Editor, Gutter,
+    DecorationMark, DecorationMarks, Decorations, Editor, EditorLayoutStats, Gutter,
 };
 pub use entity::Entity;
 pub use event::{events, send, Event, Events};

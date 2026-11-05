@@ -203,17 +203,21 @@ fn on_grapheme_boundary(text: &str, index: usize) -> bool {
 pub(crate) fn floor_grapheme(text: &str, index: usize) -> usize {
     let len = text.len();
     let index = floor_boundary(len, index.min(len), &|i| text.as_bytes()[i]);
-    let mut start = 0;
-    for edge in grapheme_edges(text) {
-        if edge > index {
-            return start;
-        }
-        start = edge;
-        if edge == index {
-            return edge;
-        }
+    // Give the cursor the entire string, not a suffix: RI parity, emoji ZWJ,
+    // and Indic conjunct boundaries can depend on arbitrarily distant context.
+    // This avoids allocating every boundary in a document for one caret snap.
+    let mut cursor = unicode_segmentation::GraphemeCursor::new(index, len, true);
+    if cursor
+        .is_boundary(text, 0)
+        .expect("complete text supplies all grapheme context")
+    {
+        index
+    } else {
+        cursor
+            .prev_boundary(text, 0)
+            .expect("complete text supplies all grapheme context")
+            .unwrap_or(0)
     }
-    start
 }
 
 /// Previous grapheme boundary. A caret inside a cluster snaps to that cluster's start.
@@ -289,4 +293,73 @@ pub(crate) fn selection_span(
         floor_boundary(len, start, byte),
         ceil_boundary(len, end, byte),
     )
+}
+
+#[cfg(test)]
+mod floor_grapheme_tests {
+    use super::*;
+
+    fn assert_matches_full_scan(text: &str) {
+        // Preserve the old whole-string segmentation oracle, independently of
+        // the random-access cursor. Include every split UTF-8 scalar position.
+        let edges = grapheme_edges(text);
+        for index in (0..=text.len() + 2).chain(std::iter::once(usize::MAX)) {
+            let scalar = floor_boundary(text.len(), index, &|i| text.as_bytes()[i]);
+            let expected = edges
+                .iter()
+                .copied()
+                .take_while(|&i| i <= scalar)
+                .last()
+                .unwrap();
+            assert_eq!(
+                floor_grapheme(text, index),
+                expected,
+                "text={text:?}, byte={index}"
+            );
+        }
+    }
+
+    #[test]
+    fn floor_grapheme_matches_full_scan_adversarial_corpus() {
+        for text in [
+            "",
+            "ascii",
+            "\r\n\r\n\n\r",
+            "é العربية 中文",
+            "e\u{301}\u{308}a\u{300}",
+            "\u{301}\u{308}a",
+            "👩🏽‍💻👨‍👩‍👧‍👦🏳️‍🌈",
+            "🇦🇧🇨🇩🇪🇫🇬",
+            "क्\u{200d}षक्षत्र",
+            "क्क्क्क",
+            "\u{600}a\u{600}\u{600}b",
+            "ᄀ가ᅡᆨᆨ각ᆨ",
+            "a\0\u{301}\r\n👩‍💻",
+        ] {
+            assert_matches_full_scan(text);
+        }
+        for count in [1, 2, 3, 31, 32, 127] {
+            assert_matches_full_scan(&format!("a{}z", "🇦".repeat(count)));
+            assert_matches_full_scan(&format!("a{}z", "\u{301}".repeat(count)));
+            assert_matches_full_scan(&format!("👩{}z", "\u{301}\u{200d}👩".repeat(count)));
+            assert_matches_full_scan(&format!("क{}कz", "्क".repeat(count)));
+        }
+    }
+
+    #[test]
+    fn floor_grapheme_matches_full_scan_generated_contexts() {
+        // Exhaust all three-token combinations spanning context-sensitive UAX
+        // #29 classes, including invalid-looking but valid Unicode sequences.
+        let tokens = [
+            "a", "\r", "\n", "\u{301}", "\u{200d}", "👩", "🏽", "🇦", "क", "्", "\u{600}", "ᄀ", "ᅡ",
+            "ᆨ",
+        ];
+        for a in tokens {
+            for b in tokens {
+                for c in tokens {
+                    assert_matches_full_scan(&format!("{a}{b}{c}"));
+                }
+            }
+        }
+    }
 }

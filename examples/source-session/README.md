@@ -1,10 +1,17 @@
-# Experimental source session (E1 + E2)
+# Experimental source session (E1 + E2 + E3 candidate)
 
 Run `cargo run -p source-session` on a native desktop. This is a fake host:
 **nothing is written to disk**. It shows exact-source editing, revision/change
 counts and host-owned dirty/save state, not structured Markdown editing.
 
 - Type, select, undo/redo, and try native IME in the editor.
+- Run `cargo run -p source-session -- --split` for two views over the same
+  document. Selections and scroll remain independent; edits/history are shared.
+  Each pane has a distinct accessible name. Readonly is document-wide.
+  Try a selection in each pane, type into one, then undo from the other.
+  `--split --capture target/source-session-split.png` captures the public fake fixture.
+- The [E3 implementation/evidence record](../../docs/design/native-document-editing-e3.md)
+  separates layout/model measurements from native event-to-present certification.
 - Page Up/Down moves by a shaped viewport; hold Shift to extend selection.
 - Drag the vertical scrollbar or click its track to page. When focused, arrows,
   Page Up/Down and Home/End adjust the same document viewport; readonly permits

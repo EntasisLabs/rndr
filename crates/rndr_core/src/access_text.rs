@@ -88,8 +88,8 @@ fn state(world: &World, entity: Entity) -> Option<AccessTextState> {
         let binding = world.get::<crate::editing::SourceBinding>(entity)?;
         if binding.revision != doc.revision()
             || doc.text() != text
-            || doc.selection()
-                != (SourceSelection {
+            || doc.view_selection(entity)
+                != Some(SourceSelection {
                     anchor: buffer.anchor,
                     head: buffer.caret,
                 })
@@ -187,14 +187,14 @@ pub(crate) fn set_selection(
         anchor: crate::edit::floor_grapheme(&expected.text, selection.anchor),
         head: crate::edit::floor_grapheme(&expected.text, selection.head),
     };
-    if let Some((id, _)) = expected.source {
+    if let Some((id, revision)) = expected.source {
         let Some(doc) = world
             .resource_mut::<SourceDocuments>()
             .and_then(|docs| docs.get_mut(id))
         else {
             return crate::AccessCommandResult::Rejected;
         };
-        if doc.set_selection(selection).is_err() {
+        if doc.set_view_selection(entity, revision, selection).is_err() {
             return crate::AccessCommandResult::Rejected;
         }
         crate::editing::project_source(world, entity);

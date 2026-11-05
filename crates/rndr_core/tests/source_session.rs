@@ -327,7 +327,7 @@ fn readonly_all_origins_and_reload_admission() {
 }
 
 #[test]
-fn document_survives_detach_projection_is_not_authority_and_one_view_only() {
+fn document_survives_detach_projection_is_not_authority_and_multiple_views() {
     let (mut app, entity, id) = boot("a");
     key(&mut app, 'b', false);
     let other = app.world_mut().spawn((
@@ -336,10 +336,7 @@ fn document_survives_detach_projection_is_not_authority_and_one_view_only() {
         Label::new(""),
         CapturesKeys,
     ));
-    assert_eq!(
-        attach_source(app.world_mut(), other, id),
-        Err(EditError::AlreadyAttached)
-    );
+    attach_source(app.world_mut(), other, id).unwrap();
     app.world_mut()
         .get_mut::<Buffer>(entity)
         .unwrap()

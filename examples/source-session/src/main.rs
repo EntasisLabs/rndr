@@ -23,8 +23,15 @@ struct FakeHost {
 }
 // Native and offscreen rendering deliberately share the same shaped-font path.
 // Installing TextFace here would opt out of the renderer’s Parley default.
+#[derive(Clone, Copy)]
+struct SplitView(bool);
+
 fn demo_app() -> App {
+    demo_app_with_split(false)
+}
+fn demo_app_with_split(split: bool) -> App {
     let mut app = App::new();
+    app.world_mut().insert_resource(SplitView(split));
     app.add_plugin(UiPlugin);
     let engine: Arc<dyn TextEngine> = Arc::new(rndr_render::ParleyText::new());
     app.world_mut().insert_resource(engine);
@@ -158,9 +165,22 @@ fn setup(world: &mut World) {
         }),
     ));
     set_parent(world, divider, paper);
+    let split = world.resource::<SplitView>().is_some_and(|s| s.0);
+    let panes = if split {
+        let panes = world.spawn((Layout {
+            width: Size::Fill,
+            height: Size::Fill,
+            gap: 8.0,
+            ..Layout::row()
+        },));
+        set_parent(world, panes, paper);
+        panes
+    } else {
+        paper
+    };
     let view = EditorSurface::mount(
         world,
-        paper,
+        panes,
         UiId(100),
         EditorSurfaceProps::new(document, "Exact source document"),
     )
@@ -175,11 +195,32 @@ fn setup(world: &mut World) {
             layout.width = Size::Px(80.0);
         }
     }
+    if split {
+        let peer = EditorSurface::mount(
+            world,
+            panes,
+            UiId(101),
+            EditorSurfaceProps::new(document, "Exact source document — second pane"),
+        )
+        .unwrap();
+        world.get_mut::<Layout>(peer.editor).unwrap().padding = 16.0;
+        for child in children_of(world, peer.root) {
+            if world.has::<Gutter>(child) {
+                let layout = world.get_mut::<Layout>(child).unwrap();
+                layout.padding = 16.0;
+                layout.width = Size::Px(64.0);
+            }
+        }
+    }
     let hint = column(world, paper, 12.0, 0.0, false);
     label(
         world,
         hint,
-        "Exact source  ·  One shared undo history",
+        if split {
+            "Two views  ·  Independent selections and scroll  ·  One undo history"
+        } else {
+            "Exact source  ·  One shared undo history"
+        },
         Typography::Secondary,
         Token::Secondary,
     );
@@ -332,15 +373,25 @@ fn host(world: &mut World) {
     world.get_mut::<Label>(detail).unwrap().text = detail_text;
 }
 fn main() {
-    let mut app = demo_app();
-    if let Some(path) = std::env::args().nth(1) {
+    let mut args = std::env::args().skip(1);
+    let mut split = false;
+    let mut output = None;
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--split" => split = true,
+            "--capture" => output = Some(args.next().expect("capture needs OUTPUT.png")),
+            _ => panic!("usage: source-session [--split] [--capture OUTPUT.png]"),
+        }
+    }
+    let mut app = if split {
+        demo_app_with_split(true)
+    } else {
+        demo_app()
+    };
+    if let Some(output) = output {
         // Only this built-in fake fixture is attested public; never capture a
         // loaded document or native desktop. No window/event loop is started.
-        assert_eq!(
-            path, "--capture",
-            "usage: source-session [--capture OUTPUT.png]"
-        );
-        let output = std::env::args().nth(2).expect("capture needs OUTPUT.png");
+
         app.world_mut()
             .insert_resource(rndr_render::observe::ObservationContent::Public);
         let size = app.world().resource::<WindowConfig>().unwrap().size;
@@ -386,6 +437,54 @@ mod tests {
             ActivationResult::Accepted
         );
         host(app.world_mut());
+    }
+
+    #[test]
+    fn split_views_share_source_but_keep_distinct_entities_and_accessible_names() {
+        let mut app = demo_app_with_split(true);
+        app.world_mut()
+            .insert_resource(Viewport::new(1000.0, 720.0));
+        for _ in 0..3 {
+            let _ = rndr_paint::frame(&mut app);
+        }
+        let views = app.world().entities_with::<Editor>();
+        assert_eq!(views.len(), 2);
+        for &e in &views {
+            let rect = app.world().get::<Rect>(e).unwrap();
+            assert!(rect.w > 200.0 && rect.h > 180.0, "{rect:?}");
+        }
+        assert_ne!(
+            app.world().get::<Semantics>(views[0]).unwrap().name,
+            app.world().get::<Semantics>(views[1]).unwrap().name
+        );
+        let a = attached_source(app.world(), views[0]).unwrap();
+        assert_eq!(attached_source(app.world(), views[1]), Some(a));
+        let session = app
+            .world_mut()
+            .resource_mut::<SourceDocuments>()
+            .unwrap()
+            .get_mut(a)
+            .unwrap();
+        session
+            .commit(SourceBatch {
+                document: a,
+                base: session.revision(),
+                origin: EditOrigin::Host(1),
+                changes: vec![SourceChange {
+                    range: 0..0,
+                    replacement: "shared ".into(),
+                }],
+            })
+            .unwrap();
+        let _ = rndr_paint::frame(&mut app);
+        for e in views {
+            assert!(app
+                .world()
+                .get::<Buffer>(e)
+                .unwrap()
+                .text()
+                .starts_with("shared "));
+        }
     }
 
     #[test]

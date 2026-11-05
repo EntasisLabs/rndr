@@ -8,7 +8,7 @@ use std::time::Instant;
 #[test]
 #[ignore = "opt-in release characterization; no machine-dependent timing assertions"]
 fn model_costs() {
-    println!("fixture,bytes,position,raw_buffer_insert_us_median,raw_buffer_insert_us_max,session_commit_undo_us_median,session_commit_undo_us_max");
+    println!("fixture,bytes,position,raw_buffer_insert_us_p50,raw_buffer_insert_us_p95,session_commit_undo_us_p50,session_commit_undo_us_p95");
     for (name, unit) in [
         ("ascii_lines", "alpha beta gamma\n"),
         ("unicode_lines", "é العربية 👩‍💻\r\n"),
@@ -26,7 +26,7 @@ fn model_costs() {
                     offset -= 1;
                 }
                 let (mut raw, mut managed) = (Vec::new(), Vec::new());
-                for _ in 0..5 {
+                for _ in 0..21 {
                     let mut buffer = Buffer::from_str(&source);
                     let start = Instant::now();
                     buffer.insert_str(offset, "hello");
@@ -57,10 +57,10 @@ fn model_costs() {
                 println!(
                     "{name},{},{position},{},{},{},{}",
                     source.len(),
-                    raw[2],
-                    raw[4],
-                    managed[2],
-                    managed[4]
+                    raw[10],
+                    raw[19],
+                    managed[10],
+                    managed[19]
                 );
             }
         }

@@ -117,7 +117,7 @@ fn destroy_remount_keeps_document_history_and_borrowed_children() {
     assert!(session.text().ends_with("tail"));
 }
 #[test]
-fn readonly_is_session_authoritative_and_duplicate_attach_is_atomic() {
+fn readonly_is_session_authoritative_across_retained_views() {
     let (mut app, parent, doc) = boot();
     let handle = mount(&mut app, parent, doc);
     let mut props = EditorSurfaceProps::new(doc, "Read only");
@@ -132,13 +132,19 @@ fn readonly_is_session_authoritative_and_duplicate_attach_is_atomic() {
         .is_readonly());
     assert!(app.world().has::<CapturesKeys>(handle.editor));
     assert!(app.world().has::<Focusable>(handle.editor));
-    let result = EditorSurface::mount(
-        app.world_mut(),
-        parent,
-        UiId(8),
-        EditorSurfaceProps::new(doc, "Duplicate"),
+    let mut peer_props = EditorSurfaceProps::new(doc, "Second pane");
+    peer_props.readonly = true;
+    let peer = EditorSurface::mount(app.world_mut(), parent, UiId(8), peer_props).unwrap();
+    assert_ne!(peer.editor, handle.editor);
+    app.update();
+    assert!(app.world().get::<Semantics>(peer.editor).unwrap().readonly);
+    assert!(
+        app.world()
+            .get::<Semantics>(handle.editor)
+            .unwrap()
+            .readonly
     );
-    assert!(matches!(result, Err(EditorSurfaceError::Edit(_))));
+    assert_eq!(attached_source(app.world(), peer.editor), Some(doc));
     assert!(app
         .world()
         .resource::<SourceDocuments>()
@@ -146,7 +152,13 @@ fn readonly_is_session_authoritative_and_duplicate_attach_is_atomic() {
         .get(doc)
         .unwrap()
         .is_readonly());
-    assert_eq!(children_of(app.world(), parent), vec![handle.root]);
+    assert_eq!(
+        children_of(app.world(), parent),
+        vec![handle.root, peer.root]
+    );
+    peer.destroy(app.world_mut()).unwrap();
+    assert!(handle.validate(app.world()).is_ok());
+    assert_eq!(attached_source(app.world(), handle.editor), Some(doc));
 }
 #[test]
 fn existing_editor_blocks_other_component_kinds_and_external_detach_is_stale() {
