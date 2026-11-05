@@ -165,13 +165,15 @@ Implementation, contract review and verification: [E5 evidence](native-document-
 
 **Tests:** list/cell model invariants/inverses and keyboard matrices; block insertion/deletion undo, adjacent atoms, focus return and teardown while async callback pending; clipboard fallback; nested wheel/drag ownership, accessibility structure and history isolation. Native AT/table checks separately recorded.
 
-## E7 — source-preserving rendered editing experiment and fidelity decision
+## E7 — source-preserving staged projection and fidelity decision
 
 **Depends:** E3 + E5 + E6 boundary contract. **Gate:** choose projection versus preserved-block custody based on experiment before a stable public API.
 
-- [ ] Preserve source for a hidden-emphasis segment, an editable task and an opaque unsupported block; implement explicit map segments/revision/affinity and source reveal fallback.
-- [ ] Compare generic source projection with M6's block-custody strategy; test untouched raw-region preservation versus changed-block normalization. Structured serialization is a separately named policy, not the same guarantee.
-- [ ] Publish chosen supported subset, copy policy, IME/external-change behavior and unsupported fallback; retain plain source/read-preview mode.
+**Accepted and solidified (2026-11-05):** principal desktop signoff accepted the experiment and requested promotion. [E7 supported contract and native example](native-document-editing-e7.md), with [independent custody comparison](native-document-editing-e7-comparison.md). Chosen policy: source-authoritative segment splices for a deliberately narrow grammar, staged selected-region replacement, and source reveal for unsupported edits—not a general inline Markdown surface. Shared `ProjectionTarget` capture/apply, checked live copy, inverse source/display selection maps and exhaustive admission gates replace demo-only target ownership. This closes the bounded E7 gate, not full inline editing, native certification, all-API release ratification or a commit.
+
+- [x] Preserve source for a hidden-emphasis segment, an editable task and an opaque unsupported block; implement explicit map segments/revision/affinity and source reveal fallback.
+- [x] Compare generic source projection with M6's block-custody strategy; test untouched raw-region preservation versus changed-block normalization. Structured serialization is a separately named policy, not the same guarantee.
+- [x] Publish chosen supported subset, copy policy, IME/external-change behavior and unsupported fallback; retain plain source/read-preview mode.
 
 **Acceptance:** exact unchanged BOM/CRLF/whitespace/opaque fences, Markdown delimiters and unknown constructs preserved for the supported source-preserving policy; all writes use current source session/history and stale projection refuses. Same display is never proof of same source. Mount/selection-only/preview does not dirty the document. No offset borrowed from parsed display text is used as source offset.
 

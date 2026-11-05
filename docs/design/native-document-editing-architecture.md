@@ -123,7 +123,9 @@ embeds.register(view, host_block_kind, host_mount_adapter); // typed mount + tea
 // Medousa adapter parses/serializes Markdown; framework never interprets Liquid.
 ```
 
-### C. Source-backed Markdown projection + fallback (future fidelity experiment)
+### C. Source-backed staged projection + fallback (accepted E7 contract)
+
+**Accepted E7 direction:** [source-preserving contract and native example](native-document-editing-e7.md) implements a narrow revisioned segment map plus staged selected-region source replacements. Library `Projection::capture` creates a checked `ProjectionTarget`; Apply validates identity/revision/exact bytes and source admission. Inverse source/display selection maps and checked live copy are available. The executable module recipe is the real host API. It chooses source splices over changed-block normalization ([comparison](native-document-editing-e7-comparison.md)). The broader inline `ProjectedSourceView` composition below remains illustrative, not an implemented stable widget. Unsupported edits reveal source; no rich serializer is a fallback.
 
 ```text
 let doc = documents.open_source(markdown_bytes);
@@ -138,7 +140,7 @@ doc.commit(batch)?;                                  // same source history; sta
 // Unsupported opaque block requests source reveal, never a lossy full rewrite.
 ```
 
-This is an experiment API, not a required E1 deliverable. A source session with read-only `MarkdownView` preview is the initial implementation target instead.
+The pseudocode above remains a future inline surface, not the implemented staged API. E7's staged contract is accepted and hardened separately; it does not retroactively ratify these illustrative names, full-document Markdown semantics or native platform protocols.
 
 ## 7. Application synchronization (future Medousa adapter)
 

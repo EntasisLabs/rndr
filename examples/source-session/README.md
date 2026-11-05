@@ -70,3 +70,35 @@ model checks, not native input certification.
 Headless lifecycle tests do not certify visual layout, native IME candidate
 placement, clipboard integration, screen-reader announcements or native focus.
 Those require running this example on each supported desktop platform.
+
+## E7: supported source-preserving staged editor
+
+```sh
+CARGO_INCREMENTAL=0 cargo run -p source-session --bin projection
+# Public fixture capture; output must not already exist:
+CARGO_INCREMENTAL=0 cargo run -p source-session --bin projection -- --capture target/e7-preview.png
+```
+
+This is the supported staged projection composition, **not** a general inline
+Markdown editor. Reusable `Projection::capture` / `ProjectionTarget` in the core
+library own the checked edit target; the example has no private target API. The
+source pane owns the sole document/history. The rendered pane hides one-pair
+emphasis delimiters, displays atomic task markers and gives unsupported blocks
+an explicit source-reveal fallback. Nothing is serialized or auto-fetched.
+
+- Apply the seeded `quiet` → `calm` replacement, then **Undo source**: exact
+  delimiter/BOM/CRLF/raw-block bytes must return.
+- Select literal text in Rendered, **Capture target**, type/compose in the native
+  replacement field, then **Apply replacement**. Apply is one source transaction.
+- **Toggle task** splices only the status byte. **Reveal source** selects the raw
+  region without mutation. Native Copy uses the selected pane's text policy.
+- Capture, edit Source, then Apply the old target: stale refusal, no guessed rebase.
+- **Read preview** switches source readonly policy. IME commands refuse during
+  preedit; finish or cancel native composition before applying/switching.
+
+The supported grammar is deliberately narrow; structural/cross-segment edits
+reveal source. Policy, copy/affinity/IME limits and the block-custody comparison:
+[`docs/design/native-document-editing-e7.md`](../../docs/design/native-document-editing-e7.md).
+The original desktop experiment was accepted on 2026-11-05. Native OS
+IME/clipboard/AT certification and a full inline projected widget remain separate.
+See the executable module recipe and `projection_contract.rs` for promotion gates.

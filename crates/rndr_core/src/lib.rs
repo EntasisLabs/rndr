@@ -115,6 +115,8 @@ pub mod source_extensions;
 pub mod source_folding;
 /// Live additive provider decoration and gutter paint projection.
 pub mod source_presentation;
+/// Source-preserving staged projection with checked targets; not a Markdown codec.
+pub mod source_projection;
 /// Normalized directed multi-selections and visual rectangular selection policy.
 pub mod source_selection;
 pub use scrollbar::{
