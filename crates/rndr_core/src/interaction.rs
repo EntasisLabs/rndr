@@ -134,6 +134,13 @@ pub(crate) fn policy(world: &World, mut entity: Entity) -> (bool, bool) {
             return (false, readonly);
         }
         readonly |= world.get::<Semantics>(entity).is_some_and(|s| s.readonly);
+        readonly |= crate::structured_native::attached_structured(world, entity)
+            .and_then(|id| {
+                world
+                    .resource::<crate::structured_native::StructuredDocuments>()?
+                    .get(id)
+            })
+            .is_some_and(crate::structured::StructuredDocument::is_readonly);
         match world
             .get::<crate::FocusOwner>(entity)
             .map(|o| o.0)

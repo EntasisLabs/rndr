@@ -40,6 +40,8 @@ For the five-item hands-on polish retest (checkbox centering, disabled/focused s
 
 Core markdown now supports explicit [host-filled block slots](docs/markdown-host-slots.md) for retained live values and real controls. `rndr_ui::apply_theme_bridge` opts one World into UiTheme-derived core/markdown colors and default typography; `UiPlugin` alone remains unchanged. Try `cargo run --offline --locked -p rndr --example markdown_gallery --features observe` for streaming, focus, resize and light/dark controls.
 
+The experimental [structured editor](docs/design/native-document-editing-e5.md) has its own tree-owned transactions/history, not a Markdown buffer. Try `cargo run -p source-session --bin structured`, or `cargo run -p rndr --example structured_gallery --features observe`, for paragraph/heading formatting, native editing and a generic tree inspector. Desktop IME/AT acceptance remains separate from the headless checks.
+
 ## Crates
 
 | Crate | Role |

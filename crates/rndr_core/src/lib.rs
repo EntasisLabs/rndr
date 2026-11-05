@@ -127,6 +127,10 @@ mod slot;
 /// Revision-bound literal source search and atomic replacements.
 pub mod source_search;
 mod split;
+/// Experimental structured tree model; separate from source sessions.
+pub mod structured;
+/// Native projection and input for structured documents, not source storage.
+pub mod structured_native;
 mod style;
 mod tabs;
 mod text;

@@ -51,6 +51,10 @@ rndr_term = { workspace = true, optional = true }
 # Operating gallery only: default/legacy applications do not adopt rndr_ui.
 rndr_ui = { path = "../rndr_ui" }
 
+[[example]]
+name = "structured_gallery"
+required-features = ["observe", "parley"]
+
 [package.metadata.docs.rs]
 # docs.rs uses the crates-build-env image, which includes libfontconfig1-dev,
 # libxkbcommon, Wayland, and Vulkan. `parley` links fontconfig on Linux.

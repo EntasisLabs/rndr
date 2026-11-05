@@ -14,6 +14,7 @@ pub mod data;
 pub mod editing;
 pub mod selection;
 pub mod source_tools;
+pub mod structured;
 pub mod style;
 pub mod surfaces;
 pub mod theme_bridge;
@@ -33,6 +34,7 @@ pub fn identity(world: &rndr_core::World, entity: rndr_core::Entity) -> Option<U
     controls::key_at(world, entity)
         .or_else(|| surfaces::key_at(world, entity))
         .or_else(|| editing::key_at(world, entity))
+        .or_else(|| structured::key_at(world, entity))
 }
 
 /// Sole installation owner for UI styling and reusable core interaction.
@@ -64,6 +66,7 @@ impl Plugin for UiPlugin {
         app.add_system(Schedule::Layout, controls::resolve_controls);
         app.add_system(Schedule::Layout, selection::styles);
         app.add_system(Schedule::Layout, resolve_styles);
+        app.add_system(Schedule::Layout, structured::prepare_projection);
         app.add_system(Schedule::Layout, data::measure_cells);
         app.add_system(Schedule::Layout, controls::resolve_toolbars);
     }

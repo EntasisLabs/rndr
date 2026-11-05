@@ -1,6 +1,6 @@
 # Epic: composable native document editing through rndr_ui
 
-**Status: E1/E2 committed (E2 viewport/wheel closeout `792d3f0`); E3 implementation candidate under review. Native/platform certification and ratified native performance acceptance remain open.**
+**Status: E1–E4 committed; E5 implementation and desktop demo accepted on 2026-11-05 for closeout commit. E6 is next, delivered as bounded sub-slices. Native/platform certification and ratified native performance acceptance remain open.**
 
 2026-11-04 continuation: the user subsequently authorized E1, E2 and E3 implementation. See the [E1 record](native-document-editing-e1.md), E2 ledgers, and [E3 implementation/evidence record](native-document-editing-e3.md). Later milestones, release integration and whole-epic acceptance are not implied. The exploration scope below describes the original docs-only assignment.
 
@@ -143,9 +143,11 @@ native/affinity checks are actually exercised. No E3 implementation is included.
 
 **Depends:** E1 session vocabulary + E2 input/selection contracts; no requirement to finish every E4 language feature.
 
-- [ ] Review typed tree positions/selection and schema transaction API before exposing it publicly; keep source byte types separate.
-- [ ] Implement paragraph + heading + strong/emphasis + link, split/join, marks and deterministic normalization, directed text/node selection and history. Use one structure-aware surface + optional formatting UI.
-- [ ] Demonstrate a minimal generic structured document in gallery, with no Markdown codec required. Share layout/native machinery only where proven compatible.
+- [x] Review typed tree positions/selection and schema transaction API before exposing it publicly; keep source byte types separate.
+- [x] Implement paragraph + heading + strong/emphasis + link, split/join, marks and deterministic normalization, directed text/node selection and history. Use one structure-aware surface + optional formatting UI.
+- [x] Demonstrate a minimal generic structured document in gallery, with no Markdown codec required. Share layout/native machinery only where proven compatible.
+
+Implementation, contract review and verification: [E5 evidence](native-document-editing-e5.md). Principal tested and accepted the desktop demo on 2026-11-05 and authorized committing E5. This closes implementation/demo acceptance, not the separate native/platform certification gates.
 
 **Acceptance:** schema-invalid operations refuse atomically; split/join/mark commands maintain selection and inverses; toolbar focus does not lose saved selection; IME across marked boundaries and readonly are defined; serializing to a generic test format does not masquerade as Markdown fidelity. API review compares source and structured compositions without forcing a common representation.
 

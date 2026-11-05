@@ -10,6 +10,7 @@ pub struct AccessTextState {
     entity: Entity,
     text: String,
     source: Option<(DocumentId, Revision)>,
+    structured: Option<(crate::structured_native::StructuredHandle, Revision)>,
 }
 impl AccessTextState {
     /// Full document, never the editor's clipped paint Label or IME preview.
@@ -100,10 +101,17 @@ fn state(world: &World, entity: Entity) -> Option<AccessTextState> {
     } else {
         None
     };
+    let structured = if world.has::<crate::structured_native::StructuredBinding>(entity) {
+        let display = crate::structured_native::structured_display(world, entity)?;
+        Some((display.document, display.revision))
+    } else {
+        None
+    };
     Some(AccessTextState {
         entity,
         text,
         source,
+        structured,
     })
 }
 fn composing(world: &World, entity: Entity) -> bool {
@@ -116,6 +124,7 @@ fn composing(world: &World, entity: Entity) -> bool {
         || attached_source(world, entity)
             .and_then(|id| world.resource::<SourceDocuments>()?.get(id))
             .is_some_and(|doc| doc.is_composing())
+        || crate::structured_native::is_composing(world, entity)
 }
 fn selectable(world: &World, entity: Entity) -> bool {
     world.resource::<Focus>().and_then(|f| f.entity) == Some(entity) && !composing(world, entity)
@@ -188,7 +197,19 @@ pub(crate) fn set_selection(
         anchor: crate::edit::floor_grapheme(&expected.text, selection.anchor),
         head: crate::edit::floor_grapheme(&expected.text, selection.head),
     };
-    if let Some((id, revision)) = expected.source {
+    if let Some((_, revision)) = expected.structured {
+        if crate::structured_native::set_display_selection(
+            world,
+            entity,
+            revision,
+            selection.anchor,
+            selection.head,
+        )
+        .is_err()
+        {
+            return crate::AccessCommandResult::Rejected;
+        }
+    } else if let Some((id, revision)) = expected.source {
         let Some(doc) = world
             .resource_mut::<SourceDocuments>()
             .and_then(|docs| docs.get_mut(id))

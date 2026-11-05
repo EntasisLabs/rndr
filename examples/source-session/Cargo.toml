@@ -1,5 +1,6 @@
 [package]
 name = "source-session"
+default-run = "source-session"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

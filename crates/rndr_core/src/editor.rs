@@ -320,7 +320,9 @@ pub fn edit_buffer(
     range: std::ops::Range<usize>,
     replacement: &str,
 ) -> Result<bool, BufferEditError> {
-    if world.has::<crate::editing::SourceBinding>(entity) {
+    if world.has::<crate::editing::SourceBinding>(entity)
+        || world.has::<crate::structured_native::StructuredBinding>(entity)
+    {
         return Err(BufferEditError::ManagedDocument);
     }
     let buffer = world
@@ -692,7 +694,7 @@ fn vertical_key(event: &KeyEvent, platform: crate::Platform) -> Option<(isize, b
 // Page motion uses shaped row geometry and leaves one row of overlap. Like
 // Up/Down it retains preferred x and the wrap-row hint; it never invents byte
 // columns (which would split Unicode or drift across short rows).
-fn vertical_delta(
+pub(crate) fn vertical_delta(
     world: &mut World,
     entity: crate::Entity,
     text: &str,
@@ -736,7 +738,7 @@ fn vertical_delta(
     Some(if delta == 0 { direction } else { delta })
 }
 
-fn move_vertical(
+pub(crate) fn move_vertical(
     world: &mut World,
     entity: crate::entity::Entity,
     text: &str,
@@ -817,6 +819,7 @@ fn move_vertical(
 
 pub fn apply_editor(world: &mut World) {
     crate::editing::prepare_editor_source_input(world);
+    crate::structured_native::prepare_input(world);
     let editors = world.entities_with::<Editor>();
     let mut publication = Vec::new();
     for entity in editors {
@@ -828,6 +831,7 @@ pub fn apply_editor(world: &mut World) {
         if managed {
             crate::editing::project_source(world, entity);
         }
+        crate::structured_native::project(world, entity);
         let focused = world.resource::<Focus>().and_then(|focus| focus.entity) == Some(entity);
         let mut reveal = focused
             && world.resource::<Input>().is_some_and(|input| {
@@ -880,7 +884,7 @@ pub fn apply_editor(world: &mut World) {
                         .get(b.document)
                 })
                 .is_some_and(crate::editing::SourceSession::is_composing);
-            if !composing {
+            if !composing && !crate::structured_native::is_composing(world, entity) {
                 reveal |= place_from_pointer(world, entity);
             } else {
                 world.remove::<EditorDrag>(entity);
@@ -888,6 +892,7 @@ pub fn apply_editor(world: &mut World) {
             if managed {
                 crate::editing::sync_selection(world, entity);
             }
+            crate::structured_native::sync_selection(world, entity);
         } else {
             world.remove::<VerticalGoal>(entity);
             world.remove::<EditorDrag>(entity);
@@ -899,6 +904,7 @@ pub fn apply_editor(world: &mut World) {
         if world.has::<crate::editing::SourceBinding>(entity) {
             crate::editing::project_source(world, entity);
         }
+        crate::structured_native::project(world, entity);
         publish_window(world, entity, reveal);
         if focused {
             sync_ime_preview(world, entity);
@@ -909,6 +915,10 @@ pub fn apply_editor(world: &mut World) {
 }
 
 fn edit_focused(world: &mut World, entity: crate::entity::Entity) {
+    if world.has::<crate::structured_native::StructuredBinding>(entity) {
+        crate::structured_native::edit_focused(world, entity);
+        return;
+    }
     if world.has::<crate::editing::SourceBinding>(entity) {
         edit_managed(world, entity);
         return;
@@ -1308,6 +1318,12 @@ pub(crate) fn replace_buffer(buffer: &mut Buffer, text: &str, caret: usize, anch
 }
 
 fn sync_ime_preview(world: &mut World, entity: crate::entity::Entity) {
+    if world.has::<crate::structured_native::StructuredBinding>(entity)
+        && !crate::structured_native::is_composing(world, entity)
+    {
+        world.remove::<crate::ImePreview>(entity);
+        return;
+    }
     if let Some(binding) = world.get::<crate::editing::SourceBinding>(entity) {
         let composing = world
             .resource::<crate::editing::SourceDocuments>()
