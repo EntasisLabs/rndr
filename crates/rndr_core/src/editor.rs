@@ -794,8 +794,42 @@ pub(crate) fn move_vertical(
             },
             |goal| goal.row,
         );
-        let next_row =
-            (row as isize + delta).clamp(0, layout.lines.len().saturating_sub(1) as isize) as usize;
+        let next_row = if crate::structured_chrome::has_tables(world, entity) {
+            let current_y = layout.lines[row].y;
+            let target_y = if delta.abs() > 1 {
+                layout.lines[(row as isize + delta)
+                    .clamp(0, layout.lines.len().saturating_sub(1) as isize)
+                    as usize]
+                    .y
+            } else {
+                current_y
+            };
+            layout
+                .lines
+                .iter()
+                .enumerate()
+                .filter(|(_, l)| {
+                    if delta < 0 {
+                        l.y < current_y - 0.01
+                    } else {
+                        l.y > current_y + 0.01
+                    }
+                })
+                .min_by(|(_, a), (_, b)| {
+                    let dy = |l: &crate::font::TextLine| (l.y - target_y).abs();
+                    let dx = |l: &crate::font::TextLine| {
+                        l.edges
+                            .iter()
+                            .map(|e| (e.1 - x).abs())
+                            .reduce(f32::min)
+                            .unwrap_or(f32::MAX)
+                    };
+                    dy(a).total_cmp(&dy(b)).then(dx(a).total_cmp(&dx(b)))
+                })
+                .map_or(row, |(i, _)| i)
+        } else {
+            (row as isize + delta).clamp(0, layout.lines.len().saturating_sub(1) as isize) as usize
+        };
         let next = if row == next_row {
             index
         } else {
@@ -816,12 +850,7 @@ pub(crate) fn move_vertical(
         let next_row = if row_contains(&layout, next_row, next) {
             next_row
         } else {
-            let (_, y) = layout.caret_xy(next);
-            layout
-                .lines
-                .iter()
-                .position(|line| line.y == y)
-                .unwrap_or(0)
+            document_row_at(&layout, next)
         };
         (next, x, next_row)
     };
@@ -1441,18 +1470,22 @@ fn place_from_pointer(world: &mut World, entity: crate::entity::Entity) -> bool 
     let mut first = layout
         .lines
         .iter()
-        .rposition(|line| line.y <= offset)
-        .unwrap_or(0);
+        .enumerate()
+        .filter(|(_, line)| line.y <= offset)
+        .max_by(|(_, a), (_, b)| a.y.total_cmp(&b.y))
+        .map_or(0, |(i, _)| i);
+    let grid = crate::structured_chrome::has_tables(world, entity);
+    let initial_first = first;
     let available = (rect.h - 2.0 * TEXT_ORIGIN_Y).max(1.0);
     let map = |position: [f32; 2], first: usize| {
         let x = position[0] - rect.x - TEXT_ORIGIN_X;
         let y = (position[1] - rect.y - TEXT_ORIGIN_Y).clamp(0.0, (available - 0.001).max(0.0))
-            + layout.lines[first].y;
-        let row = layout
-            .lines
-            .iter()
-            .position(|line| y < line.y + line.h.max(0.001))
-            .unwrap_or(layout.lines.len() - 1);
+            + if grid && first == initial_first {
+                offset
+            } else {
+                layout.lines[first].y
+            };
+        let row = layout.line_at_point(x, y);
         let index = floor_grapheme(&text, layout.index_at(x, y).min(text.len()));
         // Preserve B001's preferred-column contract: subsequent Up/Down
         // starts at the actual caret stop, not a distant off-text pointer x.
@@ -1492,7 +1525,22 @@ fn place_from_pointer(world: &mut World, entity: crate::entity::Entity) -> bool 
         let elapsed = now.saturating_sub(next_step);
         let due = 1 + elapsed.as_nanos() / DRAG_ROW_PERIOD.as_nanos();
         let steps = due.min(5) as usize;
-        first = if direction < 0 {
+        first = if grid {
+            let mut ys: Vec<_> = layout.lines.iter().map(|l| l.y).collect();
+            ys.sort_by(f32::total_cmp);
+            ys.dedup();
+            let current = ys.iter().rposition(|y| *y <= offset).unwrap_or(0);
+            let target = if direction < 0 {
+                current.saturating_sub(steps)
+            } else {
+                (current + steps).min(ys.len() - 1)
+            };
+            layout
+                .lines
+                .iter()
+                .position(|l| l.y == ys[target])
+                .unwrap_or(first)
+        } else if direction < 0 {
             first.saturating_sub(steps)
         } else {
             first.saturating_add(steps).min(layout.lines.len() - 1)
@@ -1506,7 +1554,11 @@ fn place_from_pointer(world: &mut World, entity: crate::entity::Entity) -> bool 
     let can_scroll =
         (direction < 0 && first > 0) || (direction > 0 && first + 1 < layout.lines.len());
     if let Some(editor) = world.get_mut::<Editor>(entity) {
-        editor.offset = layout.lines[first].y;
+        editor.offset = if grid && first == initial_first {
+            offset
+        } else {
+            layout.lines[first].y
+        };
     }
     let (index, row, x) = map(pointer.position, first);
     if let Some(buffer) = world.get_mut::<Buffer>(entity) {
@@ -1582,8 +1634,10 @@ pub(crate) fn scroll_editor_wheel(world: &mut World, entity: crate::Entity, delt
     let rows = &world.get::<DocumentRows>(entity).unwrap().layout.lines;
     let published = rows
         .iter()
-        .rfind(|row| row.y <= requested)
-        .map_or(0.0, |row| row.y);
+        .filter(|row| row.y <= requested)
+        .map(|row| row.y)
+        .reduce(f32::max)
+        .unwrap_or(0.0);
     world.get_mut::<Editor>(entity).unwrap().offset = published;
     world.insert(
         entity,
@@ -1607,8 +1661,8 @@ pub(crate) fn editor_scroll_metrics(world: &World, entity: crate::Entity) -> Opt
     let rows = world.get::<DocumentRows>(entity)?;
     let rect = world.get::<Rect>(entity)?;
     let page = (rect.h - 2.0 * TEXT_ORIGIN_Y).max(1.0);
-    let last = rows.layout.lines.last()?;
-    Some((last.y + page, page))
+    let maximum = rows.layout.lines.iter().map(|l| l.y).reduce(f32::max)?;
+    Some((maximum + page, page))
 }
 
 pub(crate) fn access_caret_row(
@@ -1623,12 +1677,7 @@ pub(crate) fn access_caret_row(
     {
         return goal.row;
     }
-    let (_, y) = layout.caret_xy(index);
-    layout
-        .lines
-        .iter()
-        .position(|line| line.y == y)
-        .unwrap_or(0)
+    document_row_at(layout, index)
 }
 
 pub(crate) fn reveal_access_selection(world: &mut World, entity: crate::Entity) {
@@ -1661,6 +1710,73 @@ fn document_row_at(layout: &crate::TextLayout, index: usize) -> usize {
     low.min(layout.lines.len().saturating_sub(1))
 }
 
+// Grid cells are source-ordered but not y-ordered. Keep their disposable text
+// whole and clip canonical geometry rather than slicing through a visual row.
+fn publish_grid_window(
+    world: &mut World,
+    entity: crate::Entity,
+    text: &str,
+    layout: &crate::TextLayout,
+    reveal: bool,
+) {
+    let height = world.get::<Rect>(entity).map_or(0.0, |r| r.h);
+    let available = (height - 2.0 * TEXT_ORIGIN_Y).max(1.0);
+    let Some(buffer) = world.get::<Buffer>(entity) else {
+        return;
+    };
+    let caret = buffer.caret.min(text.len());
+    let anchor = buffer.anchor.min(text.len());
+    let row = document_row_at(layout, caret);
+    let Some(line) = layout.lines.get(row) else {
+        return;
+    };
+    let maximum = layout.lines.iter().map(|l| l.y).fold(0.0, f32::max);
+    let mut offset = world.get::<Editor>(entity).map_or(0.0, |e| e.offset);
+    if !offset.is_finite() {
+        offset = 0.0;
+    }
+    if reveal {
+        if line.y < offset {
+            offset = line.y;
+        }
+        if line.y + line.h > offset + available {
+            offset = line.y + line.h - available;
+        }
+    }
+    offset = offset.clamp(0.0, maximum);
+    if let Some(editor) = world.get_mut::<Editor>(entity) {
+        editor.offset = offset;
+    }
+    world.insert(
+        entity,
+        EditorWindow {
+            base: 0,
+            end: text.len(),
+            hidden: vec![],
+        },
+    );
+    if let Some(label) = world.get_mut::<Label>(entity) {
+        label.text = text.into();
+    }
+    if height > 0.0 && line.y + line.h > offset && line.y < offset + available {
+        world.insert(entity, crate::CaretRow { index: caret, row });
+        world.insert(
+            entity,
+            Caret {
+                index: caret,
+                anchor,
+            },
+        );
+    } else {
+        world.remove::<Caret>(entity);
+        world.remove::<crate::CaretRow>(entity);
+    }
+}
+
+pub(crate) fn reveal_selection(world: &mut World, entity: crate::Entity) {
+    publish_window(world, entity, true);
+}
+
 fn publish_window(world: &mut World, entity: crate::entity::Entity, reveal: bool) {
     let height = world.get::<Rect>(entity).map(|rect| rect.h).unwrap_or(0.0);
     let Some(buffer) = world.get::<Buffer>(entity) else {
@@ -1668,6 +1784,10 @@ fn publish_window(world: &mut World, entity: crate::entity::Entity, reveal: bool
     };
     let text = buffer.snapshot();
     let layout = document_rows(world, entity, &text);
+    if crate::structured_chrome::has_tables(world, entity) {
+        publish_grid_window(world, entity, &text, &layout, reveal);
+        return;
+    }
     // Reflow/edit invalidation may have restored the source-byte scroll anchor.
     let offset = world
         .get::<Editor>(entity)

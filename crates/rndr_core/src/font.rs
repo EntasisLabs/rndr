@@ -624,15 +624,46 @@ impl TextLayout {
         if self.lines.is_empty() {
             return 0;
         }
-        let mut chosen = self.lines.len() - 1;
-        for (i, line) in self.lines.iter().enumerate() {
-            let h = if line.h > 0.0 { line.h } else { 0.001 };
-            if y < line.y + h {
-                chosen = i;
-                break;
-            }
-        }
-        self.index_on_line(chosen, x)
+        self.index_on_line(self.line_at_point(x, y), x)
+    }
+
+    /// Visual line nearest a point. Parallel table cells may share a y range;
+    /// choose by both axes, not the first source-ordered line at that height.
+    pub fn line_at_point(&self, x: f32, y: f32) -> usize {
+        self.lines
+            .iter()
+            .enumerate()
+            .min_by(|(_, a), (_, b)| {
+                let distance = |line: &TextLine| {
+                    let bottom = line.y + line.h.max(0.001);
+                    let dy = if y < line.y {
+                        line.y - y
+                    } else if y >= bottom {
+                        y - bottom + 0.001
+                    } else {
+                        0.0
+                    };
+                    let left = line
+                        .edges
+                        .iter()
+                        .map(|e| e.1)
+                        .reduce(f32::min)
+                        .unwrap_or(0.0);
+                    let right = line
+                        .edges
+                        .iter()
+                        .map(|e| e.1)
+                        .reduce(f32::max)
+                        .unwrap_or(left)
+                        .max(left + line.width);
+                    let dx = (left - x).max(0.0).max(x - right);
+                    (dy, dx)
+                };
+                let (ay, ax) = distance(a);
+                let (by, bx) = distance(b);
+                ay.total_cmp(&by).then(ax.total_cmp(&bx))
+            })
+            .map_or(0, |(i, _)| i)
     }
 
     /// Byte index on `line` nearest to pen `x`.
@@ -893,6 +924,7 @@ pub fn apply_text_layout(world: &mut World) {
         key ^= crate::text::style_key(&style);
         key ^= overflow_bits(overflow);
         key ^= crate::structured_chrome::layout_key(world, entity);
+        key ^= crate::structured_chrome::paint_offset_key(world, entity);
         if !preview.is_empty() {
             if let Some((start, end)) = cursor {
                 key ^= (start as u64)
@@ -929,6 +961,18 @@ pub fn apply_text_layout(world: &mut World) {
             ),
         )
         .unwrap_or_else(|| engine.layout(&text, &style, &spans, shape_width));
+        if crate::structured_chrome::has_tables(world, entity) {
+            let offset = world.get::<crate::Editor>(entity).map_or(0.0, |e| e.offset);
+            for glyph in &mut layout.glyphs {
+                glyph.y -= offset;
+            }
+            for line in &mut layout.lines {
+                line.y -= offset;
+            }
+            for highlight in &mut layout.highlights {
+                highlight.y -= offset;
+            }
+        }
         let epoch = engine.cache_epoch();
         if epoch != 0 {
             key ^= epoch.wrapping_mul(0x9E37_79B9_7F4A_7C15);

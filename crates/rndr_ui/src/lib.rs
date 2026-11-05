@@ -15,6 +15,7 @@ pub mod editing;
 pub mod selection;
 pub mod source_tools;
 pub mod structured;
+pub mod structured_embeds;
 pub mod style;
 pub mod surfaces;
 pub mod theme_bridge;
@@ -67,6 +68,9 @@ impl Plugin for UiPlugin {
         app.add_system(Schedule::Layout, selection::styles);
         app.add_system(Schedule::Layout, resolve_styles);
         app.add_system(Schedule::Layout, structured::prepare_projection);
+        app.add_system_front(Schedule::Input, structured_embeds::capture_exit);
+        app.add_system(Schedule::PostUpdate, structured_embeds::prepare_input);
+        app.add_system(Schedule::Layout, structured_embeds::reconcile);
         app.add_system(Schedule::Layout, data::measure_cells);
         app.add_system(Schedule::Layout, controls::resolve_toolbars);
     }

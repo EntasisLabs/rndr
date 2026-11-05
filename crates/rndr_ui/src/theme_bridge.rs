@@ -33,6 +33,23 @@ impl UiTheme {
             radius: 8.0,
         }
     }
+    /// Default document chrome tokens. High-contrast themes keep structural
+    /// boundaries strong; explicit per-editor overrides still win.
+    pub fn structured_chrome_style(&self) -> rndr_core::structured_chrome::StructuredChromeStyle {
+        use rndr_core::structured_chrome::StructuredChromeStyle;
+        StructuredChromeStyle {
+            border: Some(self.color(if self.contrast == Contrast::High {
+                Token::StrongStroke
+            } else {
+                Token::SubtleStroke
+            })),
+            surface: Some(self.color(Token::Canvas)),
+            header: Some(self.color(Token::ControlHover)),
+            muted: Some(self.color(Token::Secondary)),
+            accent: Some(self.color(Token::Focus)),
+            radius: Some(6.0),
+        }
+    }
     /// Map markdown accents as well as surfaces. Unlike the legacy default,
     /// links and code accents use the selected light/dark/high-contrast palette.
     pub fn markdown_theme(&self) -> MarkdownTheme {
@@ -55,7 +72,7 @@ impl UiTheme {
 }
 
 /// Explicitly replace this world's `UiTheme`, core `Theme`, `MarkdownTheme`,
-/// and default `TextStyle` (Reading role) in one host call. Call again whenever
+/// `StructuredChromeStyle` defaults and `TextStyle` (Reading role) in one call. Call again whenever
 /// changing the UI theme, before the next frame. There is no watcher, plugin,
 /// process-global setting, reverse dependency or implicit resource precedence.
 /// Installing `UiPlugin` alone does NOT install this bridge.
@@ -71,6 +88,7 @@ impl UiTheme {
 pub fn apply_theme_bridge(world: &mut World, theme: UiTheme) {
     world.insert_resource(theme.core_theme());
     world.insert_resource(theme.markdown_theme());
+    world.insert_resource(theme.structured_chrome_style());
     world.insert_resource(theme.typography(Typography::Reading));
     world.insert_resource(theme);
 }

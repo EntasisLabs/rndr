@@ -26,6 +26,8 @@ pub enum BlockKind {
     Heading(u8),
     /// A whole-node nontext boundary; text positions inside it are invalid.
     HorizontalRule,
+    /// Host-rendered whole-node boundary; inert metadata lives in attributes.
+    Atomic,
 }
 /// Stable identity of a structural container, independent of editable leaf IDs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -46,6 +48,15 @@ pub enum ListKind {
 /// Structural nodes own children through their validated parent identities.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ContainerKind {
+    /// Rectangular editable table containing only rows.
+    Table,
+    /// Table row containing only cells.
+    Row,
+    /// Editable cell; header semantics are explicit, not paint inferred.
+    Cell {
+        /// Whether this is a header cell.
+        header: bool,
+    },
     /// Quote containing leaves or further containers.
     Quote,
     /// List containing only item containers.
@@ -129,6 +140,89 @@ impl Block {
         self.len() == 0
     }
 }
+/// Permission-free atomic host payload. No network, URL resolution or child execution.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AtomicPayload {
+    /// Host extension name (for example `image`), nonempty ASCII identifier.
+    pub kind: String,
+    /// Human-readable clipboard/accessibility fallback, control-free, <=1024 bytes.
+    pub fallback: String,
+    /// Inert extension data; `atomic-kind` and `atomic-fallback` are reserved.
+    pub attributes: Attributes,
+}
+impl AtomicPayload {
+    fn encode(&self) -> Result<Attributes, StructuredError> {
+        if self.kind.is_empty()
+            || self.kind.len() > 64
+            || !self
+                .kind
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+            || self.attributes.contains_key("atomic-kind")
+            || self.attributes.contains_key("atomic-fallback")
+        {
+            return Err(StructuredError::InvalidSchema);
+        }
+        let mut a = self.attributes.clone();
+        a.insert("atomic-kind".into(), self.kind.clone());
+        a.insert("atomic-fallback".into(), self.fallback.clone());
+        valid_attributes(&a)?;
+        Ok(a)
+    }
+}
+impl Block {
+    /// Decode a validated inert host payload; non-atomic blocks return None.
+    pub fn atomic_payload(&self) -> Option<AtomicPayload> {
+        if self.kind != BlockKind::Atomic {
+            return None;
+        }
+        let mut attributes = self.attributes.clone();
+        let kind = attributes.remove("atomic-kind")?;
+        let fallback = attributes.remove("atomic-fallback")?;
+        Some(AtomicPayload {
+            kind,
+            fallback,
+            attributes,
+        })
+    }
+    /// Whether text/IME positions are forbidden within this whole-node boundary.
+    pub fn is_atomic(&self) -> bool {
+        matches!(self.kind, BlockKind::HorizontalRule | BlockKind::Atomic)
+    }
+    /// Plain clipboard/accessibility fallback without executable host semantics.
+    pub fn copy_fallback(&self) -> String {
+        self.atomic_payload()
+            .map_or_else(|| self.text(), |p| p.fallback)
+    }
+}
+/// A rectangular rich clipboard snapshot. IDs are values, never destination identity.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TableFragment {
+    /// Nonempty equal-width rows of rich cells.
+    pub rows: Vec<Vec<CellFragment>>,
+}
+/// Rich cell content retaining marks, nested structure and inert atom metadata.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CellFragment {
+    /// Header semantics of the copied cell.
+    pub header: bool,
+    /// Descendant leaves; direct cell children have parent None in this snapshot.
+    pub blocks: Vec<Block>,
+    /// Descendant containers, with direct cell children parented to None.
+    pub containers: Vec<Container>,
+}
+/// Canonical table membership and row-major coordinates.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CellAddress {
+    /// Stable containing table.
+    pub table: ContainerId,
+    /// Stable cell.
+    pub cell: ContainerId,
+    /// Zero-based row.
+    pub row: usize,
+    /// Zero-based column.
+    pub column: usize,
+}
 /// UTF-8 scalar-boundary byte offset local to one block.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Position {
@@ -154,10 +248,86 @@ pub enum StructuredSelection {
     Text(TextSelection),
     /// One whole block.
     Node(BlockId),
+    /// Directed rectangular cell selection; both endpoints belong to one table.
+    Cells {
+        /// Fixed cell identity.
+        anchor: ContainerId,
+        /// Moving cell identity.
+        head: ContainerId,
+    },
 }
 /// Operations are sequential, each in the candidate state produced by its predecessor.
 #[derive(Clone, Debug)]
 pub enum Operation {
+    /// Insert a rectangular table between the split caret leaves.
+    InsertTable {
+        /// Editable insertion position, outside another table.
+        at: Position,
+        /// Positive row count, at most 256.
+        rows: usize,
+        /// Positive column count, at most 64.
+        columns: usize,
+        /// Whether the first row consists of header cells.
+        header: bool,
+    },
+    /// Insert a row at index (including the trailing boundary).
+    InsertRow {
+        /// Stable table identity.
+        table: ContainerId,
+        /// Zero-based insertion index.
+        index: usize,
+    },
+    /// Delete a row; deleting the last row removes the table.
+    DeleteRow {
+        /// Stable table identity.
+        table: ContainerId,
+        /// Zero-based row index.
+        index: usize,
+    },
+    /// Insert a column at index (including the trailing boundary).
+    InsertColumn {
+        /// Stable table identity.
+        table: ContainerId,
+        /// Zero-based insertion index.
+        index: usize,
+    },
+    /// Delete a column; deleting the last column removes the table.
+    DeleteColumn {
+        /// Stable table identity.
+        table: ContainerId,
+        /// Zero-based column index.
+        index: usize,
+    },
+    /// Clear a selected cell rectangle and type plain text into its upper-left cell.
+    ReplaceCells {
+        /// Fixed rectangle endpoint.
+        anchor: ContainerId,
+        /// Moving rectangle endpoint.
+        head: ContainerId,
+        /// Plain text (newlines create paragraphs within the first cell).
+        text: String,
+    },
+    /// Replace a fitting rectangle of cells with a rich inert fragment.
+    PasteCells {
+        /// Upper-left destination cell.
+        at: ContainerId,
+        /// Value snapshot, remapped to fresh descendant identities on paste.
+        fragment: TableFragment,
+    },
+    /// Split at the caret and insert a selected nontext host boundary.
+    InsertAtomic {
+        /// Editable insertion position.
+        at: Position,
+        /// Permission-free host metadata, never executed by the model.
+        payload: AtomicPayload,
+    },
+    /// Commit host/nested state through ordinary parent transaction history.
+    UpdateAtomic {
+        /// Stable atomic block identity.
+        block: BlockId,
+        /// Complete replacement metadata.
+        payload: AtomicPayload,
+    },
     /// Wrap selected sibling leaves/subtrees in a quote or list (not a bare item).
     Wrap {
         /// Leaf range; all intersecting leaves are included.
@@ -288,6 +458,9 @@ pub struct StructuredDocument {
     state: State,
     next_block: u64,
     readonly: bool,
+    policy_epoch: u64,
+    atomic_lifetimes: std::collections::HashMap<BlockId, u64>,
+    next_atomic_lifetime: u64,
     undo: Vec<History>,
     redo: Vec<History>,
     group: Option<u64>,
@@ -330,6 +503,9 @@ impl StructuredDocument {
                 selection: StructuredSelection::Text(TextSelection { anchor: p, head: p }),
             },
             readonly: false,
+            policy_epoch: 0,
+            atomic_lifetimes: Default::default(),
+            next_atomic_lifetime: 1,
             undo: vec![],
             redo: vec![],
             group: None,
@@ -418,9 +594,36 @@ impl StructuredDocument {
     }
     /// Set readonly; enabling it also cancels any transient composition capture.
     pub fn set_readonly(&mut self, value: bool) {
+        if self.readonly != value {
+            self.policy_epoch += 1;
+        }
         self.readonly = value;
         if value {
             self.cancel_composition();
+        }
+    }
+    /// Monotonic policy/composition fence, outside document history.
+    pub fn policy_epoch(&self) -> u64 {
+        self.policy_epoch
+    }
+    /// Live retained incarnation of an atomic block. Undo restores model identity,
+    /// never the previous retained child or its asynchronous callbacks.
+    pub fn atomic_lifetime(&self, block: BlockId) -> Option<u64> {
+        self.atomic_lifetimes.get(&block).copied()
+    }
+    fn refresh_atomic_lifetimes(&mut self) {
+        self.atomic_lifetimes.retain(|id, _| {
+            self.state
+                .blocks
+                .iter()
+                .any(|b| b.id == *id && b.kind == BlockKind::Atomic)
+        });
+        for block in &self.state.blocks {
+            if block.kind == BlockKind::Atomic && !self.atomic_lifetimes.contains_key(&block.id) {
+                let next = self.next_atomic_lifetime;
+                self.next_atomic_lifetime = next.checked_add(1).expect("atomic lifetime exhausted");
+                self.atomic_lifetimes.insert(block.id, next);
+            }
         }
     }
     /// Whether a view has captured the composition mutation boundary.
@@ -488,6 +691,7 @@ impl StructuredDocument {
             });
         }
         self.state = candidate;
+        self.refresh_atomic_lifetimes();
         self.next_block = next;
         self.revision.0 += 1;
         self.redo.clear();
@@ -559,6 +763,7 @@ impl StructuredDocument {
     fn command_block(&self) -> Result<BlockId, StructuredError> {
         Ok(match self.selection() {
             StructuredSelection::Node(id) => id,
+            StructuredSelection::Cells { .. } => return Err(StructuredError::InvalidPosition),
             StructuredSelection::Text(r) => r.head.block,
         })
     }
@@ -568,7 +773,16 @@ impl StructuredDocument {
             .text_selection()
             .ok_or(StructuredError::InvalidPosition)?;
         let b = &self.state.blocks[block_index(&self.state, r.head.block)?];
-        if r.anchor == r.head && b.is_empty() && b.parent.is_some() {
+        if r.anchor == r.head
+            && b.is_empty()
+            && b.parent.is_some()
+            && !matches!(
+                b.parent
+                    .and_then(|p| container(&self.state, p).ok())
+                    .map(|c| c.kind),
+                Some(ContainerKind::Cell { .. })
+            )
+        {
             return self.outdent(origin);
         }
         self.command(
@@ -590,13 +804,21 @@ impl StructuredDocument {
         }
         let (i, o) = local(&self.state, r.head)?;
         if o == 0 {
-            if self.state.blocks[i].parent.is_some() {
+            if self.state.blocks[i].parent.is_some()
+                && !matches!(
+                    self.state.blocks[i]
+                        .parent
+                        .and_then(|p| container(&self.state, p).ok())
+                        .map(|c| c.kind),
+                    Some(ContainerKind::Cell { .. })
+                )
+            {
                 return self.outdent(origin);
             }
             if i == 0 {
                 return self.command(vec![], origin);
             }
-            if self.state.blocks[i - 1].kind == BlockKind::HorizontalRule {
+            if self.state.blocks[i - 1].is_atomic() {
                 if self.readonly {
                     return Err(StructuredError::Readonly);
                 }
@@ -644,7 +866,7 @@ impl StructuredDocument {
             if i + 1 == self.state.blocks.len() {
                 return self.command(vec![], origin);
             }
-            if self.state.blocks[i + 1].kind == BlockKind::HorizontalRule {
+            if self.state.blocks[i + 1].is_atomic() {
                 if self.readonly {
                     return Err(StructuredError::Readonly);
                 }
@@ -682,15 +904,17 @@ impl StructuredDocument {
         origin: EditOrigin,
     ) -> Result<bool, StructuredError> {
         let operations = match self.selection() {
+            StructuredSelection::Cells { anchor, head } => vec![Operation::ReplaceCells {
+                anchor,
+                head,
+                text: text.into(),
+            }],
             StructuredSelection::Text(range) => vec![Operation::Replace {
                 range,
                 text: text.into(),
             }],
             StructuredSelection::Node(block)
-                if self
-                    .blocks()
-                    .iter()
-                    .any(|b| b.id == block && b.kind == BlockKind::HorizontalRule) =>
+                if self.blocks().iter().any(|b| b.id == block && b.is_atomic()) =>
             {
                 // Whole HR replacement removes the node, then inserts into repaired caret.
                 if self.readonly {
@@ -765,6 +989,7 @@ impl StructuredDocument {
         origin: EditOrigin,
     ) -> Result<bool, StructuredError> {
         let ids = match self.selection() {
+            StructuredSelection::Cells { .. } => return Err(StructuredError::InvalidPosition),
             StructuredSelection::Node(id) => vec![id],
             StructuredSelection::Text(s) => {
                 let (a, b) = ordered(&self.state, s)?;
@@ -806,6 +1031,7 @@ impl StructuredDocument {
         } else {
             h.before.clone()
         };
+        self.refresh_atomic_lifetimes();
         self.revision.0 += 1;
         self.group = None;
         if redo {
@@ -826,6 +1052,7 @@ impl StructuredDocument {
         let range = self
             .text_selection()
             .ok_or(StructuredError::InvalidPosition)?;
+        self.policy_epoch += 1;
         self.composition = Some(Composition {
             base: self.revision,
             range,
@@ -835,6 +1062,9 @@ impl StructuredDocument {
     }
     /// Release composition capture without changing tree, revision or history.
     pub fn cancel_composition(&mut self) {
+        if self.composition.is_some() {
+            self.policy_epoch += 1;
+        }
         self.composition = None;
         self.group = None;
     }
@@ -862,6 +1092,585 @@ impl StructuredDocument {
         result
     }
 }
+// Table order always derives from descendant leaf order, never creation/ID order.
+fn children(s: &State, parent: ContainerId) -> Result<Vec<ContainerId>, StructuredError> {
+    let mut children = s
+        .containers
+        .iter()
+        .filter(|c| c.parent == Some(parent))
+        .map(|c| Ok((subtree_bounds(s, c.id)?.0, c.id)))
+        .collect::<Result<Vec<_>, StructuredError>>()?;
+    children.sort_by_key(|c| c.0);
+    Ok(children.into_iter().map(|c| c.1).collect())
+}
+fn table_grid(s: &State, table: ContainerId) -> Result<Vec<Vec<ContainerId>>, StructuredError> {
+    if container(s, table)?.kind != ContainerKind::Table {
+        return Err(StructuredError::InvalidSchema);
+    }
+    children(s, table)?
+        .into_iter()
+        .map(|r| children(s, r))
+        .collect()
+}
+fn cell_for(s: &State, block: BlockId) -> Result<Option<ContainerId>, StructuredError> {
+    let mut parent = s.blocks[block_index(s, block)?].parent;
+    for _ in 0..=s.containers.len() {
+        let Some(p) = parent else {
+            return Ok(None);
+        };
+        let c = container(s, p)?;
+        if matches!(c.kind, ContainerKind::Cell { .. }) {
+            return Ok(Some(p));
+        }
+        parent = c.parent;
+    }
+    Err(StructuredError::InvalidSchema)
+}
+fn address(s: &State, cell: ContainerId) -> Result<CellAddress, StructuredError> {
+    if !matches!(container(s, cell)?.kind, ContainerKind::Cell { .. }) {
+        return Err(StructuredError::InvalidPosition);
+    }
+    let row = container(s, cell)?
+        .parent
+        .ok_or(StructuredError::InvalidSchema)?;
+    let table = container(s, row)?
+        .parent
+        .ok_or(StructuredError::InvalidSchema)?;
+    for (r, cells) in table_grid(s, table)?.iter().enumerate() {
+        if let Some(column) = cells.iter().position(|c| *c == cell) {
+            return Ok(CellAddress {
+                table,
+                cell,
+                row: r,
+                column,
+            });
+        }
+    }
+    Err(StructuredError::InvalidSchema)
+}
+type CellRectangle = (ContainerId, usize, usize, usize, usize);
+fn cell_rectangle(
+    s: &State,
+    anchor: ContainerId,
+    head: ContainerId,
+) -> Result<CellRectangle, StructuredError> {
+    let a = address(s, anchor)?;
+    let h = address(s, head)?;
+    if a.table != h.table {
+        return Err(StructuredError::InvalidPosition);
+    }
+    Ok((
+        a.table,
+        a.row.min(h.row),
+        a.column.min(h.column),
+        a.row.max(h.row),
+        a.column.max(h.column),
+    ))
+}
+fn validate_tables(s: &State) -> Result<(), StructuredError> {
+    for c in &s.containers {
+        let parent = c
+            .parent
+            .map(|p| container(s, p).map(|p| p.kind))
+            .transpose()?;
+        match c.kind {
+            ContainerKind::Row if parent != Some(ContainerKind::Table) => {
+                return Err(StructuredError::InvalidSchema)
+            }
+            ContainerKind::Cell { .. } if parent != Some(ContainerKind::Row) => {
+                return Err(StructuredError::InvalidSchema)
+            }
+            ContainerKind::Table => {
+                // Nested tables are deliberately excluded in this schema slice.
+                let mut p = c.parent;
+                while let Some(id) = p {
+                    let ancestor = container(s, id)?;
+                    if matches!(
+                        ancestor.kind,
+                        ContainerKind::Table | ContainerKind::Cell { .. } | ContainerKind::Row
+                    ) {
+                        return Err(StructuredError::InvalidSchema);
+                    }
+                    p = ancestor.parent;
+                }
+                let grid = table_grid(s, c.id)?;
+                if grid.is_empty()
+                    || grid.len() > 256
+                    || grid[0].is_empty()
+                    || grid[0].len() > 64
+                    || grid.iter().any(|r| r.len() != grid[0].len())
+                {
+                    return Err(StructuredError::InvalidSchema);
+                }
+            }
+            _ => {}
+        }
+        if (parent == Some(ContainerKind::Table) && c.kind != ContainerKind::Row)
+            || (parent == Some(ContainerKind::Row) && !matches!(c.kind, ContainerKind::Cell { .. }))
+        {
+            return Err(StructuredError::InvalidSchema);
+        }
+        if matches!(c.kind, ContainerKind::Cell { .. })
+            && !s.blocks.iter().any(|b| descends(s, b.parent, c.id))
+        {
+            return Err(StructuredError::InvalidSchema);
+        }
+    }
+    for b in &s.blocks {
+        if let Some(p) = b.parent {
+            if matches!(
+                container(s, p)?.kind,
+                ContainerKind::Table | ContainerKind::Row
+            ) {
+                return Err(StructuredError::InvalidSchema);
+            }
+        }
+    }
+    Ok(())
+}
+fn empty_leaf(next: &mut u64, parent: Option<ContainerId>) -> Block {
+    Block {
+        id: fresh(next),
+        kind: BlockKind::Paragraph,
+        parent,
+        attributes: Attributes::new(),
+        runs: vec![],
+    }
+}
+fn select_cell(s: &mut State, cell: ContainerId) -> Result<(), StructuredError> {
+    let b = s
+        .blocks
+        .iter()
+        .find(|b| descends(s, b.parent, cell))
+        .ok_or(StructuredError::InvalidSchema)?;
+    s.selection = if b.is_atomic() {
+        StructuredSelection::Node(b.id)
+    } else {
+        let p = Position {
+            block: b.id,
+            offset: 0,
+            affinity: Affinity::After,
+        };
+        StructuredSelection::Text(TextSelection { anchor: p, head: p })
+    };
+    Ok(())
+}
+fn insert_table(
+    s: &mut State,
+    next: &mut u64,
+    at: Position,
+    rows: usize,
+    columns: usize,
+    header: bool,
+) -> Result<(), StructuredError> {
+    if rows == 0 || rows > 256 || columns == 0 || columns > 64 || cell_for(s, at.block)?.is_some() {
+        return Err(StructuredError::InvalidSchema);
+    }
+    apply_operation(s, next, Operation::Split { at })?;
+    let i = block_index(s, at.block)?;
+    let table = fresh_container(s, next, s.blocks[i].parent, ContainerKind::Table);
+    let mut leaves = vec![];
+    let mut first = None;
+    for r in 0..rows {
+        let row = fresh_container(s, next, Some(table), ContainerKind::Row);
+        for _ in 0..columns {
+            let cell = fresh_container(
+                s,
+                next,
+                Some(row),
+                ContainerKind::Cell {
+                    header: header && r == 0,
+                },
+            );
+            first.get_or_insert(cell);
+            leaves.push(empty_leaf(next, Some(cell)));
+        }
+    }
+    s.blocks.splice(i + 1..i + 1, leaves);
+    select_cell(s, first.unwrap())
+}
+fn repair_table_selection(
+    s: &mut State,
+    next: &mut u64,
+    near: usize,
+) -> Result<(), StructuredError> {
+    if validate_selection(s, s.selection).is_ok() {
+        return Ok(());
+    }
+    if !s.blocks.iter().any(|b| !b.is_atomic()) {
+        s.blocks.push(empty_leaf(next, None));
+    }
+    let b = s
+        .blocks
+        .iter()
+        .skip(near)
+        .find(|b| !b.is_atomic())
+        .or_else(|| s.blocks.iter().take(near).rev().find(|b| !b.is_atomic()))
+        .ok_or(StructuredError::InvalidSchema)?;
+    let p = Position {
+        block: b.id,
+        offset: 0,
+        affinity: Affinity::After,
+    };
+    s.selection = StructuredSelection::Text(TextSelection { anchor: p, head: p });
+    Ok(())
+}
+fn remove_subtrees(s: &mut State, ids: &[ContainerId]) {
+    let leaves: std::collections::HashSet<_> = s
+        .blocks
+        .iter()
+        .filter(|b| ids.iter().any(|id| descends(s, b.parent, *id)))
+        .map(|b| b.id)
+        .collect();
+    let containers: std::collections::HashSet<_> = s
+        .containers
+        .iter()
+        .filter(|c| ids.contains(&c.id) || ids.iter().any(|id| descends(s, c.parent, *id)))
+        .map(|c| c.id)
+        .collect();
+    s.blocks.retain(|b| !leaves.contains(&b.id));
+    s.containers.retain(|c| !containers.contains(&c.id));
+}
+fn edit_table(
+    s: &mut State,
+    next: &mut u64,
+    table: ContainerId,
+    index: usize,
+    row_axis: bool,
+    insert: bool,
+) -> Result<(), StructuredError> {
+    let grid = table_grid(s, table)?;
+    let rows = children(s, table)?;
+    let height = grid.len();
+    let width = grid.first().ok_or(StructuredError::InvalidSchema)?.len();
+    let count = if row_axis { height } else { width };
+    if index > count
+        || (!insert && index == count)
+        || (insert && count >= if row_axis { 256 } else { 64 })
+    {
+        return Err(StructuredError::InvalidPosition);
+    }
+    let near = subtree_bounds(s, table)?.0;
+    let rectangle = match s.selection {
+        StructuredSelection::Cells { anchor, head } => {
+            Some((address(s, anchor)?, address(s, head)?))
+        }
+        _ => None,
+    };
+    if !insert {
+        if count == 1 {
+            remove_subtrees(s, &[table]);
+        } else if row_axis {
+            remove_subtrees(s, &[rows[index]]);
+        } else {
+            remove_subtrees(s, &grid.iter().map(|r| r[index]).collect::<Vec<_>>());
+        }
+        if count > 1 {
+            if let Some((a, h)) = rectangle.filter(|(a, h)| a.table == table && h.table == table) {
+                let remaining = table_grid(s, table)?;
+                let repair = |a: CellAddress| {
+                    if container(s, a.cell).is_ok() {
+                        a.cell
+                    } else {
+                        remaining[a.row.min(remaining.len() - 1)]
+                            [a.column.min(remaining[0].len() - 1)]
+                    }
+                };
+                s.selection = StructuredSelection::Cells {
+                    anchor: repair(a),
+                    head: repair(h),
+                };
+            }
+        }
+        repair_table_selection(s, next, near)?;
+    } else if row_axis {
+        let position = if index == height {
+            subtree_bounds(s, table)?.1 + 1
+        } else {
+            subtree_bounds(s, rows[index])?.0
+        };
+        let row = fresh_container(s, next, Some(table), ContainerKind::Row);
+        let mut leaves = vec![];
+        for _ in 0..width {
+            let cell = fresh_container(s, next, Some(row), ContainerKind::Cell { header: false });
+            leaves.push(empty_leaf(next, Some(cell)));
+        }
+        s.blocks.splice(position..position, leaves);
+    } else {
+        for r in (0..height).rev() {
+            let position = if index == width {
+                subtree_bounds(s, rows[r])?.1 + 1
+            } else {
+                subtree_bounds(s, grid[r][index])?.0
+            };
+            let header = matches!(
+                container(s, grid[r][index.min(width - 1)])?.kind,
+                ContainerKind::Cell { header: true }
+            );
+            let cell = fresh_container(s, next, Some(rows[r]), ContainerKind::Cell { header });
+            let leaf = empty_leaf(next, Some(cell));
+            s.blocks.insert(position, leaf);
+        }
+    }
+    Ok(())
+}
+fn paste_cells(
+    s: &mut State,
+    next: &mut u64,
+    at: ContainerId,
+    fragment: TableFragment,
+) -> Result<(), StructuredError> {
+    let a = address(s, at)?;
+    let grid = table_grid(s, a.table)?;
+    let height = fragment.rows.len();
+    let width = fragment.rows.first().map_or(0, Vec::len);
+    if height == 0
+        || width == 0
+        || fragment.rows.iter().any(|r| r.len() != width)
+        || a.row + height > grid.len()
+        || a.column + width > grid[0].len()
+    {
+        return Err(StructuredError::InvalidSchema);
+    }
+    // Validate source cells in isolation before allocating any published identities.
+    for row in &fragment.rows {
+        for cell in row {
+            if cell.blocks.is_empty() {
+                return Err(StructuredError::InvalidSchema);
+            }
+            let mut source = State {
+                blocks: cell.blocks.clone(),
+                containers: cell.containers.clone(),
+                selection: StructuredSelection::Node(cell.blocks[0].id),
+            };
+            normalize(&mut source)?;
+            if source.containers.len() != cell.containers.len()
+                || source.containers.iter().any(|c| {
+                    matches!(
+                        c.kind,
+                        ContainerKind::Table | ContainerKind::Row | ContainerKind::Cell { .. }
+                    )
+                })
+            {
+                return Err(StructuredError::InvalidSchema);
+            }
+        }
+    }
+    for (r, row) in fragment.rows.into_iter().enumerate().rev() {
+        for (c, cell) in row.into_iter().enumerate().rev() {
+            let destination = grid[a.row + r][a.column + c];
+            let (start, end) = subtree_bounds(s, destination)?;
+            let old_containers: std::collections::HashSet<_> = s
+                .containers
+                .iter()
+                .filter(|c| descends(s, c.parent, destination))
+                .map(|c| c.id)
+                .collect();
+            s.containers.retain(|c| !old_containers.contains(&c.id));
+            let map: std::collections::HashMap<_, _> = cell
+                .containers
+                .iter()
+                .map(|c| (c.id, ContainerId(fresh(next).0)))
+                .collect();
+            let remap = |p: Option<ContainerId>| -> Result<Option<ContainerId>, StructuredError> {
+                Ok(Some(match p {
+                    Some(id) => *map.get(&id).ok_or(StructuredError::InvalidSchema)?,
+                    None => destination,
+                }))
+            };
+            for c in cell.containers {
+                s.containers.push(Container {
+                    id: map[&c.id],
+                    parent: remap(c.parent)?,
+                    kind: c.kind,
+                });
+            }
+            let mut blocks = vec![];
+            for b in cell.blocks {
+                blocks.push(Block {
+                    id: fresh(next),
+                    parent: remap(b.parent)?,
+                    ..b
+                });
+            }
+            s.blocks.splice(start..=end, blocks);
+            container_mut(s, destination)?.kind = ContainerKind::Cell {
+                header: cell.header,
+            };
+        }
+    }
+    s.selection = StructuredSelection::Cells {
+        anchor: at,
+        head: grid[a.row + height - 1][a.column + width - 1],
+    };
+    Ok(())
+}
+impl StructuredDocument {
+    /// Return the nearest table cell membership of an existing block.
+    pub fn cell_address(&self, block: BlockId) -> Result<Option<CellAddress>, StructuredError> {
+        cell_for(&self.state, block)?
+            .map(|c| address(&self.state, c))
+            .transpose()
+    }
+    /// Stable cell identities in row-major rectangular order.
+    pub fn table_cells(
+        &self,
+        table: ContainerId,
+    ) -> Result<Vec<Vec<ContainerId>>, StructuredError> {
+        table_grid(&self.state, table)
+    }
+    /// First leaf in a cell, suitable for native caret or whole-atom selection.
+    pub fn cell_first_block(&self, cell: ContainerId) -> Result<BlockId, StructuredError> {
+        address(&self.state, cell)?;
+        Ok(self.state.blocks[subtree_bounds(&self.state, cell)?.0].id)
+    }
+    /// Tab/Shift-Tab within a table; returns false at its edges for host focus escape.
+    /// Selection navigation does not mutate history, revision or readonly content.
+    pub fn navigate_cell(&mut self, backward: bool) -> Result<bool, StructuredError> {
+        if self.is_composing() {
+            return Err(StructuredError::CompositionActive);
+        }
+        let cell = match self.selection() {
+            StructuredSelection::Cells { head, .. } => Some(head),
+            StructuredSelection::Node(b) => cell_for(&self.state, b)?,
+            StructuredSelection::Text(r) => cell_for(&self.state, r.head.block)?,
+        };
+        let Some(cell) = cell else {
+            return Ok(false);
+        };
+        let a = address(&self.state, cell)?;
+        let cells: Vec<_> = table_grid(&self.state, a.table)?
+            .into_iter()
+            .flatten()
+            .collect();
+        let index = cells.iter().position(|c| *c == cell).unwrap();
+        let next = if backward {
+            index.checked_sub(1)
+        } else {
+            (index + 1 < cells.len()).then_some(index + 1)
+        };
+        let Some(next) = next else {
+            return Ok(false);
+        };
+        select_cell(&mut self.state, cells[next])?;
+        self.group = None;
+        Ok(true)
+    }
+    /// Copy a rectangular cell selection as a rich value snapshot.
+    pub fn copy_cells(
+        &self,
+        selection: StructuredSelection,
+    ) -> Result<TableFragment, StructuredError> {
+        let StructuredSelection::Cells { anchor, head } = selection else {
+            return Err(StructuredError::InvalidPosition);
+        };
+        let (table, top, left, bottom, right) = cell_rectangle(&self.state, anchor, head)?;
+        let grid = table_grid(&self.state, table)?;
+        let mut rows = vec![];
+        for row in grid.iter().take(bottom + 1).skip(top) {
+            let mut cells = vec![];
+            for &cell in row.iter().take(right + 1).skip(left) {
+                let ContainerKind::Cell { header } = container(&self.state, cell)?.kind else {
+                    unreachable!()
+                };
+                let (start, end) = subtree_bounds(&self.state, cell)?;
+                let mut blocks = self.state.blocks[start..=end].to_vec();
+                let mut containers: Vec<_> = self
+                    .state
+                    .containers
+                    .iter()
+                    .filter(|c| descends(&self.state, c.parent, cell))
+                    .cloned()
+                    .collect();
+                for b in &mut blocks {
+                    if b.parent == Some(cell) {
+                        b.parent = None;
+                    }
+                }
+                for c in &mut containers {
+                    if c.parent == Some(cell) {
+                        c.parent = None;
+                    }
+                }
+                cells.push(CellFragment {
+                    header,
+                    blocks,
+                    containers,
+                });
+            }
+            rows.push(cells);
+        }
+        Ok(TableFragment { rows })
+    }
+    /// Plain TSV clipboard fallback for a rectangular selection; atoms use their fallback.
+    pub fn cells_plain_text(
+        &self,
+        selection: StructuredSelection,
+    ) -> Result<String, StructuredError> {
+        Ok(self
+            .copy_cells(selection)?
+            .rows
+            .iter()
+            .map(|row| {
+                row.iter()
+                    .map(|cell| {
+                        cell.blocks
+                            .iter()
+                            .map(Block::copy_fallback)
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\t")
+            })
+            .collect::<Vec<_>>()
+            .join("\n"))
+    }
+    /// Insert a table at the active collapsed text caret.
+    pub fn insert_table(
+        &mut self,
+        rows: usize,
+        columns: usize,
+        header: bool,
+        origin: EditOrigin,
+    ) -> Result<bool, StructuredError> {
+        let range = self
+            .text_selection()
+            .ok_or(StructuredError::InvalidPosition)?;
+        if range.anchor.block != range.head.block || range.anchor.offset != range.head.offset {
+            return Err(StructuredError::InvalidPosition);
+        }
+        self.command(
+            vec![Operation::InsertTable {
+                at: range.head,
+                rows,
+                columns,
+                header,
+            }],
+            origin,
+        )
+    }
+    /// Insert an inert host boundary at the active collapsed text caret.
+    pub fn insert_atomic(
+        &mut self,
+        payload: AtomicPayload,
+        origin: EditOrigin,
+    ) -> Result<bool, StructuredError> {
+        let range = self
+            .text_selection()
+            .ok_or(StructuredError::InvalidPosition)?;
+        if range.anchor.block != range.head.block || range.anchor.offset != range.head.offset {
+            return Err(StructuredError::InvalidPosition);
+        }
+        self.command(
+            vec![Operation::InsertAtomic {
+                at: range.head,
+                payload,
+            }],
+            origin,
+        )
+    }
+}
 // Plain native/host input has canonical structural line endings. This is not a codec.
 pub(crate) fn normalize_plain_input(text: &str) -> String {
     text.replace("\r\n", "\n").replace('\r', "\n")
@@ -874,7 +1683,7 @@ fn block_index(s: &State, id: BlockId) -> Result<usize, StructuredError> {
 }
 fn local(s: &State, p: Position) -> Result<(usize, usize), StructuredError> {
     let i = block_index(s, p.block)?;
-    if s.blocks[i].kind == BlockKind::HorizontalRule {
+    if s.blocks[i].is_atomic() {
         return Err(StructuredError::InvalidPosition);
     }
     let t = s.blocks[i].text();
@@ -887,7 +1696,13 @@ type LocalPosition = (usize, usize);
 fn ordered(s: &State, r: TextSelection) -> Result<(LocalPosition, LocalPosition), StructuredError> {
     let a = local(s, r.anchor)?;
     let b = local(s, r.head)?;
-    Ok(if a <= b { (a, b) } else { (b, a) })
+    let (a, b) = if a <= b { (a, b) } else { (b, a) };
+    if cell_for(s, s.blocks[a.0].id)? != cell_for(s, s.blocks[b.0].id)?
+        || s.blocks[a.0..=b.0].iter().any(Block::is_atomic)
+    {
+        return Err(StructuredError::InvalidPosition);
+    }
+    Ok((a, b))
 }
 fn offset(s: &State, p: Position) -> Result<usize, StructuredError> {
     let (i, o) = local(s, p)?;
@@ -895,7 +1710,7 @@ fn offset(s: &State, p: Position) -> Result<usize, StructuredError> {
 }
 fn position_at(s: &State, mut n: usize, affinity: Affinity) -> Result<Position, StructuredError> {
     for b in &s.blocks {
-        if b.kind == BlockKind::HorizontalRule && n == 0 {
+        if b.is_atomic() && n == 0 {
             return Err(StructuredError::InvalidPosition);
         }
         if n <= b.len() {
@@ -919,6 +1734,9 @@ fn validate_selection(s: &State, selection: StructuredSelection) -> Result<(), S
         }
         StructuredSelection::Node(id) => {
             block_index(s, id)?;
+        }
+        StructuredSelection::Cells { anchor, head } => {
+            cell_rectangle(s, anchor, head)?;
         }
     }
     Ok(())
@@ -1067,6 +1885,7 @@ fn normalize(s: &mut State) -> Result<(), StructuredError> {
             }
         }
     }
+    validate_tables(s)?;
     let mut block_ids = std::collections::HashSet::new();
     for b in &s.blocks {
         if !block_ids.insert(b.id) {
@@ -1109,7 +1928,12 @@ fn normalize(s: &mut State) -> Result<(), StructuredError> {
     }
     for b in &mut s.blocks {
         valid_attributes(&b.attributes)?;
-        if b.kind == BlockKind::HorizontalRule && !b.runs.is_empty() {
+        if b.kind == BlockKind::Atomic {
+            b.atomic_payload()
+                .ok_or(StructuredError::InvalidSchema)?
+                .encode()?;
+        }
+        if b.is_atomic() && !b.runs.is_empty() {
             return Err(StructuredError::InvalidSchema);
         }
         if matches!(b.kind,BlockKind::Heading(n) if !(1..=6).contains(&n)) {
@@ -1363,6 +2187,88 @@ fn outdent(s: &mut State, next: &mut u64, block: BlockId) -> Result<(), Structur
 }
 fn apply_operation(s: &mut State, next: &mut u64, op: Operation) -> Result<(), StructuredError> {
     match op {
+        Operation::InsertTable {
+            at,
+            rows,
+            columns,
+            header,
+        } => insert_table(s, next, at, rows, columns, header)?,
+        Operation::InsertRow { table, index } => edit_table(s, next, table, index, true, true)?,
+        Operation::DeleteRow { table, index } => edit_table(s, next, table, index, true, false)?,
+        Operation::InsertColumn { table, index } => edit_table(s, next, table, index, false, true)?,
+        Operation::DeleteColumn { table, index } => {
+            edit_table(s, next, table, index, false, false)?
+        }
+        Operation::ReplaceCells { anchor, head, text } => {
+            let (table, top, left, bottom, right) = cell_rectangle(s, anchor, head)?;
+            let grid = table_grid(s, table)?;
+            let mut rows = vec![];
+            for (r, row) in grid.iter().enumerate().take(bottom + 1).skip(top) {
+                let mut cells = vec![];
+                for (c, &cell) in row.iter().enumerate().take(right + 1).skip(left) {
+                    let ContainerKind::Cell { header } = container(s, cell)?.kind else {
+                        unreachable!()
+                    };
+                    let plain = if r == top && c == left {
+                        normalize_plain_input(&text)
+                    } else {
+                        String::new()
+                    };
+                    let blocks = plain
+                        .split('\n')
+                        .enumerate()
+                        .map(|(i, text)| Block {
+                            id: BlockId(i as u64 + 1),
+                            parent: None,
+                            attributes: Attributes::new(),
+                            kind: BlockKind::Paragraph,
+                            runs: if text.is_empty() {
+                                vec![]
+                            } else {
+                                vec![Run {
+                                    text: text.into(),
+                                    marks: Marks::default(),
+                                }]
+                            },
+                        })
+                        .collect();
+                    cells.push(CellFragment {
+                        header,
+                        blocks,
+                        containers: vec![],
+                    });
+                }
+                rows.push(cells);
+            }
+            let first = grid[top][left];
+            paste_cells(s, next, first, TableFragment { rows })?;
+            let (_, end) = subtree_bounds(s, first)?;
+            let b = &s.blocks[end];
+            let p = Position {
+                block: b.id,
+                offset: b.len(),
+                affinity: Affinity::After,
+            };
+            s.selection = StructuredSelection::Text(TextSelection { anchor: p, head: p });
+        }
+        Operation::PasteCells { at, fragment } => paste_cells(s, next, at, fragment)?,
+        Operation::InsertAtomic { at, payload } => {
+            let attributes = payload.encode()?;
+            apply_operation(s, next, Operation::InsertHorizontalRule { at })?;
+            let StructuredSelection::Node(id) = s.selection else {
+                unreachable!()
+            };
+            let i = block_index(s, id)?;
+            s.blocks[i].kind = BlockKind::Atomic;
+            s.blocks[i].attributes = attributes;
+        }
+        Operation::UpdateAtomic { block, payload } => {
+            let i = block_index(s, block)?;
+            if s.blocks[i].kind != BlockKind::Atomic {
+                return Err(StructuredError::InvalidSchema);
+            }
+            s.blocks[i].attributes = payload.encode()?;
+        }
         Operation::Wrap { range, kind } => wrap(s, next, range, kind)?,
         Operation::Indent { block } => indent(s, next, block)?,
         Operation::Outdent { block } => outdent(s, next, block)?,
@@ -1402,7 +2308,9 @@ fn apply_operation(s: &mut State, next: &mut u64, op: Operation) -> Result<(), S
         }
         Operation::SetBlockKind { block, kind } => {
             let i = block_index(s, block)?;
-            if kind == BlockKind::HorizontalRule {
+            if matches!(kind, BlockKind::HorizontalRule | BlockKind::Atomic)
+                || s.blocks[i].is_atomic()
+            {
                 return Err(StructuredError::InvalidSchema);
             }
             s.blocks[i].kind = kind;
@@ -1596,8 +2504,14 @@ fn apply_operation(s: &mut State, next: &mut u64, op: Operation) -> Result<(), S
         }
         Operation::DeleteNode { block } => {
             let i = block_index(s, block)?;
+            let cell = cell_for(s, block)?;
             s.blocks.remove(i);
-            if !s.blocks.iter().any(|b| b.kind != BlockKind::HorizontalRule) {
+            if let Some(cell) = cell {
+                if !s.blocks.iter().any(|b| descends(s, b.parent, cell)) {
+                    s.blocks.insert(i, empty_leaf(next, Some(cell)));
+                }
+            }
+            if !s.blocks.iter().any(|b| !b.is_atomic()) {
                 s.blocks.push(Block {
                     id: fresh(next),
                     kind: BlockKind::Paragraph,
@@ -1607,11 +2521,11 @@ fn apply_operation(s: &mut State, next: &mut u64, op: Operation) -> Result<(), S
                 });
             }
             let j = (i..s.blocks.len())
-                .find(|&j| s.blocks[j].kind != BlockKind::HorizontalRule)
+                .find(|&j| !s.blocks[j].is_atomic())
                 .or_else(|| {
                     (0..i.min(s.blocks.len()))
                         .rev()
-                        .find(|&j| s.blocks[j].kind != BlockKind::HorizontalRule)
+                        .find(|&j| !s.blocks[j].is_atomic())
                 })
                 .ok_or(StructuredError::InvalidSchema)?;
             let b = &s.blocks[j];
@@ -2114,3 +3028,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "structured_table_atom_tests.rs"]
+mod table_atom_tests;

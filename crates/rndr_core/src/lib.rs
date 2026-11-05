@@ -131,6 +131,7 @@ mod split;
 pub mod structured;
 /// Typed noneditable list, task, quote and rule paint projection.
 pub mod structured_chrome;
+pub mod structured_embeds;
 /// Native projection and input for structured documents, not source storage.
 pub mod structured_native;
 mod style;

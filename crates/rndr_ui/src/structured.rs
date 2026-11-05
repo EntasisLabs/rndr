@@ -195,6 +195,29 @@ impl StructuredSurface {
 /// Explicit toolbar intent. Selection stays in the document when focus moves.
 #[derive(Clone, Debug)]
 pub enum StructuredCommand {
+    /// Insert a real document grid at a collapsed caret.
+    Table {
+        /// Positive row count.
+        rows: usize,
+        /// Positive column count.
+        columns: usize,
+        /// Header semantics for the first row.
+        header: bool,
+    },
+    /// Insert a row after the active cell, or before it when true.
+    InsertRow(bool),
+    /// Delete the active cell's row, repairing selection.
+    DeleteRow,
+    /// Insert a column after the active cell, or before it when true.
+    InsertColumn(bool),
+    /// Delete the active cell's column, repairing selection.
+    DeleteColumn,
+    /// Select the active cell as a typed structural selection.
+    SelectCell,
+    /// Extend cell selection to the complete containing table.
+    SelectTable,
+    /// Insert a permission-free atomic host extension.
+    Atomic(rndr_core::structured::AtomicPayload),
     /// Toggle strong on selected runs, preserving emphasis and link.
     Strong,
     /// Toggle emphasis on selected runs, preserving strong and link.
@@ -257,15 +280,86 @@ impl StructuredSurfaceHandle {
             .resource_mut::<StructuredDocuments>()
             .and_then(|d| d.get_mut(id))
             .ok_or(StructuredViewError::Unavailable)?;
-        let select_only = matches!(command, StructuredCommand::SelectBlock);
+        let select_only = matches!(
+            command,
+            StructuredCommand::SelectBlock
+                | StructuredCommand::SelectCell
+                | StructuredCommand::SelectTable
+        );
         if readonly && !select_only {
             return Err(StructuredViewError::Model(
                 rndr_core::structured::StructuredError::Readonly,
             )
             .into());
         }
+        let reveal = !matches!(command, StructuredCommand::ToggleTask);
         let origin = EditOrigin::Host(0xE6);
         let result = match command {
+            StructuredCommand::Table {
+                rows,
+                columns,
+                header,
+            } => doc.insert_table(rows, columns, header, origin),
+            StructuredCommand::Atomic(payload) => doc.insert_atomic(payload, origin),
+            command @ (StructuredCommand::InsertRow(_)
+            | StructuredCommand::DeleteRow
+            | StructuredCommand::InsertColumn(_)
+            | StructuredCommand::DeleteColumn
+            | StructuredCommand::SelectCell
+            | StructuredCommand::SelectTable) => {
+                let block = match doc.selection() {
+                    StructuredSelection::Text(s) => s.head.block,
+                    StructuredSelection::Node(b) => b,
+                    StructuredSelection::Cells { head, .. } => doc
+                        .cell_first_block(head)
+                        .map_err(StructuredViewError::from)?,
+                };
+                let a = doc
+                    .cell_address(block)
+                    .map_err(StructuredViewError::from)?
+                    .ok_or(StructuredSurfaceError::SelectText)?;
+                if matches!(
+                    command,
+                    StructuredCommand::SelectCell | StructuredCommand::SelectTable
+                ) {
+                    let (anchor, head) = if matches!(command, StructuredCommand::SelectTable) {
+                        let grid = doc
+                            .table_cells(a.table)
+                            .map_err(StructuredViewError::from)?;
+                        (grid[0][0], *grid.last().unwrap().last().unwrap())
+                    } else {
+                        (a.cell, a.cell)
+                    };
+                    doc.set_selection(StructuredSelection::Cells { anchor, head })
+                        .map(|_| true)
+                } else {
+                    let operation = match command {
+                        StructuredCommand::InsertRow(before) => Operation::InsertRow {
+                            table: a.table,
+                            index: a.row + usize::from(!before),
+                        },
+                        StructuredCommand::DeleteRow => Operation::DeleteRow {
+                            table: a.table,
+                            index: a.row,
+                        },
+                        StructuredCommand::InsertColumn(before) => Operation::InsertColumn {
+                            table: a.table,
+                            index: a.column + usize::from(!before),
+                        },
+                        _ => Operation::DeleteColumn {
+                            table: a.table,
+                            index: a.column,
+                        },
+                    };
+                    doc.apply(Transaction {
+                        document: doc.id(),
+                        base: doc.revision(),
+                        origin,
+                        group: None,
+                        operations: vec![operation],
+                    })
+                }
+            }
             StructuredCommand::Undo => doc.undo(),
             StructuredCommand::Redo => doc.redo(),
             StructuredCommand::Block(kind) => doc.set_block_kind(kind, origin),
@@ -279,6 +373,9 @@ impl StructuredSurfaceHandle {
                 let block = match doc.selection() {
                     StructuredSelection::Text(s) => s.head.block,
                     StructuredSelection::Node(id) => id,
+                    StructuredSelection::Cells { head, .. } => doc
+                        .cell_first_block(head)
+                        .map_err(StructuredViewError::from)?,
                 };
                 let operation = match command {
                     StructuredCommand::Quote | StructuredCommand::List(_) => {
@@ -322,6 +419,9 @@ impl StructuredSurfaceHandle {
                 let block = match doc.selection() {
                     StructuredSelection::Text(s) => s.head.block,
                     StructuredSelection::Node(id) => id,
+                    StructuredSelection::Cells { head, .. } => doc
+                        .cell_first_block(head)
+                        .map_err(StructuredViewError::from)?,
                 };
                 doc.set_selection(StructuredSelection::Node(block))
                     .map(|_| true)
@@ -402,6 +502,9 @@ impl StructuredSurfaceHandle {
         }
         .map_err(StructuredViewError::from)?;
         project(world, self.editor);
+        if result && reveal {
+            rndr_core::structured_native::reveal_selection(world, self.editor);
+        }
         Ok(result)
     }
     /// Detach and free only owned entities; document/history remain retained.

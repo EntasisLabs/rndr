@@ -1,4 +1,4 @@
-//! E6.1 nested structured document demo. No Markdown, filesystem or persistence.
+//! E6 tables and embedded boundaries. No filesystem/network execution.
 use rndr_core::editing::{Affinity, EditOrigin};
 use rndr_core::structured::{
     BlockKind, ContainerKind, ListKind, Marks, Operation, StructuredDocument, StructuredSelection,
@@ -8,6 +8,7 @@ use rndr_core::structured_native::*;
 use rndr_core::*;
 use rndr_ui::controls::{host_intent, Button as UiButton, ButtonProps, ButtonVariant, HostIntent};
 use rndr_ui::structured::*;
+use rndr_ui::structured_embeds::AtomicPanelHandle;
 use rndr_ui::{apply_theme_bridge, Token, Typography, UiId, UiPlugin, UiRecipe, UiStyle, UiTheme};
 use std::sync::Arc;
 
@@ -20,6 +21,7 @@ struct Demo {
     status: Entity,
     tree: Entity,
     message: String,
+    embedded: Option<AtomicPanelHandle>,
 }
 fn label(world: &mut World, parent: Entity, text: &str, typography: Typography) -> Entity {
     let entity = world.spawn((
@@ -50,6 +52,83 @@ fn button(world: &mut World, parent: Entity, id: u64, text: &str) {
     let mut props = ButtonProps::new(text, HostIntent::Command(id));
     props.variant = ButtonVariant::Secondary;
     UiButton::mount(world, parent, UiId(id), props).unwrap();
+}
+fn extend_seed(doc: &mut StructuredDocument) {
+    let tail = doc.blocks().last().unwrap();
+    let p = rndr_core::structured::Position {
+        block: tail.id,
+        offset: tail.len(),
+        affinity: Affinity::After,
+    };
+    doc.set_selection(StructuredSelection::Text(TextSelection {
+        anchor: p,
+        head: p,
+    }))
+    .unwrap();
+    doc.insert_table(2, 3, true, EditOrigin::Host(0)).unwrap();
+    let table = doc
+        .containers()
+        .iter()
+        .find(|c| c.kind == ContainerKind::Table)
+        .unwrap()
+        .id;
+    let grid = doc.table_cells(table).unwrap();
+    for (cell, text) in grid.iter().flatten().zip([
+        "Feature",
+        "Status",
+        "Ownership",
+        "Real table cells",
+        "Tab navigates cells",
+        "One tree-owned history",
+    ]) {
+        let p = rndr_core::structured::Position {
+            block: doc.cell_first_block(*cell).unwrap(),
+            offset: 0,
+            affinity: Affinity::After,
+        };
+        doc.apply(Transaction {
+            document: doc.id(),
+            base: doc.revision(),
+            origin: EditOrigin::Host(0),
+            group: None,
+            operations: vec![Operation::Replace {
+                range: TextSelection { anchor: p, head: p },
+                text: text.into(),
+            }],
+        })
+        .unwrap();
+    }
+    for (kind, fallback) in [
+        (
+            "image",
+            "Image alt text — unresolved host resource; no automatic fetch",
+        ),
+        (
+            "embedded",
+            "A retained child draft — select this card, then Open child",
+        ),
+    ] {
+        let tail = doc.blocks().last().unwrap();
+        let p = rndr_core::structured::Position {
+            block: tail.id,
+            offset: tail.len(),
+            affinity: Affinity::After,
+        };
+        doc.set_selection(StructuredSelection::Text(TextSelection {
+            anchor: p,
+            head: p,
+        }))
+        .unwrap();
+        doc.insert_atomic(
+            rndr_core::structured::AtomicPayload {
+                kind: kind.into(),
+                fallback: fallback.into(),
+                attributes: Default::default(),
+            },
+            EditOrigin::Host(0),
+        )
+        .unwrap();
+    }
 }
 fn setup(world: &mut World) {
     apply_theme_bridge(
@@ -101,6 +180,7 @@ fn setup(world: &mut World) {
         ],
     })
     .unwrap();
+    extend_seed(&mut doc);
     let start = INITIAL.find("a tree").unwrap();
     let a = doc.position_at(start, Affinity::After).unwrap();
     let h = doc.position_at(start + 6, Affinity::After).unwrap();
@@ -124,8 +204,8 @@ fn setup(world: &mut World) {
         Layout {
             width: Size::Fill,
             height: Size::Fill,
-            padding: 20.0,
-            gap: 10.0,
+            padding: 16.0,
+            gap: 4.0,
             ..Layout::column()
         },
         UiRecipe(UiStyle {
@@ -133,11 +213,11 @@ fn setup(world: &mut World) {
             ..Default::default()
         }),
     ));
-    label(world, root, "Structured / E6.1", Typography::Heading);
+    label(world, root, "Structured / E6.2 + E6.3", Typography::Heading);
     label(
         world,
         root,
-        "Real nested lists · tasks · quotes · rules · one tree-owned history",
+        "Real document tables · inert atoms · retained embedded editing boundaries",
         Typography::Secondary,
     );
     let toolbar = row(world, root);
@@ -177,6 +257,30 @@ fn setup(world: &mut World) {
     ] {
         button(world, toolbar, id, text);
     }
+    let toolbar = row(world, root);
+    for (id, text) in [
+        (23, "Table 2×3"),
+        (24, "Row +"),
+        (25, "Row −"),
+        (26, "Column +"),
+        (27, "Column −"),
+        (28, "Select cell"),
+        (29, "Select table"),
+        (30, "Image atom"),
+    ] {
+        button(world, toolbar, id, text);
+    }
+    let toolbar = row(world, root);
+    for (id, text) in [
+        (31, "Embed atom"),
+        (32, "Open child"),
+        (33, "Commit child"),
+        (34, "Host intent"),
+        (35, "Close child"),
+        (36, "Foreign child"),
+    ] {
+        button(world, toolbar, id, text);
+    }
     let status = label(world, root, "", Typography::Secondary);
     let paper = world.spawn((
         Layout {
@@ -199,11 +303,11 @@ fn setup(world: &mut World) {
     )
     .unwrap();
     let tree = label(world, root, "", Typography::Code);
-    world.get_mut::<Layout>(tree).unwrap().height = Size::Px(88.0);
+    world.get_mut::<Layout>(tree).unwrap().height = Size::Px(48.0);
     label(
         world,
         root,
-        "Tab nests items; Shift-Tab promotes. Rule needs a caret. Readonly permits selection/copy.",
+        "Tab: next cell. Border → Shift-border: rectangle. Open child → Commit child → parent Undo.",
         Typography::Secondary,
     );
     world.insert_resource(Demo {
@@ -212,7 +316,8 @@ fn setup(world: &mut World) {
         document,
         status,
         tree,
-        message: "Ready — ‘a tree’ is selected. Format it, type, split, join, then undo.".into(),
+        message: "Tables and atom cards ready. Resources are never auto-fetched.".into(),
+        embedded: None,
     });
     world.insert_resource(Focus {
         entity: Some(view.editor),
@@ -257,6 +362,29 @@ fn update(world: &mut World) {
             22 => Some(StructuredCommand::Attributes(
                 [("label".into(), "Host-owned inert metadata".into())].into(),
             )),
+            23 => Some(StructuredCommand::Table {
+                rows: 2,
+                columns: 3,
+                header: true,
+            }),
+            24 => Some(StructuredCommand::InsertRow(false)),
+            25 => Some(StructuredCommand::DeleteRow),
+            26 => Some(StructuredCommand::InsertColumn(false)),
+            27 => Some(StructuredCommand::DeleteColumn),
+            28 => Some(StructuredCommand::SelectCell),
+            29 => Some(StructuredCommand::SelectTable),
+            30 | 31 => Some(StructuredCommand::Atomic(
+                rndr_core::structured::AtomicPayload {
+                    kind: if id == 30 { "image" } else { "embedded" }.into(),
+                    fallback: if id == 30 {
+                        "Image alt text — inert host resource"
+                    } else {
+                        "Edit this draft in a retained child"
+                    }
+                    .into(),
+                    attributes: Default::default(),
+                },
+            )),
             _ => None,
         };
         if let Some(command) = command {
@@ -265,6 +393,71 @@ fn update(world: &mut World) {
                 Ok(false) => "No document change.".into(),
                 Err(error) => format!("Refused without changing the document: {error:?}"),
             };
+        } else if (32..=36).contains(&id) {
+            if id == 32 || id == 36 {
+                let doc = world
+                    .resource::<StructuredDocuments>()
+                    .unwrap()
+                    .get(demo.document)
+                    .unwrap();
+                let block = match doc.selection() {
+                    StructuredSelection::Node(b) => Some(b),
+                    _ => doc
+                        .blocks()
+                        .iter()
+                        .find(|b| b.atomic_payload().is_some_and(|p| p.kind == "embedded"))
+                        .map(|b| b.id),
+                };
+                demo.message = if let Some(block) = block {
+                    match if id == 36 {
+                        AtomicPanelHandle::mount_foreign(
+                            world,
+                            demo.root,
+                            UiId(200),
+                            demo.view.editor,
+                            block,
+                        )
+                    } else {
+                        AtomicPanelHandle::mount(
+                            world,
+                            demo.root,
+                            UiId(200),
+                            demo.view.editor,
+                            block,
+                        )
+                    } {
+                        Ok(panel) => {
+                            demo.embedded = Some(panel);
+                            let _ = panel.focus(world);
+                            "Child draft open; Commit child publishes one parent undo step. Escape returns.".into()
+                        }
+                        Err(e) => format!("Child mount refused: {e:?}"),
+                    }
+                } else {
+                    "Select an atomic card first.".into()
+                };
+            } else if let Some(panel) = demo.embedded {
+                demo.message = match id {
+                    33 => match panel.commit(world) {
+                        Ok(_) => "Child committed through parent undo history.".into(),
+                        Err(e) => format!("Commit refused: {e:?}"),
+                    },
+                    34 => match panel.foreign_intent(world) {
+                        Ok(intent) => format!(
+                            "Host intent only: block {} / {}. No IO or parent edit.",
+                            intent.block.0, intent.payload.kind
+                        ),
+                        Err(e) => format!("Intent refused: {e:?}"),
+                    },
+                    _ => {
+                        panel.unmount(world);
+                        demo.embedded = None;
+                        "Child torn down; callbacks revoked.".into()
+                    }
+                };
+            } else {
+                demo.message = "Open a child first.".into();
+            }
         } else if id == 11 {
             demo.message = match command_ready(world, demo.view.editor) {
                 Ok(id) => {
@@ -332,7 +525,7 @@ fn demo_app() -> App {
     app.world_mut().insert_resource(engine);
     app.world_mut().insert_resource(WindowConfig {
         title: "Structured document — rndr".into(),
-        size: LogicalSize::new(1000.0, 820.0),
+        size: LogicalSize::new(1000.0, 1080.0),
         min_size: Some(LogicalSize::new(880.0, 720.0)),
         ..Default::default()
     });
@@ -353,7 +546,7 @@ pub fn main() {
         app.world_mut()
             .insert_resource(rndr_render::observe::ObservationContent::Public);
         app.world_mut()
-            .insert_resource(Viewport::new(1000.0, 820.0));
+            .insert_resource(Viewport::new(1000.0, 1080.0));
         let _ = rndr_paint::frame(&mut app);
         let root = app.world().resource::<Demo>().unwrap().root;
         let mut exporter = rndr_render::Exporter::new().expect("offscreen adapter");
@@ -431,7 +624,19 @@ mod tests {
         let _ = rndr_paint::frame(&mut app);
         let demo = app.world().resource::<Demo>().unwrap().clone();
         let display = structured_display(app.world(), demo.view.editor).unwrap();
-        assert_eq!(display.blocks.len(), 7);
+        assert!(display.blocks.len() > 14);
+        assert!(display
+            .containers
+            .iter()
+            .any(|c| c.kind == ContainerKind::Table));
+        assert_eq!(
+            display
+                .blocks
+                .iter()
+                .filter(|b| b.kind == BlockKind::Atomic)
+                .count(),
+            2
+        );
         assert!(!display.containers.is_empty());
         assert!(display.blocks[2].parent.is_some());
         assert_eq!(display.blocks[0].kind, BlockKind::Heading(1));

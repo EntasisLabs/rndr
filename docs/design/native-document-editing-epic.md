@@ -1,6 +1,6 @@
 # Epic: composable native document editing through rndr_ui
 
-**Status: E1–E4 committed; E5 implementation and desktop demo accepted on 2026-11-05 for closeout commit. E6 is next, delivered as bounded sub-slices. Native/platform certification and ratified native performance acceptance remain open.**
+**Status: E1–E5 committed; E6.1 committed and E6.2/E6.3 accepted on 2026-11-05 for closeout commit, including shared appearance defaults. E6 implementation slices are closed. Native/platform certification and ratified native performance acceptance remain open.**
 
 2026-11-04 continuation: the user subsequently authorized E1, E2 and E3 implementation. See the [E1 record](native-document-editing-e1.md), E2 ledgers, and [E3 implementation/evidence record](native-document-editing-e3.md). Later milestones, release integration and whole-epic acceptance are not implied. The exploration scope below describes the original docs-only assignment.
 
@@ -158,8 +158,8 @@ Implementation, contract review and verification: [E5 evidence](native-document-
 **Depends:** E5; each line below is a separate bounded slice/review.
 
 - [x] E6.1 Quote/HR, ordered/bullet/nested task lists, generic attributes, text-style marks and optional annotation/footnote extension points matching M3. Define nesting/merge/split and checkbox commands through model history. Accepted 2026-11-05 after principal desktop rendering/interaction recheck; see [E6.1 evidence](native-document-editing-e6.md).
-- [ ] E6.2 Editable tables: rows/cells/headers, cell/rectangle selection, Tab navigation, insert/delete row/column, fragment copy/paste and selection repair. Resize handles are **not** required for current Medousa parity; keep them deferred.
-- [ ] E6.3 Atomic block/image extension with retained mount/update/detach, model-stable node identity, selection/copy fallback and permission-free host intent. Same-document nested commit uses parent history; foreign-document commit remains host responsibility.
+- [x] E6.2 Editable tables: rows/cells/headers, cell/rectangle selection, Tab navigation, insert/delete row/column, fragment copy/paste and selection repair. Resize handles are **not** required for current Medousa parity; keep them deferred. Accepted 2026-11-05 after principal mechanical tryout and shared-default desktop visual signoff. See [contracts and evidence](native-document-editing-e6-extensions.md).
+- [x] E6.3 Atomic block/image extension with retained mount/update/detach, model-stable node identity, selection/copy fallback and permission-free host intent. Same-document nested commit uses parent history; foreign-document commit remains host responsibility. Accepted 2026-11-05 after principal mechanical tryout and shared-default desktop visual signoff. See [ownership/lifecycle evidence](native-document-editing-e6-extensions.md).
 
 **Acceptance:** required blocks/marks can be composed from schema extensions; atomic boundaries do not trap Tab/arrows/IME, leak events into parent, mutate readonly content or resurrect stale handles through undo. Child deletion tears down overlays/requests and repairs focus. Tables have document semantics, not a UI DataTable masquerading as an editor. No Liquid/transclusion/network execution is added.
 

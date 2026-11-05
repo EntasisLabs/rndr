@@ -261,6 +261,7 @@ fn paint_visited(
     caret_row: Option<&rndr_core::CaretRow>,
     metrics: rndr_core::LabelBox,
     secondary: &[rndr_core::source_presentation::SecondarySelectionMark],
+    chrome: &[rndr_core::structured_chrome::StructuredChromePaint],
 ) {
     let text_clip = if clip_text {
         clip.intersect(Clip {
@@ -274,6 +275,23 @@ fn paint_visited(
     };
     if let Some(color) = color {
         push(out, rect, color, solid, clip, radius, 0);
+    }
+    for layer in chrome {
+        push(
+            out,
+            snap_box(
+                layer.rect.x,
+                layer.rect.y,
+                layer.rect.w,
+                layer.rect.h,
+                scale,
+            ),
+            layer.color,
+            solid,
+            layer.clip,
+            layer.radius,
+            0,
+        );
     }
     if dirty {
         push_dirty_mark(out, rect, clip, solid, theme.dirty);
@@ -524,6 +542,22 @@ fn walk(
                          marks: &[rndr_core::DecorationMark],
                          shift_y: f32,
                          clip_text: bool| {
+            // Structural selection is expressed by card/grid chrome, not a
+            // full-height insertion caret or a false scalar text highlight.
+            let chrome_selection = rndr_core::structured_native::attached_structured(world, entity)
+                .and_then(|handle| {
+                    world
+                        .resource::<rndr_core::structured_native::StructuredDocuments>()?
+                        .get(handle)
+                })
+                .is_some_and(|doc| match doc.selection() {
+                    rndr_core::structured::StructuredSelection::Cells { .. } => true,
+                    rndr_core::structured::StructuredSelection::Node(id) => doc
+                        .blocks()
+                        .iter()
+                        .any(|b| b.id == id && b.kind == rndr_core::structured::BlockKind::Atomic),
+                    _ => false,
+                });
             paint_visited(
                 &mut guard,
                 scale,
@@ -533,8 +567,8 @@ fn walk(
                 color,
                 clip,
                 label,
-                caret,
-                selection,
+                caret.filter(|_| !chrome_selection),
+                selection.filter(|_| !chrome_selection),
                 spans,
                 dirty,
                 layout,
@@ -545,9 +579,17 @@ fn walk(
                 world.get::<rndr_core::CaretRow>(entity),
                 rndr_core::label_box(world, entity),
                 &rndr_core::source_presentation::secondary_selection_marks(world, entity),
+                &rndr_core::structured_chrome::chrome_paint(world, entity),
             );
             // Structural markers occupy a host-reserved sibling gutter, not editable bytes.
             for mark in rndr_core::structured_chrome::structured_marks(world, entity) {
+                if matches!(
+                    mark.kind,
+                    rndr_core::structured_chrome::StructuredMarkKind::TableCell { .. }
+                        | rndr_core::structured_chrome::StructuredMarkKind::Atomic
+                ) {
+                    continue; // Layered behind text, not a second dark outline on top.
+                }
                 for r in rndr_core::structured_chrome::mark_rectangles(&mark) {
                     push(
                         &mut guard,

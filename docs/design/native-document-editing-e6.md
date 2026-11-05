@@ -1,8 +1,8 @@
 # E6 — structured extensions and embedded boundaries
 
-Status: **E6.1 accepted and closed**, 2026-11-05. Principal desktop signoff: "ok I think noooow we can close this one out" after rendering and interaction fixes. E5 was accepted and committed at `c6355e6`; this closeout records the E6.1 commit candidate. Nothing pushed or merged. E6.2 tables and E6.3 embedded boundaries remain unimplemented.
+Status: **E6.1 accepted and closed**, 2026-11-05. Principal desktop signoff: "ok I think noooow we can close this one out" after rendering and interaction fixes. E5 was accepted and committed at `c6355e6`; this closeout records the E6.1 commit candidate. Nothing pushed or merged. E6.2 tables and E6.3 embedded boundaries were subsequently accepted on 2026-11-05 after the mechanical tryout and shared-default desktop appearance pass; see [E6.2/E6.3 contracts and verification](native-document-editing-e6-extensions.md).
 
-Authority: [epic E6](native-document-editing-epic.md#e6--structured-extensions-and-embedded-editing-boundaries). Each epic line is a separate bounded implementation/review/demo gate. The principal authorized at most two scoped helpers, not reviewer or replacement chains. Exactly two helpers contributed model/headless tests and structural chrome; the host owns native integration, toolbar/demo, review, fixes and verification. Recovery after the provider error spawned no new helpers.
+Authority: [epic E6](native-document-editing-epic.md#e6--structured-extensions-and-embedded-editing-boundaries). Each epic line is a separate bounded implementation/review/demo gate. The principal authorized at most two scoped helpers, not reviewer or replacement chains. For E6.1, exactly two helpers contributed model/headless tests and structural chrome; the host owns native integration, toolbar/demo, review, fixes and verification. The later E6.2/E6.3 implementation used two separately scoped helpers, recorded in its linked evidence. Recovery after the provider error spawned no new helpers.
 
 ## E6.1 structural contract and review
 
@@ -64,9 +64,9 @@ Principal subsequently accepted the visual positioning ("looking good") and repo
 
 Fresh verification: **923 passed, zero failed, three opt-in probes ignored** across `rndr_core`, `rndr_ui`, `rndr_paint` (`target/e6-interaction-regression.log`), including all **20** structured UI tests. Strict production Clippy, workspace compatibility, feature-off compatibility, formatting and whitespace checks passed (`target/e6-interaction-{clippy,workspace,feature-off}.log`). Principal completed the desktop recheck and accepted these interaction fixes on 2026-11-05; E6.1 is closed.
 
-## Remaining E6 slices
+## Subsequent E6 slices — accepted 2026-11-05
 
 1. **E6.2 — actual document tables:** row/cell/header identity, cell/rectangle selection, Tab navigation, row/column insertion/deletion and fragment clipboard/history. Not a retained UI DataTable; resize handles remain deferred.
 2. **E6.3 — atoms/images and embedded boundaries:** stable model identity, retained mount/update/detach, explicit selection/copy fallback and permission-free host intent. Same-document nested commits use parent history; foreign-document edits remain host-owned. No execution/network authority.
 
-Principal desktop signoff received on 2026-11-05; the epic E6.1 checkbox is accepted. E6 as a whole remains open for E6.2 and E6.3. E3 latency/storage certification, native OS AT checks and E7 source-fidelity/Markdown decisions remain separate gates.
+Principal desktop signoff received on 2026-11-05 for E6.1 and subsequently E6.2/E6.3, including shared appearance defaults. All three epic E6 implementation checkboxes are accepted; extension closeout evidence is linked above. E3 latency/storage certification, native OS AT checks and E7 source-fidelity/Markdown decisions remain separate gates.

@@ -56,6 +56,7 @@ pub struct StructuredBinding {
     /// Revision last projected to the disposable buffer.
     pub revision: Revision,
     identity: crate::structured::StructuredDocumentId,
+    attachment_epoch: u64,
 }
 impl Component for StructuredBinding {}
 #[derive(Clone, Copy)]
@@ -115,6 +116,10 @@ pub fn attach_structured(
             document,
             revision,
             identity,
+            attachment_epoch: {
+                static NEXT_ATTACHMENT: AtomicU64 = AtomicU64::new(1);
+                NEXT_ATTACHMENT.fetch_add(1, Ordering::Relaxed)
+            },
         },
     );
     project(world, entity);
@@ -140,6 +145,11 @@ pub fn is_composing(world: &World, entity: Entity) -> bool {
     attached_structured(world, entity)
         .and_then(|id| world.resource::<StructuredDocuments>()?.get(id))
         .is_some_and(StructuredDocument::is_composing)
+}
+/// Monotonic attachment incarnation; detach/remount never recreates it.
+pub fn structured_attachment_epoch(world: &World, entity: Entity) -> Option<u64> {
+    attached_structured(world, entity)?;
+    Some(world.get::<StructuredBinding>(entity)?.attachment_epoch)
 }
 /// Return the authoritative document attached to a native editor.
 pub fn attached_structured(world: &World, entity: Entity) -> Option<StructuredHandle> {
@@ -206,7 +216,15 @@ pub struct StructuredDisplay {
     /// Identity-bearing quote/list/item structure for native and AT adapters.
     pub containers: Vec<crate::structured::Container>,
 }
-/// Snapshot the typed structural display contract without publishing stale layout.
+/// Explicitly reveal a typed selection after a toolbar action. Pointer task
+/// toggles must not call this: they preserve the user's current viewport.
+pub fn reveal_selection(world: &mut World, entity: Entity) {
+    if attached_structured(world, entity).is_some() {
+        project(world, entity);
+        crate::editor::reveal_selection(world, entity);
+    }
+}
+/// Read the current disposable view projection.
 pub fn structured_display(world: &World, entity: Entity) -> Option<StructuredDisplay> {
     let binding = world.get::<StructuredBinding>(entity)?;
     let doc = document(world, entity)?;
@@ -247,6 +265,21 @@ fn display_selection(doc: &StructuredDocument) -> Result<(usize, usize), Structu
     match doc.selection() {
         StructuredSelection::Text(s) => {
             Ok((doc.display_offset(s.anchor)?, doc.display_offset(s.head)?))
+        }
+        StructuredSelection::Cells { head, .. } => {
+            let offset = |cell| -> Result<usize, StructuredError> {
+                let id = doc.cell_first_block(cell)?;
+                Ok(doc
+                    .blocks()
+                    .iter()
+                    .take_while(|b| b.id != id)
+                    .map(|b| b.len() + 1)
+                    .sum())
+            };
+            // Rectangle chrome owns structural selection. Publishing a scalar
+            // range here would falsely highlight intervening, unselected cells.
+            let head = offset(head)?;
+            Ok((head, head))
         }
         StructuredSelection::Node(id) => {
             let block = doc
@@ -298,7 +331,7 @@ fn display_to_selection(
 ) -> Result<StructuredSelection, StructuredError> {
     let mut start = 0;
     for block in doc.blocks() {
-        if block.kind == BlockKind::HorizontalRule && anchor == start && head == start {
+        if block.is_atomic() && anchor == start && head == start {
             return Ok(StructuredSelection::Node(block.id));
         }
         start += block.len() + 1;
@@ -314,7 +347,7 @@ fn display_to_selection(
             .filter_map(|block| {
                 let offset = start;
                 start += block.len() + 1;
-                (block.kind != BlockKind::HorizontalRule).then_some((block, offset))
+                (!block.is_atomic()).then_some((block, offset))
             })
             .collect::<Vec<_>>();
         let (block, offset) = if forward {
@@ -338,9 +371,19 @@ fn display_to_selection(
             affinity: Affinity::After,
         })
     };
+    let a = endpoint(anchor, anchor > head)?;
+    let h = endpoint(head, head >= anchor)?;
+    if let (Some(a), Some(h)) = (doc.cell_address(a.block)?, doc.cell_address(h.block)?) {
+        if a.cell != h.cell && a.table == h.table {
+            return Ok(StructuredSelection::Cells {
+                anchor: a.cell,
+                head: h.cell,
+            });
+        }
+    }
     Ok(StructuredSelection::Text(TextSelection {
-        anchor: endpoint(anchor, anchor > head)?,
-        head: endpoint(head, head >= anchor)?,
+        anchor: a,
+        head: h,
     }))
 }
 /// Rebuild disposable text and rich spans from the canonical tree.
@@ -361,6 +404,12 @@ pub fn project(world: &mut World, entity: Entity) {
     let mut spans = Vec::new();
     let mut offset = 0;
     for block in doc.blocks() {
+        let header = doc.ancestors(block.id).unwrap_or_default().iter().any(|c| {
+            matches!(
+                c.kind,
+                crate::structured::ContainerKind::Cell { header: true }
+            )
+        });
         for run in &block.runs {
             let mut span = TextSpan::new(
                 offset,
@@ -376,6 +425,8 @@ pub fn project(world: &mut World, entity: Entity) {
             span.weight = Some(
                 if run.marks.strong || matches!(block.kind, BlockKind::Heading(_)) {
                     700
+                } else if header {
+                    600
                 } else {
                     400
                 },
@@ -457,14 +508,23 @@ pub(crate) fn place_from_pointer(world: &mut World) -> Option<(Entity, bool)> {
         .find(|m| {
             matches!(
                 m.kind,
-                StructuredMarkKind::Task(_) | StructuredMarkKind::HorizontalRule
+                StructuredMarkKind::Task(_)
+                    | StructuredMarkKind::HorizontalRule
+                    | StructuredMarkKind::Atomic
+                    | StructuredMarkKind::TableCell { .. }
             ) && m.rect.contains(x, y)
                 && m.clip.contains(x, y)
+                && (!matches!(m.kind, StructuredMarkKind::TableCell { .. })
+                    || x < m.rect.x + 5.0
+                    || y < m.rect.y + 5.0
+                    || x >= m.rect.x + m.rect.w - 5.0
+                    || y >= m.rect.y + m.rect.h - 5.0)
         })?;
     if !crate::interaction::request_focus(world, entity) {
         return None;
     }
     let readonly = crate::interaction::readonly(world, entity);
+    let shift = world.resource::<Input>().is_some_and(|i| i.shift);
     let result = (|| -> Result<(), StructuredViewError> {
         let doc = document_mut(world, entity).ok_or(StructuredViewError::Unavailable)?;
         if doc.revision() != mark.revision {
@@ -483,8 +543,28 @@ pub(crate) fn place_from_pointer(world: &mut World) -> Option<(Entity, bool)> {
                     operations: vec![Operation::ToggleTask { block: mark.block }],
                 })?;
             }
-            StructuredMarkKind::HorizontalRule => {
+            StructuredMarkKind::HorizontalRule | StructuredMarkKind::Atomic => {
                 doc.set_selection(StructuredSelection::Node(mark.block))?
+            }
+            StructuredMarkKind::TableCell { .. } => {
+                let address = doc
+                    .cell_address(mark.block)?
+                    .ok_or(StructuredError::InvalidPosition)?;
+                let anchor = if shift {
+                    match doc.selection() {
+                        StructuredSelection::Cells { anchor, .. } => anchor,
+                        StructuredSelection::Text(s) => doc
+                            .cell_address(s.anchor.block)?
+                            .map_or(address.cell, |a| a.cell),
+                        _ => address.cell,
+                    }
+                } else {
+                    address.cell
+                };
+                doc.set_selection(StructuredSelection::Cells {
+                    anchor,
+                    head: address.cell,
+                })?;
             }
             _ => unreachable!(),
         }
@@ -512,7 +592,18 @@ pub(crate) fn reserves_key(world: &World, event: &KeyEvent) -> bool {
     let Some(doc) = document(world, entity) else {
         return false;
     };
-    if is_composing(world, entity) || matches!(doc.selection(), StructuredSelection::Node(_)) {
+    if is_composing(world, entity)
+        || matches!(
+            doc.selection(),
+            StructuredSelection::Node(_) | StructuredSelection::Cells { .. }
+        )
+    {
+        return true;
+    }
+    if doc
+        .text_selection()
+        .is_some_and(|s| doc.cell_address(s.head.block).ok().flatten().is_some())
+    {
         return true;
     }
     doc.text_selection().is_some_and(|selection| {
@@ -622,6 +713,10 @@ fn native_keys(frame: &crate::ime::TextFrame, platform: Platform) -> Vec<KeyEven
     }
     keys
 }
+#[path = "structured_table_input.rs"]
+mod table_input;
+use table_input::apply_table_key;
+
 fn apply_key(
     world: &mut World,
     entity: Entity,
@@ -649,18 +744,25 @@ fn apply_key(
         }
         return Ok(Default::default());
     }
+    if let Some(result) = apply_table_key(world, entity, event, clip)? {
+        return Ok(result);
+    }
     let doc = document(world, entity).ok_or(StructuredViewError::Unavailable)?;
     if let StructuredSelection::Node(block) = doc.selection() {
         let atomic = doc
             .blocks()
             .iter()
             .position(|b| b.id == block)
-            .filter(|i| doc.blocks()[*i].kind == BlockKind::HorizontalRule);
+            .filter(|i| doc.blocks()[*i].is_atomic());
         if let Some(i) = atomic {
             let action = crate::keys::standard_action(platform, event);
             if action == Some(EditAction::Copy) {
                 return Ok(crate::typing::StepResult {
-                    copied: Some("---".into()),
+                    copied: Some(if doc.blocks()[i].kind == BlockKind::HorizontalRule {
+                        "---".into()
+                    } else {
+                        doc.blocks()[i].copy_fallback()
+                    }),
                     clipboard_action: true,
                 });
             }
@@ -674,20 +776,11 @@ fn apply_key(
             };
             if let Some(forward) = forward {
                 let next = if forward {
-                    doc.blocks()[i + 1..]
-                        .iter()
-                        .find(|b| b.kind != BlockKind::HorizontalRule)
+                    doc.blocks()[i + 1..].iter().find(|b| !b.is_atomic())
                 } else {
-                    doc.blocks()[..i]
-                        .iter()
-                        .rev()
-                        .find(|b| b.kind != BlockKind::HorizontalRule)
+                    doc.blocks()[..i].iter().rev().find(|b| !b.is_atomic())
                 }
-                .or_else(|| {
-                    doc.blocks()
-                        .iter()
-                        .find(|b| b.kind != BlockKind::HorizontalRule)
-                })
+                .or_else(|| doc.blocks().iter().find(|b| !b.is_atomic()))
                 .ok_or(StructuredError::InvalidPosition)?;
                 let p = Position {
                     block: next.id,
@@ -726,7 +819,7 @@ fn apply_key(
                     if b.kind == BlockKind::HorizontalRule {
                         "---".into()
                     } else {
-                        b.text()
+                        b.copy_fallback()
                     }
                 })
             } else {
@@ -770,8 +863,7 @@ fn apply_key(
                 }
                 _ => None,
             };
-            if let Some(i) = neighbor.filter(|i| doc.blocks()[*i].kind == BlockKind::HorizontalRule)
-            {
+            if let Some(i) = neighbor.filter(|i| doc.blocks()[*i].is_atomic()) {
                 let id = doc.blocks()[i].id;
                 document_mut(world, entity)
                     .ok_or(StructuredViewError::Unavailable)?
