@@ -224,6 +224,18 @@ pub fn paint(world: &World) -> Vec<Quad> {
 }
 
 fn paint_parts(world: &World) -> (Vec<Quad>, Vec<Placed>) {
+    paint_roots(world, &layered_roots(world))
+}
+
+/// Paint `root` and its descendants only.
+///
+/// Ancestors and siblings are not visited, so they cannot cover the subtree.
+/// Coordinates stay in global logical points. A hidden root paints nothing.
+pub fn paint_subtree(world: &World, root: rndr_core::Entity) -> (Vec<Quad>, Vec<Placed>) {
+    paint_roots(world, &[root])
+}
+
+fn paint_roots(world: &World, roots: &[rndr_core::Entity]) -> (Vec<Quad>, Vec<Placed>) {
     let quads = RefCell::new(Vec::new());
     let draws = RefCell::new(Vec::new());
     let scale = world
@@ -233,8 +245,8 @@ fn paint_parts(world: &World) -> (Vec<Quad>, Vec<Placed>) {
     let style = style_of(world);
     let solid = text_engine(world).solid_uv(&style);
     let theme = theme_of(world);
-    for root in layered_roots(world) {
-        walk(world, root, &quads, &draws, scale, solid, &theme);
+    for root in roots {
+        walk(world, *root, &quads, &draws, scale, solid, &theme);
     }
     (quads.into_inner(), draws.into_inner())
 }

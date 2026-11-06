@@ -1,7 +1,12 @@
 //! Component-targeted, genuinely offscreen capture. See `docs/component-capture.md`.
 //!
-//! Pixels are the viewport composite in the target's visible layout box (not an
-//! isolated repaint of the subtree). Siblings/overlays may occlude it. No window,
+//! [`capture`] pixels are the viewport composite in the target's visible layout
+//! box. Siblings may occlude that crop. [`capture_isolated`] paints only the
+//! target subtree, in the same global coordinates, then crops the same box, so
+//! a sibling cannot cover it. Metadata stays ids, bounds, clips, and hidden
+//! state. Accessible names, values, and descriptions are not copied into it,
+//! even when the frame is attested public. [`ObservationSensitive`](crate::observe::ObservationSensitive)
+//! still denies the whole capture. No window,
 //! event loop, native surface, socket, or screenshot service is created.
 use crate::{observe, ExportError, Exporter, RgbaImage};
 use rndr_core::{
@@ -335,9 +340,45 @@ pub fn capture(
     target: Target,
     ids: impl Fn(&World, Entity) -> Option<u64>,
 ) -> Result<Capture, Error> {
+    capture_with(app, exporter, target, false, ids)
+}
+
+/// Like [`capture`], but the raster is only the target subtree.
+///
+/// The image is still the target's visible box. Pixels outside that subtree
+/// are the clear color, not a sibling. Metadata is the same geometry record
+/// and still does not include names or values.
+pub fn capture_isolated(
+    app: &mut App,
+    exporter: &mut Exporter,
+    target: Target,
+    ids: impl Fn(&World, Entity) -> Option<u64>,
+) -> Result<Capture, Error> {
+    capture_with(app, exporter, target, true, ids)
+}
+
+fn capture_with(
+    app: &mut App,
+    exporter: &mut Exporter,
+    target: Target,
+    isolated: bool,
+    ids: impl Fn(&World, Entity) -> Option<u64>,
+) -> Result<Capture, Error> {
     permitted(app.world())?;
     let (_, result) = rndr_paint::frame_with_snapshot_frame(app, |world, frame| {
         let m = metadata(world, target, &ids)?;
+        let isolated_frame;
+        let frame = if isolated {
+            let (quads, draws) = rndr_paint::paint_subtree(world, m.target);
+            isolated_frame = rndr_paint::Frame {
+                quads,
+                draws,
+                slots: Vec::new(),
+            };
+            &isolated_frame
+        } else {
+            frame
+        };
         let access = rndr_core::access_tree(world);
         if access.nodes.len() > MAX_NODES {
             return Err(Error::Limit);
