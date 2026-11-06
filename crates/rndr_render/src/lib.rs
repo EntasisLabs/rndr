@@ -1878,14 +1878,22 @@ impl ApplicationHandler<RunnerEvent> for Handler {
                 self.request_redraw();
             }
             WindowEvent::DroppedFile(path) => {
-                // winit 0.30.13 carries a path and no point. See `file_drop::winit_path`.
+                // winit 0.30.13 carries a path and no point. The scale is
+                // passed so a later callback sample can be converted; it does
+                // not invent a point. See `file_drop::winit_path`.
+                let scale = f64::from(self.scale());
                 self.queued_files
-                    .push(file_drop::NativeFile::Drop(file_drop::winit_path(path)));
+                    .push(file_drop::NativeFile::Drop(file_drop::winit_path(
+                        path, scale,
+                    )));
                 self.request_redraw();
             }
             WindowEvent::HoveredFile(path) => {
+                let scale = f64::from(self.scale());
                 self.queued_files
-                    .push(file_drop::NativeFile::Hover(file_drop::winit_path(path)));
+                    .push(file_drop::NativeFile::Hover(file_drop::winit_path(
+                        path, scale,
+                    )));
                 self.request_redraw();
             }
             WindowEvent::HoveredFileCancelled => {

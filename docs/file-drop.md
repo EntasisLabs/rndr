@@ -25,24 +25,89 @@ components are finite. Every other report stores `None`.
 missing point stays `None`. The runner does not read the cursor, a previous
 hover, or any other pointer to fill it.
 
-winit 0.30.13 (the version in `Cargo.lock`) defines `DroppedFile(PathBuf)`,
-`HoveredFile(PathBuf)`, and `HoveredFileCancelled`. The runner maps the first
-two through `winit_path`, which sets `position: None`. Inspected winit
-sources for that tag discard the operating-system point before the event
-exists:
+## What a live drag delivers
+
+No platform delivers a coordinate from this tree. winit 0.30.13 (the version
+in `Cargo.lock`, and the current stable release) defines
+`DroppedFile(PathBuf)`, `HoveredFile(PathBuf)`, and `HoveredFileCancelled`.
+The runner maps the first two through `winit_path`, which passes
+`DragPoint::Absent`. The window scale is available and is not used to invent
+a point. The cursor is not read.
+
+The operating system does report a point, and winit drops it before the
+public event:
 
 - macOS `draggingEntered:` and `performDragOperation:` read the pasteboard
   and do not read `draggingLocation`.
-- Windows `IDropTarget` receives a `POINTL` and ignores it (`_pt`).
-- X11 `XdndPosition` root coordinates are present in the client message and
-  left commented out. The coordinates are root-window coordinates, not window
-  logical points. `HoveredFile` is emitted later, without them.
-- Wayland has no file-drag event in that tree.
+- Windows `IDropTarget` receives a screen `POINTL` and ignores it (`_pt`).
+- X11 `XdndPosition` carries root coordinates in `data.l[2]`. The unpack is
+  commented out. `HoveredFile` is emitted later, from `SelectionNotify`,
+  without them.
+- Wayland has no file-drag event in that release.
 
-Reading those discarded fields would be a second drag destination, with a
-coordinate space this repository has not measured. No feature and no new
-crate do that. Default features and `--no-default-features` both keep the
-path-only winit mapping.
+## Blocker
+
+Attaching the real point means sitting in the callback that still has it.
+On 0.30.13 that callback is private:
+
+- macOS: `WinitWindowDelegate` already implements `NSDraggingDestination`.
+  A second destination would steal the drag. Wrapping the IMP can read
+  `draggingLocation` and then call the original, but the method encoding has
+  not been executed here, and a mismatch would stop path delivery.
+- Windows: `RegisterDragDrop` allows one `IDropTarget` per `HWND`, and winit
+  holds that pointer in a private field. Replacing it means reimplementing
+  `CF_HDROP` delivery.
+- X11: the `XdndPosition` client message is delivered on winit's X
+  connection. A second connection does not see it.
+
+winit 0.31.0-beta.3 (published 2026-09-04; stable is still 0.30.13) replaces
+those events with `DragEntered`, `DragPosition`, `DragDropped`, and
+`DragLeft`, and the position is physical pixels of the client area, top-left
+origin. The macOS value comes from `convertPoint:fromView:` on the flipped
+content view. Windows uses `ScreenToClient`. X11 unpacks the `XdndPosition`
+root point and `XTranslateCoordinates`s it into the window. That beta also
+splits the crate and changes the event loop, key events, and other window
+APIs. `accesskit_winit` 0.34 and `tray-icon` 0.26 are built against 0.30.
+This pull request does not take the beta.
+
+Wayland file drag landed in that same beta. This unit does not adopt it.
+R0 keeps Wayland unsupported, including after a later winit bump: do not map
+Wayland drag events into `FileHover` or `FileDrop`.
+
+When a stable winit that carries the client point can move with those
+crates, map each path in the drag set through `from_drag` with
+`DragPoint::ClientPhysical` and the window scale. One winit position applies
+to every path in that callback. `DragLeft` stays a single `FileHoverCancel`.
+Do not fill a missing point from `CursorMoved`.
+
+Until that bump, `PositionDelivery` stays `Unavailable` on macOS, Windows,
+and X11. The conversion below is what that bump will call. It is not a claim
+that a drag today has a point.
+
+## Conversion
+
+`from_drag` is the correlation point. The logical point on the event is the
+point from that same callback.
+
+| Sample | Scale | Stored position |
+| --- | --- | --- |
+| Absent | any | `None` |
+| Client physical `(0, 0)` | `2` | `[0.0, 0.0]` |
+| Client physical `(10, 20)` | `2` | `[5.0, 10.0]` |
+| Client physical NaN or infinity | any | `None` |
+| Client logical `(16, 60)` | `2` | `[16.0, 60.0]` (not divided) |
+| Non-positive scale | physical `(8, 4)` | `[8.0, 4.0]` (scale reads as 1) |
+
+AppKit window-base points are converted with the flipped content frame
+before they are logical. The top-left of a content view whose frame origin
+is `(0, 0)` and whose height is `200` is window point `(0, 200)`, and the
+logical point is `(0, 0)`. Windows screen pixels and X11 root pixels become
+client pixels by subtracting an origin the callback already translated
+(`ScreenToClient`, or `XTranslateCoordinates`). The unpack of `XdndPosition`
+keeps the signed 16-bit root coordinates. Neither helper queries the pointer.
+
+Default features and `--no-default-features` both keep this mapping. No new
+crate was added.
 
 ## Platform matrix
 
@@ -87,9 +152,11 @@ Headless, in this change:
 - `cargo test -p rndr_core --test file_drop` admits finite points, rejects
   non-finite points, clears every hovered path on cancel, round-trips the
   events, and locks both tables.
-- `cargo test -p rndr_render --lib file_drop` checks the winit path mapping,
-  pass-through of a supplied logical point, and cancel against a set that
-  holds one positioned path and one path-only path.
+- `cargo test -p rndr_render --lib file_drop` checks the winit path mapping
+  at several scales, physical-to-logical division, a reported origin,
+  non-finite samples, per-event correlation, the flipped AppKit content
+  frame, the Win32 screen subtraction, the `XdndPosition` unpack, and cancel.
 
 No named native session was run. macOS, Windows, and X11 stay `Unverified`.
-Wayland stays `Unsupported`. A green headless run is not a drag on a desktop.
+Wayland stays `Unsupported`. A green headless run is not a drag on a desktop,
+and it does not mean the binding supplied a point.

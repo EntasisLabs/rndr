@@ -4,7 +4,7 @@
 
 ### Core and the desktop runner
 
-- `FileHover` and `FileDrop` carry `position: Option<[f32; 2]>` in logical points. A struct literal sets `position`. `from_report` keeps a finite point, including the origin, and stores `None` when the report has no finite point. The structs no longer implement `Eq`. `FileHoverCancel` still clears every path in `FileHoverSet`. winit 0.30.13 forwards a path with `position: None` on macOS, Windows, and X11. Wayland stays unsupported: no drop path was added, and the cursor is not used as a point. No new feature or dependency. Headless tests lock the binding table and leave the native ledger `Unverified` on macOS, Windows, and X11. See [file drop](docs/file-drop.md).
+- `FileHover` and `FileDrop` carry `position: Option<[f32; 2]>` in logical points. A struct literal sets `position`. `from_report` keeps a finite point, including the origin, and stores `None` when the report has no finite point. The structs no longer implement `Eq`. `FileHoverCancel` still clears every path in `FileHoverSet`. winit 0.30.13 forwards a path with `position: None` on macOS, Windows, and X11, because those events have no point. Client physical pixels convert by the window scale when a callback supplies them; a live drag does not supply them on this binding. Wayland stays unsupported. No new feature or dependency. See [file drop](docs/file-drop.md).
 
 ## 0.4.0
 
