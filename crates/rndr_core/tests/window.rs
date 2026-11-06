@@ -6,7 +6,6 @@ use rndr_core::{
     events, spawn, window, Availability, Dismiss, Event, Input, Key, KeyEvent, LogicalSize,
     Modifiers, NamedKey, Platform, Position, Resized, ScaleChanged, Schedule, Sim, Viewport,
     WindowConfig, WindowEffect, WindowFocus, WindowKind, WindowMetrics, WindowPhase, WindowSignal,
-    WindowSupport,
 };
 
 fn near(a: f32, b: f32) -> bool {
@@ -53,8 +52,11 @@ fn platform_support_matches_the_documented_table() {
 
     let windows = window::platform_support(Platform::Windows);
     assert_eq!(windows.skip_taskbar, Availability::Supported);
-    assert_eq!(windows.panel_above_fullscreen, Availability::Ignored);
+    assert_eq!(windows.panel_above_fullscreen, Availability::Unverified);
+    assert_eq!(windows.panel_all_spaces, Availability::Ignored);
+    assert_eq!(windows.panel_nonactivating, Availability::Ignored);
     assert_eq!(windows.hide, Availability::Supported);
+    assert!(!window::support_describes_panels_only(Platform::Windows));
 
     let x11 = window::platform_support(Platform::X11);
     assert_eq!(x11.position, Availability::Supported);
@@ -63,18 +65,18 @@ fn platform_support_matches_the_documented_table() {
     assert_eq!(x11.panel_nonactivating, Availability::Ignored);
 
     let wayland = window::platform_support(Platform::Wayland);
-    let ignored = WindowSupport {
-        position: Availability::Ignored,
-        hide: Availability::Ignored,
-        focus: Availability::Ignored,
-        always_on_top: Availability::Ignored,
-        skip_taskbar: Availability::Ignored,
-        panel_above_fullscreen: Availability::Ignored,
-        panel_all_spaces: Availability::Ignored,
-        panel_nonactivating: Availability::Ignored,
-        accessory: Availability::Ignored,
-    };
-    assert_eq!(wayland, ignored);
+    assert!(window::support_describes_panels_only(Platform::Wayland));
+    assert_eq!(wayland.position, Availability::Unverified);
+    assert_eq!(wayland.hide, Availability::Unverified);
+    assert_eq!(wayland.focus, Availability::Unverified);
+    assert_eq!(wayland.always_on_top, Availability::Unverified);
+    assert_eq!(wayland.skip_taskbar, Availability::Unverified);
+    assert_eq!(wayland.panel_above_fullscreen, Availability::Unverified);
+    assert_eq!(wayland.panel_all_spaces, Availability::Unverified);
+    assert_eq!(wayland.panel_nonactivating, Availability::Ignored);
+    assert_eq!(wayland.accessory, Availability::Ignored);
+    assert!(!window::support_describes_panels_only(Platform::Mac));
+    assert!(!window::support_describes_panels_only(Platform::X11));
 }
 
 #[test]

@@ -105,6 +105,7 @@ mod memory_fs;
 mod mono;
 mod overlay;
 mod pane;
+mod panel_place;
 mod pointers;
 #[cfg(feature = "pool")]
 mod pool;
@@ -236,6 +237,12 @@ pub use mono::{
     MonoRun, MonoStyle, MonoUnderline,
 };
 pub use overlay::{Layer, Modal, DISMISS};
+pub use panel_place::{
+    panel_placement, windows_panel_action, PanelAnchor, PanelMargins, PanelPlacement,
+    WindowsPanelAction, WIN32_EX_NOACTIVATE, WIN32_GWL_EXSTYLE, WIN32_HWND_TOPMOST,
+    WIN32_SWP_NOACTIVATE, WIN32_SWP_NOMOVE, WIN32_SWP_NOSIZE, WIN32_SWP_SHOWWINDOW,
+    WIN32_SW_SHOWNOACTIVATE,
+};
 mod popup;
 pub use pane::{
     apply_pane, detail_pane, field_height, set_selection, shell, splitter, tree_column, Pane,
@@ -275,9 +282,10 @@ pub use tray::{
     TrayIcon, TrayItemId, TrayMapped, TrayMenu, TrayPhase, TrayReport, TraySupport,
 };
 pub use window::{
-    platform_support, Availability, Dismiss, DismissHold, LogicalSize, Position, Resized,
-    ScaleChanged, WindowConfig, WindowEffect, WindowFocus, WindowHandle, WindowKind, WindowMetrics,
-    WindowPhase, WindowSignal, WindowSupport, WindowTransition,
+    platform_support, support_describes_panels_only, Availability, Dismiss, DismissHold,
+    LogicalSize, Position, Resized, ScaleChanged, WindowConfig, WindowEffect, WindowFocus,
+    WindowHandle, WindowKind, WindowMetrics, WindowPhase, WindowSignal, WindowSupport,
+    WindowTransition,
 };
 pub use world::{Bundle, Component, World};
 pub use wrap::{

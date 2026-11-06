@@ -1,8 +1,8 @@
-use std::sync::Arc;
-
 use rndr_paint::Quad;
 use winit::dpi::PhysicalSize;
-use winit::window::Window;
+use winit::event_loop::OwnedDisplayHandle;
+
+use crate::shell::Shell;
 
 use crate::color::{clear_color, color_for_surface};
 
@@ -98,10 +98,12 @@ pub struct Gpu {
     pub(crate) observed: Option<Result<crate::RgbaImage, &'static str>>,
     #[cfg(feature = "observe")]
     observation_adapter: (String, String, u32),
-    window: Arc<Window>,
     device: wgpu::Device,
     queue: wgpu::Queue,
+    /// Dropped before [`Self::shell`] so a layer-shell surface releases its
+    /// buffers while the Wayland connection is still alive.
     surface: wgpu::Surface<'static>,
+    shell: Shell,
     config: wgpu::SurfaceConfiguration,
     /// When set, the pass clears to transparent instead of the opaque canvas.
     clear_transparent: bool,
@@ -142,8 +144,8 @@ pub struct AtlasBytes<'a> {
 
 impl Gpu {
     pub async fn new(
-        display: winit::event_loop::OwnedDisplayHandle,
-        window: Arc<Window>,
+        display: OwnedDisplayHandle,
+        shell: Shell,
         coverage_atlas: AtlasBytes<'_>,
         color_atlas: AtlasBytes<'_>,
         transparent: bool,
@@ -155,12 +157,7 @@ impl Gpu {
         let color_w = color_atlas.width;
         let color_h = color_atlas.height;
         let color_pixels = color_atlas.pixels;
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_with_display_handle(
-            Box::new(display),
-        ));
-        let surface = instance
-            .create_surface(window.clone())
-            .expect("create surface");
+        let (instance, surface) = shell.create_wgpu(display);
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 compatible_surface: Some(&surface),
@@ -173,7 +170,7 @@ impl Gpu {
             .await
             .expect("device");
 
-        let size = window.inner_size();
+        let size = shell.inner_size();
         let width = size.width.max(1);
         let height = size.height.max(1);
         // Keep the adapter's format. `color_for_surface` decodes authored sRGB
@@ -385,7 +382,7 @@ impl Gpu {
         let scene =
             crate::scene::SceneGpu::new(device.clone(), queue.clone(), config.format, samples);
         Self {
-            window,
+            shell,
             device,
             queue,
             surface,
@@ -617,8 +614,17 @@ impl Gpu {
         }
     }
 
-    pub fn window(&self) -> &Window {
-        &self.window
+    pub(crate) fn shell(&self) -> &Shell {
+        &self.shell
+    }
+
+    pub(crate) fn shell_mut(&mut self) -> &mut Shell {
+        &mut self.shell
+    }
+
+    #[cfg(any(feature = "accesskit", feature = "dialog"))]
+    pub(crate) fn winit_window(&self) -> Option<&winit::window::Window> {
+        self.shell.winit_window()
     }
 
     pub fn resize(&mut self, size: PhysicalSize<u32>) {
@@ -634,6 +640,9 @@ impl Gpu {
     /// Returns false when the surface was not presented, so the caller can keep
     /// this frame's input edges for the next redraw.
     pub fn present(&mut self, quads: &[Quad], width: u32, height: u32, scale: f32) -> bool {
+        if !self.shell.accepts_frames() {
+            return false;
+        }
         encode_instances(quads, scale, self.config.format, &mut self.staging);
         let needed = self.staging.len() as u64 / INSTANCE_STRIDE;
         if needed > self.instance_capacity {
@@ -710,6 +719,7 @@ impl Gpu {
         #[cfg(feature = "observe")]
         self.observation_read(readback, width, height);
         self.queue.present(texture);
+        self.shell.note_presented();
         true
     }
 
@@ -730,6 +740,9 @@ impl Gpu {
     ) -> (bool, Vec<u64>) {
         if frame.draws.is_empty() {
             return (self.present(&frame.quads, width, height, scale), Vec::new());
+        }
+        if !self.shell.accepts_frames() {
+            return (false, Vec::new());
         }
         let texture = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(texture)
@@ -775,6 +788,7 @@ impl Gpu {
         #[cfg(feature = "observe")]
         self.observation_read(readback, width, height);
         self.queue.present(texture);
+        self.shell.note_presented();
         (true, uploaded)
     }
 }
