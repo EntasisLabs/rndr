@@ -1,4 +1,7 @@
-//! Uniform-height semantic list, sharing core windowing and Scroll geometry.
+//! Semantic virtual list, sharing core Scroll geometry.
+//! Uniform rows use `list_window`. Variable rows keep an integer anchor and
+//! project it into the same `Scroll::offset`.
+mod variable_geometry;
 use super::{
     CollectionEvent, CollectionEventKind, Item, ItemId, ListView, RowSlot, SelectionMode, ViewProps,
 };
@@ -7,6 +10,10 @@ use rndr_core::*;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     sync::Arc,
+};
+use variable_geometry::{
+    decide_window, ensure_visible, height_to_milli, heights_in_milli, mp_to_points, page_span,
+    paint_error_mp, points_to_mp, prefix_sums, repair_anchor, WindowQuery,
 };
 
 /// Row renderer. Called for realized rows during layout; update children in place.
@@ -51,8 +58,23 @@ struct VirtualView {
     empty: Entity,
     pointer: Option<[f32; 2]>,
     last_click: Option<(ItemId, u64, u64)>,
+    /// `None` keeps the uniform stride contract. `Some` is the variable-height path.
+    variable: Option<VariableRows>,
 }
 impl Component for VirtualView {}
+
+/// Supplied-height geometry. The anchor is the scroll identity; `projected`
+/// is the last f32 paint offset written from it.
+#[derive(Clone)]
+struct VariableRows {
+    heights: Arc<[i64]>,
+    prefix: Arc<[i64]>,
+    anchor: Option<ItemId>,
+    remainder_mp: i64,
+    projected: f32,
+    /// Metadata, measurement, and jump own the anchor until the next realization.
+    follow_anchor: bool,
+}
 #[derive(Clone, Copy)]
 struct Owner {
     view: Entity,
@@ -65,6 +87,34 @@ impl Component for Owner {}
 pub struct VirtualViewHandle {
     /// Core Scroll viewport; set height/width, but keep gap/padding zero.
     pub root: Entity,
+}
+
+/// Integer scroll identity of a [`ListView::mount_variable`] list.
+///
+/// The viewport's top edge sits `remainder_mp` milli-points into [`Self::id`].
+/// One logical point is 1000 milli-points. A remainder equal to the row height
+/// is the row's trailing edge and still names that id. Uniform
+/// [`ListView::mount_virtual`] lists do not use this identity.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VariableAnchor {
+    /// Anchored row. Application state stays keyed by this id.
+    pub id: ItemId,
+    /// Non-negative milli-points from the top of [`Self::id`], at most that row's height.
+    pub remainder_mp: i64,
+}
+
+enum RowMetric {
+    Uniform(f32),
+    Variable(Vec<i64>),
+}
+fn index_items(items: &[Item]) -> Result<HashMap<ItemId, usize>, UiError> {
+    let mut indices = HashMap::with_capacity(items.len());
+    for (i, item) in items.iter().enumerate() {
+        if item.name.trim().is_empty() || indices.insert(item.id, i).is_some() {
+            return Err(UiError::InvalidProps);
+        }
+    }
+    Ok(indices)
 }
 impl ListView {
     /// Mount a uniform-height, viewport-bounded semantic list with no 1024-row
@@ -92,140 +142,257 @@ impl ListView {
         {
             return Err(UiError::InvalidProps);
         }
-        let mut indices = HashMap::with_capacity(items.len());
-        for (i, item) in items.iter().enumerate() {
-            if item.name.trim().is_empty() || indices.insert(item.id, i).is_some() {
-                return Err(UiError::InvalidProps);
-            }
+        let indices = index_items(items)?;
+        mount_prepared(
+            w,
+            parent,
+            key,
+            props,
+            MountRequest {
+                items,
+                indices,
+                metric: RowMetric::Uniform(row_height),
+                compose,
+            },
+        )
+    }
+
+    /// Mount a variable-height list on the same [`VirtualViewHandle`] and Scroll
+    /// viewport as [`Self::mount_virtual`]. There is no second list widget.
+    ///
+    /// `heights` is one finite, strictly positive point height per item. Heights
+    /// convert to milli-points (1000 per point) and sum in an `i64` prefix.
+    /// Scroll identity is a [`VariableAnchor`]: an [`ItemId`] plus a remainder
+    /// inside that row. `Scroll::offset` stays the f32 paint projection.
+    ///
+    /// Remounting updates the prefix and keeps the anchor. A height or insertion
+    /// above the anchor does not move it. Shrinking the anchored row clamps the
+    /// remainder to the new height and keeps the id. Removing the id selects the
+    /// next surviving id, then the previous, then the first row of a non-empty
+    /// replacement, then a clear anchor when the list is empty. Reorder follows
+    /// the id. Invalid heights, including a value that rounds below one
+    /// milli-point, refuse before mutation. A uniform list on this key conflicts.
+    pub fn mount_variable(
+        w: &mut World,
+        parent: Entity,
+        key: UiId,
+        props: ViewProps,
+        items: &[Item],
+        heights: &[f32],
+        compose: VirtualCompose,
+    ) -> Result<VirtualViewHandle, UiError> {
+        if !w.is_alive(parent) || !w.has::<Layout>(parent) {
+            return Err(UiError::Stale);
         }
-        let existing = children_of(w, parent).into_iter().find(|e| {
-            super::key_at(w, *e)
-                .or_else(|| crate::controls::key_at(w, *e))
-                .or_else(|| crate::surfaces::key_at(w, *e))
-                == Some(key)
-        });
-        let root = if let Some(e) = existing {
-            if !w.has::<VirtualView>(e) {
-                return Err(UiError::IdentityConflict);
-            }
-            validate(w, e)?;
-            e
-        } else {
-            let e = w.spawn((
-                Layout {
-                    width: Size::Fill,
-                    height: Size::Px(280.),
-                    ..Layout::column()
-                },
-                Scroll::default(),
-                Focusable,
-                KeyNavigation(navigate),
-                FocusTarget(focus_target),
-                ViewportRows(realize),
-            ));
-            set_parent(w, e, parent);
-            let top = spacer(w, e);
-            let bottom = spacer(w, e);
-            let empty = crate::text(w, e, &props.empty, crate::Typography::Secondary)?;
-            w.insert(
-                e,
-                VirtualView {
-                    key,
-                    props: props.clone(),
-                    items: Arc::from([]),
-                    indices: Arc::new(HashMap::new()),
-                    stride: row_height,
-                    viewport_height: 0.,
-                    viewport_width: 0.,
-                    compose,
-                    rows: BTreeMap::new(),
-                    selected: None,
-                    active: None,
-                    reported: None,
-                    top,
-                    bottom,
-                    empty,
-                    pointer: None,
-                    last_click: None,
-                },
-            );
-            e
-        };
-        let mut v = w.get::<VirtualView>(root).unwrap().clone();
-        let focused = logical_focus(w, root, &v);
-        let canonical_focus = w.resource::<Focus>().and_then(|f| f.entity);
-        // Canonical focus may have changed since the last requests pass (e.g.
-        // request_focus followed immediately by metadata replacement). Reconcile
-        // that actual key, not a stale navigation cache. External owners keep
-        // their explicit navigation key when this list does not own focus.
-        v.active = focused.or(v.active);
-        let old_index = v
-            .active
-            .and_then(|id| v.indices.get(&id).copied())
-            .unwrap_or(0);
-        // Cancel queued/armed requests for removed or newly disabled rows before
-        // replacing metadata. Rebinding performs the same retirement recursively.
-        for (id, slot) in &v.rows {
-            if !indices
-                .get(id)
-                .is_some_and(|i| items[*i].enabled && props.enabled)
-            {
-                retire(w, slot.root);
-            }
-        }
-        if !std::ptr::fn_addr_eq(v.compose, compose) {
-            for slot in v.rows.values_mut() {
-                retire(w, slot.root);
-                reset_content(w, slot);
-            }
-        }
-        v.last_click = None;
-        v.props = props;
-        v.items = Arc::from(items);
-        v.indices = Arc::new(indices);
-        v.stride = row_height;
-        v.compose = compose;
-        if (v.selected.is_some_and(|id| !item_enabled(&v, id))
-            || v.props.selection == SelectionMode::None
-            || !v.props.enabled)
-            && v.selected.take().is_some()
+        if props.name.trim().is_empty()
+            || props.empty.trim().is_empty()
+            || items.len() > u32::MAX as usize
+            || heights.len() != items.len()
         {
-            emit(w, root, CollectionEventKind::Selected(None));
+            return Err(UiError::InvalidProps);
         }
-        if !v.active.is_some_and(|id| item_enabled(&v, id)) {
-            v.active = v
-                .items
-                .iter()
-                .skip(old_index.min(v.items.len().saturating_sub(1)))
-                .chain(v.items.iter())
-                .find(|i| i.enabled)
-                .map(|i| i.id);
+        let heights = heights_in_milli(heights).ok_or(UiError::InvalidProps)?;
+        let indices = index_items(items)?;
+        mount_prepared(
+            w,
+            parent,
+            key,
+            props,
+            MountRequest {
+                items,
+                indices,
+                metric: RowMetric::Variable(heights),
+                compose,
+            },
+        )
+    }
+}
+struct MountRequest<'a> {
+    items: &'a [Item],
+    indices: HashMap<ItemId, usize>,
+    metric: RowMetric,
+    compose: VirtualCompose,
+}
+fn mount_prepared(
+    w: &mut World,
+    parent: Entity,
+    key: UiId,
+    props: ViewProps,
+    request: MountRequest<'_>,
+) -> Result<VirtualViewHandle, UiError> {
+    let MountRequest {
+        items,
+        indices,
+        metric,
+        compose,
+    } = request;
+    let existing = children_of(w, parent).into_iter().find(|e| {
+        super::key_at(w, *e)
+            .or_else(|| crate::controls::key_at(w, *e))
+            .or_else(|| crate::surfaces::key_at(w, *e))
+            == Some(key)
+    });
+    let root = if let Some(e) = existing {
+        if !w.has::<VirtualView>(e) {
+            return Err(UiError::IdentityConflict);
         }
-        w.get_mut::<Label>(v.empty).unwrap().text = v.props.empty.clone();
-        w.insert(root, v);
-        realize(w, root);
-        if focused.is_some()
-            && !canonical_focus.is_some_and(|f| {
-                w.is_alive(f)
-                    && access_details(w, f).focus
-                    && owner(w, f).is_some_and(|o| {
-                        Some(o.id) == focused
-                            && item_enabled(w.get::<VirtualView>(root).unwrap(), o.id)
-                    })
-            })
+        validate(w, e)?;
+        let variable_now = w
+            .get::<VirtualView>(e)
+            .is_some_and(|view| view.variable.is_some());
+        let variable_next = matches!(metric, RowMetric::Variable(_));
+        if variable_now != variable_next {
+            return Err(UiError::IdentityConflict);
+        }
+        e
+    } else {
+        let e = w.spawn((
+            Layout {
+                width: Size::Fill,
+                height: Size::Px(280.),
+                ..Layout::column()
+            },
+            Scroll::default(),
+            Focusable,
+            KeyNavigation(navigate),
+            FocusTarget(focus_target),
+            ViewportRows(realize),
+        ));
+        set_parent(w, e, parent);
+        let top = spacer(w, e);
+        let bottom = spacer(w, e);
+        let empty = crate::text(w, e, &props.empty, crate::Typography::Secondary)?;
+        w.insert(
+            e,
+            VirtualView {
+                key,
+                props: props.clone(),
+                items: Arc::from([]),
+                indices: Arc::new(HashMap::new()),
+                stride: match &metric {
+                    RowMetric::Uniform(height) => *height,
+                    RowMetric::Variable(_) => 1.0,
+                },
+                viewport_height: 0.,
+                viewport_width: 0.,
+                compose,
+                rows: BTreeMap::new(),
+                selected: None,
+                active: None,
+                reported: None,
+                top,
+                bottom,
+                empty,
+                pointer: None,
+                last_click: None,
+                variable: None,
+            },
+        );
+        e
+    };
+    let mut v = w.get::<VirtualView>(root).unwrap().clone();
+    let focused = logical_focus(w, root, &v);
+    let canonical_focus = w.resource::<Focus>().and_then(|f| f.entity);
+    // Canonical focus may have changed since the last requests pass (e.g.
+    // request_focus followed immediately by metadata replacement). Reconcile
+    // that actual key, not a stale navigation cache. External owners keep
+    // their explicit navigation key when this list does not own focus.
+    v.active = focused.or(v.active);
+    let old_index = v
+        .active
+        .and_then(|id| v.indices.get(&id).copied())
+        .unwrap_or(0);
+    // Cancel queued/armed requests for removed or newly disabled rows before
+    // replacing metadata. Rebinding performs the same retirement recursively.
+    for (id, slot) in &v.rows {
+        if !indices
+            .get(id)
+            .is_some_and(|i| items[*i].enabled && props.enabled)
         {
-            if let Some(id) = w.get::<VirtualView>(root).and_then(|v| v.active) {
-                if w.get::<VirtualView>(root).unwrap().props.enabled {
-                    VirtualViewHandle { root }.focus(w, id)?;
-                } else {
-                    request_focus(w, root);
-                }
+            retire(w, slot.root);
+        }
+    }
+    if !std::ptr::fn_addr_eq(v.compose, compose) {
+        for slot in v.rows.values_mut() {
+            retire(w, slot.root);
+            reset_content(w, slot);
+        }
+    }
+    v.last_click = None;
+    v.props = props;
+    let (old_order, old_anchor, old_remainder) = if matches!(metric, RowMetric::Variable(_)) {
+        let order = v.items.iter().map(|item| item.id).collect::<Vec<_>>();
+        let (anchor, remainder) = v
+            .variable
+            .as_ref()
+            .map(|rows| (rows.anchor, rows.remainder_mp))
+            .unwrap_or((None, 0));
+        (order, anchor, remainder)
+    } else {
+        (Vec::new(), None, 0)
+    };
+    v.items = Arc::from(items);
+    v.indices = Arc::new(indices);
+    v.compose = compose;
+    match metric {
+        RowMetric::Uniform(height) => {
+            v.stride = height;
+            v.variable = None;
+        }
+        RowMetric::Variable(heights) => {
+            let ids: Vec<ItemId> = items.iter().map(|item| item.id).collect();
+            let (anchor, remainder_mp) =
+                repair_anchor(&old_order, old_anchor, old_remainder, &ids, &heights);
+            v.stride = heights.first().copied().map(mp_to_points).unwrap_or(1.0);
+            v.variable = Some(VariableRows {
+                prefix: Arc::from(prefix_sums(&heights)),
+                heights: Arc::from(heights),
+                anchor,
+                remainder_mp,
+                projected: 0.0,
+                follow_anchor: true,
+            });
+        }
+    }
+    if (v.selected.is_some_and(|id| !item_enabled(&v, id))
+        || v.props.selection == SelectionMode::None
+        || !v.props.enabled)
+        && v.selected.take().is_some()
+    {
+        emit(w, root, CollectionEventKind::Selected(None));
+    }
+    if !v.active.is_some_and(|id| item_enabled(&v, id)) {
+        v.active = v
+            .items
+            .iter()
+            .skip(old_index.min(v.items.len().saturating_sub(1)))
+            .chain(v.items.iter())
+            .find(|i| i.enabled)
+            .map(|i| i.id);
+    }
+    w.get_mut::<Label>(v.empty).unwrap().text = v.props.empty.clone();
+    w.insert(root, v);
+    realize(w, root);
+    if focused.is_some()
+        && !canonical_focus.is_some_and(|f| {
+            w.is_alive(f)
+                && access_details(w, f).focus
+                && owner(w, f).is_some_and(|o| {
+                    Some(o.id) == focused && item_enabled(w.get::<VirtualView>(root).unwrap(), o.id)
+                })
+        })
+    {
+        if let Some(id) = w.get::<VirtualView>(root).and_then(|v| v.active) {
+            if w.get::<VirtualView>(root).unwrap().props.enabled {
+                VirtualViewHandle { root }.focus(w, id)?;
             } else {
                 request_focus(w, root);
             }
+        } else {
+            request_focus(w, root);
         }
-        Ok(VirtualViewHandle { root })
     }
+    Ok(VirtualViewHandle { root })
 }
 // The content entity itself is caller-populated too (Label, Color, styles,
 // editor state, etc.). Clearing only children leaks components across keys or
@@ -352,6 +519,9 @@ fn reconcile_window(
     root: Entity,
     view: &mut VirtualView,
 ) -> (RealizedWindow, bool) {
+    if view.variable.is_some() {
+        return reconcile_variable(world, root, view);
+    }
     let viewport_height = world.get::<Rect>(root).map(|rect| rect.h).unwrap_or(0.);
     let viewport_width = world.get::<Rect>(root).map(|rect| rect.w).unwrap_or(0.);
     let width_changed = viewport_width != view.viewport_width;
@@ -396,6 +566,89 @@ fn reconcile_window(
             wanted,
             top_height: first as f32 * view.stride,
             bottom_height: (view.items.len() as u32 - first - len) as f32 * view.stride,
+        },
+        width_changed || height_changed,
+    )
+}
+
+/// Variable rows share Scroll and row recycling. The integer anchor is the
+/// scroll identity; a paint offset that differs from the last projection is input.
+fn reconcile_variable(
+    world: &mut World,
+    root: Entity,
+    view: &mut VirtualView,
+) -> (RealizedWindow, bool) {
+    let viewport_height = world.get::<Rect>(root).map(|rect| rect.h).unwrap_or(0.);
+    let viewport_width = world.get::<Rect>(root).map(|rect| rect.w).unwrap_or(0.);
+    let width_changed = viewport_width != view.viewport_width;
+    view.viewport_width = viewport_width;
+    let height_changed = viewport_height != view.viewport_height;
+    let resize_focus_index = if height_changed {
+        world
+            .resource::<Focus>()
+            .and_then(|focus| focus.entity)
+            .and_then(|entity| owner(world, entity))
+            .filter(|owner| owner.view == root)
+            .and_then(|owner| view.indices.get(&owner.id).copied())
+    } else {
+        None
+    };
+    if height_changed {
+        view.viewport_height = viewport_height;
+    }
+    let Some(variable) = view.variable.clone() else {
+        return (
+            RealizedWindow {
+                wanted: Vec::new(),
+                top_height: 0.,
+                bottom_height: 0.,
+            },
+            false,
+        );
+    };
+    let anchor_index = variable
+        .anchor
+        .and_then(|id| view.indices.get(&id).copied());
+    let paint = world
+        .get::<Scroll>(root)
+        .map(|scroll| -scroll.offset[1])
+        .unwrap_or(0.);
+    let decision = decide_window(
+        &variable.heights,
+        &variable.prefix,
+        WindowQuery {
+            paint_points: paint,
+            viewport_points: viewport_height,
+            follow_anchor: variable.follow_anchor,
+            projected: variable.projected,
+            anchor_index,
+            remainder_mp: variable.remainder_mp,
+            resize_focus_index,
+        },
+    );
+    if let Some(rows) = view.variable.as_mut() {
+        rows.anchor = decision
+            .anchor_index
+            .and_then(|index| view.items.get(index).map(|item| item.id));
+        rows.remainder_mp = decision.remainder_mp;
+        rows.projected = decision.offset_points;
+        rows.follow_anchor = false;
+    }
+    if let Some(scroll) = world.get_mut::<Scroll>(root) {
+        scroll.offset[1] = -decision.offset_points;
+    }
+    let wanted = view
+        .items
+        .iter()
+        .skip(decision.first)
+        .take(decision.len)
+        .map(|item| item.id)
+        .collect();
+    (
+        RealizedWindow {
+            wanted,
+            top_height: decision.top,
+            bottom_height: decision.bottom,
         },
         width_changed || height_changed,
     )
@@ -511,11 +764,15 @@ fn compose_realized_rows(w: &mut World, root: Entity, v: &VirtualView, wanted: &
     for &id in wanted {
         let slot = v.rows[&id];
         let item = &v.items[v.indices[&id]];
+        let row_height = match &v.variable {
+            Some(variable) => mp_to_points(variable.heights[v.indices[&id]]),
+            None => v.stride,
+        };
         w.insert(
             slot.root,
             Layout {
                 width: Size::Fill,
-                height: Size::Px(v.stride),
+                height: Size::Px(row_height),
                 ..Layout::column()
             },
         );
@@ -687,9 +944,20 @@ fn navigate_impl(w: &mut World, e: Entity, key: &KeyEvent, external: bool) -> bo
         return true;
     }
     let at = id.and_then(|id| v.indices.get(&id).copied()).unwrap_or(0);
-    let page = (w.get::<Rect>(root).map(|r| r.h).unwrap_or(v.stride) / v.stride)
-        .floor()
-        .max(1.) as usize;
+    let page = match &v.variable {
+        Some(variable) => {
+            let height = w.get::<Rect>(root).map(|rect| rect.h).unwrap_or(0.);
+            page_span(
+                &variable.prefix,
+                at,
+                points_to_mp(height).max(0),
+                k == NamedKey::PageDown,
+            )
+        }
+        None => (w.get::<Rect>(root).map(|r| r.h).unwrap_or(v.stride) / v.stride)
+            .floor()
+            .max(1.) as usize,
+    };
     let target = match k {
         NamedKey::Home => v.items.iter().find(|i| i.enabled),
         NamedKey::End => v.items.iter().rev().find(|i| i.enabled),
@@ -776,6 +1044,34 @@ pub(super) fn requests(w: &mut World) {
         w.insert(root, v);
     }
 }
+fn write_variable_anchor(
+    w: &mut World,
+    root: Entity,
+    id: Option<ItemId>,
+    remainder_mp: i64,
+) -> Result<(), UiError> {
+    let position = {
+        let view = w.get::<VirtualView>(root).ok_or(UiError::Stale)?;
+        let rows = view.variable.as_ref().ok_or(UiError::InvalidProps)?;
+        match id.and_then(|item| view.indices.get(&item).copied()) {
+            Some(index) => rows.prefix[index] + remainder_mp,
+            None => 0,
+        }
+    };
+    let offset = mp_to_points(position);
+    {
+        let view = w.get_mut::<VirtualView>(root).ok_or(UiError::Stale)?;
+        let rows = view.variable.as_mut().ok_or(UiError::InvalidProps)?;
+        rows.anchor = id;
+        rows.remainder_mp = remainder_mp;
+        rows.follow_anchor = true;
+        rows.projected = offset;
+    }
+    if let Some(scroll) = w.get_mut::<Scroll>(root) {
+        scroll.offset[1] = -offset;
+    }
+    Ok(())
+}
 impl VirtualViewHandle {
     /// Stable row identity for a currently mounted embedded control/event target.
     /// Returns None for stale entities or entities owned by another list.
@@ -822,12 +1118,92 @@ impl VirtualViewHandle {
         }
         Ok(())
     }
+    /// Integer scroll identity. `None` for a uniform list, an empty variable list, or a stale handle.
+    pub fn anchor(self, w: &World) -> Option<VariableAnchor> {
+        let view = w.get::<VirtualView>(self.root)?;
+        let rows = view.variable.as_ref()?;
+        Some(VariableAnchor {
+            id: rows.anchor?,
+            remainder_mp: rows.remainder_mp,
+        })
+    }
+    /// Place the viewport's top edge `remainder_mp` milli-points into `id`.
+    ///
+    /// Refuses a uniform list, an unknown id, a negative remainder, or a
+    /// remainder above that row's height, before mutation. A position past the
+    /// scrollable end clamps during layout. One point is 1000 milli-points.
+    pub fn jump(self, w: &mut World, id: ItemId, remainder_mp: i64) -> Result<(), UiError> {
+        validate(w, self.root)?;
+        let height = {
+            let view = w.get::<VirtualView>(self.root).ok_or(UiError::Stale)?;
+            let rows = view.variable.as_ref().ok_or(UiError::InvalidProps)?;
+            let index = *view.indices.get(&id).ok_or(UiError::InvalidProps)?;
+            rows.heights[index]
+        };
+        if remainder_mp < 0 || remainder_mp > height {
+            return Err(UiError::InvalidProps);
+        }
+        write_variable_anchor(w, self.root, Some(id), remainder_mp)?;
+        layout_propagate(w);
+        Ok(())
+    }
+    /// Replace one supplied height. The prefix updates and the anchor id stays.
+    ///
+    /// A non-finite, zero, or negative height, and a height that rounds below
+    /// one milli-point, refuses before mutation. Shrinking the anchored row
+    /// clamps the remainder to the new height. Scroll does not reset to zero.
+    pub fn measure_height(self, w: &mut World, id: ItemId, height: f32) -> Result<(), UiError> {
+        validate(w, self.root)?;
+        let milli = height_to_milli(height).ok_or(UiError::InvalidProps)?;
+        let (anchor, remainder, heights, prefix) = {
+            let view = w.get::<VirtualView>(self.root).ok_or(UiError::Stale)?;
+            let rows = view.variable.as_ref().ok_or(UiError::InvalidProps)?;
+            let index = *view.indices.get(&id).ok_or(UiError::InvalidProps)?;
+            let old = rows.heights[index];
+            let total = rows.prefix.last().copied().unwrap_or(0);
+            if milli > old && total.checked_add(milli - old).is_none() {
+                return Err(UiError::InvalidProps);
+            }
+            let mut heights = rows.heights.to_vec();
+            heights[index] = milli;
+            let mut remainder = rows.remainder_mp;
+            if rows.anchor == Some(id) {
+                remainder = remainder.clamp(0, milli);
+            }
+            let prefix = prefix_sums(&heights);
+            (rows.anchor, remainder, heights, prefix)
+        };
+        {
+            let view = w.get_mut::<VirtualView>(self.root).ok_or(UiError::Stale)?;
+            let rows = view.variable.as_mut().ok_or(UiError::InvalidProps)?;
+            rows.heights = Arc::from(heights);
+            rows.prefix = Arc::from(prefix);
+            rows.anchor = anchor;
+            rows.remainder_mp = remainder;
+            rows.follow_anchor = true;
+        }
+        layout_propagate(w);
+        Ok(())
+    }
+    /// Absolute milli-point gap between the integer anchor and the current f32 paint offset.
+    /// `None` for a uniform list, an empty anchor, or a stale handle.
+    pub fn paint_conversion_error_mp(self, w: &World) -> Option<f64> {
+        let view = w.get::<VirtualView>(self.root)?;
+        let rows = view.variable.as_ref()?;
+        let index = rows.anchor.and_then(|id| view.indices.get(&id).copied())?;
+        let position = rows.prefix[index] + rows.remainder_mp;
+        let paint = -w.get::<Scroll>(self.root)?.offset[1];
+        Some(paint_error_mp(position, paint))
+    }
     /// Reveal an enabled logical row, realizing it synchronously. No focus change.
     pub fn reveal(self, w: &mut World, id: ItemId) -> Result<(), UiError> {
         validate(w, self.root)?;
         let v = w.get::<VirtualView>(self.root).ok_or(UiError::Stale)?;
         if !v.props.enabled || !item_enabled(v, id) {
             return Err(UiError::InvalidProps);
+        }
+        if v.variable.is_some() {
+            return self.reveal_variable(w, id);
         }
         let y = v.indices[&id] as f32 * v.stride;
         let h = w.get::<Rect>(self.root).map(|r| r.h).unwrap_or(0.);
@@ -841,6 +1217,32 @@ impl VirtualViewHandle {
         } else {
             offset
         };
+        layout_propagate(w);
+        Ok(())
+    }
+    fn reveal_variable(self, w: &mut World, id: ItemId) -> Result<(), UiError> {
+        let (new_id, new_remainder) = {
+            let view = w.get::<VirtualView>(self.root).ok_or(UiError::Stale)?;
+            let rows = view.variable.as_ref().ok_or(UiError::InvalidProps)?;
+            let index = *view.indices.get(&id).ok_or(UiError::InvalidProps)?;
+            let viewport = w.get::<Rect>(self.root).map(|rect| rect.h).unwrap_or(0.);
+            let (anchor_index, remainder) = match rows
+                .anchor
+                .and_then(|anchor| view.indices.get(&anchor).copied())
+            {
+                Some(anchor_index) => (anchor_index, rows.remainder_mp),
+                None => (0, 0),
+            };
+            let (new_index, new_remainder) = ensure_visible(
+                &rows.prefix,
+                index,
+                anchor_index,
+                remainder,
+                points_to_mp(viewport).max(0),
+            );
+            (view.items[new_index].id, new_remainder)
+        };
+        write_variable_anchor(w, self.root, Some(new_id), new_remainder)?;
         layout_propagate(w);
         Ok(())
     }

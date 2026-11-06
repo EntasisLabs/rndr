@@ -4,7 +4,7 @@ mod virtual_list;
 use crate::{text, Corner, Token, Typography, UiError, UiId, UiRecipe, UiStyle, UiTheme};
 use rndr_core::*;
 use std::collections::{BTreeMap, BTreeSet};
-pub use virtual_list::{VirtualCompose, VirtualListPolicy, VirtualViewHandle};
+pub use virtual_list::{VariableAnchor, VirtualCompose, VirtualListPolicy, VirtualViewHandle};
 
 /// Deliberate retained-data safety budget, not a virtualization claim.
 pub const MAX_ITEMS: usize = 1024;
@@ -98,8 +98,9 @@ pub enum CollectionEventKind {
     Expanded(ItemId, bool),
 }
 /// Composed slots. Retained ListView/TreeView support passive content with a
-/// stable subtree lifetime. `mount_virtual` supports nested controls but recycles
-/// slots: keep application state by ItemId and never persist these entities.
+/// stable subtree lifetime. `mount_virtual` and `mount_variable` support nested
+/// controls but recycle slots: keep application state by ItemId and never persist
+/// these entities.
 #[derive(Clone, Copy, Debug)]
 pub struct RowSlot {
     /// Managed canonical interaction target. Do not remove/reparent/replace.

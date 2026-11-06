@@ -14,8 +14,7 @@ facade. `publish = false` stays on the examples, including desktop. The
 What the kits and the core document model cover, with tests in this repo:
 
 - Semantic themes, cards, controls, collections, data editors, and selection.
-- [`ListView::mount_virtual`](virtual-list.md): a viewport window over a longer
-  logical list. The retained `ListView` is still a bounded list.
+- [`ListView::mount_virtual`](virtual-list.md) and [`ListView::mount_variable`](virtual-list.md): a viewport window over a longer logical list. Variable rows keep an item anchor plus a milli-point remainder. The retained `ListView` is still a bounded list. Headless anchor math is not native certification.
 - [Markdown host slots](markdown-host-slots.md): a slot is anchored to a source
   byte range, so an insert above it or a streaming append keeps the control.
   Height is measured from the mounted subtree. The host owns the children. The
