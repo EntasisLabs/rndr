@@ -54,10 +54,47 @@ carry over to another key or renderer.
   row root to a different key.
   Replacing the renderer also destroys old composed content. Same-key overlapping
   rows retain their content/focus across metadata replacement and reorder.
-* This is not variable-height virtualization, lazy/remote data loading, virtual
-  TreeView or virtual DataTable. Those retained APIs still have their documented
-  budgets. Core geometry is f32: extremely large total heights eventually lose
-  sub-row precision; `u32::MAX` is a type limit, not a precision/performance claim.
+* This is not lazy/remote data loading, virtual TreeView, or virtual DataTable.
+  Retained lists stay at `MAX_ITEMS` 1024. Tables stay 256×32. Trees stay on the
+  retained budget. Core geometry for the uniform path is f32: extremely large
+  total heights eventually lose sub-row precision; `u32::MAX` is a type limit,
+  not a precision/performance claim.
+* Variable height is `ListView::mount_variable` on this same handle. See
+  [Variable height](#variable-height). It does not add a list widget or a scroll engine.
+
+## Variable height
+
+`ListView::mount_variable` returns the existing `VirtualViewHandle`. Uniform
+`mount_virtual` keeps its stride. The two mounts conflict on the same key.
+
+The host supplies one finite, strictly positive height per row, in points. The
+list stores milli-points (1000 per point) and an `i64` prefix sum. A height
+that is non-finite, zero, negative, or rounds below one milli-point is refused
+before mutation. Call `measure_height` when a measured height replaces an
+estimate: the prefix updates, the anchor stays, and scroll does not reset to zero.
+
+Scroll identity is `VariableAnchor`: an `ItemId` plus a non-negative remainder
+inside that row, in milli-points. `jump` sets it. `Scroll::offset` remains `f32`
+and is only the paint projection. Height changes and insertions above the anchor
+do not move the anchored id or remainder. Shrinking the anchored row clamps the
+remainder to the new height and keeps the id. Removing the id repairs to the
+next surviving id, then the previous, then the first row of a non-empty
+replacement, then a clear anchor when the list is empty. Reorder follows the id.
+
+Application state stays on `ItemId`. `row(id)` is `None` while the row is
+unrealized. Recycling destroys the content entity and its descendants before
+the row root is bound to another id. A focused nested control parks focus on
+the viewport, keeps the logical key, and is not refocused on the old entity.
+Nested controls still own their own input. Offscreen editors stay out of scope.
+Wheel remainder and scroll-drag slop are unchanged.
+
+The headless fixture is 10,000 rows with three supplied heights (8, 24, and 96
+points), including one short row and one tall row. It does not shape 10,000
+strings. Jumping to row 9000 with a remainder of 333 milli-points projects to
+`Scroll::offset` with an error of **10.75 milli-points**. The integer anchor
+stays exact across that projection, a jump away, and a jump back. Headless
+success does not close a native platform cell. Trackpad, scrollbar drag, and
+screen readers stay unverified.
 
 ## Selection, focus, activation and embedded controls
 
