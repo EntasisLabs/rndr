@@ -1,5 +1,9 @@
-//! Small opinionated app helpers, not a second widget or scheduling system.
-//! Install `FormNavigation` before your own Update systems.
+//! Starter helpers for a desktop application.
+//!
+//! This is not the component library. Semantic controls live in `rndr_ui`,
+//! which this crate does not depend on. The helpers here are a small starting
+//! point: form navigation, a few layout constants, and draft preferences.
+//! Install [`FormNavigation`] before your own Update systems.
 //! See `examples/desktop` for navigation, draft settings and task ownership.
 #![deny(missing_docs)]
 
@@ -11,13 +15,24 @@ use std::{
 };
 
 /// Enable core's canonical chronological form interaction policy.
+///
 /// Cyclic Tab traversal respects visibility, disabled controls and TabStop.
 /// Fields created by [`field`] opt into FieldTransactions; custom fields can
 /// supply their own transaction callback. No input queue is rewritten here.
+///
+/// Scrolling is installed the same way `UiPlugin` in `rndr_ui` installs it:
+/// [`rndr_core::apply_scroll`] and [`rndr_core::apply_scrollbars`] at the front
+/// of Input, so a wheel or a scrollbar track is claimed before focus reveal.
+/// A second registration is safe. Wheel deltas are consumed, and a drag is
+/// measured from the last applied position.
 pub struct FormNavigation;
 impl Plugin for FormNavigation {
     fn build(self, app: &mut App) {
         app.add_plugin(GenericInteraction);
+        app.add_system_front(Schedule::Input, apply_scroll);
+        // After the front scroll registration, so a track claims its input
+        // before the parent viewport scrolls.
+        app.add_system_front(Schedule::Input, apply_scrollbars);
     }
 }
 

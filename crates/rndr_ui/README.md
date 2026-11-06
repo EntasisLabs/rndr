@@ -10,7 +10,7 @@ Composable, application-owned `collections::ListView` and `collections::TreeView
 now provide stable-ID rows, passive composition slots, independent focus/selection/
 activation, themed scrolling and hierarchical navigation. The standalone interactive
 `data_gallery` demonstrates mutation, filtering, resizing and application paging over
-10,000 records. It is not Blooey and does not own filesystem/database data.
+10,000 records. It does not own filesystem or database data.
 
 See [API, exact dependency prep/launch commands, limits and roadmap](../../docs/data-components.md).
 Selection modes are None/Single only; retained rows are budgeted, **not virtualized**. `ListView::mount_virtual` adds viewport-bounded uniform rows with stable logical keys, explicitly ephemeral composed subtrees, exclusive nested-control input ownership, and shared core windowing/scroll geometry. The real palette uses it. See [virtual lists](../../docs/virtual-list.md) and [headless evidence](../../evidence/unified-list/report.md).
@@ -68,21 +68,34 @@ Families are requests to the already installed text engine. UiTheme now requests
 
 AT `SetValue` is explicitly rejected via `UnsupportedSetValue`; no raw Label/Buffer mutation substitutes for a validated editor/history operation. This is a deliberate supported safety outcome. Other A1 APIs, cardinality limits and manual tab/panel prerequisites are documented separately in the decision record.
 
-## Reproduce the headless gallery
+## Where to start
 
-From the isolated worktree, using the existing local cache:
+Read [the status note](../../docs/ui-status.md) first. Then, depending on the
+surface:
+
+- Collections and the virtual window: [data components](../../docs/data-components.md) and [virtual lists](../../docs/virtual-list.md). The `data_gallery` and `virtual_list_gallery` examples exercise them.
+- Editors and selection: [data editors](../../docs/data-editors.md) and [selection controls](../../docs/selection-controls.md).
+- A host-filled markdown block: [markdown slots](../../docs/markdown-host-slots.md) and the `markdown_gallery` example.
+- Pixels of one component: [component capture](../../docs/component-capture.md). `capture_isolated` paints the target subtree on its own.
+
+Headless checks:
 
 ```sh
-export CARGO_BUILD_JOBS=2 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0
-# NEW nonexistent output only: the A2 generator refuses an existing directory.
-cargo run --offline --locked -p rndr_ui --example operating_gallery -- /tmp/rndr-a2-gallery-CHOOSE-A-NEW-NAME
 cargo test --offline --locked -p rndr_ui
 ```
 
-The new operating gallery includes all four Button variants, a named IconButton, NavigationRow selection/metadata, real manual tab/panel relations, responsive toolbar, reading content, passive Card/Callout, visible labelled source action, nested scroll and the existing Buffer editor. Its host consumes only core FIFO64 typed requests and uses synthetic command/locator validation; it never adopts Blooey or opens real documents. Native launch instructions and the per-platform matrix are in `docs/design/A2-components.md`.
+Write any new paint dumps under `local-captures/` (gitignored) or another
+directory outside the repo. Do not add them under `evidence/`.
 
-The **preserved passive gallery** creates surfaces, Card/Callout, separators, typography, long text and localization fixtures. It writes full-document **actual rndr paint display lists, glyph UVs, colors, clips and layout rectangles** for six representative states. These are not native screenshots, an alternative renderer, or world-only style assertions. Golden tests compare the real paint output. A 32-state test matrix checks every visible Hug parent's containment and complete ASCII glyph coverage; nested scroll tests inspect actual paint scissors. Glyph geometry is checked at 100%/200% text and fractional/2× device scales.
+## Historical galleries
 
-The first display-list audit exposed a real nested wrapped-Hug clipping defect despite simpler world tests passing. The reproduced core fix resolves width-constrained heights before ancestor clips. Baseline/fixed logs and separate core commits preserve that evidence rather than silently blessing incomplete gallery output.
+`operating_gallery` and `passive_gallery` are the older A2 and passive
+fixtures. They still run, and the passive golden tests still compare real
+paint display lists. They are not the map of the crate. Their write-ups are
+`docs/design/A2-components.md` and `docs/design/A0-A1-checkpoint.md`.
 
-See historical `docs/design/A0-A1-checkpoint.md` for its exact checkpoint evidence. Current control purpose/props/slots, keyboard/pointer/AT behavior, overflow, lifecycle/state/unsupported contracts and native launch matrix are in `docs/design/A2-components.md`. New A2 display-list evidence is separate from all six old passive goldens and historical reports. Native OS AT, preferences, complex-script shaping/IME and physical-DPI certification remain **UNVERIFIED**; prior gallery testing is not a certification matrix. Live `observe` captures are whole-window surface copies with a matching flattened accessibility tree, not component/headless captures, layout trees or UiId maps. Transport is Unix-only and requires explicit opt-in; see [observe](../../docs/native-observation.md).
+Native OS assistive technology, preferences, input methods, and physical DPI
+were not certified by those galleries. The live `observe` probe records what a
+Unix window submitted. Headless component capture is the separate
+[capture](../../docs/component-capture.md) path. Complex-script limits are in
+[the IME note](../../docs/ime-complex-scripts.md).

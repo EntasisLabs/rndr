@@ -1,48 +1,81 @@
-# Semantic UI status and integration boundary
+# Semantic UI status
 
-## Current baseline and this increment
+## The tree
 
-Baseline **`fe9e679`** includes the owner-integrated data-editor and selection-control work. `rndr_ui` is a real GPU-free component library above core, not only an A0/A1 proposal or an unaccepted A2 stub. Earlier A0/A1/A2 checkpoint files describe their exact historical review scopes; they do not override this status. Historical proposals, review evidence and captured results are retained, not retroactively changed into new approvals.
+`rndr_core` is the headless world. `rndr_paint` is one frame. `rndr_std` is the
+filesystem. `rndr_term` is the optional pseudoterminal. `rndr_render` is the
+only OS window and GPU, and it also does offscreen capture. The `rndr` facade
+re-exports those. `rndr_ui` and `rndr_app` are opt-in and depend only on core.
+`rndr_ui` is the component library. `rndr_app` is a starter (form navigation,
+spacing, draft preferences), not that library. `publish = false` stays on
+`rndr_ui`, `rndr_app`, and the desktop example.
 
-Implemented today:
+What the kits and the core document model cover, with tests in this repo:
 
-- Semantic Light/Dark/high-contrast themes, typography, density, styling, cards, callouts, text and separators.
-- Button/IconButton, navigation/source actions, mode selection, responsive toolbar and WorkspaceLayout.
-- Stable-identity retained ListView/TreeView with separate focus, selection, activation and passive row slots.
-- DataTable with application-owned rows, sort requests and declarative column widths; PropertyInspector with typed drafts, validation and explicit commit/cancel.
-- Checkbox, SingleSelect and MultiSelect, standalone and in the inspector, with core anchored-popup/focus/dismissal behavior. Selection changes inspector drafts, not application records.
-- Explicitly opted-in live observation of a running window, not component-targeted/headless capture.
+- Semantic themes, cards, controls, collections, data editors, and selection.
+- [`ListView::mount_virtual`](virtual-list.md): a viewport window over a longer
+  logical list. The retained `ListView` is still a bounded list.
+- [Markdown host slots](markdown-host-slots.md): a slot is anchored to a source
+  byte range, so an insert above it or a streaming append keeps the control.
+  Height is measured from the mounted subtree. The host owns the children. The
+  parser does not run them. Copy emits the original markdown.
+- [Component capture](component-capture.md): `capture` crops the viewport
+  composite to the target. `capture_isolated` paints that subtree on its own,
+  so a sibling cannot cover it. Metadata is ids, bounds, clips, and hidden
+  state. Accessible names stay out, including for public content.
+  `ObservationSensitive` still denies the whole capture. CI builds
+  `rndr-capture`, `component_capture`, and `structured_gallery`.
+- [Overlay requests](overlay-platform.md) for a Wayland layer-shell panel and a
+  Windows non-activating topmost window. The `platform_support` table is the
+  authority for each capability. `Unverified` means the runner sends the
+  request and no session in this repo's checks has shown the OS honor it.
+- [Hidden-window startup](startup-budget.md): device creation for a window that
+  starts hidden runs off the UI thread. The surface is still created on the UI
+  thread and reused across hide and show. No millisecond time-to-first-present
+  was measured here, so there is no numeric budget.
+- [Headless IME and complex scripts](ime-complex-scripts.md): preedit, commit,
+  cancel, and caret keys on the text surfaces, plus the known half-em column
+  estimate in `reading_layout`. That is not an OS input-method certificate.
 
-This **first bounded consolidation increment** makes UiPlugin own scrolling, adds a collision-safe facade namespace, corrects documentation/metadata and closes CI coverage gaps. It is a candidate for owner review, **not executor approval or integration**. It does not start the unified-list/palette increment, overlays, markdown slots, capture architecture, native IME or startup work.
+## Contracts that still hold
 
-## Integration contracts
+`UiPlugin` installs `apply_scroll` and `apply_scrollbars` at the front of
+Input, before focus reveal. `FormNavigation` in `rndr_app` installs those same
+two systems. A second registration is safe: the wheel is consumed, and a drag
+is measured from the last applied position. Reinstalling `UiPlugin` is a
+no-op. Neither plugin installs `Shell`.
 
-`UiPlugin` reuses core Chrome/GenericInteraction focus and activation. It installs `apply_scroll` at the front of Input so wheel/drag movement precedes canonical focus reveal/activation. Core consumes wheel input, advances drag's last-applied position and refreshes clamped layout geometry after movement, before later hit testing/focus reveal: old Input or Shell/Update registrations can remain without multiplying movement. Wheel/drag displacement suspends automatic reveal of that same focused row until fresh focus/key/press intent; release and idle frames do not snap it back. Normal deferred popup/layout reveal is preserved when not deliberately scrolling. This is a frame-batch policy: the aggregate wheel precedes pointer/key handling, not a promise of OS wheel/key interleaving. Reinstalling UiPlugin is a no-op. No Shell filesystem/global-selection behavior is added. New hosts need only UiPlugin; the galleries exercise that path, and regressions retain legacy-host combinations.
+The facade's `ui` feature exposes `rndr::ui`. Do not glob it together with
+core. Root `Button`, tray `Item`, `Theme`, and the core virtual `List` keep
+their core meanings.
 
-The facade's optional, default-off **`ui` feature** exposes `rndr::ui` as the same API as `rndr_ui`. Do not glob core and UI APIs together. Existing root `rndr::Button`, tray `Item`, `Theme` and virtual `List` keep their core meanings; use `rndr::ui::controls::Button`, `rndr::ui::collections::{Item, ListView}` and `rndr::ui::UiTheme` explicitly. No compatibility aliases rename or replace core types.
+On collection rows, screen-reader Activate follows click and Space and
+selects. Keyboard Enter emits `Activated(id)` and does not select.
 
-On ListView/TreeView rows, screen-reader **Activate** follows canonical click/Space selection; keyboard **Enter** emits `CollectionEventKind::Activated(id)` **without selecting**. These are intentionally different contracts. SelectionMode::None does not select. A host consumes Activated for its explicit open/run action; this cleanup does not alter behavior.
+## What this environment did not prove
 
-ListView/TreeView retain bounded rows (1024 supplied items); DataTable is bounded to 256 rows × 32 columns, and select popups to 256 options. None is a viewport-virtualized semantic list. Embedded interactive row controls remain unsupported. Core's virtual List and core Theme still exist separately; this increment does not claim to bridge them to UiTheme or migrate the palette.
+These checks ran on a Linux VM. They did not drive a Wayland compositor, a
+Windows desktop, or a macOS panel. Do not read `Unverified` rows, or a green
+CI matrix, as those sessions.
 
-## Observation and native limits
+Still an open manual matrix, on macOS and on Windows, and for a real Linux
+input method as well:
 
-Feature `observe` is off by default and additionally requires an explicit app session/content policy. It returns the **whole live window surface** after ordinary draw commands and a matching **flattened accessibility tree** from the paint boundary. Privacy/policy and supported state-divergence checks fail closed for both channels. Public-content attestation is the host's responsibility, not automatic secret detection.
+- Japanese, Chinese, and Korean preedit, commit, and cancel, including the
+  candidate window.
+- Arabic caret movement and bidirectional display.
+- Physical DPI.
+- The same six text surfaces: field, prompt, editor, inspector, source
+  session, and structured editor.
 
-The Unix-socket/Python path supports macOS/Linux; non-Unix live transport is unsupported. It exposes neither a full layout tree nor UiIds/component targeting, is not headless rendering, and does not prove compositor presentation (`presented_confirmation=false`), physical user input or native screen-reader/IME behavior. See [native observation](native-observation.md) for exact supported checks and custom-engine mutation caveats. Successful capture metadata/hashes alone are not pixel inspection. Owner gallery checks supported prior integration but do not constitute a macOS/Linux/Windows certification matrix.
+The live Unix probe (`observe`) is a separate check from headless capture. It
+records what the window submitted. It does not prove compositor presentation.
 
-## Package and CI policy
+## Evidence
 
-`rndr_ui` stays **`publish = false`**, now with accurate description, existing README, keywords and category. The facade's optional UI dependency uses version+path metadata: local consumers keep the same API, and Cargo can normalize its manifest. This does **not** make the unpublished UI dependency available from a registry. Even with `ui` disabled, Cargo resolves optional dependencies when preparing a package lockfile; ordinary facade packaging/verified registry builds remain blocked until a separately authorized release decision. Do not publish this candidate or use the legacy release script for it. CI retains facade **archive construction and normalization/source-membership regression checks** via `python3 scripts/check-facade-archive.py` (`cargo package --offline --locked -p rndr --no-verify --exclude-lockfile`). This produces a real `.crate` archive but omits its lockfile and does not verify a registry build. UI remains excluded as internal; the other previously packaged crates retain their verified package gate. Feature builds/doctests check local workspace compatibility, not registry readiness. No release enablement is part of this work.
-
-UI now matches core/facade's **`deny(missing_docs)`** policy: the current library checked clean before tightening, without blanket suppressions. CI builds all four native semantic galleries with observe, runs the existing Python observe tests on Unix runners, and includes rndr_ui in no-default-features clippy. Facade unit/doc configurations exercise ui both with and without desktop defaults, while legacy no-ui configurations remain checked.
-
-## Sustainable evidence handling
-
-Do not delete archived `evidence/`, rewrite history or broadly clean other worktrees/caches to shrink a new diff. This increment adds no tracked captures or raw build logs. For future checks:
-
-1. Reuse an explicitly chosen compatible shared Cargo target; use bounded jobs, no incremental/debug bloat where compatible, and inspect available space before each large gate. Stop rather than erase unknown caches when space is insufficient.
-2. Put regenerated captures/logs in a **fresh private external directory** (or CI artifacts with a defined retention period), not a new bulky tracked evidence subtree. Existing capture/verify scripts accept output paths; pass an external path explicitly.
-3. Track only compact review summaries/manifests as appropriate: exact source/command/configuration, exit results, hashes and an honest account of pixel/platform gaps. Never track observation capabilities, descriptors or private app contents. Archive retention/history changes require a separate owner decision.
-
-See [data collections](data-components.md), [data editors](data-editors.md), [selection controls](selection-controls.md), and the [UI README](../crates/rndr_ui/README.md) for current APIs and gallery commands.
+Tracked files under `evidence/` stay where they are. History is not rewritten
+here. New captures, paint dumps, and logs go in [`local-captures/`](../local-captures/README.md),
+which is gitignored except for its note. New files under `evidence/` are
+ignored too, so the archive does not grow by accident. Do not force-add
+either. A review note that belongs in git should be a short summary with
+commands, exit results, and hashes, not the images.
