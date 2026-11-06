@@ -144,6 +144,39 @@ pub(crate) fn prepare_transaction_field(world: &mut World) {
     ensure_field_caret(world, entity);
     place_from_pointer(world, entity, existed);
     publish_field_primary(world, entity);
+    // The aggregate legacy shim has no per-character ordering. Its text
+    // precedes Tab, just as rich queued text does; apply it at the current
+    // field boundary before canonical traversal can move focus. Rich queues
+    // remain authoritative and are never replayed through this shim.
+    let legacy_text_before_tab = world.resource::<Input>().is_some_and(|input| {
+        input.keys.is_empty()
+            && input.key == Some(Key::Tab)
+            && !input.chars.is_empty()
+            && input.ime_preedit.is_empty()
+            && input.ime_commit.is_empty()
+    });
+    if legacy_text_before_tab {
+        crate::interaction::sanitize_readonly_input(world);
+        let frame = crate::ime::text_frame(world.resource::<Input>().unwrap());
+        let before = world.get::<Label>(entity).map(|label| label.text.clone());
+        if !frame.chars.is_empty() {
+            edit_label_queue(world, entity, &[], &frame.chars, true);
+        }
+        let after = world.get::<Label>(entity).map(|label| label.text.clone());
+        if before != after {
+            if let Some(text) = after {
+                send(
+                    world,
+                    TextChanged {
+                        entity,
+                        text: text.clone(),
+                    },
+                );
+                transaction_notify(world, entity, FieldTransaction::Changed(text));
+            }
+        }
+        sync_preview(world, entity);
+    }
 }
 pub(crate) fn transaction_key(world: &mut World, entity: Entity, event: &KeyEvent) -> bool {
     if !world.has::<TextField>(entity) || !world.has::<FieldTransactions>(entity) {
@@ -172,6 +205,14 @@ pub(crate) fn transaction_key(world: &mut World, entity: Entity, event: &KeyEven
     };
     let plain = !event.modifiers.command() && !event.modifiers.alt;
     if plain && event.logical == LogicalKey::Named(crate::NamedKey::Tab) {
+        // Keep composition and aggregate commits on their owning field. Tab
+        // may be an input-method candidate action, not a focus request.
+        if world
+            .resource::<Input>()
+            .is_some_and(|input| !input.ime_preedit.is_empty() || !input.ime_commit.is_empty())
+        {
+            return true;
+        }
         break_typing_at(world, entity);
         return false;
     }

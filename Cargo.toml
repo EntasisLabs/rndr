@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/rndr",
     "crates/rndr_core",
+    "crates/rndr_app",
     "crates/rndr_ui",
     "crates/rndr_paint",
     "crates/rndr_render",
@@ -10,6 +11,7 @@ members = [
     "crates/rndr_term",
     "examples/expand",
     "examples/idle",
+    "examples/desktop",
     "examples/overlay",
     "examples/palette",
     "examples/terminal",

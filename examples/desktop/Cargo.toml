@@ -1,0 +1,14 @@
+[package]
+name = "desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Offline desktop app starter with preferences and cancellable tasks"
+
+[dependencies]
+rndr_app = { path = "../../crates/rndr_app" }
+rndr_core.workspace = true
+rndr_paint.workspace = true
+rndr_render = { path = "../../crates/rndr_render", default-features = false, features = ["parley", "accesskit"] }
+serde = { version = "1", features = ["derive"] }

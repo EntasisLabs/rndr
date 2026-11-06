@@ -37,6 +37,9 @@ cd rndr
 # A minimal native window.
 cargo run -p idle
 
+# An offline starter with settings and cancellable local work.
+cargo run -p desktop -- --memory
+
 # A searchable command palette with a virtualized list.
 cargo run -p palette
 
@@ -213,6 +216,7 @@ native-platform acceptance are different things:
 | Topic | Guide |
 | --- | --- |
 | Semantic components, themes and composition | [UI README](crates/rndr_ui/README.md) |
+| Offline app starter and local macOS packaging | [Desktop apps](docs/desktop-apps.md) · [Recovery evidence](docs/desktop-recovery.md) · [Native release gates](docs/desktop-readiness.md) |
 | Data tables and inspectors | [Data components](docs/data-components.md) · [Data editors](docs/data-editors.md) |
 | Selection and popup ownership | [Selection controls](docs/selection-controls.md) |
 | Virtualization and stable row identity | [Virtual lists](docs/virtual-list.md) |

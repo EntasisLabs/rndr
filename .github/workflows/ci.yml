@@ -87,10 +87,14 @@ jobs:
         run: cargo test -p rndr_core --features highlight
 
       - name: Build examples and rndr_render
-        run: cargo build -p expand -p idle -p overlay -p palette -p terminal -p stream -p two-windows -p pen-probe -p canvas-scene -p create-view -p rndr_render
+        run: cargo build -p desktop -p expand -p idle -p overlay -p palette -p terminal -p stream -p two-windows -p pen-probe -p canvas-scene -p create-view -p rndr_render
 
       - name: Build native semantic galleries with observation
         run: cargo build -p rndr --features observe,ui --example ui_gallery --example data_gallery --example data_editors_gallery --example selection_gallery --example virtual_list_gallery --example markdown_gallery
+
+      - name: Desktop packaging control-flow regression (mock tools)
+        if: runner.os == 'Linux'
+        run: python3 scripts/check-desktop-packaging.py
 
       # Archive-only: unpublished optional UI prevents registry lockfile/build
       # verification even with ui disabled. Keep facade normalization, membership
@@ -107,7 +111,7 @@ jobs:
           # archive is checked above; registry build verification remains blocked.
           # Builds each packaged crate from the tarball. Cargo does not execute
           # tests here, so the archive checks below guard the snapshot suite.
-          cargo package --workspace --locked --exclude rndr_ui --exclude rndr --exclude expand --exclude idle --exclude overlay --exclude palette --exclude terminal --exclude stream --exclude two-windows --exclude pen-probe --exclude canvas-scene --exclude create-view
+          cargo package --workspace --locked --exclude rndr_app --exclude desktop --exclude rndr_ui --exclude rndr --exclude expand --exclude idle --exclude overlay --exclude palette --exclude terminal --exclude stream --exclude two-windows --exclude pen-probe --exclude canvas-scene --exclude create-view
           paint_crate=(target/package/rndr_paint-*.crate)
           render_crate=(target/package/rndr_render-*.crate)
           test "${#paint_crate[@]}" -eq 1
