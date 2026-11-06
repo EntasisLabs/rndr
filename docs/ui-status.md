@@ -7,9 +7,9 @@ filesystem. `rndr_term` is the optional pseudoterminal. `rndr_render` is the
 only OS window and GPU, and it also does offscreen capture. The `rndr` facade
 re-exports those. `rndr_ui` and `rndr_app` are opt-in and depend only on core.
 `rndr_ui` is the component library. `rndr_app` is a starter (form navigation,
-spacing, draft preferences), not that library. `publish = false` stays on
-`rndr_ui`, `rndr_app`, and the desktop example. The [package policy](#package-policy)
-records which 0.4.0 crates are uploaded.
+spacing, draft preferences), not that library. Both publish at 0.4.0 with the
+facade. `publish = false` stays on the examples, including desktop. The
+[package policy](#package-policy) records the upload order.
 
 What the kits and the core document model cover, with tests in this repo:
 
@@ -74,35 +74,23 @@ records what the window submitted. It does not prove compositor presentation.
 
 ## Package policy
 
-Workspace version **0.4.0**. Versions move together, including path
-requirements. `publish = false` is what keeps a crate off crates.io; a matching
-version number does not publish it.
+Workspace version **0.4.0**. `scripts/publish-crates.sh` uploads these crates
+in this order:
 
-Uploaded by `scripts/publish-crates.sh`, in order: `rndr_core`, `rndr_paint`,
-`rndr_std`, `rndr_term`, `rndr_render`. `rndr_std` and `rndr_term` have no
-behavior change in 0.4.0. They stay in the set so dependents resolve one
-version.
+1. `rndr_core` — no workspace dependencies.
+2. `rndr_paint` — depends on `rndr_core`.
+3. `rndr_std` — depends on `rndr_core`. No behavior change in this release.
+4. `rndr_term` — depends on `rndr_core`. Its dev-dependency on `rndr_paint` is resolved when the package is verified, so paint is already published. No behavior change in this release.
+5. `rndr_ui` — depends on `rndr_core`. Its dev-dependency on `rndr_paint` is resolved the same way.
+6. `rndr_app` — depends on `rndr_core`. It does not depend on `rndr_ui`.
+7. `rndr_render` — depends on `rndr_core` and `rndr_paint`.
+8. `rndr` — depends on `rndr_core`, `rndr_paint`, `rndr_std`, and `rndr_render`. Optional `term` depends on `rndr_term`. Optional `ui` depends on `rndr_ui`. The dev-dependency on `rndr_ui` is also resolved from the registry.
 
-Left unpublished:
+Examples stay `publish = false`, including `desktop` and `source-session`.
 
-- `rndr_ui`. The manifest says the dependency and publication policy is not
-  release-ready. The crate is the semantic UI in this checkout. Publishing it
-  would make that API a crates.io surface. This release does not do that.
-- `rndr_app`, and every example, including `desktop` (Desktop Workshop) and
-  `source-session`.
+0.4.0 is a 0.y release. Shipping these crates does not promise a stable 1.0 API. Experimental source sessions and the structured document stay experimental in their module docs.
 
-The `rndr` facade is version 0.4.0 here and is not in the upload list. It does
-not set `publish = false`. Cargo still will not accept it: the optional `ui`
-feature depends on `rndr_ui` with a path and a version, and an optional
-dependency has to resolve from the registry at publish time. Removing `ui`,
-or publishing `rndr_ui`, would change the public surface. Neither is decided
-here. crates.io `rndr` stays at 0.3.1, which has no `ui` feature and no
-`observe` feature.
-
-`scripts/check-facade-archive.py` packages the facade with `--no-verify` and
-`--exclude-lockfile`, then checks normalization and source bytes. CI's package
-step excludes the facade, `rndr_ui`, `rndr_app`, and the examples. Neither
-check is permission to upload the facade.
+`cargo package` in CI uses `--no-verify` for the eight crates. Their 0.4.0 dependencies are not on the index until this release is published, so a registry rebuild of a dependent crate cannot succeed in CI beforehand. The job still checks tarball membership, licenses, and the paint and render snapshot sets. `scripts/check-facade-archive.py` checks that the facade manifest normalizes, including optional `ui` at the same version as `rndr_ui`. `scripts/publish-crates.sh --dry-run` runs `cargo publish --dry-run` for each crate whose workspace dependencies are already on the index.
 
 ## Evidence
 

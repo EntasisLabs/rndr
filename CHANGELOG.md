@@ -2,9 +2,7 @@
 
 ## 0.4.0
 
-Workspace version 0.4.0, since the published 0.3.1 crates. `scripts/publish-crates.sh` uploads `rndr_core`, `rndr_paint`, `rndr_std`, `rndr_term`, and `rndr_render`. `rndr_ui`, `rndr_app`, and every example, including Desktop Workshop, stay `publish = false`. Their package versions move with the workspace so path requirements match; that does not put them on crates.io. The `rndr` facade is 0.4.0 in this checkout and is not uploaded. Its optional `ui` feature depends on `rndr_ui`, and Cargo requires that dependency to resolve from the registry before it will accept the facade, whether or not the feature is enabled. Publishing `rndr_ui`, or removing `ui` from the facade, is left as an open public-surface decision. See [package policy](docs/ui-status.md#package-policy).
-
-`rndr_std` and `rndr_term` have no behavior change in this release. They move to 0.4.0 so a single set of path versions resolves.
+Workspace 0.4.0. `scripts/publish-crates.sh` uploads eight crates in this order: `rndr_core`, `rndr_paint`, `rndr_std`, `rndr_term`, `rndr_ui`, `rndr_app`, `rndr_render`, and `rndr`. `rndr_std` and `rndr_term` have no behavior change in this release; they publish at 0.4.0 with the others so one version resolves. Examples, including Desktop Workshop and `source-session`, stay `publish = false`. 0.4.0 is a 0.y release. It adds public API, including `rndr_ui`, `rndr_app`, and the facade features `ui` and `observe`. It is not a 1.0 stability promise. See [package policy](docs/ui-status.md#package-policy).
 
 ### Core, paint, and the desktop runner
 
@@ -22,11 +20,11 @@ Workspace version 0.4.0, since the published 0.3.1 crates. `scripts/publish-crat
   - Windows: a panel show sets `WS_EX_NOACTIVATE`, raises with `HWND_TOPMOST`, and uses `SW_SHOWNOACTIVATE`. An explicit focus clears the no-activate bit and calls `SetForegroundWindow`. `panel_above_fullscreen` is `Unverified`. `panel_all_spaces` stays `Ignored`; Windows has no stable public API for every virtual desktop, and the undocumented shell interfaces are not called. `panel_nonactivating` stays `Ignored`. Position, hide, focus, always-on-top, and skip-taskbar stay `Supported` on the strength of the existing winit calls, which this change did not re-run on a Windows machine.
   - See [overlay windows](docs/overlay-platform.md).
 
-### In this checkout, not uploaded
+### Semantic UI, the app starter, and the facade
 
-- `rndr_ui` 0.4.0. Semantic themes, controls, retained lists and trees, a uniform-height virtual `ListView` used by the palette, data tables, a property inspector, checkbox, single-select, and multi-select. On a collection row, screen-reader Activate selects; keyboard Enter emits `Activated` and does not select. Popup and selection behavior is covered by headless tests, not by VoiceOver, Narrator, or Orca. The manifest keeps `publish = false` ("dependency/publication policy is not release-ready"). This release does not flip that.
-- `rndr_app` 0.4.0 and `examples/desktop`. The starter installs form navigation, scrolling, and scrollbars, and stores bounded JSON preferences. Desktop Workshop is the offline example. `scripts/package-desktop-macos.sh` writes `CFBundleShortVersionString` `0.1`; that string is example metadata, not this release. Native typing, IME, clipboard, VoiceOver, and signed distribution were not re-run for 0.4.0. [Desktop readiness](docs/desktop-readiness.md) records an earlier macOS session and still lists those checks as open.
-- The `rndr` facade at 0.4.0 adds optional `ui` (`rndr::ui`, with no glob into the legacy root) and optional `observe`. crates.io `rndr` remains 0.3.1, which has neither feature, until the `rndr_ui` dependency decision above is made. `scripts/check-facade-archive.py` checks that the facade tarball normalizes and matches source. It does not resolve the registry and it does not upload.
+- `rndr_ui` 0.4.0. Semantic themes, controls, retained lists and trees, a uniform-height virtual `ListView` used by the palette, data tables, a property inspector, checkbox, single-select, and multi-select. On a collection row, screen-reader Activate selects; keyboard Enter emits `Activated` and does not select. Popup and selection behavior is covered by headless tests, not by VoiceOver, Narrator, or Orca.
+- `rndr_app` 0.4.0. The starter installs form navigation, scrolling, and scrollbars, and stores bounded JSON preferences. It does not depend on `rndr_ui` and the facade does not depend on it. Desktop Workshop (`examples/desktop`) is the offline example and stays unpublished. `scripts/package-desktop-macos.sh` writes `CFBundleShortVersionString` `0.1`; that string is example metadata. Native typing, IME, clipboard, VoiceOver, and signed distribution were not re-run for 0.4.0. [Desktop readiness](docs/desktop-readiness.md) records an earlier macOS session and still lists those checks as open.
+- The `rndr` facade 0.4.0 re-exports the world, paint, filesystem, and window. Optional `ui` exposes `rndr::ui` with no glob into the legacy root, and depends on `rndr_ui`. Optional `observe` enables the Unix whole-window probe and headless component capture, including `rndr-capture`. Both features are off by default. `hotkey`, `tray`, `parley`, and `accesskit` stay on by default.
 
 ## 0.3.1
 

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Offline archive construction/normalization check, NOT registry build verification.
+"""Facade manifest normalization before 0.4.0 dependencies are on the index.
 
-rndr_ui stays unpublished. Even an optional registry dependency must resolve when
-Cargo prepares a package lockfile, so this bounded check deliberately excludes
-that lockfile and skips the verification build. Workspace feature tests remain
-separate; do not use this result as permission to publish.
+`cargo package` would otherwise write a lockfile that resolves optional `ui`
+and the `rndr_ui` dev-dependency from crates.io. This check excludes that
+lockfile and skips the rebuild. Ordered registry verification is
+`scripts/publish-crates.sh` once those versions are published.
 """
 import argparse
 import json
@@ -21,7 +21,10 @@ def check(allow_dirty=False):
     ]))
     packages = {p["name"]: p for p in metadata["packages"]}
     facade = packages["rndr"]
-    assert packages["rndr_ui"]["publish"] == [], "UI publication must stay disabled"
+    for name in ("rndr", "rndr_ui", "rndr_app", "rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_render"):
+        assert packages[name]["publish"] is None, f"{name} must be publishable"
+    for name in ("desktop", "source-session"):
+        assert packages[name]["publish"] == [], f"{name} must stay unpublished"
     command = ["cargo", "package", "--offline", "--locked", "-p", "rndr",
                "--no-verify", "--exclude-lockfile"]
     if allow_dirty:
@@ -44,15 +47,20 @@ def check(allow_dirty=False):
         assert manifest["package"]["version"] == version
         assert manifest["package"]["rust-version"] == facade["rust_version"]
         assert manifest["features"]["ui"] == ["dep:rndr_ui"]
+        assert "observe" in manifest["features"]
         assert "ui" not in manifest["features"]["default"]
+        assert "observe" not in manifest["features"]["default"]
         ui = manifest["dependencies"]["rndr_ui"]
         assert ui["optional"] is True and ui["version"] == packages["rndr_ui"]["version"]
+        dev_ui = manifest["dev-dependencies"]["rndr_ui"]
+        assert dev_ui["version"] == packages["rndr_ui"]["version"]
+        assert "path" not in dev_ui
         for table in ("dependencies", "dev-dependencies", "build-dependencies"):
             assert all("path" not in d for d in manifest.get(table, {}).values() if isinstance(d, dict))
         for name in ("src/lib.rs", "README.md", "Cargo.toml.orig"):
             original = "Cargo.toml" if name == "Cargo.toml.orig" else name
             assert read(name) == (source / original).read_bytes(), f"archive source mismatch: {name}"
-    print(f"PASS: {archive} normalized archive/source checks; NO registry resolution/build verification")
+    print(f"PASS: {archive} normalized archive/source checks; registry rebuild is the ordered publish dry-run")
 
 
 if __name__ == "__main__":

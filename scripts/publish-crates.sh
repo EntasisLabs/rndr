@@ -9,34 +9,32 @@
 # that up itself. This script never prints the token and never passes it as an
 # argument. Do not run the script under `bash -x`.
 #
-# Uploaded, in order: rndr_core, rndr_paint, rndr_std, rndr_term, rndr_render.
-# rndr_term depends on rndr_core, and its dev-dependency on rndr_paint is
-# versioned. Cargo writes a lockfile for the packaged crate and resolves that
-# dev-dependency from crates.io, so rndr_paint has to be published first.
+# Uploaded, in order:
+#   rndr_core, rndr_paint, rndr_std, rndr_term, rndr_ui, rndr_app,
+#   rndr_render, rndr.
+# rndr_term and rndr_ui depend on rndr_core, and each has a versioned
+# dev-dependency on rndr_paint. Cargo writes a lockfile for the packaged crate
+# and resolves that dev-dependency from crates.io, so rndr_paint is published
+# before either of them. rndr_app depends on rndr_core only. rndr_render depends
+# on rndr_core and rndr_paint. The facade depends on those crates, and its
+# optional ui feature and its dev-dependency both require rndr_ui, so the
+# facade is last. rndr_std and rndr_term publish at the same version as the
+# rest of the set.
 # A version already present in the sparse index is skipped.
 # After each upload, the script waits until that version is visible in the
 # index before publishing the next crate.
 #
-# Not uploaded:
-# - rndr_ui, rndr_app, and every example, including desktop and source-session.
-#   They are publish = false. Their workspace version still moves with the
-#   release so path requirements match. This script excludes them from
-#   `cargo package --workspace`, which otherwise refuses a publish = false member.
-# - The rndr facade. It is versioned with the workspace and does not set
-#   publish = false, but its optional ui feature depends on unpublished rndr_ui.
-#   Cargo requires that dependency to resolve from the index at publish time.
-#   Publishing rndr_ui, or removing ui, is a separate public-API decision.
-#   This script does not make it. `--dry-run` runs scripts/check-facade-archive.py,
-#   which packages the facade with --no-verify --exclude-lockfile and does not
-#   upload it.
+# Not uploaded: every example, including desktop and source-session. They are
+# publish = false. This script excludes them from `cargo package --workspace`,
+# which otherwise refuses a publish = false member.
 #
 # `--dry-run` does not upload and does not need CARGO_REGISTRY_TOKEN.
-# It packages the five library crates with `cargo package --workspace
-# --no-verify`, which does not need the crates.io index. A crate whose
-# workspace dependencies are already on the index also gets
+# It packages the eight crates with `cargo package --workspace --no-verify`,
+# which does not need the crates.io index. A crate whose workspace
+# dependencies, including dev-dependencies, are already on the index also gets
 # `cargo publish --dry-run` (verify, then stop before upload). Packaging one
 # dependent with `-p` fails until those dependencies exist in the index, so
-# the dry-run does not do that.
+# the dry-run does not do that. It also runs scripts/check-facade-archive.py.
 
 set -euo pipefail
 
@@ -65,14 +63,14 @@ if [[ "$dry_run" -eq 0 && -z "${CARGO_REGISTRY_TOKEN:-}" ]]; then
     exit 1
 fi
 
-CRATES=(rndr_core rndr_paint rndr_std rndr_term rndr_render)
+CRATES=(rndr_core rndr_paint rndr_std rndr_term rndr_ui rndr_app rndr_render rndr)
 
 declare -A VERSIONS=()
 while IFS=$'\t' read -r name version; do
     VERSIONS["$name"]="$version"
 done < <(cargo metadata --format-version 1 --no-deps | python3 -c '
 import json, sys
-wanted = {"rndr_core", "rndr_term", "rndr_paint", "rndr_std", "rndr_render", "rndr"}
+wanted = {"rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_ui", "rndr_app", "rndr_render", "rndr"}
 meta = json.load(sys.stdin)
 for package in meta["packages"]:
     if package["name"] in wanted:
@@ -106,12 +104,12 @@ published() {
 workspace_deps() {
     case "$1" in
     rndr_core) ;;
-    rndr_paint | rndr_std) echo rndr_core ;;
+    rndr_paint | rndr_std | rndr_app) echo rndr_core ;;
     # rndr_paint is a versioned dev-dependency. The packaged lockfile resolves it.
-    rndr_term) echo rndr_core rndr_paint ;;
+    rndr_term | rndr_ui) echo rndr_core rndr_paint ;;
     rndr_render) echo rndr_core rndr_paint ;;
-    # The facade is intentionally absent. See the header. Adding it here would
-    # try to upload a crate whose optional rndr_ui dependency is not on the index.
+    # Optional ui, optional term, and the rndr_ui dev-dependency.
+    rndr) echo rndr_core rndr_paint rndr_std rndr_term rndr_ui rndr_render ;;
     *)
         echo "unknown crate: $1" >&2
         return 1
@@ -146,11 +144,9 @@ wait_for_index() {
 }
 
 if [[ "$dry_run" -eq 1 ]]; then
-    echo "packaging library crates without uploading"
-    echo "skipping rndr: optional dependency rndr_ui is publish=false and must resolve from crates.io"
+    echo "packaging the eight publishable crates without uploading"
     cargo package --workspace --locked --no-verify \
-        --exclude rndr \
-        --exclude rndr_ui --exclude rndr_app --exclude desktop --exclude source-session \
+        --exclude desktop --exclude source-session \
         --exclude expand --exclude idle --exclude overlay --exclude palette --exclude terminal --exclude stream \
         --exclude two-windows --exclude pen-probe --exclude canvas-scene --exclude create-view
 fi
@@ -189,17 +185,17 @@ if [[ "$dry_run" -eq 1 ]]; then
 import pathlib, sys, tarfile, tomllib
 root = pathlib.Path("target/package")
 forbidden_prefixes = (
-    "rndr_ui-", "rndr_app-", "desktop-", "source-session-",
+    "desktop-", "source-session-",
     "expand-", "idle-", "overlay-", "palette-", "terminal-", "stream-",
     "two-windows-", "pen-probe-", "canvas-scene-", "create-view-",
 )
-workspace = ("rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_render", "rndr", "rndr_ui")
+workspace = ("rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_ui", "rndr_app", "rndr_render", "rndr")
 licenses = {"rndr_paint": "MIT AND OFL-1.1", "rndr_render": "MIT AND OFL-1.1"}
 found = sorted(path.name for path in root.glob("*.crate"))
 for name in found:
     if name.startswith(forbidden_prefixes):
         sys.exit(f"unpublished crate was packaged: {name}")
-expected = ("rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_render", "rndr")
+expected = ("rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_ui", "rndr_app", "rndr_render", "rndr")
 for name in expected:
     matches = [item for item in found if item.startswith(name + "-")]
     if len(matches) != 1:
@@ -212,8 +208,18 @@ for name in expected:
         sys.exit(f"{name} archive version {package['version']} != {version}")
     if package.get("license") != licenses.get(name, "MIT"):
         sys.exit(f"{name} license {package.get('license')!r}")
-    if name == "rndr" and (package.get("publish") is False or package.get("publish") == []):
-        sys.exit("facade manifest unexpectedly sets publish = false")
+    if package.get("publish") is False or package.get("publish") == []:
+        sys.exit(f"{name} manifest sets publish = false")
+    if not package.get("description") or not package.get("readme"):
+        sys.exit(f"{name} is missing description or readme")
+    if name in ("rndr_ui", "rndr_app") and not str(package.get("documentation", "")).startswith("https://docs.rs/"):
+        sys.exit(f"{name} documentation URL {package.get('documentation')!r}")
+    if name == "rndr":
+        features = manifest.get("features", {})
+        if features.get("ui") != ["dep:rndr_ui"] or "observe" not in features:
+            sys.exit(f"facade features changed: ui={features.get('ui')!r}")
+        if "ui" in features.get("default", []) or "observe" in features.get("default", []):
+            sys.exit("ui or observe became a default feature")
     for table_name in ("dependencies", "dev-dependencies"):
         for dep_name, spec in manifest.get(table_name, {}).items():
             if dep_name not in workspace or not isinstance(spec, dict):

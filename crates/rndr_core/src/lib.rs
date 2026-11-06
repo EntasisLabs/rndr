@@ -60,12 +60,12 @@
 //! | `rndr_std` | [`std::fs`] backend for [`Fs`]. |
 //! | `rndr_term` | Optional pseudoterminal. Off unless a feature asks for it. |
 //! | `rndr_render` | The only OS window and GPU, plus offscreen capture. |
-//! | `rndr_ui` | Opt-in components. Depends only on this crate. `publish = false`. |
-//! | `rndr_app` | Starter helpers for an application, not the component library. Depends only on this crate. `publish = false`. |
+//! | `rndr_ui` | Opt-in components. Depends only on this crate. |
+//! | `rndr_app` | Starter helpers for an application, not the component library. Depends only on this crate. |
 //!
-//! `rndr_ui` and `rndr_app` share the workspace version and stay off crates.io.
-//! The `rndr` facade in this workspace optionally depends on `rndr_ui`, so that
-//! facade crate is not uploaded while `rndr_ui` stays unpublished.
+//! 0.4.0 publishes this crate together with `rndr`, `rndr_paint`, `rndr_std`,
+//! `rndr_term`, `rndr_ui`, `rndr_app`, and `rndr_render`. Repository examples
+//! are not published. The version is a 0.y release, not a 1.0 stability promise.
 
 #![deny(missing_docs)]
 

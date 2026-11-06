@@ -53,13 +53,12 @@ native development libraries used by winit/wgpu and fontconfig; the repository's
 [CI configuration](.github/workflows/ci.yml) records the build packages. Runtime
 capabilities also depend on the desktop session and available graphics backend.
 
-**Release boundary:** this checkout is workspace 0.4.0.
-`scripts/publish-crates.sh` uploads `rndr_core`, `rndr_paint`, `rndr_std`,
-`rndr_term`, and `rndr_render`. `rndr_ui`, `rndr_app`, every example, and the
-`rndr` facade stay off crates.io. The facade's optional `ui` feature depends on
-unpublished `rndr_ui`, and Cargo requires that dependency to resolve from the
-registry before it will accept the facade. Use this checkout for semantic UI,
-the app starter, and `rndr::ui`. See [package policy](docs/ui-status.md#package-policy).
+**Release 0.4.0** publishes eight crates, in order: `rndr_core`, `rndr_paint`,
+`rndr_std`, `rndr_term`, `rndr_ui`, `rndr_app`, `rndr_render`, and `rndr`.
+The facade's `ui` feature uses `rndr_ui`. `ui` and `observe` are off by default.
+Examples, including Desktop Workshop and `source-session`, stay `publish = false`.
+This is a 0.y release, not a 1.0 stability promise.
+See [package policy](docs/ui-status.md#package-policy).
 
 ### A small application
 
@@ -211,7 +210,7 @@ native-platform acceptance are different things:
   compositor presentation, or native screen-reader/IME certification.
 - **Pen input:** the pen probe is a hardware-validation spike, not a supported,
   cross-platform tablet API.
-- **Publishing:** the 0.4.0 crates.io set is `rndr_core`, `rndr_paint`, `rndr_std`, `rndr_term`, and `rndr_render`. `rndr_ui`, `rndr_app`, and the examples stay unpublished. The `rndr` facade in this checkout is 0.4.0 and is not uploaded. See [package policy](docs/ui-status.md#package-policy).
+- **Publishing:** 0.4.0 publishes `rndr_core`, `rndr_paint`, `rndr_std`, `rndr_term`, `rndr_ui`, `rndr_app`, `rndr_render`, and `rndr`. Examples stay unpublished. See [package policy](docs/ui-status.md#package-policy).
 
 ## Documentation
 
