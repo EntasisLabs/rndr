@@ -208,8 +208,7 @@ fn structured_operation_replace_cells_normalizes_text_preserves_headers_and_hist
     let last = d
         .blocks()
         .iter()
-        .filter(|b| b.parent == Some(grid[0][0]))
-        .next_back()
+        .rfind(|b| b.parent == Some(grid[0][0]))
         .unwrap();
     let selection = d.text_selection().unwrap();
     assert_eq!(selection.anchor, selection.head);

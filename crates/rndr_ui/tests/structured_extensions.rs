@@ -131,11 +131,9 @@ fn atom(app: &mut App, view: StructuredSurfaceHandle, id: StructuredHandle) -> B
 #[test]
 fn table_tab_visits_cells_before_focus_and_escapes_at_model_edges() {
     let (mut app, _, view, id) = setup();
-    let button = app.world_mut().spawn((
-        Button::new("unrelated"),
-        Focusable::default(),
-        Layout::column(),
-    ));
+    let button = app
+        .world_mut()
+        .spawn((Button::new("unrelated"), Focusable, Layout::column()));
     command(
         &mut app,
         view,

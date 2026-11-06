@@ -77,7 +77,6 @@ fn structured_styles_metadata_and_readonly_are_atomic() {
     let style = TextStyle {
         color: Some([20, 100, 210]),
         family: Some("monospace".into()),
-        ..Default::default()
     };
     view.command(app.world_mut(), StructuredCommand::TextStyle(style.clone()))
         .unwrap();

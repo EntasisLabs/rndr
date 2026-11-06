@@ -10,7 +10,7 @@ pub struct CloseRequest(u64);
 
 fn next_request() -> CloseRequest {
     CloseRequest(
-        NEXT.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
+        NEXT.try_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
             .expect("close request identities exhausted"),
     )
 }

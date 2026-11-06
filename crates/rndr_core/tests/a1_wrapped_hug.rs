@@ -76,7 +76,7 @@ fn nested_wrapped_hug_heights_are_correct_on_first_frame_resize_and_scale() {
                 width: Size::Fill,
                 ..Layout::column()
             },
-            Label::new(&"Nested reading content wraps without clipping. ".repeat(8))
+            Label::new("Nested reading content wraps without clipping. ".repeat(8))
                 .overflow(TextOverflow::Wrap),
             TextStyle {
                 size: 16.0,
@@ -122,7 +122,7 @@ fn row_fill_widths_determine_hug_cross_height_before_clipping() {
                     width: Size::Fill,
                     ..Layout::column()
                 },
-                Label::new(&"Long wrapping row content. ".repeat(10)).overflow(TextOverflow::Wrap),
+                Label::new("Long wrapping row content. ".repeat(10)).overflow(TextOverflow::Wrap),
             ),
         );
     }

@@ -471,7 +471,7 @@ fn native_structured_view_readonly_is_not_overwritten_by_projection() {
 fn native_structured_access_state_refuses_edit_undo_aba() {
     let (mut w, e, _) = setup("abc");
     crate::editor::apply_editor(&mut w);
-    let snapshot = crate::access_text(&mut w, e).unwrap();
+    let snapshot = crate::access_text(&w, e).unwrap();
     type_text(&mut w, "x");
     document_mut(&mut w, e).unwrap().undo().unwrap();
     project(&mut w, e);
@@ -492,11 +492,11 @@ fn native_structured_geometry_and_block_mapping_share_exact_projection() {
     crate::editor::apply_editor(&mut w);
     let display = structured_display(&w, e).unwrap();
     assert_eq!(display.blocks.len(), 2);
-    let snapshot = crate::access_text(&mut w, e).unwrap();
+    let snapshot = crate::access_text(&w, e).unwrap();
     assert!(snapshot.caret_bounds().h > 0.0);
     select(&mut w, e, 0, 3);
     crate::editor::apply_editor(&mut w);
-    let snapshot = crate::access_text(&mut w, e).unwrap();
+    let snapshot = crate::access_text(&w, e).unwrap();
     assert!(!snapshot.selection_bounds().is_empty());
     let base = display.revision;
     document_mut(&mut w, e)
@@ -566,7 +566,7 @@ fn native_structured_accessible_block_navigation_maps_to_typed_node() {
     let (mut w, e, _) = setup("one\ntwo");
     crate::editor::apply_editor(&mut w);
     let display = structured_display(&w, e).unwrap();
-    let snapshot = crate::access_text(&mut w, e).unwrap();
+    let snapshot = crate::access_text(&w, e).unwrap();
     assert_eq!(
         crate::access_text::set_selection(
             &mut w,
@@ -616,7 +616,7 @@ fn native_structured_canceled_model_composition_cannot_retarget_late_commit() {
 fn native_structured_whole_document_replacement_is_not_identity_aba() {
     let (mut w, e, id) = setup("abc");
     crate::editor::apply_editor(&mut w);
-    let snapshot = crate::access_text(&mut w, e).unwrap();
+    let snapshot = crate::access_text(&w, e).unwrap();
     *w.resource_mut::<StructuredDocuments>()
         .unwrap()
         .get_mut(id)

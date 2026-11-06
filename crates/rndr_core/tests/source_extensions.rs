@@ -12,10 +12,7 @@ fn boot(text: &str) -> (World, Entity, DocumentId, SourceExtensions, ProviderId)
     world.insert_resource(docs);
     let view = world.spawn((Buffer::from_str(text), Editor::default()));
     attach_source(&mut world, view, id).unwrap();
-    world.insert_resource(Focus {
-        entity: Some(view),
-        ..Focus::default()
-    });
+    world.insert_resource(Focus { entity: Some(view) });
     world.insert_resource(Input::default());
     let mut extensions = SourceExtensions::default();
     let provider = extensions.register(0);

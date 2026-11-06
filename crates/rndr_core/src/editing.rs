@@ -1091,7 +1091,7 @@ impl SourceDocuments {
     pub fn open(&mut self, text: impl Into<String>) -> DocumentId {
         static NEXT: AtomicU64 = AtomicU64::new(1);
         let id = DocumentId(
-            NEXT.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
+            NEXT.try_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
                 .expect("document identity exhausted"),
         );
         let text = text.into();
@@ -1220,7 +1220,7 @@ pub fn attach_source(
         SourceBinding {
             attachment_epoch: {
                 static NEXT: AtomicU64 = AtomicU64::new(1);
-                NEXT.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
+                NEXT.try_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
                     .expect("source attachment identity exhausted")
             },
             document,

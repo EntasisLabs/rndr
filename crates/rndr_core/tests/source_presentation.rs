@@ -6,6 +6,10 @@ use rndr_core::{
     Layout, Size, Viewport,
 };
 
+fn one_fold(range: std::ops::Range<usize>) -> Vec<std::ops::Range<usize>> {
+    vec![range]
+}
+
 fn boot() -> (App, Entity, DocumentId, SourceExtensions) {
     let mut app = App::new();
     app.add_plugin(Chrome);
@@ -246,8 +250,14 @@ fn secondary_hidden_geometry_is_not_reattached_to_seam() {
         .get(id)
         .unwrap()
         .revision();
-    rndr_core::source_folding::set_source_folds(app.world_mut(), view, id, revision, vec![6..11])
-        .unwrap();
+    rndr_core::source_folding::set_source_folds(
+        app.world_mut(),
+        view,
+        id,
+        revision,
+        one_fold(6..11),
+    )
+    .unwrap();
     app.update();
     app.update();
     // Publish after layout: preparing folds on the next pass deliberately expands
@@ -277,8 +287,14 @@ fn hidden_annotations_do_not_reattach_to_fold_seam() {
         .get(id)
         .unwrap()
         .revision();
-    rndr_core::source_folding::set_source_folds(app.world_mut(), view, id, revision, vec![6..11])
-        .unwrap();
+    rndr_core::source_folding::set_source_folds(
+        app.world_mut(),
+        view,
+        id,
+        revision,
+        one_fold(6..11),
+    )
+    .unwrap();
     app.update();
     app.update();
     let p = extensions.register(0);

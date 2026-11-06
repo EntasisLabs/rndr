@@ -47,7 +47,7 @@ fn point(w: &mut World, x: f32, y: f32, pressed: bool, down: bool, released: boo
 fn editor_wheel_without_track_consumes_vertical_then_chains_bounded_remainder() {
     let mut app = App::new();
     app.add_plugin(Chrome);
-    let mut world = app.world_mut();
+    let world = app.world_mut();
     let parent = world.spawn((
         Rect {
             x: 0.0,
@@ -71,17 +71,17 @@ fn editor_wheel_without_track_consumes_vertical_then_chains_bounded_remainder() 
         Editor::default(),
         Label::new(""),
     ));
-    set_parent(&mut world, editor, parent);
+    set_parent(world, editor, parent);
     app.update();
-    let mut world = app.world_mut();
+    let world = app.world_mut();
     let input = world.resource_mut::<Input>().unwrap();
     input.pointer.position = [50.0, 20.0];
     input.scroll = [-20.0, -32.0];
-    apply_scroll(&mut world);
+    apply_scroll(world);
     assert!(world.get::<Editor>(editor).unwrap().offset > 0.0);
     assert_eq!(world.get::<Scroll>(parent).unwrap().offset, [-20.0, 0.0]);
     world.resource_mut::<Input>().unwrap().scroll = [0.0, -100_000.0];
-    apply_scroll(&mut world);
+    apply_scroll(world);
     assert_eq!(world.get::<Scroll>(parent).unwrap().offset[1], -900.0);
     assert_eq!(world.resource::<Input>().unwrap().scroll, [0.0, 0.0]);
 }
