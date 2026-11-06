@@ -1,8 +1,8 @@
 # Epic: native desktop shell capabilities
 
-**Status: R0 decision record. It is not accepted. The repository owner must accept this record before any R1 or R3 implementation. R2, R4, R5, and R6 wait on that same acceptance. This document sequences those units. It does not start them, merge them, or certify a platform.**
+**Status: R0 accepted by the repository owner on 2026-11-06 at 15:03 America/Phoenix, in review of PR #80. The owner accepted this record and all of its proposed platform policies, and authorized the current implementation units R1 and R5.1. Browser work (R3) stays queued behind that pair. R2, R4, R5.2, and R6 stay sequenced and are outside this authorization. This file does not contain their implementation, does not merge them, and does not certify a platform. Every native certification cell below stays Unverified.**
 
-Created 2026-11-06 against rndr `cc25bb2722b2d01ec3d4f8f3a0c452863cfeac9c` (`main`, 0.4.0). This assignment is documentation only. No production code, tests, feature flags, crate manifests, native runs, publishing, or self-approval. The owner retains acceptance. A later request may authorize one named unit; an unchecked box below is not that authority.
+Created 2026-11-06 against rndr `cc25bb2722b2d01ec3d4f8f3a0c452863cfeac9c` (`main`, 0.4.0). The original assignment was documentation only. The owner's acceptance is quoted under R0.7. R1 and R5.1 are authorized as separate pull requests branched from `main`, in parallel, and are not stacked on this record. This file still adds no production code, tests, feature flags, crate manifests, or native runs.
 
 ## Read / continue here
 
@@ -16,7 +16,7 @@ Build on these contracts. Refresh them before an implementation unit edits the c
 - [Desktop readiness](../desktop-readiness.md) — historical macOS notes. They are not fresh certification for any cell in this epic.
 - [Document-editing epic](native-document-editing-epic.md) — grammar, diagnostics, and live IME. That epic stays where it is.
 
-`README.md` is unchanged in this record so the diff stays one design document. A README link waits until the owner has accepted R0.
+`README.md` stays unchanged. This acceptance update remains the single design document.
 
 ## Starting point
 
@@ -31,8 +31,8 @@ This epic sequences the toolkit work for the browser, virtualization, OS-service
 | Uniform virtual lists | `ListView::mount_virtual`, core `list_window`, `Scroll::offset` as `f32` | Variable height extends this path. It does not add a second list widget. |
 | Stable item identity | `ItemId` in `crates/rndr_ui/src/collections.rs` | Application state stays on `ItemId`. A recycled entity is not state. |
 | Retained collections | `MAX_ITEMS` 1024; tables 256×32; inspector 128; select popups 256 | Those budgets stay unless a unit below names a change. |
-| Selection | `SelectionMode::{None, Single}` on lists and tables | Range and multi-select are R5, after R0. |
-| File drop | `FileDrop` / `FileHover` carry a path and no position. macOS, Windows, and X11 emit them. Wayland does not. | Position is R5. Wayland stays unsupported. |
+| Selection | `SelectionMode::{None, Single}` on lists and tables | Range and multi-select are R5.2, outside the current authorization. |
+| File drop | `FileDrop` / `FileHover` carry a path and no position. macOS, Windows, and X11 emit them. Wayland does not. | Position is authorized R5.1, its own pull request from `main`. Wayland stays unsupported. |
 | Theme | `Appearance` and `Contrast` are explicit. `UiTheme::core_theme` is a pure conversion. `tokens.rs` states that OS following is unavailable. | The application remains responsible for theme. |
 | OS integration that already shipped | `hotkey` and `tray` default **on**. `dialog`, `term`, `ui`, and `observe` default **off**. | New platform dependencies default off. Existing defaults stay. |
 | Windows and panels | `WindowConfig`, `WindowKind`, `platform_support` | Historical `Supported` cells are the runner's current table. This epic's ledger does not copy them forward as a new signoff. |
@@ -47,7 +47,7 @@ Published toolkit crates stay free of Medousa-specific types. An application ada
 
 ### Non-goals
 
-- Implementing R1–R6 in this change, or treating this file as acceptance.
+- Implementing R1–R6 in this change. Acceptance is recorded here. R1 and R5.1 are separate pull requests from `main`.
 - Application binaries, including any Medousa binary, in this repository.
 - Extracting or rehosting another process's command surface inside rndr.
 - An application web frontend, a mobile frontend, push, or a phone-only assistant.
@@ -74,20 +74,20 @@ The document-editing epic is a sibling. It does not gate R0–R5.
 Application integration is outside this repository.
 ```
 
-R1, R2, R3, and R5 are dependency-parallel after acceptance. They are not one pull request, and they are not six agents on the same files.
+R1, R2, R3, and R5 are dependency-parallel once a unit is authorized. They are not one pull request.
 
-Dispatch uses two implementation agents until a shared file is free:
+The owner's current authorization is two parallel agents and two pull requests. Each branches from `main`. Neither is stacked on this record, and this record does not open those pull requests.
 
-| Agent | First unit after acceptance | Then | Leave alone |
+| Agent | Authorized now | Base | Leave alone |
 |---|---|---|---|
-| A | R1, the critical path | R4 after R1 has merged | `Cargo.toml` feature lists while B is editing them; browser crate |
-| B | R5.1 file drop, or R2.1 notifications | Further R2 slices, one at a time | `collections.rs` and `virtual_list.rs` while A has R1 open |
+| A | R1, variable-height `ListView` | `main` | Browser crate. File-drop files while B has R5.1 open. R5.2. |
+| B | R5.1, positioned file drop | `main` | `collections.rs` and `virtual_list.rs` while A has R1 open. Browser crate. |
 
-R5.2 waits until R1's ListView edit has merged, or it lands first and R1 rebases. The two units share `SelectionMode` and the virtual handle. Their dependency edges do not overlap; their files do. One R2 pull request is in review at a time, because each slice adds a feature to `crates/rndr/Cargo.toml` and `crates/rndr_render/Cargo.toml` and a branch in the runner. R3.2 and R3.3 start only after R3.1 has merged the shared browser contract. Find starts after the backends it claims. Script is last.
+Browser work (R3.1–R3.5) is queued behind that pair. It is not authorized to start with them. R2, R4, R5.2, and R6 remain sequenced and are outside this authorization. R4 still waits until R1 has merged. R5.2 stays serial with R1 on `ListView`. When R2 is later authorized, one R2 pull request is in review at a time, because each slice adds a feature to `crates/rndr/Cargo.toml` and `crates/rndr_render/Cargo.toml` and a branch in the runner. R3.2 and R3.3 start only after R3.1 has merged the shared browser contract. Find starts after the backends it claims. Script is last.
 
 ## R0 — contracts
 
-R0's output is this record. Acceptance is the owner's explicit review of the decisions, caps, negative cases, and open host questions below. Amending a number means editing this file before implementation, not discovering a different cap inside a feature pull request.
+R0's output is this record. The repository owner accepted the decisions, caps, negative cases, and proposed platform policies below on 2026-11-06 at 15:03 America/Phoenix. No cap was amended. A later amendment belongs in this file before the affected unit starts, not as a different cap discovered inside a feature pull request.
 
 ### R0.1 Optional embedded-browser crate
 
@@ -201,7 +201,7 @@ The desktop packager in [desktop-apps.md](../desktop-apps.md) does not register 
 
 ### R0.6 Selection and drop contracts used by R5
 
-These are R0 decisions so R5 does not invent them. Implementation still waits for acceptance.
+These are accepted R0 decisions. R5.1 is authorized to implement the position contract, as its own pull request from `main`. R5.2 is outside the current authorization.
 
 `SelectionMode` gains `Multiple` and `Range`. `None` and `Single` keep their current behavior. The enum is public on the optional `ui` path. 0.4.0 is a 0.y crate, so the new variants are an intentional compatibility note: an exhaustive match outside the workspace will need a new arm. Existing hosts that set `Single` or `None` are unchanged.
 
@@ -215,32 +215,34 @@ Any new platform crate required to read a position defaults off. With that featu
 
 ### R0.7 Acceptance gates
 
-The owner accepts R0 only when all of the following are true. Until then, implementation of R1 and R3 is not authorized, and neither is R2, R4, R5, or R6.
+The repository owner accepted R0 on 2026-11-06 at 15:03 America/Phoenix, in review of PR #80, with this wording:
 
-- [ ] The owner accepts this record in review, or amends it first. This pull request does not check this box.
-- [ ] R0.1–R0.6 still match the accepted text, including the script caps, the 10,000-row fixture, milli-point anchors, feature names, and the absence of an application command bus and of `READ_GUEST_THAT_MUTATES_BACK`.
-- [ ] The unresolved host questions below are confirmed or explicitly amended. An implementation pull request does not pick a different answer in code.
-- [ ] No implementation unit is opened against an unaccepted R0.
+> Accept R0 and its proposed platform policies in PR #80, and start the two-agent plan with R1 alongside R5.1. Keep browser work queued behind them.
 
-Acceptance authorizes bounded pull requests. It does not merge them, certify a platform, publish `rndr_browser`, or admit Medousa types into a toolkit crate.
+- [x] The owner accepts this record. No amendment was requested. The quote above is the acceptance.
+- [x] R0.1–R0.6 stand as accepted text, including the script caps, the 10,000-row fixture, milli-point anchors, feature names, and the absence of an application command bus and of `READ_GUEST_THAT_MUTATES_BACK`.
+- [x] The proposed host answers below are confirmed. An implementation pull request uses those answers.
+- [x] No implementation unit was opened against an unaccepted R0. R1 and R5.1 are authorized after this acceptance, as separate pull requests from `main`. This pull request does not contain them.
 
-### Unresolved native-host questions
+Acceptance of the contracts does not merge the implementation pull requests, certify a platform, publish `rndr_browser`, or admit Medousa types into a toolkit crate. The current authorization is R1 and R5.1 only. R3 stays queued. Native certification cells stay Unverified.
 
-These stay open inside R0 until the owner confirms the proposed answer or writes a different one. They are host and platform facts this record should not invent.
+### Confirmed platform policies
 
-| Question | Proposed answer, pending the owner | If left open |
-|---|---|---|
-| Which OS releases are in a support claim? | R0 names none. Each smoke records the OS it ran. A floor is an owner sentence in the ledger. | No cell may say `Supported` for "macOS" or "Windows" as a family. |
-| WebView2 runtime distribution | The toolkit does not download or bundle a runtime. A missing runtime is a reported error on that machine. | R3.2 cannot start. |
-| Linux single-instance transport | A private local socket owned by the running instance. The payload is one URL. A desktop portal would be a written amendment, because `launch` does not take on a new portal dependency by default. | R2.2 uses the socket. The payload stays a URL. |
-| Windows high-contrast | `appearance` carries prefers-dark only. `Contrast` stays an explicit `UiTheme` choice. | Do not add a second signal inside R2.5. |
-| Maximized and fullscreen frames | The snapshot stores normal logical bounds, scale, an optional display id, and a maximized bit. Fullscreen is not restored. | R2.4 uses that snapshot and no wider one. |
-| Notification click | The click delivers the host token. The application raises a window through existing window APIs. | The `notify` feature must not activate a window on its own. |
-| Bundle entitlements | Notifications, login items, and scheme registration may need a signed, entitled application bundle. The application owns that bundle. This repository does not add one. | A smoke that cannot obtain permission stays `Unverified`. |
+The owner accepted every proposed answer below. They are the platform policies for later units. Confirming them does not move a native cell to `Supported`.
+
+| Question | Accepted answer |
+|---|---|
+| Which OS releases are in a support claim? | R0 names none. Each smoke records the OS it ran. A floor is an owner sentence in the ledger. No cell says `Supported` for "macOS" or "Windows" as a family. |
+| WebView2 runtime distribution | The toolkit does not download or bundle a runtime. A missing runtime is a reported error on that machine. |
+| Linux single-instance transport | A private local socket owned by the running instance. The payload is one URL. A desktop portal would be a written amendment, because `launch` does not take on a new portal dependency by default. |
+| Windows high-contrast | `appearance` carries prefers-dark only. `Contrast` stays an explicit `UiTheme` choice. R2.5 adds no second signal. |
+| Maximized and fullscreen frames | The snapshot stores normal logical bounds, scale, an optional display id, and a maximized bit. Fullscreen is not restored. |
+| Notification click | The click delivers the host token. The application raises a window through existing window APIs. The `notify` feature does not activate a window on its own. |
+| Bundle entitlements | Notifications, login items, and scheme registration may need a signed, entitled application bundle. The application owns that bundle. This repository does not add one. A smoke that cannot obtain permission stays `Unverified`. |
 
 ## R1 — variable-height virtualization
 
-**Depends:** accepted R0. **One pull request.** Owner: `ListView`'s virtual path and the core window helper it already shares. Do not change selection cardinality, DataTable, or TreeView budgets in this pull request.
+**Depends:** accepted R0. **Authorized now.** One pull request, branched from `main`, parallel with R5.1, and not stacked on this record. Owner: `ListView`'s virtual path and the core window helper it already shares. Do not change selection cardinality, DataTable, or TreeView budgets in this pull request. Native cells for this unit stay Unverified until an R6 session.
 
 Done when 10,000 mixed-height rows keep `ItemId` and the milli-point remainder across recycling, nested-control state survives only under `ItemId`, and the existing uniform `mount_virtual` tests still pass. Record the `f32` conversion error on that fixture.
 
@@ -248,7 +250,7 @@ Tests: the negative cases in R0.4, plus uniform-list regressions. Headless ancho
 
 ## R2 — OS service slices
 
-**Depends:** accepted R0. **Six pull requests**, in any order, one in review at a time. Each slice has a headless admission test and a native cell that starts `Unverified`.
+**Depends:** accepted R0. **Outside the current authorization.** Six pull requests, in any order, one in review at a time, when a later request authorizes them. Each slice has a headless admission test and a native cell that starts `Unverified`. The accepted platform policies above already bind these slices.
 
 ### R2.1 Notifications (`notify`)
 
@@ -276,7 +278,7 @@ The runner emits `Sleep` and `Wake`. The application decides whether to pause wo
 
 ## R3 — optional browser
 
-**Depends:** accepted R0. **Do not start before that acceptance.** Five pull requests, in order. The crate stays feature-off. Each pull request updates a supported/unsupported matrix in the crate docs. A backend not yet landed is Unsupported. Find and script stay Unsupported until their own pull requests.
+**Depends:** accepted R0. **Queued.** The owner kept browser work behind R1 and R5.1. R3 is not authorized to start with that pair. Five pull requests, in order, once a later request takes the browser off the queue. The crate stays feature-off. Each pull request updates a supported/unsupported matrix in the crate docs. A backend not yet landed is Unsupported. Find and script stay Unsupported until their own pull requests. Native browser cells stay Unverified.
 
 Shared contract from R3.1, implemented again on each backend: show, hide, bounds in logical points relative to the host client area, navigate, back, forward, reload, stop, and observed title and URL. A non-finite or negative rect refuses. Zero area hides the surface and keeps the view. On resize, the host submits the new rect and the guest surface matches it on the next applied frame. Downloads emit an intent (URL, suggested name, mime). The toolkit writes bytes only after the host accepts a destination path. File input emits an intent. The host supplies paths or cancels. Destroy cancels both.
 
@@ -286,7 +288,7 @@ WKWebView, the matrix skeleton, navigation, bounds, and resized bounds. One macO
 
 ### R3.2 WebView2
 
-The same contract on Windows, after R3.1 has merged. One Windows smoke. A missing runtime is an error, per the R0 question once the owner confirms it. macOS results do not transfer.
+The same contract on Windows, after R3.1 has merged. One Windows smoke. A missing runtime is a reported error. The toolkit does not download or bundle one. macOS results do not transfer.
 
 ### R3.3 WebKitGTK
 
@@ -302,7 +304,7 @@ Implements R0.3 on each backend whose navigation contract has landed. Headless t
 
 ## R4 — diff presentation
 
-**Depends:** accepted R0 and R1 merged. **One pull request.**
+**Depends:** accepted R0 and R1 merged. **Outside the current authorization.** One pull request after R1 has merged.
 
 The host owns the hunks. It supplies stable hunk ids, row text, and a generic gutter marker: unchanged, added, removed, or header. The toolkit draws the gutter and moves between hunks with the R1 anchor: next, previous, and jump to id. There is no Git parser, no diff algorithm, no repository type, and no forge type. Staging, comments, and file identity stay with the host.
 
@@ -310,21 +312,21 @@ Negative: an empty diff, a single very long line, and removal of the focused hun
 
 ## R5 — range, multi-select, and positioned drop
 
-**Depends:** accepted R0 only. R5 does not wait for R1. The file-drop pull request can run beside R1. The selection pull request must not edit `ListView` at the same time as R1.
+**Depends:** accepted R0 only. R5 does not wait for R1. The selection pull request must not edit `ListView` at the same time as R1.
 
 ### R5.1 Positioned file drop
 
-One pull request. `position: Option<[f32; 2]>` as in R0.6. Wayland is Unsupported in the matrix and in the crate docs. Negative: a path-only drop stays `None` and does not become `(0, 0)`; hover-cancel still clears every path from the current hover.
+**Authorized now**, alongside R1. One pull request, branched from `main`, not stacked on this record, and not an edit to `ListView`. `position: Option<[f32; 2]>` as in R0.6. Wayland is Unsupported in the matrix and in the crate docs. Negative: a path-only drop stays `None` and does not become `(0, 0)`; hover-cancel still clears every path from the current hover. The native cells for macOS, Windows, and X11 stay Unverified until an R6 session.
 
 ### R5.2 Range and multi-select
 
-One pull request, after the ListView file is free. Lists and tables. The set is keyed by `ItemId` and read from the handle. Negative: disabled rows are not added; a removed id leaves the set; recycling preserves the set; `Single` hosts still see `Selected(Option<ItemId>)` and no membership toggle.
+**Outside the current authorization.** One pull request, after the ListView file is free. Lists and tables. The set is keyed by `ItemId` and read from the handle. Negative: disabled rows are not added; a removed id leaves the set; recycling preserves the set; `Single` hosts still see `Selected(Option<ItemId>)` and no membership toggle.
 
 ## R6 — native certification ledger
 
-**Depends:** the unit being certified has merged. R6 is a sequence of evidence updates, one surface per pull request, written by the person who ran the session. It is not an implementation agent and not a blanket signoff.
+**Depends:** the unit being certified has merged. **Outside the current authorization.** R6 is a sequence of evidence updates, one surface per pull request, written by the person who ran the session. It is not an implementation agent and not a blanket signoff.
 
-A cell becomes `Supported` only when the ledger names the OS and version, machine, Rust version, features, date, reviewer, actions, expected result, and observed result. Headless success never closes a native platform cell. `docs/desktop-readiness.md`, the historical sentences on `platform_support`, and the document-editing epic's IME ledger do not fill these cells. The runner's existing `Availability` table is left as it is; this table is this epic's signoff.
+A cell becomes `Supported` only when the ledger names the OS and version, machine, Rust version, features, date, reviewer, actions, expected result, and observed result. Headless success never closes a native platform cell. Owner acceptance of R0 on 2026-11-06 does not close one either. `docs/desktop-readiness.md`, the historical sentences on `platform_support`, and the document-editing epic's IME ledger do not fill these cells. The runner's existing `Availability` table is left as it is; this table is this epic's signoff. Every cell below remains Unverified or Unsupported, as written.
 
 Live IME remains owned by the document-editing epic. This ledger may record a shell-surface session. It does not close that epic's cells by reference.
 
@@ -357,7 +359,7 @@ Live IME remains owned by the document-editing epic. This ledger may record a sh
 
 ## Pull-request boundaries
 
-After R0 is accepted, open these as separate pull requests. Do not combine them.
+R0 is accepted. Open implementation as separate pull requests from `main`. Do not combine them, and do not stack R1 or R5.1 on this record. The units authorized now are R1 and R5.1. R3 stays queued. The other rows wait for a later authorization.
 
 | Unit | PR | Depends on | Shared-file constraint | Done when |
 |---|---|---|---|---|
@@ -394,11 +396,9 @@ After R0 is accepted, open these as separate pull requests. Do not combine them.
 | Two agents edit `ListView` together | Rejected. R1 and R5.2 are serial. |
 | Script reviewed inside the first browser PR | Rejected. Script is R3.5. |
 
-### Immediate continuation
+### Authorization already given
 
-“R0 is accepted” from the repository owner, naming this file and any amended caps, is the gate. The first implementation request should name one unit. The useful pair is R1 together with either R5.1 or R2.1. R3 waits until that acceptance too, and its first unit is macOS navigation and bounds, not script.
-
-This sentence is a suggested next request. It is not authority to execute it.
+On 2026-11-06 at 15:03 America/Phoenix the owner accepted R0 and its proposed platform policies, and started the two-agent plan: R1 alongside R5.1, each a separate pull request from `main`. Browser work stays queued behind them. This file records that authorization. It does not open those pull requests and it does not start R3.
 
 ## Docs-only verification
 
@@ -407,4 +407,5 @@ Checked when this file was added, against `cc25bb2722b2d01ec3d4f8f3a0c452863cfea
 - The diff is this file only. `README.md` and every crate are unchanged.
 - Relative links resolve: `native-document-editing-epic.md`, `../virtual-list.md`, `../data-components.md`, `../overlay-platform.md`, `../desktop-readiness.md`, `../desktop-apps.md`.
 - The one fenced block is closed. `git diff --check` reports no whitespace errors.
-- No Cargo test, native smoke, benchmark, or feature-flag build was run. Those checks belong to the implementation units. Unchecked boxes above are open on purpose. This record does not certify a platform.
+- No Cargo test, native smoke, benchmark, or feature-flag build was run. Those checks belong to the implementation units. This record does not certify a platform.
+- Acceptance update, same file only: the owner's 2026-11-06 15:03 America/Phoenix acceptance of R0 and the proposed platform policies is recorded above. R1 and R5.1 are the authorized units. R3 stays queued. Ledger cells are unchanged and unverified. No runtime work, merge, or release is included.
