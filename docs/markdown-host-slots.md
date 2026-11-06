@@ -16,7 +16,7 @@ let view = markdown_view(app.world_mut(), "Value\n\nOrdinary markdown");
 app.update(); // Bind against parsed blocks, never guessed source indexes.
 let expected = app.world().get::<MarkdownView>(view).unwrap().blocks()[0].clone();
 let slot = mount_markdown_slot(
-    app.world_mut(), view, 0, &expected, MarkdownSlotId(1), 48.0,
+    app.world_mut(), view, 0, &expected, MarkdownSlotId(1),
 ).unwrap();
 let live = app.world_mut().spawn((
     Layout { width: Size::Fill, height: Size::Px(32.0), ..Layout::column() },
@@ -44,19 +44,18 @@ shows the complete path.
   parser's retained block entities. An ID is never reused in that view's
   lifetime, even after detach. The view remembers used IDs (memory grows with
   unique mounts); use a new view for unbounded document sessions.
-- The binding is **positional and content-checked**: index plus last-synced
-  kind, nesting, text, language, links and semantic inline formatting. Theme
-  colors are excluded. Identical blocks at distinct indexes are independent.
-  An identical replacement at the same index is intentionally indistinguishable
-  and preserves state. This is NOT a source-position ID or content-search API.
-- Appending/streaming, a full reparse with that block unchanged, changes before
-  it that preserve its index, theme changes and width-only resizing preserve
-  root/child identities, host state and focus. An insertion/removal before it
-  retires the binding only if the resulting block at the bound index differs;
-  an identical block left at that index is indistinguishable, even if it came
-  from a different source location. Changing that index's content/kind/formatting,
-  removing the index or externally deleting the root retires the binding on the
-  next sync. There is no automatic migration to a new index.
+- The binding is the block's **source byte range**. Mount still checks the
+  last-synced block at that index (kind, nesting, text, language, links and
+  semantic inline formatting; theme colors excluded). After mount, the range
+  follows the document: an insert above it, or a streaming append after it,
+  moves the range and the slot stays on that block, including when the block's
+  own text grows. Identical blocks at distinct ranges stay independent. An
+  edit that deletes the range, or overlaps it without containing it, retires
+  the slot. This is not a content-search API.
+- Theme changes and width-only resizing preserve root/child identities, host
+  state and focus. Rewriting the text inside a range that still maps updates
+  the stored block and keeps the root. Externally deleting the root retires
+  the binding on the next sync.
 - Pending source edits reject new mounts conservatively (`StaleBlock`). Wrong
   expected content, missing view/index, duplicate block/ID and invalid height
   reject without partial mutation. Use a new ID to deliberately remount.
@@ -74,10 +73,11 @@ shows the complete path.
   Do not reparent the root, replace its Layout/Children, remove MarkdownView
   directly, or attach unrelated direct children to the markdown view.
 - Hosts own child entities/components and their in-place updates. Core owns
-  the root's reading-column width, fixed height and document order. Height must
-  be finite/positive; `set_height` reserves new logical points. The normal block
-  trailing gap is added. No automatic Hug/measurement negotiation or virtualized
-  embedded content is provided in this increment.
+  the root's reading-column width and document order. After layout, the next
+  sync measures the children's heights (plus the root's gap) and reserves that
+  height. Until a measurement exists the root hugs its children. `set_height`
+  opts out of measurement and reserves a finite positive height. The normal
+  block trailing gap is added. Embedded content is not virtualized.
 - The whole block body is replaced, including code backgrounds, quote/list
   decoration. Host content must fit the reserved rectangle; ordinary ancestor
   clips and scrolling apply. Overlays/portals parented outside the subtree are

@@ -314,6 +314,9 @@ pub struct MarkdownView {
     parsed_from: usize,
     slots: Vec<Slot>,
     hosts: Vec<host::Binding>,
+    /// Source text at the last sync. The next edit is diffed against this
+    /// so host anchors follow one inserted, deleted, or replaced span.
+    synced_source: String,
     used_host_ids: std::collections::HashSet<MarkdownSlotId>,
     hosts_dirty: bool,
     style_key: u64,
@@ -339,6 +342,7 @@ impl MarkdownView {
             parsed_from: 0,
             slots: Vec::new(),
             hosts: Vec::new(),
+            synced_source: String::new(),
             used_host_ids: Default::default(),
             hosts_dirty: false,
             style_key: 0,
@@ -624,6 +628,7 @@ fn sync_one(world: &mut World, entity: Entity) {
         view.dirty = true;
     }
     if view.dirty {
+        host::shift_anchors(&mut view);
         let assembled = assemble(
             &view.source,
             &view.theme,
@@ -638,8 +643,11 @@ fn sync_one(world: &mut World, entity: Entity) {
         view.commit = assembled.commit;
         view.parsed_from = assembled.parsed_from;
         view.dirty = false;
+        host::rebind(&mut view);
+        view.synced_source.clone_from(&view.source);
         clamp_selection(&mut view);
     }
+    host::measure_hosts(world, &mut view);
     let columns = list_columns(world, &base, &view.blocks);
     let width_changed = (view.width - width).abs() > 0.5;
     if refresh
@@ -719,6 +727,36 @@ fn reconcile(
     while index < doc.blocks.len() {
         let shape = shape_of(&doc.blocks[index], columns);
         let fingerprint = fingerprint(&doc.blocks[index], columns);
+        if doc.slots.get(index).is_some_and(|slot| {
+            doc.hosts
+                .iter()
+                .any(|binding| binding.root == slot.entity && binding.index != index)
+        }) {
+            // The host followed its source range to another block. Keep that
+            // root and build a fresh row for the block that now sits here.
+            let content = block_height(world, base, &doc.blocks[index], width, columns);
+            let outer = content + trail_after(&doc.blocks, index);
+            let entity = spawn_block(
+                world,
+                view,
+                index,
+                &doc.blocks[index],
+                content,
+                outer,
+                &theme,
+                base,
+                columns,
+            );
+            doc.slots[index] = Slot {
+                entity,
+                shape,
+                fingerprint,
+                width_bits: width.to_bits(),
+                index: index as u32,
+            };
+            index += 1;
+            continue;
+        }
         if let Some(binding) = doc.hosts.iter().find(|binding| binding.index == index) {
             let root = binding.root;
             if let Some(old) = doc.slots.get(index) {
@@ -726,11 +764,16 @@ fn reconcile(
                     despawn(world, old.entity);
                 }
             }
+            let height = if binding.measured && binding.height <= 0.0 {
+                Size::Hug
+            } else {
+                Size::Px(binding.height + trail_after(&doc.blocks, index))
+            };
             world.insert(
                 root,
                 Layout {
                     width: Size::Fill,
-                    height: Size::Px(binding.height + trail_after(&doc.blocks, index)),
+                    height,
                     ..Layout::column()
                 },
             );

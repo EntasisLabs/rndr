@@ -15,8 +15,7 @@ fn markdown_embedded_controls_use_unchanged_whole_frame_privacy_gate() {
     let view = markdown_view(app.world_mut(), "Public fallback");
     app.update();
     let block = app.world().get::<MarkdownView>(view).unwrap().blocks()[0].clone();
-    let slot =
-        mount_markdown_slot(app.world_mut(), view, 0, &block, MarkdownSlotId(1), 40.).unwrap();
+    let slot = mount_markdown_slot(app.world_mut(), view, 0, &block, MarkdownSlotId(1)).unwrap();
     let button = app.world_mut().spawn((
         Layout {
             width: Size::Fill,

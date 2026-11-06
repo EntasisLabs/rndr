@@ -54,7 +54,7 @@ pub fn create(width: f32, height: f32, theme: UiTheme) -> App {
     rndr_paint::frame(&mut app); // Bind to last-synced ordinary blocks, not syntax.
     let block = app.world().get::<MarkdownView>(view).unwrap().blocks()[1].clone();
     let value_slot =
-        mount_markdown_slot(app.world_mut(), view, 1, &block, MarkdownSlotId(1), 52.).unwrap();
+        mount_markdown_slot(app.world_mut(), view, 1, &block, MarkdownSlotId(1)).unwrap();
     let value = text(
         app.world_mut(),
         value_slot.root,
@@ -64,7 +64,7 @@ pub fn create(width: f32, height: f32, theme: UiTheme) -> App {
     .unwrap();
     let block = app.world().get::<MarkdownView>(view).unwrap().blocks()[2].clone();
     let controls_slot =
-        mount_markdown_slot(app.world_mut(), view, 2, &block, MarkdownSlotId(2), 100.).unwrap();
+        mount_markdown_slot(app.world_mut(), view, 2, &block, MarkdownSlotId(2)).unwrap();
     let increment = controls::Button::mount(
         app.world_mut(),
         controls_slot.root,

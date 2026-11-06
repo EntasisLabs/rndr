@@ -16,8 +16,7 @@ fn setup() -> (App, Entity, MarkdownSlot, Entity) {
         .set_follow(false);
     rndr_paint::frame(&mut app);
     let block = app.world().get::<MarkdownView>(view).unwrap().blocks()[0].clone();
-    let slot =
-        mount_markdown_slot(app.world_mut(), view, 0, &block, MarkdownSlotId(1), 60.).unwrap();
+    let slot = mount_markdown_slot(app.world_mut(), view, 0, &block, MarkdownSlotId(1)).unwrap();
     let button = controls::Button::mount(
         app.world_mut(),
         slot.root,
@@ -176,16 +175,17 @@ fn text_click_in_another_view_reclaims_copy_from_old_host_focus() {
     );
 }
 #[test]
-fn positional_identity_preserves_indistinguishable_same_index_not_relocation() {
+fn source_range_stays_with_the_original_block() {
     let (mut app, view, slot, button) = setup();
     app.world_mut()
         .get_mut::<MarkdownView>(view)
         .unwrap()
         .set_markdown("Live\n\nLive\n\nFallback paragraph");
     rndr_paint::frame(&mut app);
-    // An identical inserted block at index zero is intentionally indistinguishable.
+    // The slot stays on the first "Live": the inserted copy is a later range.
     assert!(slot.is_mounted(app.world()));
     assert!(app.world().is_alive(button));
+    // Replacing the anchored paragraph deletes its source range.
     app.world_mut()
         .get_mut::<MarkdownView>(view)
         .unwrap()
