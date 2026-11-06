@@ -26,7 +26,7 @@ A complete epic means independently reviewed generic source and structured compo
 - A universal text/tree representation, universal Markdown losslessness by serialization, or a CodeMirror/ProseMirror API clone.
 - Collaboration/CRDT/OT, arbitrary plugin execution, built-in LSP server transport, daemon permissions/filesystem ownership, Liquid runtime or foreign-note execution.
 - Fixing DataTable visuals, unrelated UI polish, broad framework cleanup, publishing, release enablement, pushes or deployment.
-- Treating existing headless tests/captures as OS IME, clipboard, screen-reader or cross-platform certification.
+- Treating existing headless tests/captures as OS IME, clipboard, screen-reader or cross-platform certification. The scripted CJK/Arabic matrix in [ime-complex-scripts.md](../ime-complex-scripts.md) is headless only. macOS and Windows input-method and physical-DPI cells stay open.
 
 ## Key findings and recommended shape
 
