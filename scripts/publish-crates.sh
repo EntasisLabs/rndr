@@ -202,6 +202,9 @@ for name in expected:
         sys.exit(f"expected one {name} archive, found {matches}")
     version = matches[0][len(name) + 1 : -len(".crate")]
     with tarfile.open(root / matches[0]) as tar:
+        archived = tar.getnames()
+        if f"{name}-{version}/LICENSE" not in archived:
+            sys.exit(f"{name} archive is missing LICENSE")
         manifest = tomllib.loads(tar.extractfile(f"{name}-{version}/Cargo.toml").read().decode())
     package = manifest["package"]
     if package["version"] != version:
