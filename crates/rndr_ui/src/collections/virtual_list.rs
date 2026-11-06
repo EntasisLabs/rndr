@@ -297,67 +297,122 @@ fn validate(w: &World, root: Entity) -> Result<(), UiError> {
     }
     Ok(())
 }
-fn realize(w: &mut World, root: Entity) -> bool {
-    if validate(w, root).is_err() {
+fn realize(world: &mut World, root: Entity) -> bool {
+    if validate(world, root).is_err() {
         return false;
     }
-    let Some(mut v) = w.get::<VirtualView>(root).cloned() else {
+    let Some(mut view) = world.get::<VirtualView>(root).cloned() else {
         return false;
     };
-    let h = w.get::<Rect>(root).map(|r| r.h).unwrap_or(0.);
-    let width = w.get::<Rect>(root).map(|r| r.w).unwrap_or(0.);
-    let width_changed = width != v.viewport_width;
-    v.viewport_width = width;
-    let max = (v.items.len() as f32 * v.stride - h).max(0.);
-    let mut offset = w
-        .get::<Scroll>(root)
-        .map(|s| -s.offset[1])
-        .unwrap_or(0.)
-        .clamp(0., max);
-    if h != v.viewport_height {
-        // A genuine viewport resize may hide a canonical row that still owns
-        // focus. Reveal only at this geometry transition; a deliberate scroll
-        // parks focus on the viewport and must never cause per-frame snap-back.
-        let canonical = w.resource::<Focus>().and_then(|f| f.entity);
-        if let Some(id) = canonical
-            .and_then(|f| owner(w, f))
-            .filter(|o| o.view == root)
-            .map(|o| o.id)
-        {
-            if let Some(index) = v.indices.get(&id) {
-                let y = *index as f32 * v.stride;
-                offset = if y < offset {
-                    y
-                } else if y + v.stride > offset + h {
-                    (y + v.stride - h).max(0.)
-                } else {
-                    offset
-                }
-                .clamp(0., max);
-            }
+    let (geometry, mut changed) = reconcile_window(world, root, &mut view);
+    changed |= reconcile_realized_rows(world, root, &mut view, &geometry.wanted);
+    changed |= project_window(world, root, &view, &geometry);
+    // Store before callbacks: renderers and nested component mounting can query
+    // the canonical selection and key ownership without borrowing model state.
+    world.insert(root, view.clone());
+    compose_realized_rows(world, root, &view, &geometry.wanted);
+    crate::style::resolve_subtree_styles(world, root);
+    changed
+}
+
+struct RealizedWindow {
+    wanted: Vec<ItemId>,
+    top_height: f32,
+    bottom_height: f32,
+}
+
+/// Geometry policy is pure: only a height transition can reveal canonical row
+/// focus. Deliberate scrolling must not snap back on subsequent layout passes.
+fn window_geometry(
+    requested_offset: f32,
+    viewport_height: f32,
+    stride: f32,
+    item_count: u32,
+    resize_focus_index: Option<usize>,
+) -> (f32, u32, u32) {
+    let max_offset = (item_count as f32 * stride - viewport_height).max(0.);
+    let mut offset = requested_offset.clamp(0., max_offset);
+    if let Some(index) = resize_focus_index {
+        let row_top = index as f32 * stride;
+        offset = if row_top < offset {
+            row_top
+        } else if row_top + stride > offset + viewport_height {
+            (row_top + stride - viewport_height).max(0.)
+        } else {
+            offset
         }
-        v.viewport_height = h;
+        .clamp(0., max_offset);
     }
-    if let Some(s) = w.get_mut::<Scroll>(root) {
-        s.offset[1] = -offset;
+    let (first, len) = list_window(offset, viewport_height, stride, item_count);
+    (offset, first, len)
+}
+
+fn reconcile_window(
+    world: &mut World,
+    root: Entity,
+    view: &mut VirtualView,
+) -> (RealizedWindow, bool) {
+    let viewport_height = world.get::<Rect>(root).map(|rect| rect.h).unwrap_or(0.);
+    let viewport_width = world.get::<Rect>(root).map(|rect| rect.w).unwrap_or(0.);
+    let width_changed = viewport_width != view.viewport_width;
+    view.viewport_width = viewport_width;
+    let height_changed = viewport_height != view.viewport_height;
+    let resize_focus_index = if height_changed {
+        world
+            .resource::<Focus>()
+            .and_then(|focus| focus.entity)
+            .and_then(|entity| owner(world, entity))
+            .filter(|owner| owner.view == root)
+            .and_then(|owner| view.indices.get(&owner.id).copied())
+    } else {
+        None
+    };
+    let requested_offset = world
+        .get::<Scroll>(root)
+        .map(|scroll| -scroll.offset[1])
+        .unwrap_or(0.);
+    let (offset, first, len) = window_geometry(
+        requested_offset,
+        viewport_height,
+        view.stride,
+        view.items.len() as u32,
+        resize_focus_index,
+    );
+    if height_changed {
+        view.viewport_height = viewport_height;
     }
-    let (first, len) = list_window(offset, h, v.stride, v.items.len() as u32);
-    let wanted: Vec<_> = v
+    if let Some(scroll) = world.get_mut::<Scroll>(root) {
+        scroll.offset[1] = -offset;
+    }
+    let wanted = view
         .items
         .iter()
         .skip(first as usize)
         .take(len as usize)
-        .map(|i| i.id)
+        .map(|item| item.id)
         .collect();
+    (
+        RealizedWindow {
+            wanted,
+            top_height: first as f32 * view.stride,
+            bottom_height: (view.items.len() as u32 - first - len) as f32 * view.stride,
+        },
+        width_changed || height_changed,
+    )
+}
+
+/// Retire interaction and park focus before recycling content. Row allocation
+/// order and LIFO reuse are retained; callbacks run only after model publication.
+fn reconcile_realized_rows(
+    w: &mut World,
+    root: Entity,
+    v: &mut VirtualView,
+    wanted: &[ItemId],
+) -> bool {
     let wanted_set: HashSet<_> = wanted.iter().copied().collect();
     let old: Vec<_> = v.rows.keys().copied().collect();
     let mut spare = Vec::new();
-    // A width-only reflow can change composed child geometry on the second
-    // callback too. Request the final measure/place even when the row window
-    // and viewport height did not change.
-    let mut changed = width_changed
-        || w.get::<VirtualView>(root)
-            .is_some_and(|old| old.viewport_height != h);
+    let mut changed = false;
     for id in old {
         if !wanted_set.contains(&id) {
             let mut slot = v.rows.remove(&id).unwrap();
@@ -366,7 +421,7 @@ fn realize(w: &mut World, root: Entity) -> bool {
                 .and_then(|f| f.entity)
                 .is_some_and(|f| ancestor_with::<Owner>(w, f) == Some(slot.root))
             {
-                if item_enabled(&v, id) {
+                if item_enabled(v, id) {
                     v.active = Some(id);
                 }
                 request_focus(w, root);
@@ -377,7 +432,7 @@ fn realize(w: &mut World, root: Entity) -> bool {
             changed = true;
         }
     }
-    for id in &wanted {
+    for id in wanted {
         if !v.rows.contains_key(id) {
             let slot = spare.pop().unwrap_or_else(|| {
                 let row = w.spawn((Layout::column(), Focusable, ReleaseActivation));
@@ -400,9 +455,15 @@ fn realize(w: &mut World, root: Entity) -> bool {
     for slot in spare {
         despawn(w, slot.root);
     }
-    let top_h = first as f32 * v.stride;
-    let bottom_h = (v.items.len() as u32 - first - len) as f32 * v.stride;
-    for (e, height) in [(v.top, top_h), (v.bottom, bottom_h)] {
+    changed
+}
+
+fn project_window(w: &mut World, root: Entity, v: &VirtualView, geometry: &RealizedWindow) -> bool {
+    let mut changed = false;
+    for (e, height) in [
+        (v.top, geometry.top_height),
+        (v.bottom, geometry.bottom_height),
+    ] {
         let l = w.get_mut::<Layout>(e).unwrap();
         changed |= l.height != Size::Px(height);
         l.height = Size::Px(height);
@@ -411,7 +472,7 @@ fn realize(w: &mut World, root: Entity) -> bool {
         root,
         Children {
             list: std::iter::once(v.top)
-                .chain(wanted.iter().map(|id| v.rows[id].root))
+                .chain(geometry.wanted.iter().map(|id| v.rows[id].root))
                 .chain([v.bottom, v.empty])
                 .collect(),
         },
@@ -443,10 +504,11 @@ fn realize(w: &mut World, root: Entity) -> bool {
     } else {
         w.insert(root, ControlDisabled);
     }
-    // Store before callbacks: renderers and nested component mounting can query
-    // the canonical selection and key ownership without borrowing model state.
-    w.insert(root, v.clone());
-    for id in wanted {
+    changed
+}
+
+fn compose_realized_rows(w: &mut World, root: Entity, v: &VirtualView, wanted: &[ItemId]) {
+    for &id in wanted {
         let slot = v.rows[&id];
         let item = &v.items[v.indices[&id]];
         w.insert(
@@ -517,8 +579,6 @@ fn realize(w: &mut World, root: Entity) -> bool {
         }
         (v.compose)(w, slot, item);
     }
-    crate::style::resolve_subtree_styles(w, root);
-    changed
 }
 fn focus_target(w: &mut World, entity: Entity) -> Entity {
     let row = w.get::<Owner>(entity).copied();
@@ -817,5 +877,50 @@ impl VirtualViewHandle {
     /// Current logical navigation key, even while focus is in an external field.
     pub fn active(self, w: &World) -> Option<ItemId> {
         w.get::<VirtualView>(self.root).and_then(|v| v.active)
+    }
+}
+
+#[cfg(test)]
+mod geometry_tests {
+    use super::window_geometry;
+    use rndr_core::list_window;
+
+    #[test]
+    fn geometry_matches_original_clamp_reveal_and_window_matrix() {
+        for count in [0_u32, 1, 7, 100, 100_000] {
+            for stride in [1., 22., 32., 47.5] {
+                for height in [0., 1., 80., 320., 10_000.] {
+                    for requested in [-100_f32, 0., 50., 1000., 1_000_000.] {
+                        for focus in [None, Some(0), Some(count.saturating_sub(1) as usize)] {
+                            let max = (count as f32 * stride - height).max(0.);
+                            let mut expected = requested.clamp(0., max);
+                            if let Some(index) = focus {
+                                let top = index as f32 * stride;
+                                expected = if top < expected {
+                                    top
+                                } else if top + stride > expected + height {
+                                    (top + stride - height).max(0.)
+                                } else {
+                                    expected
+                                }
+                                .clamp(0., max);
+                            }
+                            let (first, len) = list_window(expected, height, stride, count);
+                            assert_eq!(
+                                window_geometry(requested, height, stride, count, focus),
+                                (expected, first, len)
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn only_explicit_resize_focus_reveals_a_row() {
+        assert_eq!(window_geometry(640., 320., 32., 100, None).0, 640.);
+        assert_eq!(window_geometry(640., 320., 32., 100, Some(0)).0, 0.);
+        assert_eq!(window_geometry(0., 80., 32., 100, Some(9)).0, 240.);
     }
 }

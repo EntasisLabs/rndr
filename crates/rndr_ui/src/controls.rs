@@ -1,4 +1,5 @@
 //! Operating controls on core's canonical input/intent path. See README contracts.
+use crate::lifecycle::{find_keyed_child as find, require_layout_parent as parent_valid};
 use crate::{Corner, Token, Typography, UiColor, UiError, UiId, UiRecipe, UiStyle, UiTheme};
 use rndr_core::{Button as CoreButton, *};
 
@@ -199,13 +200,6 @@ impl SourceAction {
 fn action(props: &ButtonProps) -> String {
     format!("rndr-ui:{:?}", props.intent)
 }
-fn parent_valid(world: &World, parent: Entity) -> Result<(), UiError> {
-    if world.is_alive(parent) && world.has::<Layout>(parent) {
-        Ok(())
-    } else {
-        Err(UiError::Stale)
-    }
-}
 /// Ownership guard shared with passive adoption; includes all internal slots,
 /// not just keyed component roots. Borrowed caller subtrees remain unmarked.
 pub(crate) fn owns_entity(world: &World, entity: Entity) -> bool {
@@ -217,23 +211,15 @@ pub(crate) fn owns_entity(world: &World, entity: Entity) -> bool {
 
 /// Shared identity check also used by passive surfaces; no global registry.
 pub(crate) fn key_at(world: &World, entity: Entity) -> Option<UiId> {
-    if let Some(key) = crate::selection::key_at(world, entity)
-        .or_else(|| crate::data::key_at(world, entity))
-        .or_else(|| crate::collections::key_at(world, entity))
-        .or_else(|| crate::editing::key_at(world, entity))
-    {
-        return Some(key);
-    }
+    crate::lifecycle::interactive_key_at(world, entity)
+}
+/// Family-local identity only; aggregation belongs to lifecycle.
+pub(crate) fn local_key_at(world: &World, entity: Entity) -> Option<UiId> {
     world
         .get::<Control>(entity)
         .map(|c| c.id)
         .or_else(|| world.get::<Selector>(entity).map(|s| s.id))
         .or_else(|| world.get::<ToolbarNode>(entity).map(|s| s.id))
-}
-fn find(world: &World, parent: Entity, id: UiId) -> Option<Entity> {
-    children_of(world, parent)
-        .into_iter()
-        .find(|e| key_at(world, *e).or_else(|| crate::surfaces::key_at(world, *e)) == Some(id))
 }
 fn primitive(world: &mut World, parent: Entity, owner: Entity, padding: f32) -> Entity {
     let e = world.spawn((

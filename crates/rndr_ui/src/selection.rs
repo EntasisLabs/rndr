@@ -256,7 +256,7 @@ fn projection(role: AccessRole) -> SelectionAccess {
     }
 }
 fn mount(
-    w: &mut World,
+    world: &mut World,
     parent: Entity,
     key: UiId,
     props: SelectionProps,
@@ -264,26 +264,47 @@ fn mount(
     options: &[SelectOption],
     mut value: SelectionValue,
 ) -> Result<SelectionHandle, UiError> {
-    if !w.is_alive(parent) || !w.has::<Layout>(parent) {
-        return Err(UiError::Stale);
-    }
+    crate::lifecycle::require_layout_parent(world, parent)?;
     if !valid(&props, options) {
         return Err(UiError::InvalidProps);
     }
-    let existing = children_of(w, parent).into_iter().find(|e| {
-        crate::controls::key_at(w, *e).or_else(|| crate::surfaces::key_at(w, *e)) == Some(key)
-    });
-    if let Some(e) = existing {
-        if !w.get::<Selection>(e).is_some_and(|s| s.kind == kind) {
+    let existing = crate::lifecycle::find_keyed_child(world, parent, key);
+    if let Some(root) = existing {
+        if !world
+            .get::<Selection>(root)
+            .is_some_and(|selection| selection.kind == kind)
+        {
             return Err(UiError::InvalidProps);
         }
     }
-    if let SelectionValue::Selected(ids) = &mut value {
-        ids.retain(|id| options.iter().any(|o| o.id == *id));
+    normalize_value(&mut value, options);
+    let (root, mut selection) =
+        resolve_selection(world, parent, key, kind, &props, &value, existing)?;
+    let removed_focus = reconcile_options(world, root, &mut selection, props, value, options)?;
+    Ok(publish_selection(world, root, selection, removed_focus))
+}
+
+fn normalize_value(value: &mut SelectionValue, options: &[SelectOption]) {
+    if let SelectionValue::Selected(ids) = value {
+        ids.retain(|id| options.iter().any(|option| option.id == *id));
         ids.sort();
         ids.dedup();
     }
-    let (root, mut s) = if let Some(e) = existing {
+}
+
+/// Resolve the retained model or construct its owned trigger and detached popup.
+/// Family admission is complete before construction; existing state is cloned
+/// so callback/refresh code sees only the published model at the original point.
+fn resolve_selection(
+    w: &mut World,
+    parent: Entity,
+    key: UiId,
+    kind: Kind,
+    props: &SelectionProps,
+    value: &SelectionValue,
+    existing: Option<Entity>,
+) -> Result<(Entity, Selection), UiError> {
+    Ok(if let Some(e) = existing {
         (e, w.get::<Selection>(e).unwrap().clone())
     } else {
         let (e, label, face, mark) = if kind == Kind::Check {
@@ -409,93 +430,129 @@ fn mount(
                 empty: None,
             },
         )
-    };
-    let old_focus = w.resource::<Focus>().and_then(|f| f.entity);
-    let removed_focus = old_focus.is_some_and(|f| {
-        s.rows
-            .iter()
-            .any(|(id, e)| *e == f && !options.iter().any(|o| o.id == *id && o.enabled))
+    })
+}
+
+/// Preserve row identities, retire interaction before destruction, and reconcile
+/// presentation order. Focus is parked before its old target can be removed.
+fn reconcile_options(
+    world: &mut World,
+    root: Entity,
+    selection: &mut Selection,
+    props: SelectionProps,
+    value: SelectionValue,
+    options: &[SelectOption],
+) -> Result<bool, UiError> {
+    let old_focus = world.resource::<Focus>().and_then(|focus| focus.entity);
+    let removed_focus = old_focus.is_some_and(|focused| {
+        selection.rows.iter().any(|(id, row)| {
+            *row == focused
+                && !options
+                    .iter()
+                    .any(|option| option.id == *id && option.enabled)
+        })
     });
-    s.props = props;
-    s.value = value.clone();
-    s.requested = value;
-    s.options = options.to_vec();
-    if let Some(popup) = s.popup {
+    selection.props = props;
+    selection.value = value.clone();
+    selection.requested = value;
+    selection.options = options.to_vec();
+    if let Some(popup) = selection.popup {
         // Normalize focus before destroying its old row; focus boundaries remain linked.
         if removed_focus {
-            request_focus(w, popup);
+            request_focus(world, popup);
         }
-        let removed: Vec<_> = s
+        let removed: Vec<_> = selection
             .rows
             .keys()
-            .filter(|id| !options.iter().any(|o| o.id == **id))
+            .filter(|id| !options.iter().any(|option| option.id == **id))
             .copied()
             .collect();
         for id in removed {
-            let e = s.rows.remove(&id).unwrap();
-            forget_interaction_targets(w, &[e]);
-            despawn(w, e);
+            let row = selection.rows.remove(&id).unwrap();
+            forget_interaction_targets(world, &[row]);
+            despawn(world, row);
         }
-        for o in options {
-            let mut bp =
-                controls::ButtonProps::new(&o.label, controls::HostIntent::Command(o.id.0));
-            bp.enabled = o.enabled;
-            bp.readonly = s.props.readonly;
-            let h = controls::NavigationRow::mount(
-                w,
+        for option in options {
+            let mut button_props = controls::ButtonProps::new(
+                &option.label,
+                controls::HostIntent::Command(option.id.0),
+            );
+            button_props.enabled = option.enabled;
+            button_props.readonly = selection.props.readonly;
+            let handle = controls::NavigationRow::mount(
+                world,
                 popup,
-                UiId(o.id.0),
-                bp,
+                UiId(option.id.0),
+                button_props,
                 controls::NavigationMeta::default(),
             )?;
-            s.rows.insert(o.id, h.root);
-            w.insert(
-                h.root,
+            selection.rows.insert(option.id, handle.root);
+            world.insert(
+                handle.root,
                 OptionOwner {
                     control: root,
-                    id: o.id,
+                    id: option.id,
                 },
             );
-            w.insert(h.root, ActivationHandler(activate_option));
-            w.insert(h.root, KeyNavigation(navigate));
-            w.insert(h.root, TabStop(false));
+            world.insert(handle.root, ActivationHandler(activate_option));
+            world.insert(handle.root, KeyNavigation(navigate));
+            world.insert(handle.root, TabStop(false));
         }
         // Presentation order changes without replacing stable option entities.
-        let order: Vec<_> = options
+        let order = options
             .iter()
-            .map(|o| s.rows[&o.id])
-            .chain(s.empty)
+            .map(|option| selection.rows[&option.id])
+            .chain(selection.empty)
             .collect();
-        w.insert(popup, Children { list: order });
+        world.insert(popup, Children { list: order });
         if options.is_empty() {
-            if s.empty.is_none() {
-                s.empty = Some(text(w, popup, &s.props.empty, Typography::Secondary)?);
+            if selection.empty.is_none() {
+                selection.empty = Some(text(
+                    world,
+                    popup,
+                    &selection.props.empty,
+                    Typography::Secondary,
+                )?);
             }
-            if let Some(e) = s.empty {
-                w.get_mut::<Label>(e).unwrap().text = s.props.empty.clone();
-                w.remove::<Hidden>(e);
+            if let Some(empty) = selection.empty {
+                world.get_mut::<Label>(empty).unwrap().text = selection.props.empty.clone();
+                world.remove::<Hidden>(empty);
             }
-        } else if let Some(e) = s.empty {
-            w.insert(e, Hidden);
+        } else if let Some(empty) = selection.empty {
+            world.insert(empty, Hidden);
         }
     }
-    w.insert(root, s);
-    w.insert(root, KeyNavigation(navigate));
-    w.insert(root, ActivationHandler(activate));
-    refresh(w, root);
-    if let Some(popup) = w.get::<Selection>(root).and_then(|s| s.popup) {
-        if !w.has::<Hidden>(popup) {
-            if !access_details(w, popup).activate
-                && (w.get::<Selection>(root).unwrap().props.readonly
-                    || !w.get::<Selection>(root).unwrap().props.enabled)
+    Ok(removed_focus)
+}
+
+/// Publish before refresh and popup focus/availability policy, as in the original
+/// mount path. Updating authoritative state never emits a change request.
+fn publish_selection(
+    world: &mut World,
+    root: Entity,
+    selection: Selection,
+    removed_focus: bool,
+) -> SelectionHandle {
+    world.insert(root, selection);
+    world.insert(root, KeyNavigation(navigate));
+    world.insert(root, ActivationHandler(activate));
+    refresh(world, root);
+    if let Some(popup) = world
+        .get::<Selection>(root)
+        .and_then(|selection| selection.popup)
+    {
+        if !world.has::<Hidden>(popup) {
+            if !access_details(world, popup).activate
+                && (world.get::<Selection>(root).unwrap().props.readonly
+                    || !world.get::<Selection>(root).unwrap().props.enabled)
             {
-                close_popup(w, popup, true);
+                close_popup(world, popup, true);
             } else if removed_focus {
-                focus_first(w, root, false);
+                focus_first(world, root, false);
             }
         }
     }
-    Ok(SelectionHandle { root })
+    SelectionHandle { root }
 }
 fn chosen(value: &SelectionValue, id: OptionId) -> bool {
     matches!(value, SelectionValue::Selected(ids) if ids.contains(&id))

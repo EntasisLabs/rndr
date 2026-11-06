@@ -336,8 +336,32 @@ impl DataTable {
         if !valid_columns(columns, &props, rows) {
             return Err(UiError::InvalidProps);
         }
+        let (root, mut table) = Self::resolve_table(world, parent, key, &props)?;
+        Self::retire_table_entries(world, &mut table, columns, rows);
+        table.props = props.clone();
+        table.columns = columns.to_vec();
+        let width = columns.iter().map(|column| column.width).sum::<f32>() + TABLE_INSET * 2.0;
+        Self::project_table_chrome(world, root, &table, &props, width);
+        Self::reconcile_headers(world, root, &mut table, &props, columns)?;
+        Self::reconcile_rows(world, root, &mut table, &props, columns, rows, &mut compose)?;
+        Self::project_table_body(world, &table, &props, width);
+        let handle = TableHandle {
+            root,
+            rows: table.view,
+        };
+        // Publish only after composition, preserving the callback-visible state.
+        world.insert(root, table);
+        Ok(handle)
+    }
+
+    fn resolve_table(
+        world: &mut World,
+        parent: Entity,
+        key: UiId,
+        props: &TableProps,
+    ) -> Result<(Entity, Table), UiError> {
         let found = existing(world, parent, key)?;
-        let (root, mut table) = if let Some(root) = found {
+        Ok(if let Some(root) = found {
             let table = world
                 .get::<Table>(root)
                 .cloned()
@@ -387,7 +411,15 @@ impl DataTable {
                     cells: BTreeMap::new(),
                 },
             )
-        };
+        })
+    }
+
+    fn retire_table_entries(
+        world: &mut World,
+        table: &mut Table,
+        columns: &[Column],
+        rows: &[Item],
+    ) {
         let ids: BTreeSet<_> = columns.iter().map(|c| c.id).collect();
         let row_ids: BTreeSet<_> = rows.iter().map(|r| r.id).collect();
         table.cells.retain(|(r, c), slot| {
@@ -404,9 +436,15 @@ impl DataTable {
             }
             keep
         });
-        table.props = props.clone();
-        table.columns = columns.to_vec();
-        let width = columns.iter().map(|c| c.width).sum::<f32>() + TABLE_INSET * 2.0;
+    }
+
+    fn project_table_chrome(
+        world: &mut World,
+        root: Entity,
+        table: &Table,
+        props: &TableProps,
+        width: f32,
+    ) {
         world.insert(
             root,
             Layout {
@@ -432,6 +470,15 @@ impl DataTable {
                 ..Layout::row()
             },
         );
+    }
+
+    fn reconcile_headers(
+        world: &mut World,
+        root: Entity,
+        table: &mut Table,
+        props: &TableProps,
+        columns: &[Column],
+    ) -> Result<(), UiError> {
         let mut order = vec![];
         for c in columns {
             let mark = props
@@ -510,6 +557,18 @@ impl DataTable {
                 headers: vec![],
             },
         );
+        Ok(())
+    }
+
+    fn reconcile_rows(
+        world: &mut World,
+        root: Entity,
+        table: &mut Table,
+        props: &TableProps,
+        columns: &[Column],
+        rows: &[Item],
+        compose: &mut impl FnMut(&mut World, CellSlot, &Item, &Column),
+    ) -> Result<(), UiError> {
         let mut vp = ViewProps::new(&props.name);
         vp.enabled = props.enabled;
         vp.selection = props.selection;
@@ -615,6 +674,10 @@ impl DataTable {
             reorder(w, row.content, &order);
         })?;
         table.cells = cells;
+        Ok(())
+    }
+
+    fn project_table_body(world: &mut World, table: &Table, props: &TableProps, width: f32) {
         world.insert(
             table.view.root,
             Layout {
@@ -631,12 +694,6 @@ impl DataTable {
                 headers: vec![],
             },
         );
-        let handle = TableHandle {
-            root,
-            rows: table.view,
-        };
-        world.insert(root, table);
-        Ok(handle)
     }
 }
 impl TableHandle {
@@ -1335,8 +1392,31 @@ impl PropertyInspector {
         if !inspector_valid(&props, groups, fields) {
             return Err(UiError::InvalidProps);
         }
+        let (root, mut inspector) = Self::resolve_inspector(w, parent, key, &props)?;
+        Self::retire_fields_and_groups(w, root, &mut inspector, &props, groups, fields);
+        let old_enabled = inspector.props.enabled;
+        let group_order = Self::project_groups(w, root, &mut inspector, &props, groups, fields);
+        Self::reconcile_fields(w, root, &mut inspector, old_enabled, fields)?;
+        Self::order_fields(w, root, &inspector, groups, fields, &group_order);
+        // Custom callbacks follow identity order and observe the previous publication.
+        for state in inspector.fields.values() {
+            update_field(w, &inspector, state);
+            if matches!(state.property.kind, PropertyKind::Custom(_)) {
+                custom(w, state.slot, &state.property);
+            }
+        }
+        w.insert(root, inspector);
+        Ok(InspectorHandle { root })
+    }
+
+    fn resolve_inspector(
+        w: &mut World,
+        parent: Entity,
+        key: UiId,
+        props: &InspectorProps,
+    ) -> Result<(Entity, Inspector), UiError> {
         let found = existing(w, parent, key)?;
-        let (root, mut i) = if let Some(root) = found {
+        Ok(if let Some(root) = found {
             let i = w
                 .get::<Inspector>(root)
                 .cloned()
@@ -1374,22 +1454,32 @@ impl PropertyInspector {
                     empty,
                 },
             )
-        };
-        let object_changed = i.props.object != props.object;
-        let ids: BTreeSet<_> = fields.iter().map(|p| p.id).collect();
-        let removed: Vec<_> = i
+        })
+    }
+
+    fn retire_fields_and_groups(
+        world: &mut World,
+        root: Entity,
+        inspector: &mut Inspector,
+        props: &InspectorProps,
+        groups: &[PropertyGroup],
+        fields: &[Property],
+    ) {
+        let object_changed = inspector.props.object != props.object;
+        let field_ids: BTreeSet<_> = fields.iter().map(|property| property.id).collect();
+        let removed: Vec<_> = inspector
             .fields
             .keys()
             .copied()
-            .filter(|id| !ids.contains(id) || object_changed)
+            .filter(|id| !field_ids.contains(id) || object_changed)
             .collect();
         for id in removed {
-            let s = i.fields.remove(&id).unwrap();
-            if s.dirty {
+            let state = inspector.fields.remove(&id).unwrap();
+            if state.dirty {
                 emit(
-                    w,
+                    world,
                     root,
-                    &i,
+                    inspector,
                     id,
                     PropertyEventKind::Cancelled(if object_changed {
                         CancelReason::Reconciled
@@ -1398,22 +1488,31 @@ impl PropertyInspector {
                     }),
                 );
             }
-            destroy(w, s.slot.root);
+            destroy(world, state.slot.root);
         }
-        let gids: BTreeSet<_> = groups.iter().map(|g| g.id).collect();
+        let group_ids: BTreeSet<_> = groups.iter().map(|group| group.id).collect();
         // A removed group may still contain retained fields moving to another
         // group. Reparent those first, then destroy the now-empty old group.
-        for s in i.fields.values() {
-            set_parent(w, s.slot.root, root);
+        for state in inspector.fields.values() {
+            set_parent(world, state.slot.root, root);
         }
-        i.groups.retain(|id, e| {
-            let keep = gids.contains(id);
+        inspector.groups.retain(|id, entity| {
+            let keep = group_ids.contains(id);
             if !keep {
-                destroy(w, *e);
+                destroy(world, *entity);
             }
             keep
         });
-        let old_enabled = i.props.enabled;
+    }
+
+    fn project_groups(
+        w: &mut World,
+        root: Entity,
+        i: &mut Inspector,
+        props: &InspectorProps,
+        groups: &[PropertyGroup],
+        fields: &[Property],
+    ) -> Vec<Entity> {
         i.props = props.clone();
         w.insert(
             root,
@@ -1470,188 +1569,234 @@ impl PropertyInspector {
             );
             group_order.push(e);
         }
-        for p in fields {
-            if let Some(s) = i.fields.get_mut(&p.id) {
-                let same_validator = match (s.property.validate, p.validate) {
-                    (None, None) => true,
-                    (Some(a), Some(b)) => std::ptr::fn_addr_eq(a, b),
-                    _ => false,
-                };
-                let contract_changed = s.property.kind != p.kind
-                    || s.property.readonly != p.readonly
-                    || s.property.enabled != p.enabled
-                    || s.property.validation != p.validation
-                    || old_enabled != props.enabled
-                    || !same_validator;
-                let acknowledgement = (!contract_changed
-                    && !same_value(&s.property.value, &p.value))
-                .then(|| s.pending.iter().position(|v| same_value(v, &p.value)))
-                .flatten();
-                if let Some(n) = acknowledgement {
-                    // An earlier request was accepted. Later edits are still local:
-                    // do not replace the label, caret, IME state or typing history.
-                    s.pending.drain(..=n);
-                    s.dirty = draft_dirty(p, &s.draft);
-                } else if contract_changed || !same_value(&s.property.value, &p.value) {
-                    if s.dirty {
-                        send(
-                            w,
-                            PropertyEvent {
-                                inspector: root,
-                                object: props.object,
-                                property: p.id,
-                                kind: PropertyEventKind::Cancelled(CancelReason::Reconciled),
-                            },
-                        );
-                    }
-                    s.draft = base(p);
-                    s.pending.clear();
-                    s.dirty = false;
-                    w.remove::<Caret>(s.slot.editor);
-                    reset_field_draft(w, s.slot.editor, &s.draft.raw);
+        group_order
+    }
+
+    fn reconcile_fields(
+        w: &mut World,
+        root: Entity,
+        i: &mut Inspector,
+        old_enabled: bool,
+        fields: &[Property],
+    ) -> Result<(), UiError> {
+        for property in fields {
+            Self::reconcile_property_draft(w, root, i, old_enabled, property);
+            Self::create_missing_property(w, root, i, property)?;
+            Self::project_property(w, root, i, property);
+        }
+        Ok(())
+    }
+
+    fn reconcile_property_draft(
+        world: &mut World,
+        root: Entity,
+        inspector: &mut Inspector,
+        old_enabled: bool,
+        property: &Property,
+    ) {
+        if let Some(state) = inspector.fields.get_mut(&property.id) {
+            let same_validator = match (state.property.validate, property.validate) {
+                (None, None) => true,
+                (Some(previous), Some(current)) => std::ptr::fn_addr_eq(previous, current),
+                _ => false,
+            };
+            let contract_changed = state.property.kind != property.kind
+                || state.property.readonly != property.readonly
+                || state.property.enabled != property.enabled
+                || state.property.validation != property.validation
+                || old_enabled != inspector.props.enabled
+                || !same_validator;
+            let acknowledgement = (!contract_changed
+                && !same_value(&state.property.value, &property.value))
+            .then(|| {
+                state
+                    .pending
+                    .iter()
+                    .position(|value| same_value(value, &property.value))
+            })
+            .flatten();
+            if let Some(accepted_index) = acknowledgement {
+                // An earlier request was accepted. Later edits are still local:
+                // do not replace the label, caret, IME state or typing history.
+                state.pending.drain(..=accepted_index);
+                state.dirty = draft_dirty(property, &state.draft);
+            } else if contract_changed || !same_value(&state.property.value, &property.value) {
+                if state.dirty {
+                    send(
+                        world,
+                        PropertyEvent {
+                            inspector: root,
+                            object: inspector.props.object,
+                            property: property.id,
+                            kind: PropertyEventKind::Cancelled(CancelReason::Reconciled),
+                        },
+                    );
                 }
-                if s.property.kind != p.kind {
-                    destroy(w, s.slot.root);
-                    i.fields.remove(&p.id);
-                }
+                state.draft = base(property);
+                state.pending.clear();
+                state.dirty = false;
+                world.remove::<Caret>(state.slot.editor);
+                reset_field_draft(world, state.slot.editor, &state.draft.raw);
             }
-            if !i.fields.contains_key(&p.id) {
-                let r = node(
-                    w,
-                    i.groups[&p.group],
-                    Layout {
-                        width: Size::Fill,
-                        gap: 4.0,
-                        padding: 8.0,
-                        ..Layout::column()
-                    },
-                );
-                w.insert(
-                    r,
-                    DataAccess {
-                        role: AccessRole::Group,
-                        headers: vec![],
-                    },
-                );
-                label(w, r, &p.label, Typography::Label);
-                label(w, r, &p.description, Typography::Secondary);
-                let editor = match p.kind {
-                    PropertyKind::Text { .. } | PropertyKind::Number { .. } => {
-                        let e = node(
-                            w,
-                            r,
-                            Layout {
-                                width: Size::Fill,
-                                height: Size::Px(40.0),
-                                ..Layout::column()
-                            },
-                        );
-                        w.insert(e, Label::new(display(&p.value)));
-                        w.insert(e, TextField);
-                        w.insert(e, Focusable);
-                        w.insert(e, CapturesKeys);
-                        w.insert(e, FieldTransactions(field_signal));
-                        w.insert(e, UiStyle::editor());
-                        e
-                    }
-                    PropertyKind::Boolean
-                    | PropertyKind::Choice(_)
-                    | PropertyKind::MultiChoice(_) => {
-                        mount_selection(w, r, p, &p.value, props.enabled && p.enabled)?
-                    }
-                    PropertyKind::Custom(_) => node(
+            if state.property.kind != property.kind {
+                destroy(world, state.slot.root);
+                inspector.fields.remove(&property.id);
+            }
+        }
+    }
+
+    fn create_missing_property(
+        w: &mut World,
+        root: Entity,
+        i: &mut Inspector,
+        p: &Property,
+    ) -> Result<(), UiError> {
+        if !i.fields.contains_key(&p.id) {
+            let r = node(
+                w,
+                i.groups[&p.group],
+                Layout {
+                    width: Size::Fill,
+                    gap: 4.0,
+                    padding: 8.0,
+                    ..Layout::column()
+                },
+            );
+            w.insert(
+                r,
+                DataAccess {
+                    role: AccessRole::Group,
+                    headers: vec![],
+                },
+            );
+            label(w, r, &p.label, Typography::Label);
+            label(w, r, &p.description, Typography::Secondary);
+            let editor = match p.kind {
+                PropertyKind::Text { .. } | PropertyKind::Number { .. } => {
+                    let e = node(
                         w,
                         r,
                         Layout {
                             width: Size::Fill,
+                            height: Size::Px(40.0),
                             ..Layout::column()
                         },
-                    ),
-                };
-                let actions = node(
+                    );
+                    w.insert(e, Label::new(display(&p.value)));
+                    w.insert(e, TextField);
+                    w.insert(e, Focusable);
+                    w.insert(e, CapturesKeys);
+                    w.insert(e, FieldTransactions(field_signal));
+                    w.insert(e, UiStyle::editor());
+                    e
+                }
+                PropertyKind::Boolean | PropertyKind::Choice(_) | PropertyKind::MultiChoice(_) => {
+                    mount_selection(w, r, p, &p.value, i.props.enabled && p.enabled)?
+                }
+                PropertyKind::Custom(_) => node(
                     w,
                     r,
                     Layout {
                         width: Size::Fill,
-                        gap: 4.0,
-                        ..Layout::row()
+                        ..Layout::column()
                     },
-                );
-                let commit = controls::Button::mount(
-                    w,
-                    actions,
-                    UiId(1),
-                    controls::ButtonProps::new("Commit", controls::HostIntent::Command(p.id.0)),
-                )?
-                .root;
-                let cancel = controls::Button::mount(
-                    w,
-                    actions,
-                    UiId(2),
-                    controls::ButtonProps::new("Cancel", controls::HostIntent::Command(p.id.0)),
-                )?
-                .root;
-                for (e, action) in [(editor, 0), (commit, 1), (cancel, 2)] {
-                    w.insert(
-                        e,
-                        PropertyOwner {
-                            inspector: root,
-                            property: p.id,
-                            action,
-                        },
-                    );
-                    if e != editor {
-                        w.insert(e, KeyNavigation(property_key));
-                        w.insert(e, ActivationHandler(property_activate));
-                    } else if matches!(
-                        p.kind,
-                        PropertyKind::Boolean
-                            | PropertyKind::Choice(_)
-                            | PropertyKind::MultiChoice(_)
-                    ) {
-                        w.insert(e, selection::ChangeHandler(property_selection));
-                        w.insert(e, KeyNavigation(property_selection_key));
-                    } else {
-                        w.insert(e, KeyNavigation(property_key));
-                        if matches!(p.kind, PropertyKind::Custom(_)) {
-                            w.insert(e, ActivationHandler(property_activate));
-                        }
-                    }
-                }
-                let feedback = label(w, r, "", Typography::Secondary);
-                i.fields.insert(
-                    p.id,
-                    PropertyState {
-                        property: p.clone(),
-                        slot: PropertySlot {
-                            root: r,
-                            editor,
-                            commit,
-                            cancel,
-                            feedback,
-                        },
-                        draft: base(p),
-                        pending: Vec::new(),
-                        dirty: false,
-                    },
-                );
-            }
-            let s = i.fields.get_mut(&p.id).unwrap();
-            s.property = p.clone();
-            w.insert(
-                s.slot.root,
-                PropertyOwner {
-                    inspector: root,
-                    property: p.id,
-                    action: 0,
+                ),
+            };
+            let actions = node(
+                w,
+                r,
+                Layout {
+                    width: Size::Fill,
+                    gap: 4.0,
+                    ..Layout::row()
                 },
             );
-            w.insert(s.slot.root, FocusBoundary(property_departure));
-            set_parent(w, s.slot.root, i.groups[&p.group]);
-            let children = children_of(w, s.slot.root);
-            w.get_mut::<Label>(children[0]).unwrap().text = p.label.clone();
-            w.get_mut::<Label>(children[1]).unwrap().text = p.description.clone();
+            let commit = controls::Button::mount(
+                w,
+                actions,
+                UiId(1),
+                controls::ButtonProps::new("Commit", controls::HostIntent::Command(p.id.0)),
+            )?
+            .root;
+            let cancel = controls::Button::mount(
+                w,
+                actions,
+                UiId(2),
+                controls::ButtonProps::new("Cancel", controls::HostIntent::Command(p.id.0)),
+            )?
+            .root;
+            for (e, action) in [(editor, 0), (commit, 1), (cancel, 2)] {
+                w.insert(
+                    e,
+                    PropertyOwner {
+                        inspector: root,
+                        property: p.id,
+                        action,
+                    },
+                );
+                if e != editor {
+                    w.insert(e, KeyNavigation(property_key));
+                    w.insert(e, ActivationHandler(property_activate));
+                } else if matches!(
+                    p.kind,
+                    PropertyKind::Boolean | PropertyKind::Choice(_) | PropertyKind::MultiChoice(_)
+                ) {
+                    w.insert(e, selection::ChangeHandler(property_selection));
+                    w.insert(e, KeyNavigation(property_selection_key));
+                } else {
+                    w.insert(e, KeyNavigation(property_key));
+                    if matches!(p.kind, PropertyKind::Custom(_)) {
+                        w.insert(e, ActivationHandler(property_activate));
+                    }
+                }
+            }
+            let feedback = label(w, r, "", Typography::Secondary);
+            i.fields.insert(
+                p.id,
+                PropertyState {
+                    property: p.clone(),
+                    slot: PropertySlot {
+                        root: r,
+                        editor,
+                        commit,
+                        cancel,
+                        feedback,
+                    },
+                    draft: base(p),
+                    pending: Vec::new(),
+                    dirty: false,
+                },
+            );
         }
+        Ok(())
+    }
+
+    fn project_property(w: &mut World, root: Entity, i: &mut Inspector, p: &Property) {
+        let s = i.fields.get_mut(&p.id).unwrap();
+        s.property = p.clone();
+        w.insert(
+            s.slot.root,
+            PropertyOwner {
+                inspector: root,
+                property: p.id,
+                action: 0,
+            },
+        );
+        w.insert(s.slot.root, FocusBoundary(property_departure));
+        set_parent(w, s.slot.root, i.groups[&p.group]);
+        let children = children_of(w, s.slot.root);
+        w.get_mut::<Label>(children[0]).unwrap().text = p.label.clone();
+        w.get_mut::<Label>(children[1]).unwrap().text = p.description.clone();
+    }
+
+    fn order_fields(
+        w: &mut World,
+        root: Entity,
+        i: &Inspector,
+        groups: &[PropertyGroup],
+        fields: &[Property],
+        group_order: &[Entity],
+    ) {
         for g in groups {
             let e = i.groups[&g.id];
             let mut order = children_of(w, e)
@@ -1667,15 +1812,7 @@ impl PropertyInspector {
             );
             reorder(w, e, &order);
         }
-        reorder(w, root, &group_order);
-        for s in i.fields.values() {
-            update_field(w, &i, s);
-            if matches!(s.property.kind, PropertyKind::Custom(_)) {
-                custom(w, s.slot, &s.property);
-            }
-        }
-        w.insert(root, i);
-        Ok(InspectorHandle { root })
+        reorder(w, root, group_order);
     }
 }
 impl InspectorHandle {

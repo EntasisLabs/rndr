@@ -13,6 +13,7 @@ pub mod controls;
 pub mod data;
 pub mod editing;
 pub mod editing_recipes;
+mod lifecycle;
 pub mod selection;
 pub mod source_tools;
 pub mod structured;
