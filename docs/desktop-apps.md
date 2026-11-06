@@ -1,8 +1,9 @@
 # Desktop apps: a small end-to-end starter
 
 `examples/desktop` is **Desktop Workshop**, an offline runnable reference built
-on existing rndr primitives. `crates/rndr_app` is its small, opinionated,
-**unpublished** reusable app kit. It deliberately does not replace ECS, layout,
+on existing rndr primitives. `crates/rndr_app` is its small, opinionated app kit, published at the same
+0.4.0 version as the rest of the workspace. The example itself stays
+`publish = false`. The kit deliberately does not replace ECS, layout,
 `Shell`, `Chrome`, `TextField`, `Theme`, the task runtime or the renderer.
 
 This is a desktop-readiness increment, **not a cross-platform quality signoff**.
@@ -75,13 +76,12 @@ selection can vary with installed system fonts. Inspect the images yourself.
 ## Use the kit without learning another architecture
 
 The kit is an optional low-level ECS starter, not a replacement for `rndr_ui`'s
-retained semantic controls or a new default dependency of the facade. It is a
-workspace/path dependency for now, not a registry release:
+retained semantic controls or a default dependency of the facade. From 0.4.0:
 
 ```toml
 [dependencies]
-rndr_app = { path = "path/to/rndr/crates/rndr_app" }
-rndr_core = { path = "path/to/rndr/crates/rndr_core" }
+rndr_app = "0.4.0"
+rndr_core = "0.4.0"
 ```
 
 Install `rndr_app::FormNavigation` before application Update systems. It installs

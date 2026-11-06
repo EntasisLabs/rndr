@@ -62,6 +62,10 @@
 //! | `rndr_render` | The only OS window and GPU, plus offscreen capture. |
 //! | `rndr_ui` | Opt-in components. Depends only on this crate. |
 //! | `rndr_app` | Starter helpers for an application, not the component library. Depends only on this crate. |
+//!
+//! 0.4.0 publishes this crate together with `rndr`, `rndr_paint`, `rndr_std`,
+//! `rndr_term`, `rndr_ui`, `rndr_app`, and `rndr_render`. Repository examples
+//! are not published. The version is a 0.y release, not a 1.0 stability promise.
 
 #![deny(missing_docs)]
 

@@ -1,7 +1,6 @@
-//! Application-owned, bounded data compositions. See `docs/data-editors.md` for
-//! identity, row-only focus, resizing limits, transaction and reconciliation policy.
+//! Application-owned, bounded data compositions.
 //! No reflection, persistence, virtualization, spreadsheet editing or app undo.
-#![doc = include_str!("../../../docs/data-editors.md")]
+#![doc = include_str!("data_editors.md")]
 
 // Public paths stay here. Family modules own their retained state and policy;
 // only unchanged entity/identity mechanics are shared through this parent.

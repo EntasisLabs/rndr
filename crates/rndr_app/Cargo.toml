@@ -3,10 +3,20 @@ name = "rndr_app"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-publish = false
-description = "Starter helpers for a desktop application, not the component library"
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
+description = "Starter helpers for a desktop rndr application: form navigation, spacing, and draft preferences"
+documentation = "https://docs.rs/rndr_app"
+readme = "README.md"
+keywords = ["gui", "desktop", "application", "ui"]
+categories = ["gui"]
 
 [dependencies]
 rndr_core.workspace = true
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+[package.metadata.docs.rs]
+# Pure Rust. No native libraries.
+all-features = true

@@ -2,8 +2,13 @@
 //!
 //! This crate re-exports [`rndr_core`], [`rndr_paint`], [`rndr_std`], and
 //! [`rndr_render`] so `cargo add rndr` builds a window. `term` and `ui` are
-//! extra features. `rndr_app` is a separate starter crate. Headless programs
-//! can depend on `rndr_core` alone and skip the window and the GPU.
+//! extra features. `rndr_app` is a separate published starter crate. Headless
+//! programs can depend on `rndr_core` alone and skip the window and the GPU.
+//!
+//! 0.4.0 publishes this crate together with `rndr_core`, `rndr_paint`,
+//! `rndr_std`, `rndr_term`, `rndr_ui`, `rndr_app`, and `rndr_render`. `ui` and
+//! `observe` are off by default. `ui` uses `rndr_ui`. This is a 0.y release,
+//! not a 1.0 stability promise. Examples in the repository are not published.
 //!
 //! # How the crates fit
 //!

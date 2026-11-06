@@ -7,8 +7,9 @@ filesystem. `rndr_term` is the optional pseudoterminal. `rndr_render` is the
 only OS window and GPU, and it also does offscreen capture. The `rndr` facade
 re-exports those. `rndr_ui` and `rndr_app` are opt-in and depend only on core.
 `rndr_ui` is the component library. `rndr_app` is a starter (form navigation,
-spacing, draft preferences), not that library. `publish = false` stays on
-`rndr_ui`, `rndr_app`, and the desktop example.
+spacing, draft preferences), not that library. Both publish at 0.4.0 with the
+facade. `publish = false` stays on the examples, including desktop. The
+[package policy](#package-policy) records the upload order.
 
 What the kits and the core document model cover, with tests in this repo:
 
@@ -70,6 +71,26 @@ input method as well:
 
 The live Unix probe (`observe`) is a separate check from headless capture. It
 records what the window submitted. It does not prove compositor presentation.
+
+## Package policy
+
+Workspace version **0.4.0**. `scripts/publish-crates.sh` uploads these crates
+in this order:
+
+1. `rndr_core` — no workspace dependencies.
+2. `rndr_paint` — depends on `rndr_core`.
+3. `rndr_std` — depends on `rndr_core`. No behavior change in this release.
+4. `rndr_term` — depends on `rndr_core`. Its dev-dependency on `rndr_paint` is resolved when the package is verified, so paint is already published. No behavior change in this release.
+5. `rndr_ui` — depends on `rndr_core`. Its dev-dependency on `rndr_paint` is resolved the same way.
+6. `rndr_app` — depends on `rndr_core`. It does not depend on `rndr_ui`.
+7. `rndr_render` — depends on `rndr_core` and `rndr_paint`.
+8. `rndr` — depends on `rndr_core`, `rndr_paint`, `rndr_std`, and `rndr_render`. Optional `term` depends on `rndr_term`. Optional `ui` depends on `rndr_ui`. The dev-dependency on `rndr_ui` is also resolved from the registry.
+
+Examples stay `publish = false`, including `desktop` and `source-session`.
+
+0.4.0 is a 0.y release. Shipping these crates does not promise a stable 1.0 API. Experimental source sessions and the structured document stay experimental in their module docs.
+
+`cargo package` in CI uses `--no-verify` for the eight crates. Their 0.4.0 dependencies are not on the index until this release is published, so a registry rebuild of a dependent crate cannot succeed in CI beforehand. The job still checks tarball membership, licenses, and the paint and render snapshot sets. `scripts/check-facade-archive.py` checks that the facade manifest normalizes, including optional `ui` at the same version as `rndr_ui`. `scripts/publish-crates.sh --dry-run` runs `cargo publish --dry-run` for each crate whose workspace dependencies are already on the index.
 
 ## Evidence
 

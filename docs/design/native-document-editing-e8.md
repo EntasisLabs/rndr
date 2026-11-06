@@ -16,8 +16,8 @@ and performance acceptance gates below remain open, not silently checked off.
 | Retained chrome | `rndr_ui::editing::EditorSurface`, `rndr_ui::structured::StructuredSurface` | two executable UI mount/update/destroy/remount recipes |
 
 The recipes are Rust doctests inside their crate packages, not copied Markdown
-pseudocode or files outside a package. This does not publish a crate (`rndr_ui`
-still has `publish = false`). Run `cargo test -p rndr_core -p rndr_ui --doc`.
+pseudocode or files outside a package. 0.4.0 publishes `rndr_ui` with these
+recipes included. Run `cargo test -p rndr_core -p rndr_ui --doc`.
 All six new recipe blocks execute; none is `ignore` or `no_run`.
 
 `rndr` reexports core namespaces without renaming legacy root types. With its
@@ -25,8 +25,9 @@ optional `ui` feature, semantic components remain under `rndr::ui`; they do not
 shadow legacy `Button`, `TextSelection`, `Buffer` or `Editor`. Source/tree APIs
 retain their experimental namespace/status. The E7 bounded staged contract is
 supported, but there is no general inline Markdown surface or stable serializer.
-Existing names are not deprecated or silently promoted here. Stable API/version
-ratification remains a separate reviewed decision; no publish is authorized.
+Existing names are not deprecated or silently promoted here. 0.4.0 publishes
+the crates. It does not ratify a 1.0 API. Source and structured namespaces
+stay experimental.
 
 Native examples (fake host only, no document disk writes):
 

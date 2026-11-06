@@ -16,11 +16,10 @@ or component-targeted/headless capture, nor compositor presentation proof.
 [Native observation](../../docs/native-observation.md) documents fail-closed
 whole-frame denial, limitations and the Python client/tests.
 
-Publication is not enabled by this integration: `rndr_ui` is `publish = false`
-and this facade's optional local UI dependency has no registry version/release
-policy. CI checks facade builds/doctests but intentionally does not claim its
-tarball can be published. Existing release instructions below are historical
-until that dependency policy is resolved.
+0.4.0 publishes this crate. `ui` and `observe` are off by default. `ui` depends
+on published `rndr_ui`. `observe` enables the Unix whole-window probe and
+headless component capture. Examples stay unpublished. This is a 0.y release,
+not a 1.0 stability promise. See [package policy](../../docs/ui-status.md#package-policy).
 
 Desktop application toolkit. One crate re-exports the entity world, the paint step, the `std::fs` plugin, and the winit + wgpu window.
 

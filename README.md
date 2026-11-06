@@ -53,11 +53,12 @@ native development libraries used by winit/wgpu and fontconfig; the repository's
 [CI configuration](.github/workflows/ci.yml) records the build packages. Runtime
 capabilities also depend on the desktop session and available graphics backend.
 
-**Release boundary:** the integrated semantic UI crate is currently unpublished
-(`publish = false`). The facade's optional local UI dependency also prevents treating
-this checkout as a verified registry release, even with `ui` disabled. Use the
-checkout or local path dependencies for this version; do not use the legacy release
-scripts to publish it. See [package policy](docs/ui-status.md#package-and-ci-policy).
+**Release 0.4.0** publishes eight crates, in order: `rndr_core`, `rndr_paint`,
+`rndr_std`, `rndr_term`, `rndr_ui`, `rndr_app`, `rndr_render`, and `rndr`.
+The facade's `ui` feature uses `rndr_ui`. `ui` and `observe` are off by default.
+Examples, including Desktop Workshop and `source-session`, stay `publish = false`.
+This is a 0.y release, not a 1.0 stability promise.
+See [package policy](docs/ui-status.md#package-policy).
 
 ### A small application
 
@@ -209,7 +210,7 @@ native-platform acceptance are different things:
   compositor presentation, or native screen-reader/IME certification.
 - **Pen input:** the pen probe is a hardware-validation spike, not a supported,
   cross-platform tablet API.
-- **Publishing:** the current integrated workspace is not registry-release-ready.
+- **Publishing:** 0.4.0 publishes `rndr_core`, `rndr_paint`, `rndr_std`, `rndr_term`, `rndr_ui`, `rndr_app`, `rndr_render`, and `rndr`. Examples stay unpublished. See [package policy](docs/ui-status.md#package-policy).
 
 ## Documentation
 

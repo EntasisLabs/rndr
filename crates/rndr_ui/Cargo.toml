@@ -7,14 +7,18 @@ repository.workspace = true
 homepage.workspace = true
 rust-version.workspace = true
 description = "GPU-free semantic components, collections and data editors for rndr"
+documentation = "https://docs.rs/rndr_ui"
 readme = "README.md"
 keywords = ["gui", "ui", "components", "ecs", "desktop"]
 categories = ["gui"]
-# Internal consolidation: dependency/publication policy is not release-ready.
-publish = false
+exclude = ["**/*.snap.new"]
 
 [dependencies]
 rndr_core = { workspace = true }
 
 [dev-dependencies]
 rndr_paint = { workspace = true }
+
+[package.metadata.docs.rs]
+# GPU-free. No native libraries.
+all-features = true
