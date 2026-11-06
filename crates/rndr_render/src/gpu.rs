@@ -142,6 +142,44 @@ pub struct AtlasBytes<'a> {
     pub pixels: &'a [u8],
 }
 
+pub(crate) struct GpuParts {
+    #[cfg(feature = "observe")]
+    observe_armed: bool,
+    #[cfg(feature = "observe")]
+    observed: Option<Result<crate::RgbaImage, &'static str>>,
+    #[cfg(feature = "observe")]
+    observation_adapter: (String, String, u32),
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    surface: wgpu::Surface<'static>,
+    config: wgpu::SurfaceConfiguration,
+    clear_transparent: bool,
+    pipeline: wgpu::RenderPipeline,
+    bind_group: wgpu::BindGroup,
+    uniform: wgpu::Buffer,
+    #[cfg(feature = "parley")]
+    bind_layout: wgpu::BindGroupLayout,
+    #[cfg(feature = "parley")]
+    sampler: wgpu::Sampler,
+    #[cfg(feature = "parley")]
+    coverage: wgpu::Texture,
+    coverage_view: wgpu::TextureView,
+    #[cfg(feature = "parley")]
+    coverage_size: (u32, u32),
+    #[cfg(feature = "parley")]
+    color_tex: wgpu::Texture,
+    color_view: wgpu::TextureView,
+    #[cfg(feature = "parley")]
+    color_size: (u32, u32),
+    #[cfg(feature = "parley")]
+    color_format: wgpu::TextureFormat,
+    quad: wgpu::Buffer,
+    instances: wgpu::Buffer,
+    instance_capacity: u64,
+    staging: Vec<u8>,
+    scene: crate::scene::SceneGpu,
+}
+
 impl Gpu {
     pub async fn new(
         display: OwnedDisplayHandle,
@@ -151,13 +189,41 @@ impl Gpu {
         transparent: bool,
         #[cfg(feature = "observe")] observe: bool,
     ) -> Self {
+        let (instance, surface) = shell.create_wgpu(display);
+        let size = shell.inner_size();
+        let parts = Self::build_parts(
+            instance,
+            surface,
+            size,
+            coverage_atlas,
+            color_atlas,
+            transparent,
+            #[cfg(feature = "observe")]
+            observe,
+        )
+        .await;
+        Self::from_parts(shell, parts)
+    }
+
+    /// Adapter, device, and pipelines for an already created surface.
+    ///
+    /// The caller keeps the shell on the UI thread. This function may run on
+    /// a worker. It does not show, hide, or focus the window.
+    pub(crate) async fn build_parts(
+        instance: wgpu::Instance,
+        surface: wgpu::Surface<'static>,
+        size: PhysicalSize<u32>,
+        coverage_atlas: AtlasBytes<'_>,
+        color_atlas: AtlasBytes<'_>,
+        transparent: bool,
+        #[cfg(feature = "observe")] observe: bool,
+    ) -> GpuParts {
         let atlas_w = coverage_atlas.width;
         let atlas_h = coverage_atlas.height;
         let atlas_pixels = coverage_atlas.pixels;
         let color_w = color_atlas.width;
         let color_h = color_atlas.height;
         let color_pixels = color_atlas.pixels;
-        let (instance, surface) = shell.create_wgpu(display);
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 compatible_surface: Some(&surface),
@@ -170,7 +236,6 @@ impl Gpu {
             .await
             .expect("device");
 
-        let size = shell.inner_size();
         let width = size.width.max(1);
         let height = size.height.max(1);
         // Keep the adapter's format. `color_for_surface` decodes authored sRGB
@@ -381,8 +446,7 @@ impl Gpu {
         let samples = crate::scene::choose_samples(&adapter, config.format);
         let scene =
             crate::scene::SceneGpu::new(device.clone(), queue.clone(), config.format, samples);
-        Self {
-            shell,
+        GpuParts {
             device,
             queue,
             surface,
@@ -422,6 +486,51 @@ impl Gpu {
             ),
             clear_transparent,
             scene,
+        }
+    }
+
+    pub(crate) fn from_parts(shell: Shell, parts: GpuParts) -> Self {
+        // Start the layer-shell reader only after this surface is back on
+        // the UI thread. A winit window has nothing to start.
+        let mut shell = shell;
+        shell.start_io();
+        Self {
+            shell,
+            device: parts.device,
+            queue: parts.queue,
+            surface: parts.surface,
+            config: parts.config,
+            pipeline: parts.pipeline,
+            bind_group: parts.bind_group,
+            uniform: parts.uniform,
+            #[cfg(feature = "parley")]
+            bind_layout: parts.bind_layout,
+            #[cfg(feature = "parley")]
+            sampler: parts.sampler,
+            #[cfg(feature = "parley")]
+            coverage: parts.coverage,
+            coverage_view: parts.coverage_view,
+            #[cfg(feature = "parley")]
+            coverage_size: parts.coverage_size,
+            #[cfg(feature = "parley")]
+            color_tex: parts.color_tex,
+            color_view: parts.color_view,
+            #[cfg(feature = "parley")]
+            color_size: parts.color_size,
+            #[cfg(feature = "parley")]
+            color_format: parts.color_format,
+            quad: parts.quad,
+            instances: parts.instances,
+            instance_capacity: parts.instance_capacity,
+            staging: parts.staging,
+            #[cfg(feature = "observe")]
+            observe_armed: parts.observe_armed,
+            #[cfg(feature = "observe")]
+            observed: parts.observed,
+            #[cfg(feature = "observe")]
+            observation_adapter: parts.observation_adapter,
+            clear_transparent: parts.clear_transparent,
+            scene: parts.scene,
         }
     }
 

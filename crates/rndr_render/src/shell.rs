@@ -78,6 +78,16 @@ impl Shell {
         }))
     }
 
+    /// Start the layer-shell socket reader, if this is one. A winit window
+    /// already receives its events from the winit loop.
+    pub(crate) fn start_io(&mut self) {
+        #[cfg(target_os = "linux")]
+        if let Self::Layer(host) = self {
+            let wake = Arc::clone(&host.wake);
+            host.window.start_io(wake);
+        }
+    }
+
     pub(crate) fn is_layer(&self) -> bool {
         match self {
             Self::Winit(_) => false,

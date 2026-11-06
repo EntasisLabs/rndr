@@ -277,7 +277,6 @@ impl LayerWindow {
         config: &WindowConfig,
         visible: bool,
         focused: bool,
-        wake: Arc<dyn Fn() + Send + Sync>,
     ) -> Result<Self, LayerOpenError> {
         let connection = Connection::connect_to_env().map_err(|_| LayerOpenError::NoDisplay)?;
         let mut queue = connection.new_event_queue();
@@ -313,7 +312,6 @@ impl LayerWindow {
             return Err(LayerOpenError::Roundtrip);
         }
         let stop = Arc::new(AtomicBool::new(false));
-        let (wake_write, thread) = spawn_reader(connection.clone(), Arc::clone(&stop), wake)?;
         shared.needs_configure.store(false, Ordering::Relaxed);
         shared.accepts_frames.store(visible, Ordering::Relaxed);
         Ok(Self {
@@ -322,11 +320,26 @@ impl LayerWindow {
             client,
             shared,
             stop,
-            wake_write: Some(wake_write),
-            thread: Some(thread),
+            wake_write: None,
+            thread: None,
             display_ptr,
             surface_ptr,
         })
+    }
+
+    /// Start the socket reader. Call this only after device creation has
+    /// finished using the surface, so the reader and the device thread do
+    /// not share the connection.
+    pub(crate) fn start_io(&mut self, wake: Arc<dyn Fn() + Send + Sync>) {
+        if self.thread.is_some() {
+            return;
+        }
+        if let Ok((write, thread)) =
+            spawn_reader(self.connection.clone(), Arc::clone(&self.stop), wake)
+        {
+            self.wake_write = Some(write);
+            self.thread = Some(thread);
+        }
     }
 
     pub(crate) fn display_ptr(&self) -> usize {
