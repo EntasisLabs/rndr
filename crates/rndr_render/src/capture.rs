@@ -1,7 +1,7 @@
 //! Component-targeted, genuinely offscreen capture. See `docs/component-capture.md`.
 //!
-//! [`capture`] pixels are the viewport composite in the target's visible layout
-//! box. Siblings may occlude that crop. [`capture_isolated`] paints only the
+//! `capture` pixels are the viewport composite in the target's visible layout
+//! box. Siblings may occlude that crop. `capture_isolated` paints only the
 //! target subtree, in the same global coordinates, then crops the same box, so
 //! a sibling cannot cover it. Metadata stays ids, bounds, clips, and hidden
 //! state. Accessible names, values, and descriptions are not copied into it,
