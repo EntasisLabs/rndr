@@ -1,8 +1,9 @@
 # Codebase maintainability: assessment and refactoring plan
 
-Status: principal accepted R0–R2 (numbered steps 1–3) and requested their commit.
-Verification is recorded below. R3–R5 (numbered steps 4–6) are now authorized
-as the next independently reviewable implementation slices.
+Status: R0–R2 (numbered steps 1–3) accepted and committed as `e26f318`.
+R3–R5 (numbered steps 4–6) are implemented and verified below, uncommitted
+pending principal review. Rendering/paint/Markdown changes remain separate
+future slices, not hidden additions to this candidate.
 Assessed: 2026-11-06, against `b042b429e5365b220a3b098b287fa78a6967ea73`.
 
 ## Goal and scope
@@ -316,3 +317,161 @@ shared target directory; its log proves candidate-source recompilation. These ar
 synthetic offscreen fixtures using the fixture's headless text path, not native
 OS presentation or native font-backend certification. PNGs, raw comparisons and
 logs remain generated evidence, excluded from source commits.
+
+## R3–R5 implementation — 2026-11-06
+
+The principal accepted R0–R2 and requested their commit, then explicitly
+approved steps 4–6. R0–R2 is committed as `e26f318`
+(`refactor(ui): clarify retained lifecycle and reconciliation phases`). Generated
+captures were excluded. The following candidate remains separate from that
+accepted commit, uncommitted pending principal review. Final verification follows.
+
+### R3: ordered native dispatch and typed model operations
+
+The native coordinator now makes history → existing table handling → node
+selection → structural text → ordinary display-text interpretation explicit.
+Vertical geometry remains before scratch interpretation. `KeyOutcome` separates
+handled (including a consumed no-op) from unhandled, while refusal is still a
+`StructuredViewError`. Table input keeps its established `Option<StepResult>`
+contract; no competing source admission or history authority is introduced.
+
+Separate helpers own history, node, structural text, vertical motion, and
+scratch-to-typed-publication. A tiny node-clipboard helper owns the existing rule
+fallback (`---`) for both copy and cut; endpoint/index names are clearer in the
+changed code. The scratch string/history stays per-key and disposable. There is
+no new document snapshot, secondary commit, cached permission, or caller-visible
+API. Readonly is not hoisted over harmless navigation/copy; atomic-node no-ops
+cannot fall through into text typing.
+
+Three new native characterizations passed before extraction and afterward:
+release/synthetic/composition bypass, readonly atomic-node navigation vs deletion,
+and history precedence over atomic selection/event text. A fourth regression
+added during extraction covers identical copy/cut fallback and exact two-step
+tree undo. All 22 native adapter tests passed after the final helper extraction.
+
+Model `apply_operation` remains exhaustive, retaining its final `normalize`
+boundary. Private `text_ops` owns mark application and text replacement;
+`table_ops` owns rectangular replacement and structural row/column edits.
+`TableAxis::{Row,Column}` and `TableEdit::{Insert,Delete}` replace the opaque
+boolean pair without changing limits or refusal ordering.
+
+Text replacement now names its phases: ordered endpoint validation and original
+selection mapping; replacement leaf construction/descendant ownership repair;
+splice; directed/node selection repair. `ReplacementMap` is only three stack
+scalars describing the exact replacement, not a text diff or another authority.
+Its 7,020-case matrix checks both affinities against the original inline rule.
+The first leaf's identity/kind/attributes, task-container-before-leaf allocation
+order, rightmost split-item ownership, and active-range collapse rule are kept.
+No extra document snapshot, replacement vector or normalization pass was added.
+
+Four model characterizations passed before and after extraction: row/column
+mode/header/selection/identity inverses, singleton removal and atomic failure,
+rectangle normalization/history, and marks validation precedence with rollback
+of an earlier allocating operation. Existing Unicode/container/atom/table/input
+and history suites remain the broader contract evidence.
+
+### R4: private modules and dependency map
+
+UI data now presents the existing public facade over private `data::table` and
+`data::inspector` modules. Family state, policy, focus/drafts and reconciliation
+stay with their family; the parent retains only shared entity/key mechanics and
+explicit public/crate-private forwarding. All 30 previously public declarations
+are present in the explicit facade. This is not a new public implementation
+module path, reflective registry, or API redesign. Diagnostic
+`std::any::type_name` strings now include private `data::table`/`data::inspector`
+segments; re-exports cannot preserve those strings. No in-repository dependency
+on string-based type identity was found; `World` uses `TypeId`. Literal type-name
+or cross-binary `TypeId` stability is not claimed.
+
+The structured model owns schema, exhaustive operation dispatch, normalization,
+transaction publication and history. Private text/table algorithm modules can
+access the parent's private state but do not become another mutation authority.
+Native attachment/projection/input remains its separate core boundary. UI still
+depends on core, not vice versa; neither model helper depends on UI or renderer.
+Behavioral extraction and mechanical UI moves are separate file groups for
+review. Existing tests were not relocated to manufacture smaller source files.
+
+#### Bounded renderer / paint / Markdown audit
+
+Direct review covered `rndr_render::scene::{build_root,flatten}`, the image/glyph
+and path realization callers, `rndr_paint::{paint_parts,paint_visited}`, display
+operation/canvas ownership, and Markdown `sync_one`/`reconcile`, plus their
+existing export/scene, paint snapshot, Markdown and scale fixtures.
+
+- Keep the exhaustive ordered scene-operation match: layer recursion, transform
+  composition and z-order are semantic, not redundant conditional noise.
+  A future private render-context object could name viewport dimensions, scale
+  and atlas bind groups instead of forwarding repeated argument lists. Gate it
+  with `export_scene`, nested transform/clip/shadow pixels, and allocation/upload
+  or shaped scale evidence. Do not merge geometry caching with world mutation.
+- `paint_visited` mixes many related projection inputs, but its sequence is
+  contractual: background/chrome, selection/highlights, text, decorations/caret.
+  A future borrowed paint-state grouping could clarify inputs without new
+  ownership or allocations. Keep `World` read-only; compare snapshots, clipping,
+  directed/secondary selection and structured chrome pixels before extraction.
+- Markdown already separates assembly and host ownership. A future slice can
+  distinguish retained host slots from ordinary block realization in `reconcile`.
+  Preserve theme/width invalidation, host retirement, replacement identity and
+  final reading-order publication. Gate with Markdown host/slot/streaming/list
+  tests and retained projection/parse cost probes; do not use one generic mount
+  routine to flatten host vs ordinary-block lifecycles.
+
+These are next-slice recommendations from a bounded audit, not implemented
+renderer/paint/Markdown refactors or new performance/platform certification.
+
+### R5: contributor and review guardrails
+
+`CONTRIBUTING.md` documents role-based naming, typed choices, live admission,
+separate document authorities, callback timing, module ownership and local
+verification. `.github/PULL_REQUEST_TEMPLATE.md` puts those questions in review.
+No arbitrary function-length limit or workspace-wide rename was introduced.
+
+A local trial of `cargo clippy -p rndr_core --lib -- -W
+clippy::cognitive_complexity -W clippy::too_many_arguments` reported five
+complexity warnings, all outside this slice: legacy editor input (29/25), generic
+interaction (44/25), layout placement (36/25), prompt editing (32/25), scrollbar
+input (36/25). No new native-dispatch warning or argument-count warning was
+reported. Only `apply_key` opts into the complexity warning as a regression
+signal; unrelated debt is not promoted to a global warning flood. Existing
+strict production Clippy/format gates remain in force, with no broad suppression.
+
+### Final R3–R5 verification and review
+
+All gates below ran against the final implementation, including the host's last
+text construction/selection phase extraction; source fingerprints are recorded
+in `target/maintainability-next/final-source-sha256.txt`. Logs and generated
+captures stay under ignored `target/maintainability-next/`, outside source commits.
+
+- `cargo fmt --all --check` and `git diff --check`: passed; new source/docs also
+  passed explicit trailing-whitespace/final-newline checks.
+- `cargo test -p rndr_core -p rndr_ui -p rndr_paint -p rndr_render`: **142 suites,
+  1,077 passed, zero failed, five opt-in probes ignored**. Includes the four new
+  model characterizations, four new native dispatch tests, 7,020-case replacement
+  mapping matrix, prior retained lifecycle/geometry tests, and doctests.
+- `cargo test -p source-session`: **20 passed**, zero failed across four suites.
+- Separate `cargo test -p rndr --no-default-features --test editing_compatibility`
+  and the same invocation with `--features ui`: **2/2 off**, **3/3 on**. No
+  feature-unified workspace invocation was substituted for these checks.
+- `cargo clippy -p rndr_core -p rndr_ui -p rndr_paint -p rndr_render -p
+  source-session --lib --bins -- -D warnings`: passed.
+- `cargo check -p rndr_core -p rndr_ui -p rndr_paint --no-default-features` and
+  `cargo check --workspace`: passed.
+- `RUSTDOCFLAGS='-D warnings' cargo doc -p rndr_core -p rndr_ui --no-deps`: passed.
+- `RNDR_RECONCILIATION_CAPTURE_DIR=... cargo test -p rndr_ui --test
+  reconciliation_equivalence`, followed by `diff -qr` against the immutable
+  original `target/maintainability/head-reference`: **all 30 canonicalized
+  paint/accessibility scene files matched**. This uses the existing test-only
+  detached-root normalization documented above; production ordering is untouched.
+
+Two scoped implementation peers completed and were integrated. A third,
+read-only reviewer found no concrete blocker in native dispatch, the initial
+model extraction or the data facade/module move. It independently compared
+moved UI bodies and checked type-identity consumers; the host then reviewed and
+further decomposed text replacement and reran every final gate above.
+
+The earlier four GPU pixel comparisons remain evidence for accepted R0–R2;
+they were not rerun or relabeled as fresh R3–R5 evidence. New verification is
+headless/paint/access plus the full renderer regression suite, not new native
+IME/clipboard/screen-reader certification or measured performance guarantees.
+No new public dependency, shared authority, source-session admission path,
+intentional behavior fix, native-platform release claim, push or merge.

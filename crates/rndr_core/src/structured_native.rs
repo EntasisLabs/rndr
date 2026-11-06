@@ -717,19 +717,55 @@ fn native_keys(frame: &crate::ime::TextFrame, platform: Platform) -> Vec<KeyEven
 mod table_input;
 use table_input::apply_table_key;
 
+// A consumed no-op must not fall through into ordinary text interpretation.
+enum KeyOutcome {
+    Handled(crate::typing::StepResult),
+    Unhandled,
+}
+impl KeyOutcome {
+    fn consumed() -> Self {
+        Self::Handled(Default::default())
+    }
+}
+
+// Scoped after a clean trial here; unrelated module debt is not a new gate.
+#[warn(clippy::cognitive_complexity)]
 fn apply_key(
     world: &mut World,
     entity: Entity,
     event: &KeyEvent,
     clip: &str,
 ) -> Result<crate::typing::StepResult, StructuredViewError> {
-    use crate::typing::{apply_text_event, EditHistory, EditSurface};
     if event.released || event.synthetic || is_composing(world, entity) {
         return Ok(Default::default());
     }
     let platform = crate::keys::platform_of(world);
     let readonly = crate::interaction::readonly(world, entity)
         || document(world, entity).is_some_and(StructuredDocument::is_readonly);
+    // Keep precedence explicit: history, table, node, structural text, display text.
+    if let KeyOutcome::Handled(step) = apply_history_key(world, entity, event, platform, readonly)?
+    {
+        return Ok(step);
+    }
+    if let Some(step) = apply_table_key(world, entity, event, clip)? {
+        return Ok(step);
+    }
+    if let KeyOutcome::Handled(step) = apply_node_key(world, entity, event, platform, readonly)? {
+        return Ok(step);
+    }
+    if let KeyOutcome::Handled(step) = apply_structural_key(world, entity, event, readonly)? {
+        return Ok(step);
+    }
+    apply_display_text_key(world, entity, event, clip, platform, readonly)
+}
+
+fn apply_history_key(
+    world: &mut World,
+    entity: Entity,
+    event: &KeyEvent,
+    platform: Platform,
+    readonly: bool,
+) -> Result<KeyOutcome, StructuredViewError> {
     if let Some(action @ (EditAction::Undo | EditAction::Redo)) =
         crate::keys::standard_action(platform, event)
     {
@@ -742,29 +778,40 @@ fn apply_key(
         } else {
             doc.undo()?;
         }
-        return Ok(Default::default());
+        return Ok(KeyOutcome::consumed());
     }
-    if let Some(result) = apply_table_key(world, entity, event, clip)? {
-        return Ok(result);
+    Ok(KeyOutcome::Unhandled)
+}
+
+fn node_clipboard_text(block: &crate::structured::Block) -> String {
+    if block.kind == BlockKind::HorizontalRule {
+        "---".into()
+    } else {
+        block.copy_fallback()
     }
+}
+
+fn apply_node_key(
+    world: &mut World,
+    entity: Entity,
+    event: &KeyEvent,
+    platform: Platform,
+    readonly: bool,
+) -> Result<KeyOutcome, StructuredViewError> {
     let doc = document(world, entity).ok_or(StructuredViewError::Unavailable)?;
     if let StructuredSelection::Node(block) = doc.selection() {
         let atomic = doc
             .blocks()
             .iter()
-            .position(|b| b.id == block)
-            .filter(|i| doc.blocks()[*i].is_atomic());
-        if let Some(i) = atomic {
+            .position(|candidate| candidate.id == block)
+            .filter(|block_index| doc.blocks()[*block_index].is_atomic());
+        if let Some(block_index) = atomic {
             let action = crate::keys::standard_action(platform, event);
             if action == Some(EditAction::Copy) {
-                return Ok(crate::typing::StepResult {
-                    copied: Some(if doc.blocks()[i].kind == BlockKind::HorizontalRule {
-                        "---".into()
-                    } else {
-                        doc.blocks()[i].copy_fallback()
-                    }),
+                return Ok(KeyOutcome::Handled(crate::typing::StepResult {
+                    copied: Some(node_clipboard_text(&doc.blocks()[block_index])),
                     clipboard_action: true,
-                });
+                }));
             }
             let forward = match event.logical {
                 LogicalKey::Named(NamedKey::ArrowRight | NamedKey::ArrowDown | NamedKey::Enter) => {
@@ -776,13 +823,18 @@ fn apply_key(
             };
             if let Some(forward) = forward {
                 let next = if forward {
-                    doc.blocks()[i + 1..].iter().find(|b| !b.is_atomic())
+                    doc.blocks()[block_index + 1..]
+                        .iter()
+                        .find(|block| !block.is_atomic())
                 } else {
-                    doc.blocks()[..i].iter().rev().find(|b| !b.is_atomic())
+                    doc.blocks()[..block_index]
+                        .iter()
+                        .rev()
+                        .find(|block| !block.is_atomic())
                 }
                 .or_else(|| doc.blocks().iter().find(|b| !b.is_atomic()))
                 .ok_or(StructuredError::InvalidPosition)?;
-                let p = Position {
+                let position = Position {
                     block: next.id,
                     offset: if forward { 0 } else { next.len() },
                     affinity: Affinity::After,
@@ -790,10 +842,10 @@ fn apply_key(
                 document_mut(world, entity)
                     .ok_or(StructuredViewError::Unavailable)?
                     .set_selection(StructuredSelection::Text(TextSelection {
-                        anchor: p,
-                        head: p,
+                        anchor: position,
+                        head: position,
                     }))?;
-                return Ok(Default::default());
+                return Ok(KeyOutcome::consumed());
             }
             // Plain typing/paste/IME may not silently turn a nontext rule into
             // an editable paragraph. Arrow/Enter/Tab explicitly leave the node.
@@ -802,7 +854,7 @@ fn apply_key(
                 LogicalKey::Named(NamedKey::Backspace | NamedKey::Delete)
             ) && action != Some(EditAction::Cut)
             {
-                return Ok(Default::default());
+                return Ok(KeyOutcome::consumed());
             }
         }
         let action = crate::keys::standard_action(platform, event);
@@ -815,13 +867,10 @@ fn apply_key(
                 return Err(StructuredError::Readonly.into());
             }
             let copied = if action == Some(EditAction::Cut) {
-                doc.blocks().iter().find(|b| b.id == block).map(|b| {
-                    if b.kind == BlockKind::HorizontalRule {
-                        "---".into()
-                    } else {
-                        b.copy_fallback()
-                    }
-                })
+                doc.blocks()
+                    .iter()
+                    .find(|candidate| candidate.id == block)
+                    .map(node_clipboard_text)
             } else {
                 None
             };
@@ -833,12 +882,21 @@ fn apply_key(
                 group: None,
                 operations: vec![Operation::DeleteNode { block }],
             })?;
-            return Ok(crate::typing::StepResult {
+            return Ok(KeyOutcome::Handled(crate::typing::StepResult {
                 clipboard_action: copied.is_some(),
                 copied,
-            });
+            }));
         }
     }
+    Ok(KeyOutcome::Unhandled)
+}
+
+fn apply_structural_key(
+    world: &mut World,
+    entity: Entity,
+    event: &KeyEvent,
+    readonly: bool,
+) -> Result<KeyOutcome, StructuredViewError> {
     let doc = document(world, entity).ok_or(StructuredViewError::Unavailable)?;
     if let Some(selection) = doc.text_selection() {
         let collapsed = selection.anchor.block == selection.head.block
@@ -863,12 +921,13 @@ fn apply_key(
                 }
                 _ => None,
             };
-            if let Some(i) = neighbor.filter(|i| doc.blocks()[*i].is_atomic()) {
-                let id = doc.blocks()[i].id;
+            if let Some(neighbor_index) = neighbor.filter(|index| doc.blocks()[*index].is_atomic())
+            {
+                let id = doc.blocks()[neighbor_index].id;
                 document_mut(world, entity)
                     .ok_or(StructuredViewError::Unavailable)?
                     .set_selection(StructuredSelection::Node(id))?;
-                return Ok(Default::default());
+                return Ok(KeyOutcome::consumed());
             }
         }
         let structural = bare
@@ -909,25 +968,55 @@ fn apply_key(
                 }
                 _ => unreachable!(),
             }
-            return Ok(Default::default());
+            return Ok(KeyOutcome::consumed());
         }
     }
+    Ok(KeyOutcome::Unhandled)
+}
+
+fn apply_vertical_key(
+    world: &mut World,
+    entity: Entity,
+    event: &KeyEvent,
+    text: &str,
+    base: Revision,
+    anchor: usize,
+    head: usize,
+) -> Result<KeyOutcome, StructuredViewError> {
+    let Some(delta) = crate::editor::vertical_delta(world, entity, text, head, event) else {
+        return Ok(KeyOutcome::Unhandled);
+    };
+    let (head, anchor) = crate::editor::move_vertical(
+        world,
+        entity,
+        text,
+        head,
+        anchor,
+        delta,
+        event.modifiers.shift,
+    );
+    set_display_selection(world, entity, base, anchor, head)?;
+    Ok(KeyOutcome::consumed())
+}
+
+// Vertical geometry has precedence over the disposable scratch interpreter.
+fn apply_display_text_key(
+    world: &mut World,
+    entity: Entity,
+    event: &KeyEvent,
+    clip: &str,
+    platform: Platform,
+    readonly: bool,
+) -> Result<crate::typing::StepResult, StructuredViewError> {
+    use crate::typing::{apply_text_event, EditHistory, EditSurface};
     let doc = document(world, entity).ok_or(StructuredViewError::Unavailable)?;
     let mut text = doc.plain_text();
     let (mut anchor, mut index) = display_selection(doc)?;
     let base = doc.revision();
-    if let Some(delta) = crate::editor::vertical_delta(world, entity, &text, index, event) {
-        (index, anchor) = crate::editor::move_vertical(
-            world,
-            entity,
-            &text,
-            index,
-            anchor,
-            delta,
-            event.modifiers.shift,
-        );
-        set_display_selection(world, entity, base, anchor, index)?;
-        return Ok(Default::default());
+    if let KeyOutcome::Handled(step) =
+        apply_vertical_key(world, entity, event, &text, base, anchor, index)?
+    {
+        return Ok(step);
     }
     // Scratch interpreter only: its temporary string/history is discarded on
     // every key. Exactly one typed operation is published to the tree authority.
@@ -959,15 +1048,18 @@ fn apply_key(
         if readonly {
             return Err(StructuredError::Readonly.into());
         }
-        let a = doc.position_at(change.range.start, Affinity::After)?;
-        let h = doc.position_at(change.range.end, Affinity::After)?;
+        let start_position = doc.position_at(change.range.start, Affinity::After)?;
+        let end_position = doc.position_at(change.range.end, Affinity::After)?;
         doc.apply(Transaction {
             document: doc.id(),
             base,
             origin: EditOrigin::Keyboard,
             group: None,
             operations: vec![Operation::Replace {
-                range: TextSelection { anchor: a, head: h },
+                range: TextSelection {
+                    anchor: start_position,
+                    head: end_position,
+                },
                 text: change.replacement,
             }],
         })?;

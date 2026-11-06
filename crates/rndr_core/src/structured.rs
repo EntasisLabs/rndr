@@ -7,6 +7,10 @@
 //! Split keeps the left identity/kind and creates a paragraph on the right; joining
 //! keeps the left identity/kind. Newline paste follows the same rule. History uses
 //! explicit consecutive group tokens; navigation and composition are barriers.
+mod table_ops;
+mod text_ops;
+use table_ops::{edit_table, TableAxis, TableEdit};
+
 use crate::editing::{Affinity, EditOrigin, Revision};
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -1331,89 +1335,6 @@ fn remove_subtrees(s: &mut State, ids: &[ContainerId]) {
     s.blocks.retain(|b| !leaves.contains(&b.id));
     s.containers.retain(|c| !containers.contains(&c.id));
 }
-fn edit_table(
-    s: &mut State,
-    next: &mut u64,
-    table: ContainerId,
-    index: usize,
-    row_axis: bool,
-    insert: bool,
-) -> Result<(), StructuredError> {
-    let grid = table_grid(s, table)?;
-    let rows = children(s, table)?;
-    let height = grid.len();
-    let width = grid.first().ok_or(StructuredError::InvalidSchema)?.len();
-    let count = if row_axis { height } else { width };
-    if index > count
-        || (!insert && index == count)
-        || (insert && count >= if row_axis { 256 } else { 64 })
-    {
-        return Err(StructuredError::InvalidPosition);
-    }
-    let near = subtree_bounds(s, table)?.0;
-    let rectangle = match s.selection {
-        StructuredSelection::Cells { anchor, head } => {
-            Some((address(s, anchor)?, address(s, head)?))
-        }
-        _ => None,
-    };
-    if !insert {
-        if count == 1 {
-            remove_subtrees(s, &[table]);
-        } else if row_axis {
-            remove_subtrees(s, &[rows[index]]);
-        } else {
-            remove_subtrees(s, &grid.iter().map(|r| r[index]).collect::<Vec<_>>());
-        }
-        if count > 1 {
-            if let Some((a, h)) = rectangle.filter(|(a, h)| a.table == table && h.table == table) {
-                let remaining = table_grid(s, table)?;
-                let repair = |a: CellAddress| {
-                    if container(s, a.cell).is_ok() {
-                        a.cell
-                    } else {
-                        remaining[a.row.min(remaining.len() - 1)]
-                            [a.column.min(remaining[0].len() - 1)]
-                    }
-                };
-                s.selection = StructuredSelection::Cells {
-                    anchor: repair(a),
-                    head: repair(h),
-                };
-            }
-        }
-        repair_table_selection(s, next, near)?;
-    } else if row_axis {
-        let position = if index == height {
-            subtree_bounds(s, table)?.1 + 1
-        } else {
-            subtree_bounds(s, rows[index])?.0
-        };
-        let row = fresh_container(s, next, Some(table), ContainerKind::Row);
-        let mut leaves = vec![];
-        for _ in 0..width {
-            let cell = fresh_container(s, next, Some(row), ContainerKind::Cell { header: false });
-            leaves.push(empty_leaf(next, Some(cell)));
-        }
-        s.blocks.splice(position..position, leaves);
-    } else {
-        for r in (0..height).rev() {
-            let position = if index == width {
-                subtree_bounds(s, rows[r])?.1 + 1
-            } else {
-                subtree_bounds(s, grid[r][index])?.0
-            };
-            let header = matches!(
-                container(s, grid[r][index.min(width - 1)])?.kind,
-                ContainerKind::Cell { header: true }
-            );
-            let cell = fresh_container(s, next, Some(rows[r]), ContainerKind::Cell { header });
-            let leaf = empty_leaf(next, Some(cell));
-            s.blocks.insert(position, leaf);
-        }
-    }
-    Ok(())
-}
 fn paste_cells(
     s: &mut State,
     next: &mut u64,
@@ -2193,63 +2114,20 @@ fn apply_operation(s: &mut State, next: &mut u64, op: Operation) -> Result<(), S
             columns,
             header,
         } => insert_table(s, next, at, rows, columns, header)?,
-        Operation::InsertRow { table, index } => edit_table(s, next, table, index, true, true)?,
-        Operation::DeleteRow { table, index } => edit_table(s, next, table, index, true, false)?,
-        Operation::InsertColumn { table, index } => edit_table(s, next, table, index, false, true)?,
+        Operation::InsertRow { table, index } => {
+            edit_table(s, next, table, index, TableAxis::Row, TableEdit::Insert)?
+        }
+        Operation::DeleteRow { table, index } => {
+            edit_table(s, next, table, index, TableAxis::Row, TableEdit::Delete)?
+        }
+        Operation::InsertColumn { table, index } => {
+            edit_table(s, next, table, index, TableAxis::Column, TableEdit::Insert)?
+        }
         Operation::DeleteColumn { table, index } => {
-            edit_table(s, next, table, index, false, false)?
+            edit_table(s, next, table, index, TableAxis::Column, TableEdit::Delete)?
         }
         Operation::ReplaceCells { anchor, head, text } => {
-            let (table, top, left, bottom, right) = cell_rectangle(s, anchor, head)?;
-            let grid = table_grid(s, table)?;
-            let mut rows = vec![];
-            for (r, row) in grid.iter().enumerate().take(bottom + 1).skip(top) {
-                let mut cells = vec![];
-                for (c, &cell) in row.iter().enumerate().take(right + 1).skip(left) {
-                    let ContainerKind::Cell { header } = container(s, cell)?.kind else {
-                        unreachable!()
-                    };
-                    let plain = if r == top && c == left {
-                        normalize_plain_input(&text)
-                    } else {
-                        String::new()
-                    };
-                    let blocks = plain
-                        .split('\n')
-                        .enumerate()
-                        .map(|(i, text)| Block {
-                            id: BlockId(i as u64 + 1),
-                            parent: None,
-                            attributes: Attributes::new(),
-                            kind: BlockKind::Paragraph,
-                            runs: if text.is_empty() {
-                                vec![]
-                            } else {
-                                vec![Run {
-                                    text: text.into(),
-                                    marks: Marks::default(),
-                                }]
-                            },
-                        })
-                        .collect();
-                    cells.push(CellFragment {
-                        header,
-                        blocks,
-                        containers: vec![],
-                    });
-                }
-                rows.push(cells);
-            }
-            let first = grid[top][left];
-            paste_cells(s, next, first, TableFragment { rows })?;
-            let (_, end) = subtree_bounds(s, first)?;
-            let b = &s.blocks[end];
-            let p = Position {
-                block: b.id,
-                offset: b.len(),
-                affinity: Affinity::After,
-            };
-            s.selection = StructuredSelection::Text(TextSelection { anchor: p, head: p });
+            table_ops::replace_cell_rectangle(s, next, anchor, head, text)?
         }
         Operation::PasteCells { at, fragment } => paste_cells(s, next, at, fragment)?,
         Operation::InsertAtomic { at, payload } => {
@@ -2315,23 +2193,7 @@ fn apply_operation(s: &mut State, next: &mut u64, op: Operation) -> Result<(), S
             }
             s.blocks[i].kind = kind;
         }
-        Operation::SetMarks { range, marks } => {
-            valid_marks(&marks)?;
-            let (a, z) = ordered(s, range)?;
-            for i in a.0..=z.0 {
-                let b = &s.blocks[i];
-                let start = if i == a.0 { a.1 } else { 0 };
-                let end = if i == z.0 { z.1 } else { b.len() };
-                let mut runs = slice(b, 0, start);
-                let mut middle = slice(b, start, end);
-                for r in &mut middle {
-                    r.marks = marks.clone();
-                }
-                runs.extend(middle);
-                runs.extend(slice(b, end, b.len()));
-                s.blocks[i].runs = runs;
-            }
-        }
+        Operation::SetMarks { range, marks } => text_ops::set_range_marks(s, range, marks)?,
         Operation::Split { at } => {
             apply_operation(
                 s,
@@ -2369,139 +2231,7 @@ fn apply_operation(s: &mut State, next: &mut u64, op: Operation) -> Result<(), S
                 },
             )?;
         }
-        Operation::Replace { range, text } => {
-            let text = normalize_plain_input(&text);
-            let (a, z) = ordered(s, range)?;
-            let start = offset(
-                s,
-                Position {
-                    block: s.blocks[a.0].id,
-                    offset: a.1,
-                    affinity: Affinity::Before,
-                },
-            )?;
-            let end = offset(
-                s,
-                Position {
-                    block: s.blocks[z.0].id,
-                    offset: z.1,
-                    affinity: Affinity::After,
-                },
-            )?;
-            let old_selection = s.selection;
-            let mapped = match old_selection {
-                StructuredSelection::Text(r) => Some([
-                    (offset(s, r.anchor)?, r.anchor.affinity),
-                    (offset(s, r.head)?, r.head.affinity),
-                ]),
-                _ => None,
-            };
-            let marks = insertion_marks(&s.blocks[a.0], a.1);
-            let prefix = slice(&s.blocks[a.0], 0, a.1);
-            let suffix = slice(&s.blocks[z.0], z.1, s.blocks[z.0].len());
-            let parts: Vec<_> = text.split('\n').collect();
-            let mut new_blocks = vec![];
-            let original_parent = s.blocks[a.0].parent;
-            let item = original_parent.filter(|id| {
-                matches!(
-                    container(s, *id).map(|c| c.kind),
-                    Ok(ContainerKind::Item { .. })
-                )
-            });
-            let mut last_parent = original_parent;
-            for (i, part) in parts.iter().enumerate() {
-                let mut runs = if i == 0 { prefix.clone() } else { vec![] };
-                if !part.is_empty() {
-                    runs.push(Run {
-                        text: (*part).into(),
-                        marks: marks.clone(),
-                    });
-                }
-                if i + 1 == parts.len() {
-                    runs.extend(suffix.clone());
-                }
-                let parent = if i > 0 {
-                    if let Some(item) = item {
-                        let c = container(s, item)?.clone();
-                        let checked = match c.kind {
-                            ContainerKind::Item { checked } => checked.map(|_| false),
-                            _ => None,
-                        };
-                        Some(fresh_container(
-                            s,
-                            next,
-                            c.parent,
-                            ContainerKind::Item { checked },
-                        ))
-                    } else {
-                        original_parent
-                    }
-                } else {
-                    original_parent
-                };
-                last_parent = parent;
-                new_blocks.push(Block {
-                    id: if i == 0 {
-                        s.blocks[a.0].id
-                    } else {
-                        fresh(next)
-                    },
-                    kind: if i == 0 {
-                        s.blocks[a.0].kind
-                    } else {
-                        BlockKind::Paragraph
-                    },
-                    parent,
-                    attributes: if i == 0 {
-                        s.blocks[a.0].attributes.clone()
-                    } else {
-                        Attributes::new()
-                    },
-                    runs,
-                });
-            }
-            if parts.len() > 1 && item.is_some() {
-                // Descendant lists follow the rightmost split item rather than
-                // crossing the newly created sibling boundary.
-                for c in &mut s.containers {
-                    if c.parent == item {
-                        c.parent = last_parent;
-                    }
-                }
-            }
-            let selected_node_replaced = match old_selection {
-                StructuredSelection::Node(id) => s.blocks[a.0..=z.0].iter().any(|b| b.id == id),
-                _ => false,
-            };
-            s.blocks.splice(a.0..=z.0, new_blocks);
-            if let Some(m) = mapped {
-                let map = |(n, f)| {
-                    if n < start {
-                        n
-                    } else if n > end {
-                        n - (end - start) + text.len()
-                    } else if n == end && end > start {
-                        start + text.len()
-                    } else {
-                        start + if f == Affinity::After { text.len() } else { 0 }
-                    }
-                };
-                s.selection = StructuredSelection::Text(TextSelection {
-                    anchor: position_at(s, map(m[0]), m[0].1)?,
-                    head: position_at(s, map(m[1]), m[1].1)?,
-                });
-            } else if let StructuredSelection::Node(id) = old_selection {
-                if selected_node_replaced || block_index(s, id).is_err() {
-                    let p = position_at(s, start + text.len(), Affinity::After)?;
-                    s.selection = StructuredSelection::Text(TextSelection { anchor: p, head: p });
-                }
-            }
-            // Replacing the active range collapses it at the inserted text's end.
-            if old_selection == StructuredSelection::Text(range) {
-                let p = position_at(s, start + text.len(), Affinity::After)?;
-                s.selection = StructuredSelection::Text(TextSelection { anchor: p, head: p });
-            }
-        }
+        Operation::Replace { range, text } => text_ops::replace_text_range(s, next, range, text)?,
         Operation::DeleteNode { block } => {
             let i = block_index(s, block)?;
             let cell = cell_for(s, block)?;
@@ -2556,6 +2286,9 @@ fn apply_operation(s: &mut State, next: &mut u64, op: Operation) -> Result<(), S
     }
     normalize(s)
 }
+
+#[cfg(test)]
+mod operation_tests;
 
 #[cfg(test)]
 #[path = "structured_e6_tests.rs"]

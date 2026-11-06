@@ -1,5 +1,153 @@
 use super::*;
 use crate::structured::{Marks, StructuredError};
+
+#[test]
+fn dispatch_atomic_copy_and_cut_share_fallback_and_one_tree_history() {
+    let (mut world, entity, _) = setup("ab");
+    let doc = document_mut(&mut world, entity).unwrap();
+    let at = doc.position_at(1, Affinity::After).unwrap();
+    doc.apply(Transaction {
+        document: doc.id(),
+        base: doc.revision(),
+        origin: EditOrigin::Host(1),
+        group: None,
+        operations: vec![Operation::InsertHorizontalRule { at }],
+    })
+    .unwrap();
+    let original = doc.plain_text();
+    let revision = doc.revision();
+    let selection = doc.selection();
+    let command = Modifiers {
+        super_key: true,
+        ..Modifiers::new()
+    };
+    let copy = apply_key(&mut world, entity, &KeyEvent::character('c', command), "").unwrap();
+    assert_eq!(copy.copied.as_deref(), Some("---"));
+    assert!(copy.clipboard_action);
+    assert_eq!(document(&world, entity).unwrap().revision(), revision);
+    assert_eq!(document(&world, entity).unwrap().selection(), selection);
+    let cut = apply_key(&mut world, entity, &KeyEvent::character('x', command), "").unwrap();
+    assert_eq!(cut.copied, copy.copied);
+    assert!(cut.clipboard_action);
+    let doc = document_mut(&mut world, entity).unwrap();
+    assert_ne!(doc.plain_text(), original);
+    doc.undo().unwrap();
+    assert_eq!(doc.plain_text(), original);
+    assert_eq!(doc.selection(), selection);
+    doc.undo().unwrap();
+    assert_eq!(doc.plain_text(), "ab");
+}
+
+#[test]
+fn dispatch_ignored_events_do_not_reach_history_or_typing() {
+    for mode in 0..3 {
+        let (mut world, entity, _) = setup("abc");
+        let before = document(&world, entity).unwrap().revision();
+        let selection = document(&world, entity).unwrap().selection();
+        let mut event = KeyEvent::character('x', Modifiers::new());
+        match mode {
+            0 => event.released = true,
+            1 => event.synthetic = true,
+            _ => {
+                document_mut(&mut world, entity)
+                    .unwrap()
+                    .begin_composition()
+                    .unwrap();
+            }
+        }
+        let result = apply_key(&mut world, entity, &event, "paste").unwrap();
+        assert!(result.copied.is_none());
+        assert!(!result.clipboard_action);
+        let doc = document(&world, entity).unwrap();
+        assert_eq!(doc.plain_text(), "abc");
+        assert_eq!(doc.revision(), before);
+        assert_eq!(doc.selection(), selection);
+    }
+}
+
+#[test]
+fn dispatch_atomic_noop_is_consumed_but_readonly_navigation_is_allowed() {
+    let (mut world, entity, _) = setup("ab");
+    let doc = document_mut(&mut world, entity).unwrap();
+    let at = doc.position_at(1, Affinity::After).unwrap();
+    doc.apply(Transaction {
+        document: doc.id(),
+        base: doc.revision(),
+        origin: EditOrigin::Host(1),
+        group: None,
+        operations: vec![Operation::InsertHorizontalRule { at }],
+    })
+    .unwrap();
+    doc.set_readonly(true);
+    let selection = doc.selection();
+    let revision = doc.revision();
+    let step = apply_key(
+        &mut world,
+        entity,
+        &KeyEvent::character('x', Modifiers::new()),
+        "",
+    )
+    .unwrap();
+    assert!(!step.clipboard_action);
+    assert_eq!(document(&world, entity).unwrap().selection(), selection);
+    assert_eq!(document(&world, entity).unwrap().revision(), revision);
+    assert_eq!(
+        apply_key(
+            &mut world,
+            entity,
+            &KeyEvent::named(NamedKey::Delete, Modifiers::new()),
+            ""
+        )
+        .err(),
+        Some(StructuredError::Readonly.into())
+    );
+    assert_eq!(document(&world, entity).unwrap().selection(), selection);
+    apply_key(
+        &mut world,
+        entity,
+        &KeyEvent::named(NamedKey::ArrowRight, Modifiers::new()),
+        "",
+    )
+    .unwrap();
+    assert!(matches!(
+        document(&world, entity).unwrap().selection(),
+        StructuredSelection::Text(_)
+    ));
+    assert_eq!(document(&world, entity).unwrap().revision(), revision);
+}
+
+#[test]
+fn dispatch_history_precedes_atomic_selection_and_ignores_event_text() {
+    let (mut world, entity, _) = setup("ab");
+    let doc = document_mut(&mut world, entity).unwrap();
+    let at = doc.position_at(1, Affinity::After).unwrap();
+    doc.apply(Transaction {
+        document: doc.id(),
+        base: doc.revision(),
+        origin: EditOrigin::Host(1),
+        group: None,
+        operations: vec![Operation::InsertHorizontalRule { at }],
+    })
+    .unwrap();
+    let mut event = KeyEvent::character(
+        'z',
+        Modifiers {
+            super_key: true,
+            ..Modifiers::new()
+        },
+    );
+    event.text = Some("must not type".into());
+    apply_key(&mut world, entity, &event, "").unwrap();
+    assert_eq!(document(&world, entity).unwrap().plain_text(), "ab");
+    event.modifiers.shift = true;
+    apply_key(&mut world, entity, &event, "").unwrap();
+    assert_eq!(document(&world, entity).unwrap().plain_text(), "a\n\nb");
+    assert!(matches!(
+        document(&world, entity).unwrap().selection(),
+        StructuredSelection::Node(_)
+    ));
+}
+
 #[test]
 fn native_structured_list_keys_are_tree_commands_not_prefix_edits() {
     use crate::structured::{ContainerKind, ListKind};

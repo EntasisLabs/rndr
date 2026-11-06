@@ -1,279 +1,260 @@
 # rndr
 
-A Bevy-shaped ECS for desktop applications. Core owns the world. wgpu draws quads and a vector display list.
+**A native desktop application toolkit for Rust, built around an application-owned world.**
 
-```
-Application
-    │
-    ▼
-┌─────────────────────────────┐
-│         rndr_core           │
-│  Entities  Components       │
-│  Hierarchy Layout Expand    │
-│  Clip Scroll Focus Pane     │
-│  Split Caret Body Wrap      │
-│  FsPath   Files  Feed       │
-└──────────────┬──────────────┘
-               │
-     ┌─────────┼──────────┐
-     │         │          │
- Shell    Files plugin   Paint
-     │         │          │
-     │    std::fs      quads
-     │   (rndr_std)  (rndr_paint)
-     │
-     ▼
- winit + wgpu (rndr_render)
-```
+Build interfaces from entities and components, compose them with retained semantic UI,
+and render text, images and vector graphics through a GPU-backed desktop window.
+The same core can run without a window or GPU for application logic, layout and tests.
 
-`mob3` is the prototype of this cut: application structure in the core, the renderer as a plugin that never owns parenting. Expand is a hierarchy walk. Opening a node spawns children; collapse cascade-despawns them. The next layout pass rewrites rectangles. The GPU never hears about expand.
+rndr brings UI, document editing and desktop integration into one explicit frame
+lifecycle. The application owns its state; components express behavior; the renderer
+presents the result. There is no third-party ECS or external layout engine.
 
-## Semantic UI and live observation
+## What you can build
 
-[`rndr_ui`](crates/rndr_ui/README.md) is the semantic composition layer above core, not a replacement runtime. Enable `rndr` feature `ui` for `rndr::ui::{UiPlugin, UiTheme}` and `rndr::ui::controls::Button`; existing core `rndr::Button`, `Theme`, `List` and tray `Item` keep their meanings. UI collection `Item` stays under `rndr::ui::collections`. The feature is off by default for compatibility. [Current status](docs/ui-status.md) distinguishes implemented components, integrated baseline and remaining native certification.
+- **Desktop tools and workspaces.** Compose themed controls, toolbars, lists, trees,
+  data tables, property inspectors, scroll regions and resizable panes.
+- **Document and content interfaces.** Display streaming Markdown, embed host-owned
+  controls in Markdown, edit source-backed text, or work with a structured document
+  tree with typed transactions and its own undo history.
+- **Launchers and background utilities.** Combine command palettes, global shortcuts,
+  tray menus, hidden windows, asynchronous tasks and bounded streaming feeds.
+- **Graphics and embedded surfaces.** Draw paths, images and layers, build pan/zoom
+  scenes, or embed a PTY-backed terminal without making it a core dependency.
 
-Try `cargo run -p rndr --example selection_gallery --features observe` (also `ui_gallery`, `data_gallery`, `data_editors_gallery`). These synthetic hosts use the ordinary frame/window lifecycle. `observe` is an opt-in feature **and** an explicit session opt-in: live whole-window surface pixels plus the matching flattened accessibility tree from one paint boundary, with fail-closed whole-frame privacy denial. It is Unix-only, not a Windows transport, component/UiId/layout-tree capture, headless rendering or confirmation that the OS compositor displayed the frame. See [native observation](docs/native-observation.md) for privacy, protocol and Python tests.
+These are working capabilities with examples, not a claim that every component,
+platform or editing path is production-certified. See [status and boundaries](#status-and-boundaries).
 
-Publishing is deliberately not enabled: `rndr_ui` stays `publish = false`, and the facade's optional local UI dependency has no registry release policy yet. Updated metadata is not a publication-readiness claim. Existing registry release instructions/scripts must not be used to publish this consolidation candidate.
+## Start here
 
-For the five-item hands-on polish retest (checkbox centering, disabled/focused surfaces, table columns, nested scrolling and rounded borders), see the [UI polish guide](docs/ui-polish.md). `cargo run --offline --locked -p rndr --example ui_polish --features observe -- --scene scroll --narrow` opens its explicit nested-scroll fixture; `--scene selection`, `data` and `editors` reopen the existing interactive gallery content.
+Work from this checkout for the current integrated toolkit. Rust **1.95 or newer**
+is required; the repository follows the stable toolchain.
 
-Core markdown now supports explicit [host-filled block slots](docs/markdown-host-slots.md) for retained live values and real controls. `rndr_ui::apply_theme_bridge` opts one World into UiTheme-derived core/markdown colors and default typography; `UiPlugin` alone remains unchanged. Try `cargo run --offline --locked -p rndr --example markdown_gallery --features observe` for streaming, focus, resize and light/dark controls.
+```sh
+git clone https://github.com/EntasisLabs/rndr.git
+cd rndr
 
-The experimental [structured editor](docs/design/native-document-editing-e5.md) has its own tree-owned transactions/history, not a Markdown buffer. Try `cargo run -p source-session --bin structured`, or `cargo run -p rndr --example structured_gallery --features observe`, for paragraph/heading formatting, native editing and a generic tree inspector. Desktop IME/AT acceptance remains separate from the headless checks.
-
-## Crates
-
-| Crate | Role |
-| --- | --- |
-| `rndr` | Desktop facade; legacy root exports preserved. Optional `ui` feature exposes semantic components as `rndr::ui`; renderer features are forwarded |
-| `rndr_ui` | GPU-free semantic themes/styles, controls, retained ListView/TreeView and uniform virtual ListView, DataTable, PropertyInspector, Checkbox and single/multi selects. `UiPlugin` installs canonical interaction and scrolling. Internal, `publish = false` |
-| `rndr_core` | ECS, layout, clip, scroll, disclosure, focus, pane, split, caret, body, wrap, `Font`, `Files`, `Chrome`, events, tasks, timers, markdown |
-| `rndr_paint` | `frame`: update, then quads in points plus a display list of paths, images, and layers. Reads a `TextLayout`. The bitmap face is an 8×8 ASCII atlas |
-| `rndr_std` | `std::fs` plugin |
-| `rndr_term` | Embedded terminal. A PTY and a VT state machine copy cells into a `MonoGrid`. Optional `rndr` feature `term` re-exports it. Core and paint do not link the PTY |
-| `rndr_render` | winit window writes `Input` and `Viewport`, then presents the frame. `WindowConfig` chooses title, size, and panel behavior. The default `hotkey`, `tray`, and `accesskit` features add system-wide chords, a menu-bar icon, and an accessibility tree. `dialog` is optional and shows native open and save dialogs |
-| `examples/expand` | File-backed expand demo: folder tree, pane, splitter, caret, create, delete |
-| `examples/idle` | Empty window. `ControlFlow::Wait` when nothing is scheduled |
-| `examples/overlay` | Frameless centered panel. Hides on blur and Escape, returns on Alt+Space |
-| `examples/palette` | Command palette: debounced filter, semantic virtual ListView, shortcuts |
-| `examples/stream` | Streamed markdown answer: a background feed appends tokens into a pinned text view |
-| `examples/terminal` | Shell in a window. `cargo run -p terminal` |
-| `examples/windows` | Two windows. A Save button tells the other window. `cargo run -p two-windows` |
-| `examples/pen-probe` | Logs pen and touch pressure. A spike, not a supported tablet API |
-| `examples/canvas-scene` | Pan and zoom a vector scene. `cargo run -p canvas-scene -- --export out.png` writes a PNG. Wheel notches are an integer step, so the same number of notches in and out restores the camera |
-| `examples/create-view` | Read-only viewer for a saved Create scene. `cargo run -p create-view -- fixtures/shapes.json`. `--export out.png` writes a PNG |
-
-A blank `App` holds the world, `Input`, and `Viewport`. `Shell` registers the file-tree systems. `Chrome` is optional and leaves `Shell` alone: named chords, buttons, tabs, a single-line field, a multi-line prompt, overlays, a virtual list, an in-memory clipboard, styled runs, a gap-buffer editor, decorations, and IME preedit. `frame` also reports `SurfaceSlot` rects and leaves those interiors empty. `StdFsPlugin` inserts the disk backend. `MemoryFs` is the headless backend. `rndr_paint::frame` steps the world and returns quads in points. `rndr_render` writes the window into `Input` and `Viewport`, then multiplies those quads by `scale` and presents them. Headless crates stop at the standard library. The desktop crate depends on `wgpu`, `winit`, and `pollster`, and, when the default features are on, on `parley` for text, `tray-icon`, and the hotkey backends. `rndr_core` stays headless either way. No layout engine and no third-party ECS.
-
-Layout, hit-testing, and scroll are in logical points. `Viewport.scale` is physical pixels per point. The desktop plugin divides window size, the cursor, and pixel-wheel deltas by that scale, then multiplies rects by it when uploading instances. `Viewport.insets` shrinks root placement for a status bar or home indicator. `Input.pointer` is the primary contact: the mouse writes id `0` and stays primary while that contact exists. `Pointers` holds every other contact. A drag inside a scrollport follows the primary contact after 4 points. A drag that starts on the seam still resizes the split.
-
-## Frame
-
-Stages run in this order. Input finishes, and the events it sent are merged, before Update reads them.
-
-1. The platform writes `Viewport` (size, scale, insets) and `Input`.
-2. `rndr_paint::frame` runs Startup once, then Input, Update, PostUpdate, and Layout.
-3. Paint walks the rects and returns quads in points.
-4. Render systems run. The surface multiplies by `scale` and presents.
-
-Input starts with window dismiss, then the keymap, list navigation, and the text field. A field emits `TextChanged` and `Submitted` there, so an Update system sees the new query on that same frame. PostUpdate rebuilds the virtual list after Update has changed its count. Layout then places rows at the list width, which is why a resize stretches them. `ScaleChanged` and `Resized` are already readable in that Layout pass.
-
-`Color` values are sRGB with straight alpha. The upload decodes red, green, and blue when the surface format is sRGB, and writes them unchanged when it is not, so a theme color lands on screen as authored on either format. Alpha stays coverage. An sRGB surface blends in linear light.
-
-Headless tests call `frame` and never open a window. The desktop runner is the only thing that calls winit.
-
-## Time, events, and tasks
-
-`App::update` ticks a `Time` resource from a [`clock::Clock`](crates/rndr_core/src/clock.rs), flips double-buffered `Events<T>`, pumps tasks and timers, runs Input, merges those events, then runs Update. `spawn` runs a `Send` future on the `Executor` the runner installed. `spawn_local` runs on the UI thread, so the future may hold non-`Send` state across `.await`. The `TaskHandle` from either call is `Send + Sync` and lives in a normal resource; dropping it cancels the task, and `detach` lets it finish. State that cannot be `Send` goes in `World::insert_local` instead. Completions are written back on the UI thread as events.
-
-A [`feed`](crates/rndr_core/src/feed.rs) is the path for many values, not one completion. `feed::open` returns a handle and a sender. The sender enqueues from a thread or from any future. The pump delivers the queued values as events on the UI thread and wakes the window once per burst, so a redraw is requested only when a new value is actually waiting. The queue has a fixed capacity: the sender can block, drop the oldest value, or refuse. `FeedConfig::latest` keeps the newest value. `Feed::advance` publishes an epoch; a send stamped with an older epoch is discarded and does not wake, which is how a slow search loses to a newer query. Dropping the handle closes the sender and unblocks a waiting send. `spawn_detached` runs a future that reports through the sender. The optional `tokio` feature spawns that future on a runtime the application already started. The default build does not depend on tokio.
-
-`after` and `every` emit events. `sleep` parks a task. `debounce` resets a per-key timer so a burst of calls becomes one.
-
-The desktop runner enables the `pool` feature (a small thread pool, not tokio) and wakes winit with an `EventLoopProxy` user event. When nothing is runnable the loop uses `ControlFlow::Wait`, or `WaitUntil` the next timer. Pressed keys still land in `Input.keys` for that frame. `cargo run -p idle` is the idle window; it should sit near 0% CPU. `--tick` arms a one-second timer and waits with `WaitUntil`.
-
-Headless tests use `Sim`: an inline executor and a `ManualClock`. `advance` moves time, `run_until_parked` polls until every task is waiting, and `with_seed` shuffles ready background tasks. The same seed repeats the same order. Tests do not sleep.
-
-## Window
-
-Insert a `WindowConfig` before `run`. Omit it and the window stays what it was: title `rndr`, 800×600, decorated, resizable, placed by the platform. `show`, `hide`, `focus`, and `toggle` are commands. A `WindowHandle` is `Send`, so a system or a task can call them. The process keeps running while the window is hidden, the event loop stays on `Wait`, and the GPU surface is not created again when the window comes back.
-
-`WindowFocus` is one event queue, so blur then focus stays in that order. Focus and blur from the platform or a task are merged before Input, so that stage can read them. `hide_on_blur` records the blur immediately and hides only after that blur settles. A focus that returns in the same batch or within the settle keeps the window visible, and a blur during the short grace after a programmatic show waits until the grace ends. The hide does not emit a second blur. `Dismiss::Hide` and `Dismiss::Close` run at the start of Input, before the keymap and text fields, so Escape can hide or quit without a plugin. The blur from that hide is readable in Update, with the other events Input sent. The default is `Dismiss::Ignore`, which leaves the file tree's own Escape handling alone. A show or hide queued by an Update, PostUpdate, or Layout system is applied after Layout; its focus event waits until the next frame.
-
-`publish_metrics` writes `Viewport` (size and scale, insets untouched) and queues `ScaleChanged` then `Resized` when those values change. The flip at the start of the frame makes them readable in Input, Update, and Layout. A zero physical size keeps the last logical size.
-
-| | macOS | Windows | X11 | Wayland |
-| --- | --- | --- | --- | --- |
-| Title, size, min size, resizable, decorations | yes | yes | yes | yes |
-| Position and center | yes | yes | yes | ignored |
-| Transparent framebuffer | requested; opaque if the surface cannot composite | same | same | same |
-| Always on top | floating level | yes | yes | ignored |
-| Skip taskbar | no taskbar; `accessory` leaves the Dock | yes | utility window type | ignored |
-| Panel over full-screen, every Space, non-activating | yes | no | no | no |
-| Accessory activation policy | yes | ignored | ignored | ignored |
-| Hide, show, focus without a new GPU surface | yes | yes | yes | surface stays; hide and focus are ignored |
-
-A macOS panel is an `NSWindow` (winit 0.30 does not build an `NSPanel`) with the non-activating style bit, pop-up window level, and collection behavior for every Space including full-screen. Focusing it does not call `activateIgnoringOtherApps`. `accessory` sets the accessory activation policy and skips launch-time activation. On Wayland, winit 0.30 ignores position, `set_visible`, `focus_window`, and window levels; the logical phase still updates.
-
-### Safe closing
-
-Apps that own unsaved state can insert `CloseGuard::default()` before `run`.
-The runner then waits for explicit protection success, keeps the app open on
-failure, and supports app-owned retry, cancel, and informed discard. Primary
-close or Quit drains all protected windows; ordinary apps without a guard retain
-their normal behavior. See [the close API and integration recipe](docs/safe-close.md)
-for asynchronous completion, edit invalidation, native macOS Quit, and safety tests.
-
-## Several windows
-
-`Session::new(app).window(other).run()` opens two apps on one event loop. Each has its own world and surface. `run(app)` is the one-window case and is the same as `Session::new(app).run()`. Closing the first window exits the process. Closing a later window removes only that window. `Input.quit` on any window exits. Hiding a window leaves its surface in place.
-
-The runner inserts a `Desktop` before the first frame. `send` queues a `WindowMsg<T>` for one id. `broadcast` queues it for every other window. Mail is delivered at the start of the receiver's next frame, before `App::update`, so Update reads it on that frame. `open` asks the runner to create another window on the event-loop thread; the build closure runs there after the new world has its `Desktop` and `WindowConfig`. `examples/windows` is the two-window case: Save broadcasts, and the other window writes the text into its status label.
-
-The tray, the hotkey backend, and the accessory activation policy stay on the first window. Each window creates its own GPU device. A `WindowConfig` that asks for a panel still builds that panel.
-
-## Pointers
-
-`Pointers` holds every contact for the frame. A contact has an id, a kind (`Mouse`, `Touch`, `Pen`, or `Eraser`), a position in logical points, optional pressure, tilt, and twist, buttons, a timestamp, and every coalesced sample since the previous frame. `Input.pointer` mirrors the primary contact. The mouse stays primary while that contact exists, so a widget that only reads `Input.pointer` does not change. `Pointers::set_primary` selects another id, such as `PEN_ID`, when the app wants a pen to drive those widgets. Choosing the pen over a palm touch stays in the app.
-
-winit `Touch` writes a touch contact. `touch_id` sets the high bit so a finger cannot collide with the mouse. `Touch.force`, where the platform provides it, is stored as pressure in `0..=1`. macOS does not deliver touch through winit 0.30. Two touch contacts that are down synthesize `Gesture` events. Pinch is the span ratio (`1.0` is unchanged). Pan is the centroid delta in logical points, Y down. Rotation is the change in angle, positive counterclockwise. A lift ends the gesture. A cancel on either contact cancels it. Extra fingers are ignored. The pair is the two lowest ids.
-
-On macOS, `PinchGesture` and `RotationGesture` are also `Gesture` events and are not mixed into the touch synthesis. A magnification delta of `0` is stored as scale `1 + delta`. Rotation degrees become radians.
-
-| | macOS | Windows | X11 | Wayland |
-| --- | --- | --- | --- | --- |
-| Touch contacts | not from winit 0.30 | yes, and a pen is reported as touch | yes | yes |
-| Touch force as pressure | no | Windows 8+ | no | no |
-| Pinch and rotation from the platform | yes | no; two touches synthesize them | no; two touches synthesize them | no; two touches synthesize them |
-| File drop | yes | yes | yes | no |
-
-## Text input
-
-Planning the next editing layer: the [composable native document-editing epic](docs/design/native-document-editing-epic.md) links a source-evidenced capability matrix and architecture/API sketches. It is an exploration proposal, not an implemented API or authorization to build the whole editor.
-
-For app-owned source-range edits that must share keyboard Undo/Redo, use
-`edit_buffer` rather than the history-free `Buffer` mutations. See the
-[source-backed editing contract and example](docs/source-backed-editing.md),
-including the separate boundary for hidden-markup rich/live projections.
-
-A focused field, prompt, or editor calls `set_ime_allowed(true)` on its window. Preedit, commit, and the keys of that frame are resolved together. A commit replaces key text that the same frame also reported, so the character is inserted once. A nonempty preedit drops composition keys. `Input.ime_enabled` records whether the platform has enabled an input method. A preedit with no caret range places the caret at the end of the preedit string.
-
-## Accessibility
-
-The `accesskit` feature is on by default. Each frame the runner publishes `access_tree`: a window root, then a role and a name for buttons, labels, text fields, prompts, editors, lists, list rows, tabs, and disclosures. Hidden subtrees are skipped. Layout boxes with no role of their own are flattened. Bounds are the widget rect in physical pixels. A platform focus, activate, or set-value command is applied on the UI thread.
-
-A `ListKeys` list is focusable. When focus is on that list, or on a descendant that does not capture keys, and the keymap did not already fire a list action, Arrow, Page Up, Page Down, Home, End, and Enter move or activate the selection. A list that shares a keymap context with a search field keeps the keymap path.
-
-`--no-default-features` omits the platform adapter. `access_tree` itself stays in `rndr_core` and has no platform dependency.
-
-## Files, clipboard images, dialogs, and cursors
-
-`FileHover`, `FileDrop`, and `FileHoverCancel` are events. winit 0.30 supplies them on macOS, Windows, and X11. The payload is a path and has no position. One drop of several files is one event per path. Wayland does not emit them.
-
-`Clipboard.image` is straight RGBA8. Set `image_dirty` to write it on the next frame. Set `want_image` to read the operating-system image; a missing image does not clear what the operating system is holding.
-
-`request_file_dialog` stores an open or save request. The `dialog` feature, off by default, shows it and sends `FileChosen`. Cancel leaves `path` empty. On Linux the dialog uses the file-chooser portal. Without the feature the request stays until `take_file_dialog`.
-
-`CursorStyle::Image` uses the `CursorImage` resource. The bytes are straight RGBA8. `rotate_cursor` returns a new image rotated clockwise in screen space, hotspot included. The runner builds a platform cursor from those pixels. An image the platform rejects falls back to the default cursor.
-
-## Pen spike
-
-`examples/pen-probe` prints contacts whose kind is not a mouse, or that carry pressure. On macOS the runner installs a local `NSEvent` monitor. Mouse and tablet events whose subtype is a tablet point copy pressure, tilt, and twist onto `PEN_ID`. The contact position is the window cursor. The monitor is compiled; it is not verified against a tablet. An Apple Pencil through Sidecar, or another tablet, is the check that still needs hardware. On Windows a pen arrives as a touch contact and `Touch.force` is the pressure. The kind stays `Touch`, because the event does not say pen. That force is unverified without a digitizer. Trackpad pressure is not treated as a pen. Linux does not install the monitor.
-
-## Tray
-
-Insert a `TrayConfig` before `run`, or from a Startup system. The icon is RGBA pixels or PNG bytes, plus a `template` flag. On macOS a template image follows the menu bar's light or dark tint. The menu is labels, optional shortcut display text from `Keymap::shortcut` or `Keystroke::display`, enabled and checked state, separators, and submenus. `set_label`, `set_enabled`, `set_checked`, and `set_icon` update a live icon. Shortcut text is shown beside the label. macOS and Windows use the accelerator column when the chord parses. Linux draws one string and has no accelerator column, so the chord is part of the label there too. It is not a hotkey: a keymap chord can be more than one key.
-
-Clicks arrive as `TrayEvent::Click` and `TrayEvent::DoubleClick`. Choosing a row arrives as `TrayMenu::Activated(id)`. Both are readable in Update, and the callback wakes the loop while the window is hidden. `toggle_on_click` is the one-line helper that toggles the window on a left click. Right click opens the menu and is not a `TrayEvent`. An item built with `Item::quits` sets `Input::quit`, and the runner exits even if the window is hidden.
-
-`hide_window` starts the app with no visible window. Put the config in the world before `run` so the window is created hidden. The process stays on `ControlFlow::Wait` until a click, a timer, or quit.
-
-The desktop crate uses [`tray-icon`](https://docs.rs/tray-icon) 0.26 (MIT OR Apache-2.0) behind the `tray` feature, which is on by default. Linux uses that crate's `ksni` backend: a StatusNotifierItem on the session bus, on a worker thread, with no GTK loop on the winit thread. The default AppIndicator backend is off because it needs GTK on this thread and would either spin or miss clicks during `Wait`. `rndr_core`, `rndr_paint`, and `rndr_std` do not depend on it. Building `rndr_render` with `--no-default-features` leaves the tray out.
-
-At runtime on Linux the icon appears when a StatusNotifierItem watcher is on the session bus (Ubuntu's Ayatana/AppIndicator host, or KDE). No extra `-dev` packages are required to compile. If no watcher is running, the process still runs and the icon is not shown.
-
-| | macOS | Windows | X11 | Wayland |
-| --- | --- | --- | --- | --- |
-| Icon | menu bar status item | notification area | StatusNotifierItem | StatusNotifierItem |
-| Template image | yes | ignored | ignored | ignored |
-| Tooltip, menu, separators, submenus | yes | yes | yes, when a watcher is running | same |
-| Left click | yes | yes | yes | yes |
-| Double click | not emitted | yes | not emitted | not emitted |
-| Hidden window keeps running | yes | yes | yes | yes |
-
-## Global hotkeys
-
-`register` and `toggle_window` grab a chord that fires while another application is focused. The binding uses the same words as a keymap chord: `primary+Space`, `Alt+Space`, `Ctrl+Shift+K`. `primary` is Command on macOS and Ctrl elsewhere. Each call returns a handle. Dropping the last handle, or calling `unregister`, releases the grab. Pressing the chord wakes the event loop and delivers a `GlobalHotkey` on that frame, including while the window is hidden. The loop stays on `Wait` otherwise. `toggle_window` is the launcher case: a hidden window is shown and focused, a visible window is hidden.
-
-```rust
-let _hotkey = rndr_render::toggle_window(app.world_mut(), "Alt+Space")?;
-rndr_render::run(app);
-```
-
-Registering a chord this process already holds returns another handle for the same id and does not grab twice. `primary+Space` and `Ctrl+Space` are the same grab on Windows and different grabs on macOS. A second application that already owns the chord gets `AlreadyTaken`. `note_unregistered` logs that failure and keeps the process running; the same value is a `HotkeyRejected` resource and event so the app can show it. A binding this platform cannot encode gets `InvalidBinding`. No backend, or a session that cannot bind hotkeys, gets `Unsupported`.
-
-The parser, the registry, and the per-platform key codes live in `rndr_core` and have no OS dependencies. `rndr_render`'s `hotkey` feature (on by default) installs the backend. Turn it off and headless builds do not compile Carbon, Win32, X11, or a D-Bus client.
-
-The backends are small and written against this event loop, rather than the `global-hotkey` crate. That crate's Linux path is X11 only and polls every 50ms, it has no Wayland portal, and its chord type is not rndr's `Keystroke`. Carbon and Win32 are thin FFI. X11 uses `x11rb` (MIT or Apache-2.0, no libX11): a grab that loses comes back as `BadAccess` instead of a process-wide X error handler, and the worker blocks in `poll`. Wayland uses the XDG GlobalShortcuts portal through `zbus`.
-
-| | macOS | Windows | X11 | Wayland |
-| --- | --- | --- | --- | --- |
-| Mechanism | Carbon `RegisterEventHotKey` | `RegisterHotKey` | `XGrabKey` on the root window | XDG GlobalShortcuts portal |
-| Works while another app is focused | yes | yes | yes | yes, after the portal grants it |
-| Permission | none (no Accessibility prompt) | none | none | a portal dialog the user can edit |
-| Chord already owned | `AlreadyTaken` | `AlreadyTaken` | `AlreadyTaken` (`BadAccess`) | portal declines the grant (`AlreadyTaken`) |
-| Unavailable session | — | — | no X server (`Unsupported`) | no portal (`Unsupported`); X11 is not used as a fallback |
-| Lock keys | ignored by Carbon | ignored by `RegisterHotKey` | grabbed again with Caps Lock, Num Lock, and Mod5 | portal / compositor |
-| Key repeat | one event per press | `MOD_NOREPEAT` | auto-repeat releases are skipped | one `Activated` per press |
-| Idle | the Cocoa run loop is already waiting | the hotkey thread blocks in `GetMessage` | the hotkey thread blocks in `poll` | the portal thread blocks on D-Bus |
-
-F21–F24 have no Carbon virtual key, so they are `InvalidBinding` on macOS and valid elsewhere. On Wayland, `BindShortcuts` may show a system dialog and the user may change the trigger; the id still fires when that trigger is pressed. Each registration is its own portal session, because a session can only be bound once. A Wayland session (`WAYLAND_DISPLAY`) never falls back to an X11 grab. Menu shortcut text stays display-only; a tray row can show this chord beside its label, as the palette's Show Palette item does.
-
-## Headless tests
-
-CI on macOS, Windows, and Ubuntu runs `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo clippy -p rndr_render -p rndr --no-default-features --all-targets -- -D warnings`, `cargo clippy -p rndr_render -p rndr --features dialog --all-targets -- -D warnings`, `cargo test --workspace`, `cargo test --workspace --all-features`, `cargo test -p rndr_core --features tokio`, `cargo test -p rndr_core --features highlight`, then `cargo build -p expand -p idle -p overlay -p palette -p terminal -p stream -p two-windows -p pen-probe -p canvas-scene -p create-view -p rndr_render`. The Ubuntu job also runs `cargo package --workspace` (a verified build of each packaged crate) and checks that the Inter license and the snapshot files are in those crates, then builds `cargo doc --no-deps` with warnings denied. It installs the X11, Wayland, and Vulkan packages winit and wgpu need to compile. The tray and hotkey features add no further packages. The dialog feature on Linux uses the file-chooser portal and does not link GTK.
-
-A headless test drives one frame without a window:
-
-1. Build an `App`, insert a `Viewport`, and spawn the scene.
-2. Write one frame of `Input` (pointer edge, key, or chars).
-3. Call `rndr_paint::frame`.
-4. Assert on the world, or snapshot [`quads_snapshot`](crates/rndr_paint/src/snapshot.rs). That dump rounds rects, clips, and radii to the nearest 0.5 point so float noise does not churn the file. Colors print to three decimals and UVs to four. Quad order is paint order.
-
-[`crates/rndr_paint/tests/pattern.rs`](crates/rndr_paint/tests/pattern.rs) is the copyable version: click a button, assert `Fired`, snapshot the quads. One-frame edges are cleared after `frame`, the same way the winit runner drops them after present.
-
-After an intentional paint change, rewrite the snapshots and commit the `.snap` diff:
-
-```bash
-INSTA_UPDATE=1 cargo test -p rndr_paint
-```
-
-Text measurement goes through a [`TextEngine`](crates/rndr_core/src/text.rs) resource. `layout` shapes a run or a paragraph from a font family, size, weight, and style, and returns positioned glyphs, line metrics, and caret hit-testing. Shaped lines are cached by text, style, and width for the current frame and the one before it. The builtin engine reads a [`Font`](crates/rndr_core/src/font.rs): advances, kerning, and a coverage atlas, with a slot left for a color atlas. [`BitmapFont`](crates/rndr_core/src/font.rs) is the face when none is inserted: one cell per scalar, the same 8×8 atlas as before. The expand demo inserts [`LatinFace`](crates/rndr_paint/src/latin.rs), a proportional ASCII atlas rasterized from Inter Regular (real advances and kerning), and a [`Theme`](crates/rndr_core/src/theme.rs). A label can set its own text color; [`Spans`](crates/rndr_core/src/font.rs) paint ranges with a color, a weight, and an optional highlight. Theme text stays the default. A hugging label takes its height from that measurement, and `Layout.min_width` / `min_height` keep a fill from squashing it. Placed edges snap to physical pixels. After rects are final, the frame writes a `TextLayout` onto each label. Paint reads that run and snaps glyph edges to physical pixels. A `Radius` on a surface rounds that quad in the same shader. A `TextFace` resource swaps the face the builtin engine resolves, without touching the caret, the splitter, or the file tree. The desktop runner installs a parley and swash engine by default (`rndr_render`'s `parley` feature): it shapes with bidi and line breaking, rasters coverage glyphs and color emoji into atlases that grow and evict a glyph only when a new one does not fit, and re-rasterizes when the scale changes. Headless tests and the existing snapshots keep the builtin atlas, so they do not depend on system fonts.
-
-## Demo
-
-```bash
-cargo test -p rndr_core
+# A minimal native window.
 cargo run -p idle
-cargo run -p overlay
+
+# A searchable command palette with a virtualized list.
 cargo run -p palette
-cargo run -p stream
-cargo run -p expand
-cargo run -p expand -- /path/to/dir
+
+# Semantic controls, themes and layout.
+cargo run -p rndr --example ui_gallery --features observe
 ```
 
-`overlay` opens a frameless, always-on-top panel in the center of the screen. Escape or a click away hides it. Alt+Space shows it again, from any application, and hides it if it is already visible. `RNDR_HOTKEY` or `--hotkey` replaces Alt+Space (`cargo run -p overlay -- --hotkey Ctrl+Space`).
+The desktop stack uses winit and wgpu. Default features enable Parley text shaping,
+AccessKit accessibility, global hotkeys and tray integration. Linux builds need the
+native development libraries used by winit/wgpu and fontconfig; the repository's
+[CI configuration](.github/workflows/ci.yml) records the build packages. Runtime
+capabilities also depend on the desktop session and available graphics backend.
 
-The palette now uses `rndr_ui::collections::ListView::mount_virtual`, sharing core
-windowing and Scroll rather than a separate core-only list route. Stable command
-keys survive filtering/reorder; its hover/selection/double-click conventions and
-search-field focus ownership are explicit opt-ins. Ordinary semantic lists still
-separate selection from Enter activation. See [virtual list API and 100,000-record
-gallery](docs/virtual-list.md) and [evidence](evidence/unified-list/report.md).
+**Release boundary:** the integrated semantic UI crate is currently unpublished
+(`publish = false`). The facade's optional local UI dependency also prevents treating
+this checkout as a verified registry release, even with `ui` disabled. Use the
+checkout or local path dependencies for this version; do not use the legacy release
+scripts to publish it. See [package policy](docs/ui-status.md#package-and-ci-policy).
 
-`palette` is a command list in that same kind of window: frameless, centered, always on top, hidden on blur and on Escape, and summoned by the same hotkey. On macOS it runs as an accessory app, so the Dock stays out of it. A tray icon remains: Show Palette (the global hotkey, `⌥Space` on macOS and `Alt+Space` elsewhere, unless `--hotkey` or `RNDR_HOTKEY` changed it), Settings (disabled), and Quit. Left click toggles the window. The search field emits `TextChanged`. Each change starts a background feed that waits, then filters thirty commands. A reply stamped with an older epoch is dropped, so a slow result cannot replace a newer query. A virtual list shows the matches with shortcuts from `Keymap::shortcut` (`⌘K` on macOS, `Ctrl+K` elsewhere, `Ctrl+G M` for a two-stroke chord). The shortcut is a label with its own dim color. Letters the filter hit are painted with a highlight. Up and Down move the selection, Enter runs it, and the run is a task whose handle sits in ordinary app state. The field and the row labels measure through `TextEngine`. Activating Ask Medousa switches that field to a multi-line prompt: Enter sends, Shift+Enter inserts a newline, and Ctrl+Enter or Cmd+Enter returns to the list. Esc returns when the prompt is empty, and the unsent draft is still there the next time Ask opens. Filter replies stay ignored while the prompt is open.
+### A small application
 
-`stream` opens a window. A background feed sends a canned markdown answer a few characters at a time. The view appends each chunk and stays pinned to the bottom until the pointer scrolls up. A link click writes the destination into the status line.
+The desktop facade exposes the core world, paint and native runner:
 
-A tree column on the left and a detail pane on the right. Drag the seam to resize. The body wraps to the pane width; drag the splitter and the next frame reflows. The demo opens the first argument if it is an existing directory, otherwise `examples/expand/fixture`. Click a row to select it. Right lists a directory; Enter opens a file into the pane. Click a title or body cell to place the caret; Shift extends the selection. Type in the title to rename, Tab into the body to edit, Ctrl+S writes the file. A mark on the tree row means the file is dirty. Ctrl+N creates `untitled.txt` (Ctrl+Shift+N a folder) and starts a title edit. Delete removes a file or an empty folder. Collapse writes dirty children first. Hidden names and binary files are skipped for the body. Escape leaves the caret, then the pane.
+```rust,no_run
+use rndr::{
+    run, App, Color, Label, Layout, LogicalSize, Schedule, WindowConfig,
+};
+
+fn setup(world: &mut rndr::World) {
+    world.spawn((
+        Layout { padding: 24.0, ..Layout::column() },
+        Color::rgb(0.12, 0.13, 0.16),
+        Label::new("Hello from rndr"),
+    ));
+}
+
+fn main() {
+    let mut app = App::new();
+    app.world_mut().insert_resource(WindowConfig {
+        title: "Hello, rndr".into(),
+        size: LogicalSize::new(640.0, 480.0),
+        ..WindowConfig::default()
+    });
+    app.add_system(Schedule::Startup, setup);
+    run(app);
+}
+```
+
+For higher-level components, enable the facade's **`ui` feature** and install
+`rndr::ui::UiPlugin`. UI names stay explicitly scoped: `rndr::ui::controls::Button`
+is a semantic control; the existing root `rndr::Button` remains the core API.
+`UiPlugin` shares core interaction, focus and scrolling rather than installing a
+second runtime. Start with the [UI composition guide](crates/rndr_ui/README.md).
+
+## How it fits together
+
+```text
+Application state, systems and document authorities
+                         |
+          rndr_ui        |  semantic composition (optional)
+                         v
+                    rndr_core
+          world / hierarchy / layout / input
+          text / editing / events / tasks / feeds
+                         |
+                         v
+                    rndr_paint
+          quads + paths + images + layers
+                         |
+                         v
+                    rndr_render
+          native windows / text shaping / wgpu
+```
+
+| Crate | Responsibility |
+| --- | --- |
+| [`rndr`](crates/rndr) | Desktop facade and feature selection |
+| [`rndr_core`](crates/rndr_core) | GPU-free ECS, hierarchy, layout, input, focus, text, document models, events and scheduling |
+| [`rndr_ui`](crates/rndr_ui) | GPU-free semantic themes, controls, collections, data editors and document composition |
+| [`rndr_paint`](crates/rndr_paint) | World-to-paint projection, display operations and headless paint snapshots |
+| [`rndr_render`](crates/rndr_render) | Native event loop, windows, text realization, GPU rendering and desktop integration |
+| [`rndr_std`](crates/rndr_std) | Process-filesystem backend; core also supports an in-memory filesystem |
+| [`rndr_term`](crates/rndr_term) | Optional embedded terminal: PTY, VT state and cell projection |
+
+### One frame, explicit ownership
+
+1. The platform writes input and viewport metrics in logical points.
+2. `rndr_paint::frame` runs Startup once, then Input, Update, PostUpdate and Layout.
+   Events emitted during Input are merged before Update reads them.
+3. Paint projects the world into quads and a vector display list; Render systems run.
+4. The native surface applies the display scale and presents the frame.
+
+The renderer does not own hierarchy, document history or application state.
+Headless tests drive the same core/frame path without opening a native window.
+The desktop loop waits when idle and wakes for input, tasks, feeds and timers;
+applications do not need a continuously polling render loop.
+
+Source-backed and structured editing have **distinct document authorities**.
+A source session owns source admission, revisions and history. A structured tree
+owns typed transactions and tree history. Their disposable text projections do not
+become a second undo authority, and structured editing is not Markdown serialization.
+
+## Explore the examples
+
+Run these from the repository root. Gallery `observe` builds make native observation
+available, but observation still requires an explicit application-session opt-in.
+
+| Explore | Command |
+| --- | --- |
+| Controls and themes | `cargo run -p rndr --example ui_gallery --features observe` |
+| Checkboxes and selection popups | `cargo run -p rndr --example selection_gallery --features observe` |
+| Tables and property inspection | `cargo run -p rndr --example data_gallery --features observe` |
+| Typed data-editor drafts | `cargo run -p rndr --example data_editors_gallery --features observe` |
+| Virtualized collections | `cargo run -p rndr --example virtual_list_gallery --features observe` |
+| Markdown with host-filled slots | `cargo run -p rndr --example markdown_gallery --features observe` |
+| Structured document editing | `cargo run -p rndr --example structured_gallery --features observe` |
+| Source-session editing host | `cargo run -p source-session` |
+| Streaming Markdown | `cargo run -p stream` |
+| File tree, split pane and editing | `cargo run -p expand` |
+| Hidden overlay and global shortcut | `cargo run -p overlay` |
+| Multiple windows and messages | `cargo run -p two-windows` |
+| Embedded shell | `cargo run -p terminal` |
+| Pan/zoom vector scene | `cargo run -p canvas-scene` |
+
+## Features
+
+The facade keeps optional integrations explicit:
+
+| Feature | Default | Enables |
+| --- | --- | --- |
+| `parley` | On | Shaping, bidi, line breaking and glyph rasterization |
+| `accesskit` | On | Native accessibility adapter; the core accessibility tree stays GPU-free |
+| `hotkey` | On | System-wide shortcuts through the platform backend |
+| `tray` | On | Menu-bar / notification-area integration |
+| `ui` | Off | Semantic components under `rndr::ui` |
+| `dialog` | Off | Native open/save dialogs |
+| `term` | Off | Embedded terminal re-exports and PTY dependency |
+| `observe` | Off | Explicitly opted-in live native-window observation |
+| `tokio` | Off | Feed producers on an application-provided Tokio runtime |
+
+`--no-default-features` removes the default integrations, **not the desktop runner**.
+Depend on `rndr_core` (and optionally `rndr_ui` / `rndr_paint`) when no window or GPU
+is wanted. The default executor does not require Tokio.
+
+## Status and boundaries
+
+rndr is under active development. Implemented behavior, automated evidence and
+native-platform acceptance are different things:
+
+- **Semantic UI:** retained controls and collections share core focus/interaction.
+  Uniform-height virtual lists are supported; not every collection is virtualized.
+  See the [UI guide](crates/rndr_ui/README.md), [virtual-list contract](docs/virtual-list.md)
+  and [integration status](docs/ui-status.md). Status documents also preserve earlier
+  milestone boundaries; use the feature-specific guides for subsequent additions.
+- **Document editing:** source sessions and structured editing have explicit ownership
+  and regression coverage. The structured editor remains experimental; native IME,
+  clipboard and assistive-technology acceptance must be checked independently of
+  headless tests. The [editing epic](docs/design/native-document-editing-epic.md)
+  records the staged design, not a blanket claim that all proposed APIs shipped.
+- **Desktop platforms:** macOS, Windows, X11 and Wayland have different capabilities.
+  Wayland may ignore positioning, visibility, focus and window-level requests;
+  global shortcuts depend on the portal grant, and Linux tray icons need a host.
+  A successful build does not certify every native interaction.
+- **Observation:** the Unix transport captures a live whole-window surface and a
+  matching flattened accessibility tree, subject to explicit content policy and
+  fail-closed privacy checks. It is not component-targeted capture, proof of OS
+  compositor presentation, or native screen-reader/IME certification.
+- **Pen input:** the pen probe is a hardware-validation spike, not a supported,
+  cross-platform tablet API.
+- **Publishing:** the current integrated workspace is not registry-release-ready.
+
+## Documentation
+
+| Topic | Guide |
+| --- | --- |
+| Semantic components, themes and composition | [UI README](crates/rndr_ui/README.md) |
+| Data tables and inspectors | [Data components](docs/data-components.md) · [Data editors](docs/data-editors.md) |
+| Selection and popup ownership | [Selection controls](docs/selection-controls.md) |
+| Virtualization and stable row identity | [Virtual lists](docs/virtual-list.md) |
+| Source-backed mutation and undo | [Source editing contract](docs/source-backed-editing.md) |
+| Structured document architecture | [Editing epic](docs/design/native-document-editing-epic.md) · [Structured editor](docs/design/native-document-editing-e5.md) |
+| Live Markdown content and controls | [Host-filled slots](docs/markdown-host-slots.md) |
+| Unsaved state and native close/quit | [Safe close](docs/safe-close.md) |
+| Capture, privacy and evidence limits | [Native observation](docs/native-observation.md) · [Component capture](docs/component-capture.md) |
+| Hands-on appearance checks | [UI polish](docs/ui-polish.md) |
+| API reference for published versions | [docs.rs/rndr](https://docs.rs/rndr) (may differ from this checkout) |
+
+## Development
+
+Start with a focused headless test, then run the gates appropriate to your change:
+
+```sh
+cargo test -p rndr_core
+cargo fmt --all --check
+git diff --check
+```
+
+A headless frame test creates an `App`, supplies a `Viewport` and `Input`, calls
+`rndr_paint::frame`, then asserts on state or paint. See the
+[copyable interaction/snapshot test](crates/rndr_paint/tests/pattern.rs).
+Time-dependent core tests can use `Sim` and a manual clock instead of sleeping.
+Do not update snapshots merely to hide an unexplained regression.
+
+[CONTRIBUTING.md](CONTRIBUTING.md) covers naming, mutation ownership, module
+boundaries and verification commands. The [CI workflow](.github/workflows/ci.yml)
+is the source of truth for the broader platform/feature matrix. The
+[maintainability record](docs/design/codebase-maintainability-plan.md) explains
+recent refactoring decisions and their evidence.
+
+## Inspiration and acknowledgements
+
+Bevy inspired rndr's entity/component/system approach and plugin-oriented composition.
+rndr is an independent implementation with its own ECS, layout, UI, document
+models and desktop lifecycle; it does not depend on Bevy.
+
+The desktop stack builds on projects including winit, wgpu, Parley, Swash and
+AccessKit. Bundled font licensing is recorded alongside the assets.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
