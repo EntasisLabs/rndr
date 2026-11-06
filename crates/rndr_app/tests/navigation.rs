@@ -155,3 +155,39 @@ fn form_tab_wraps_skips_hidden_disabled_and_preserves_ime() {
     app.update();
     assert_eq!(app.world().resource::<Focus>().unwrap().entity, Some(last));
 }
+
+#[test]
+fn form_navigation_scrolls_without_shell() {
+    let mut app = App::new();
+    app.add_plugin(FormNavigation);
+    let world = app.world_mut();
+    let port = world.spawn((
+        Layout {
+            width: Size::Px(200.),
+            height: Size::Px(100.),
+            ..Layout::column()
+        },
+        Scroll {
+            content: [200.0, 1000.0],
+            offset: [0.0, 0.0],
+        },
+    ));
+    let child = world.spawn((Layout {
+        width: Size::Px(200.),
+        height: Size::Px(1000.),
+        ..Layout::column()
+    },));
+    set_parent(world, child, port);
+    app.update();
+    {
+        let input = app.world_mut().resource_mut::<Input>().unwrap();
+        input.pointer.position = [20.0, 20.0];
+        input.scroll = [0.0, -40.0];
+    }
+    app.update();
+    let offset = app.world().get::<Scroll>(port).unwrap().offset;
+    assert!(
+        offset[1] < 0.0,
+        "wheel should move the port, offset {offset:?}"
+    );
+}

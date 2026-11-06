@@ -1,3 +1,10 @@
 /target
 **/*.rs.bk
 **/*.snap.new
+
+# Working-tree captures and logs. Already-tracked files under evidence/ stay
+# tracked. New files there, and everything under local-captures/, are ignored
+# so the archive does not grow. See docs/ui-status.md.
+/local-captures/*
+!/local-captures/README.md
+/evidence/**

@@ -69,6 +69,7 @@ mod pen;
 mod platform;
 mod scene;
 mod shell;
+mod startup;
 #[cfg(feature = "parley")]
 mod text;
 #[cfg(feature = "tray")]
@@ -80,6 +81,7 @@ mod wayland_layer;
 pub use text::ParleyText;
 
 use std::hash::{Hash, Hasher};
+use std::sync::mpsc;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -118,6 +120,7 @@ use gpu::{AtlasKind, AtlasRegion, AtlasUpload};
 pub use images::{
     decode, load_image, load_rgba, set_image_budget, DecodedImage, ImageError, IMAGE_BUDGET_DEFAULT,
 };
+pub use startup::{device_init_plan, DeviceInit, StartupTrace};
 
 /// User event the runtime posts when a task finishes, a timer is armed, or the
 /// tray icon is clicked. The tray variant is what wakes `Wait` while the
@@ -380,6 +383,12 @@ struct Handler {
     app: App,
     config: WindowConfig,
     gpu: Option<Gpu>,
+    /// Device creation started off the UI thread. The shell stays here until
+    /// the worker returns, so show and focus can be applied without waiting.
+    pending_rx: Option<mpsc::Receiver<gpu::GpuParts>>,
+    pending_shell: Option<shell::Shell>,
+    stashed_effects: Vec<WindowEffect>,
+    trace: StartupTrace,
     winit_id: Option<WindowId>,
     /// First window. Closing it exits the session.
     primary: bool,
@@ -444,6 +453,10 @@ impl Handler {
             app,
             config,
             gpu: None,
+            pending_rx: None,
+            pending_shell: None,
+            stashed_effects: Vec::new(),
+            trace: StartupTrace::start(),
             winit_id: None,
             primary,
             desktop_id,
@@ -759,6 +772,10 @@ impl Handler {
         self.place_ime_cursor();
         self.allow_ime();
         self.publish_access();
+        if presented && self.trace.first_present.is_none() {
+            self.trace.note_present();
+            self.publish_trace();
+        }
         if presented {
             let id = self
                 .app
@@ -1218,6 +1235,8 @@ impl Handler {
     fn request_redraw(&self) {
         if let Some(gpu) = &self.gpu {
             gpu.shell().request_redraw();
+        } else if let Some(shell) = &self.pending_shell {
+            shell.request_redraw();
         }
     }
 
@@ -1269,14 +1288,23 @@ impl Handler {
     }
 
     /// Apply show / hide / focus to the existing window. The surface stays.
+    ///
+    /// This does not create a device. If device init is still running, the
+    /// effects wait and are applied when that init finishes.
     fn apply_effects(&mut self) {
-        if self.gpu.is_none() {
-            return;
-        }
+        self.install_gpu_if_ready();
         let effects = rndr_core::window::drain_effects(self.app.world_mut());
         if effects.is_empty() {
             return;
         }
+        if self.gpu.is_none() {
+            self.stashed_effects.extend(effects);
+            return;
+        }
+        self.apply_effect_list(effects);
+    }
+
+    fn apply_effect_list(&mut self, effects: Vec<WindowEffect>) {
         let panel = self.config.kind == WindowKind::Panel;
         let mut redraw = false;
         if let Some(gpu) = self.gpu.as_mut() {
@@ -1292,6 +1320,89 @@ impl Handler {
 
     fn has_layer(&self) -> bool {
         self.gpu.as_ref().is_some_and(|gpu| gpu.shell().is_layer())
+            || self
+                .pending_shell
+                .as_ref()
+                .is_some_and(|shell| shell.is_layer())
+    }
+
+    fn device_pending(&self) -> bool {
+        self.pending_rx.is_some()
+    }
+
+    fn publish_trace(&mut self) {
+        self.app.world_mut().insert_resource(self.trace.clone());
+    }
+
+    /// Install a device that the worker has finished. Does not block.
+    fn install_gpu_if_ready(&mut self) {
+        let Some(rx) = self.pending_rx.as_ref() else {
+            return;
+        };
+        let Ok(parts) = rx.try_recv() else {
+            return;
+        };
+        self.pending_rx = None;
+        let shell = self
+            .pending_shell
+            .take()
+            .expect("shell kept for background device init");
+        self.gpu = Some(Gpu::from_parts(shell, parts));
+        self.trace.device_ready = Some(self.trace.started.elapsed());
+        self.publish_trace();
+        let effects = std::mem::take(&mut self.stashed_effects);
+        if !effects.is_empty() {
+            self.apply_effect_list(effects);
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn spawn_device(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        shell: shell::Shell,
+        atlas_w: u32,
+        atlas_h: u32,
+        atlas_pixels: Vec<u8>,
+        color_w: u32,
+        color_h: u32,
+        color_pixels: Vec<u8>,
+        observe: bool,
+    ) {
+        let (instance, surface) = shell.create_wgpu(event_loop.owned_display_handle());
+        let size = shell.inner_size();
+        let transparent = self.config.transparent;
+        let (tx, rx) = mpsc::sync_channel(1);
+        let proxy = self.proxy.clone();
+        std::thread::Builder::new()
+            .name("rndr-gpu".to_string())
+            .spawn(move || {
+                let parts = pollster::block_on(Gpu::build_parts(
+                    instance,
+                    surface,
+                    size,
+                    gpu::AtlasBytes {
+                        width: atlas_w,
+                        height: atlas_h,
+                        pixels: &atlas_pixels,
+                    },
+                    gpu::AtlasBytes {
+                        width: color_w,
+                        height: color_h,
+                        pixels: &color_pixels,
+                    },
+                    transparent,
+                    #[cfg(feature = "observe")]
+                    observe,
+                ));
+                let _ = tx.send(parts);
+                let _ = proxy.send_event(RunnerEvent::Wake);
+            })
+            .expect("gpu thread");
+        #[cfg(not(feature = "observe"))]
+        let _ = observe;
+        self.pending_rx = Some(rx);
+        self.pending_shell = Some(shell);
     }
 
     /// Open a layer-shell panel on Linux Wayland, or a winit window otherwise.
@@ -1303,9 +1414,7 @@ impl Handler {
             let wake: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
                 let _ = proxy.send_event(RunnerEvent::Wake);
             });
-            if let Ok(layer) =
-                wayland_layer::LayerWindow::open(&self.config, show, false, Arc::clone(&wake))
-            {
+            if let Ok(layer) = wayland_layer::LayerWindow::open(&self.config, show, false) {
                 if show {
                     self.show_after_present = true;
                 }
@@ -1467,6 +1576,7 @@ impl ApplicationHandler<RunnerEvent> for Handler {
     }
 
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: RunnerEvent) {
+        self.install_gpu_if_ready();
         let drew = self.pump_shell(event_loop);
         #[cfg(feature = "tray")]
         if let RunnerEvent::Tray(report) = event {
@@ -1494,6 +1604,7 @@ impl ApplicationHandler<RunnerEvent> for Handler {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        self.install_gpu_if_ready();
         self.pump_shell(event_loop);
         let hidden = !rndr_core::window::is_visible(self.app.world());
         if hidden && (self.app.wants_frame() || rndr_core::tray::pending(self.app.world())) {
@@ -1503,11 +1614,12 @@ impl ApplicationHandler<RunnerEvent> for Handler {
     }
 
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if self.gpu.is_some() {
-            // A later resume (Android, or a hide that the OS reports as a pause)
-            // must keep the surface. Show/hide never drops `Gpu`.
+        if self.gpu.is_some() || self.pending_rx.is_some() {
+            // A later resume must keep the surface. Show/hide never drops `Gpu`,
+            // and a hidden start does not start a second device.
             return;
         }
+        self.trace = StartupTrace::start();
         let show = rndr_core::window::is_visible(self.app.world());
         let shell = self.open_shell(event_loop, show);
         #[cfg(feature = "accesskit")]
@@ -1544,6 +1656,38 @@ impl ApplicationHandler<RunnerEvent> for Handler {
         } else {
             (1, 1, vec![0, 0, 0, 0])
         };
+        self.trace.window_ready = Some(self.trace.started.elapsed());
+        let observe = {
+            #[cfg(feature = "observe")]
+            {
+                self.app
+                    .world()
+                    .resource::<observe::ObservationSession>()
+                    .is_some()
+            }
+            #[cfg(not(feature = "observe"))]
+            {
+                false
+            }
+        };
+        if device_init_plan(show) == DeviceInit::OffUiThread {
+            self.trace.device_init_blocked_ui_thread = false;
+            self.spawn_device(
+                event_loop,
+                shell,
+                atlas_w,
+                atlas_h,
+                atlas_pixels,
+                color_w,
+                color_h,
+                color_pixels,
+                observe,
+            );
+            self.publish_trace();
+            self.run_hidden_frame(event_loop);
+            return;
+        }
+        self.trace.device_init_blocked_ui_thread = true;
         let gpu = pollster::block_on(Gpu::new(
             event_loop.owned_display_handle(),
             shell,
@@ -1559,12 +1703,11 @@ impl ApplicationHandler<RunnerEvent> for Handler {
             },
             self.config.transparent,
             #[cfg(feature = "observe")]
-            self.app
-                .world()
-                .resource::<observe::ObservationSession>()
-                .is_some(),
+            observe,
         ));
         self.gpu = Some(gpu);
+        self.trace.device_ready = Some(self.trace.started.elapsed());
+        self.publish_trace();
         if rndr_core::window::is_visible(self.app.world()) {
             self.request_redraw();
         } else {
@@ -1845,7 +1988,7 @@ impl Running {
             &self.proxy,
         );
         for slot in &mut self.slots {
-            if slot.gpu.is_none() {
+            if slot.gpu.is_none() && !slot.device_pending() {
                 slot.resumed(event_loop);
             }
         }
@@ -1931,6 +2074,7 @@ impl ApplicationHandler<RunnerEvent> for Running {
         }
         self.spawn_windows(event_loop);
         for slot in &mut self.slots {
+            slot.install_gpu_if_ready();
             let drew = slot.pump_shell(event_loop);
             if slot.has_layer() {
                 if rndr_core::window::is_visible(slot.app.world()) {
@@ -1958,6 +2102,7 @@ impl ApplicationHandler<RunnerEvent> for Running {
         }
         self.spawn_windows(event_loop);
         for slot in &mut self.slots {
+            slot.install_gpu_if_ready();
             slot.pump_shell(event_loop);
             let hidden = !rndr_core::window::is_visible(slot.app.world());
             let tray_pending = slot.primary && rndr_core::tray::pending(slot.app.world());

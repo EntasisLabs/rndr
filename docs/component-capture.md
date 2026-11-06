@@ -78,12 +78,17 @@ extra App systems or a default font/engine upgrade.
 
 ## Pixels, coordinates, clipping and scale
 
-- Output is the **headless viewport composite in the target's visible layout
-  box**, not an isolated subtree repaint. Siblings/overlays may occlude it. This
-  preserves actual composition and inherited clips. Metadata contains only the
-  target subtree, so an occluding sibling can appear in pixels without a node in
-  this subtree. Use an Entity/UiId belonging to the containing surface if that
-  context is needed.
+- [`capture`](../crates/rndr_render/src/capture.rs) output is the **headless
+  viewport composite in the target's visible layout box**. Siblings may occlude
+  it. [`capture_isolated`](../crates/rndr_render/src/capture.rs) paints only the
+  target and its descendants, then crops the same box, so a sibling cannot
+  cover the raster. Coordinates stay global. The Unix live probe in `observe`
+  is still the whole window the compositor was given, not this headless crop.
+- Metadata is ids, bounds, clips, and hidden state. It does **not** include
+  accessible names, values, or descriptions, even when the host attests the
+  frame is public. A public attestation covers the pixels. Copying names into
+  the JSON would make a second text channel that is easy to log by accident.
+  Any `ObservationSensitive` entity still denies the entire capture.
 - It renders the complete capped viewport offscreen, then extracts the target
   box from those headless pixels. This is deliberately not called a native
   window crop. Even a tiny target requires the whole viewport to fit the cap.

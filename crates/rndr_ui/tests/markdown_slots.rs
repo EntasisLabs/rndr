@@ -45,15 +45,7 @@ fn setup(source: &str) -> (App, Entity) {
 }
 fn mount(app: &mut App, view: Entity, index: usize, id: u64) -> MarkdownSlot {
     let expected = app.world().get::<MarkdownView>(view).unwrap().blocks()[index].clone();
-    mount_markdown_slot(
-        app.world_mut(),
-        view,
-        index,
-        &expected,
-        MarkdownSlotId(id),
-        60.,
-    )
-    .unwrap()
+    mount_markdown_slot(app.world_mut(), view, index, &expected, MarkdownSlotId(id)).unwrap()
 }
 fn child(app: &mut App, slot: MarkdownSlot) -> Entity {
     let e = app.world_mut().spawn((
@@ -144,7 +136,9 @@ fn prior_shape_replacement_keeps_later_host_and_reading_order() {
 }
 #[test]
 fn source_replacement_and_removal_cascade_and_reject_stale_handles() {
-    for source in ["Changed", "", "# Value", "**Value**", "Inserted\n\nValue"] {
+    // Rewriting or moving the anchored range keeps the slot. Deleting the
+    // range retires it.
+    for source in ["Changed", "# Value", "**Value**", "Inserted\n\nValue"] {
         let (mut app, view) = setup("Value");
         let slot = mount(&mut app, view, 0, 2);
         let live = child(&mut app, slot);
@@ -153,20 +147,31 @@ fn source_replacement_and_removal_cascade_and_reject_stale_handles() {
             .get_mut::<MarkdownView>(view)
             .unwrap()
             .set_markdown(source);
-        assert!(!slot.is_mounted(app.world()));
         rndr_paint::frame(&mut app);
-        assert!(!slot.is_mounted(app.world()), "{source}");
-        assert!(!app.world().is_alive(slot.root));
-        assert!(!app.world().is_alive(live));
-        assert_eq!(
-            slot.set_height(app.world_mut(), 20.),
-            Err(MarkdownSlotError::StaleHandle)
-        );
-        assert_eq!(
-            slot.detach(app.world_mut()),
-            Err(MarkdownSlotError::StaleHandle)
-        );
+        assert!(slot.is_mounted(app.world()), "{source}");
+        assert!(app.world().is_alive(live), "{source}");
     }
+    let (mut app, view) = setup("Value");
+    let slot = mount(&mut app, view, 0, 2);
+    let live = child(&mut app, slot);
+    rndr_paint::frame(&mut app);
+    app.world_mut()
+        .get_mut::<MarkdownView>(view)
+        .unwrap()
+        .set_markdown("");
+    assert!(!slot.is_mounted(app.world()));
+    rndr_paint::frame(&mut app);
+    assert!(!slot.is_mounted(app.world()));
+    assert!(!app.world().is_alive(slot.root));
+    assert!(!app.world().is_alive(live));
+    assert_eq!(
+        slot.set_height(app.world_mut(), 20.),
+        Err(MarkdownSlotError::StaleHandle)
+    );
+    assert_eq!(
+        slot.detach(app.world_mut()),
+        Err(MarkdownSlotError::StaleHandle)
+    );
 }
 #[test]
 fn detach_restores_markdown_and_old_identity_cannot_be_reused() {
@@ -181,7 +186,7 @@ fn detach_restores_markdown_and_old_identity_cannot_be_reused() {
     assert_eq!(app.world().get::<Label>(root).unwrap().text, "Value");
     let block = app.world().get::<MarkdownView>(view).unwrap().blocks()[0].clone();
     assert_eq!(
-        mount_markdown_slot(app.world_mut(), view, 0, &block, slot.id, 10.),
+        mount_markdown_slot(app.world_mut(), view, 0, &block, slot.id),
         Err(MarkdownSlotError::Duplicate)
     );
     let fresh = mount(&mut app, view, 0, 4);
@@ -201,22 +206,21 @@ fn duplicate_pending_source_stale_expected_and_invalid_height_are_atomic() {
     let slot = mount(&mut app, view, 0, 1);
     let block = app.world().get::<MarkdownView>(view).unwrap().blocks()[0].clone();
     let count = app.world().entities_with::<Layout>().len();
-    for (index, id, height, error) in [
-        (1, 1, 10., MarkdownSlotError::Duplicate),
-        (0, 2, 10., MarkdownSlotError::Duplicate),
-        (9, 2, 10., MarkdownSlotError::StaleBlock),
-        (1, 2, f32::NAN, MarkdownSlotError::InvalidHeight),
-        (1, 2, -1., MarkdownSlotError::InvalidHeight),
+    assert_eq!(
+        slot.set_height(app.world_mut(), f32::NAN),
+        Err(MarkdownSlotError::InvalidHeight)
+    );
+    assert_eq!(
+        slot.set_height(app.world_mut(), -1.),
+        Err(MarkdownSlotError::InvalidHeight)
+    );
+    for (index, id, error) in [
+        (1, 1, MarkdownSlotError::Duplicate),
+        (0, 2, MarkdownSlotError::Duplicate),
+        (9, 2, MarkdownSlotError::StaleBlock),
     ] {
         assert_eq!(
-            mount_markdown_slot(
-                app.world_mut(),
-                view,
-                index,
-                &block,
-                MarkdownSlotId(id),
-                height
-            ),
+            mount_markdown_slot(app.world_mut(), view, index, &block, MarkdownSlotId(id),),
             Err(error)
         );
         assert_eq!(app.world().entities_with::<Layout>().len(), count);
@@ -228,14 +232,16 @@ fn duplicate_pending_source_stale_expected_and_invalid_height_are_atomic() {
         .unwrap()
         .push_str(" changed");
     assert_eq!(
-        mount_markdown_slot(app.world_mut(), view, 1, &block, MarkdownSlotId(3), 20.),
+        mount_markdown_slot(app.world_mut(), view, 1, &block, MarkdownSlotId(3)),
         Err(MarkdownSlotError::StaleBlock)
     );
     rndr_paint::frame(&mut app);
     assert!(slot.is_mounted(app.world()));
-    assert!(!other.is_mounted(app.world()));
+    // The second block's text changed, but its source range still maps, so
+    // the slot follows that block instead of retiring.
+    assert!(other.is_mounted(app.world()));
     assert_eq!(
-        mount_markdown_slot(app.world_mut(), view, 1, &block, MarkdownSlotId(3), 20.),
+        mount_markdown_slot(app.world_mut(), view, 1, &block, MarkdownSlotId(3)),
         Err(MarkdownSlotError::StaleBlock)
     );
 }
@@ -405,4 +411,78 @@ fn bridge_is_explicit_complete_and_updates_retained_markdown_and_control() {
         app.world().get::<Label>(button.label).unwrap().color,
         old_button
     );
+}
+
+#[test]
+fn insert_above_keeps_the_slot_on_the_same_source_block() {
+    let (mut app, view) = setup("Keep\n\nTail");
+    let slot = mount(&mut app, view, 0, 11);
+    let live = child(&mut app, slot);
+    rndr_paint::frame(&mut app);
+    app.world_mut()
+        .get_mut::<MarkdownView>(view)
+        .unwrap()
+        .set_markdown("Intro\n\nKeep\n\nTail");
+    rndr_paint::frame(&mut app);
+    assert!(slot.is_mounted(app.world()));
+    assert!(app.world().is_alive(live));
+    let blocks = app
+        .world()
+        .get::<MarkdownView>(view)
+        .unwrap()
+        .blocks()
+        .to_vec();
+    assert_eq!(blocks[0].text, "Intro");
+    assert_eq!(blocks[1].text, "Keep");
+}
+
+#[test]
+fn streaming_append_keeps_an_earlier_slot() {
+    let (mut app, view) = setup("Keep\n\nTail");
+    let slot = mount(&mut app, view, 0, 12);
+    rndr_paint::frame(&mut app);
+    app.world_mut()
+        .get_mut::<MarkdownView>(view)
+        .unwrap()
+        .push_str("\n\nMore");
+    rndr_paint::frame(&mut app);
+    assert!(slot.is_mounted(app.world()));
+    assert_eq!(
+        app.world().get::<MarkdownView>(view).unwrap().blocks()[0].text,
+        "Keep"
+    );
+}
+
+#[test]
+fn measured_height_follows_the_mounted_child_after_resize() {
+    let (mut app, view) = setup("Keep");
+    let slot = mount(&mut app, view, 0, 13);
+    let live = child(&mut app, slot);
+    rndr_paint::frame(&mut app);
+    rndr_paint::frame(&mut app);
+    let first = app.world().get::<Layout>(slot.root).unwrap().height;
+    app.world_mut().get_mut::<Layout>(live).unwrap().height = Size::Px(80.);
+    rndr_paint::frame(&mut app);
+    rndr_paint::frame(&mut app);
+    let grown = app.world().get::<Layout>(slot.root).unwrap().height;
+    assert_ne!(first, grown);
+    let Size::Px(height) = grown else {
+        panic!("measured slot has a resolved height");
+    };
+    assert!(height >= 80.0);
+}
+
+#[test]
+fn deleting_the_anchored_range_retires_the_slot() {
+    let (mut app, view) = setup("Value\n\nTail");
+    let slot = mount(&mut app, view, 0, 14);
+    let live = child(&mut app, slot);
+    rndr_paint::frame(&mut app);
+    app.world_mut()
+        .get_mut::<MarkdownView>(view)
+        .unwrap()
+        .set_markdown("Tail");
+    rndr_paint::frame(&mut app);
+    assert!(!slot.is_mounted(app.world()));
+    assert!(!app.world().is_alive(live));
 }

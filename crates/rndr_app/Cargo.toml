@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
-description = "Opinionated desktop starter helpers built on rndr_core"
+description = "Starter helpers for a desktop application, not the component library"
 
 [dependencies]
 rndr_core.workspace = true

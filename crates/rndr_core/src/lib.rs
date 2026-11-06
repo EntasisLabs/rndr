@@ -55,10 +55,13 @@
 //! | Crate | Role |
 //! | --- | --- |
 //! | `rndr` | Facade that re-exports the crates below. |
-//! | `rndr_core` | This crate. |
+//! | `rndr_core` | This crate. The headless world. |
 //! | `rndr_paint` | One frame, then quads in logical points. |
 //! | `rndr_std` | [`std::fs`] backend for [`Fs`]. |
-//! | `rndr_render` | Window, input, and presentation. |
+//! | `rndr_term` | Optional pseudoterminal. Off unless a feature asks for it. |
+//! | `rndr_render` | The only OS window and GPU, plus offscreen capture. |
+//! | `rndr_ui` | Opt-in components. Depends only on this crate. |
+//! | `rndr_app` | Starter helpers for an application, not the component library. Depends only on this crate. |
 
 #![deny(missing_docs)]
 

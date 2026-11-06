@@ -42,6 +42,11 @@ pub(super) struct Binding {
     id: MarkdownSlotId,
     block: MarkdownBlock,
     pub height: f32,
+    /// Source byte range after the last sync. `usize::MAX` means the anchor was lost.
+    start: usize,
+    end: usize,
+    /// When true, [`measure_hosts`] replaces [`Self::height`] from the subtree.
+    pub(super) measured: bool,
 }
 struct HostRoot;
 impl Component for HostRoot {}
@@ -70,16 +75,17 @@ fn same(a: &MarkdownBlock, b: &MarkdownBlock) -> bool {
 
 /// Replace the complete visual body of one last-synced block with a host root.
 /// `expected` must match `MarkdownView::blocks()[index]`; pending source edits
-/// are rejected. Binding is positional and content-checked, not a fuzzy text
-/// search: different semantic content at that index retires it on the next
-/// sync. Identical content remaining at that index is indistinguishable from
-/// an inserted/reordered copy; no source-location identity is promised.
-/// Append/reparse and theme/width changes preserve its root and descendants
-/// while that block's semantic content remains unchanged. Identical blocks at
-/// distinct indexes are independent. No special markdown syntax is interpreted.
+/// are rejected. The slot's identity is the block's source byte range. An
+/// insert above that range, or a streaming append after it, moves the range
+/// with the edit and the slot follows that block. An edit that deletes the
+/// range retires the slot. Theme and width changes keep the root. Identical
+/// blocks at distinct ranges stay independent. No special markdown syntax is
+/// interpreted.
 ///
-/// `height` reserves logical points; hosts must update it for their content.
-/// Width follows the reading column. The ordinary view scroll clip applies.
+/// Height is measured from the mounted subtree after layout. Until that
+/// measurement exists the root hugs its children. [`MarkdownSlot::set_height`]
+/// opts out and reserves a constant. Width follows the reading column. The
+/// ordinary view scroll clip applies.
 /// Source/selection/copy remain markdown, not embedded control values. Pointer
 /// selection and markdown copy shortcuts yield to focused embedded controls.
 /// Only mount trusted application content; untrusted markdown cannot mount UI.
@@ -89,11 +95,7 @@ pub fn mount_markdown_slot(
     index: usize,
     expected: &MarkdownBlock,
     id: MarkdownSlotId,
-    height: f32,
 ) -> Result<MarkdownSlot, MarkdownSlotError> {
-    if !height.is_finite() || height <= 0.0 {
-        return Err(MarkdownSlotError::InvalidHeight);
-    }
     let doc = world
         .get::<MarkdownView>(view)
         .ok_or(MarkdownSlotError::StaleBlock)?;
@@ -108,10 +110,21 @@ pub fn mount_markdown_slot(
     if doc.used_host_ids.contains(&id) || doc.hosts.iter().any(|binding| binding.index == index) {
         return Err(MarkdownSlotError::Duplicate);
     }
+    let (start, end) = {
+        let doc = world
+            .get::<MarkdownView>(view)
+            .ok_or(MarkdownSlotError::StaleBlock)?;
+        let start = *doc.starts.get(index).ok_or(MarkdownSlotError::StaleBlock)?;
+        let end = *doc.ends.get(index).ok_or(MarkdownSlotError::StaleBlock)?;
+        if end < start {
+            return Err(MarkdownSlotError::StaleBlock);
+        }
+        (start, end)
+    };
     let root = world.spawn((
         Layout {
             width: Size::Fill,
-            height: Size::Px(height),
+            height: Size::Hug,
             ..Layout::column()
         },
         HostRoot,
@@ -123,7 +136,10 @@ pub fn mount_markdown_slot(
         root,
         id,
         block: expected.clone(),
-        height,
+        height: 0.0,
+        start,
+        end,
+        measured: true,
     });
     doc.used_host_ids.insert(id);
     doc.hosts_dirty = true;
@@ -151,11 +167,9 @@ impl MarkdownSlot {
             return Err(MarkdownSlotError::StaleHandle);
         }
         let doc = world.get_mut::<MarkdownView>(self.view).unwrap();
-        doc.hosts
-            .iter_mut()
-            .find(|b| b.id == self.id)
-            .unwrap()
-            .height = height;
+        let binding = doc.hosts.iter_mut().find(|b| b.id == self.id).unwrap();
+        binding.height = height;
+        binding.measured = false;
         doc.hosts_dirty = true;
         Ok(())
     }
@@ -181,11 +195,163 @@ impl MarkdownSlot {
 }
 fn valid(world: &World, doc: &MarkdownView, binding: &Binding) -> bool {
     world.is_alive(binding.root)
+        && binding.start != usize::MAX
+        && doc.starts.get(binding.index) == Some(&binding.start)
+        && doc.ends.get(binding.index) == Some(&binding.end)
         && doc
             .blocks
             .get(binding.index)
             .is_some_and(|block| same(block, &binding.block))
 }
+
+/// Move anchors through the edit since the last sync, before the new parse.
+pub(super) fn shift_anchors(doc: &mut MarkdownView) {
+    let (at, removed, inserted) = span_edit(&doc.synced_source, &doc.source);
+    for binding in &mut doc.hosts {
+        match remap(binding.start, binding.end, at, removed, inserted) {
+            Some((start, end)) => {
+                binding.start = start;
+                binding.end = end;
+            }
+            None => binding.start = usize::MAX,
+        }
+    }
+}
+
+/// Point each shifted anchor at the block that now owns that source range.
+pub(super) fn rebind(doc: &mut MarkdownView) {
+    for binding in &mut doc.hosts {
+        if binding.start == usize::MAX {
+            continue;
+        }
+        let exact = doc.starts.iter().enumerate().find(|(index, start)| {
+            **start == binding.start && doc.ends.get(*index) == Some(&binding.end)
+        });
+        let contained = doc.starts.iter().enumerate().filter(|(index, start)| {
+            **start <= binding.start && doc.ends.get(*index).is_some_and(|end| *end >= binding.end)
+        });
+        let index = exact
+            .map(|(index, _)| index)
+            .or_else(|| only(contained))
+            .or_else(|| {
+                only(
+                    doc.starts
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, start)| **start == binding.start),
+                )
+            });
+        if let Some(index) = index {
+            binding.index = index;
+            binding.start = doc.starts[index];
+            binding.end = doc.ends[index];
+            binding.block = doc.blocks[index].clone();
+        } else {
+            binding.start = usize::MAX;
+        }
+    }
+}
+
+/// Replace measured slot heights from the previous layout of their children.
+pub(super) fn measure_hosts(world: &World, doc: &mut MarkdownView) {
+    for binding in &mut doc.hosts {
+        if !binding.measured {
+            continue;
+        }
+        let Some(height) = content_height(world, binding.root) else {
+            continue;
+        };
+        if height != binding.height {
+            binding.height = height;
+            doc.hosts_dirty = true;
+        }
+    }
+}
+
+fn content_height(world: &World, root: Entity) -> Option<f32> {
+    let children = crate::children_of(world, root);
+    if children.is_empty() {
+        return None;
+    }
+    let gap = world
+        .get::<Layout>(root)
+        .map(|layout| layout.gap)
+        .unwrap_or(0.0);
+    let mut height = 0.0;
+    let mut count = 0usize;
+    for child in children {
+        let rect = world.get::<Rect>(child)?;
+        if !rect.h.is_finite() || rect.h <= 0.0 {
+            return None;
+        }
+        height += rect.h;
+        count += 1;
+    }
+    if count > 1 {
+        height += gap * (count - 1) as f32;
+    }
+    height.is_finite().then_some(height)
+}
+
+/// One span replacement: `(at, removed, inserted)` in bytes.
+fn span_edit(old: &str, new: &str) -> (usize, usize, usize) {
+    let prefix: usize = old
+        .chars()
+        .zip(new.chars())
+        .take_while(|(a, b)| a == b)
+        .map(|(ch, _)| ch.len_utf8())
+        .sum();
+    let old_tail = &old[prefix..];
+    let new_tail = &new[prefix..];
+    let suffix: usize = old_tail
+        .chars()
+        .rev()
+        .zip(new_tail.chars().rev())
+        .take_while(|(a, b)| a == b)
+        .map(|(ch, _)| ch.len_utf8())
+        .sum();
+    let removed = old_tail.len() - suffix;
+    let inserted = new_tail.len() - suffix;
+    (prefix, removed, inserted)
+}
+
+fn remap(
+    start: usize,
+    end: usize,
+    at: usize,
+    removed: usize,
+    inserted: usize,
+) -> Option<(usize, usize)> {
+    if start == usize::MAX || end < start {
+        return None;
+    }
+    let delta = inserted as isize - removed as isize;
+    if end <= at {
+        return Some((start, end));
+    }
+    if start >= at.saturating_add(removed) {
+        return Some((shift(start, delta)?, shift(end, delta)?));
+    }
+    if start <= at && end >= at.saturating_add(removed) {
+        return Some((start, shift(end, delta)?));
+    }
+    None
+}
+
+fn only<'a>(mut found: impl Iterator<Item = (usize, &'a usize)>) -> Option<usize> {
+    let first = found.next().map(|(index, _)| index);
+    if found.next().is_some() {
+        None
+    } else {
+        first
+    }
+}
+
+fn shift(value: usize, delta: isize) -> Option<usize> {
+    let next = value as isize + delta;
+    (next >= 0).then_some(next as usize)
+}
+
 pub(super) fn stale(world: &World, doc: &MarkdownView) -> bool {
     doc.hosts.iter().any(|b| !valid(world, doc, b))
 }
@@ -213,4 +379,25 @@ pub(super) fn contains(world: &World, mut entity: Entity) -> bool {
         entity = parent.entity;
     }
     false
+}
+
+#[cfg(test)]
+mod shift_tests {
+    use super::{remap, span_edit};
+
+    #[test]
+    fn insert_above_is_a_prefix_insertion() {
+        let edit = span_edit("Keep\n\nTail", "Intro\n\nKeep\n\nTail");
+        assert_eq!(edit, (0, 0, "Intro\n\n".len()), "{edit:?}");
+        assert_eq!(remap(0, 4, 0, 0, "Intro\n\n".len()), Some((7, 11)));
+    }
+
+    #[test]
+    fn append_does_not_move_an_earlier_range() {
+        assert_eq!(
+            span_edit("Keep\n\nTail", "Keep\n\nTail\n\nMore"),
+            (10, 0, 6)
+        );
+        assert_eq!(remap(0, 4, 10, 0, 6), Some((0, 4)));
+    }
 }

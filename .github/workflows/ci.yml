@@ -92,6 +92,11 @@ jobs:
       - name: Build native semantic galleries with observation
         run: cargo build -p rndr --features observe,ui --example ui_gallery --example data_gallery --example data_editors_gallery --example selection_gallery --example virtual_list_gallery --example markdown_gallery
 
+      - name: Build capture CLI and capture examples
+        run: |
+          cargo build -p rndr_render --features observe --bin rndr-capture
+          cargo build -p rndr --features observe,ui --example component_capture --example structured_gallery
+
       - name: Desktop packaging control-flow regression (mock tools)
         if: runner.os == 'Linux'
         run: python3 scripts/check-desktop-packaging.py

@@ -1,8 +1,9 @@
 //! Desktop application toolkit.
 //!
 //! This crate re-exports [`rndr_core`], [`rndr_paint`], [`rndr_std`], and
-//! [`rndr_render`] so `cargo add rndr` builds a window. Headless programs can
-//! depend on `rndr_core` alone and skip the window and the GPU.
+//! [`rndr_render`] so `cargo add rndr` builds a window. `term` and `ui` are
+//! extra features. `rndr_app` is a separate starter crate. Headless programs
+//! can depend on `rndr_core` alone and skip the window and the GPU.
 //!
 //! # How the crates fit
 //!
@@ -13,8 +14,12 @@
 //!   open a window.
 //! - [`rndr_std`] inserts an [`Fs`] backend that reads and writes the process
 //!   filesystem.
-//! - [`rndr_render`] opens the window, writes [`Input`] and [`Viewport`], and
-//!   presents that frame.
+//! - [`rndr_render`] is the only OS window and GPU. It writes [`Input`] and
+//!   [`Viewport`], presents the frame, and (with `observe`) can capture a
+//!   component offscreen.
+//! - `rndr_term` is the optional pseudoterminal, re-exported when `term` is on.
+//! - `rndr_ui` and `rndr_app` are opt-in kits. Both depend only on `rndr_core`.
+//!   `rndr_ui` is the component library. `rndr_app` is a starter, not that library.
 //!
 //! # Example
 //!
@@ -65,9 +70,12 @@
 //!   normal desktop build does not link a pseudoterminal.
 //! - `ui` is off by default and exposes semantic components at `rndr::ui`, never
 //!   glob-reexporting their names into the legacy root API.
-//! - `observe` is off by default. It enables opt-in live whole-window screenshots
-//!   and a matching flattened accessibility tree over a Unix socket. It is not
-//!   headless component capture; non-Unix transport is unsupported.
+//! - `observe` is off by default. It enables two different checks. The Unix
+//!   socket probe records what the live window submitted, plus a flattened
+//!   accessibility tree. Headless component capture renders a target in
+//!   process: `capture` crops the viewport composite, and `capture_isolated`
+//!   paints that subtree on its own. The live probe has no non-Unix transport.
+//!   Capture metadata is geometry. It does not include accessible names.
 //! - `tokio` is off by default. It forwards to `rndr_core` and spawns a feed
 //!   producer on a tokio runtime the application already started.
 //!
@@ -89,7 +97,8 @@ pub use rndr_std::*;
 /// Semantic UI components, enabled with the `ui` feature.
 ///
 /// Legacy core names stay at the root; semantic names are explicitly scoped.
-/// Collections retain bounded rows, not a viewport-virtualized list.
+/// Collections keep a bounded retained list. `ListView::mount_virtual` is the
+/// viewport window over a longer logical list.
 ///
 /// ```
 /// use rndr::{App, Button, Item, List, Theme}; // existing core/tray API
