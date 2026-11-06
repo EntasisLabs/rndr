@@ -71,6 +71,25 @@ Headless lifecycle tests do not certify visual layout, native IME candidate
 placement, clipboard integration, screen-reader announcements or native focus.
 Those require running this example on each supported desktop platform.
 
+## E8: executable recipes and compatibility
+
+The [E8 integration guide and certification ledger](../../docs/design/native-document-editing-e8.md)
+is the actual API index (the original architecture sketches are historical).
+`rndr_core::editing_recipes` contains executable source, structured, staged
+projection and explicit legacy-fork examples; `rndr_ui::editing_recipes` executes
+retained source/tree mount, update, teardown and remount. Run them with:
+
+```sh
+CARGO_INCREMENTAL=0 cargo test -j 2 -p rndr_core -p rndr_ui --doc
+```
+
+Legacy undo history is **not imported** into a source session. The opt-in fork
+keeps the original entity/history while copying exact bytes and valid directed
+selection into a new owner. Source/tree attachment refuses competing ownership
+in either order. Read the guide before replacing any existing editor in place.
+Native IME/clipboard/AT and end-to-present performance certification remain open;
+these executable examples and old screenshots do not certify them.
+
 ## E7: supported source-preserving staged editor
 
 ```sh

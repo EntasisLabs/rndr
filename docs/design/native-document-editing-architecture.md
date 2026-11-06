@@ -1,8 +1,8 @@
 # Native document editing — architecture and public composition sketch
 
-**Proposal, not an approved or implemented API.** Names in `text` fences are illustrative Rust-like pseudocode, deliberately not compilable doctests. Existing APIs such as `Button::mount`, `UiId`, `Buffer`, `edit_buffer` and `UiTheme` are real; all `editing::*` names below are proposed. The [evidence matrix](native-document-editing-evidence.md) establishes the baseline; the [epic](native-document-editing-epic.md) scopes delivery.
+**Historical architecture proposal, not a stable-API specification.** Names in `text` fences remain illustrative Rust-like pseudocode, deliberately not compilable doctests. Concrete implemented APIs differ. Use the [E8 executable recipe index and compatibility/certification ledger](native-document-editing-e8.md) for actual source/tree/projection composition, migration, ownership, scheduling and remaining native gates. The [evidence matrix](native-document-editing-evidence.md) establishes the baseline; the [epic](native-document-editing-epic.md) scopes delivery.
 
-**Implementation follow-up:** the [E1 record](native-document-editing-e1.md) documents the experimental source-only subset now implemented. Its concrete API differs from the illustrative sketches below; source/tree/projection/extensions and multi-view proposals remain future work.
+**Implementation follow-up:** E1–E4 provide exact-source sessions, independent attached views, retained source surfaces, viewport and extension lifetimes; E5–E6 add the separate structured tree and embedded boundaries. [E7](native-document-editing-e7.md) provides supported bounded staged source projection, not a full inline Markdown codec. [E8](native-document-editing-e8.md) records six executable core/UI recipes and legacy/facade compatibility. Experimental namespace status, stable-API ratification, native platform certification and app-core integration remain explicitly separate.
 
 ## 1. Boundaries: cohesive sessions, composable presentation
 

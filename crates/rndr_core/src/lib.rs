@@ -79,6 +79,8 @@ mod disclosure;
 mod edit;
 /// Experimental revisioned source document sessions and view attachment.
 pub mod editing;
+/// Executable source, structured, projection and explicit legacy-fork recipes.
+pub mod editing_recipes;
 mod editor;
 mod entity;
 mod event;

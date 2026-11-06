@@ -1,7 +1,7 @@
 //! Experimental owned source providers; no executor, transport, or language dependency.
 //!
-//! The host runs [`SourceExtensions::refresh`] every input/update boundary and
-//! may call [`SourceExtensions::cancel_view`] for explicit cancellation. Native
+//! The host runs [`crate::source_extensions::SourceExtensions::refresh`] every input/update boundary and
+//! may call [`crate::source_extensions::SourceExtensions::cancel_view`] for explicit cancellation. Native
 //! lifecycle mutation boundaries automatically fence pending results. Results are also checked against the live World on every read/write.
 //! Completion acceptance is one existing document-history transaction. Providers
 //! never write projected Buffers. Higher priority wins; equal priority uses the

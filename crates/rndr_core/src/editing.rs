@@ -1157,6 +1157,9 @@ pub fn source_attachment_epoch(world: &World, entity: Entity) -> Option<u64> {
 /// Attach an existing Buffer/Editor entity as an independent view.
 /// New views start at the last invoking selection; their Editor scroll is local.
 /// Documents/history survive detach and entity teardown. Install Chrome normally.
+/// A structured authority on the same entity refuses before any side effect.
+/// Attaching replaces the legacy Buffer and removes its legacy history; it does
+/// not import either. For explicit adoption, see [`crate::editing_recipes`].
 pub fn attach_source(
     world: &mut World,
     entity: Entity,
@@ -1164,6 +1167,9 @@ pub fn attach_source(
 ) -> Result<(), EditError> {
     if !world.has::<Buffer>(entity) || !world.has::<crate::Editor>(entity) {
         return Err(EditError::InvalidView);
+    }
+    if world.has::<crate::structured_native::StructuredBinding>(entity) {
+        return Err(EditError::AlreadyAttached);
     }
     if let Some(b) = world.get::<SourceBinding>(entity) {
         if b.document != document {

@@ -1,6 +1,6 @@
 # Epic: composable native document editing through rndr_ui
 
-**Status: E1–E5 committed; E6.1 committed and E6.2/E6.3 accepted on 2026-11-05 for closeout commit, including shared appearance defaults. E6 implementation slices are closed. Native/platform certification and ratified native performance acceptance remain open.**
+**Status: E1–E7 committed, including all accepted E6 implementation slices and shared appearance defaults. E8's bounded documentation/compatibility slice accepted on 2026-11-06 for closeout commit. Native/platform certification, stable-API ratification and ratified native performance acceptance remain open.**
 
 2026-11-04 continuation: the user subsequently authorized E1, E2 and E3 implementation. See the [E1 record](native-document-editing-e1.md), E2 ledgers, and [E3 implementation/evidence record](native-document-editing-e3.md). Later milestones, release integration and whole-epic acceptance are not implied. The exploration scope below describes the original docs-only assignment.
 
@@ -169,7 +169,7 @@ Implementation, contract review and verification: [E5 evidence](native-document-
 
 **Depends:** E3 + E5 + E6 boundary contract. **Gate:** choose projection versus preserved-block custody based on experiment before a stable public API.
 
-**Accepted and solidified (2026-11-05):** principal desktop signoff accepted the experiment and requested promotion. [E7 supported contract and native example](native-document-editing-e7.md), with [independent custody comparison](native-document-editing-e7-comparison.md). Chosen policy: source-authoritative segment splices for a deliberately narrow grammar, staged selected-region replacement, and source reveal for unsupported edits—not a general inline Markdown surface. Shared `ProjectionTarget` capture/apply, checked live copy, inverse source/display selection maps and exhaustive admission gates replace demo-only target ownership. This closes the bounded E7 gate, not full inline editing, native certification, all-API release ratification or a commit.
+**Accepted and solidified (2026-11-05):** principal desktop signoff accepted the experiment and requested promotion. [E7 supported contract and native example](native-document-editing-e7.md), with [independent custody comparison](native-document-editing-e7-comparison.md). Chosen policy: source-authoritative segment splices for a deliberately narrow grammar, staged selected-region replacement, and source reveal for unsupported edits—not a general inline Markdown surface. Shared `ProjectionTarget` capture/apply, checked live copy, inverse source/display selection maps and exhaustive admission gates replace demo-only target ownership. This closes the bounded E7 gate, not full inline editing, native certification or all-API release ratification. Accepted E7 was committed as `2aa9e28` on 2026-11-05.
 
 - [x] Preserve source for a hidden-emphasis segment, an editable task and an opaque unsupported block; implement explicit map segments/revision/affinity and source reveal fallback.
 - [x] Compare generic source projection with M6's block-custody strategy; test untouched raw-region preservation versus changed-block normalization. Structured serialization is a separately named policy, not the same guarantee.
@@ -183,9 +183,11 @@ Implementation, contract review and verification: [E5 evidence](native-document-
 
 **Depends:** relevant E2/E3/E4/E6/E7 gates; stable API ratification is separate from local integration.
 
-- [ ] Publish actual source/structured/projection recipes, extension ownership, teardown and event scheduling docs; generic example compositions tested as code once implemented.
-- [ ] Compatibility fixtures for legacy `Buffer`/`Editor`/`edit_buffer`, root facade exports and UI feature-off builds; no mandatory GPU/parser/runtime/app dependency.
-- [ ] Maintain native/platform/IME/AT and performance ledger, explicitly marking unsupported/unverified cells and narrowing parity claims. Independent review checks evidence provenance and full behavioral path, not just widget screenshots.
+**Accepted local implementation (2026-11-06):** [E8 recipes, compatibility and certification ledger](native-document-editing-e8.md). E7 is committed as `2aa9e28`; the principal accepted E8 and requested its closeout commit. This closes the bounded local deliverables, not native/platform/performance certification or stable-API ratification.
+
+- [x] Publish actual source/structured/projection recipes, extension ownership, teardown and event scheduling docs; six new executable core/UI doctest recipes plus the native compositions.
+- [x] Compatibility fixtures for legacy `Buffer`/`Editor`/`edit_buffer`, root facade exports and isolated UI feature-off/on builds; no new mandatory GPU/parser/runtime/app dependency. **Clarification:** core already requires its preview parser; the desktop facade already requires render/GPU. GPU-free core/UI composition needs no parser setup, but parser-free core is a separate unimplemented dependency split, not a claim of E8.
+- [x] Maintain native/platform/IME/AT and performance ledger, explicitly marking unsupported/unverified cells and narrowing parity claims. One read-only independent review checked evidence provenance and the behavioral path; the reciprocal source/tree attachment gap it independently identified is fixed and regression-tested.
 
 **Acceptance:** documented migration does not lose source bytes/history/selection; stable names follow reviews at E1/E5/E7. Existing core/facade APIs are not renamed or silently changed. Broad checks only when warranted and capacity is safe; owner/sender review and governed integration required. No release/publish implied.
 
@@ -197,7 +199,7 @@ Acceptance for that future scope: native pane typing → app dirty → undo/redo
 
 ## Compatibility / migration plan
 
-1. Add experimental session APIs and UI composition additively. Keep existing `Buffer`/`Editor`/raw operations and `edit_buffer` contract, including legacy history-free behavior, intact for legacy entities.
+1. Add experimental session APIs and UI composition additively. Keep existing `Buffer`/`Editor`/raw operations and `edit_buffer` contract intact for legacy entities: raw Buffer mutations are history-free, while `edit_buffer` records legacy undo/redo. There is no history-import API; E8's explicit fork preserves the old entity/history and copies exact bytes plus valid directed selection into a new managed owner.
 2. Decide opt-in managed-session attachment. Reject simultaneous legacy and session input ownership on the same entity; explicit one-time migration/copy must identify which history/selection survives. Do not mirror two independently writable buffers.
 3. Port a generic gallery first, not every host. Evaluate source-backed Blooey fixtures as reference only. Migrate Medousa only in its separate authorized project.
 4. Promote stable API after real source/structured examples and fidelity experiment. Any eventual deprecation needs written replacement, versioning and tests, not silent root export changes.

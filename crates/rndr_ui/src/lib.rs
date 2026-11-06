@@ -12,6 +12,7 @@ pub mod composition;
 pub mod controls;
 pub mod data;
 pub mod editing;
+pub mod editing_recipes;
 pub mod selection;
 pub mod source_tools;
 pub mod structured;
