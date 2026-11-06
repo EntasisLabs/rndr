@@ -52,7 +52,9 @@ pub(crate) enum DeliveredFile {
 /// because this process does not sit inside the callback.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum DragPoint {
-    /// The callback had no point.
+    /// The callback had no point. winit 0.31 drag events carry a point or
+    /// `None`; this variant remains for a report that has no sample.
+    #[allow(dead_code)]
     Absent,
     /// Top-left client pixels. Windows client coordinates and translated
     /// X11 window coordinates are this space. winit 0.30.13 does not
@@ -70,6 +72,7 @@ pub(crate) enum DragPoint {
 ///
 /// `scale` is the window's physical pixels per point. It is not applied,
 /// because the event has no pixel sample. The cursor is not an argument.
+#[allow(dead_code)]
 pub(crate) fn winit_path(path: PathBuf, scale: f64) -> NativeFileReport {
     from_drag(path, DragPoint::Absent, scale)
 }
@@ -79,6 +82,7 @@ pub(crate) fn winit_path(path: PathBuf, scale: f64) -> NativeFileReport {
 /// `scale` converts [`DragPoint::ClientPhysical`] into logical points. A
 /// non-positive or non-finite scale is read as 1, matching the rest of the
 /// runner. [`DragPoint::ClientLogical`] is not divided again.
+#[allow(dead_code)]
 pub(crate) fn from_drag(path: PathBuf, point: DragPoint, scale: f64) -> NativeFileReport {
     NativeFileReport {
         path,
@@ -167,6 +171,183 @@ pub(crate) fn unpack_xdnd_root(packed: i64) -> [i32; 2] {
 #[allow(dead_code)]
 pub(crate) fn window_from_root(root: [i32; 2], window_origin: [i32; 2]) -> [i32; 2] {
     client_from_screen(root, window_origin)
+}
+
+/// One step of a winit 0.31 drag, after the point has been converted.
+///
+/// `position` is already logical. `None` means that callback had no finite
+/// point. Paths are the files from that transfer, one event each.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum DragNotice {
+    /// The drag entered this window.
+    Entered { id: i64, position: Option<[f32; 2]> },
+    /// The drag point moved. This is not a cursor sample from another event.
+    Moved { id: i64, position: Option<[f32; 2]> },
+    /// The transfer's file list arrived.
+    Paths { id: i64, paths: Vec<PathBuf> },
+    /// The drag was released over the window.
+    Dropped { id: i64 },
+    /// The drag left or was cancelled.
+    Left { id: i64 },
+}
+
+/// The one drag currently over the window.
+///
+/// A new id replaces the previous drag. Every path in the transfer shares
+/// that drag's point. A drop does not clear the hover set; [`DragNotice::Left`]
+/// does, through [`NativeFile::Cancel`].
+#[derive(Clone, Debug, Default)]
+pub(crate) struct DragTracker {
+    id: Option<i64>,
+    position: Option<[f32; 2]>,
+    paths: Vec<PathBuf>,
+    drop_waiting: bool,
+}
+
+impl DragTracker {
+    /// Apply `notice` and return the file events it produces, in order.
+    pub(crate) fn apply(&mut self, notice: DragNotice) -> Vec<NativeFile> {
+        match notice {
+            DragNotice::Entered { id, position } => {
+                self.begin(id, position);
+                self.hover_events()
+            }
+            DragNotice::Moved { id, position } => {
+                if self.id != Some(id) {
+                    self.begin(id, position);
+                } else if position.is_some() {
+                    self.position = position;
+                }
+                self.hover_events()
+            }
+            DragNotice::Paths { id, paths } => {
+                if self.id != Some(id) {
+                    self.begin(id, None);
+                }
+                self.paths = paths;
+                if self.drop_waiting {
+                    self.finish_drop()
+                } else {
+                    self.hover_events()
+                }
+            }
+            DragNotice::Dropped { id } => {
+                if self.id != Some(id) {
+                    self.begin(id, None);
+                }
+                if self.paths.is_empty() {
+                    self.drop_waiting = true;
+                    Vec::new()
+                } else {
+                    self.finish_drop()
+                }
+            }
+            DragNotice::Left { id } => {
+                if self.id.is_some() && self.id != Some(id) {
+                    return Vec::new();
+                }
+                self.clear();
+                vec![NativeFile::Cancel]
+            }
+        }
+    }
+
+    fn begin(&mut self, id: i64, position: Option<[f32; 2]>) {
+        if self.id != Some(id) {
+            self.paths.clear();
+            self.drop_waiting = false;
+            self.position = None;
+        }
+        self.id = Some(id);
+        if position.is_some() {
+            self.position = position;
+        }
+    }
+
+    fn hover_events(&self) -> Vec<NativeFile> {
+        self.paths
+            .iter()
+            .cloned()
+            .map(|path| {
+                NativeFile::Hover(NativeFileReport {
+                    path,
+                    position: self.position,
+                })
+            })
+            .collect()
+    }
+
+    fn finish_drop(&mut self) -> Vec<NativeFile> {
+        let position = self.position;
+        let events = self
+            .paths
+            .iter()
+            .cloned()
+            .map(|path| NativeFile::Drop(NativeFileReport { path, position }))
+            .collect();
+        self.clear();
+        events
+    }
+
+    fn clear(&mut self) {
+        *self = Self::default();
+    }
+}
+
+/// A `file:` URI from a drag transfer, as a path.
+///
+/// A non-file URI, an empty URI, and a broken percent-escape are skipped.
+/// A Windows drive letter keeps its letter. This does not look at the cursor.
+pub(crate) fn path_from_file_uri(uri: &str) -> Option<PathBuf> {
+    let uri = uri.trim();
+    let rest = uri.strip_prefix("file://")?;
+    let rest = rest.strip_prefix("localhost").unwrap_or(rest);
+    let decoded = decode_percent(rest)?;
+    if decoded.is_empty() {
+        return None;
+    }
+    let path = match decoded.strip_prefix('/') {
+        Some(drive)
+            if drive.len() >= 3
+                && drive.as_bytes()[0].is_ascii_alphabetic()
+                && drive.as_bytes()[1] == b':'
+                && (drive.as_bytes()[2] == b'/' || drive.as_bytes()[2] == b'\\') =>
+        {
+            drive.to_string()
+        }
+        _ => decoded,
+    };
+    Some(PathBuf::from(path))
+}
+
+fn decode_percent(input: &str) -> Option<String> {
+    let bytes = input.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            if index + 2 >= bytes.len() {
+                return None;
+            }
+            let high = hex(bytes[index + 1])?;
+            let low = hex(bytes[index + 2])?;
+            out.push((high << 4) | low);
+            index += 3;
+            continue;
+        }
+        out.push(bytes[index]);
+        index += 1;
+    }
+    String::from_utf8(out).ok()
+}
+
+fn hex(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
 }
 
 /// Apply `file` to the current hover and build the core event.
@@ -323,5 +504,91 @@ mod tests {
             2.0,
         );
         assert_eq!(bits(report.position), bits(Some([-5.5, -16.0])));
+    }
+
+    #[test]
+    fn a_drag_correlates_one_point_with_every_path_and_cancel_clears_them() {
+        let mut tracker = DragTracker::default();
+        let mut set = FileHoverSet::default();
+        let entered = tracker.apply(DragNotice::Entered {
+            id: 7,
+            position: logical_point(DragPoint::ClientPhysical([0.0, 0.0]), 2.0),
+        });
+        assert!(entered.is_empty());
+        let hovers = tracker.apply(DragNotice::Paths {
+            id: 7,
+            paths: vec!["a.txt".into(), "b.txt".into()],
+        });
+        assert_eq!(hovers.len(), 2);
+        for event in hovers {
+            match deliver(&mut set, event) {
+                DeliveredFile::Hover(hover) => {
+                    assert_eq!(bits(hover.position), bits(Some([0.0, 0.0])));
+                }
+                DeliveredFile::Drop(_) | DeliveredFile::Cancel(_) => panic!("hover"),
+            }
+        }
+        let moved = tracker.apply(DragNotice::Moved {
+            id: 7,
+            position: logical_point(DragPoint::ClientPhysical([20.0, 40.0]), 2.0),
+        });
+        assert_eq!(moved.len(), 2);
+        match &moved[0] {
+            NativeFile::Hover(report) => {
+                assert_eq!(report.path.as_os_str(), "a.txt");
+                assert_eq!(bits(report.position), bits(Some([10.0, 20.0])));
+            }
+            NativeFile::Drop(_) | NativeFile::Cancel => panic!("hover"),
+        }
+        match &moved[1] {
+            NativeFile::Hover(report) => {
+                assert_eq!(report.path.as_os_str(), "b.txt");
+                assert_eq!(bits(report.position), bits(Some([10.0, 20.0])));
+            }
+            NativeFile::Drop(_) | NativeFile::Cancel => panic!("hover"),
+        }
+        let missing = tracker.apply(DragNotice::Moved {
+            id: 7,
+            position: logical_point(DragPoint::ClientPhysical([f32::NAN, 1.0]), 2.0),
+        });
+        match &missing[0] {
+            NativeFile::Hover(report) => {
+                assert_eq!(bits(report.position), bits(Some([10.0, 20.0])));
+            }
+            NativeFile::Drop(_) | NativeFile::Cancel => panic!("hover"),
+        }
+        let drops = tracker.apply(DragNotice::Dropped { id: 7 });
+        assert_eq!(drops.len(), 2);
+        match &drops[1] {
+            NativeFile::Drop(report) => {
+                assert_eq!(report.path.as_os_str(), "b.txt");
+                assert_eq!(bits(report.position), bits(Some([10.0, 20.0])));
+            }
+            NativeFile::Hover(_) | NativeFile::Cancel => panic!("drop"),
+        }
+        assert_eq!(set.len(), 2);
+        for event in tracker.apply(DragNotice::Left { id: 7 }) {
+            deliver(&mut set, event);
+        }
+        assert!(set.is_empty());
+    }
+
+    #[test]
+    fn file_uris_become_paths_and_other_uris_are_skipped() {
+        assert_eq!(
+            path_from_file_uri("file:///tmp/a%20b.txt").unwrap(),
+            PathBuf::from("/tmp/a b.txt")
+        );
+        assert_eq!(
+            path_from_file_uri("file://localhost/tmp/a.txt").unwrap(),
+            PathBuf::from("/tmp/a.txt")
+        );
+        assert_eq!(
+            path_from_file_uri("file:///C:/notes.txt").unwrap(),
+            PathBuf::from("C:/notes.txt")
+        );
+        assert!(path_from_file_uri("https://example.com/a").is_none());
+        assert!(path_from_file_uri("file:///bad%").is_none());
+        assert!(path_from_file_uri("").is_none());
     }
 }

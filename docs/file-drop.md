@@ -27,62 +27,36 @@ hover, or any other pointer to fill it.
 
 ## What a live drag delivers
 
-No platform delivers a coordinate from this tree. winit 0.30.13 (the version
-in `Cargo.lock`, and the current stable release) defines
-`DroppedFile(PathBuf)`, `HoveredFile(PathBuf)`, and `HoveredFileCancelled`.
-The runner maps the first two through `winit_path`, which passes
-`DragPoint::Absent`. The window scale is available and is not used to invent
-a point. The cursor is not read.
+The runner uses winit 0.31.0-beta.4. `DragEntered` and `DragPosition` carry
+client physical pixels, top-left origin, when the backend has them.
+`DragEntered.position` may be `None`. Those pixels are divided by the window
+scale. A non-finite sample stays `None`. A reported `(0, 0)` stays the origin.
+The cursor is not read.
 
-The operating system does report a point, and winit drops it before the
-public event:
+File names come from the transfer's `text/uri-list`, one `FileHover` or
+`FileDrop` per path. Every path in that transfer shares the drag's point.
+`DragLeft` is one `FileHoverCancel` and clears the hover set. A drop does not.
 
-- macOS `draggingEntered:` and `performDragOperation:` read the pasteboard
-  and do not read `draggingLocation`.
-- Windows `IDropTarget` receives a screen `POINTL` and ignores it (`_pt`).
-- X11 `XdndPosition` carries root coordinates in `data.l[2]`. The unpack is
-  commented out. `HoveredFile` is emitted later, from `SelectionNotify`,
-  without them.
-- Wayland has no file-drag event in that release.
+On `DragEntered` the runner accepts `DndAction::Copy` and fetches the URI
+list. Without that accept, winit 0.31 rejects the drag and no path is
+delivered.
 
-## Blocker
+A window whose raw handle is Wayland is ignored: the drag is not accepted and
+no file event is emitted. winit 0.31 can deliver Wayland drags; this unit
+does not forward them.
 
-Attaching the real point means sitting in the callback that still has it.
-On 0.30.13 that callback is private:
+winit turns the operating-system point into those client pixels before the
+event: AppKit `convertPoint:fromView:` on the flipped content view, Win32
+`ScreenToClient`, and X11 `XdndPosition` translated into the window. This
+repository compiles that mapping. It has not run a drag on a desktop, so the
+native cells stay `Unverified`.
 
-- macOS: `WinitWindowDelegate` already implements `NSDraggingDestination`.
-  A second destination would steal the drag. Wrapping the IMP can read
-  `draggingLocation` and then call the original, but the method encoding has
-  not been executed here, and a mismatch would stop path delivery.
-- Windows: `RegisterDragDrop` allows one `IDropTarget` per `HWND`, and winit
-  holds that pointer in a private field. Replacing it means reimplementing
-  `CF_HDROP` delivery.
-- X11: the `XdndPosition` client message is delivered on winit's X
-  connection. A second connection does not see it.
-
-winit 0.31.0-beta.3 (published 2026-09-04; stable is still 0.30.13) replaces
-those events with `DragEntered`, `DragPosition`, `DragDropped`, and
-`DragLeft`, and the position is physical pixels of the client area, top-left
-origin. The macOS value comes from `convertPoint:fromView:` on the flipped
-content view. Windows uses `ScreenToClient`. X11 unpacks the `XdndPosition`
-root point and `XTranslateCoordinates`s it into the window. That beta also
-splits the crate and changes the event loop, key events, and other window
-APIs. `accesskit_winit` 0.34 and `tray-icon` 0.26 are built against 0.30.
-This pull request does not take the beta.
-
-Wayland file drag landed in that same beta. This unit does not adopt it.
-R0 keeps Wayland unsupported, including after a later winit bump: do not map
-Wayland drag events into `FileHover` or `FileDrop`.
-
-When a stable winit that carries the client point can move with those
-crates, map each path in the drag set through `from_drag` with
-`DragPoint::ClientPhysical` and the window scale. One winit position applies
-to every path in that callback. `DragLeft` stays a single `FileHoverCancel`.
-Do not fill a missing point from `CursorMoved`.
-
-Until that bump, `PositionDelivery` stays `Unavailable` on macOS, Windows,
-and X11. The conversion below is what that bump will call. It is not a claim
-that a drag today has a point.
+`accesskit_winit` 0.34 is still built on winit 0.30. The `accesskit` feature
+stays on and uses a local adapter over `accesskit_unix`, `accesskit_macos`,
+and `accesskit_windows`. `tray-icon` 0.26 does not depend on winit, so the
+tray feature is unchanged. The event loop no longer carries a typed user
+event; the runner posts `RunnerEvent` on a channel and calls
+`EventLoopProxy::wake_up`.
 
 ## Conversion
 
@@ -117,10 +91,10 @@ cells; it does not move a native cell to `Supported`.
 
 | Platform | Paths in this binding | Position in this binding | Native session |
 | --- | --- | --- | --- |
-| macOS | Forwarded when winit emits them | Unavailable. The event position is `None`. | Unverified |
-| Windows | Forwarded when winit emits them | Unavailable. The event position is `None`. | Unverified |
-| X11 | Forwarded when winit emits them | Unavailable. The event position is `None`. | Unverified |
-| Wayland | Unsupported. No Wayland drop path was added. | Unsupported. No point is synthesized. | Unsupported |
+| macOS | Forwarded from `DragEntered` / `DragDropped` after the URI list arrives | Client physical pixels from `DragEntered` / `DragPosition`, divided by the window scale. `None` when that event has no finite point | Unverified |
+| Windows | Forwarded the same way | The same conversion | Unverified |
+| X11 | Forwarded the same way | The same conversion. The point is the translated window position winit supplies, not a root coordinate | Unverified |
+| Wayland | Unsupported. Drag events on a Wayland window are not accepted and not forwarded | Unsupported. No point is synthesized | Unsupported |
 
 `file_drop::platform_support` is the binding table.
 `file_drop::native_session` is the ledger. `PositionDelivery::Supported` and

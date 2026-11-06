@@ -9,9 +9,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use rndr_core::{Modifiers, WindowEffect};
+use winit::cursor::{CursorIcon, CustomCursor};
 use winit::dpi::{LogicalPosition, LogicalSize, PhysicalSize};
+use winit::dpi::{Position, Size};
 use winit::event_loop::OwnedDisplayHandle;
-use winit::window::{CursorIcon, CustomCursor, Window};
+use winit::window::Window;
 
 use crate::platform;
 
@@ -59,13 +61,13 @@ pub(crate) struct LayerHost {
 }
 
 pub(crate) enum Shell {
-    Winit(Arc<Window>),
+    Winit(Arc<dyn Window>),
     #[cfg(target_os = "linux")]
     Layer(Box<LayerHost>),
 }
 
 impl Shell {
-    pub(crate) fn winit(window: Arc<Window>) -> Self {
+    pub(crate) fn winit(window: Arc<dyn Window>) -> Self {
         Self::Winit(window)
     }
 
@@ -97,7 +99,7 @@ impl Shell {
     }
 
     #[cfg(feature = "accesskit")]
-    pub(crate) fn winit_arc(&self) -> Option<Arc<Window>> {
+    pub(crate) fn winit_arc(&self) -> Option<Arc<dyn Window>> {
         match self {
             Self::Winit(window) => Some(Arc::clone(window)),
             #[cfg(target_os = "linux")]
@@ -105,9 +107,9 @@ impl Shell {
         }
     }
 
-    pub(crate) fn winit_window(&self) -> Option<&Window> {
+    pub(crate) fn winit_window(&self) -> Option<&dyn Window> {
         match self {
-            Self::Winit(window) => Some(window),
+            Self::Winit(window) => Some(window.as_ref()),
             #[cfg(target_os = "linux")]
             Self::Layer(_) => None,
         }
@@ -123,7 +125,7 @@ impl Shell {
 
     pub(crate) fn inner_size(&self) -> PhysicalSize<u32> {
         match self {
-            Self::Winit(window) => window.inner_size(),
+            Self::Winit(window) => window.surface_size(),
             #[cfg(target_os = "linux")]
             Self::Layer(host) => {
                 let (width, height) = host.window.logical_size();
@@ -153,8 +155,23 @@ impl Shell {
     }
 
     pub(crate) fn set_ime_allowed(&self, allow: bool) {
-        if let Some(window) = self.winit_window() {
-            window.set_ime_allowed(allow);
+        let Some(window) = self.winit_window() else {
+            return;
+        };
+        if allow {
+            let data = winit::window::ImeRequestData::default().with_cursor_area(
+                Position::Logical(LogicalPosition::new(0.0, 0.0)),
+                Size::Logical(LogicalSize::new(1.0, 16.0)),
+            );
+            let Some(enable) = winit::window::ImeEnableRequest::new(
+                winit::window::ImeCapabilities::new().with_cursor_area(),
+                data,
+            ) else {
+                return;
+            };
+            let _ = window.request_ime_update(winit::window::ImeRequest::Enable(enable));
+        } else {
+            let _ = window.request_ime_update(winit::window::ImeRequest::Disable);
         }
     }
 
@@ -163,26 +180,30 @@ impl Shell {
         position: LogicalPosition<f64>,
         size: LogicalSize<f64>,
     ) {
-        if let Some(window) = self.winit_window() {
-            window.set_ime_cursor_area(position, size);
-        }
+        let Some(window) = self.winit_window() else {
+            return;
+        };
+        let _ = window.request_ime_update(winit::window::ImeRequest::Update(
+            winit::window::ImeRequestData::default()
+                .with_cursor_area(Position::Logical(position), Size::Logical(size)),
+        ));
     }
 
     pub(crate) fn set_cursor_icon(&self, icon: CursorIcon) {
         if let Some(window) = self.winit_window() {
-            window.set_cursor(icon);
+            window.set_cursor(icon.into());
         }
     }
 
     pub(crate) fn set_custom_cursor(&self, cursor: CustomCursor) {
         if let Some(window) = self.winit_window() {
-            window.set_cursor(cursor);
+            window.set_cursor(cursor.clone().into());
         }
     }
 
     pub(crate) fn apply_effect(&mut self, panel: bool, effect: WindowEffect) {
         match self {
-            Self::Winit(window) => platform::apply_effect(window, panel, effect),
+            Self::Winit(window) => platform::apply_effect(window.as_ref(), panel, effect),
             #[cfg(target_os = "linux")]
             Self::Layer(host) => match effect {
                 WindowEffect::Show => host.window.set_visible(true),

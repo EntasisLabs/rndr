@@ -44,6 +44,8 @@
 mod a11y;
 #[cfg(feature = "accesskit")]
 mod a11y_text;
+#[cfg(feature = "accesskit")]
+mod access_winit;
 /// Opt-in component-targeted offscreen rendering; no native window or socket.
 #[cfg(feature = "observe")]
 pub mod capture;
@@ -100,13 +102,14 @@ use rndr_core::{
 use rndr_paint::frame;
 use rndr_paint::{atlas_r8, ATLAS_H, ATLAS_W};
 use winit::application::ApplicationHandler;
+use winit::cursor::{CursorIcon, CustomCursor, CustomCursorSource};
 use winit::event::{
-    ElementState, Ime, MouseButton, MouseScrollDelta, StartCause, TouchPhase, WindowEvent,
+    ButtonSource, ElementState, Ime, MouseButton, MouseScrollDelta, PointerSource, StartCause,
+    TouchPhase, WindowEvent,
 };
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy};
 use winit::keyboard::{Key, KeyCode, NamedKey, PhysicalKey};
-use winit::platform::modifier_supplement::KeyEventExtModifierSupplement;
-use winit::window::{CursorIcon, CustomCursor, WindowId};
+use winit::window::WindowId;
 
 use gpu::Gpu;
 
@@ -133,23 +136,60 @@ enum RunnerEvent {
     #[cfg(feature = "tray")]
     Tray(rndr_core::TrayReport),
     #[cfg(feature = "accesskit")]
-    Access(accesskit_winit::Event),
+    Access(access_winit::Event),
 }
 
-#[cfg(feature = "accesskit")]
-impl From<accesskit_winit::Event> for RunnerEvent {
-    fn from(event: accesskit_winit::Event) -> Self {
-        Self::Access(event)
+/// Posts a [`RunnerEvent`] and wakes the loop.
+///
+/// winit 0.31's proxy only wakes. The event itself travels on this channel,
+/// and the wake is sent after the send so the loop observes it.
+struct RunnerBus {
+    tx: std::sync::mpsc::Sender<RunnerEvent>,
+    proxy: EventLoopProxy,
+}
+
+impl Clone for RunnerBus {
+    fn clone(&self) -> Self {
+        Self {
+            tx: self.tx.clone(),
+            proxy: self.proxy.clone(),
+        }
+    }
+}
+
+impl RunnerBus {
+    fn post(&self, event: RunnerEvent) {
+        let _ = self.tx.send(event);
+        self.proxy.wake_up();
+    }
+
+    fn wake(&self) {
+        self.post(RunnerEvent::Wake);
+    }
+
+    #[cfg(target_os = "macos")]
+    fn quit(&self) {
+        self.post(RunnerEvent::Quit);
+    }
+
+    #[cfg(feature = "tray")]
+    fn tray(&self, report: rndr_core::TrayReport) {
+        self.post(RunnerEvent::Tray(report));
+    }
+
+    #[cfg(feature = "accesskit")]
+    fn access(&self, event: access_winit::Event) {
+        self.post(RunnerEvent::Access(event));
     }
 }
 
 struct ProxyWake {
-    proxy: EventLoopProxy<RunnerEvent>,
+    bus: RunnerBus,
 }
 
 impl Wake for ProxyWake {
     fn wake(&self) {
-        let _ = self.proxy.send_event(RunnerEvent::Wake);
+        self.bus.wake();
     }
 }
 
@@ -300,14 +340,16 @@ fn run_apps(apps: Vec<App>) {
     if rndr_core::tray::starts_hidden(apps[0].world()) {
         rndr_core::tray::mark_hidden(apps[0].world_mut());
     }
-    let mut builder = EventLoop::<RunnerEvent>::with_user_event();
+    let mut builder = EventLoop::builder();
     platform::configure_event_loop(&mut builder, &config);
     let event_loop = builder.build().expect("event loop");
-    let proxy = event_loop.create_proxy();
-    install_tray_handlers(&proxy);
-    let wake: Arc<dyn Wake> = Arc::new(ProxyWake {
-        proxy: proxy.clone(),
-    });
+    let (tx, rx) = std::sync::mpsc::channel();
+    let bus = RunnerBus {
+        tx,
+        proxy: event_loop.create_proxy(),
+    };
+    install_tray_handlers(&bus);
+    let wake: Arc<dyn Wake> = Arc::new(ProxyWake { bus: bus.clone() });
     let hub = WindowHub::new();
     hub.set_wake(Arc::clone(&wake));
     let pool = rndr_core::thread_pool();
@@ -326,20 +368,21 @@ fn run_apps(apps: Vec<App>) {
             index == 0,
             desktop_id,
             pen.clone(),
-            proxy.clone(),
+            bus.clone(),
         ));
     }
     event_loop.set_control_flow(ControlFlow::Wait);
-    let mut session = Running {
+    let session = Running {
         slots,
         hub,
         wake,
-        proxy,
+        events: rx,
+        bus,
         pen,
         executor: pool,
         close: close::CloseDrain::default(),
     };
-    event_loop.run_app(&mut session).expect("run");
+    event_loop.run_app(session).expect("run");
     #[cfg(target_os = "macos")]
     native_quit::clear();
 }
@@ -357,25 +400,25 @@ fn install_text_engine(app: &mut App) {
     let _ = app;
 }
 
-fn install_tray_handlers(proxy: &EventLoopProxy<RunnerEvent>) {
+fn install_tray_handlers(bus: &RunnerBus) {
     #[cfg(feature = "tray")]
     {
-        let icon_proxy = proxy.clone();
+        let icon_bus = bus.clone();
         tray_icon::TrayIconEvent::set_event_handler(Some(move |event| {
             if let Some(report) = tray::map_icon_event(&event) {
-                let _ = icon_proxy.send_event(RunnerEvent::Tray(report));
+                icon_bus.tray(report);
             }
         }));
-        let menu_proxy = proxy.clone();
+        let menu_bus = bus.clone();
         tray_icon::menu::MenuEvent::set_event_handler(Some(move |event| {
             if let Some(report) = tray::map_menu_event(&event) {
-                let _ = menu_proxy.send_event(RunnerEvent::Tray(report));
+                menu_bus.tray(report);
             }
         }));
     }
     #[cfg(not(feature = "tray"))]
     {
-        let _ = proxy;
+        let _ = bus;
     }
 }
 
@@ -427,9 +470,10 @@ struct Handler {
     pen: pen::PenFeed,
     /// Cloned into the accessibility adapter when that feature is enabled.
     #[cfg_attr(not(feature = "accesskit"), allow(dead_code))]
-    proxy: EventLoopProxy<RunnerEvent>,
+    bus: RunnerBus,
+    drag: file_drop::DragTracker,
     #[cfg(feature = "accesskit")]
-    access: Option<accesskit_winit::Adapter>,
+    access: Option<access_winit::Adapter>,
     #[cfg(feature = "accesskit")]
     access_bridge: a11y::Bridge,
     #[cfg(feature = "tray")]
@@ -443,7 +487,7 @@ impl Handler {
         primary: bool,
         desktop_id: rndr_core::WindowId,
         pen: pen::PenFeed,
-        proxy: EventLoopProxy<RunnerEvent>,
+        bus: RunnerBus,
     ) -> Self {
         app.world_mut()
             .insert_resource(rndr_core::FileHoverSet::default());
@@ -483,7 +527,8 @@ impl Handler {
             close: close::CloseSlot::default(),
             started: Instant::now(),
             pen,
-            proxy,
+            bus,
+            drag: file_drop::DragTracker::default(),
             #[cfg(feature = "accesskit")]
             access: None,
             #[cfg(feature = "accesskit")]
@@ -501,7 +546,33 @@ fn map_pointer_button(button: MouseButton) -> PointerButton {
         MouseButton::Middle => PointerButton::Middle,
         MouseButton::Back => PointerButton::Other(8),
         MouseButton::Forward => PointerButton::Other(9),
-        MouseButton::Other(code) => PointerButton::Other(code),
+        MouseButton::Button6 => PointerButton::Other(6),
+        MouseButton::Button7 => PointerButton::Other(7),
+        MouseButton::Button8 => PointerButton::Other(8),
+        MouseButton::Button9 => PointerButton::Other(9),
+        MouseButton::Button10 => PointerButton::Other(10),
+        MouseButton::Button11 => PointerButton::Other(11),
+        MouseButton::Button12 => PointerButton::Other(12),
+        MouseButton::Button13 => PointerButton::Other(13),
+        MouseButton::Button14 => PointerButton::Other(14),
+        MouseButton::Button15 => PointerButton::Other(15),
+        MouseButton::Button16 => PointerButton::Other(16),
+        MouseButton::Button17 => PointerButton::Other(17),
+        MouseButton::Button18 => PointerButton::Other(18),
+        MouseButton::Button19 => PointerButton::Other(19),
+        MouseButton::Button20 => PointerButton::Other(20),
+        MouseButton::Button21 => PointerButton::Other(21),
+        MouseButton::Button22 => PointerButton::Other(22),
+        MouseButton::Button23 => PointerButton::Other(23),
+        MouseButton::Button24 => PointerButton::Other(24),
+        MouseButton::Button25 => PointerButton::Other(25),
+        MouseButton::Button26 => PointerButton::Other(26),
+        MouseButton::Button27 => PointerButton::Other(27),
+        MouseButton::Button28 => PointerButton::Other(28),
+        MouseButton::Button29 => PointerButton::Other(29),
+        MouseButton::Button30 => PointerButton::Other(30),
+        MouseButton::Button31 => PointerButton::Other(31),
+        MouseButton::Button32 => PointerButton::Other(32),
     }
 }
 
@@ -672,7 +743,7 @@ impl Handler {
     /// Write the window into [`Viewport`], step the world, paint, and present.
     /// Returns whether the surface presented, so input edges survive a lost frame.
     /// Hiding does not drop the surface created on resume.
-    fn redraw_frame(&mut self, event_loop: &ActiveEventLoop) -> bool {
+    fn redraw_frame(&mut self, event_loop: &dyn ActiveEventLoop) -> bool {
         let Some((raw_width, raw_height, scale)) = self.gpu.as_ref().map(|gpu| {
             let size = gpu.shell().inner_size();
             (
@@ -828,7 +899,7 @@ impl Handler {
     fn process_access(&mut self, event: &WindowEvent) {
         let window = self.gpu.as_ref().and_then(|gpu| {
             gpu.winit_window()
-                .map(|window| window as *const winit::window::Window)
+                .map(|window| window as *const dyn winit::window::Window)
         });
         let Some(access) = self.access.as_mut() else {
             return;
@@ -842,8 +913,8 @@ impl Handler {
     }
 
     #[cfg(feature = "accesskit")]
-    fn on_access(&mut self, event: &accesskit_winit::Event) {
-        use accesskit_winit::WindowEvent as AccessEvent;
+    fn on_access(&mut self, event: &access_winit::Event) {
+        use access_winit::WindowEvent as AccessEvent;
         match &event.window_event {
             AccessEvent::InitialTreeRequested => self.publish_access(),
             AccessEvent::ActionRequested(request) => {
@@ -856,7 +927,7 @@ impl Handler {
         }
     }
 
-    fn apply_cursor(&mut self, event_loop: &ActiveEventLoop) {
+    fn apply_cursor(&mut self, event_loop: &dyn ActiveEventLoop) {
         let Some(gpu) = self.gpu.as_ref() else {
             return;
         };
@@ -873,7 +944,7 @@ impl Handler {
         }
     }
 
-    fn apply_image_cursor(&mut self, event_loop: &ActiveEventLoop) {
+    fn apply_image_cursor(&mut self, event_loop: &dyn ActiveEventLoop) {
         let Some(image) = self.app.world().resource::<CursorImage>().cloned() else {
             if let Some(gpu) = self.gpu.as_ref() {
                 gpu.shell().set_cursor_icon(CursorIcon::Default);
@@ -888,14 +959,16 @@ impl Handler {
         image.rgba.hash(&mut hasher);
         let hash = hasher.finish();
         if self.cursor_cache.as_ref().map(|cached| cached.0) != Some(hash) {
-            if let Ok(source) = CustomCursor::from_rgba(
+            if let Ok(source) = CustomCursorSource::from_rgba(
                 image.rgba.clone(),
                 image.width,
                 image.height,
                 image.hotspot_x,
                 image.hotspot_y,
             ) {
-                let cursor = event_loop.create_custom_cursor(source);
+                let Ok(cursor) = event_loop.create_custom_cursor(source) else {
+                    return;
+                };
                 self.cursor_cache = Some((hash, cursor));
             }
         }
@@ -1043,7 +1116,7 @@ fn map_key_event(
     synthetic: bool,
     order: u64,
 ) -> Option<KeyEvent> {
-    let logical = map_logical(&event.key_without_modifiers());
+    let logical = map_logical(&event.key_without_modifiers);
     let code = map_physical(&event.physical_key);
     let text = if released || synthetic {
         None
@@ -1084,6 +1157,7 @@ fn map_logical(key: &Key) -> LogicalKey {
         Key::Named(named) => map_named(named)
             .map(LogicalKey::Named)
             .unwrap_or(LogicalKey::Unidentified),
+        Key::Character(text) if text == " " => LogicalKey::Named(CoreNamed::Space),
         Key::Character(text) => text
             .chars()
             .next()
@@ -1109,7 +1183,6 @@ fn map_named(key: &NamedKey) -> Option<CoreNamed> {
         NamedKey::End => CoreNamed::End,
         NamedKey::PageUp => CoreNamed::PageUp,
         NamedKey::PageDown => CoreNamed::PageDown,
-        NamedKey::Space => CoreNamed::Space,
         NamedKey::F1 => CoreNamed::F(1),
         NamedKey::F2 => CoreNamed::F(2),
         NamedKey::F3 => CoreNamed::F(3),
@@ -1242,7 +1315,7 @@ impl Handler {
         }
     }
 
-    fn sync_flow(&self, event_loop: &ActiveEventLoop) {
+    fn sync_flow(&self, event_loop: &dyn ActiveEventLoop) {
         let hidden = !rndr_core::window::is_visible(self.app.world());
         // A hidden window does not deliver redraws. Poll only while a tray
         // report or a task is still queued after the hidden pump; idle goes
@@ -1260,7 +1333,7 @@ impl Handler {
 
     /// Step the world without presenting. Tray clicks and timers still run,
     /// and a quit item exits, while the window is hidden.
-    fn run_hidden_frame(&mut self, _event_loop: &ActiveEventLoop) {
+    fn run_hidden_frame(&mut self, _event_loop: &dyn ActiveEventLoop) {
         deliver(self.app.world_mut(), self.desktop_id);
         for _ in 0..8 {
             self.app.update();
@@ -1361,7 +1434,7 @@ impl Handler {
     #[allow(clippy::too_many_arguments)]
     fn spawn_device(
         &mut self,
-        event_loop: &ActiveEventLoop,
+        event_loop: &dyn ActiveEventLoop,
         shell: shell::Shell,
         atlas_w: u32,
         atlas_h: u32,
@@ -1375,7 +1448,7 @@ impl Handler {
         let size = shell.inner_size();
         let transparent = self.config.transparent;
         let (tx, rx) = mpsc::sync_channel(1);
-        let proxy = self.proxy.clone();
+        let bus = self.bus.clone();
         std::thread::Builder::new()
             .name("rndr-gpu".to_string())
             .spawn(move || {
@@ -1398,7 +1471,7 @@ impl Handler {
                     observe,
                 ));
                 let _ = tx.send(parts);
-                let _ = proxy.send_event(RunnerEvent::Wake);
+                bus.wake();
             })
             .expect("gpu thread");
         #[cfg(not(feature = "observe"))]
@@ -1409,12 +1482,12 @@ impl Handler {
 
     /// Open a layer-shell panel on Linux Wayland, or a winit window otherwise.
     /// A missing protocol or display falls back to winit without an error.
-    fn open_shell(&mut self, event_loop: &ActiveEventLoop, show: bool) -> shell::Shell {
+    fn open_shell(&mut self, event_loop: &dyn ActiveEventLoop, show: bool) -> shell::Shell {
         #[cfg(target_os = "linux")]
         if self.config.kind == WindowKind::Panel && platform::session_is_wayland(event_loop) {
-            let proxy = self.proxy.clone();
+            let bus = self.bus.clone();
             let wake: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
-                let _ = proxy.send_event(RunnerEvent::Wake);
+                bus.wake();
             });
             if let Ok(layer) = wayland_layer::LayerWindow::open(&self.config, show, false) {
                 if show {
@@ -1431,13 +1504,14 @@ impl Handler {
             // use this winit window.
             self.show_after_present = true;
         }
-        let window = Arc::new(event_loop.create_window(attrs).expect("window"));
+        let window: Arc<dyn winit::window::Window> =
+            Arc::from(event_loop.create_window(attrs).expect("window"));
         self.winit_id = Some(window.id());
-        platform::finish_create(&window, event_loop, &self.config);
+        platform::finish_create(window.as_ref(), event_loop, &self.config);
         shell::Shell::winit(window)
     }
 
-    fn on_redraw(&mut self, event_loop: &ActiveEventLoop) {
+    fn on_redraw(&mut self, event_loop: &dyn ActiveEventLoop) {
         if self.redraw_frame(event_loop) {
             if let Some(input) = self.app.world_mut().resource_mut::<Input>() {
                 input.pointer.pressed = false;
@@ -1452,7 +1526,7 @@ impl Handler {
         self.apply_tray();
     }
 
-    fn pump_shell(&mut self, event_loop: &ActiveEventLoop) -> bool {
+    fn pump_shell(&mut self, event_loop: &dyn ActiveEventLoop) -> bool {
         if !self.has_layer() {
             return false;
         }
@@ -1570,42 +1644,119 @@ impl Handler {
     }
 }
 
-impl ApplicationHandler<RunnerEvent> for Handler {
-    fn new_events(&mut self, _event_loop: &ActiveEventLoop, cause: StartCause) {
+impl Handler {
+    fn note_pointer(&mut self, position: winit::dpi::PhysicalPosition<f64>, source: PointerSource) {
+        match source {
+            PointerSource::Mouse | PointerSource::Unknown => {
+                self.cursor_px = [position.x as f32, position.y as f32];
+                self.accepts_pen = true;
+                self.apply_mouse(ContactPhase::Move);
+                let watch = self
+                    .app
+                    .world()
+                    .resource::<MotionWatch>()
+                    .is_some_and(|watch| watch.active);
+                if self.pointer.down || watch {
+                    self.request_redraw();
+                }
+            }
+            PointerSource::Touch { finger_id, force } => {
+                self.apply_touch(
+                    finger_id.into_raw() as u64,
+                    position,
+                    ContactPhase::Move,
+                    force.as_ref(),
+                );
+                self.request_redraw();
+            }
+            PointerSource::TabletTool { .. } | _ => {}
+        }
+    }
+
+    fn apply_touch(
+        &mut self,
+        id: u64,
+        position: winit::dpi::PhysicalPosition<f64>,
+        phase: ContactPhase,
+        force: Option<&winit::event::Force>,
+    ) {
+        self.accepts_pen = false;
+        let scale = self.scale();
+        let position = [position.x as f32 / scale, position.y as f32 / scale];
+        let mut buttons = PointerButtons::new();
+        if !matches!(phase, ContactPhase::End | ContactPhase::Cancel) {
+            buttons.set(PointerButton::Left, true);
+        }
+        let pressure = force.and_then(|force| {
+            let normalized = force.normalized(None);
+            normalized.is_finite().then_some(normalized as f32)
+        });
+        self.pointers.apply(ContactUpdate {
+            id: touch_id(id),
+            kind: PointerKind::Touch,
+            position,
+            pressure,
+            tilt: None,
+            twist: None,
+            buttons,
+            button: PointerButton::Left,
+            phase,
+            time: self.started.elapsed(),
+        });
+    }
+
+    fn drag_window_is_wayland(&self) -> bool {
+        let Some(window) = self.gpu.as_ref().and_then(|gpu| gpu.shell().winit_window()) else {
+            return self.platform == rndr_core::Platform::Wayland;
+        };
+        matches!(
+            winit::raw_window_handle::HasWindowHandle::window_handle(window)
+                .ok()
+                .map(|handle| handle.as_raw()),
+            Some(winit::raw_window_handle::RawWindowHandle::Wayland(_))
+        )
+    }
+
+    fn drag_logical(
+        &self,
+        position: Option<winit::dpi::PhysicalPosition<f64>>,
+    ) -> Option<[f32; 2]> {
+        let position = position?;
+        file_drop::logical_point(
+            file_drop::DragPoint::ClientPhysical([position.x as f32, position.y as f32]),
+            f64::from(self.scale()),
+        )
+    }
+
+    fn on_drag(&mut self, event_loop: &dyn ActiveEventLoop, notice: file_drop::DragNotice) {
+        if self.drag_window_is_wayland() {
+            return;
+        }
+        if let file_drop::DragNotice::Entered { id, .. } = notice {
+            let transfer = winit::data_transfer::DataTransferId::from_raw(id);
+            let _ =
+                event_loop.set_valid_dnd_actions(transfer, &[winit::event_loop::DndAction::Copy]);
+            let _ =
+                event_loop.fetch_data_transfer(transfer, &winit::data_transfer::TypeHint::UriList);
+        }
+        let produced = self.drag.apply(notice);
+        if !produced.is_empty() {
+            self.queued_files.extend(produced);
+            self.request_redraw();
+        }
+    }
+}
+
+impl ApplicationHandler for Handler {
+    fn new_events(&mut self, _event_loop: &dyn ActiveEventLoop, cause: StartCause) {
         if matches!(cause, StartCause::ResumeTimeReached { .. }) {
             self.request_redraw();
         }
     }
 
-    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: RunnerEvent) {
-        self.install_gpu_if_ready();
-        let drew = self.pump_shell(event_loop);
-        #[cfg(feature = "tray")]
-        if let RunnerEvent::Tray(report) = event {
-            rndr_core::tray::push_report(self.app.world_mut(), report);
-        }
-        #[cfg(not(feature = "tray"))]
-        let _ = event;
-        if self.has_layer() {
-            if rndr_core::window::is_visible(self.app.world()) {
-                if !drew {
-                    self.on_redraw(event_loop);
-                }
-            } else {
-                self.run_hidden_frame(event_loop);
-            }
-            return;
-        }
-        if rndr_core::window::is_visible(self.app.world()) {
-            self.request_redraw();
-        } else {
-            // A hidden window does not get redraws. A hotkey, a finished task,
-            // or a tray click still has to step the world on this wake.
-            self.run_hidden_frame(event_loop);
-        }
-    }
+    fn can_create_surfaces(&mut self, _event_loop: &dyn ActiveEventLoop) {}
 
-    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+    fn about_to_wait(&mut self, event_loop: &dyn ActiveEventLoop) {
         self.install_gpu_if_ready();
         self.pump_shell(event_loop);
         let hidden = !rndr_core::window::is_visible(self.app.world());
@@ -1615,7 +1766,7 @@ impl ApplicationHandler<RunnerEvent> for Handler {
         self.sync_flow(event_loop);
     }
 
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+    fn resumed(&mut self, event_loop: &dyn ActiveEventLoop) {
         if self.gpu.is_some() || self.pending_rx.is_some() {
             // A later resume must keep the surface. Show/hide never drops `Gpu`,
             // and a hidden start does not start a second device.
@@ -1626,10 +1777,11 @@ impl ApplicationHandler<RunnerEvent> for Handler {
         let shell = self.open_shell(event_loop, show);
         #[cfg(feature = "accesskit")]
         if let Some(window) = shell.winit_arc() {
-            self.access = Some(accesskit_winit::Adapter::with_event_loop_proxy(
+            let bus = self.bus.clone();
+            self.access = Some(access_winit::Adapter::new(
                 event_loop,
-                &window,
-                self.proxy.clone(),
+                window.as_ref(),
+                move |event| bus.access(event),
             ));
         }
         ensure_text_engine(self.app.world_mut());
@@ -1721,7 +1873,7 @@ impl ApplicationHandler<RunnerEvent> for Handler {
 
     fn window_event(
         &mut self,
-        event_loop: &ActiveEventLoop,
+        event_loop: &dyn ActiveEventLoop,
         _window_id: WindowId,
         event: WindowEvent,
     ) {
@@ -1756,7 +1908,7 @@ impl ApplicationHandler<RunnerEvent> for Handler {
                 self.shift = state.shift_key();
                 self.ctrl = state.control_key();
                 self.alt = state.alt_key();
-                self.super_key = state.super_key();
+                self.super_key = state.meta_key();
             }
             WindowEvent::Ime(Ime::Preedit(text, cursor)) => {
                 self.ime_events.push(ImeEvent::Preedit(text, cursor));
@@ -1794,77 +1946,69 @@ impl ApplicationHandler<RunnerEvent> for Handler {
                     self.request_redraw();
                 }
             }
-            WindowEvent::Resized(size) => {
+            WindowEvent::SurfaceResized(size) => {
                 if let Some(gpu) = &mut self.gpu {
                     gpu.resize(size);
                     gpu.shell().request_redraw();
                 }
             }
-            WindowEvent::CursorMoved { position, .. } => {
-                self.cursor_px = [position.x as f32, position.y as f32];
-                self.accepts_pen = true;
-                self.apply_mouse(ContactPhase::Move);
-                let watch = self
-                    .app
-                    .world()
-                    .resource::<MotionWatch>()
-                    .is_some_and(|watch| watch.active);
-                if self.pointer.down || watch {
-                    self.request_redraw();
-                }
+            WindowEvent::PointerMoved {
+                position, source, ..
+            } => {
+                self.note_pointer(position, source);
             }
-            WindowEvent::MouseInput { state, button, .. } => {
-                self.pointer.id = MOUSE_ID;
-                self.pointer.button = map_pointer_button(button);
-                self.accepts_pen = true;
-                match state {
-                    ElementState::Pressed => {
-                        self.press_px = Some(self.cursor_px);
-                        self.pointer.pressed = true;
-                        self.pointer.down = true;
-                        self.apply_mouse(ContactPhase::Start);
+            WindowEvent::PointerButton {
+                state,
+                position,
+                button,
+                ..
+            } => {
+                self.cursor_px = [position.x as f32, position.y as f32];
+                match button {
+                    ButtonSource::Mouse(button) => {
+                        self.pointer.id = MOUSE_ID;
+                        self.pointer.button = map_pointer_button(button);
+                        self.accepts_pen = true;
+                        match state {
+                            ElementState::Pressed => {
+                                self.press_px = Some(self.cursor_px);
+                                self.pointer.pressed = true;
+                                self.pointer.down = true;
+                                self.apply_mouse(ContactPhase::Start);
+                            }
+                            ElementState::Released => {
+                                self.pointer.down = false;
+                                self.pointer.released = true;
+                                self.apply_mouse(ContactPhase::End);
+                            }
+                        }
                     }
-                    ElementState::Released => {
-                        self.pointer.down = false;
-                        self.pointer.released = true;
-                        self.apply_mouse(ContactPhase::End);
+                    ButtonSource::Touch { finger_id, force } => {
+                        let phase = match state {
+                            ElementState::Pressed => ContactPhase::Start,
+                            ElementState::Released => ContactPhase::End,
+                        };
+                        self.apply_touch(
+                            finger_id.into_raw() as u64,
+                            position,
+                            phase,
+                            force.as_ref(),
+                        );
                     }
+                    ButtonSource::Unknown(_) | ButtonSource::TabletTool { .. } | _ => {}
                 }
                 self.request_redraw();
             }
-            WindowEvent::Touch(touch) => {
-                self.accepts_pen = false;
-                let scale = self.scale();
-                let position = [
-                    touch.location.x as f32 / scale,
-                    touch.location.y as f32 / scale,
-                ];
-                let phase = match touch.phase {
-                    TouchPhase::Started => ContactPhase::Start,
-                    TouchPhase::Moved => ContactPhase::Move,
-                    TouchPhase::Ended => ContactPhase::End,
-                    TouchPhase::Cancelled => ContactPhase::Cancel,
-                };
-                let mut buttons = PointerButtons::new();
-                if !matches!(phase, ContactPhase::End | ContactPhase::Cancel) {
-                    buttons.set(PointerButton::Left, true);
-                }
-                let pressure = touch.force.as_ref().and_then(|force| {
-                    let normalized = force.normalized();
-                    normalized.is_finite().then_some(normalized as f32)
-                });
-                self.pointers.apply(ContactUpdate {
-                    id: touch_id(touch.id),
-                    kind: PointerKind::Touch,
-                    position,
-                    pressure,
-                    tilt: None,
-                    twist: None,
-                    buttons,
-                    button: PointerButton::Left,
-                    phase,
-                    time: self.started.elapsed(),
-                });
+            WindowEvent::PointerLeft {
+                position,
+                kind: winit::event::PointerKind::Touch(finger),
+                ..
+            } => {
+                let point = position.unwrap_or(winit::dpi::PhysicalPosition::new(
+                    f64::from(self.cursor_px[0]),
+                    f64::from(self.cursor_px[1]),
+                ));
+                self.apply_touch(finger.into_raw() as u64, point, ContactPhase::Cancel, None);
                 self.request_redraw();
             }
             WindowEvent::PinchGesture { delta, phase, .. } => {
@@ -1877,28 +2021,51 @@ impl ApplicationHandler<RunnerEvent> for Handler {
                     .push(Gesture::rotate(gesture_phase(phase), delta));
                 self.request_redraw();
             }
-            WindowEvent::DroppedFile(path) => {
-                // winit 0.30.13 carries a path and no point. The scale is
-                // passed so a later callback sample can be converted; it does
-                // not invent a point. See `file_drop::winit_path`.
-                let scale = f64::from(self.scale());
-                self.queued_files
-                    .push(file_drop::NativeFile::Drop(file_drop::winit_path(
-                        path, scale,
-                    )));
-                self.request_redraw();
+            WindowEvent::DragEntered { id, position } => {
+                self.on_drag(
+                    event_loop,
+                    file_drop::DragNotice::Entered {
+                        id: id.into_raw(),
+                        position: self.drag_logical(position),
+                    },
+                );
             }
-            WindowEvent::HoveredFile(path) => {
-                let scale = f64::from(self.scale());
-                self.queued_files
-                    .push(file_drop::NativeFile::Hover(file_drop::winit_path(
-                        path, scale,
-                    )));
-                self.request_redraw();
+            WindowEvent::DragPosition { id, position, .. } => {
+                self.on_drag(
+                    event_loop,
+                    file_drop::DragNotice::Moved {
+                        id: id.into_raw(),
+                        position: self.drag_logical(Some(position)),
+                    },
+                );
             }
-            WindowEvent::HoveredFileCancelled => {
-                self.queued_files.push(file_drop::NativeFile::Cancel);
-                self.request_redraw();
+            WindowEvent::DataTransferReceived { id, value, .. } => {
+                let paths = value
+                    .try_as_uris()
+                    .ok()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|uri| file_drop::path_from_file_uri(&uri))
+                    .collect();
+                self.on_drag(
+                    event_loop,
+                    file_drop::DragNotice::Paths {
+                        id: id.into_raw(),
+                        paths,
+                    },
+                );
+            }
+            WindowEvent::DragDropped { id, .. } => {
+                self.on_drag(
+                    event_loop,
+                    file_drop::DragNotice::Dropped { id: id.into_raw() },
+                );
+            }
+            WindowEvent::DragLeft { id } => {
+                self.on_drag(
+                    event_loop,
+                    file_drop::DragNotice::Left { id: id.into_raw() },
+                );
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 match delta {
@@ -1911,6 +2078,7 @@ impl ApplicationHandler<RunnerEvent> for Handler {
                         self.scroll[0] += pos.x as f32 / scale;
                         self.scroll[1] += pos.y as f32 / scale;
                     }
+                    _ => {}
                 }
                 if let Some(gpu) = &self.gpu {
                     gpu.shell().request_redraw();
@@ -1926,14 +2094,15 @@ struct Running {
     slots: Vec<Handler>,
     hub: WindowHub,
     wake: Arc<dyn Wake>,
-    proxy: EventLoopProxy<RunnerEvent>,
+    events: std::sync::mpsc::Receiver<RunnerEvent>,
+    bus: RunnerBus,
     pen: pen::PenFeed,
     executor: Arc<dyn rndr_core::Executor>,
     close: close::CloseDrain,
 }
 
 impl Running {
-    fn reconcile_close(&mut self, event_loop: &ActiveEventLoop) {
+    fn reconcile_close(&mut self, event_loop: &dyn ActiveEventLoop) {
         // Updates (including hidden frames) and build closures may queue opens.
         // Admit one batch before checking guards. Recursive opens stay queued
         // and prevent commitment; their wake schedules another bounded pass.
@@ -1971,7 +2140,7 @@ impl Running {
         }
     }
 
-    fn spawn_windows(&mut self, event_loop: &ActiveEventLoop) {
+    fn spawn_windows(&mut self, event_loop: &dyn ActiveEventLoop) {
         self.pen.install();
         for open in self.hub.take_opens() {
             let mut app = App::new();
@@ -1990,7 +2159,7 @@ impl Running {
                 false,
                 desktop_id,
                 self.pen.clone(),
-                self.proxy.clone(),
+                self.bus.clone(),
             ));
         }
         #[cfg(target_os = "macos")]
@@ -1998,7 +2167,7 @@ impl Running {
             self.slots
                 .iter()
                 .any(|slot| slot.app.world().has_resource::<rndr_core::CloseGuard>()),
-            &self.proxy,
+            &self.bus,
         );
         for slot in &mut self.slots {
             if slot.gpu.is_none() && !slot.device_pending() {
@@ -2007,7 +2176,7 @@ impl Running {
         }
     }
 
-    fn sync_flow(&self, event_loop: &ActiveEventLoop) {
+    fn sync_flow(&self, event_loop: &dyn ActiveEventLoop) {
         let mut deadline = None;
         let mut poll = false;
         for slot in &self.slots {
@@ -2040,8 +2209,8 @@ impl Running {
     }
 }
 
-impl ApplicationHandler<RunnerEvent> for Running {
-    fn new_events(&mut self, _event_loop: &ActiveEventLoop, cause: StartCause) {
+impl ApplicationHandler for Running {
+    fn new_events(&mut self, _event_loop: &dyn ActiveEventLoop, cause: StartCause) {
         if matches!(cause, StartCause::ResumeTimeReached { .. }) {
             for slot in &self.slots {
                 slot.request_redraw();
@@ -2049,65 +2218,74 @@ impl ApplicationHandler<RunnerEvent> for Running {
         }
     }
 
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+    fn resumed(&mut self, event_loop: &dyn ActiveEventLoop) {
         if event_loop.exiting() {
             return;
         }
         self.spawn_windows(event_loop);
     }
 
-    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: RunnerEvent) {
+    fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
+        self.resumed(event_loop);
+    }
+
+    fn proxy_wake_up(&mut self, event_loop: &dyn ActiveEventLoop) {
         if event_loop.exiting() {
             return;
         }
-        #[cfg(target_os = "macos")]
-        if matches!(event, RunnerEvent::Quit) {
-            if let Some(slot) = self.slots.first_mut() {
-                slot.app
-                    .world_mut()
-                    .resource_mut::<Input>()
-                    .expect("input")
-                    .quit = true;
-            }
-        }
-        #[cfg(not(any(feature = "tray", feature = "accesskit")))]
-        let _ = &event;
-        #[cfg(feature = "accesskit")]
-        if let RunnerEvent::Access(access) = &event {
-            let id = access.window_id;
-            if let Some(slot) = self.slots.iter_mut().find(|slot| slot.winit_id == Some(id)) {
-                slot.on_access(access);
-            }
-        }
-        #[cfg(feature = "tray")]
-        if let RunnerEvent::Tray(report) = event {
-            if let Some(slot) = self.slots.iter_mut().find(|slot| slot.primary) {
-                rndr_core::tray::push_report(slot.app.world_mut(), report);
-            }
-        }
-        self.spawn_windows(event_loop);
-        for slot in &mut self.slots {
-            slot.install_gpu_if_ready();
-            let drew = slot.pump_shell(event_loop);
-            if slot.has_layer() {
-                if rndr_core::window::is_visible(slot.app.world()) {
-                    if !drew {
-                        slot.on_redraw(event_loop);
+        let pending: Vec<RunnerEvent> = self.events.try_iter().collect();
+        for event in pending {
+            match event {
+                #[cfg(target_os = "macos")]
+                RunnerEvent::Quit => {
+                    if let Some(slot) = self.slots.first_mut() {
+                        slot.app
+                            .world_mut()
+                            .resource_mut::<Input>()
+                            .expect("input")
+                            .quit = true;
                     }
+                }
+                #[cfg(feature = "accesskit")]
+                RunnerEvent::Access(access) => {
+                    let id = access.window_id;
+                    if let Some(slot) = self.slots.iter_mut().find(|slot| slot.winit_id == Some(id))
+                    {
+                        slot.on_access(&access);
+                    }
+                }
+                #[cfg(feature = "tray")]
+                RunnerEvent::Tray(report) => {
+                    if let Some(slot) = self.slots.iter_mut().find(|slot| slot.primary) {
+                        rndr_core::tray::push_report(slot.app.world_mut(), report);
+                    }
+                }
+                RunnerEvent::Wake => {}
+            }
+            self.spawn_windows(event_loop);
+            for slot in &mut self.slots {
+                slot.install_gpu_if_ready();
+                let drew = slot.pump_shell(event_loop);
+                if slot.has_layer() {
+                    if rndr_core::window::is_visible(slot.app.world()) {
+                        if !drew {
+                            slot.on_redraw(event_loop);
+                        }
+                    } else if slot.primary || slot.app.wants_frame() {
+                        slot.run_hidden_frame(event_loop);
+                    }
+                    continue;
+                }
+                if rndr_core::window::is_visible(slot.app.world()) {
+                    slot.request_redraw();
                 } else if slot.primary || slot.app.wants_frame() {
                     slot.run_hidden_frame(event_loop);
                 }
-                continue;
-            }
-            if rndr_core::window::is_visible(slot.app.world()) {
-                slot.request_redraw();
-            } else if slot.primary || slot.app.wants_frame() {
-                slot.run_hidden_frame(event_loop);
             }
         }
     }
 
-    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+    fn about_to_wait(&mut self, event_loop: &dyn ActiveEventLoop) {
         // winit can finish dispatching a batch after exit() is called. Once
         // committed, no later callback may update a Ready world or build opens.
         if event_loop.exiting() {
@@ -2129,7 +2307,7 @@ impl ApplicationHandler<RunnerEvent> for Running {
 
     fn window_event(
         &mut self,
-        event_loop: &ActiveEventLoop,
+        event_loop: &dyn ActiveEventLoop,
         window_id: WindowId,
         event: WindowEvent,
     ) {

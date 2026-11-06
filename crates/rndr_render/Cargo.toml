@@ -41,7 +41,7 @@ tray = ["dep:tray-icon"]
 # path and skips the fontconfig link.
 parley = ["dep:parley", "dep:swash", "dep:etagere"]
 # Accessibility tree on macOS, Windows, and Linux. `--no-default-features` skips it.
-accesskit = ["dep:accesskit", "dep:accesskit_winit"]
+accesskit = ["dep:accesskit", "dep:accesskit_unix", "dep:accesskit_macos", "dep:accesskit_windows"]
 # Native open and save dialogs. Off by default.
 dialog = ["dep:rfd"]
 
@@ -73,15 +73,16 @@ jpeg-decoder = "0.3"
 image-webp = "0.2"
 arboard = { version = "3", default-features = false, features = ["wayland-data-control", "image-data"] }
 unicode-segmentation = "1.13"
-accesskit = { version = "0.25", optional = true }
-accesskit_winit = { version = "0.34", optional = true }
+accesskit = { version = "0.25.2", optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
+accesskit_macos = { version = "0.27.2", optional = true }
 objc2 = "0.5.2"
 objc2-app-kit = { version = "0.2.2", features = ["NSWindow", "NSView", "NSResponder", "NSEvent", "block2"] }
 block2 = "0.5.1"
 
 [target.'cfg(target_os = "linux")'.dependencies]
+accesskit_unix = { version = "0.24.1", optional = true, default-features = false, features = ["async-io"] }
 rfd = { version = "0.15", optional = true, default-features = false, features = ["xdg-portal", "tokio"] }
 wayland-client = { version = "0.31", features = ["system"] }
 wayland-protocols-wlr = { version = "0.3", features = ["client"] }
@@ -89,6 +90,7 @@ xkbcommon = "0.8"
 libc = "0.2"
 
 [target.'cfg(windows)'.dependencies]
+accesskit_windows = { version = "0.35.2", optional = true }
 windows-sys = { version = "0.59", features = [
     "Win32_Foundation",
     "Win32_UI_Input_KeyboardAndMouse",

@@ -3,13 +3,11 @@
 //! do not replace its launch, input, or window lifecycle implementation.
 use std::sync::{Mutex, OnceLock};
 
+use crate::RunnerBus;
 use objc2::runtime::{AnyClass, AnyObject, Bool, Imp, Sel};
 use objc2::{class, msg_send, sel};
-use winit::event_loop::EventLoopProxy;
 
-use crate::RunnerEvent;
-
-static QUIT: Mutex<Option<EventLoopProxy<RunnerEvent>>> = Mutex::new(None);
+static QUIT: Mutex<Option<RunnerBus>> = Mutex::new(None);
 static INSTALLED: OnceLock<()> = OnceLock::new();
 
 #[link(name = "objc")]
@@ -27,14 +25,14 @@ extern "C" fn should_terminate(_delegate: &AnyObject, _sel: Sel, _app: &AnyObjec
     // run reentrantly inside AppKit's termination decision.
     let quit = QUIT.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(proxy) = &*quit {
-        let _ = proxy.send_event(RunnerEvent::Quit);
+        proxy.quit();
         0
     } else {
         1
     }
 }
 
-pub(crate) fn configure(protected: bool, proxy: &EventLoopProxy<RunnerEvent>) {
+pub(crate) fn configure(protected: bool, proxy: &RunnerBus) {
     if protected {
         INSTALLED.get_or_init(|| {
             // Called on the event-loop/main thread after winit installed its delegate.

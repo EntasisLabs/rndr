@@ -43,5 +43,8 @@ rndr_term = { path = "crates/rndr_term", version = "0.4.0" }
 rndr_ui = { path = "crates/rndr_ui", version = "0.4.0" }
 rndr_app = { path = "crates/rndr_app", version = "0.4.0" }
 wgpu = "30"
-winit = "0.30"
+# 0.31.0-beta.4 is the newest published winit with client drag coordinates.
+# Stable remains 0.30.13, which reports paths only. accesskit_winit 0.34
+# is still built on 0.30, so the accesskit feature uses a local adapter.
+winit = "=0.31.0-beta.4"
 pollster = "0.4"

@@ -90,7 +90,7 @@ fn the_binding_matrix_is_separate_from_the_native_ledger() {
     for platform in [Platform::Mac, Platform::Windows, Platform::X11] {
         let support = file_drop::platform_support(platform);
         assert_eq!(support.paths, PathDelivery::Forwarded);
-        assert_eq!(support.position, PositionDelivery::Unavailable);
+        assert_eq!(support.position, PositionDelivery::Mapped);
         assert_eq!(
             file_drop::native_session(platform),
             NativeSession::Unverified

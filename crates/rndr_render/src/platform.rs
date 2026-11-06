@@ -16,7 +16,7 @@ use winit::dpi::{LogicalPosition, LogicalSize, PhysicalPosition};
 use winit::event_loop::{ActiveEventLoop, EventLoopBuilder};
 use winit::window::{Window, WindowAttributes, WindowLevel};
 
-pub(crate) fn configure_event_loop<T>(builder: &mut EventLoopBuilder<T>, config: &WindowConfig) {
+pub(crate) fn configure_event_loop(builder: &mut EventLoopBuilder, config: &WindowConfig) {
     #[cfg(target_os = "macos")]
     {
         use winit::platform::macos::{ActivationPolicy, EventLoopBuilderExtMacOS};
@@ -34,9 +34,9 @@ pub(crate) fn configure_event_loop<T>(builder: &mut EventLoopBuilder<T>, config:
 }
 
 pub(crate) fn attributes(config: &WindowConfig) -> WindowAttributes {
-    let mut attrs = Window::default_attributes()
+    let mut attrs = WindowAttributes::default()
         .with_title(config.title.clone())
-        .with_inner_size(LogicalSize::new(
+        .with_surface_size(LogicalSize::new(
             f64::from(config.size.width),
             f64::from(config.size.height),
         ))
@@ -51,7 +51,7 @@ pub(crate) fn attributes(config: &WindowConfig) -> WindowAttributes {
             },
         );
     if let Some(min) = config.min_size {
-        attrs = attrs.with_min_inner_size(LogicalSize::new(
+        attrs = attrs.with_min_surface_size(LogicalSize::new(
             f64::from(min.width),
             f64::from(min.height),
         ));
@@ -62,8 +62,10 @@ pub(crate) fn attributes(config: &WindowConfig) -> WindowAttributes {
     }
     #[cfg(target_os = "windows")]
     if config.skip_taskbar {
-        use winit::platform::windows::WindowAttributesExtWindows;
-        attrs = attrs.with_skip_taskbar(true);
+        use winit::platform::windows::WindowAttributesWindows;
+        attrs = attrs.with_platform_attributes(Box::new(
+            WindowAttributesWindows::default().with_skip_taskbar(true),
+        ));
     }
     #[cfg(any(
         target_os = "linux",
@@ -73,14 +75,20 @@ pub(crate) fn attributes(config: &WindowConfig) -> WindowAttributes {
         target_os = "openbsd"
     ))]
     if config.skip_taskbar {
-        use winit::platform::x11::{WindowAttributesExtX11, WindowType};
+        use winit::platform::x11::{WindowAttributesX11, WindowType};
         // Wayland ignores X11 window types. On X11, utility windows stay off the taskbar.
-        attrs = attrs.with_x11_window_type(vec![WindowType::Utility]);
+        attrs = attrs.with_platform_attributes(Box::new(
+            WindowAttributesX11::default().with_x11_window_type(vec![WindowType::Utility]),
+        ));
     }
     attrs
 }
 
-pub(crate) fn finish_create(window: &Window, event_loop: &ActiveEventLoop, config: &WindowConfig) {
+pub(crate) fn finish_create(
+    window: &dyn Window,
+    event_loop: &dyn ActiveEventLoop,
+    config: &WindowConfig,
+) {
     #[cfg(target_os = "macos")]
     {
         if config.kind == WindowKind::Panel {
@@ -100,7 +108,7 @@ pub(crate) fn finish_create(window: &Window, event_loop: &ActiveEventLoop, confi
     place(window, event_loop, config);
 }
 
-pub(crate) fn apply_effect(window: &Window, panel: bool, effect: WindowEffect) {
+pub(crate) fn apply_effect(window: &dyn Window, panel: bool, effect: WindowEffect) {
     match effect {
         WindowEffect::Show => show(window, panel),
         WindowEffect::Hide => window.set_visible(false),
@@ -108,7 +116,7 @@ pub(crate) fn apply_effect(window: &Window, panel: bool, effect: WindowEffect) {
     }
 }
 
-fn show(window: &Window, panel: bool) {
+fn show(window: &dyn Window, panel: bool) {
     #[cfg(target_os = "macos")]
     if panel {
         show_panel(window);
@@ -124,7 +132,7 @@ fn show(window: &Window, panel: bool) {
     window.set_visible(true);
 }
 
-fn focus(window: &Window, panel: bool) {
+fn focus(window: &dyn Window, panel: bool) {
     #[cfg(target_os = "macos")]
     if panel {
         focus_panel(window);
@@ -140,34 +148,42 @@ fn focus(window: &Window, panel: bool) {
     window.focus_window();
 }
 
-fn place(window: &Window, event_loop: &ActiveEventLoop, config: &WindowConfig) {
+fn place(window: &dyn Window, event_loop: &dyn ActiveEventLoop, config: &WindowConfig) {
     if session_is_wayland(event_loop) {
         return;
     }
     match config.position {
         Position::Platform => {}
         Position::At { x, y } => {
-            window.set_outer_position(LogicalPosition::new(f64::from(x), f64::from(y)));
+            window.set_outer_position(winit::dpi::Position::Logical(LogicalPosition::new(
+                f64::from(x),
+                f64::from(y),
+            )));
         }
         Position::Center => center(window),
     }
 }
 
-fn center(window: &Window) {
+fn center(window: &dyn Window) {
     let Some(monitor) = window
         .current_monitor()
         .or_else(|| window.primary_monitor())
     else {
         return;
     };
-    let screen = monitor.size();
+    let Some(screen) = monitor.current_video_mode().map(|mode| mode.size()) else {
+        return;
+    };
     let outer = window.outer_size();
     let x = (screen.width as i32 - outer.width as i32) / 2;
     let y = (screen.height as i32 - outer.height as i32) / 2;
-    window.set_outer_position(PhysicalPosition::new(x.max(0), y.max(0)));
+    window.set_outer_position(winit::dpi::Position::Physical(PhysicalPosition::new(
+        x.max(0),
+        y.max(0),
+    )));
 }
 
-pub(crate) fn session_is_wayland(event_loop: &ActiveEventLoop) -> bool {
+pub(crate) fn session_is_wayland(event_loop: &dyn ActiveEventLoop) -> bool {
     #[cfg(any(
         target_os = "linux",
         target_os = "dragonfly",
@@ -193,7 +209,7 @@ pub(crate) fn session_is_wayland(event_loop: &ActiveEventLoop) -> bool {
 }
 
 #[cfg(target_os = "macos")]
-fn show_panel(window: &Window) {
+fn show_panel(window: &dyn Window) {
     if let Some(ns) = ns_window(window) {
         // Order in front without activating the app. `set_visible(true)` would
         // call `makeKeyAndOrderFront` and take key focus as a side effect.
@@ -204,7 +220,7 @@ fn show_panel(window: &Window) {
 }
 
 #[cfg(target_os = "macos")]
-fn focus_panel(window: &Window) {
+fn focus_panel(window: &dyn Window) {
     if let Some(ns) = ns_window(window) {
         // `Window::focus_window` calls `activateIgnoringOtherApps`. A panel
         // only becomes key.
@@ -215,7 +231,7 @@ fn focus_panel(window: &Window) {
 }
 
 #[cfg(target_os = "macos")]
-fn configure_ns_panel(window: &Window) {
+fn configure_ns_panel(window: &dyn Window) {
     let Some(ns) = ns_window(window) else {
         return;
     };
@@ -236,7 +252,7 @@ fn configure_ns_panel(window: &Window) {
 }
 
 #[cfg(target_os = "windows")]
-fn hwnd(window: &Window) -> Option<windows_sys::Win32::Foundation::HWND> {
+fn hwnd(window: &dyn Window) -> Option<windows_sys::Win32::Foundation::HWND> {
     use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
     let handle = window.window_handle().ok()?;
     let RawWindowHandle::Win32(win) = handle.as_raw() else {
@@ -246,7 +262,7 @@ fn hwnd(window: &Window) -> Option<windows_sys::Win32::Foundation::HWND> {
 }
 
 #[cfg(target_os = "windows")]
-fn set_panel_exstyle(window: &Window, noactivate: bool) {
+fn set_panel_exstyle(window: &dyn Window, noactivate: bool) {
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_NOACTIVATE,
     };
@@ -266,7 +282,7 @@ fn set_panel_exstyle(window: &Window, noactivate: bool) {
 }
 
 #[cfg(target_os = "windows")]
-fn raise_topmost(window: &Window) {
+fn raise_topmost(window: &dyn Window) {
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         SetWindowPos, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
     };
@@ -287,7 +303,7 @@ fn raise_topmost(window: &Window) {
 }
 
 #[cfg(target_os = "windows")]
-fn show_panel_win32(window: &Window) {
+fn show_panel_win32(window: &dyn Window) {
     use windows_sys::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_SHOWNOACTIVATE};
     set_panel_exstyle(window, true);
     raise_topmost(window);
@@ -301,7 +317,7 @@ fn show_panel_win32(window: &Window) {
 }
 
 #[cfg(target_os = "windows")]
-fn focus_panel_win32(window: &Window) {
+fn focus_panel_win32(window: &dyn Window) {
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::SetFocus;
     use windows_sys::Win32::UI::WindowsAndMessaging::SetForegroundWindow;
     // Windows delivers keys to the foreground window. Clear the no-activate
@@ -336,7 +352,7 @@ fn windows_panel_constants_match_win32() {
 }
 
 #[cfg(target_os = "macos")]
-fn ns_window(window: &Window) -> Option<objc2::rc::Retained<objc2_app_kit::NSWindow>> {
+fn ns_window(window: &dyn Window) -> Option<objc2::rc::Retained<objc2_app_kit::NSWindow>> {
     use objc2::rc::Retained;
     use objc2_app_kit::NSView;
     use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};

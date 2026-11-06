@@ -195,6 +195,9 @@ pub enum PositionDelivery {
     Supported,
     /// The binding's event has no point. The runner stores [`None`].
     Unavailable,
+    /// The runner converts a client point from the drag event when that
+    /// event includes a finite one. This is not a live-session result.
+    Mapped,
     /// No file-drag event is emitted, so there is no point to attach.
     Unsupported,
 }
@@ -216,14 +219,18 @@ pub enum NativeSession {
 /// Binding behavior for file drag.
 ///
 /// macOS, Windows, and X11 forward winit's path events. Those events carry
-/// no point, so [`FileDropSupport::position`] is [`PositionDelivery::Unavailable`].
+/// no point, so [`FileDropSupport::position`] is [`PositionDelivery::Mapped`]
+/// only as a code path: a finite client point is converted, and a missing
+/// point stays [`None`]. [`native_session`] stays [`NativeSession::Unverified`].
 /// Wayland is [`PathDelivery::Unsupported`] and
 /// [`PositionDelivery::Unsupported`].
 pub fn platform_support(platform: Platform) -> FileDropSupport {
     match platform {
         Platform::Mac | Platform::Windows | Platform::X11 => FileDropSupport {
             paths: PathDelivery::Forwarded,
-            position: PositionDelivery::Unavailable,
+            // Client pixels from the drag event are converted when present.
+            // A live drag has not been run, so this is not Supported.
+            position: PositionDelivery::Mapped,
         },
         Platform::Wayland => FileDropSupport {
             paths: PathDelivery::Unsupported,
