@@ -8,7 +8,8 @@ only OS window and GPU, and it also does offscreen capture. The `rndr` facade
 re-exports those. `rndr_ui` and `rndr_app` are opt-in and depend only on core.
 `rndr_ui` is the component library. `rndr_app` is a starter (form navigation,
 spacing, draft preferences), not that library. `publish = false` stays on
-`rndr_ui`, `rndr_app`, and the desktop example.
+`rndr_ui`, `rndr_app`, and the desktop example. The [package policy](#package-policy)
+records which 0.4.0 crates are uploaded.
 
 What the kits and the core document model cover, with tests in this repo:
 
@@ -70,6 +71,38 @@ input method as well:
 
 The live Unix probe (`observe`) is a separate check from headless capture. It
 records what the window submitted. It does not prove compositor presentation.
+
+## Package policy
+
+Workspace version **0.4.0**. Versions move together, including path
+requirements. `publish = false` is what keeps a crate off crates.io; a matching
+version number does not publish it.
+
+Uploaded by `scripts/publish-crates.sh`, in order: `rndr_core`, `rndr_paint`,
+`rndr_std`, `rndr_term`, `rndr_render`. `rndr_std` and `rndr_term` have no
+behavior change in 0.4.0. They stay in the set so dependents resolve one
+version.
+
+Left unpublished:
+
+- `rndr_ui`. The manifest says the dependency and publication policy is not
+  release-ready. The crate is the semantic UI in this checkout. Publishing it
+  would make that API a crates.io surface. This release does not do that.
+- `rndr_app`, and every example, including `desktop` (Desktop Workshop) and
+  `source-session`.
+
+The `rndr` facade is version 0.4.0 here and is not in the upload list. It does
+not set `publish = false`. Cargo still will not accept it: the optional `ui`
+feature depends on `rndr_ui` with a path and a version, and an optional
+dependency has to resolve from the registry at publish time. Removing `ui`,
+or publishing `rndr_ui`, would change the public surface. Neither is decided
+here. crates.io `rndr` stays at 0.3.1, which has no `ui` feature and no
+`observe` feature.
+
+`scripts/check-facade-archive.py` packages the facade with `--no-verify` and
+`--exclude-lockfile`, then checks normalization and source bytes. CI's package
+step excludes the facade, `rndr_ui`, `rndr_app`, and the examples. Neither
+check is permission to upload the facade.
 
 ## Evidence
 

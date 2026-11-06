@@ -5,6 +5,12 @@
 //! extra features. `rndr_app` is a separate starter crate. Headless programs
 //! can depend on `rndr_core` alone and skip the window and the GPU.
 //!
+//! The 0.4.0 copy in this workspace is not the crates.io release of this
+//! crate. `rndr_ui` is `publish = false`, and this crate's optional `ui`
+//! dependency has to be on the registry before `cargo publish` can accept
+//! `rndr`. The uploaded 0.4.0 crates are `rndr_core`, `rndr_paint`,
+//! `rndr_std`, `rndr_term`, and `rndr_render`.
+//!
 //! # How the crates fit
 //!
 //! - [`rndr_core`] owns the world: entities, hierarchy, layout, input, text,

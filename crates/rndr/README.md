@@ -16,11 +16,14 @@ or component-targeted/headless capture, nor compositor presentation proof.
 [Native observation](../../docs/native-observation.md) documents fail-closed
 whole-frame denial, limitations and the Python client/tests.
 
-Publication is not enabled by this integration: `rndr_ui` is `publish = false`
-and this facade's optional local UI dependency has no registry version/release
-policy. CI checks facade builds/doctests but intentionally does not claim its
-tarball can be published. Existing release instructions below are historical
-until that dependency policy is resolved.
+This checkout's facade is version 0.4.0 and is not the crates.io upload.
+`rndr_ui` remains `publish = false`. Cargo still requires that optional
+dependency to resolve from the registry before `cargo publish` can accept
+`rndr`, with `ui` enabled or not. The release script uploads `rndr_core`,
+`rndr_paint`, `rndr_std`, `rndr_term`, and `rndr_render` only.
+`scripts/check-facade-archive.py` checks this crate's tarball normalization
+and does not upload it. crates.io `rndr` remains 0.3.1 until that dependency
+decision is made. See [package policy](../../docs/ui-status.md#package-policy).
 
 Desktop application toolkit. One crate re-exports the entity world, the paint step, the `std::fs` plugin, and the winit + wgpu window.
 

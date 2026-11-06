@@ -37,14 +37,15 @@ tokio = ["rndr_core/tokio"]
 
 [dependencies]
 # Version permits manifest normalization, not registry availability: UI remains unpublished.
-rndr_ui = { path = "../rndr_ui", version = "0.3.1", optional = true }
+# 0.4.0 does not publish this facade. Cargo still requires rndr_ui on the registry.
+rndr_ui = { path = "../rndr_ui", version = "0.4.0", optional = true }
 rndr_core = { workspace = true }
 rndr_paint = { workspace = true }
 rndr_std = { workspace = true }
 # Path plus version, not workspace = true: turning workspace default features
 # off needs Rust 1.99 and edition 2024. This keeps `hotkey` / `tray` / `parley`
 # optional on the 2021 edition.
-rndr_render = { path = "../rndr_render", version = "0.3.1", default-features = false }
+rndr_render = { path = "../rndr_render", version = "0.4.0", default-features = false }
 rndr_term = { workspace = true, optional = true }
 
 [dev-dependencies]
