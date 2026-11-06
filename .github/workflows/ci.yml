@@ -111,7 +111,7 @@ jobs:
           # archive is checked above; registry build verification remains blocked.
           # Builds each packaged crate from the tarball. Cargo does not execute
           # tests here, so the archive checks below guard the snapshot suite.
-          cargo package --workspace --locked --exclude rndr_app --exclude desktop --exclude rndr_ui --exclude rndr --exclude expand --exclude idle --exclude overlay --exclude palette --exclude terminal --exclude stream --exclude two-windows --exclude pen-probe --exclude canvas-scene --exclude create-view
+          cargo package --workspace --locked --exclude rndr_app --exclude desktop --exclude rndr_ui --exclude rndr --exclude expand --exclude idle --exclude overlay --exclude palette --exclude terminal --exclude stream --exclude two-windows --exclude pen-probe --exclude canvas-scene --exclude create-view --exclude source-session
           paint_crate=(target/package/rndr_paint-*.crate)
           render_crate=(target/package/rndr_render-*.crate)
           test "${#paint_crate[@]}" -eq 1

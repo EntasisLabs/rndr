@@ -76,8 +76,10 @@ impl LogicalSize {
 
 /// Where the window opens.
 ///
-/// `At` is the outer top-left in logical points. Wayland ignores every
-/// variant and the compositor places the window.
+/// `At` is the outer top-left in logical points. An ordinary Wayland toplevel
+/// ignores every variant and the compositor places the window. A
+/// [`WindowKind::Panel`] on Wayland is placed from [`crate::panel_placement`]
+/// instead; that path is [`Availability::Unverified`].
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum Position {
     /// The platform picks a position.
@@ -136,8 +138,15 @@ pub enum WindowKind {
     /// call `activateIgnoringOtherApps`. [`WindowConfig::accessory`] selects
     /// `NSApplicationActivationPolicyAccessory`.
     ///
-    /// Elsewhere the panel is a floating always-on-top window. Platforms
-    /// without a window level ignore that part; see [`platform_support`].
+    /// Elsewhere the panel is a floating always-on-top window.
+    ///
+    /// On Windows the runner asks for `HWND_TOPMOST` and a non-activating
+    /// show. Explicit focus still takes the foreground. There is no stable
+    /// public API that pins the window to every virtual desktop.
+    ///
+    /// On Linux Wayland the runner asks for a layer-shell overlay when the
+    /// compositor offers `zwlr_layer_shell_v1`, and otherwise keeps the
+    /// ordinary toplevel. See [`platform_support`].
     Panel,
 }
 
@@ -162,7 +171,8 @@ pub struct WindowConfig {
     /// surface cannot composite alpha.
     pub transparent: bool,
     /// Float above normal windows. A [`WindowKind::Panel`] does this too.
-    /// Wayland ignores window levels.
+    /// An ordinary Wayland toplevel ignores window levels. A panel asks the
+    /// layer-shell overlay for the same thing; that request is unverified.
     pub always_on_top: bool,
     /// Keep the window off the taskbar where the platform has one.
     /// On macOS there is no taskbar; set [`Self::accessory`] to leave the Dock.
@@ -217,11 +227,16 @@ impl WindowConfig {
 /// Whether a platform honors one window option.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Availability {
-    /// The runner asks the OS and the OS can do it.
+    /// The runner asks the OS and a live session of that platform has shown
+    /// that the OS can do it.
     Supported,
     /// The command is accepted and the OS ignores it. The logical state
     /// still updates, and the GPU surface is not rebuilt.
     Ignored,
+    /// The runner issues the platform request. No live session in this
+    /// repository's checks has shown that the OS honors it. Do not treat this
+    /// as support.
+    Unverified,
 }
 
 /// Per-platform support for the options on [`WindowConfig`].
@@ -252,8 +267,22 @@ pub struct WindowSupport {
     pub accessory: Availability,
 }
 
-/// What [`Platform`] can actually do. Wayland positioning, hiding, focusing,
-/// window levels, and skip-taskbar are ignored by winit 0.30.
+/// What [`Platform`] can actually do.
+///
+/// On macOS, Windows, and X11 the row describes an ordinary toplevel, and the
+/// `panel_*` fields describe [`WindowKind::Panel`]. Those macOS panel fields
+/// were exercised when the panel path was written; this tree does not re-run
+/// that session.
+///
+/// On Wayland the whole row describes a [`WindowKind::Panel`] layer-shell
+/// surface, not an xdg toplevel. [`support_describes_panels_only`] is true
+/// only for that platform. A normal Wayland toplevel is still placed by the
+/// compositor, and winit 0.30 still does not hide, focus, or set a level on
+/// it. If the compositor has no `zwlr_layer_shell_v1`, the panel falls back
+/// to that toplevel and the requests are not sent.
+///
+/// [`Availability::Unverified`] means the runner sends the request and no
+/// live session here has shown that it lands. It is not support.
 pub fn platform_support(platform: Platform) -> WindowSupport {
     let ignored = WindowSupport {
         position: Availability::Ignored,
@@ -284,6 +313,14 @@ pub fn platform_support(platform: Platform) -> WindowSupport {
             focus: Availability::Supported,
             always_on_top: Availability::Supported,
             skip_taskbar: Availability::Supported,
+            // HWND_TOPMOST is sent for a panel. No Windows session in this
+            // tree has shown it above a fullscreen window.
+            panel_above_fullscreen: Availability::Unverified,
+            // No stable public API pins a window to every virtual desktop.
+            panel_all_spaces: Availability::Ignored,
+            // Show uses SW_SHOWNOACTIVATE. Key focus takes the foreground,
+            // so this capability stays ignored.
+            panel_nonactivating: Availability::Ignored,
             ..ignored
         },
         Platform::X11 => WindowSupport {
@@ -295,8 +332,29 @@ pub fn platform_support(platform: Platform) -> WindowSupport {
             skip_taskbar: Availability::Supported,
             ..ignored
         },
-        Platform::Wayland => ignored,
+        // Panel path only. See [`support_describes_panels_only`].
+        Platform::Wayland => WindowSupport {
+            position: Availability::Unverified,
+            hide: Availability::Unverified,
+            focus: Availability::Unverified,
+            always_on_top: Availability::Unverified,
+            skip_taskbar: Availability::Unverified,
+            panel_above_fullscreen: Availability::Unverified,
+            panel_all_spaces: Availability::Unverified,
+            // Exclusive keyboard interactivity takes the keyboard.
+            panel_nonactivating: Availability::Ignored,
+            accessory: Availability::Ignored,
+        },
     }
+}
+
+/// `true` when [`platform_support`] describes [`WindowKind::Panel`] and not
+/// an ordinary toplevel.
+///
+/// Wayland is the only platform where the toplevel and the panel are different
+/// clients. On the others, position, hide, and focus use the same window.
+pub fn support_describes_panels_only(platform: Platform) -> bool {
+    matches!(platform, Platform::Wayland)
 }
 
 /// Logical visibility. The runner mirrors this onto the OS window.

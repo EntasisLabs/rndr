@@ -117,6 +117,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         assert!(app.world().get::<Scroll>(root).unwrap().offset[1] < 0.);
     }
     if let Some(prefix) = value("--capture-prefix") {
+        #[cfg(not(feature = "observe"))]
+        let _ = prefix;
         #[cfg(feature = "observe")]
         {
             use rndr_render::{

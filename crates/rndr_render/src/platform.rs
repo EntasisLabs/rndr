@@ -3,9 +3,13 @@
 //! The GPU surface is not created or destroyed here. Hide uses the platform
 //! visibility call and leaves the surface alone.
 //!
-//! Wayland, in winit 0.30, ignores position, `set_visible`, `focus_window`,
-//! and window levels. Those commands still update the logical phase; the
-//! compositor keeps the window where it put it.
+//! An ordinary Wayland toplevel still ignores position, `set_visible`,
+//! `focus_window`, and window levels. A [`WindowKind::Panel`] on Linux Wayland
+//! is not created here: the layer-shell client owns that surface. This module
+//! still places the winit fallback when that protocol is missing.
+//!
+//! A Windows panel show uses `SW_SHOWNOACTIVATE` and `HWND_TOPMOST`. Explicit
+//! focus takes the foreground. Virtual-desktop pinning is not requested.
 
 use rndr_core::{Position, WindowConfig, WindowEffect, WindowKind};
 use winit::dpi::{LogicalPosition, LogicalSize, PhysicalPosition};
@@ -88,6 +92,11 @@ pub(crate) fn finish_create(window: &Window, event_loop: &ActiveEventLoop, confi
             }
         }
     }
+    #[cfg(target_os = "windows")]
+    if config.kind == WindowKind::Panel {
+        set_panel_exstyle(window, true);
+        raise_topmost(window);
+    }
     place(window, event_loop, config);
 }
 
@@ -105,7 +114,12 @@ fn show(window: &Window, panel: bool) {
         show_panel(window);
         return;
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    if panel {
+        show_panel_win32(window);
+        return;
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     let _ = panel;
     window.set_visible(true);
 }
@@ -116,7 +130,12 @@ fn focus(window: &Window, panel: bool) {
         focus_panel(window);
         return;
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    if panel {
+        focus_panel_win32(window);
+        return;
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     let _ = panel;
     window.focus_window();
 }
@@ -148,7 +167,7 @@ fn center(window: &Window) {
     window.set_outer_position(PhysicalPosition::new(x.max(0), y.max(0)));
 }
 
-fn session_is_wayland(event_loop: &ActiveEventLoop) -> bool {
+pub(crate) fn session_is_wayland(event_loop: &ActiveEventLoop) -> bool {
     #[cfg(any(
         target_os = "linux",
         target_os = "dragonfly",
@@ -214,6 +233,106 @@ fn configure_ns_panel(window: &Window) {
         );
         ns.setHidesOnDeactivate(false);
     }
+}
+
+#[cfg(target_os = "windows")]
+fn hwnd(window: &Window) -> Option<windows_sys::Win32::Foundation::HWND> {
+    use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    let handle = window.window_handle().ok()?;
+    let RawWindowHandle::Win32(win) = handle.as_raw() else {
+        return None;
+    };
+    Some(win.hwnd.get() as windows_sys::Win32::Foundation::HWND)
+}
+
+#[cfg(target_os = "windows")]
+fn set_panel_exstyle(window: &Window, noactivate: bool) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_NOACTIVATE,
+    };
+    let Some(hwnd) = hwnd(window) else {
+        return;
+    };
+    let bit = WS_EX_NOACTIVATE as isize;
+    unsafe {
+        let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+        let updated = if noactivate {
+            style | bit
+        } else {
+            style & !bit
+        };
+        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, updated);
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn raise_topmost(window: &Window) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        SetWindowPos, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+    };
+    let Some(hwnd) = hwnd(window) else {
+        return;
+    };
+    unsafe {
+        SetWindowPos(
+            hwnd,
+            HWND_TOPMOST,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+        );
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn show_panel_win32(window: &Window) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_SHOWNOACTIVATE};
+    set_panel_exstyle(window, true);
+    raise_topmost(window);
+    if let Some(hwnd) = hwnd(window) {
+        unsafe {
+            ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+        }
+    } else {
+        window.set_visible(true);
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn focus_panel_win32(window: &Window) {
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::SetFocus;
+    use windows_sys::Win32::UI::WindowsAndMessaging::SetForegroundWindow;
+    // Windows delivers keys to the foreground window. Clear the no-activate
+    // bit for this explicit focus. The next show sets it again.
+    set_panel_exstyle(window, false);
+    raise_topmost(window);
+    if let Some(hwnd) = hwnd(window) {
+        unsafe {
+            SetForegroundWindow(hwnd);
+            SetFocus(hwnd);
+        }
+    } else {
+        window.focus_window();
+    }
+}
+
+#[cfg(all(test, target_os = "windows"))]
+#[test]
+fn windows_panel_constants_match_win32() {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GWL_EXSTYLE, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW,
+        SW_SHOWNOACTIVATE, WS_EX_NOACTIVATE,
+    };
+    assert_eq!(rndr_core::WIN32_EX_NOACTIVATE, WS_EX_NOACTIVATE);
+    assert_eq!(rndr_core::WIN32_GWL_EXSTYLE, GWL_EXSTYLE);
+    assert_eq!(rndr_core::WIN32_SW_SHOWNOACTIVATE, SW_SHOWNOACTIVATE);
+    assert_eq!(rndr_core::WIN32_HWND_TOPMOST, HWND_TOPMOST as isize);
+    assert_eq!(rndr_core::WIN32_SWP_NOSIZE, SWP_NOSIZE);
+    assert_eq!(rndr_core::WIN32_SWP_NOMOVE, SWP_NOMOVE);
+    assert_eq!(rndr_core::WIN32_SWP_NOACTIVATE, SWP_NOACTIVATE);
+    assert_eq!(rndr_core::WIN32_SWP_SHOWWINDOW, SWP_SHOWWINDOW);
 }
 
 #[cfg(target_os = "macos")]

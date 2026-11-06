@@ -1,5 +1,9 @@
 use rndr_core::editing::{attach_source, detach_source, SourceDocuments, SourceSelection};
 use rndr_core::source_folding::*;
+
+fn one_fold(range: std::ops::Range<usize>) -> Vec<std::ops::Range<usize>> {
+    vec![range]
+}
 use rndr_core::{App, Buffer, Chrome, Editor, Entity, Label, Layout, Size, Viewport};
 
 const TEXT: &str = "header\nhidden β\ntail\n";
@@ -33,7 +37,7 @@ fn collapse(app: &mut App, view: Entity, id: rndr_core::editing::DocumentId) {
         .get(id)
         .unwrap()
         .revision();
-    set_source_folds(app.world_mut(), view, id, rev, vec![7..17]).unwrap();
+    set_source_folds(app.world_mut(), view, id, rev, one_fold(7..17)).unwrap();
     app.update();
     app.update();
 }
@@ -129,11 +133,11 @@ fn malformed_publications_are_atomic_and_clear_restores_geometry() {
         .unwrap()
         .revision();
     for ranges in [
-        vec![0..7],
-        vec![8..17],
-        vec![7..16],
+        one_fold(0..7),
+        one_fold(8..17),
+        one_fold(7..16),
         vec![7..17, 7..17],
-        vec![7..100],
+        one_fold(7..100),
     ] {
         assert_eq!(
             set_source_folds(app.world_mut(), view, id, rev, ranges),
@@ -141,7 +145,7 @@ fn malformed_publications_are_atomic_and_clear_restores_geometry() {
         );
         assert_eq!(
             app.world().get::<SourceFolds>(view).unwrap().ranges(),
-            &[7..17]
+            one_fold(7..17).as_slice()
         );
     }
     clear_source_folds(app.world_mut(), view);
@@ -192,7 +196,7 @@ fn gutter_uses_source_line_numbers_and_edits_invalidate_fold_geometry() {
     })
     .unwrap();
     assert_eq!(
-        set_source_folds(app.world_mut(), view, id, old, vec![7..17]),
+        set_source_folds(app.world_mut(), view, id, old, one_fold(7..17)),
         Err(FoldError::Stale)
     );
     app.update();

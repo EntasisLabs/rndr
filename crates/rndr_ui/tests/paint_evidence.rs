@@ -228,7 +228,8 @@ fn deterministic_actual_display_list_matches_saved_headless_artifacts() {
             "{}/../../evidence/refinement-1/passive-gallery/{name}.txt",
             env!("CARGO_MANIFEST_DIR")
         ))
-        .unwrap();
+        .unwrap()
+        .replace("\r\n", "\n");
         assert!(expected.ends_with(&actual), "golden mismatch: {name}");
     }
 }

@@ -4,6 +4,12 @@
 //! Alt+Space toggles it from any application. `RNDR_HOTKEY` or `--hotkey`
 //! overrides that chord.
 //!
+//! macOS uses a non-activating panel. Linux Wayland asks for a layer-shell
+//! overlay when the compositor has the protocol, and otherwise keeps a normal
+//! toplevel. Windows shows without activating and raises with `HWND_TOPMOST`;
+//! explicit focus still takes the foreground. See `docs/overlay-platform.md`
+//! for what has actually been run.
+//!
 //! ```text
 //! cargo run -p overlay
 //! cargo run -p overlay -- --hotkey Ctrl+Space

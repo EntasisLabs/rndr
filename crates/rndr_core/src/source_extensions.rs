@@ -395,7 +395,7 @@ impl SourceExtensions {
     pub fn register(&mut self, priority: i32) -> ProviderId {
         static NEXT: AtomicU64 = AtomicU64::new(1);
         let id = ProviderId(
-            NEXT.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
+            NEXT.try_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
                 .expect("provider identity exhausted"),
         );
         self.providers.insert(id, priority);
