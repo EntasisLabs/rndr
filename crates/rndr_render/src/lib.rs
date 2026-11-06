@@ -63,6 +63,7 @@ mod native_quit;
 #[cfg(feature = "observe")]
 pub mod observe;
 mod outline;
+#[cfg(target_os = "linux")]
 mod overlay_keys;
 mod pen;
 mod platform;

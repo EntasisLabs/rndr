@@ -302,7 +302,8 @@ fn show_panel_win32(window: &Window) {
 
 #[cfg(target_os = "windows")]
 fn focus_panel_win32(window: &Window) {
-    use windows_sys::Win32::UI::WindowsAndMessaging::{SetFocus, SetForegroundWindow};
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::SetFocus;
+    use windows_sys::Win32::UI::WindowsAndMessaging::SetForegroundWindow;
     // Windows delivers keys to the foreground window. Clear the no-activate
     // bit for this explicit focus. The next show sets it again.
     set_panel_exstyle(window, false);

@@ -8,6 +8,7 @@ use std::sync::{
     atomic::{AtomicBool, AtomicU64, Ordering},
     mpsc, Arc, Mutex,
 };
+#[cfg_attr(not(unix), allow(unused_imports))]
 use std::time::{Duration, Instant};
 use std::{io, path::PathBuf};
 
@@ -209,6 +210,7 @@ fn error(code: &str) -> (Value, Vec<u8>) {
         vec![],
     )
 }
+#[cfg_attr(not(unix), allow(dead_code))]
 fn authenticate(line: &[u8], token: &str) -> io::Result<u64> {
     let invalid = || io::Error::new(io::ErrorKind::PermissionDenied, "invalid request");
     let text = std::str::from_utf8(line).map_err(|_| invalid())?;

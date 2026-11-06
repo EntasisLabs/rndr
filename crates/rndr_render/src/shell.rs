@@ -4,6 +4,7 @@
 //! is a layer-shell surface when the compositor offers the protocol. Hide and
 //! show do not drop the surface.
 
+#[cfg(target_os = "linux")]
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -19,6 +20,7 @@ use crate::wayland_layer::LayerWindow;
 
 /// Input the layer-shell seat produced. Empty for a winit window.
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub(crate) enum ShellEvent {
     Close,
     Focused(bool),
