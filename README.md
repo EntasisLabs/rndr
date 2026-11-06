@@ -226,6 +226,7 @@ native-platform acceptance are different things:
 | Live Markdown content and controls | [Host-filled slots](docs/markdown-host-slots.md) |
 | Unsaved state and native close/quit | [Safe close](docs/safe-close.md) |
 | Capture, privacy and evidence limits | [Native observation](docs/native-observation.md) · [Component capture](docs/component-capture.md) |
+| File drag position | [File drop](docs/file-drop.md) |
 | Hands-on appearance checks | [UI polish](docs/ui-polish.md) |
 | API reference for published versions | [docs.rs/rndr](https://docs.rs/rndr) (may differ from this checkout) |
 

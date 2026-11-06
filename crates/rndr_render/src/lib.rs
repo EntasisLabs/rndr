@@ -54,6 +54,7 @@ mod decode;
 #[cfg(feature = "dialog")]
 mod dialogs;
 mod export;
+mod file_drop;
 mod gpu;
 #[cfg(feature = "hotkey")]
 mod hotkey;
@@ -89,12 +90,11 @@ use std::time::Instant;
 use rndr_core::TextEngine;
 use rndr_core::{
     deliver, ensure_text_engine, legacy_key, resolve_ime, send, text_engine, touch_id, App, Caret,
-    Clipboard, ContactPhase, ContactUpdate, CursorImage, CursorStyle, FileDrop, FileHover,
-    FileHoverCancel, Focus, Gesture, GesturePhase, GestureState, ImeEvent, Input,
-    KeyCode as Physical, KeyEvent, LogicalKey, Modifiers, MotionWatch, NamedKey as CoreNamed,
-    Platform, Pointer, PointerButton, PointerButtons, PointerKind, Pointers, Rect, TextLayout,
-    Viewport, Wake, WindowConfig, WindowEffect, WindowHub, WindowKind, MOUSE_ID, PEN_ID,
-    TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
+    Clipboard, ContactPhase, ContactUpdate, CursorImage, CursorStyle, Focus, Gesture, GesturePhase,
+    GestureState, ImeEvent, Input, KeyCode as Physical, KeyEvent, LogicalKey, Modifiers,
+    MotionWatch, NamedKey as CoreNamed, Platform, Pointer, PointerButton, PointerButtons,
+    PointerKind, Pointers, Rect, TextLayout, Viewport, Wake, WindowConfig, WindowEffect, WindowHub,
+    WindowKind, MOUSE_ID, PEN_ID, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
 #[cfg(not(feature = "observe"))]
 use rndr_paint::frame;
@@ -399,7 +399,9 @@ struct Handler {
     pointers: Pointers,
     gestures: GestureState,
     queued_gestures: Vec<Gesture>,
-    queued_files: Vec<QueuedFile>,
+    queued_files: Vec<file_drop::NativeFile>,
+    /// Paths in the current hover. Cancel clears every entry.
+    hovered_files: rndr_core::FileHoverSet,
     scroll: [f32; 2],
     keys: Vec<KeyEvent>,
     ime_events: Vec<ImeEvent>,
@@ -434,21 +436,17 @@ struct Handler {
     tray: tray::Session,
 }
 
-enum QueuedFile {
-    Hover(std::path::PathBuf),
-    Drop(std::path::PathBuf),
-    Cancel,
-}
-
 impl Handler {
     fn new(
-        app: App,
+        mut app: App,
         config: WindowConfig,
         primary: bool,
         desktop_id: rndr_core::WindowId,
         pen: pen::PenFeed,
         proxy: EventLoopProxy<RunnerEvent>,
     ) -> Self {
+        app.world_mut()
+            .insert_resource(rndr_core::FileHoverSet::default());
         Self {
             app,
             config,
@@ -466,6 +464,7 @@ impl Handler {
             gestures: GestureState::new(),
             queued_gestures: Vec::new(),
             queued_files: Vec::new(),
+            hovered_files: rndr_core::FileHoverSet::default(),
             scroll: [0.0, 0.0],
             keys: Vec::new(),
             ime_events: Vec::new(),
@@ -617,12 +616,15 @@ impl Handler {
             send(self.app.world_mut(), gesture);
         }
         for file in std::mem::take(&mut self.queued_files) {
-            match file {
-                QueuedFile::Hover(path) => send(self.app.world_mut(), FileHover { path }),
-                QueuedFile::Drop(path) => send(self.app.world_mut(), FileDrop { path }),
-                QueuedFile::Cancel => send(self.app.world_mut(), FileHoverCancel),
+            match file_drop::deliver(&mut self.hovered_files, file) {
+                file_drop::DeliveredFile::Hover(event) => send(self.app.world_mut(), event),
+                file_drop::DeliveredFile::Drop(event) => send(self.app.world_mut(), event),
+                file_drop::DeliveredFile::Cancel(event) => send(self.app.world_mut(), event),
             }
         }
+        self.app
+            .world_mut()
+            .insert_resource(self.hovered_files.clone());
         self.pointer.pressed = false;
         self.pointer.released = false;
         self.pointer.press_at = None;
@@ -1876,15 +1878,18 @@ impl ApplicationHandler<RunnerEvent> for Handler {
                 self.request_redraw();
             }
             WindowEvent::DroppedFile(path) => {
-                self.queued_files.push(QueuedFile::Drop(path));
+                // winit 0.30.13 carries a path and no point. See `file_drop::winit_path`.
+                self.queued_files
+                    .push(file_drop::NativeFile::Drop(file_drop::winit_path(path)));
                 self.request_redraw();
             }
             WindowEvent::HoveredFile(path) => {
-                self.queued_files.push(QueuedFile::Hover(path));
+                self.queued_files
+                    .push(file_drop::NativeFile::Hover(file_drop::winit_path(path)));
                 self.request_redraw();
             }
             WindowEvent::HoveredFileCancelled => {
-                self.queued_files.push(QueuedFile::Cancel);
+                self.queued_files.push(file_drop::NativeFile::Cancel);
                 self.request_redraw();
             }
             WindowEvent::MouseWheel { delta, .. } => {

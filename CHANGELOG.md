@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Core and the desktop runner
+
+- `FileHover` and `FileDrop` carry `position: Option<[f32; 2]>` in logical points. A struct literal sets `position`. `from_report` keeps a finite point, including the origin, and stores `None` when the report has no finite point. The structs no longer implement `Eq`. `FileHoverCancel` still clears every path in `FileHoverSet`. winit 0.30.13 forwards a path with `position: None` on macOS, Windows, and X11. Wayland stays unsupported: no drop path was added, and the cursor is not used as a point. No new feature or dependency. Headless tests lock the binding table and leave the native ledger `Unverified` on macOS, Windows, and X11. See [file drop](docs/file-drop.md).
+
 ## 0.4.0
 
 Workspace 0.4.0. `scripts/publish-crates.sh` uploads eight crates in this order: `rndr_core`, `rndr_paint`, `rndr_std`, `rndr_term`, `rndr_ui`, `rndr_app`, `rndr_render`, and `rndr`. `rndr_std` and `rndr_term` have no behavior change in this release; they publish at 0.4.0 with the others so one version resolves. Examples, including Desktop Workshop and `source-session`, stay `publish = false`. 0.4.0 is a 0.y release. It adds public API, including `rndr_ui`, `rndr_app`, and the facade features `ui` and `observe`. It is not a 1.0 stability promise. See [package policy](docs/ui-status.md#package-policy).
