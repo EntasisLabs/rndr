@@ -26,7 +26,8 @@ use objc2_app_kit::NSView;
 use objc2_foundation::{
     MainThreadMarker, NSArray, NSError, NSInvocation, NSMethodSignature, NSObject,
     NSObjectProtocol, NSPoint, NSRect, NSSize, NSString, NSURLAuthenticationChallenge,
-    NSURLCredential, NSURLRequest, NSURLResponse, NSURLSessionAuthChallengeDisposition, NSURL,
+    NSURLCredential, NSURLErrorFailingURLErrorKey, NSURLErrorFailingURLStringErrorKey,
+    NSURLRequest, NSURLResponse, NSURLSessionAuthChallengeDisposition, NSURL,
 };
 use objc2_web_kit::{
     WKDownload, WKDownloadDelegate, WKDownloadRedirectPolicy, WKFrameInfo, WKNavigation,
@@ -724,7 +725,13 @@ impl WebKitHost {
         } else {
             LoadOutcome::Failed
         };
-        host.push(Note::Navigation(snapshot(web_view, load)));
+        let mut state = snapshot(web_view, load);
+        // A provisional failure leaves the view on the last committed document.
+        // The error names the URL that failed, including an expired certificate.
+        if let Some(url) = failing_url(error) {
+            state.url = url;
+        }
+        host.push(Note::Navigation(state));
     }
 
     fn adopt_download(&self, download: &WKDownload) {
@@ -801,6 +808,41 @@ fn forwarded_object(
     } else {
         // `getReturnValue` copies the pointer and does not retain it.
         unsafe { Retained::retain(result) }
+    }
+}
+
+fn failing_url(error: &NSError) -> Option<String> {
+    let info = error.userInfo();
+    let string_key = unsafe { NSURLErrorFailingURLStringErrorKey };
+    if let Some(url) = dictionary_string(&info, string_key) {
+        return Some(url);
+    }
+    let url_key = unsafe { NSURLErrorFailingURLErrorKey };
+    let value = unsafe { info.objectForKey(url_key) }?;
+    let is_url: bool = unsafe { msg_send![&*value, isKindOfClass: NSURL::class()] };
+    if !is_url {
+        return None;
+    }
+    let url = unsafe { Retained::<NSURL>::retain(Retained::as_ptr(&value).cast_mut().cast()) }?;
+    unsafe { url.absoluteString() }.map(|url| url.to_string())
+}
+
+fn dictionary_string(
+    info: &objc2_foundation::NSDictionary<NSString, objc2::runtime::AnyObject>,
+    key: &NSString,
+) -> Option<String> {
+    let value = unsafe { info.objectForKey(key) }?;
+    let is_string: bool = unsafe { msg_send![&*value, isKindOfClass: NSString::class()] };
+    if !is_string {
+        return None;
+    }
+    let string =
+        unsafe { Retained::<NSString>::retain(Retained::as_ptr(&value).cast_mut().cast()) }?;
+    let text = string.to_string();
+    if text.is_empty() {
+        None
+    } else {
+        Some(text)
     }
 }
 

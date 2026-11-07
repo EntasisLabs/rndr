@@ -8,9 +8,10 @@
 //! ```
 //!
 //! A valid `https://example.com` must finish. `https://expired.badssl.com/` must
-//! fail the load. The process must not abort in the authentication callback.
-//! Debug and release are separate runs. This file does not disable certificate
-//! validation and does not run on Linux.
+//! fail the load. A local HTTP basic challenge must be refused. The process
+//! must not abort in the authentication callback. Debug and release are
+//! separate runs. This file does not disable certificate validation and does
+//! not run on Linux.
 
 fn main() {
     #[cfg(not(target_os = "macos"))]
@@ -81,27 +82,59 @@ mod macos {
             Some(LoadOutcome::Failed),
             "an expired certificate must fail the load and must not abort the process"
         );
+
+        let port = serve_basic_auth();
+        let credential_url = format!("http://127.0.0.1:{port}/");
+        let refused = load(&mut browser, &credential_url);
+        println!("basic auth {credential_url} -> {refused:?}");
+        assert!(
+            matches!(refused, Some(LoadOutcome::Failed | LoadOutcome::Stopped)),
+            "a credential challenge must be refused and must not abort the process"
+        );
     }
 
     fn load(browser: &mut Browser, url: &str) -> Option<LoadOutcome> {
         browser.navigate(url).expect("navigate");
+        let host = host_of(url);
         let deadline = std::time::Instant::now() + Duration::from_secs(30);
         while std::time::Instant::now() < deadline {
             let until = unsafe { NSDate::dateWithTimeIntervalSinceNow(0.1) };
             unsafe { NSRunLoop::currentRunLoop().runUntilDate(&until) };
             for event in browser.frame() {
-                if let BrowserEvent::Navigation(state) = event {
-                    if matches!(
-                        state.load,
-                        LoadOutcome::Finished | LoadOutcome::Failed | LoadOutcome::Stopped
-                    ) && state.url.contains(host_of(url))
-                    {
-                        return Some(state.load);
-                    }
+                let BrowserEvent::Navigation(state) = event else {
+                    continue;
+                };
+                let terminal = matches!(
+                    state.load,
+                    LoadOutcome::Finished | LoadOutcome::Failed | LoadOutcome::Stopped
+                );
+                if !terminal {
+                    continue;
+                }
+                println!("  {url} saw {} {:?}", state.url, state.load);
+                if state.url.contains(host) {
+                    return Some(state.load);
                 }
             }
         }
         None
+    }
+
+    /// One HTTP basic challenge on localhost. The handler must cancel it.
+    fn serve_basic_auth() -> u16 {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+        let port = listener.local_addr().expect("local address").port();
+        std::thread::spawn(move || {
+            let response = b"HTTP/1.0 401 Unauthorized\r\nWWW-Authenticate: Basic realm=\"rndr\"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+            for stream in listener.incoming() {
+                let Ok(mut stream) = stream else {
+                    continue;
+                };
+                let _ = std::io::Read::read(&mut stream, &mut [0_u8; 2048]);
+                let _ = std::io::Write::write_all(&mut stream, response);
+            }
+        });
+        port
     }
 
     fn host_of(url: &str) -> &str {

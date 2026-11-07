@@ -78,7 +78,8 @@ cargo run -p rndr_browser --features native-auth-harness --example auth_harness 
 ```
 
 `https://example.com/` must finish. `https://expired.badssl.com/` must fail the
-load. The process must not abort. Downloads and file input still need a native
+load. A localhost HTTP basic challenge must be refused. The process must not
+abort. Downloads and file input still need a native
 acceptance session. A delayed title is covered by the headless reconcile test,
 not by this smoke.
 
