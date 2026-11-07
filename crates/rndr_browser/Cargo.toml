@@ -11,6 +11,10 @@ readme = "README.md"
 keywords = ["browser", "webkit", "webview", "desktop"]
 categories = ["gui", "os::macos-apis"]
 
+[features]
+# Main-thread WebKit load used by the macOS authentication harness. Off by default.
+native-auth-harness = []
+
 [dependencies]
 raw-window-handle = "0.6"
 
@@ -23,6 +27,8 @@ objc2-foundation = { version = "=0.2.2", features = [
     "NSArray",
     "NSError",
     "NSGeometry",
+    "NSInvocation",
+    "NSMethodSignature",
     "NSObject",
     "NSString",
     "NSThread",
@@ -70,6 +76,11 @@ objc2-foundation = { version = "=0.2.2", features = [
 ] }
 raw-window-handle = "0.6"
 winit = { workspace = true }
+
+[[example]]
+name = "auth_harness"
+path = "examples/auth_harness.rs"
+required-features = ["native-auth-harness"]
 
 [package.metadata.docs.rs]
 # Linux docs.rs cannot link WebKit. The crate still documents the contract.

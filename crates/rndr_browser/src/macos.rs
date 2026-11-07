@@ -14,18 +14,19 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
+use std::ptr::NonNull;
 use std::rc::Rc;
 
 use block2::RcBlock;
 use objc2::mutability::MainThreadOnly;
 use objc2::rc::Retained;
 use objc2::runtime::{Bool, ProtocolObject};
-use objc2::{declare_class, msg_send_id, ClassType, DeclaredClass};
+use objc2::{declare_class, msg_send, msg_send_id, sel, ClassType, DeclaredClass};
 use objc2_app_kit::NSView;
 use objc2_foundation::{
-    MainThreadMarker, NSArray, NSError, NSObject, NSObjectProtocol, NSPoint, NSRect, NSSize,
-    NSString, NSURLAuthenticationChallenge, NSURLCredential, NSURLRequest, NSURLResponse,
-    NSURLSessionAuthChallengeDisposition, NSURL,
+    MainThreadMarker, NSArray, NSError, NSInvocation, NSMethodSignature, NSObject,
+    NSObjectProtocol, NSPoint, NSRect, NSSize, NSString, NSURLAuthenticationChallenge,
+    NSURLCredential, NSURLRequest, NSURLResponse, NSURLSessionAuthChallengeDisposition, NSURL,
 };
 use objc2_web_kit::{
     WKDownload, WKDownloadDelegate, WKDownloadRedirectPolicy, WKFrameInfo, WKNavigation,
@@ -733,23 +734,74 @@ impl WebKitHost {
 }
 
 fn answer_authentication(
-    challenge: &NSURLAuthenticationChallenge,
+    challenge: &impl objc2::Message,
     completion_handler: &block2::Block<
         dyn Fn(NSURLSessionAuthChallengeDisposition, *mut NSURLCredential),
     >,
 ) {
-    let method = unsafe { challenge.protectionSpace().authenticationMethod() };
-    // The credential pointer stays null. Default handling therefore uses the
-    // system trust evaluation, and cancel supplies no password or certificate.
-    let disposition = match crate::auth::decide_authentication(&method.to_string()) {
-        crate::auth::AuthDecision::PerformDefaultHandling => {
-            NSURLSessionAuthChallengeDisposition::NSURLSessionAuthChallengePerformDefaultHandling
-        }
-        crate::auth::AuthDecision::Cancel => {
+    // WebKit does not pass an NSURLAuthenticationChallenge. It passes
+    // WKNSURLAuthenticationChallenge, an NSProxy that forwards the selector.
+    // objc2's debug check requires the method to be in the class method list,
+    // so `protectionSpace` panics before the message is sent. Release builds
+    // skip that check, which is why the same navigation only failed the load
+    // with debug assertions disabled. The credential pointer stays null either
+    // way: default handling is the system trust evaluation, and cancel sends
+    // no password or certificate.
+    let challenge = unsafe { &*(challenge as *const _ as *const objc2::runtime::AnyObject) };
+    let method = authentication_method(challenge);
+    let disposition = match method.as_deref().map(crate::auth::decide_authentication) {
+        Some(crate::auth::AuthDecision::Cancel) => {
             NSURLSessionAuthChallengeDisposition::NSURLSessionAuthChallengeCancelAuthenticationChallenge
+        }
+        Some(crate::auth::AuthDecision::PerformDefaultHandling) | None => {
+            NSURLSessionAuthChallengeDisposition::NSURLSessionAuthChallengePerformDefaultHandling
         }
     };
     completion_handler.call((disposition, std::ptr::null_mut()));
+}
+
+fn authentication_method(challenge: &objc2::runtime::AnyObject) -> Option<String> {
+    let space = forwarded_object(challenge, sel!(protectionSpace))?;
+    let method = forwarded_object(&space, sel!(authenticationMethod))?;
+    let is_string: bool = unsafe { msg_send![&*method, isKindOfClass: NSString::class()] };
+    if !is_string {
+        return None;
+    }
+    let string =
+        unsafe { Retained::<NSString>::retain(Retained::as_ptr(&method).cast_mut().cast()) }?;
+    Some(string.to_string())
+}
+
+/// Send a no-argument object getter, including through an NSProxy.
+///
+/// `methodSignatureForSelector:` is a real method on NSObject and NSProxy, so
+/// the debug check accepts it. `NSInvocation` then performs the forwarded send.
+fn forwarded_object(
+    target: &objc2::runtime::AnyObject,
+    selector: objc2::runtime::Sel,
+) -> Option<Retained<objc2::runtime::AnyObject>> {
+    let signature: Option<Retained<NSMethodSignature>> =
+        unsafe { msg_send_id![target, methodSignatureForSelector: selector] };
+    let signature = signature?;
+    if unsafe { signature.numberOfArguments() } < 2 {
+        return None;
+    }
+    let invocation = unsafe { NSInvocation::invocationWithMethodSignature(&signature) };
+    unsafe {
+        invocation.setSelector(selector);
+        invocation.setTarget(Some(target));
+        invocation.invoke();
+    }
+    let mut result: *mut objc2::runtime::AnyObject = std::ptr::null_mut();
+    unsafe {
+        invocation.getReturnValue(NonNull::from(&mut result).cast());
+    }
+    if result.is_null() {
+        None
+    } else {
+        // `getReturnValue` copies the pointer and does not retain it.
+        unsafe { Retained::retain(result) }
+    }
 }
 
 fn snapshot(web_view: &WKWebView, load: LoadOutcome) -> NavigationState {
@@ -778,4 +830,195 @@ fn response_mime(response: &NSURLResponse) -> String {
     unsafe { response.MIMEType() }
         .map(|mime| mime.to_string())
         .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod challenge_dispatch {
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    use block2::RcBlock;
+    use objc2::rc::Retained;
+    use objc2::runtime::{AnyObject, Sel};
+    use objc2::{declare_class, msg_send_id, sel, ClassType, DeclaredClass};
+    use objc2_foundation::{
+        NSInvocation, NSMethodSignature, NSObject, NSObjectProtocol, NSString,
+        NSURLAuthenticationChallenge, NSURLAuthenticationChallengeSender,
+        NSURLAuthenticationMethodHTTPBasic, NSURLAuthenticationMethodServerTrust, NSURLCredential,
+        NSURLProtectionSpace, NSURLSessionAuthChallengeDisposition,
+    };
+
+    use super::answer_authentication;
+
+    struct ProbeIvars {
+        space: Retained<NSURLProtectionSpace>,
+    }
+
+    declare_class!(
+        struct AuthProbe;
+
+        unsafe impl ClassType for AuthProbe {
+            type Super = NSObject;
+            type Mutability = objc2::mutability::InteriorMutable;
+            const NAME: &'static str = "RndrBrowserAuthProbe";
+        }
+
+        impl DeclaredClass for AuthProbe {
+            type Ivars = ProbeIvars;
+        }
+
+        unsafe impl NSObjectProtocol for AuthProbe {}
+
+        unsafe impl AuthProbe {
+            #[method_id(methodSignatureForSelector:)]
+            fn method_signature(&self, selector: Sel) -> Option<Retained<NSMethodSignature>> {
+                if selector == sel!(protectionSpace) {
+                    foundation_signature(selector)
+                } else {
+                    None
+                }
+            }
+
+            #[method(forwardInvocation:)]
+            unsafe fn forward_invocation(&self, invocation: &NSInvocation) {
+                if invocation.selector() != sel!(protectionSpace) {
+                    return;
+                }
+                let pointer: *mut AnyObject =
+                    Retained::as_ptr(&self.ivars().space).cast_mut().cast();
+                let mut slot = pointer;
+                invocation.setReturnValue(std::ptr::NonNull::from(&mut slot).cast());
+            }
+        }
+    );
+
+    struct SenderIvars;
+
+    declare_class!(
+        struct AuthSender;
+
+        unsafe impl ClassType for AuthSender {
+            type Super = NSObject;
+            type Mutability = objc2::mutability::InteriorMutable;
+            const NAME: &'static str = "RndrBrowserAuthSender";
+        }
+
+        impl DeclaredClass for AuthSender {
+            type Ivars = SenderIvars;
+        }
+
+        unsafe impl NSObjectProtocol for AuthSender {}
+
+        unsafe impl NSURLAuthenticationChallengeSender for AuthSender {
+            #[method(useCredential:forAuthenticationChallenge:)]
+            unsafe fn use_credential(
+                &self,
+                _credential: &NSURLCredential,
+                _challenge: &NSURLAuthenticationChallenge,
+            ) {
+            }
+
+            #[method(continueWithoutCredentialForAuthenticationChallenge:)]
+            unsafe fn continue_without_credential(
+                &self,
+                _challenge: &NSURLAuthenticationChallenge,
+            ) {
+            }
+
+            #[method(cancelAuthenticationChallenge:)]
+            unsafe fn cancel_challenge(&self, _challenge: &NSURLAuthenticationChallenge) {}
+        }
+    );
+
+    fn foundation_signature(selector: Sel) -> Option<Retained<NSMethodSignature>> {
+        unsafe {
+            msg_send_id![
+                NSURLAuthenticationChallenge::class(),
+                instanceMethodSignatureForSelector: selector
+            ]
+        }
+    }
+
+    fn protection_space(method: &NSString) -> Retained<NSURLProtectionSpace> {
+        unsafe {
+            NSURLProtectionSpace::initWithHost_port_protocol_realm_authenticationMethod(
+                NSURLProtectionSpace::alloc(),
+                &NSString::from_str("example.com"),
+                443,
+                Some(&NSString::from_str("https")),
+                None,
+                Some(method),
+            )
+        }
+    }
+
+    fn probe(method: &NSString) -> Retained<AuthProbe> {
+        let this = AuthProbe::alloc().set_ivars(ProbeIvars {
+            space: protection_space(method),
+        });
+        unsafe { msg_send_id![super(this), init] }
+    }
+
+    fn sender() -> Retained<AuthSender> {
+        let this = AuthSender::alloc().set_ivars(SenderIvars);
+        unsafe { msg_send_id![super(this), init] }
+    }
+
+    fn dispatch(challenge: &impl objc2::Message) -> NSURLSessionAuthChallengeDisposition {
+        let seen = Rc::new(Cell::new(
+            NSURLSessionAuthChallengeDisposition::NSURLSessionAuthChallengeUseCredential,
+        ));
+        let record = Rc::clone(&seen);
+        let block = RcBlock::new(
+            move |disposition: NSURLSessionAuthChallengeDisposition, _: *mut NSURLCredential| {
+                record.set(disposition);
+            },
+        );
+        answer_authentication(challenge, &block);
+        seen.get()
+    }
+
+    #[test]
+    fn proxy_challenge_is_dispatched_without_a_debug_abort() {
+        let server_trust = unsafe { NSURLAuthenticationMethodServerTrust };
+        let proxy = probe(server_trust);
+        assert!(
+            AuthProbe::class()
+                .instance_method(sel!(protectionSpace))
+                .is_none(),
+            "the probe must not list protectionSpace, matching WebKit's NSProxy"
+        );
+        assert_eq!(
+            dispatch(&*proxy),
+            NSURLSessionAuthChallengeDisposition::NSURLSessionAuthChallengePerformDefaultHandling
+        );
+
+        let basic = unsafe { NSURLAuthenticationMethodHTTPBasic };
+        assert_eq!(
+            dispatch(&*probe(basic)),
+            NSURLSessionAuthChallengeDisposition::NSURLSessionAuthChallengeCancelAuthenticationChallenge
+        );
+    }
+
+    #[test]
+    fn foundation_challenge_uses_the_same_helper() {
+        let server_trust = unsafe { NSURLAuthenticationMethodServerTrust };
+        let space = protection_space(server_trust);
+        let owner = sender();
+        let challenge = unsafe {
+            NSURLAuthenticationChallenge::initWithProtectionSpace_proposedCredential_previousFailureCount_failureResponse_error_sender(
+                NSURLAuthenticationChallenge::alloc(),
+                &space,
+                None,
+                0,
+                None,
+                None,
+                objc2::runtime::ProtocolObject::from_ref(&*owner),
+            )
+        };
+        assert_eq!(
+            dispatch(&*challenge),
+            NSURLSessionAuthChallengeDisposition::NSURLSessionAuthChallengePerformDefaultHandling
+        );
+    }
 }

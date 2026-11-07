@@ -65,11 +65,22 @@ What a main-thread run is expected to show:
    at y = 280 after the parent height becomes 500.
 4. Dropping the session removes the view. No file panel appears.
 
-Server trust uses the system certificate check. That was not re-run here.
-Invalid certificates are not given a trust credential. Credential challenges
-are cancelled for both navigation and downloads. Downloads and file input
-still need a native acceptance session. A delayed title is covered by the
-headless reconcile test, not by this smoke.
+Server trust uses the system certificate check and does not install a
+credential. Credential challenges are cancelled for both navigation and
+downloads. WebKit's challenge object is an `NSProxy`, so the method is sent
+through `NSInvocation` instead of a checked `protectionSpace` message.
+
+On a Mac, debug and release:
+
+```sh
+cargo run -p rndr_browser --features native-auth-harness --example auth_harness
+cargo run -p rndr_browser --features native-auth-harness --example auth_harness --release
+```
+
+`https://example.com/` must finish. `https://expired.badssl.com/` must fail the
+load. The process must not abort. Downloads and file input still need a native
+acceptance session. A delayed title is covered by the headless reconcile test,
+not by this smoke.
 
 Record the OS version, machine, Rust version, date, and the observed result
 before calling any cell `Supported`. This repository does not do that here.

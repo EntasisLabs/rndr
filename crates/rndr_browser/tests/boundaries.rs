@@ -58,8 +58,10 @@ fn facade_browser_feature_is_off_and_does_not_enable_dialog() {
     );
     let macos = read("crates/rndr_browser/src/macos.rs");
     assert_eq!(
-        macos.matches("answer_authentication(").count(),
-        3,
+        macos
+            .matches("answer_authentication(_challenge, completion_handler);")
+            .count(),
+        2,
         "navigation and download challenges must share one decision"
     );
     assert!(browser_crate.contains("objc2-web-kit"));
