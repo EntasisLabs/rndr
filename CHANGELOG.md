@@ -6,6 +6,7 @@
 
 - `FileHover` and `FileDrop` carry `position: Option<[f32; 2]>` in logical points. The desktop runner follows winit 0.31.0-beta.4 drag events: client physical pixels are divided by the window scale, every path in one transfer shares that point, and a missing or non-finite sample stays `None`. `FileHoverCancel` still clears every hovered path. Wayland drag events are not accepted and not forwarded. `accesskit_winit` 0.34 is still built on winit 0.30, so the accesskit feature uses a local adapter over the same platform crates and keeps the feature on. See [file drop](docs/file-drop.md).
 - Windows pen and eraser input follows winit tablet-tool pointer and button events: motion, tip contact and release, pressure, tilt, and twist, on the existing pen contact. The macOS pen monitor is unchanged and does not run on Windows. No tablet session was run.
+- Linux screen-reader bounds use the window's outer position plus the window-relative surface offset. A window whose outer origin is `(500, 300)` and whose surface offset is `(0, 30)` reports an inner origin of `(500, 330)` on move and on resize. No screen reader was run.
 
 ## 0.4.0
 

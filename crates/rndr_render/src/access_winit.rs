@@ -27,6 +27,18 @@ pub(crate) enum WindowEvent {
 
 type Callback = Arc<dyn Fn(Event) + Send + Sync>;
 
+/// Desktop origin of the client area.
+///
+/// `surface_offset` is [`winit::window::Window::surface_position`]: pixels
+/// from the window's outer origin to the client area, not a desktop point.
+/// The inner origin is the outer origin plus that offset.
+pub(crate) fn desktop_inner_origin(outer: [f64; 2], surface_offset: [i32; 2]) -> [f64; 2] {
+    [
+        outer[0] + f64::from(surface_offset[0]),
+        outer[1] + f64::from(surface_offset[1]),
+    ]
+}
+
 struct Activation {
     window_id: WindowId,
     on_event: Callback,
@@ -143,27 +155,26 @@ mod platform {
         pub(super) fn process_event(&mut self, window: &dyn Window, event: &WindowEvent) {
             match event {
                 WindowEvent::Moved(outer_position) => {
-                    let outer_position: (_, _) = outer_position.cast::<f64>().into();
+                    let outer = [outer_position.x as f64, outer_position.y as f64];
+                    let surface = window.surface_position();
+                    let inner = super::desktop_inner_origin(outer, [surface.x, surface.y]);
                     let outer_size: (_, _) = window.outer_size().cast::<f64>().into();
-                    let inner_position: (_, _) = window.surface_position().cast::<f64>().into();
                     let inner_size: (_, _) = window.surface_size().cast::<f64>().into();
                     self.adapter.set_root_window_bounds(
-                        Rect::from_origin_size(outer_position, outer_size),
-                        Rect::from_origin_size(inner_position, inner_size),
+                        Rect::from_origin_size((outer[0], outer[1]), outer_size),
+                        Rect::from_origin_size((inner[0], inner[1]), inner_size),
                     );
                 }
                 WindowEvent::SurfaceResized(inner_size) => {
-                    let outer_position: (_, _) = window
-                        .outer_position()
-                        .unwrap_or_default()
-                        .cast::<f64>()
-                        .into();
+                    let outer_point = window.outer_position().unwrap_or_default();
+                    let outer = [f64::from(outer_point.x), f64::from(outer_point.y)];
+                    let surface = window.surface_position();
+                    let inner = super::desktop_inner_origin(outer, [surface.x, surface.y]);
                     let outer_size: (_, _) = window.outer_size().cast::<f64>().into();
-                    let inner_position: (_, _) = window.surface_position().cast::<f64>().into();
                     let inner_size: (_, _) = inner_size.cast::<f64>().into();
                     self.adapter.set_root_window_bounds(
-                        Rect::from_origin_size(outer_position, outer_size),
-                        Rect::from_origin_size(inner_position, inner_size),
+                        Rect::from_origin_size((outer[0], outer[1]), outer_size),
+                        Rect::from_origin_size((inner[0], inner[1]), inner_size),
                     );
                 }
                 WindowEvent::Focused(is_focused) => {
@@ -283,5 +294,36 @@ mod platform {
         pub(super) fn update_if_active(&mut self, _updater: impl FnOnce() -> TreeUpdate) {}
 
         pub(super) fn process_event(&mut self, _window: &dyn Window, _event: &WindowEvent) {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::desktop_inner_origin;
+
+    fn bits(point: [f64; 2]) -> [u64; 2] {
+        [point[0].to_bits(), point[1].to_bits()]
+    }
+
+    #[test]
+    fn inner_origin_is_outer_plus_the_window_relative_surface_offset() {
+        let origin = [500.0, 300.0];
+        let offset = [0, 30];
+        assert_eq!(
+            bits(desktop_inner_origin(origin, offset)),
+            bits([500.0, 330.0])
+        );
+        // A move changes the outer origin. The surface offset stays window-relative.
+        let moved = [800.0, 100.0];
+        assert_eq!(
+            bits(desktop_inner_origin(moved, offset)),
+            bits([800.0, 130.0])
+        );
+        // A resize keeps that outer origin and can change the frame inset.
+        let resized_offset = [2, 40];
+        assert_eq!(
+            bits(desktop_inner_origin(moved, resized_offset)),
+            bits([802.0, 140.0])
+        );
     }
 }
