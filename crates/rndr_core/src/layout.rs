@@ -282,19 +282,49 @@ pub fn hit_test(world: &World, x: f32, y: f32) -> Option<Entity> {
         if floor.is_some_and(|floor| crate::overlay::layer_of(world, root) < floor) {
             continue;
         }
-        walk_paint_order(world, root, &mut |entity| {
-            if let Some(clip) = world.get::<Clip>(entity).copied() {
-                if clip.contains(x, y) {
-                    hit = Some(entity);
-                }
-            } else if let Some(rect) = world.get::<Rect>(entity).copied() {
-                if rect.contains(x, y) {
-                    hit = Some(entity);
-                }
-            }
-        });
+        hit_walk(world, root, [x, y], &mut hit);
     }
     hit
+}
+
+// Paint order with the point mapped into each entity's layout space. A
+// transformed group is composited inside its parent's clip, so a point outside
+// that clip misses the whole group; a collapsed transform draws nothing.
+fn hit_walk(world: &World, entity: Entity, point: [f32; 2], hit: &mut Option<Entity>) {
+    if !world.is_alive(entity) || world.has::<crate::tabs::Hidden>(entity) {
+        return;
+    }
+    let mut point = point;
+    if let (Some(transform), Some(rect)) = (
+        world
+            .get::<crate::Transform>(entity)
+            .filter(|t| !t.is_identity()),
+        world.get::<Rect>(entity).copied(),
+    ) {
+        let parent_clip = world
+            .get::<Parent>(entity)
+            .and_then(|parent| world.get::<Clip>(parent.entity).copied());
+        if parent_clip.is_some_and(|clip| !clip.contains(point[0], point[1])) {
+            return;
+        }
+        let Some(inverse) = crate::compose::invert(transform.matrix(rect)) else {
+            return;
+        };
+        point = crate::compose::apply(inverse, point);
+    }
+    let [x, y] = point;
+    if let Some(clip) = world.get::<Clip>(entity).copied() {
+        if clip.contains(x, y) {
+            *hit = Some(entity);
+        }
+    } else if let Some(rect) = world.get::<Rect>(entity).copied() {
+        if rect.contains(x, y) {
+            *hit = Some(entity);
+        }
+    }
+    for child in children_of(world, entity) {
+        hit_walk(world, child, point, hit);
+    }
 }
 
 /// Apply the wheel, then a held contact.
@@ -446,16 +476,6 @@ pub fn layered_roots(world: &World) -> Vec<Entity> {
     let mut roots = roots::<Rect>(world);
     roots.sort_by_key(|entity| crate::overlay::layer_of(world, *entity));
     roots
-}
-
-fn walk_paint_order(world: &World, entity: Entity, visit: &mut impl FnMut(Entity)) {
-    if !world.is_alive(entity) || world.has::<crate::tabs::Hidden>(entity) {
-        return;
-    }
-    visit(entity);
-    for child in children_of(world, entity) {
-        walk_paint_order(world, child, visit);
-    }
 }
 
 fn shown_children(world: &World, entity: Entity) -> Vec<Entity> {

@@ -181,6 +181,7 @@ fn paint_node(
                 opacity: 1.0,
                 clip: Some(clip),
                 effect: None,
+                ..SceneLayer::default()
             });
             paint_children(canvas, world, node, nodes, images);
             canvas.pop_layer();
@@ -372,6 +373,7 @@ fn push_effect(canvas: &mut Canvas, shadow: Option<Effect>, clip: Option<ClipSha
         opacity: 1.0,
         clip,
         effect: shadow,
+        ..SceneLayer::default()
     });
 }
 
