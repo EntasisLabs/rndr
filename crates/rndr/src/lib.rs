@@ -71,6 +71,10 @@
 //! - `parley` shapes and rasterizes text, and links fontconfig on Linux.
 //! - `accesskit` publishes the accessibility tree. It is on by default.
 //! - `dialog` shows native open and save dialogs. It is off by default.
+//! - `notify` presents and dismisses notifications and reports a click token.
+//!   It is off by default. With the feature off, the entry point returns
+//!   [`rndr_render::NotifyError::Unsupported`] and does not present. A click
+//!   does not activate a window. Enabling it does not enable `dialog` or `browser`.
 //! - `term` re-exports the embedded terminal. It is off by default, so a
 //!   normal desktop build does not link a pseudoterminal.
 //! - `browser` re-exports the embedded browser. It is off by default, so a
@@ -172,6 +176,7 @@ mod tests {
             crate::frame as fn(&mut crate::App) -> crate::Frame,
             crate::run as fn(crate::App),
             std::any::type_name::<crate::StdFsPlugin>(),
+            std::any::type_name::<crate::Notifications>(),
         );
         #[cfg(feature = "parley")]
         let _ = std::any::type_name::<crate::ParleyText>();
