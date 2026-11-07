@@ -309,27 +309,59 @@ mod linux {
     }
 
     fn child_window(display: *mut Display, parent: c_ulong) -> Option<c_ulong> {
-        unsafe {
-            let mut root = 0;
-            let mut parent_return = 0;
-            let mut children: *mut c_ulong = std::ptr::null_mut();
-            let mut count: c_uint = 0;
-            if XQueryTree(
+        let mut root = 0;
+        let mut parent_return = 0;
+        let mut children: *mut c_ulong = std::ptr::null_mut();
+        let mut count: c_uint = 0;
+        let status = unsafe {
+            XQueryTree(
                 display,
                 parent,
                 &mut root,
                 &mut parent_return,
                 &mut children,
                 &mut count,
-            ) == 0
-                || children.is_null()
-                || count == 0
-            {
-                return None;
-            }
-            let window = *children;
-            XFree(children as *mut c_void);
-            Some(window)
+            )
+        };
+        let window = if status == 0 {
+            None
+        } else {
+            first_child_id(children, count)
+        };
+        // `XQueryTree` mallocs the list. Free it on every path, including failure.
+        if !children.is_null() {
+            unsafe { XFree(children as *mut c_void) };
+        }
+        window
+    }
+
+    /// Copy the first window id. A null list is never read.
+    fn first_child_id(children: *const c_ulong, count: c_uint) -> Option<c_ulong> {
+        if children.is_null() {
+            return None;
+        }
+        if count == 0 {
+            return None;
+        }
+        // The caller holds an XQueryTree list of `count` ids, or a test slice.
+        Some(unsafe { *children })
+    }
+
+    #[cfg(test)]
+    mod child_list_tests {
+        use super::first_child_id;
+
+        #[test]
+        fn a_null_child_list_is_not_read() {
+            assert!(first_child_id(std::ptr::null(), 0).is_none());
+            assert!(first_child_id(std::ptr::null(), 4).is_none());
+        }
+
+        #[test]
+        fn the_first_live_child_id_is_copied() {
+            let ids = [7_u64, 9];
+            assert_eq!(first_child_id(ids.as_ptr(), 2), Some(7));
+            assert!(first_child_id(ids.as_ptr(), 0).is_none());
         }
     }
 

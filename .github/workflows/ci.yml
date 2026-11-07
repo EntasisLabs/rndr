@@ -74,7 +74,9 @@ jobs:
 
       - name: WebKitGTK X11 smoke
         if: runner.os == 'Linux'
-        run: xvfb-run -a cargo run -p rndr_browser --example webkitgtk_smoke
+        run: |
+          cargo test -p rndr_browser --example webkitgtk_smoke
+          xvfb-run -a cargo run -p rndr_browser --example webkitgtk_smoke
 
       - name: Test all features
         run: cargo test --workspace --all-features
