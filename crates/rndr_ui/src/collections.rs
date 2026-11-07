@@ -1,8 +1,10 @@
 //! Retained, application-owned data browsers. See docs/data-components.md.
 //! No Shell, filesystem, global Selection, or pooled index identity is used.
+mod selection_membership;
 mod virtual_list;
 use crate::{text, Corner, Token, Typography, UiError, UiId, UiRecipe, UiStyle, UiTheme};
 use rndr_core::*;
+use selection_membership::{gesture, reconcile, Membership, MembershipChange};
 use std::collections::{BTreeMap, BTreeSet};
 pub use virtual_list::{VariableAnchor, VirtualCompose, VirtualListPolicy, VirtualViewHandle};
 
@@ -11,13 +13,22 @@ pub const MAX_ITEMS: usize = 1024;
 /// Stable application identity, scoped to one collection. Never use the row index.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ItemId(pub u64);
-/// Initial selection contracts; multiple/range selection are not implemented.
+/// `None` and `Single` keep their previous behavior. `Multiple` and `Range`
+/// are additional modes. This crate is 0.y: an exhaustive match outside the
+/// workspace has to grow an arm for each new variant. Hosts that set `None`
+/// or `Single` are unchanged.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SelectionMode {
     /// Focus and activation only.
     None,
     /// Zero or one selected ID; focus does not follow selection.
     Single,
+    /// Toggle an enabled id on the selection gesture. Arrows do not change the set.
+    Multiple,
+    /// A plain gesture selects one enabled id and moves the range anchor.
+    /// Shift selects the enabled ids from that anchor through the gesture id
+    /// in current logical order and does not move the anchor.
+    Range,
 }
 /// Application-supplied metadata, independent of the composed visible content.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -87,8 +98,12 @@ impl Event for CollectionEvent {}
 pub enum CollectionEventKind {
     /// Actual canonical focus entered/left a row (None includes leaving the view).
     Focused(Option<ItemId>),
-    /// Selection changed or was reconciled away.
+    /// Selection changed or was reconciled away. `None` and `Single` only.
+    /// The value is the one selected id, or `None` when the slot is clear.
     Selected(Option<ItemId>),
+    /// `Multiple` or `Range` membership changed. The event does not carry the
+    /// ids. Read them from the list or table handle.
+    SelectionSetChanged,
     /// Enter requested host activation, independently of selection. A virtual
     /// list may explicitly opt into palette double-click activation too.
     /// This is not the screen-reader Activate action: on a row that follows
@@ -129,6 +144,7 @@ struct View {
     order: Vec<ItemId>,
     expanded: BTreeSet<ItemId>,
     selected: Option<ItemId>,
+    membership: Membership,
     active: Option<ItemId>,
     reported_focus: Option<ItemId>,
     empty: Entity,
@@ -286,6 +302,7 @@ fn mount(
                 order: vec![],
                 expanded: BTreeSet::new(),
                 selected: None,
+                membership: Membership::default(),
                 active: None,
                 reported_focus: None,
                 empty,
@@ -315,6 +332,7 @@ fn mount(
     }
     view.expanded.retain(|id| ids.contains(id));
     view.props = props;
+    let old_order = view.order.clone();
     view.order = nodes.iter().map(|n| n.item.id).collect();
     let branches: BTreeSet<_> = nodes.iter().filter_map(|n| n.parent).collect();
     // An ID can survive while its last child disappears. Retire disclosure
@@ -429,6 +447,29 @@ fn mount(
     {
         emit(world, root, CollectionEventKind::Selected(None));
     }
+    if matches!(
+        view.props.selection,
+        SelectionMode::Multiple | SelectionMode::Range
+    ) {
+        view.selected = None;
+    }
+    let logical_order = view.order.clone();
+    let enabled_now: Vec<ItemId> = logical_order
+        .iter()
+        .copied()
+        .filter(|id| view.props.enabled && node_enabled(&view, *id))
+        .collect();
+    let mode = view.props.selection;
+    let change = reconcile(
+        mode,
+        &mut view.membership,
+        &old_order,
+        &logical_order,
+        |id| enabled_now.contains(&id),
+    );
+    if change == MembershipChange::Set {
+        emit(world, root, CollectionEventKind::SelectionSetChanged);
+    }
     sync(world, root, &mut view);
     if let Some(id) = focused {
         let target = safe_target(&view, id).or_else(|| {
@@ -494,6 +535,16 @@ fn node_enabled(view: &View, mut id: ItemId) -> bool {
         id = parent;
     }
     false
+}
+fn row_chosen(view: &View, id: ItemId) -> bool {
+    match view.props.selection {
+        SelectionMode::None => false,
+        SelectionMode::Single => view.selected == Some(id),
+        SelectionMode::Multiple | SelectionMode::Range => view.membership.ids.contains(&id),
+    }
+}
+fn gesture_shift(world: &World) -> bool {
+    world.resource::<Input>().is_some_and(|input| input.shift)
 }
 fn available(view: &View) -> Vec<ItemId> {
     view.order
@@ -606,7 +657,7 @@ fn sync(world: &mut World, root: Entity, view: &mut View) {
             },
         );
         world.insert(row.slot.root, ActivationHandler(activate));
-        world.insert(row.slot.root, SelectedState(view.selected == Some(*id)));
+        world.insert(row.slot.root, SelectedState(row_chosen(view, *id)));
         world.insert(row.slot.root, TabStop(view.active == Some(*id)));
         world.insert(
             row.slot.root,
@@ -714,9 +765,25 @@ impl ViewHandle {
         validate(world, self.root)
     }
 
-    /// Current selected stable ID. Collapsing a branch does not clear selection.
+    /// Current selected stable ID for `None` and `Single`.
+    /// `Multiple` and `Range` keep this empty; read [`Self::selection`].
     pub fn selected(self, world: &World) -> Option<ItemId> {
         world.get::<View>(self.root).and_then(|v| v.selected)
+    }
+    /// Ids in the `Multiple` or `Range` set. Empty for `None` and `Single`.
+    pub fn selection(self, world: &World) -> BTreeSet<ItemId> {
+        world
+            .get::<View>(self.root)
+            .map(|view| view.membership.ids.clone())
+            .unwrap_or_default()
+    }
+    /// Range origin. `None` when the mode is not `Range` or the anchor was cleared.
+    pub fn range_anchor(self, world: &World) -> Option<ItemId> {
+        let view = world.get::<View>(self.root)?;
+        if view.props.selection != SelectionMode::Range {
+            return None;
+        }
+        view.membership.anchor
     }
     /// Canonical focused row, including a disclosure button's owner.
     pub fn focused(self, world: &World) -> Option<ItemId> {
@@ -734,9 +801,29 @@ impl ViewHandle {
             .is_some_and(|v| v.expanded.contains(&id))
     }
     /// Select an enabled present ID without focusing or activating. None clears.
+    /// `None` and `Single` keep this contract. `Multiple` and `Range` reject
+    /// `Some` here: membership changes on the selection gesture, and `None`
+    /// clears the set.
     pub fn select(self, world: &mut World, id: Option<ItemId>) -> Result<(), UiError> {
         validate(world, self.root)?;
         let mut v = world.get::<View>(self.root).unwrap().clone();
+        if matches!(
+            v.props.selection,
+            SelectionMode::Multiple | SelectionMode::Range
+        ) {
+            if id.is_some() || !v.props.enabled {
+                return Err(UiError::InvalidProps);
+            }
+            if v.membership.ids.is_empty() && v.membership.anchor.is_none() {
+                return Ok(());
+            }
+            v.membership.ids.clear();
+            v.membership.anchor = None;
+            emit(world, self.root, CollectionEventKind::SelectionSetChanged);
+            sync(world, self.root, &mut v);
+            world.insert(self.root, v);
+            return Ok(());
+        }
         if !v.props.enabled
             || (id.is_some()
                 && (v.props.selection == SelectionMode::None
@@ -929,6 +1016,43 @@ fn navigate(world: &mut World, _entity: Entity, event: &KeyEvent) -> bool {
     }
     consumed
 }
+fn apply_view_gesture(world: &mut World, root: Entity, id: ItemId) -> Result<(), UiError> {
+    let mut view = world.get::<View>(root).ok_or(UiError::Stale)?.clone();
+    if !view.props.enabled {
+        return Err(UiError::InvalidProps);
+    }
+    let order: Vec<ItemId> = view
+        .order
+        .iter()
+        .copied()
+        .filter(|id| view.rows[id].visible)
+        .collect();
+    let enabled_now: Vec<ItemId> = order
+        .iter()
+        .copied()
+        .filter(|id| enabled(&view, *id))
+        .collect();
+    let mode = view.props.selection;
+    let change = gesture(
+        mode,
+        &mut view.selected,
+        &mut view.membership,
+        id,
+        gesture_shift(world),
+        &order,
+        |id| enabled_now.contains(&id),
+    );
+    match change {
+        MembershipChange::Quiet => {}
+        MembershipChange::Single(selected) => {
+            emit(world, root, CollectionEventKind::Selected(selected));
+        }
+        MembershipChange::Set => emit(world, root, CollectionEventKind::SelectionSetChanged),
+    }
+    sync(world, root, &mut view);
+    world.insert(root, view);
+    Ok(())
+}
 // Runs only after canonical activation admission, before later navigation.
 fn activate(world: &mut World, entity: Entity) {
     let Some(owner) = world.get::<RowOwner>(entity).copied() else {
@@ -939,7 +1063,7 @@ fn activate(world: &mut World, entity: Entity) {
         let _ = handle.set_expanded(world, owner.id, !handle.expanded(world, owner.id));
         let _ = handle.focus(world, owner.id);
     } else {
-        let _ = handle.select(world, Some(owner.id));
+        let _ = apply_view_gesture(world, owner.view, owner.id);
     }
 }
 pub(crate) fn requests(world: &mut World) {
@@ -1012,7 +1136,7 @@ pub(crate) fn styles(world: &mut World) {
         );
         for (id, row) in &v.rows {
             let enabled = enabled(&v, *id);
-            let selected = v.selected == Some(*id);
+            let selected = row_chosen(&v, *id);
             let focused = focus == Some(row.slot.root) || focus == Some(row.chevron);
             let hover = hovered.is_some_and(|e| {
                 e == row.slot.root || ancestor_with::<RowOwner>(world, e) == Some(row.slot.root)

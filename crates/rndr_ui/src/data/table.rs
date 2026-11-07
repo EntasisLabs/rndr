@@ -59,7 +59,8 @@ pub struct TableProps {
     pub name: String,
     /// Interaction permission; false disables owned actionable controls.
     pub enabled: bool,
-    /// Existing collection single/no-selection policy.
+    /// Existing collection selection policy. `None` and `Single` are unchanged.
+    /// `Multiple` and `Range` use the row list's set. The table is not virtualized.
     pub selection: SelectionMode,
     /// Host-accepted sort indicator; does not reorder host data.
     pub sort: Option<SortState>,

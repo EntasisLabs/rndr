@@ -3,7 +3,8 @@
 //! project it into the same `Scroll::offset`.
 mod variable_geometry;
 use super::{
-    CollectionEvent, CollectionEventKind, Item, ItemId, ListView, RowSlot, SelectionMode, ViewProps,
+    gesture, reconcile, CollectionEvent, CollectionEventKind, Item, ItemId, ListView, Membership,
+    MembershipChange, RowSlot, SelectionMode, ViewProps,
 };
 use crate::{UiError, UiId};
 use rndr_core::*;
@@ -51,6 +52,7 @@ struct VirtualView {
     compose: VirtualCompose,
     rows: BTreeMap<ItemId, RowSlot>,
     selected: Option<ItemId>,
+    membership: Membership,
     active: Option<ItemId>,
     reported: Option<ItemId>,
     top: Entity,
@@ -278,6 +280,7 @@ fn mount_prepared(
                 compose,
                 rows: BTreeMap::new(),
                 selected: None,
+                membership: Membership::default(),
                 active: None,
                 reported: None,
                 top,
@@ -331,6 +334,7 @@ fn mount_prepared(
     } else {
         (Vec::new(), None, 0)
     };
+    let previous_ids: Vec<ItemId> = v.items.iter().map(|item| item.id).collect();
     v.items = Arc::from(items);
     v.indices = Arc::new(indices);
     v.compose = compose;
@@ -360,6 +364,29 @@ fn mount_prepared(
         && v.selected.take().is_some()
     {
         emit(w, root, CollectionEventKind::Selected(None));
+    }
+    if matches!(
+        v.props.selection,
+        SelectionMode::Multiple | SelectionMode::Range
+    ) {
+        v.selected = None;
+    }
+    let logical_order: Vec<ItemId> = v.items.iter().map(|item| item.id).collect();
+    let enabled_now: Vec<ItemId> = logical_order
+        .iter()
+        .copied()
+        .filter(|id| v.props.enabled && item_enabled(&v, *id))
+        .collect();
+    let mode = v.props.selection;
+    let change = reconcile(
+        mode,
+        &mut v.membership,
+        &previous_ids,
+        &logical_order,
+        |id| enabled_now.contains(&id),
+    );
+    if change == MembershipChange::Set {
+        emit(w, root, CollectionEventKind::SelectionSetChanged);
     }
     if !v.active.is_some_and(|id| item_enabled(&v, id)) {
         v.active = v
@@ -790,7 +817,7 @@ fn compose_realized_rows(w: &mut World, root: Entity, v: &VirtualView, wanted: &
             slot.root,
             TabStop(v.active == Some(id) && !external_focus_owner(w, root)),
         );
-        w.insert(slot.root, SelectedState(v.selected == Some(id)));
+        w.insert(slot.root, SelectedState(row_selected(v, id)));
         let focused = w
             .resource::<Focus>()
             .and_then(|f| f.entity)
@@ -801,7 +828,7 @@ fn compose_realized_rows(w: &mut World, root: Entity, v: &VirtualView, wanted: &
                 background: Some(
                     if focused {
                         crate::Token::Focus
-                    } else if v.selected == Some(id) {
+                    } else if row_selected(v, id) {
                         crate::Token::Selected
                     } else {
                         crate::Token::Content
@@ -860,9 +887,48 @@ fn external_focus_owner(w: &World, root: Entity) -> bool {
         .and_then(|p| p.focus_owner)
         .is_some_and(|e| access_details(w, e).focus)
 }
+fn row_selected(view: &VirtualView, id: ItemId) -> bool {
+    match view.props.selection {
+        SelectionMode::None => false,
+        SelectionMode::Single => view.selected == Some(id),
+        SelectionMode::Multiple | SelectionMode::Range => view.membership.ids.contains(&id),
+    }
+}
+fn apply_virtual_gesture(w: &mut World, root: Entity, id: ItemId) -> Result<(), UiError> {
+    let mut view = w.get::<VirtualView>(root).ok_or(UiError::Stale)?.clone();
+    if !view.props.enabled {
+        return Err(UiError::InvalidProps);
+    }
+    let order: Vec<ItemId> = view.items.iter().map(|item| item.id).collect();
+    let enabled_now: Vec<ItemId> = order
+        .iter()
+        .copied()
+        .filter(|id| item_enabled(&view, *id))
+        .collect();
+    let shift = w.resource::<Input>().is_some_and(|input| input.shift);
+    let mode = view.props.selection;
+    let change = gesture(
+        mode,
+        &mut view.selected,
+        &mut view.membership,
+        id,
+        shift,
+        &order,
+        |id| enabled_now.contains(&id),
+    );
+    w.insert(root, view);
+    match change {
+        MembershipChange::Quiet => {}
+        MembershipChange::Single(selected) => {
+            emit(w, root, CollectionEventKind::Selected(selected))
+        }
+        MembershipChange::Set => emit(w, root, CollectionEventKind::SelectionSetChanged),
+    }
+    Ok(())
+}
 fn activate(w: &mut World, e: Entity) {
     if let Some(o) = w.get::<Owner>(e).copied() {
-        let _ = (VirtualViewHandle { root: o.view }).select(w, Some(o.id));
+        let _ = apply_virtual_gesture(w, o.view, o.id);
         if w.get::<VirtualListPolicy>(o.view)
             .is_some_and(|p| p.double_click_activate)
             && w.resource::<Input>().is_some_and(|i| i.pointer.released)
@@ -986,6 +1052,8 @@ fn navigate_impl(w: &mut World, e: Entity, key: &KeyEvent, external: bool) -> bo
         }
         if w.get::<VirtualListPolicy>(root)
             .is_some_and(|p| p.selection_follows_navigation)
+            && w.get::<VirtualView>(root)
+                .is_some_and(|view| view.props.selection == SelectionMode::Single)
         {
             let _ = (VirtualViewHandle { root }).select(w, Some(id));
         }
@@ -1021,6 +1089,7 @@ pub(super) fn requests(w: &mut World) {
                             v.active = Some(o.id);
                             if w.get::<VirtualListPolicy>(root)
                                 .is_some_and(|p| p.selection_follows_navigation)
+                                && v.props.selection == SelectionMode::Single
                                 && v.selected != Some(o.id)
                             {
                                 v.selected = Some(o.id);
@@ -1080,9 +1149,22 @@ impl VirtualViewHandle {
             .filter(|o| o.view == self.root)
             .map(|o| o.id)
     }
-    /// Current selected stable key, independent of focus and realization.
+    /// Current selected stable key for `None` and `Single`.
+    /// `Multiple` and `Range` keep this empty; read [`Self::selection`].
     pub fn selected(self, w: &World) -> Option<ItemId> {
         w.get::<VirtualView>(self.root).and_then(|v| v.selected)
+    }
+    /// Ids in the `Multiple` or `Range` set. Empty for `None` and `Single`.
+    pub fn selection(self, w: &World) -> std::collections::BTreeSet<ItemId> {
+        w.get::<VirtualView>(self.root)
+            .map(|view| view.membership.ids.clone())
+            .unwrap_or_default()
+    }
+    /// Range origin. `None` unless this list is in `Range` and an anchor exists.
+    pub fn range_anchor(self, w: &World) -> Option<ItemId> {
+        let view = w.get::<VirtualView>(self.root)?;
+        (view.props.selection == SelectionMode::Range).then_some(())?;
+        view.membership.anchor
     }
     /// Canonical/logical focus, including a row parked on its viewport by scroll.
     pub fn focused(self, w: &World) -> Option<ItemId> {
@@ -1104,9 +1186,27 @@ impl VirtualViewHandle {
         self.len(w) == 0
     }
     /// Select without focus/reveal/activation. None clears selection.
+    /// `None` and `Single` keep this contract, including `Selected(Option<ItemId>)`.
+    /// `Multiple` and `Range` reject `Some`: the selection gesture changes
+    /// membership, and `None` clears the set.
     pub fn select(self, w: &mut World, id: Option<ItemId>) -> Result<(), UiError> {
         validate(w, self.root)?;
         let v = w.get_mut::<VirtualView>(self.root).ok_or(UiError::Stale)?;
+        if matches!(
+            v.props.selection,
+            SelectionMode::Multiple | SelectionMode::Range
+        ) {
+            if id.is_some() || !v.props.enabled {
+                return Err(UiError::InvalidProps);
+            }
+            if v.membership.ids.is_empty() && v.membership.anchor.is_none() {
+                return Ok(());
+            }
+            v.membership.ids.clear();
+            v.membership.anchor = None;
+            emit(w, self.root, CollectionEventKind::SelectionSetChanged);
+            return Ok(());
+        }
         if !v.props.enabled
             || id.is_some_and(|id| v.props.selection == SelectionMode::None || !item_enabled(v, id))
         {
