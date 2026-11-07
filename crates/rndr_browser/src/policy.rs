@@ -10,6 +10,7 @@ pub(crate) fn is_missing_runtime(code: i32) -> bool {
 }
 
 /// Logical points times a window scale. A missing or non-finite scale is 1.
+#[cfg_attr(not(any(test, target_os = "linux")), allow(dead_code))]
 pub(crate) fn logical_to_pixels(logical: f32, scale: f64) -> u32 {
     let scale = if scale.is_finite() && scale > 0.0 {
         scale
