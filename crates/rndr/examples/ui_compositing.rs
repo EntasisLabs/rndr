@@ -2,9 +2,7 @@
 //! scale, rotation, and translation. Writes one PNG; no window.
 //!
 //! `cargo run -p rndr --example ui_compositing -- OUTPUT.png`
-use rndr_core::{
-    set_parent, App, Axis, Color, Entity, Layout, Opacity, Size, TextEngine, Transform, Viewport,
-};
+use rndr_core::{set_parent, App, Axis, Color, Entity, Layout, Opacity, Size, Transform, Viewport};
 use rndr_render::{encode_png, Exporter};
 use rndr_ui::controls::{Button, ButtonProps, HostIntent};
 use rndr_ui::{Card, Typography, UiId, UiPlugin};
@@ -37,7 +35,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     app.world_mut().insert_resource(Viewport::new(760.0, 240.0));
     #[cfg(feature = "parley")]
     {
-        let engine: std::sync::Arc<dyn TextEngine> =
+        let engine: std::sync::Arc<dyn rndr_core::TextEngine> =
             std::sync::Arc::new(rndr_render::ParleyText::bundled());
         app.world_mut().insert_resource(engine);
     }
