@@ -173,7 +173,10 @@ impl Contract {
         IntentToken::minted(self.next)
     }
 
-    #[cfg_attr(not(any(test, target_os = "macos")), allow(dead_code))]
+    #[cfg_attr(
+        not(any(test, target_os = "macos", target_os = "windows")),
+        allow(dead_code)
+    )]
     pub(crate) fn open_download(&mut self, intent: DownloadIntent) {
         self.open.insert(
             intent.token,
@@ -184,7 +187,10 @@ impl Contract {
         self.events.push(BrowserEvent::Download(intent));
     }
 
-    #[cfg_attr(not(any(test, target_os = "macos")), allow(dead_code))]
+    #[cfg_attr(
+        not(any(test, target_os = "macos", target_os = "windows")),
+        allow(dead_code)
+    )]
     pub(crate) fn open_file(&mut self, intent: FileInputIntent) {
         self.open.insert(
             intent.token,

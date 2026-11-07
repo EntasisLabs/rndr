@@ -65,6 +65,11 @@ fn facade_browser_feature_is_off_and_does_not_enable_dialog() {
         "navigation and download challenges must share one decision"
     );
     assert!(browser_crate.contains("objc2-web-kit"));
+    assert!(browser_crate.contains("webview2-com"));
+    assert!(
+        !facade.contains("webview2"),
+        "WebView2 stays inside the optional browser crate"
+    );
     assert!(!browser_crate.contains("rndr_core"));
     assert!(!browser_crate.contains("rndr_ui"));
     assert!(!browser_crate.contains("rndr_paint"));
@@ -84,6 +89,11 @@ fn sources_do_not_grow_a_guest_command_bridge() {
         "READ_GUEST",
         "post_message",
         "add_message_handler",
+        "ExecuteScript",
+        "AddScriptToExecuteOnDocumentCreated",
+        "Runtime.evaluate",
+        "WebView2Setup",
+        "Evergreen",
     ];
     for path in files {
         let text = std::fs::read_to_string(&path).unwrap();

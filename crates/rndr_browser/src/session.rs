@@ -18,10 +18,20 @@ pub enum BrowserError {
         /// Backend the call asked for.
         backend: &'static str,
     },
-    /// The handle is not an AppKit view this slice can parent.
+    /// The handle is not a view this slice can parent.
     Parent,
-    /// WKWebView is only created on the AppKit main thread.
+    /// The platform web view has to be created on the UI thread.
     Thread,
+    /// The WebView2 runtime is not installed. Nothing was downloaded.
+    RuntimeMissing {
+        /// `HRESULT` from the loader, in two's complement.
+        code: i32,
+    },
+    /// WebView2 did not create the view.
+    Create {
+        /// `HRESULT` from the runtime, or `0` when the call did not return one.
+        code: i32,
+    },
     /// The rect was refused. The previous submission is unchanged.
     Rect(RectError),
     /// The URL is empty, or the view refused to parse it.
@@ -66,7 +76,7 @@ pub enum BrowserEvent {
 pub struct IntentToken(u64);
 
 impl IntentToken {
-    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    #[cfg_attr(not(any(target_os = "macos", target_os = "windows")), allow(dead_code))]
     pub(crate) fn minted(value: u64) -> Self {
         Self(value)
     }
@@ -79,7 +89,9 @@ impl IntentToken {
 
 /// Host-owned browser session.
 ///
-/// On macOS this owns a WKWebView. Elsewhere [`Browser::attach`] returns
+/// On macOS this owns a WKWebView. On Windows it owns a WebView2 controller,
+/// or returns [`BrowserError::RuntimeMissing`] when that runtime is not
+/// installed. Elsewhere [`Browser::attach`] returns
 /// [`BrowserError::Unsupported`]. Dropping the session cancels unanswered
 /// intents and releases the view.
 pub struct Browser {
@@ -94,7 +106,9 @@ enum Engine {
     Detached(Detached),
     #[cfg(target_os = "macos")]
     WebKit(crate::macos::WebKit),
-    #[cfg(not(any(test, target_os = "macos")))]
+    #[cfg(target_os = "windows")]
+    WebView2(crate::windows::WebView2),
+    #[cfg(not(any(test, target_os = "macos", target_os = "windows")))]
     #[allow(dead_code)]
     Unavailable,
 }
@@ -152,7 +166,16 @@ impl Browser {
                 surface_shown: false,
             })
         }
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(target_os = "windows")]
+        {
+            let engine = crate::windows::WebView2::attach(parent)?;
+            Ok(Self {
+                contract: Contract::new(),
+                engine: Engine::WebView2(engine),
+                surface_shown: false,
+            })
+        }
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
         {
             let _ = parent;
             Err(BrowserError::Unsupported {
@@ -430,7 +453,9 @@ impl Engine {
             }
             #[cfg(target_os = "macos")]
             Self::WebKit(engine) => engine.navigate(url),
-            #[cfg(not(any(test, target_os = "macos")))]
+            #[cfg(target_os = "windows")]
+            Self::WebView2(engine) => engine.navigate(url),
+            #[cfg(not(any(test, target_os = "macos", target_os = "windows")))]
             Self::Unavailable => {
                 let _ = url;
                 Err(BrowserError::Unsupported {
@@ -449,7 +474,9 @@ impl Engine {
             }
             #[cfg(target_os = "macos")]
             Self::WebKit(engine) => engine.back(),
-            #[cfg(not(any(test, target_os = "macos")))]
+            #[cfg(target_os = "windows")]
+            Self::WebView2(engine) => engine.back(),
+            #[cfg(not(any(test, target_os = "macos", target_os = "windows")))]
             Self::Unavailable => Err(BrowserError::Unsupported {
                 backend: "WKWebView",
             }),
@@ -465,7 +492,9 @@ impl Engine {
             }
             #[cfg(target_os = "macos")]
             Self::WebKit(engine) => engine.forward(),
-            #[cfg(not(any(test, target_os = "macos")))]
+            #[cfg(target_os = "windows")]
+            Self::WebView2(engine) => engine.forward(),
+            #[cfg(not(any(test, target_os = "macos", target_os = "windows")))]
             Self::Unavailable => Err(BrowserError::Unsupported {
                 backend: "WKWebView",
             }),
@@ -481,7 +510,9 @@ impl Engine {
             }
             #[cfg(target_os = "macos")]
             Self::WebKit(engine) => engine.reload(),
-            #[cfg(not(any(test, target_os = "macos")))]
+            #[cfg(target_os = "windows")]
+            Self::WebView2(engine) => engine.reload(),
+            #[cfg(not(any(test, target_os = "macos", target_os = "windows")))]
             Self::Unavailable => Err(BrowserError::Unsupported {
                 backend: "WKWebView",
             }),
@@ -497,7 +528,9 @@ impl Engine {
             }
             #[cfg(target_os = "macos")]
             Self::WebKit(engine) => engine.stop(),
-            #[cfg(not(any(test, target_os = "macos")))]
+            #[cfg(target_os = "windows")]
+            Self::WebView2(engine) => engine.stop(),
+            #[cfg(not(any(test, target_os = "macos", target_os = "windows")))]
             Self::Unavailable => {}
         }
     }
@@ -510,7 +543,9 @@ impl Engine {
             }
             #[cfg(target_os = "macos")]
             Self::WebKit(engine) => engine.apply(rect, visible),
-            #[cfg(not(any(test, target_os = "macos")))]
+            #[cfg(target_os = "windows")]
+            Self::WebView2(engine) => engine.apply(rect, visible),
+            #[cfg(not(any(test, target_os = "macos", target_os = "windows")))]
             Self::Unavailable => {
                 let _ = (rect, visible);
             }
@@ -523,7 +558,9 @@ impl Engine {
             Self::Detached(engine) => Probe::push(&engine.probe, ProbeEvent::Show),
             #[cfg(target_os = "macos")]
             Self::WebKit(engine) => engine.show(),
-            #[cfg(not(any(test, target_os = "macos")))]
+            #[cfg(target_os = "windows")]
+            Self::WebView2(engine) => engine.show(),
+            #[cfg(not(any(test, target_os = "macos", target_os = "windows")))]
             Self::Unavailable => {}
         }
     }
@@ -534,7 +571,9 @@ impl Engine {
             Self::Detached(engine) => Probe::push(&engine.probe, ProbeEvent::Hide),
             #[cfg(target_os = "macos")]
             Self::WebKit(engine) => engine.hide(),
-            #[cfg(not(any(test, target_os = "macos")))]
+            #[cfg(target_os = "windows")]
+            Self::WebView2(engine) => engine.hide(),
+            #[cfg(not(any(test, target_os = "macos", target_os = "windows")))]
             Self::Unavailable => {}
         }
     }
@@ -545,7 +584,9 @@ impl Engine {
             Self::Detached(engine) => Some(engine.live.clone()),
             #[cfg(target_os = "macos")]
             Self::WebKit(engine) => Some(engine.document()),
-            #[cfg(not(any(test, target_os = "macos")))]
+            #[cfg(target_os = "windows")]
+            Self::WebView2(engine) => Some(engine.document()),
+            #[cfg(not(any(test, target_os = "macos", target_os = "windows")))]
             Self::Unavailable => None,
         }
     }
@@ -556,6 +597,10 @@ impl Engine {
             Self::Detached(engine) => engine.live = live,
             #[cfg(target_os = "macos")]
             Self::WebKit(_) => {
+                let _ = live;
+            }
+            #[cfg(target_os = "windows")]
+            Self::WebView2(_) => {
                 let _ = live;
             }
         }
@@ -569,7 +614,9 @@ impl Engine {
             }
             #[cfg(target_os = "macos")]
             Self::WebKit(engine) => engine.pull(contract),
-            #[cfg(not(any(test, target_os = "macos")))]
+            #[cfg(target_os = "windows")]
+            Self::WebView2(engine) => engine.pull(contract),
+            #[cfg(not(any(test, target_os = "macos", target_os = "windows")))]
             Self::Unavailable => {
                 let _ = contract;
             }
@@ -590,7 +637,9 @@ impl Engine {
             }
             #[cfg(target_os = "macos")]
             Self::WebKit(engine) => engine.commit_download(token, destination),
-            #[cfg(not(any(test, target_os = "macos")))]
+            #[cfg(target_os = "windows")]
+            Self::WebView2(engine) => engine.commit_download(token, destination),
+            #[cfg(not(any(test, target_os = "macos", target_os = "windows")))]
             Self::Unavailable => {
                 let _ = (token, destination);
                 Err(BrowserError::Unsupported {
@@ -608,7 +657,9 @@ impl Engine {
             }
             #[cfg(target_os = "macos")]
             Self::WebKit(engine) => engine.cancel_download(token),
-            #[cfg(not(any(test, target_os = "macos")))]
+            #[cfg(target_os = "windows")]
+            Self::WebView2(engine) => engine.cancel_download(token),
+            #[cfg(not(any(test, target_os = "macos", target_os = "windows")))]
             Self::Unavailable => {
                 let _ = token;
             }
@@ -631,7 +682,9 @@ impl Engine {
             }
             #[cfg(target_os = "macos")]
             Self::WebKit(engine) => engine.finish_file(token, paths),
-            #[cfg(not(any(test, target_os = "macos")))]
+            #[cfg(target_os = "windows")]
+            Self::WebView2(engine) => engine.finish_file(token, paths),
+            #[cfg(not(any(test, target_os = "macos", target_os = "windows")))]
             Self::Unavailable => {
                 let _ = (token, paths);
                 Err(BrowserError::Unsupported {
@@ -661,7 +714,12 @@ impl Engine {
                 let _ = open;
                 engine.shutdown();
             }
-            #[cfg(not(any(test, target_os = "macos")))]
+            #[cfg(target_os = "windows")]
+            Self::WebView2(engine) => {
+                let _ = open;
+                engine.shutdown();
+            }
+            #[cfg(not(any(test, target_os = "macos", target_os = "windows")))]
             Self::Unavailable => {
                 let _ = open;
             }
@@ -697,9 +755,9 @@ mod tests {
         let Err(error) = Browser::attach(&ClosedParent) else {
             panic!("attach should fail without a platform view");
         };
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
         assert!(matches!(error, BrowserError::Parent));
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
         assert!(matches!(
             error,
             BrowserError::Unsupported {
@@ -1041,13 +1099,31 @@ mod tests {
                 && row.capability == "script"
                 && row.slice == SliceStatus::Unsupported
         }));
-        for backend in ["WebView2", "WebKitGTK"] {
-            let rows: Vec<_> = matrix.iter().filter(|row| row.backend == backend).collect();
-            assert!(!rows.is_empty());
-            assert!(rows.iter().all(|row| {
-                row.slice == SliceStatus::Unsupported && row.native == NativeStatus::Unsupported
-            }));
-        }
+        assert!(matrix.iter().any(|row| {
+            row.backend == "WebView2"
+                && row.capability.contains("bounds")
+                && row.slice == SliceStatus::Implemented
+                && row.native == NativeStatus::Unverified
+        }));
+        assert!(matrix.iter().any(|row| {
+            row.backend == "WebView2"
+                && row.capability == "find"
+                && row.slice == SliceStatus::Unsupported
+                && row.native == NativeStatus::Unsupported
+        }));
+        assert!(matrix.iter().any(|row| {
+            row.backend == "WebView2"
+                && row.capability == "script"
+                && row.slice == SliceStatus::Unsupported
+        }));
+        let gtk: Vec<_> = matrix
+            .iter()
+            .filter(|row| row.backend == "WebKitGTK")
+            .collect();
+        assert!(!gtk.is_empty());
+        assert!(gtk.iter().all(|row| {
+            row.slice == SliceStatus::Unsupported && row.native == NativeStatus::Unsupported
+        }));
         assert!(matrix.iter().all(|row| matches!(
             row.native,
             NativeStatus::Unverified | NativeStatus::Unsupported

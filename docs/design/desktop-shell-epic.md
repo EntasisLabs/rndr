@@ -290,6 +290,8 @@ WKWebView, the matrix skeleton, navigation, bounds, and resized bounds. One macO
 
 The same contract on Windows, after R3.1 has merged. One Windows smoke. A missing runtime is a reported error. The toolkit does not download or bundle one. macOS results do not transfer.
 
+R3.2 implements that contract in `rndr_browser` for an already installed WebView2 runtime. `BrowserError::RuntimeMissing` is the missing-runtime error. Native cells stay Unverified: a smoke log is not an R6 ledger entry, and merging R3.1 did not certify the macOS download callback, bounds smoke, or file input.
+
 ### R3.3 WebKitGTK
 
 The same contract. X11 and Wayland are separate cells. A session that was not run stays `Unverified`. Child-surface coordinates under Wayland stay `Unverified` until a compositor session shows them. A compositor that cannot host the guest surface is Unsupported for that session, and the matrix names it.

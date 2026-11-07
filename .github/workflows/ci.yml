@@ -65,6 +65,10 @@ jobs:
           cargo run -p rndr_browser --features native-auth-harness --example auth_harness
           cargo run -p rndr_browser --features native-auth-harness --example auth_harness --release
 
+      - name: WebView2 smoke
+        if: runner.os == 'Windows'
+        run: cargo run -p rndr_browser --example windows_smoke
+
       - name: Test all features
         run: cargo test --workspace --all-features
 
