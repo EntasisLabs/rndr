@@ -1,8 +1,8 @@
 //! Pixels for paint decorations: gradients, shadows, rings, and corners.
 
 use rndr_core::{
-    set_parent, App, BorderSides, Color, Corners, Entity, Gradient, Layout, Shadow, Shadows, Size,
-    Viewport,
+    set_parent, App, BorderSides, ClipRounded, Color, Corners, Entity, Gradient, Layout, Shadow,
+    Shadows, Size, Viewport,
 };
 use rndr_render::{ExportError, Exporter, RgbaImage};
 
@@ -103,4 +103,75 @@ fn decorations_paint_gradients_shadows_rings_and_corners() {
     assert_eq!(pixel(&image, 181, 1), [255, 255, 255, 255], "round corner");
     assert_eq!(pixel(&image, 218, 1), [0, 0, 0, 255], "square corner");
     assert_eq!(pixel(&image, 181, 38), [0, 0, 0, 255], "square corner");
+}
+
+fn export(app: &mut App, w: u32, h: u32) -> RgbaImage {
+    let frame = rndr_paint::frame(app);
+    let mut exporter = match Exporter::new() {
+        Ok(exporter) => exporter,
+        Err(ExportError::NoAdapter) => panic!("no graphics adapter"),
+        Err(err) => panic!("{err}"),
+    };
+    exporter
+        .render_frame(Some(app.world()), &frame, w, h, 1.0)
+        .expect("render")
+}
+
+#[test]
+fn clip_rounded_masks_children_with_hard_and_feathered_edges() {
+    let mut app = App::new();
+    app.world_mut().insert_resource(Viewport::new(100.0, 40.0));
+    let white = Color::rgb(1.0, 1.0, 1.0);
+    let blue = Color::rgb(0.0, 0.0, 1.0);
+    let root = boxed(&mut app, 100.0, 40.0, white, 20.0);
+    let round = boxed(&mut app, 40.0, 40.0, Color::rgb(1.0, 0.0, 0.0), 0.0);
+    let soft = boxed(&mut app, 40.0, 40.0, Color::rgb(1.0, 0.0, 0.0), 0.0);
+    for tile in [round, soft] {
+        set_parent(app.world_mut(), tile, root);
+        let child = boxed(&mut app, 40.0, 40.0, blue, 0.0);
+        set_parent(app.world_mut(), child, tile);
+    }
+    // x 0..40: a circle; x 60..100: square with a 10 point soft edge.
+    app.world_mut().insert(round, ClipRounded::radius(20.0));
+    app.world_mut()
+        .insert(soft, ClipRounded::radius(0.0).feathered(10.0));
+    let image = export(&mut app, 100, 40);
+
+    let corner = pixel(&image, 3, 3);
+    let centre = pixel(&image, 20, 20);
+    assert!(corner.iter().take(3).all(|&c| c > 240), "{corner:?}");
+    assert!(centre[2] > 240 && centre[0] < 10, "{centre:?}");
+    let edge = pixel(&image, 60, 20);
+    let half = pixel(&image, 65, 20);
+    let inside = pixel(&image, 80, 20);
+    assert!(edge[0] > 200, "the soft edge starts near white: {edge:?}");
+    assert!(half[0] > 60 && half[0] < 230, "{half:?}");
+    assert!(inside[2] > 240 && inside[0] < 10, "{inside:?}");
+}
+
+#[cfg(feature = "svg")]
+#[test]
+fn svg_icons_display_through_an_image_view() {
+    let svg = br##"<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8">
+        <circle cx="4" cy="4" r="4" fill="#00ff00"/></svg>"##;
+    let raster = rndr_render::decode_svg(svg, 32, 32).unwrap();
+    assert_eq!((raster.width, raster.height), (32, 32));
+    let mut app = App::new();
+    app.world_mut().insert_resource(Viewport::new(32.0, 32.0));
+    let root = boxed(&mut app, 32.0, 32.0, Color::rgb(1.0, 1.0, 1.0), 0.0);
+    rndr_render::load_rgba(app.world_mut(), 7, raster.width, raster.height, raster.rgba).unwrap();
+    let icon = app.world_mut().spawn((
+        Layout {
+            width: Size::Px(32.0),
+            height: Size::Px(32.0),
+            ..Layout::row()
+        },
+        rndr_core::ImageView::new(7),
+    ));
+    set_parent(app.world_mut(), icon, root);
+    let image = export(&mut app, 32, 32);
+    let centre = pixel(&image, 16, 16);
+    let corner = pixel(&image, 1, 1);
+    assert!(centre[1] > 240 && centre[0] < 10, "{centre:?}");
+    assert!(corner.iter().take(3).all(|&c| c > 240), "{corner:?}");
 }

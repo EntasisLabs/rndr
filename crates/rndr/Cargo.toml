@@ -18,7 +18,7 @@ exclude = ["**/*.snap.new"]
 ui = ["dep:rndr_ui"]
 # Native read-only observation; still requires explicit per-app session opt-in.
 observe = ["rndr_render/observe"]
-default = ["hotkey", "tray", "parley", "accesskit"]
+default = ["hotkey", "tray", "parley", "accesskit", "svg"]
 # Embedded terminal. Off by default so a desktop build does not link a PTY.
 term = ["dep:rndr_term"]
 # Same flags as rndr_render. Off skips Carbon, Win32, X11, and the portal client.
@@ -34,6 +34,8 @@ accesskit = ["rndr_render/accesskit"]
 dialog = ["rndr_render/dialog"]
 # Desktop notifications. Off by default. Does not enable `dialog` or `browser`.
 notify = ["rndr_render/notify"]
+# SVG and SVGZ decoding through resvg. On by default, matching `rndr_render`.
+svg = ["rndr_render/svg"]
 # Embedded browser. Off by default, so a desktop build does not link a webview.
 # Enabling it does not enable `dialog`.
 browser = ["dep:rndr_browser"]
@@ -61,6 +63,10 @@ rndr_ui = { workspace = true }
 [[example]]
 name = "structured_gallery"
 required-features = ["observe", "parley"]
+
+[[example]]
+name = "svg_clip_gallery"
+required-features = ["svg"]
 
 [package.metadata.docs.rs]
 # docs.rs uses the crates-build-env image, which includes libfontconfig1-dev,

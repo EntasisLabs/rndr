@@ -11,6 +11,7 @@ impl Component for Corners {}
 impl Component for Gradient {}
 impl Component for Shadows {}
 impl Component for BorderSides {}
+impl Component for ClipRounded {}
 
 /// Corner radii in logical points: top-left, top-right, bottom-right,
 /// bottom-left. Overrides [`crate::Radius`]. Each radius is clamped to half
@@ -146,6 +147,37 @@ impl BorderSides {
     /// Same border, dashed.
     pub const fn dashed(mut self, dash: f32, gap: f32) -> Self {
         self.dash = Some([dash, gap]);
+        self
+    }
+}
+
+/// Masks the entity and its descendants to its rounded rectangle, with an
+/// optional soft edge.
+///
+/// The mask applies to fills, decorations and text. Images and canvas
+/// drawings keep the rectangular [`crate::Clip`]. A nested `ClipRounded`
+/// replaces the outer one for its own subtree. Hit testing stays rectangular.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ClipRounded {
+    /// Top-left, top-right, bottom-right, bottom-left radii in logical points.
+    pub corners: [f32; 4],
+    /// Width of the soft edge in logical points, measured inward from the
+    /// rectangle. `0.0` is a hard, anti-aliased edge.
+    pub feather: f32,
+}
+
+impl ClipRounded {
+    /// Same radius on every corner, hard edge.
+    pub const fn radius(radius: f32) -> Self {
+        Self {
+            corners: [radius; 4],
+            feather: 0.0,
+        }
+    }
+
+    /// Same mask with a soft edge `feather` points wide.
+    pub const fn feathered(mut self, feather: f32) -> Self {
+        self.feather = feather;
         self
     }
 }

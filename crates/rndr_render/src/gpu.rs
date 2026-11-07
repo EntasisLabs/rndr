@@ -7,7 +7,7 @@ use crate::shell::Shell;
 use crate::color::{clear_color, color_for_surface};
 
 const QUAD: [[f32; 2]; 4] = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
-const INSTANCE_FLOATS: usize = 36;
+const INSTANCE_FLOATS: usize = 48;
 pub(crate) const INSTANCE_STRIDE: u64 = (INSTANCE_FLOATS * 4) as u64;
 const INITIAL_INSTANCES: u64 = 2048;
 
@@ -23,6 +23,9 @@ struct VsIn {
     @location(7) shape: vec4<f32>,
     @location(8) params: vec4<f32>,
     @location(9) color2: vec4<f32>,
+    @location(10) round_rect: vec4<f32>,
+    @location(11) round_corners: vec4<f32>,
+    @location(12) soft: vec4<f32>,
 }
 
 struct VsOut {
@@ -39,6 +42,9 @@ struct VsOut {
     @location(9) color2: vec4<f32>,
     @location(10) kind: vec2<f32>,
     @location(11) box_rect: vec4<f32>,
+    @location(12) round_rect: vec4<f32>,
+    @location(13) round_corners: vec4<f32>,
+    @location(14) soft: vec2<f32>,
 }
 
 struct ViewportUniform {
@@ -73,6 +79,9 @@ fn vs(in: VsIn) -> VsOut {
     out.color2 = in.color2;
     out.kind = in.radius.zw;
     out.box_rect = in.uv_rect;
+    out.round_rect = in.round_rect;
+    out.round_corners = in.round_corners;
+    out.soft = in.soft.xy;
     return out;
 }
 
@@ -152,6 +161,24 @@ fn band(t: f32, c0: vec4<f32>, c1: vec4<f32>, params: vec4<f32>) -> vec4<f32> {
 
 @fragment
 fn fs(in: VsOut) -> @location(0) vec4<f32> {
+    let color = paint(in);
+    if in.soft.y < 0.5 {
+        return color;
+    }
+    // Rounded mask from a `ClipRounded` ancestor; `soft.x` is the feather.
+    var mask = 0.0;
+    if in.round_rect.z > 0.0 && in.round_rect.w > 0.0 {
+        let d = box_distance(in.pos.xy, in.round_rect, in.round_corners);
+        if in.soft.x > 0.5 {
+            mask = clamp(-d / in.soft.x, 0.0, 1.0);
+        } else {
+            mask = clamp(0.5 - d, 0.0, 1.0);
+        }
+    }
+    return vec4<f32>(color.rgb, color.a * mask);
+}
+
+fn paint(in: VsOut) -> vec4<f32> {
     let px = in.pos.xy;
     let clip = in.clip;
     if px.x < clip.x || px.y < clip.y || px.x >= clip.x + clip.z || px.y >= clip.y + clip.w {
@@ -512,7 +539,7 @@ impl Gpu {
         });
 
         const QUAD_ATTRS: [wgpu::VertexAttribute; 1] = wgpu::vertex_attr_array![0 => Float32x2];
-        const INSTANCE_ATTRS: [wgpu::VertexAttribute; 9] = wgpu::vertex_attr_array![
+        const INSTANCE_ATTRS: [wgpu::VertexAttribute; 12] = wgpu::vertex_attr_array![
             1 => Float32x4,
             2 => Float32x4,
             3 => Float32x4,
@@ -522,6 +549,9 @@ impl Gpu {
             7 => Float32x4,
             8 => Float32x4,
             9 => Float32x4,
+            10 => Float32x4,
+            11 => Float32x4,
+            12 => Float32x4,
         ];
         let quad_layout = wgpu::VertexBufferLayout {
             array_stride: 8,
@@ -1296,6 +1326,23 @@ pub(crate) fn encode_instances(
                 params = [dash[0].max(0.0) * scale, dash[1].max(0.0) * scale, 0.0, 0.0];
             }
         }
+        let round = quad.shape.round_clip.map_or([0.0; 12], |mask| {
+            let [tl, tr, br, bl] = mask.corners.map(|r| r.max(0.0) * scale);
+            [
+                mask.rect.x * scale,
+                mask.rect.y * scale,
+                mask.rect.w * scale,
+                mask.rect.h * scale,
+                tl,
+                tr,
+                br,
+                bl,
+                mask.feather * scale,
+                1.0,
+                0.0,
+                0.0,
+            ]
+        });
         for value in [
             quad.rect.x * scale,
             quad.rect.y * scale,
@@ -1323,6 +1370,7 @@ pub(crate) fn encode_instances(
         .chain(shape)
         .chain(params)
         .chain(color2)
+        .chain(round)
         {
             out.extend_from_slice(&value.to_le_bytes());
         }

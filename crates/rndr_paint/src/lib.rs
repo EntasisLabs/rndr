@@ -112,6 +112,20 @@ pub struct QuadShape {
     pub corners: Option<[f32; 4]>,
     /// What the quad paints inside its rounded rectangle.
     pub kind: QuadKind,
+    /// Rounded, optionally feathered mask from the nearest
+    /// [`rndr_core::ClipRounded`] ancestor (or the entity itself).
+    pub round_clip: Option<RoundClip>,
+}
+
+/// Rounded mask in logical points, applied on top of [`Quad::clip`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RoundClip {
+    /// Mask rectangle.
+    pub rect: Rect,
+    /// Top-left, top-right, bottom-right, bottom-left radii.
+    pub corners: [f32; 4],
+    /// Soft edge width inward from the rectangle; `0.0` is a hard edge.
+    pub feather: f32,
 }
 
 /// What a [`Quad`] paints. Positions are logical points.
@@ -586,6 +600,42 @@ fn walk(
     if !world.is_alive(entity) || world.has::<rndr_core::Hidden>(entity) {
         return;
     }
+    let mask = world
+        .get::<rndr_core::ClipRounded>(entity)
+        .zip(world.get::<Rect>(entity))
+        .map(|(clip, rect)| RoundClip {
+            rect: *rect,
+            corners: clip.corners,
+            feather: clip.feather.max(0.0),
+        });
+    let Some(mask) = mask else {
+        walk_group(world, entity, quads, draws, scale, solid, theme);
+        return;
+    };
+    let quad_start = quads.borrow().len();
+    let draw_start = draws.borrow().len();
+    walk_group(world, entity, quads, draws, scale, solid, theme);
+    // Inner masks were applied first and win for their own subtrees.
+    let apply = |quad: &mut Quad| {
+        quad.shape.round_clip.get_or_insert(mask);
+    };
+    quads.borrow_mut()[quad_start..].iter_mut().for_each(apply);
+    for placed in &mut draws.borrow_mut()[draw_start..] {
+        if let Op::Quads(inner) = &mut placed.op {
+            inner.iter_mut().for_each(apply);
+        }
+    }
+}
+
+fn walk_group(
+    world: &World,
+    entity: rndr_core::Entity,
+    quads: &RefCell<Vec<Quad>>,
+    draws: &RefCell<Vec<Placed>>,
+    scale: f32,
+    solid: [f32; 4],
+    theme: &Theme,
+) {
     let Some(layer) = group_layer(world, entity) else {
         walk_entity(world, entity, quads, draws, scale, solid, theme);
         return;
@@ -1358,6 +1408,7 @@ fn decor_quads(
         shape: QuadShape {
             corners: Some(radii),
             kind,
+            round_clip: None,
         },
     };
     if let Some(gradient) = world.get::<rndr_core::Gradient>(entity) {
@@ -1508,6 +1559,7 @@ fn push_border_ring(
                 widths: border.widths,
                 dash: border.dash.unwrap_or([0.0, 0.0]),
             },
+            round_clip: None,
         };
     }
 }

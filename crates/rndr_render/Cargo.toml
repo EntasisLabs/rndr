@@ -23,7 +23,7 @@ required-features = ["observe"]
 [features]
 # Read-only per-session native surface observation. No listener without app opt-in.
 observe = ["dep:serde_json", "dep:getrandom"]
-default = ["hotkey", "tray", "parley", "accesskit"]
+default = ["hotkey", "tray", "parley", "accesskit", "svg"]
 # System-wide hotkeys. Off skips Carbon, Win32, X11, and the portal client.
 hotkey = [
     "dep:futures-util",
@@ -44,6 +44,8 @@ parley = ["dep:parley", "dep:swash", "dep:etagere"]
 accesskit = ["dep:accesskit", "dep:accesskit_unix", "dep:accesskit_macos", "dep:accesskit_windows"]
 # Native open and save dialogs. Off by default.
 dialog = ["dep:rfd"]
+# SVG and SVGZ decoding through resvg. Text in an SVG must be converted to paths.
+svg = ["dep:resvg"]
 # Desktop notifications. Off by default. Does not enable `dialog` or `browser`.
 notify = ["dep:zbus", "zbus/blocking-api"]
 
@@ -73,6 +75,7 @@ getrandom = { version = "0.3", optional = true }
 png = "0.18"
 jpeg-decoder = "0.3"
 image-webp = "0.2"
+resvg = { version = "0.45", optional = true, default-features = false }
 arboard = { version = "3", default-features = false, features = ["wayland-data-control", "image-data"] }
 unicode-segmentation = "1.13"
 accesskit = { version = "0.25.2", optional = true }
