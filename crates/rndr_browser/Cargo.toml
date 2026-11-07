@@ -10,7 +10,6 @@ description = "Optional embedded browser session for rndr"
 readme = "README.md"
 keywords = ["browser", "webkit", "webview", "desktop"]
 categories = ["gui", "os::macos-apis"]
-publish = false
 
 [dependencies]
 raw-window-handle = "0.6"

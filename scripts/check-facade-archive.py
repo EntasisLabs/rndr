@@ -21,7 +21,7 @@ def check(allow_dirty=False):
     ]))
     packages = {p["name"]: p for p in metadata["packages"]}
     facade = packages["rndr"]
-    for name in ("rndr", "rndr_ui", "rndr_app", "rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_render"):
+    for name in ("rndr", "rndr_ui", "rndr_app", "rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_render", "rndr_browser"):
         assert packages[name]["publish"] is None, f"{name} must be publishable"
     for name in ("desktop", "source-session"):
         assert packages[name]["publish"] == [], f"{name} must stay unpublished"

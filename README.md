@@ -124,7 +124,7 @@ Application state, systems and document authorities
 | [`rndr_render`](crates/rndr_render) | Native event loop, windows, text realization, GPU rendering and desktop integration |
 | [`rndr_std`](crates/rndr_std) | Process-filesystem backend; core also supports an in-memory filesystem |
 | [`rndr_term`](crates/rndr_term) | Optional embedded terminal: PTY, VT state and cell projection |
-| [`rndr_browser`](crates/rndr_browser) | Optional embedded browser. Off by default and unpublished. macOS WKWebView only in this slice |
+| [`rndr_browser`](crates/rndr_browser) | Optional embedded browser. Off by default. Publish-eligible and ordered immediately before the facade. macOS WKWebView only in this slice |
 
 ### One frame, explicit ownership
 
@@ -212,7 +212,7 @@ native-platform acceptance are different things:
   compositor presentation, or native screen-reader/IME certification.
 - **Pen input:** the pen probe is a hardware-validation spike, not a supported,
   cross-platform tablet API.
-- **Publishing:** 0.4.0 publishes `rndr_core`, `rndr_paint`, `rndr_std`, `rndr_term`, `rndr_ui`, `rndr_app`, `rndr_render`, and `rndr`. Examples stay unpublished. See [package policy](docs/ui-status.md#package-policy).
+- **Publishing:** 0.4.0 publishes `rndr_core`, `rndr_paint`, `rndr_std`, `rndr_term`, `rndr_ui`, `rndr_app`, `rndr_render`, and `rndr`. `rndr_browser` is now part of that package order, immediately before the facade, because the optional `browser` dependency is resolved even when the feature is off. Examples stay unpublished. This tree does not upload. See [package policy](docs/ui-status.md#package-policy).
 
 ## Documentation
 

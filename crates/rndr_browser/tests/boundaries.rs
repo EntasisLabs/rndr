@@ -42,7 +42,20 @@ fn facade_browser_feature_is_off_and_does_not_enable_dialog() {
     assert_eq!(browser.trim(), "browser = [\"dep:rndr_browser\"]");
     assert!(facade.contains("default = [\"hotkey\", \"tray\", \"parley\", \"accesskit\"]"));
     let browser_crate = read("crates/rndr_browser/Cargo.toml");
-    assert!(browser_crate.contains("publish = false"));
+    assert!(
+        !browser_crate.contains("publish = false"),
+        "an unpublished browser crate breaks default facade packaging"
+    );
+    let publish_order = read("scripts/publish-crates.sh");
+    assert!(
+        publish_order.contains("rndr_render rndr_browser rndr"),
+        "rndr_browser must be packaged immediately before the facade"
+    );
+    let ci = read(".github/workflows/ci.yml");
+    assert!(
+        !ci.contains("--exclude rndr_browser"),
+        "CI must package rndr_browser with the facade"
+    );
     assert!(browser_crate.contains("objc2-web-kit"));
     assert!(!browser_crate.contains("rndr_core"));
     assert!(!browser_crate.contains("rndr_ui"));

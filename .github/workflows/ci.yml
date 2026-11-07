@@ -117,18 +117,19 @@ jobs:
             --exclude desktop --exclude source-session \
             --exclude expand --exclude idle --exclude overlay --exclude palette \
             --exclude terminal --exclude stream --exclude two-windows \
-            --exclude pen-probe --exclude canvas-scene --exclude create-view \
-            --exclude rndr_browser
+            --exclude pen-probe --exclude canvas-scene --exclude create-view
           paint_crate=(target/package/rndr_paint-*.crate)
           render_crate=(target/package/rndr_render-*.crate)
           ui_crate=(target/package/rndr_ui-*.crate)
           app_crate=(target/package/rndr_app-*.crate)
           facade_crate=(target/package/rndr-*.crate)
+          browser_crate=(target/package/rndr_browser-*.crate)
           test "${#paint_crate[@]}" -eq 1
           test "${#render_crate[@]}" -eq 1
           test "${#ui_crate[@]}" -eq 1
           test "${#app_crate[@]}" -eq 1
           test "${#facade_crate[@]}" -eq 1
+          test "${#browser_crate[@]}" -eq 1
           paint_files="$(tar -tzf "${paint_crate[0]}")"
           render_files="$(tar -tzf "${render_crate[0]}")"
           test "$(printf '%s\n' "$paint_files" | grep -c '\.snap$')" = 7

@@ -84,13 +84,14 @@ in this order:
 5. `rndr_ui` — depends on `rndr_core`. Its dev-dependency on `rndr_paint` is resolved the same way.
 6. `rndr_app` — depends on `rndr_core`. It does not depend on `rndr_ui`.
 7. `rndr_render` — depends on `rndr_core` and `rndr_paint`.
-8. `rndr` — depends on `rndr_core`, `rndr_paint`, `rndr_std`, and `rndr_render`. Optional `term` depends on `rndr_term`. Optional `ui` depends on `rndr_ui`. The dev-dependency on `rndr_ui` is also resolved from the registry.
+8. `rndr_browser` — no workspace dependencies. Optional on the facade, including when `browser` is off.
+9. `rndr` — depends on `rndr_core`, `rndr_paint`, `rndr_std`, and `rndr_render`. Optional `term` depends on `rndr_term`. Optional `ui` depends on `rndr_ui`. Optional `browser` depends on `rndr_browser`. The dev-dependency on `rndr_ui` is also resolved from the registry.
 
-Examples stay `publish = false`, including `desktop` and `source-session`. `rndr_browser` is also `publish = false`. The facade feature `browser` depends on it and is off by default. The eight-crate upload above does not include it, and publishing `rndr` with that feature enabled waits until `rndr_browser` itself is published.
+Examples stay `publish = false`, including `desktop` and `source-session`. `rndr_browser` is publish-eligible and is packaged with the other library crates. An optional versioned dependency is still resolved when the feature is off, so omitting `rndr_browser` from `cargo package --workspace` makes the default facade look for that crate on crates.io and fail. This repository does not upload it here. A later `cargo publish -p rndr` still waits until `rndr_browser` is on the index; the workspace package command is what resolves it locally.
 
 0.4.0 is a 0.y release. Shipping these crates does not promise a stable 1.0 API. Experimental source sessions and the structured document stay experimental in their module docs.
 
-`cargo package` in CI uses `--no-verify` for the eight crates. Their 0.4.0 dependencies are not on the index until this release is published, so a registry rebuild of a dependent crate cannot succeed in CI beforehand. The job still checks tarball membership, licenses, and the paint and render snapshot sets. `scripts/check-facade-archive.py` checks that the facade manifest normalizes, including optional `ui` at the same version as `rndr_ui`. `scripts/publish-crates.sh --dry-run` runs `cargo publish --dry-run` for each crate whose workspace dependencies are already on the index.
+`cargo package` in CI uses `--no-verify` for the library crates, including `rndr_browser`. Their 0.4.0 workspace dependencies are not on the index until a release is published, so a registry rebuild of a dependent crate cannot succeed in CI beforehand. The job still checks tarball membership, licenses, and the paint and render snapshot sets. `scripts/check-facade-archive.py` checks that the facade manifest normalizes, including optional `ui` and optional `browser`. `scripts/publish-crates.sh --dry-run` runs `cargo publish --dry-run` for each crate whose workspace dependencies are already on the index. That dry-run does not upload.
 
 ## Evidence
 
