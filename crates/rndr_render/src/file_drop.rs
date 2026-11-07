@@ -1,18 +1,10 @@
 //! Map a native file-drag report onto core events.
 //!
-//! winit 0.30.13 delivers `WindowEvent::DroppedFile` and `HoveredFile` as a
-//! path. [`winit_path`] therefore passes [`DragPoint::Absent`]. The scale is
-//! accepted and does not invent a point.
-//!
-//! [`from_drag`] attaches a logical point when a drag callback actually
-//! supplied one. Client physical pixels are divided by the window scale.
-//! An AppKit content point is already in points. A missing sample stays
-//! [`None`]. A non-finite sample clears a point already stored for that drag.
-//! This module has no cursor argument.
-//!
-//! The 0.30.13 callbacks do not carry the sample. Reading it means either
-//! moving to the winit 0.31 drag events or replacing those private handlers.
-//! Both are outside this crate. See `docs/file-drop.md`.
+//! winit 0.31 drag events carry a client point. Client physical pixels are
+//! divided by the window scale. [`DragPointSample::Absent`] leaves the stored
+//! point unchanged. [`DragPointSample::Invalid`] clears it. A path list is
+//! applied only for the fetch still outstanding on the active drag. This
+//! module has no cursor argument. See `docs/file-drop.md`.
 
 use std::path::PathBuf;
 
@@ -186,15 +178,27 @@ pub(crate) enum DragPointSample {
     Invalid,
 }
 
-/// One step of a winit 0.31 drag, after the point has been converted.
+/// One step of a winit 0.31 drag.
+///
+/// `request` is the fetch token issued for that transfer. A path list is
+/// applied only when the token is still the outstanding fetch for the active
+/// drag.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum DragNotice {
     /// The drag entered this window.
-    Entered { id: i64, point: DragPointSample },
+    Entered {
+        id: i64,
+        point: DragPointSample,
+        request: Option<u64>,
+    },
     /// The drag point moved. This is not a cursor sample from another event.
     Moved { id: i64, point: DragPointSample },
-    /// The transfer's file list arrived.
-    Paths { id: i64, paths: Vec<PathBuf> },
+    /// The transfer's file list arrived for one issued fetch.
+    Paths {
+        id: i64,
+        request: u64,
+        paths: Vec<PathBuf>,
+    },
     /// The drag was released over the window.
     Dropped { id: i64 },
     /// The drag left or was cancelled.
@@ -205,21 +209,25 @@ pub(crate) enum DragNotice {
 ///
 /// A new id replaces the previous drag. Every path in the transfer shares
 /// that drag's point. A drop does not clear the hover set; [`DragNotice::Left`]
-/// does, through [`NativeFile::Cancel`].
+/// does, through [`NativeFile::Cancel`]. A path response whose fetch token is
+/// not the outstanding one is ignored, including after the drag ends.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct DragTracker {
     id: Option<i64>,
     position: Option<[f32; 2]>,
     paths: Vec<PathBuf>,
     drop_waiting: bool,
+    /// Fetch whose path list may still be applied. `None` after the drag
+    /// leaves, completes, or never issued a fetch.
+    request: Option<u64>,
 }
 
 impl DragTracker {
     /// Apply `notice` and return the file events it produces, in order.
     pub(crate) fn apply(&mut self, notice: DragNotice) -> Vec<NativeFile> {
         match notice {
-            DragNotice::Entered { id, point } => {
-                self.begin(id, point);
+            DragNotice::Entered { id, point, request } => {
+                self.begin(id, point, request);
                 self.hover_events()
             }
             DragNotice::Moved { id, point } => {
@@ -229,9 +237,9 @@ impl DragTracker {
                 self.store_point(point);
                 self.hover_events()
             }
-            DragNotice::Paths { id, paths } => {
-                if self.id != Some(id) {
-                    self.begin(id, DragPointSample::Absent);
+            DragNotice::Paths { id, request, paths } => {
+                if self.id != Some(id) || self.request != Some(request) {
+                    return Vec::new();
                 }
                 self.paths = paths;
                 if self.drop_waiting {
@@ -242,7 +250,7 @@ impl DragTracker {
             }
             DragNotice::Dropped { id } => {
                 if self.id != Some(id) {
-                    self.begin(id, DragPointSample::Absent);
+                    return Vec::new();
                 }
                 if self.paths.is_empty() {
                     self.drop_waiting = true;
@@ -252,7 +260,7 @@ impl DragTracker {
                 }
             }
             DragNotice::Left { id } => {
-                if self.id.is_some() && self.id != Some(id) {
+                if self.id != Some(id) {
                     return Vec::new();
                 }
                 self.clear();
@@ -261,13 +269,14 @@ impl DragTracker {
         }
     }
 
-    fn begin(&mut self, id: i64, point: DragPointSample) {
+    fn begin(&mut self, id: i64, point: DragPointSample, request: Option<u64>) {
         if self.id != Some(id) {
             self.paths.clear();
             self.drop_waiting = false;
             self.position = None;
         }
         self.id = Some(id);
+        self.request = request;
         self.store_point(point);
     }
 
@@ -580,10 +589,12 @@ mod tests {
             point: DragPointSample::Valid(
                 logical_point(DragPoint::ClientPhysical([0.0, 0.0]), 2.0).unwrap(),
             ),
+            request: Some(1),
         });
         assert!(entered.is_empty());
         let hovers = tracker.apply(DragNotice::Paths {
             id: 7,
+            request: 1,
             paths: vec!["a.txt".into(), "b.txt".into()],
         });
         assert_eq!(hovers.len(), 2);
@@ -654,10 +665,6 @@ mod tests {
             NativeFile::Hover(_) | NativeFile::Cancel => panic!("drop"),
         }
         assert_eq!(set.len(), 2);
-        for event in tracker.apply(DragNotice::Left { id: 7 }) {
-            deliver(&mut set, event);
-        }
-        assert!(set.is_empty());
     }
 
     #[test]
@@ -691,6 +698,108 @@ mod tests {
             use std::os::unix::ffi::OsStrExt;
             let path = path_from_file_uri("file:///tmp/a%FFb.txt").unwrap();
             assert_eq!(path.as_os_str().as_bytes(), b"/tmp/a\xffb.txt");
+        }
+    }
+
+    #[test]
+    fn a_late_path_list_cannot_replace_or_resurrect_a_drag() {
+        let mut tracker = DragTracker::default();
+        tracker.apply(DragNotice::Entered {
+            id: 1,
+            point: DragPointSample::Valid([4.0, 5.0]),
+            request: Some(10),
+        });
+        tracker.apply(DragNotice::Entered {
+            id: 2,
+            point: DragPointSample::Valid([8.0, 9.0]),
+            request: Some(20),
+        });
+        let stale = tracker.apply(DragNotice::Paths {
+            id: 1,
+            request: 10,
+            paths: vec!["old.txt".into()],
+        });
+        assert!(stale.is_empty());
+        let current = tracker.apply(DragNotice::Paths {
+            id: 2,
+            request: 20,
+            paths: vec!["new.txt".into()],
+        });
+        match &current[0] {
+            NativeFile::Hover(report) => {
+                assert_eq!(report.path.as_os_str(), "new.txt");
+                assert_eq!(bits(report.position), bits(Some([8.0, 9.0])));
+            }
+            NativeFile::Drop(_) | NativeFile::Cancel => panic!("hover"),
+        }
+        let dropped = tracker.apply(DragNotice::Dropped { id: 2 });
+        assert_eq!(dropped.len(), 1);
+        let late = tracker.apply(DragNotice::Paths {
+            id: 2,
+            request: 20,
+            paths: vec!["again.txt".into()],
+        });
+        assert!(late.is_empty());
+
+        tracker.apply(DragNotice::Entered {
+            id: 3,
+            point: DragPointSample::Absent,
+            request: Some(30),
+        });
+        tracker.apply(DragNotice::Left { id: 3 });
+        let resurrected = tracker.apply(DragNotice::Paths {
+            id: 3,
+            request: 30,
+            paths: vec!["gone.txt".into()],
+        });
+        assert!(resurrected.is_empty());
+
+        tracker.apply(DragNotice::Entered {
+            id: 4,
+            point: DragPointSample::Valid([1.0, 1.0]),
+            request: Some(40),
+        });
+        assert!(tracker.apply(DragNotice::Dropped { id: 4 }).is_empty());
+        let finished = tracker.apply(DragNotice::Paths {
+            id: 4,
+            request: 40,
+            paths: vec!["arrived.txt".into()],
+        });
+        match &finished[0] {
+            NativeFile::Drop(report) => {
+                assert_eq!(report.path.as_os_str(), "arrived.txt");
+                assert_eq!(bits(report.position), bits(Some([1.0, 1.0])));
+            }
+            NativeFile::Hover(_) | NativeFile::Cancel => panic!("drop"),
+        }
+        assert!(tracker
+            .apply(DragNotice::Paths {
+                id: 4,
+                request: 40,
+                paths: vec!["again.txt".into()],
+            })
+            .is_empty());
+
+        tracker.apply(DragNotice::Entered {
+            id: 5,
+            point: DragPointSample::Valid([3.0, 3.0]),
+            request: Some(50),
+        });
+        assert!(tracker
+            .apply(DragNotice::Paths {
+                id: 5,
+                request: 49,
+                paths: vec!["wrong.txt".into()],
+            })
+            .is_empty());
+        let current = tracker.apply(DragNotice::Paths {
+            id: 5,
+            request: 50,
+            paths: vec!["right.txt".into()],
+        });
+        match &current[0] {
+            NativeFile::Hover(report) => assert_eq!(report.path.as_os_str(), "right.txt"),
+            NativeFile::Drop(_) | NativeFile::Cancel => panic!("hover"),
         }
     }
 }

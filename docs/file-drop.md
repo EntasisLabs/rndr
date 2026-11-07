@@ -25,28 +25,39 @@ components are finite. Every other report stores `None`.
 missing point stays `None`. The runner does not read the cursor, a previous
 hover, or any other pointer to fill it.
 
+A drag callback that includes a point which is not a finite logical point
+clears the point stored for that drag. A callback that includes no point
+leaves the stored point unchanged. The next finite point replaces it.
+
 ## What a live drag delivers
 
 The runner uses winit 0.31.0-beta.4. `DragEntered` and `DragPosition` carry
 client physical pixels, top-left origin, when the backend has them.
 `DragEntered.position` may be `None`. Those pixels are divided by the window
 scale. A non-finite sample clears the stored point, so the hover reports
-`None`. An event with no point leaves the stored point unchanged. A reported
-`(0, 0)` stays the origin.
-The cursor is not read.
+`None`. An entered event with no position does not clear a point already
+stored for that same drag. A reported `(0, 0)` stays the origin. The cursor
+is not read.
 
 File names come from the transfer's `text/uri-list`, one `FileHover` or
 `FileDrop` per path. Every path in that transfer shares the drag's point.
+`DragLeft` is one `FileHoverCancel` and clears the hover set. A drop does not.
+
+On `DragEntered` the runner accepts `DndAction::Copy` and fetches the URI
+list. Without that accept, winit 0.31 rejects the drag and no path is
+delivered. The list is applied only when its transfer id and fetch serial are
+the request still outstanding for the active drag. A response for an older
+transfer does not replace a newer drag. A response after the drag has been
+dropped or has left does not start that drag again. A list that arrives after
+the release, while that same fetch is still outstanding, still completes the
+drop. This correlation is a simulated tracker. It is not a defect observed on
+a live desktop.
+
 Windows `file://server/share/dir/file.txt` becomes the UNC path
 `\\server\share\dir\file.txt`. A Windows drive URI `file:///C:/notes.txt`
 becomes `C:/notes.txt`. On Unix that same URI stays the absolute path
 `/C:/notes.txt`. A percent-encoded byte that is not UTF-8 stays in the Unix
 path. A broken percent-escape is skipped.
-`DragLeft` is one `FileHoverCancel` and clears the hover set. A drop does not.
-
-On `DragEntered` the runner accepts `DndAction::Copy` and fetches the URI
-list. Without that accept, winit 0.31 rejects the drag and no path is
-delivered.
 
 A window whose raw handle is Wayland is ignored: the drag is not accepted and
 no file event is emitted. winit 0.31 can deliver Wayland drags; this unit
@@ -135,8 +146,19 @@ Headless, in this change:
   events, and locks both tables.
 - `cargo test -p rndr_render --lib file_drop` checks the winit path mapping
   at several scales, physical-to-logical division, a reported origin,
-  non-finite samples, per-event correlation, the flipped AppKit content
-  frame, the Win32 screen subtraction, the `XdndPosition` unpack, and cancel.
+  a finite point followed by an unusable point followed by a finite point,
+  an event that carries no new point, Windows UNC and drive URIs, a Unix
+  path that only looks like a drive, a percent-encoded non-UTF-8 Unix path,
+  per-event correlation, a late path list for an older or finished drag,
+  the flipped AppKit content frame, the Win32 screen subtraction, the
+  `XdndPosition` unpack, and cancel.
+- `cargo test -p rndr_render --lib tablet` maps a tablet-tool move, tip
+  press, and tip release onto the pen contact, including pressure, tilt,
+  twist, and a logical point. It does not open a window.
+- `cargo test -p rndr_render --lib access_winit` checks that a desktop inner
+  origin is the outer position plus the window-relative surface offset, for
+  a nonzero origin, a move, and a resize. Linux `Moved` and `SurfaceResized`
+  both use that sum.
 
 No named native session was run. macOS, Windows, and X11 stay `Unverified`.
 Wayland stays `Unsupported`. A green headless run is not a drag on a desktop,

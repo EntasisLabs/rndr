@@ -473,6 +473,8 @@ struct Handler {
     #[cfg_attr(not(feature = "accesskit"), allow(dead_code))]
     bus: RunnerBus,
     drag: file_drop::DragTracker,
+    next_fetch: u64,
+    outstanding_fetch: Option<OutstandingFetch>,
     #[cfg(feature = "accesskit")]
     access: Option<access_winit::Adapter>,
     #[cfg(feature = "accesskit")]
@@ -530,6 +532,8 @@ impl Handler {
             pen,
             bus,
             drag: file_drop::DragTracker::default(),
+            next_fetch: 1,
+            outstanding_fetch: None,
             #[cfg(feature = "accesskit")]
             access: None,
             #[cfg(feature = "accesskit")]
@@ -1755,19 +1759,60 @@ impl Handler {
         if self.drag_window_is_wayland() {
             return;
         }
-        if let file_drop::DragNotice::Entered { id, .. } = notice {
-            let transfer = winit::data_transfer::DataTransferId::from_raw(id);
-            let _ =
-                event_loop.set_valid_dnd_actions(transfer, &[winit::event_loop::DndAction::Copy]);
-            let _ =
-                event_loop.fetch_data_transfer(transfer, &winit::data_transfer::TypeHint::UriList);
-        }
+        let notice = match notice {
+            file_drop::DragNotice::Entered { id, point, .. } => {
+                let transfer = winit::data_transfer::DataTransferId::from_raw(id);
+                let _ = event_loop
+                    .set_valid_dnd_actions(transfer, &[winit::event_loop::DndAction::Copy]);
+                let serial = event_loop
+                    .fetch_data_transfer(transfer, &winit::data_transfer::TypeHint::UriList)
+                    .ok();
+                let request = self.next_fetch;
+                self.next_fetch = self.next_fetch.wrapping_add(1);
+                self.outstanding_fetch = serial.map(|serial| OutstandingFetch {
+                    id,
+                    serial,
+                    request,
+                });
+                file_drop::DragNotice::Entered {
+                    id,
+                    point,
+                    request: serial.map(|_| request),
+                }
+            }
+            file_drop::DragNotice::Left { id } => {
+                if self
+                    .outstanding_fetch
+                    .as_ref()
+                    .is_some_and(|fetch| fetch.id == id)
+                {
+                    self.outstanding_fetch = None;
+                }
+                file_drop::DragNotice::Left { id }
+            }
+            other => other,
+        };
         let produced = self.drag.apply(notice);
         if !produced.is_empty() {
             self.queued_files.extend(produced);
             self.request_redraw();
         }
     }
+}
+
+struct OutstandingFetch {
+    id: i64,
+    serial: winit::event_loop::AsyncRequestSerial,
+    request: u64,
+}
+
+/// The fetch token when this response is the one still outstanding.
+fn accepted_fetch(
+    fetch: &OutstandingFetch,
+    id: i64,
+    serial: winit::event_loop::AsyncRequestSerial,
+) -> Option<u64> {
+    (fetch.id == id && fetch.serial == serial).then_some(fetch.request)
 }
 
 impl ApplicationHandler for Handler {
@@ -2066,6 +2111,7 @@ impl ApplicationHandler for Handler {
                     file_drop::DragNotice::Entered {
                         id: id.into_raw(),
                         point: self.drag_sample(position),
+                        request: None,
                     },
                 );
             }
@@ -2078,7 +2124,16 @@ impl ApplicationHandler for Handler {
                     },
                 );
             }
-            WindowEvent::DataTransferReceived { id, value, .. } => {
+            WindowEvent::DataTransferReceived { id, serial, value } => {
+                let raw = id.into_raw();
+                let Some(request) = self
+                    .outstanding_fetch
+                    .as_ref()
+                    .and_then(|fetch| accepted_fetch(fetch, raw, serial))
+                else {
+                    return;
+                };
+                self.outstanding_fetch = None;
                 let paths = value
                     .try_as_uris()
                     .ok()
@@ -2089,7 +2144,8 @@ impl ApplicationHandler for Handler {
                 self.on_drag(
                     event_loop,
                     file_drop::DragNotice::Paths {
-                        id: id.into_raw(),
+                        id: raw,
+                        request,
                         paths,
                     },
                 );
@@ -2368,7 +2424,21 @@ impl ApplicationHandler for Running {
 mod tests {
     use super::idle_control_flow;
     use std::time::{Duration, Instant};
-    use winit::event_loop::ControlFlow;
+    use winit::event_loop::{AsyncRequestSerial, ControlFlow};
+
+    #[test]
+    fn a_path_response_must_match_the_outstanding_transfer() {
+        let first = AsyncRequestSerial::get();
+        let second = AsyncRequestSerial::get();
+        let fetch = super::OutstandingFetch {
+            id: 4,
+            serial: first,
+            request: 9,
+        };
+        assert_eq!(super::accepted_fetch(&fetch, 4, first), Some(9));
+        assert_eq!(super::accepted_fetch(&fetch, 4, second), None);
+        assert_eq!(super::accepted_fetch(&fetch, 5, first), None);
+    }
 
     #[test]
     fn native_startup_after_headless_update_selects_the_platform_default() {
