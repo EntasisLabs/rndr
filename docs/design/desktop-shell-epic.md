@@ -296,6 +296,8 @@ R3.2 implements that contract in `rndr_browser` for an already installed WebView
 
 The same contract. X11 and Wayland are separate cells. A session that was not run stays `Unverified`. Child-surface coordinates under Wayland stay `Unverified` until a compositor session shows them. A compositor that cannot host the guest surface is Unsupported for that session, and the matrix names it.
 
+R3.3 implements the contract for an X11 parent. GTK and winit open separate Wayland clients, and a `wl_subsurface` cannot parent across clients, so a winit Wayland handle is `BrowserError::Unsupported` with backend `WebKitGTK Wayland`. That cell is Unsupported, not a simulated child surface. X11 native cells stay Unverified until a recorded session; a smoke log is not an R6 ledger entry. Missing GTK display is `BrowserError::Prerequisite`.
+
 ### R3.4 Find
 
 A host request: set query, next, previous, clear. Match count when the backend can report it. A backend that cannot find stays Unsupported. Find is not implemented by evaluating script.

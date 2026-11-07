@@ -79,9 +79,10 @@
 //!   normal desktop build does not link a pseudoterminal.
 //! - `browser` re-exports the embedded browser. It is off by default, so a
 //!   normal desktop build does not link a webview. It does not enable `dialog`.
-//!   macOS WKWebView and Windows WebView2 live in that crate. WebKitGTK, find,
-//!   and script stay unsupported. A missing WebView2 runtime is an error, and
-//!   the crate does not download one. A headless test does not certify either view.
+//!   macOS WKWebView, Windows WebView2, and WebKitGTK on X11 live in that crate.
+//!   WebKitGTK on Wayland, find, and script stay unsupported. A missing WebView2
+//!   runtime or GTK display is an error. The crate does not download a runtime.
+//!   A headless test does not certify a platform view.
 //! - `ui` is off by default and exposes semantic components at `rndr::ui`, never
 //!   glob-reexporting their names into the legacy root API.
 //! - `observe` is off by default. It enables two different checks. The Unix

@@ -18,6 +18,14 @@ native-auth-harness = []
 [dependencies]
 raw-window-handle = "0.6"
 
+[target.'cfg(target_os = "linux")'.dependencies]
+# GTK 3 / WebKitGTK 4.1. Linked only on Linux, and only when this crate is built.
+# The facade reaches it through the default-off `browser` feature.
+gdkx11 = "=0.18.2"
+gtk = "=0.18.2"
+webkit2gtk = { version = "=2.0.2", features = ["v2_40"] }
+x11 = { version = "=2.21.0", features = ["xlib"] }
+
 [target.'cfg(target_os = "windows")'.dependencies]
 # The loader finds an already installed WebView2 runtime. It is not the runtime.
 # A missing runtime is reported. Nothing in this crate downloads or bundles one.

@@ -5,13 +5,14 @@
 //! `rndr_core`, `rndr_ui`, and `rndr_paint` do not depend on this crate.
 //! Enabling `browser` does not enable `dialog`.
 //!
-//! This slice implements macOS WKWebView and Windows WebView2: show, hide,
-//! logical client-area bounds, navigation, and download and file-input intents.
-//! WebKitGTK, find, and script evaluation are unsupported. See [`support_matrix`].
-//! A headless test does not certify either platform. The native cells stay
-//! unverified until a session on that machine is recorded. See the crate README.
-//! A missing WebView2 runtime is [`BrowserError::RuntimeMissing`]. This crate
-//! does not download or bundle one.
+//! This slice implements macOS WKWebView, Windows WebView2, and Linux WebKitGTK
+//! on X11: show, hide, logical client-area bounds, navigation, and download and
+//! file-input intents. WebKitGTK on Wayland is unsupported. Find and script
+//! evaluation are unsupported. See [`support_matrix`]. A headless test does not
+//! certify a platform. The native cells stay unverified until a session on that
+//! machine is recorded. See the crate README. A missing WebView2 runtime is
+//! [`BrowserError::RuntimeMissing`]. A missing GTK display is
+//! [`BrowserError::Prerequisite`]. This crate does not download a runtime.
 //!
 //! A guest page does not receive a command channel. Navigation reports a URL,
 //! a title, a load outcome, and whether back and forward are available. The
@@ -46,6 +47,8 @@ mod geometry;
 mod policy;
 mod session;
 
+#[cfg(target_os = "linux")]
+mod linux;
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(target_os = "windows")]
@@ -212,8 +215,38 @@ const MATRIX: &[MatrixRow] = &[
         native: NativeStatus::Unsupported,
     },
     MatrixRow {
+        backend: "WebKitGTK X11",
+        capability: "navigation, show, hide, bounds",
+        slice: SliceStatus::Implemented,
+        native: NativeStatus::Unverified,
+    },
+    MatrixRow {
+        backend: "WebKitGTK X11",
+        capability: "downloads and file input",
+        slice: SliceStatus::Implemented,
+        native: NativeStatus::Unverified,
+    },
+    MatrixRow {
+        backend: "WebKitGTK Wayland",
+        capability: "navigation, show, hide, bounds",
+        slice: SliceStatus::Unsupported,
+        native: NativeStatus::Unsupported,
+    },
+    MatrixRow {
+        backend: "WebKitGTK Wayland",
+        capability: "downloads and file input",
+        slice: SliceStatus::Unsupported,
+        native: NativeStatus::Unsupported,
+    },
+    MatrixRow {
         backend: "WebKitGTK",
-        capability: "navigation, downloads, find, script",
+        capability: "find",
+        slice: SliceStatus::Unsupported,
+        native: NativeStatus::Unsupported,
+    },
+    MatrixRow {
+        backend: "WebKitGTK",
+        capability: "script",
         slice: SliceStatus::Unsupported,
         native: NativeStatus::Unsupported,
     },
@@ -221,8 +254,8 @@ const MATRIX: &[MatrixRow] = &[
 
 /// Backend matrix for this slice.
 ///
-/// macOS and WebView2 navigation and intents are implemented and native-unverified.
-/// WebKitGTK, find, and script are unsupported.
+/// macOS, WebView2, and WebKitGTK X11 navigation and intents are implemented
+/// and native-unverified. WebKitGTK Wayland, find, and script are unsupported.
 pub fn support_matrix() -> &'static [MatrixRow] {
     MATRIX
 }
@@ -250,6 +283,9 @@ impl fmt::Display for BrowserError {
             ),
             Self::Create { code } => {
                 write!(f, "the WebView2 view could not be created (0x{code:08X})")
+            }
+            Self::Prerequisite { backend } => {
+                write!(f, "{backend} is missing a display or native library")
             }
             Self::Rect(error) => write!(f, "{error}"),
             Self::Url => f.write_str("the navigation URL is empty or was refused by the view"),
