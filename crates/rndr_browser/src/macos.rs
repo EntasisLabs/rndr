@@ -23,9 +23,9 @@ use objc2::runtime::{Bool, ProtocolObject};
 use objc2::{declare_class, msg_send, msg_send_id, sel, ClassType, DeclaredClass};
 use objc2_app_kit::NSView;
 use objc2_foundation::{
-    MainThreadMarker, NSArray, NSError, NSObject, NSObjectProtocol, NSPoint, NSRect, NSSize,
-    NSString, NSURLAuthenticationChallenge, NSURLCredential, NSURLErrorFailingURLErrorKey,
-    NSURLErrorFailingURLStringErrorKey, NSURLRequest, NSURLResponse,
+    MainThreadMarker, NSArray, NSError, NSHTTPURLResponse, NSObject, NSObjectProtocol, NSPoint,
+    NSRect, NSSize, NSString, NSURLAuthenticationChallenge, NSURLCredential,
+    NSURLErrorFailingURLErrorKey, NSURLErrorFailingURLStringErrorKey, NSURLRequest, NSURLResponse,
     NSURLSessionAuthChallengeDisposition, NSURL,
 };
 use objc2_web_kit::{
@@ -439,7 +439,12 @@ declare_class!(
             navigation_response: &WKNavigationResponse,
             decision_handler: &block2::Block<dyn Fn(WKNavigationResponsePolicy)>,
         ) {
-            let policy = if unsafe { navigation_response.canShowMIMEType() } {
+            // 401 and 407 are credential failures. Cancelling the challenge does
+            // not stop WebKit from committing that response as a finished
+            // document, so the response itself is refused. No credential is sent.
+            let policy = if http_status_requires_credentials(&navigation_response.response()) {
+                WKNavigationResponsePolicy::Cancel
+            } else if unsafe { navigation_response.canShowMIMEType() } {
                 WKNavigationResponsePolicy::Allow
             } else {
                 WKNavigationResponsePolicy::Download
@@ -800,6 +805,15 @@ fn forwarded_object(
     } else {
         unsafe { Retained::retain(result) }
     }
+}
+
+fn http_status_requires_credentials(response: &NSURLResponse) -> bool {
+    let is_http: bool = unsafe { msg_send![response, isKindOfClass: NSHTTPURLResponse::class()] };
+    if !is_http {
+        return false;
+    }
+    let http = unsafe { &*(response as *const NSURLResponse).cast::<NSHTTPURLResponse>() };
+    matches!(unsafe { http.statusCode() }, 401 | 407)
 }
 
 fn failing_url(error: &NSError) -> Option<String> {
