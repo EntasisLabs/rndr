@@ -111,6 +111,7 @@ mod list;
 mod markdown;
 mod memory_fs;
 mod mono;
+pub mod motion;
 mod overlay;
 mod pane;
 mod panel_place;

@@ -204,8 +204,15 @@ native-platform acceptance are different things:
   follows the transform. Positional gestures inside a transformed control (caret
   placement, slider drags) still read layout coordinates, a scaled group samples
   its unscaled raster, and foreign surfaces (webviews) are not transformed. There
-  is no motion runtime, blur, or backdrop effect yet.
+  is no blur or backdrop effect yet.
   `cargo run -p rndr --example ui_compositing -- out.png` renders headless pixels.
+- **Motion:** `rndr_core::motion` animates opacity, offset, scale, and rotation
+  with closed-form springs and tweens sampled at the frame time. Retargeting keeps
+  velocity; enter/exit transitions keep an exiting entity until it settles;
+  `LayoutMotion` glides position changes (size still snaps). The desktop runner
+  redraws while anything moves. Not yet: shared-element moves, choreography,
+  fling/decay, keyframes, and off-thread animation.
+  `cargo run -p rndr --example motion_strip -- out.png` renders a frame strip.
 - **Document editing:** source sessions and structured editing have explicit ownership
   and regression coverage. The structured editor remains experimental; native IME,
   clipboard and assistive-technology acceptance must be checked independently of

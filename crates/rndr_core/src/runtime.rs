@@ -1296,6 +1296,9 @@ pub(crate) fn wants_frame(world: &World) -> bool {
     if exec(world).has_ready() {
         return true;
     }
+    if crate::motion::animating(world) {
+        return true;
+    }
     if let Some(when) = rt.soonest() {
         if when <= rt.elapsed() {
             return true;
