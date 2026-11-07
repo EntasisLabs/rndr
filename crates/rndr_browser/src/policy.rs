@@ -9,6 +9,23 @@ pub(crate) fn is_missing_runtime(code: i32) -> bool {
     code as u32 == 0x8007_0002
 }
 
+/// Logical points times a window scale. A missing or non-finite scale is 1.
+pub(crate) fn logical_to_pixels(logical: f32, scale: f64) -> u32 {
+    let scale = if scale.is_finite() && scale > 0.0 {
+        scale
+    } else {
+        1.0
+    };
+    let px = f64::from(logical) * scale;
+    if !px.is_finite() || px <= 0.0 {
+        0
+    } else if px >= f64::from(u32::MAX) {
+        u32::MAX
+    } else {
+        px.round() as u32
+    }
+}
+
 /// Logical points to parent-client pixels. A zero DPI is treated as 96.
 pub(crate) fn client_pixels(logical: f32, dpi: u32) -> i32 {
     let dpi = if dpi == 0 { 96 } else { dpi };
@@ -95,6 +112,14 @@ mod tests {
         assert!(is_missing_runtime(0x8007_0002_u32 as i32));
         assert!(!is_missing_runtime(0));
         assert!(!is_missing_runtime(-1));
+    }
+
+    #[test]
+    fn logical_points_follow_the_window_scale() {
+        assert_eq!(logical_to_pixels(10.0, 1.0), 10);
+        assert_eq!(logical_to_pixels(10.0, 2.0), 20);
+        assert_eq!(logical_to_pixels(0.0, 2.0), 0);
+        assert_eq!(logical_to_pixels(10.0, 0.0), 10);
     }
 
     #[test]

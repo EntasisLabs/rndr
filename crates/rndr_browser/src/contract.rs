@@ -174,7 +174,7 @@ impl Contract {
     }
 
     #[cfg_attr(
-        not(any(test, target_os = "macos", target_os = "windows")),
+        not(any(test, target_os = "macos", target_os = "windows", target_os = "linux")),
         allow(dead_code)
     )]
     pub(crate) fn open_download(&mut self, intent: DownloadIntent) {
@@ -188,7 +188,7 @@ impl Contract {
     }
 
     #[cfg_attr(
-        not(any(test, target_os = "macos", target_os = "windows")),
+        not(any(test, target_os = "macos", target_os = "windows", target_os = "linux")),
         allow(dead_code)
     )]
     pub(crate) fn open_file(&mut self, intent: FileInputIntent) {

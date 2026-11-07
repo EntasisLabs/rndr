@@ -29,11 +29,17 @@ system doing the thing. Headless tests do not move a cell.
 | WebView2 | downloads and file input | Implemented | **Unverified** |
 | WebView2 | find | Unsupported | Unsupported |
 | WebView2 | script | Unsupported | Unsupported |
-| WebKitGTK | navigation, downloads, find, script | Unsupported | Unsupported |
+| WebKitGTK X11 | navigation, show, hide, logical client bounds | Implemented | **Unverified** |
+| WebKitGTK X11 | downloads and file input | Implemented | **Unverified** |
+| WebKitGTK Wayland | navigation, bounds, downloads, file input | Unsupported | Unsupported |
+| WebKitGTK | find | Unsupported | Unsupported |
+| WebKitGTK | script | Unsupported | Unsupported |
 
-WebKitGTK stays unsupported until its own slice. Find and script stay
-unsupported until theirs. WebView2 uses an already installed runtime. A missing
-runtime is an error. This crate does not download or bundle one.
+Find and script stay unsupported until their own slices. WebView2 uses an
+already installed runtime. A missing runtime is an error. This crate does not
+download or bundle one. WebKitGTK on Wayland is unsupported: GTK and the host
+window are different Wayland clients, so the guest cannot be a child surface.
+A missing GTK display is an error.
 
 ## macOS smoke — outstanding
 
@@ -107,4 +113,24 @@ rect without destroying the view, loads `https://example.com/`, fails
 download, and accepts another into a host path. It does not trigger file
 input. A missing runtime prints `BrowserError::RuntimeMissing` and exits 3.
 The host message loop has to run; `frame` does not pump it. A green run is
-still not an R6 `Supported` cell.
+still not an R6 `Supported` cell. Windows file input was not triggered.
+
+## Linux X11 smoke
+
+On Linux, with GTK 3, WebKitGTK 4.1, and an X11 display:
+
+```sh
+cargo run -p rndr_browser --example webkitgtk_smoke
+```
+
+The example creates an X11 window, the handle shape winit reports, and parents
+WebKitGTK in a child window. `frame` drains pending GTK iterations because the
+winit loop does not. A Wayland handle is refused before GTK starts. A missing
+display is `BrowserError::Prerequisite`.
+
+The example checks a logical rect and a resize in X geometry, unmaps on a
+zero-area rect without destroying the child, refuses a localhost basic
+challenge, cancels one download, accepts another, loads `https://example.com/`,
+and fails `https://expired.badssl.com/`. An X button event on a file input did
+not open the chooser in the session that was run. Wayland was not executed.
+A green run is still not an R6 `Supported` cell.

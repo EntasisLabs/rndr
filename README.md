@@ -124,7 +124,7 @@ Application state, systems and document authorities
 | [`rndr_render`](crates/rndr_render) | Native event loop, windows, text realization, GPU rendering and desktop integration |
 | [`rndr_std`](crates/rndr_std) | Process-filesystem backend; core also supports an in-memory filesystem |
 | [`rndr_term`](crates/rndr_term) | Optional embedded terminal: PTY, VT state and cell projection |
-| [`rndr_browser`](crates/rndr_browser) | Optional embedded browser. Off by default. Publish-eligible and ordered immediately before the facade. macOS WKWebView and Windows WebView2 |
+| [`rndr_browser`](crates/rndr_browser) | Optional embedded browser. Off by default. Publish-eligible and ordered immediately before the facade. macOS WKWebView, Windows WebView2, and Linux WebKitGTK on X11 |
 
 ### One frame, explicit ownership
 
@@ -179,7 +179,7 @@ The facade keeps optional integrations explicit:
 | `ui` | Off | Semantic components under `rndr::ui` |
 | `dialog` | Off | Native open/save dialogs |
 | `term` | Off | Embedded terminal re-exports and PTY dependency |
-| `browser` | Off | Embedded browser. Does not enable `dialog`. macOS WKWebView and Windows WebView2; WebKitGTK, find, and script are unsupported. Native cells stay unverified |
+| `browser` | Off | Embedded browser. Does not enable `dialog`. macOS WKWebView, Windows WebView2, and WebKitGTK on X11. WebKitGTK on Wayland, find, and script are unsupported. Native cells stay unverified |
 | `observe` | Off | Explicitly opted-in live native-window observation |
 | `tokio` | Off | Feed producers on an application-provided Tokio runtime |
 

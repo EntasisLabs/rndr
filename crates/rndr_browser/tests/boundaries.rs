@@ -70,6 +70,11 @@ fn facade_browser_feature_is_off_and_does_not_enable_dialog() {
         !facade.contains("webview2"),
         "WebView2 stays inside the optional browser crate"
     );
+    assert!(
+        !facade.contains("webkit2gtk"),
+        "WebKitGTK stays inside the optional browser crate"
+    );
+    assert!(browser_crate.contains("webkit2gtk"));
     assert!(!browser_crate.contains("rndr_core"));
     assert!(!browser_crate.contains("rndr_ui"));
     assert!(!browser_crate.contains("rndr_paint"));

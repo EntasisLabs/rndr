@@ -35,7 +35,10 @@ jobs:
             libxkbcommon-x11-dev \
             libvulkan-dev \
             mesa-vulkan-drivers \
-            libfontconfig1-dev
+            libfontconfig1-dev \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            xvfb
           # fontconfig is the system-font backend parley uses on Linux.
           # The tray feature uses tray-icon's ksni backend (pure Rust D-Bus).
           # It does not link GTK or libappindicator, so no extra -dev packages.
@@ -68,6 +71,10 @@ jobs:
       - name: WebView2 smoke
         if: runner.os == 'Windows'
         run: cargo run -p rndr_browser --example windows_smoke
+
+      - name: WebKitGTK X11 smoke
+        if: runner.os == 'Linux'
+        run: xvfb-run -a cargo run -p rndr_browser --example webkitgtk_smoke
 
       - name: Test all features
         run: cargo test --workspace --all-features

@@ -32,6 +32,11 @@ pub enum BrowserError {
         /// `HRESULT` from the runtime, or `0` when the call did not return one.
         code: i32,
     },
+    /// GTK could not open a display, or the WebKitGTK library is unavailable.
+    Prerequisite {
+        /// Backend that needed the missing piece.
+        backend: &'static str,
+    },
     /// The rect was refused. The previous submission is unchanged.
     Rect(RectError),
     /// The URL is empty, or the view refused to parse it.
@@ -76,7 +81,10 @@ pub enum BrowserEvent {
 pub struct IntentToken(u64);
 
 impl IntentToken {
-    #[cfg_attr(not(any(target_os = "macos", target_os = "windows")), allow(dead_code))]
+    #[cfg_attr(
+        not(any(target_os = "macos", target_os = "windows", target_os = "linux")),
+        allow(dead_code)
+    )]
     pub(crate) fn minted(value: u64) -> Self {
         Self(value)
     }
@@ -108,7 +116,9 @@ enum Engine {
     WebKit(crate::macos::WebKit),
     #[cfg(target_os = "windows")]
     WebView2(crate::windows::WebView2),
-    #[cfg(not(any(test, target_os = "macos", target_os = "windows")))]
+    #[cfg(target_os = "linux")]
+    WebKitGtk(crate::linux::WebKitGtk),
+    #[cfg(not(any(test, target_os = "macos", target_os = "windows", target_os = "linux")))]
     #[allow(dead_code)]
     Unavailable,
 }
@@ -175,7 +185,16 @@ impl Browser {
                 surface_shown: false,
             })
         }
-        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        #[cfg(target_os = "linux")]
+        {
+            let engine = crate::linux::WebKitGtk::attach(parent)?;
+            Ok(Self {
+                contract: Contract::new(),
+                engine: Engine::WebKitGtk(engine),
+                surface_shown: false,
+            })
+        }
+        #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
         {
             let _ = parent;
             Err(BrowserError::Unsupported {
@@ -455,7 +474,14 @@ impl Engine {
             Self::WebKit(engine) => engine.navigate(url),
             #[cfg(target_os = "windows")]
             Self::WebView2(engine) => engine.navigate(url),
-            #[cfg(not(any(test, target_os = "macos", target_os = "windows")))]
+            #[cfg(target_os = "linux")]
+            Self::WebKitGtk(engine) => engine.navigate(url),
+            #[cfg(not(any(
+                test,
+                target_os = "macos",
+                target_os = "windows",
+                target_os = "linux"
+            )))]
             Self::Unavailable => {
                 let _ = url;
                 Err(BrowserError::Unsupported {
@@ -476,7 +502,14 @@ impl Engine {
             Self::WebKit(engine) => engine.back(),
             #[cfg(target_os = "windows")]
             Self::WebView2(engine) => engine.back(),
-            #[cfg(not(any(test, target_os = "macos", target_os = "windows")))]
+            #[cfg(target_os = "linux")]
+            Self::WebKitGtk(engine) => engine.back(),
+            #[cfg(not(any(
+                test,
+                target_os = "macos",
+                target_os = "windows",
+                target_os = "linux"
+            )))]
             Self::Unavailable => Err(BrowserError::Unsupported {
                 backend: "WKWebView",
             }),
@@ -494,7 +527,14 @@ impl Engine {
             Self::WebKit(engine) => engine.forward(),
             #[cfg(target_os = "windows")]
             Self::WebView2(engine) => engine.forward(),
-            #[cfg(not(any(test, target_os = "macos", target_os = "windows")))]
+            #[cfg(target_os = "linux")]
+            Self::WebKitGtk(engine) => engine.forward(),
+            #[cfg(not(any(
+                test,
+                target_os = "macos",
+                target_os = "windows",
+                target_os = "linux"
+            )))]
             Self::Unavailable => Err(BrowserError::Unsupported {
                 backend: "WKWebView",
             }),
@@ -512,7 +552,14 @@ impl Engine {
             Self::WebKit(engine) => engine.reload(),
             #[cfg(target_os = "windows")]
             Self::WebView2(engine) => engine.reload(),
-            #[cfg(not(any(test, target_os = "macos", target_os = "windows")))]
+            #[cfg(target_os = "linux")]
+            Self::WebKitGtk(engine) => engine.reload(),
+            #[cfg(not(any(
+                test,
+                target_os = "macos",
+                target_os = "windows",
+                target_os = "linux"
+            )))]
             Self::Unavailable => Err(BrowserError::Unsupported {
                 backend: "WKWebView",
             }),
@@ -530,7 +577,14 @@ impl Engine {
             Self::WebKit(engine) => engine.stop(),
             #[cfg(target_os = "windows")]
             Self::WebView2(engine) => engine.stop(),
-            #[cfg(not(any(test, target_os = "macos", target_os = "windows")))]
+            #[cfg(target_os = "linux")]
+            Self::WebKitGtk(engine) => engine.stop(),
+            #[cfg(not(any(
+                test,
+                target_os = "macos",
+                target_os = "windows",
+                target_os = "linux"
+            )))]
             Self::Unavailable => {}
         }
     }
@@ -545,7 +599,14 @@ impl Engine {
             Self::WebKit(engine) => engine.apply(rect, visible),
             #[cfg(target_os = "windows")]
             Self::WebView2(engine) => engine.apply(rect, visible),
-            #[cfg(not(any(test, target_os = "macos", target_os = "windows")))]
+            #[cfg(target_os = "linux")]
+            Self::WebKitGtk(engine) => engine.apply(rect, visible),
+            #[cfg(not(any(
+                test,
+                target_os = "macos",
+                target_os = "windows",
+                target_os = "linux"
+            )))]
             Self::Unavailable => {
                 let _ = (rect, visible);
             }
@@ -560,7 +621,14 @@ impl Engine {
             Self::WebKit(engine) => engine.show(),
             #[cfg(target_os = "windows")]
             Self::WebView2(engine) => engine.show(),
-            #[cfg(not(any(test, target_os = "macos", target_os = "windows")))]
+            #[cfg(target_os = "linux")]
+            Self::WebKitGtk(engine) => engine.show(),
+            #[cfg(not(any(
+                test,
+                target_os = "macos",
+                target_os = "windows",
+                target_os = "linux"
+            )))]
             Self::Unavailable => {}
         }
     }
@@ -573,7 +641,14 @@ impl Engine {
             Self::WebKit(engine) => engine.hide(),
             #[cfg(target_os = "windows")]
             Self::WebView2(engine) => engine.hide(),
-            #[cfg(not(any(test, target_os = "macos", target_os = "windows")))]
+            #[cfg(target_os = "linux")]
+            Self::WebKitGtk(engine) => engine.hide(),
+            #[cfg(not(any(
+                test,
+                target_os = "macos",
+                target_os = "windows",
+                target_os = "linux"
+            )))]
             Self::Unavailable => {}
         }
     }
@@ -586,7 +661,14 @@ impl Engine {
             Self::WebKit(engine) => Some(engine.document()),
             #[cfg(target_os = "windows")]
             Self::WebView2(engine) => Some(engine.document()),
-            #[cfg(not(any(test, target_os = "macos", target_os = "windows")))]
+            #[cfg(target_os = "linux")]
+            Self::WebKitGtk(engine) => Some(engine.document()),
+            #[cfg(not(any(
+                test,
+                target_os = "macos",
+                target_os = "windows",
+                target_os = "linux"
+            )))]
             Self::Unavailable => None,
         }
     }
@@ -603,6 +685,10 @@ impl Engine {
             Self::WebView2(_) => {
                 let _ = live;
             }
+            #[cfg(target_os = "linux")]
+            Self::WebKitGtk(_) => {
+                let _ = live;
+            }
         }
     }
 
@@ -616,7 +702,14 @@ impl Engine {
             Self::WebKit(engine) => engine.pull(contract),
             #[cfg(target_os = "windows")]
             Self::WebView2(engine) => engine.pull(contract),
-            #[cfg(not(any(test, target_os = "macos", target_os = "windows")))]
+            #[cfg(target_os = "linux")]
+            Self::WebKitGtk(engine) => engine.pull(contract),
+            #[cfg(not(any(
+                test,
+                target_os = "macos",
+                target_os = "windows",
+                target_os = "linux"
+            )))]
             Self::Unavailable => {
                 let _ = contract;
             }
@@ -639,7 +732,14 @@ impl Engine {
             Self::WebKit(engine) => engine.commit_download(token, destination),
             #[cfg(target_os = "windows")]
             Self::WebView2(engine) => engine.commit_download(token, destination),
-            #[cfg(not(any(test, target_os = "macos", target_os = "windows")))]
+            #[cfg(target_os = "linux")]
+            Self::WebKitGtk(engine) => engine.commit_download(token, destination),
+            #[cfg(not(any(
+                test,
+                target_os = "macos",
+                target_os = "windows",
+                target_os = "linux"
+            )))]
             Self::Unavailable => {
                 let _ = (token, destination);
                 Err(BrowserError::Unsupported {
@@ -659,7 +759,14 @@ impl Engine {
             Self::WebKit(engine) => engine.cancel_download(token),
             #[cfg(target_os = "windows")]
             Self::WebView2(engine) => engine.cancel_download(token),
-            #[cfg(not(any(test, target_os = "macos", target_os = "windows")))]
+            #[cfg(target_os = "linux")]
+            Self::WebKitGtk(engine) => engine.cancel_download(token),
+            #[cfg(not(any(
+                test,
+                target_os = "macos",
+                target_os = "windows",
+                target_os = "linux"
+            )))]
             Self::Unavailable => {
                 let _ = token;
             }
@@ -684,7 +791,14 @@ impl Engine {
             Self::WebKit(engine) => engine.finish_file(token, paths),
             #[cfg(target_os = "windows")]
             Self::WebView2(engine) => engine.finish_file(token, paths),
-            #[cfg(not(any(test, target_os = "macos", target_os = "windows")))]
+            #[cfg(target_os = "linux")]
+            Self::WebKitGtk(engine) => engine.finish_file(token, paths),
+            #[cfg(not(any(
+                test,
+                target_os = "macos",
+                target_os = "windows",
+                target_os = "linux"
+            )))]
             Self::Unavailable => {
                 let _ = (token, paths);
                 Err(BrowserError::Unsupported {
@@ -719,7 +833,17 @@ impl Engine {
                 let _ = open;
                 engine.shutdown();
             }
-            #[cfg(not(any(test, target_os = "macos", target_os = "windows")))]
+            #[cfg(target_os = "linux")]
+            Self::WebKitGtk(engine) => {
+                let _ = open;
+                engine.shutdown();
+            }
+            #[cfg(not(any(
+                test,
+                target_os = "macos",
+                target_os = "windows",
+                target_os = "linux"
+            )))]
             Self::Unavailable => {
                 let _ = open;
             }
@@ -755,9 +879,9 @@ mod tests {
         let Err(error) = Browser::attach(&ClosedParent) else {
             panic!("attach should fail without a platform view");
         };
-        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
         assert!(matches!(error, BrowserError::Parent));
-        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
         assert!(matches!(
             error,
             BrowserError::Unsupported {
@@ -1116,17 +1240,52 @@ mod tests {
                 && row.capability == "script"
                 && row.slice == SliceStatus::Unsupported
         }));
-        let gtk: Vec<_> = matrix
-            .iter()
-            .filter(|row| row.backend == "WebKitGTK")
-            .collect();
-        assert!(!gtk.is_empty());
-        assert!(gtk.iter().all(|row| {
-            row.slice == SliceStatus::Unsupported && row.native == NativeStatus::Unsupported
+        assert!(matrix.iter().any(|row| {
+            row.backend == "WebKitGTK X11"
+                && row.capability.contains("bounds")
+                && row.slice == SliceStatus::Implemented
+                && row.native == NativeStatus::Unverified
+        }));
+        assert!(matrix.iter().any(|row| {
+            row.backend == "WebKitGTK Wayland"
+                && row.slice == SliceStatus::Unsupported
+                && row.native == NativeStatus::Unsupported
+        }));
+        assert!(matrix.iter().any(|row| {
+            row.backend == "WebKitGTK"
+                && row.capability == "find"
+                && row.slice == SliceStatus::Unsupported
         }));
         assert!(matrix.iter().all(|row| matches!(
             row.native,
             NativeStatus::Unverified | NativeStatus::Unsupported
         )));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn wayland_parent_is_unsupported_without_a_compositor() {
+        use std::ffi::c_void;
+        use std::ptr::NonNull;
+
+        struct WaylandParent;
+
+        impl HasWindowHandle for WaylandParent {
+            fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
+                let surface = NonNull::<c_void>::dangling();
+                let raw = raw_window_handle::RawWindowHandle::Wayland(
+                    raw_window_handle::WaylandWindowHandle::new(surface),
+                );
+                Ok(unsafe { WindowHandle::borrow_raw(raw) })
+            }
+        }
+
+        match Browser::attach(&WaylandParent) {
+            Err(BrowserError::Unsupported {
+                backend: "WebKitGTK Wayland",
+            }) => {}
+            Err(error) => panic!("wayland parent returned {error}"),
+            Ok(_) => panic!("wayland parent was accepted"),
+        }
     }
 }
