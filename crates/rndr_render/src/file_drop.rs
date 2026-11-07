@@ -6,8 +6,9 @@
 //!
 //! [`from_drag`] attaches a logical point when a drag callback actually
 //! supplied one. Client physical pixels are divided by the window scale.
-//! An AppKit content point is already in points. A missing or non-finite
-//! sample stays [`None`]. This module has no cursor argument.
+//! An AppKit content point is already in points. A missing sample stays
+//! [`None`]. A non-finite sample clears a point already stored for that drag.
+//! This module has no cursor argument.
 //!
 //! The 0.30.13 callbacks do not carry the sample. Reading it means either
 //! moving to the winit 0.31 drag events or replacing those private handlers.
@@ -173,16 +174,25 @@ pub(crate) fn window_from_root(root: [i32; 2], window_origin: [i32; 2]) -> [i32;
     client_from_screen(root, window_origin)
 }
 
+/// A point carried by one drag callback.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum DragPointSample {
+    /// This callback has no point. The previous point stays.
+    Absent,
+    /// A finite logical point from this callback.
+    Valid([f32; 2]),
+    /// This callback included a point that is not a usable logical point.
+    /// The previous point is cleared.
+    Invalid,
+}
+
 /// One step of a winit 0.31 drag, after the point has been converted.
-///
-/// `position` is already logical. `None` means that callback had no finite
-/// point. Paths are the files from that transfer, one event each.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum DragNotice {
     /// The drag entered this window.
-    Entered { id: i64, position: Option<[f32; 2]> },
+    Entered { id: i64, point: DragPointSample },
     /// The drag point moved. This is not a cursor sample from another event.
-    Moved { id: i64, position: Option<[f32; 2]> },
+    Moved { id: i64, point: DragPointSample },
     /// The transfer's file list arrived.
     Paths { id: i64, paths: Vec<PathBuf> },
     /// The drag was released over the window.
@@ -208,21 +218,20 @@ impl DragTracker {
     /// Apply `notice` and return the file events it produces, in order.
     pub(crate) fn apply(&mut self, notice: DragNotice) -> Vec<NativeFile> {
         match notice {
-            DragNotice::Entered { id, position } => {
-                self.begin(id, position);
+            DragNotice::Entered { id, point } => {
+                self.begin(id, point);
                 self.hover_events()
             }
-            DragNotice::Moved { id, position } => {
+            DragNotice::Moved { id, point } => {
                 if self.id != Some(id) {
-                    self.begin(id, position);
-                } else if position.is_some() {
-                    self.position = position;
+                    return Vec::new();
                 }
+                self.store_point(point);
                 self.hover_events()
             }
             DragNotice::Paths { id, paths } => {
                 if self.id != Some(id) {
-                    self.begin(id, None);
+                    self.begin(id, DragPointSample::Absent);
                 }
                 self.paths = paths;
                 if self.drop_waiting {
@@ -233,7 +242,7 @@ impl DragTracker {
             }
             DragNotice::Dropped { id } => {
                 if self.id != Some(id) {
-                    self.begin(id, None);
+                    self.begin(id, DragPointSample::Absent);
                 }
                 if self.paths.is_empty() {
                     self.drop_waiting = true;
@@ -252,15 +261,21 @@ impl DragTracker {
         }
     }
 
-    fn begin(&mut self, id: i64, position: Option<[f32; 2]>) {
+    fn begin(&mut self, id: i64, point: DragPointSample) {
         if self.id != Some(id) {
             self.paths.clear();
             self.drop_waiting = false;
             self.position = None;
         }
         self.id = Some(id);
-        if position.is_some() {
-            self.position = position;
+        self.store_point(point);
+    }
+
+    fn store_point(&mut self, point: DragPointSample) {
+        match point {
+            DragPointSample::Absent => {}
+            DragPointSample::Valid(position) => self.position = Some(position),
+            DragPointSample::Invalid => self.position = None,
         }
     }
 
@@ -562,7 +577,9 @@ mod tests {
         let mut set = FileHoverSet::default();
         let entered = tracker.apply(DragNotice::Entered {
             id: 7,
-            position: logical_point(DragPoint::ClientPhysical([0.0, 0.0]), 2.0),
+            point: DragPointSample::Valid(
+                logical_point(DragPoint::ClientPhysical([0.0, 0.0]), 2.0).unwrap(),
+            ),
         });
         assert!(entered.is_empty());
         let hovers = tracker.apply(DragNotice::Paths {
@@ -580,7 +597,9 @@ mod tests {
         }
         let moved = tracker.apply(DragNotice::Moved {
             id: 7,
-            position: logical_point(DragPoint::ClientPhysical([20.0, 40.0]), 2.0),
+            point: DragPointSample::Valid(
+                logical_point(DragPoint::ClientPhysical([20.0, 40.0]), 2.0).unwrap(),
+            ),
         });
         assert_eq!(moved.len(), 2);
         match &moved[0] {
@@ -597,13 +616,31 @@ mod tests {
             }
             NativeFile::Drop(_) | NativeFile::Cancel => panic!("hover"),
         }
-        let missing = tracker.apply(DragNotice::Moved {
+        let invalid = tracker.apply(DragNotice::Moved {
             id: 7,
-            position: logical_point(DragPoint::ClientPhysical([f32::NAN, 1.0]), 2.0),
+            point: DragPointSample::Invalid,
         });
-        match &missing[0] {
+        match &invalid[0] {
+            NativeFile::Hover(report) => assert!(report.position.is_none()),
+            NativeFile::Drop(_) | NativeFile::Cancel => panic!("hover"),
+        }
+        let restored = tracker.apply(DragNotice::Moved {
+            id: 7,
+            point: DragPointSample::Valid([1.0, 2.0]),
+        });
+        match &restored[0] {
             NativeFile::Hover(report) => {
-                assert_eq!(bits(report.position), bits(Some([10.0, 20.0])));
+                assert_eq!(bits(report.position), bits(Some([1.0, 2.0])));
+            }
+            NativeFile::Drop(_) | NativeFile::Cancel => panic!("hover"),
+        }
+        let unchanged = tracker.apply(DragNotice::Moved {
+            id: 7,
+            point: DragPointSample::Absent,
+        });
+        match &unchanged[0] {
+            NativeFile::Hover(report) => {
+                assert_eq!(bits(report.position), bits(Some([1.0, 2.0])));
             }
             NativeFile::Drop(_) | NativeFile::Cancel => panic!("hover"),
         }
@@ -612,7 +649,7 @@ mod tests {
         match &drops[1] {
             NativeFile::Drop(report) => {
                 assert_eq!(report.path.as_os_str(), "b.txt");
-                assert_eq!(bits(report.position), bits(Some([10.0, 20.0])));
+                assert_eq!(bits(report.position), bits(Some([1.0, 2.0])));
             }
             NativeFile::Hover(_) | NativeFile::Cancel => panic!("drop"),
         }

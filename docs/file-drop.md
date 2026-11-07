@@ -30,7 +30,9 @@ hover, or any other pointer to fill it.
 The runner uses winit 0.31.0-beta.4. `DragEntered` and `DragPosition` carry
 client physical pixels, top-left origin, when the backend has them.
 `DragEntered.position` may be `None`. Those pixels are divided by the window
-scale. A non-finite sample stays `None`. A reported `(0, 0)` stays the origin.
+scale. A non-finite sample clears the stored point, so the hover reports
+`None`. An event with no point leaves the stored point unchanged. A reported
+`(0, 0)` stays the origin.
 The cursor is not read.
 
 File names come from the transfer's `text/uri-list`, one `FileHover` or

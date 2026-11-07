@@ -1735,15 +1735,20 @@ impl Handler {
         )
     }
 
-    fn drag_logical(
+    fn drag_sample(
         &self,
         position: Option<winit::dpi::PhysicalPosition<f64>>,
-    ) -> Option<[f32; 2]> {
-        let position = position?;
-        file_drop::logical_point(
+    ) -> file_drop::DragPointSample {
+        let Some(position) = position else {
+            return file_drop::DragPointSample::Absent;
+        };
+        match file_drop::logical_point(
             file_drop::DragPoint::ClientPhysical([position.x as f32, position.y as f32]),
             f64::from(self.scale()),
-        )
+        ) {
+            Some(point) => file_drop::DragPointSample::Valid(point),
+            None => file_drop::DragPointSample::Invalid,
+        }
     }
 
     fn on_drag(&mut self, event_loop: &dyn ActiveEventLoop, notice: file_drop::DragNotice) {
@@ -2060,7 +2065,7 @@ impl ApplicationHandler for Handler {
                     event_loop,
                     file_drop::DragNotice::Entered {
                         id: id.into_raw(),
-                        position: self.drag_logical(position),
+                        point: self.drag_sample(position),
                     },
                 );
             }
@@ -2069,7 +2074,7 @@ impl ApplicationHandler for Handler {
                     event_loop,
                     file_drop::DragNotice::Moved {
                         id: id.into_raw(),
-                        position: self.drag_logical(Some(position)),
+                        point: self.drag_sample(Some(position)),
                     },
                 );
             }
