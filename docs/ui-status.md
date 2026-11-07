@@ -15,6 +15,7 @@ What the kits and the core document model cover, with tests in this repo:
 
 - Semantic themes, cards, controls, collections, data editors, and selection.
 - [`ListView::mount_virtual`](virtual-list.md) and [`ListView::mount_variable`](virtual-list.md): a viewport window over a longer logical list. Variable rows keep an item anchor plus a milli-point remainder. The retained `ListView` is still a bounded list. Headless anchor math is not native certification.
+- [Diff presentation](diff-presentation.md): the host supplies hunk ids, row text, heights, and a gutter mark. The view draws the mark and moves between hunks with the variable-list anchor. It does not parse a diff. Headless tests do not make the native diff cell Supported.
 - [Markdown host slots](markdown-host-slots.md): a slot is anchored to a source
   byte range, so an insert above it or a streaming append keeps the control.
   Height is measured from the mounted subtree. The host owns the children. The
