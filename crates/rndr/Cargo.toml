@@ -32,6 +32,9 @@ parley = ["rndr_render/parley"]
 accesskit = ["rndr_render/accesskit"]
 # Native open and save dialogs. Off by default.
 dialog = ["rndr_render/dialog"]
+# Embedded browser. Off by default, so a desktop build does not link a webview.
+# Enabling it does not enable `dialog`.
+browser = ["dep:rndr_browser"]
 # Spawn a feed producer on a tokio runtime the application already started.
 tokio = ["rndr_core/tokio"]
 
@@ -46,6 +49,7 @@ rndr_std = { workspace = true }
 # optional on the 2021 edition.
 rndr_render = { path = "../rndr_render", version = "0.4.0", default-features = false }
 rndr_term = { workspace = true, optional = true }
+rndr_browser = { workspace = true, optional = true }
 
 [dev-dependencies]
 # Operating gallery only: default applications do not adopt rndr_ui.

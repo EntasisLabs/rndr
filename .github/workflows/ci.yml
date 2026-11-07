@@ -55,6 +55,16 @@ jobs:
       - name: Test
         run: cargo test --workspace
 
+      - name: Browser authentication dispatch in release
+        if: runner.os == 'macOS'
+        run: cargo test -p rndr_browser --release --lib challenge_dispatch
+
+      - name: WebKit certificate harness
+        if: runner.os == 'macOS'
+        run: |
+          cargo run -p rndr_browser --features native-auth-harness --example auth_harness
+          cargo run -p rndr_browser --features native-auth-harness --example auth_harness --release
+
       - name: Test all features
         run: cargo test --workspace --all-features
 
@@ -123,11 +133,13 @@ jobs:
           ui_crate=(target/package/rndr_ui-*.crate)
           app_crate=(target/package/rndr_app-*.crate)
           facade_crate=(target/package/rndr-*.crate)
+          browser_crate=(target/package/rndr_browser-*.crate)
           test "${#paint_crate[@]}" -eq 1
           test "${#render_crate[@]}" -eq 1
           test "${#ui_crate[@]}" -eq 1
           test "${#app_crate[@]}" -eq 1
           test "${#facade_crate[@]}" -eq 1
+          test "${#browser_crate[@]}" -eq 1
           paint_files="$(tar -tzf "${paint_crate[0]}")"
           render_files="$(tar -tzf "${render_crate[0]}")"
           test "$(printf '%s\n' "$paint_files" | grep -c '\.snap$')" = 7

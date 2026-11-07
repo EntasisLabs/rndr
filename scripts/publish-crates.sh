@@ -11,15 +11,17 @@
 #
 # Uploaded, in order:
 #   rndr_core, rndr_paint, rndr_std, rndr_term, rndr_ui, rndr_app,
-#   rndr_render, rndr.
+#   rndr_render, rndr_browser, rndr.
 # rndr_term and rndr_ui depend on rndr_core, and each has a versioned
 # dev-dependency on rndr_paint. Cargo writes a lockfile for the packaged crate
 # and resolves that dev-dependency from crates.io, so rndr_paint is published
 # before either of them. rndr_app depends on rndr_core only. rndr_render depends
 # on rndr_core and rndr_paint. The facade depends on those crates, and its
-# optional ui feature and its dev-dependency both require rndr_ui, so the
-# facade is last. rndr_std and rndr_term publish at the same version as the
-# rest of the set.
+# optional ui feature and its dev-dependency both require rndr_ui.
+# rndr_browser has no workspace dependencies. The facade's optional browser
+# feature version-depends on it, including when that feature is off, so
+# rndr_browser is packaged and ordered immediately before the facade.
+# rndr_std and rndr_term publish at the same version as the rest of the set.
 # A version already present in the sparse index is skipped.
 # After each upload, the script waits until that version is visible in the
 # index before publishing the next crate.
@@ -27,9 +29,13 @@
 # Not uploaded: every example, including desktop and source-session. They are
 # publish = false. This script excludes them from `cargo package --workspace`,
 # which otherwise refuses a publish = false member.
+# rndr_browser is publish-eligible. Leaving it out of this package set makes
+# `cargo package` of the default facade look for rndr_browser on crates.io and
+# fail, because an optional versioned dependency is still resolved. This script
+# does not upload anything unless invoked without --dry-run.
 #
 # `--dry-run` does not upload and does not need CARGO_REGISTRY_TOKEN.
-# It packages the eight crates with `cargo package --workspace --no-verify`,
+# It packages the nine library crates with `cargo package --workspace --no-verify`,
 # which does not need the crates.io index. A crate whose workspace
 # dependencies, including dev-dependencies, are already on the index also gets
 # `cargo publish --dry-run` (verify, then stop before upload). Packaging one
@@ -63,14 +69,14 @@ if [[ "$dry_run" -eq 0 && -z "${CARGO_REGISTRY_TOKEN:-}" ]]; then
     exit 1
 fi
 
-CRATES=(rndr_core rndr_paint rndr_std rndr_term rndr_ui rndr_app rndr_render rndr)
+CRATES=(rndr_core rndr_paint rndr_std rndr_term rndr_ui rndr_app rndr_render rndr_browser rndr)
 
 declare -A VERSIONS=()
 while IFS=$'\t' read -r name version; do
     VERSIONS["$name"]="$version"
 done < <(cargo metadata --format-version 1 --no-deps | python3 -c '
 import json, sys
-wanted = {"rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_ui", "rndr_app", "rndr_render", "rndr"}
+wanted = {"rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_ui", "rndr_app", "rndr_render", "rndr_browser", "rndr"}
 meta = json.load(sys.stdin)
 for package in meta["packages"]:
     if package["name"] in wanted:
@@ -108,8 +114,11 @@ workspace_deps() {
     # rndr_paint is a versioned dev-dependency. The packaged lockfile resolves it.
     rndr_term | rndr_ui) echo rndr_core rndr_paint ;;
     rndr_render) echo rndr_core rndr_paint ;;
-    # Optional ui, optional term, and the rndr_ui dev-dependency.
-    rndr) echo rndr_core rndr_paint rndr_std rndr_term rndr_ui rndr_render ;;
+    # No workspace crates. objc2 and WebKit resolve from crates.io.
+    rndr_browser) ;;
+    # Optional ui, optional term, optional browser, and the rndr_ui dev-dependency.
+    # browser stays in the manifest when the feature is off.
+    rndr) echo rndr_core rndr_paint rndr_std rndr_term rndr_ui rndr_render rndr_browser ;;
     *)
         echo "unknown crate: $1" >&2
         return 1
@@ -189,13 +198,13 @@ forbidden_prefixes = (
     "expand-", "idle-", "overlay-", "palette-", "terminal-", "stream-",
     "two-windows-", "pen-probe-", "canvas-scene-", "create-view-",
 )
-workspace = ("rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_ui", "rndr_app", "rndr_render", "rndr")
+workspace = ("rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_ui", "rndr_app", "rndr_render", "rndr_browser", "rndr")
 licenses = {"rndr_paint": "MIT AND OFL-1.1", "rndr_render": "MIT AND OFL-1.1"}
 found = sorted(path.name for path in root.glob("*.crate"))
 for name in found:
     if name.startswith(forbidden_prefixes):
         sys.exit(f"unpublished crate was packaged: {name}")
-expected = ("rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_ui", "rndr_app", "rndr_render", "rndr")
+expected = ("rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_ui", "rndr_app", "rndr_render", "rndr_browser", "rndr")
 for name in expected:
     matches = [item for item in found if item.startswith(name + "-")]
     if len(matches) != 1:
@@ -223,6 +232,10 @@ for name in expected:
             sys.exit(f"facade features changed: ui={features.get('ui')!r}")
         if "ui" in features.get("default", []) or "observe" in features.get("default", []):
             sys.exit("ui or observe became a default feature")
+        if "browser" in features.get("default", []):
+            sys.exit("browser became a default feature")
+        if features.get("browser") != ["dep:rndr_browser"]:
+            sys.exit(f"browser feature changed: {features.get('browser')!r}")
     for table_name in ("dependencies", "dev-dependencies"):
         for dep_name, spec in manifest.get(table_name, {}).items():
             if dep_name not in workspace or not isinstance(spec, dict):
@@ -233,6 +246,8 @@ for name in expected:
                 sys.exit(f"{name} {table_name}.{dep_name} version {spec.get('version')}, want {version}")
             if table_name == "dependencies" and dep_name == "rndr_ui" and spec.get("optional") is not True:
                 sys.exit(f"{name} rndr_ui dependency is not optional: {spec}")
+            if table_name == "dependencies" and dep_name == "rndr_browser" and spec.get("optional") is not True:
+                sys.exit(f"{name} rndr_browser dependency is not optional: {spec}")
 print("packaged archives:", ", ".join(found))
 PY
 fi

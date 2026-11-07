@@ -73,6 +73,10 @@
 //! - `dialog` shows native open and save dialogs. It is off by default.
 //! - `term` re-exports the embedded terminal. It is off by default, so a
 //!   normal desktop build does not link a pseudoterminal.
+//! - `browser` re-exports the embedded browser. It is off by default, so a
+//!   normal desktop build does not link a webview. It does not enable `dialog`.
+//!   WebView2, WebKitGTK, find, and script evaluation are unsupported in this
+//!   slice. A headless test does not certify the macOS view.
 //! - `ui` is off by default and exposes semantic components at `rndr::ui`, never
 //!   glob-reexporting their names into the legacy root API.
 //! - `observe` is off by default. It enables two different checks. The Unix
@@ -121,6 +125,14 @@ pub use rndr_ui as ui;
 /// Embedded terminal. Enable the `term` feature.
 #[cfg(feature = "term")]
 pub use rndr_term::*;
+
+/// Embedded browser. Enable the `browser` feature.
+///
+/// The feature is off by default. WebKit is linked only on macOS, and only
+/// through that feature. The re-export is the host session, not an application
+/// command bus.
+#[cfg(feature = "browser")]
+pub use rndr_browser::*;
 
 #[cfg(test)]
 mod tests {
