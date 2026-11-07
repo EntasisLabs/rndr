@@ -2,9 +2,10 @@
 //!
 //! A local event monitor copies pressure, tilt, and twist from tablet-point
 //! events. The runner applies the latest sample to [`rndr_core::PEN_ID`] at
-//! the window's cursor. Windows pen input arrives as touch force instead, and
-//! this monitor is not installed there. Nothing here is checked against a
-//! physical tablet in CI.
+//! the window's cursor. Windows pen movement and contact arrive as winit
+//! tablet-tool events and are applied in the runner. This monitor is not
+//! installed there and is not a substitute for those events. Nothing here is
+//! checked against a physical tablet in CI.
 
 use std::sync::{Arc, Mutex};
 

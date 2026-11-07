@@ -7,9 +7,9 @@
 //! it is not verified against a tablet in CI. An Apple Pencil through Sidecar,
 //! or a Wacom tablet, is the check that still needs hardware.
 //!
-//! On Windows, winit 0.30 reports a pen as a touch. `Touch.force` is stored as
-//! pressure on that touch contact. The kind stays [`rndr_core::PointerKind::Touch`]
-//! because the event does not say pen. Force is unverified without a touch
+//! On Windows a pen is a winit tablet tool, not a touch. Movement, tip contact,
+//! pressure, tilt, and twist are written onto the same pen contact. The macOS
+//! monitor does not run there. Neither path is verified without a tablet or a
 //! digitizer. Trackpad force-touch is not treated as a pen.
 //!
 //! Linux does not install the monitor. File drop on Wayland is also absent

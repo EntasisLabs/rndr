@@ -73,6 +73,7 @@ mod platform;
 mod scene;
 mod shell;
 mod startup;
+mod tablet;
 #[cfg(feature = "parley")]
 mod text;
 #[cfg(feature = "tray")]
@@ -1669,7 +1670,24 @@ impl Handler {
                 );
                 self.request_redraw();
             }
-            PointerSource::TabletTool { .. } | _ => {}
+            PointerSource::TabletTool { kind, data, .. } => {
+                self.accepts_pen = true;
+                let held = tablet::tip_down(&data);
+                let update = tablet::tablet_contact(
+                    kind,
+                    &data,
+                    ContactPhase::Move,
+                    PointerButton::Left,
+                    held,
+                    position,
+                    f64::from(self.scale()),
+                    self.started.elapsed(),
+                );
+                self.cursor_px = [position.x as f32, position.y as f32];
+                self.pointers.apply(update);
+                self.request_redraw();
+            }
+            _ => {}
         }
     }
 
@@ -1995,7 +2013,23 @@ impl ApplicationHandler for Handler {
                             force.as_ref(),
                         );
                     }
-                    ButtonSource::Unknown(_) | ButtonSource::TabletTool { .. } | _ => {}
+                    ButtonSource::TabletTool { kind, button, data } => {
+                        self.accepts_pen = true;
+                        let (phase, held) =
+                            tablet::tool_phase(button, state == ElementState::Pressed);
+                        let update = tablet::tablet_contact(
+                            kind,
+                            &data,
+                            phase,
+                            tablet::tool_button(button),
+                            held,
+                            position,
+                            f64::from(self.scale()),
+                            self.started.elapsed(),
+                        );
+                        self.pointers.apply(update);
+                    }
+                    ButtonSource::Unknown(_) | _ => {}
                 }
                 self.request_redraw();
             }
