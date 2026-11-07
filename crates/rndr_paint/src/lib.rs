@@ -9,9 +9,12 @@
 //! for foreign surfaces. Those quads are the fast path. A
 //! [`CanvasRegistry`] painter on a [`rndr_core::SurfaceSlot`], and an
 //! [`rndr_core::ImageView`] on a row, are recorded as [`Placed`] commands
-//! beside the quads. A window crate multiplies rectangles by
-//! [`rndr_core::Viewport::scale`] when it uploads them. [`paint`] is the same
-//! walk without stepping the app, and it returns only the quads.
+//! beside the quads. An entity with [`rndr_core::Opacity`] below one or a
+//! non-identity [`rndr_core::Transform`] moves its subtree out of the quad list
+//! into one [`SceneLayer`] of [`Op::Quads`] and draws, composited once. A
+//! window crate multiplies rectangles by [`rndr_core::Viewport::scale`] when it
+//! uploads them. [`paint`] is the same walk without stepping the app, and it
+//! returns only the quads, so it omits composited subtrees.
 //!
 //! # Example
 //!
@@ -500,6 +503,85 @@ fn walk(
     if !world.is_alive(entity) || world.has::<rndr_core::Hidden>(entity) {
         return;
     }
+    let Some(layer) = group_layer(world, entity) else {
+        walk_entity(world, entity, quads, draws, scale, solid, theme);
+        return;
+    };
+    if layer.opacity <= 0.0 {
+        return;
+    }
+    // Paint the subtree as usual, then move its quads and draws into one
+    // layer placed where the subtree started, keeping their relative order.
+    let quad_start = quads.borrow().len();
+    let draw_start = draws.borrow().len();
+    walk_entity(world, entity, quads, draws, scale, solid, theme);
+    let inner_quads = quads.borrow_mut().split_off(quad_start);
+    let inner_draws = draws.borrow_mut().split_off(draw_start);
+    let mut ops = vec![Op::PushLayer(layer)];
+    let mut cursor = 0;
+    for placed in inner_draws {
+        let at = (placed.z as usize)
+            .saturating_sub(quad_start)
+            .min(inner_quads.len());
+        if at > cursor {
+            ops.push(Op::Quads(inner_quads[cursor..at].to_vec()));
+            cursor = at;
+        }
+        ops.push(placed.op);
+    }
+    if cursor < inner_quads.len() {
+        ops.push(Op::Quads(inner_quads[cursor..].to_vec()));
+    }
+    ops.push(Op::PopLayer);
+    let z = quad_start as u32;
+    draws
+        .borrow_mut()
+        .extend(ops.into_iter().map(|op| Placed { z, op }));
+}
+
+// Layer for an entity whose subtree is composited as one group. A transform
+// needs a layout rect for its pivot; the parent's clip bounds the result.
+fn group_layer(world: &World, entity: rndr_core::Entity) -> Option<SceneLayer> {
+    let opacity = world
+        .get::<rndr_core::Opacity>(entity)
+        .map_or(1.0, |opacity| opacity.alpha());
+    let transform = world
+        .get::<rndr_core::Transform>(entity)
+        .filter(|transform| !transform.is_identity())
+        .zip(world.get::<Rect>(entity).copied());
+    if opacity >= 1.0 && transform.is_none() {
+        return None;
+    }
+    let mut layer = SceneLayer::opacity(opacity);
+    if let Some((transform, rect)) = transform {
+        layer.transform = Affine {
+            m: transform.matrix(rect),
+        };
+        layer.clip = world
+            .get::<Parent>(entity)
+            .and_then(|parent| world.get::<Clip>(parent.entity))
+            .map(|clip| {
+                ClipShape::Scissor(Rect {
+                    x: clip.x,
+                    y: clip.y,
+                    w: clip.w,
+                    h: clip.h,
+                })
+            });
+    }
+    Some(layer)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn walk_entity(
+    world: &World,
+    entity: rndr_core::Entity,
+    quads: &RefCell<Vec<Quad>>,
+    draws: &RefCell<Vec<Placed>>,
+    scale: f32,
+    solid: [f32; 4],
+    theme: &Theme,
+) {
     if world.has::<rndr_core::SurfaceSlot>(entity) {
         record_canvas(world, entity, quads, draws);
         for child in children_of(world, entity) {

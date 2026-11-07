@@ -19,7 +19,7 @@ use std::collections::HashMap;
 use rndr_core::World;
 use rndr_paint::{
     Affine, ClipShape, Effect, FillRule, FillStyle, Frame, ImageOp, Mesh, MeshCache, Op, Path,
-    PathOp, SceneLayer, TextSource, OUTLINE_PX,
+    PathOp, Quad, SceneLayer, TextSource, OUTLINE_PX,
 };
 
 use crate::color::color_for_surface;
@@ -233,6 +233,8 @@ struct PipeSet {
     path_in: wgpu::RenderPipeline,
     sprite: wgpu::RenderPipeline,
     sprite_in: wgpu::RenderPipeline,
+    quad: wgpu::RenderPipeline,
+    quad_in: wgpu::RenderPipeline,
 }
 
 #[derive(Clone)]
@@ -292,12 +294,22 @@ struct BlitDraw {
     /// Device-pixel bounds of the composited layer, min x/y then max x/y.
     /// A parent shadow uses this instead of the viewport-sized blit quad.
     extent: Option<[f32; 4]>,
+    /// [`SceneLayer::transform`] in device pixels, applied at composite.
+    transform: Affine,
+    /// Device-pixel scissor on the composited quads. See [`NO_SCISSOR`].
+    scissor: [f32; 4],
 }
 
 enum Drawn {
     Paths(Vec<u8>),
     Sprite(SpriteDraw),
     Blit(BlitDraw),
+    /// Range of instances in the frame's quad buffer, and their device bounds.
+    Quads {
+        start: u32,
+        end: u32,
+        extent: Option<[f32; 4]>,
+    },
 }
 
 #[derive(Clone)]
@@ -311,6 +323,7 @@ enum Cmd {
         verts: u32,
         bind: wgpu::BindGroup,
     },
+    Quads(u32, u32),
 }
 
 struct GeomPass {
@@ -349,6 +362,12 @@ struct Plan {
     sprite_bytes: Vec<u8>,
     passes: Vec<Pass>,
     root: Vec<RootCmd>,
+    /// [`Op::Quads`] instances, uploaded after the frame's own quads.
+    quads: Vec<Quad>,
+    /// Instance index of `quads[0]`: the frame's quad count.
+    quad_base: u32,
+    /// Device pixels per logical point, for moving quads into a shadow grid.
+    quad_scale: f32,
 }
 
 /// Path meshes, image textures, and offscreen layers for one device.
@@ -479,12 +498,16 @@ impl SceneGpu {
             address_mode_v: wgpu::AddressMode::ClampToEdge,
             ..Default::default()
         });
+        let (quad_layout, quad_shader) = quad_resources(&device);
+        let quad_pipeline = quad_pipe(&device, &quad_shader, &quad_layout, format, 1, None);
         let plain = pipe_set(
             &device,
             &path_shader,
             &sprite_shader,
+            &quad_shader,
             &path_layout,
             &sprite_layout,
+            &quad_layout,
             format,
             1,
         );
@@ -493,8 +516,10 @@ impl SceneGpu {
                 &device,
                 &path_shader,
                 &sprite_shader,
+                &quad_shader,
                 &path_layout,
                 &sprite_layout,
+                &quad_layout,
                 format,
                 samples,
             ))
@@ -545,7 +570,6 @@ impl SceneGpu {
             &blur_quad_bytes(),
             wgpu::BufferUsages::VERTEX,
         );
-        let (quad_layout, quad_pipeline) = quad_pipeline(&device, format);
         let quad_geo = init_buffer(
             &device,
             &queue,
@@ -633,6 +657,13 @@ impl SceneGpu {
             sprite_bytes: Vec::new(),
             passes: Vec::new(),
             root: Vec::new(),
+            quads: Vec::new(),
+            quad_base: frame.quads.len() as u32,
+            quad_scale: if scale.is_finite() && scale > 0.0 {
+                scale
+            } else {
+                1.0
+            },
         };
         self.build_root(
             &mut plan,
@@ -664,6 +695,11 @@ impl SceneGpu {
         );
         let mut quad_bytes = Vec::new();
         gpu::encode_instances(&frame.quads, scale, self.format, &mut quad_bytes);
+        if !plan.quads.is_empty() {
+            let mut layered = Vec::new();
+            gpu::encode_instances(&plan.quads, scale, self.format, &mut layered);
+            quad_bytes.extend(layered);
+        }
         self.quad_buffer = grow(
             &self.device,
             &self.queue,
@@ -753,6 +789,10 @@ impl SceneGpu {
                     for sprite in blit_sprites(blit, width, height) {
                         push_root_sprite(plan, sprite);
                     }
+                }
+                Drawn::Quads { start, end, .. } => {
+                    self.flush_paths(plan, &mut batch, width, height, scale);
+                    plan.root.push(RootCmd::Quads(start, end));
                 }
             }
         }
@@ -855,6 +895,18 @@ impl SceneGpu {
                             .into_iter()
                             .map(Drawn::Sprite),
                     );
+                    index += 1;
+                }
+                Op::Quads(quads) => {
+                    if !quads.is_empty() {
+                        let start = plan.quad_base + plan.quads.len() as u32;
+                        plan.quads.extend_from_slice(quads);
+                        out.push(Drawn::Quads {
+                            start,
+                            end: start + quads.len() as u32,
+                            extent: quads_extent(quads, scale),
+                        });
+                    }
                     index += 1;
                 }
                 Op::Glyphs(glyphs) => {
@@ -1059,10 +1111,23 @@ impl SceneGpu {
     ) -> BlitDraw {
         let samples = self.msaa.as_ref().map(|set| set.samples).unwrap_or(1);
         let target = self.alloc(width, height, samples);
+        let transformed = layer.transform != Affine::IDENTITY;
         let scissor = match &layer.clip {
-            Some(ClipShape::Scissor(rect)) => scissor_px(*rect, scale, width, height),
+            Some(ClipShape::Scissor(rect)) if !transformed => {
+                scissor_px(*rect, scale, width, height)
+            }
             _ => None,
         };
+        let composite_scissor = match &layer.clip {
+            Some(ClipShape::Scissor(rect)) if transformed => [
+                rect.x * scale,
+                rect.y * scale,
+                rect.w.max(0.0) * scale,
+                rect.h.max(0.0) * scale,
+            ],
+            _ => NO_SCISSOR,
+        };
+        let transform = device_affine(layer.transform, scale);
         let (clip_offset, clip_verts) = match &layer.clip {
             Some(ClipShape::RoundRect { rect, radius }) => {
                 self.clip_bytes(plan, &Path::round_rect(*rect, *radius), base, scale)
@@ -1114,6 +1179,9 @@ impl SceneGpu {
                 ],
             );
         }
+        if transformed {
+            published = published.map(|extent| map_extent(extent, transform));
+        }
         BlitDraw {
             bind,
             shadow: shadow.bind,
@@ -1123,6 +1191,8 @@ impl SceneGpu {
             shadow_pad: shadow.pad,
             shadow_place: shadow.place,
             extent: published,
+            transform,
+            scissor: composite_scissor,
         }
     }
 
@@ -1362,14 +1432,19 @@ impl SceneGpu {
     ) {
         for pass in &plan.passes {
             match pass {
-                Pass::Geom(geom) => self.run_geom(encoder, geom),
+                Pass::Geom(geom) => self.run_geom(encoder, geom, quad_bind),
                 Pass::Blur(job) => self.run_blur(encoder, job),
             }
         }
         self.run_root(encoder, plan, target, quad_bind, clear);
     }
 
-    fn run_geom(&self, encoder: &mut wgpu::CommandEncoder, pass: &GeomPass) {
+    fn run_geom(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        pass: &GeomPass,
+        quad_bind: &wgpu::BindGroup,
+    ) {
         if let Some(viewport) = &pass.viewport {
             encoder.copy_buffer_to_buffer(viewport, 0, &self.uniform, 0, 16);
         }
@@ -1442,6 +1517,14 @@ impl SceneGpu {
                         let end = *offset + *verts as u64 * SPRITE_STRIDE as u64;
                         render.set_vertex_buffer(0, self.sprite_buffer.slice(*offset..end));
                         render.draw(0..*verts, 0..1);
+                    }
+                    Cmd::Quads(start, end) if end > start => {
+                        render.set_pipeline(if inside { &pipes.quad_in } else { &pipes.quad });
+                        render.set_stencil_reference(1);
+                        render.set_bind_group(0, quad_bind, &[]);
+                        render.set_vertex_buffer(0, self.quad_geo.slice(..));
+                        render.set_vertex_buffer(1, self.quad_buffer.slice(..));
+                        render.draw(0..4, *start..*end);
                     }
                     _ => {}
                 }
@@ -1931,6 +2014,10 @@ fn pack_cmds(plan: &mut Plan, drawn: Vec<Drawn>, width: u32, height: u32) -> Vec
                     push_cmd_sprite(plan, &mut cmds, sprite);
                 }
             }
+            Drawn::Quads { start, end, .. } => {
+                flush_paths_acc(plan, &mut acc, &mut cmds);
+                cmds.push(Cmd::Quads(start, end));
+            }
         }
     }
     flush_paths_acc(plan, &mut acc, &mut cmds);
@@ -1978,13 +2065,19 @@ fn push_root_sprite(plan: &mut Plan, sprite: SpriteDraw) {
 
 fn blit_sprites(blit: BlitDraw, width: u32, height: u32) -> Vec<SpriteDraw> {
     let mut out = Vec::new();
+    let transformed = blit.transform != Affine::IDENTITY;
+    // A transformed quad is not one texel per device pixel. Zero sizes turn
+    // off the shadow's texel load and the rounded-corner cover.
+    let dest = |w: f32, h: f32| if transformed { (0.0, 0.0) } else { (w, h) };
     if let Some(shadow) = blit.shadow {
         if blit.shadow_color[3] > 0.0 {
             let mut bytes = Vec::new();
             if let Some(place) = blit.shadow_place {
+                let (dest_w, dest_h) = dest(place[2], place[3]);
                 push_quad(
                     &mut bytes,
-                    Affine::translate(place[0] + blit.offset[0], place[1] + blit.offset[1]),
+                    Affine::translate(place[0] + blit.offset[0], place[1] + blit.offset[1])
+                        .then(blit.transform),
                     1.0,
                     1.0,
                     0.0,
@@ -1996,8 +2089,8 @@ fn blit_sprites(blit: BlitDraw, width: u32, height: u32) -> Vec<SpriteDraw> {
                     [0.0, 0.0, 1.0, 1.0],
                     blit.shadow_color,
                     0.0,
-                    place[2],
-                    place[3],
+                    dest_w,
+                    dest_h,
                     4.0,
                     [
                         place[0] + blit.offset[0],
@@ -2016,9 +2109,10 @@ fn blit_sprites(blit: BlitDraw, width: u32, height: u32) -> Vec<SpriteDraw> {
                 let oy = blit.offset[1] - pad;
                 let w = width as f32 + pad * 2.0;
                 let h = height as f32 + pad * 2.0;
+                let (dest_w, dest_h) = dest(w, h);
                 push_quad(
                     &mut bytes,
-                    Affine::translate(ox, oy),
+                    Affine::translate(ox, oy).then(blit.transform),
                     1.0,
                     1.0,
                     0.0,
@@ -2030,8 +2124,8 @@ fn blit_sprites(blit: BlitDraw, width: u32, height: u32) -> Vec<SpriteDraw> {
                     [0.0, 0.0, 1.0, 1.0],
                     blit.shadow_color,
                     0.0,
-                    w,
-                    h,
+                    dest_w,
+                    dest_h,
                     4.0,
                     [ox, oy, -1.0, 0.0],
                 );
@@ -2044,20 +2138,51 @@ fn blit_sprites(blit: BlitDraw, width: u32, height: u32) -> Vec<SpriteDraw> {
     }
     if blit.opacity > 0.0 {
         let mut bytes = Vec::new();
-        push_screen(
-            &mut bytes,
-            [0.0, 0.0],
-            width,
-            height,
-            [1.0, 1.0, 1.0, blit.opacity],
-            3.0,
-        );
+        if transformed || blit.scissor != NO_SCISSOR {
+            let (w, h) = (width as f32, height as f32);
+            push_quad(
+                &mut bytes,
+                blit.transform,
+                1.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                w,
+                h,
+                [0.0, 0.0, 1.0, 1.0],
+                [1.0, 1.0, 1.0, blit.opacity],
+                0.0,
+                0.0,
+                0.0,
+                3.0,
+                blit.scissor,
+            );
+        } else {
+            push_screen(
+                &mut bytes,
+                [0.0, 0.0],
+                width,
+                height,
+                [1.0, 1.0, 1.0, blit.opacity],
+                3.0,
+            );
+        }
         out.push(SpriteDraw {
             bytes,
             bind: blit.bind,
         });
     }
     out
+}
+
+/// `logical` with its translation in device pixels; the linear part is unitless.
+fn device_affine(logical: Affine, scale: f32) -> Affine {
+    let [a, b, c, d, tx, ty] = logical.m;
+    Affine {
+        m: [a, b, c, d, tx * scale, ty * scale],
+    }
 }
 
 /// Child transform first, then the affine already on the stack.
@@ -2300,9 +2425,44 @@ fn content_extent(drawn: &[Drawn]) -> Option<[f32; 4]> {
                     union_box(&mut acc, extent);
                 }
             }
+            Drawn::Quads { extent, .. } => {
+                if let Some(extent) = *extent {
+                    union_box(&mut acc, extent);
+                }
+            }
         }
     }
     acc
+}
+
+/// Device-pixel bounds of `quads`, each cut to its own clip.
+fn quads_extent(quads: &[Quad], scale: f32) -> Option<[f32; 4]> {
+    let mut acc = None;
+    for quad in quads {
+        let x0 = quad.rect.x.max(quad.clip.x);
+        let y0 = quad.rect.y.max(quad.clip.y);
+        let x1 = (quad.rect.x + quad.rect.w).min(quad.clip.x + quad.clip.w);
+        let y1 = (quad.rect.y + quad.rect.h).min(quad.clip.y + quad.clip.h);
+        if x1 > x0 && y1 > y0 {
+            union_box(&mut acc, [x0 * scale, y0 * scale, x1 * scale, y1 * scale]);
+        }
+    }
+    acc
+}
+
+/// `extent` mapped through `transform`, as an axis-aligned box.
+fn map_extent(extent: [f32; 4], transform: Affine) -> [f32; 4] {
+    let mut acc = None;
+    for corner in [
+        [extent[0], extent[1]],
+        [extent[2], extent[1]],
+        [extent[0], extent[3]],
+        [extent[2], extent[3]],
+    ] {
+        let p = transform.transform_point(corner);
+        union_point(&mut acc, p[0], p[1]);
+    }
+    acc.unwrap_or(extent)
 }
 
 fn union_positions(acc: &mut Option<[f32; 4]>, bytes: &[u8], stride: usize) {
@@ -2416,8 +2576,32 @@ fn retarget_shadow_cmds(plan: &mut Plan, cmds: &[Cmd], origin: [f32; 2]) -> Vec<
                     bind: bind.clone(),
                 }
             }
+            Cmd::Quads(start, end) => {
+                let shift = [origin[0] / plan.quad_scale, origin[1] / plan.quad_scale];
+                let new_start = plan.quad_base + plan.quads.len() as u32;
+                for index in *start..*end {
+                    let Some(quad) = index
+                        .checked_sub(plan.quad_base)
+                        .and_then(|at| plan.quads.get(at as usize))
+                        .copied()
+                    else {
+                        continue;
+                    };
+                    plan.quads.push(shifted_quad(quad, shift));
+                }
+                Cmd::Quads(new_start, plan.quad_base + plan.quads.len() as u32)
+            }
         })
         .collect()
+}
+
+/// `quad` moved by `-shift` logical points, clip included.
+fn shifted_quad(mut quad: Quad, shift: [f32; 2]) -> Quad {
+    quad.rect.x -= shift[0];
+    quad.rect.y -= shift[1];
+    quad.clip.x -= shift[0];
+    quad.clip.y -= shift[1];
+    quad
 }
 
 fn retarget_shadow_clip(
@@ -2710,10 +2894,7 @@ fn blur_quad_bytes() -> Vec<u8> {
     bytes
 }
 
-fn quad_pipeline(
-    device: &wgpu::Device,
-    format: wgpu::TextureFormat,
-) -> (wgpu::BindGroupLayout, wgpu::RenderPipeline) {
+fn quad_resources(device: &wgpu::Device) -> (wgpu::BindGroupLayout, wgpu::ShaderModule) {
     let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: Some("quad-bg"),
         entries: &[
@@ -2728,20 +2909,33 @@ fn quad_pipeline(
         label: Some("quads"),
         source: wgpu::ShaderSource::Wgsl(gpu::QUAD_SHADER.into()),
     });
+    (layout, shader)
+}
+
+/// UI quad pipeline. The root pass is single-sample with no stencil; a layer
+/// target matches its sample count and stencil attachment.
+fn quad_pipe(
+    device: &wgpu::Device,
+    shader: &wgpu::ShaderModule,
+    layout: &wgpu::BindGroupLayout,
+    format: wgpu::TextureFormat,
+    samples: u32,
+    stencil: Option<wgpu::CompareFunction>,
+) -> wgpu::RenderPipeline {
     let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("quad-pl"),
-        bind_group_layouts: &[Some(&layout)],
+        bind_group_layouts: &[Some(layout)],
         immediate_size: 0,
     });
     const QUAD_ATTRS: [wgpu::VertexAttribute; 1] = wgpu::vertex_attr_array![0 => Float32x2];
     const INSTANCE_ATTRS: [wgpu::VertexAttribute; 5] = wgpu::vertex_attr_array![
         1 => Float32x4, 2 => Float32x4, 3 => Float32x4, 4 => Float32x4, 5 => Float32x4,
     ];
-    let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("quads"),
         layout: Some(&pipeline_layout),
         vertex: wgpu::VertexState {
-            module: &shader,
+            module: shader,
             entry_point: Some("vs"),
             compilation_options: Default::default(),
             buffers: &[
@@ -2761,26 +2955,32 @@ fn quad_pipeline(
             topology: wgpu::PrimitiveTopology::TriangleStrip,
             ..Default::default()
         },
-        depth_stencil: None,
-        multisample: wgpu::MultisampleState::default(),
+        depth_stencil: stencil.map(|compare| stencil_state(compare, wgpu::StencilOperation::Keep)),
+        multisample: wgpu::MultisampleState {
+            count: samples,
+            mask: !0,
+            alpha_to_coverage_enabled: false,
+        },
         fragment: Some(wgpu::FragmentState {
-            module: &shader,
+            module: shader,
             entry_point: Some("fs"),
             compilation_options: Default::default(),
             targets: &[Some(color_target(format, wgpu::ColorWrites::ALL))],
         }),
         multiview_mask: None,
         cache: None,
-    });
-    (layout, pipeline)
+    })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn pipe_set(
     device: &wgpu::Device,
     path_shader: &wgpu::ShaderModule,
     sprite_shader: &wgpu::ShaderModule,
+    quad_shader: &wgpu::ShaderModule,
     path_layout: &wgpu::BindGroupLayout,
     sprite_layout: &wgpu::BindGroupLayout,
+    quad_layout: &wgpu::BindGroupLayout,
     format: wgpu::TextureFormat,
     samples: u32,
 ) -> PipeSet {
@@ -2822,6 +3022,22 @@ fn pipe_set(
             device,
             sprite_shader,
             sprite_layout,
+            format,
+            samples,
+            Some(wgpu::CompareFunction::Equal),
+        ),
+        quad: quad_pipe(
+            device,
+            quad_shader,
+            quad_layout,
+            format,
+            samples,
+            Some(wgpu::CompareFunction::Always),
+        ),
+        quad_in: quad_pipe(
+            device,
+            quad_shader,
+            quad_layout,
             format,
             samples,
             Some(wgpu::CompareFunction::Equal),

@@ -56,6 +56,7 @@ fn offscreen_scene_matches_regions_and_the_golden() {
             radius: 6.0,
         }),
         effect: None,
+        ..SceneLayer::default()
     });
     canvas.fill(
         Path::polygon(&[[110.0, 4.0], [156.0, 4.0], [156.0, 40.0], [110.0, 40.0]]),

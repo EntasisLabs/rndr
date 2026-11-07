@@ -202,6 +202,7 @@ fn draw_demo(canvas: &mut Canvas, world: &World) {
             radius: 22.0,
         }),
         effect: None,
+        ..SceneLayer::default()
     });
     canvas.fill(
         Path::ellipse([160.0, 250.0], [120.0, 80.0]),

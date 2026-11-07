@@ -198,6 +198,14 @@ native-platform acceptance are different things:
   See the [UI guide](crates/rndr_ui/README.md), [virtual-list contract](docs/virtual-list.md)
   and [integration status](docs/ui-status.md). Status documents also preserve earlier
   milestone boundaries; use the feature-specific guides for subsequent additions.
+- **UI compositing:** `Opacity` and `Transform` (translate, scale, rotate about a
+  pivot) apply to any laid-out entity and its subtree. The subtree is painted as
+  one offscreen group and composited once; layout is unaffected and hit testing
+  follows the transform. Positional gestures inside a transformed control (caret
+  placement, slider drags) still read layout coordinates, a scaled group samples
+  its unscaled raster, and foreign surfaces (webviews) are not transformed. There
+  is no motion runtime, blur, or backdrop effect yet.
+  `cargo run -p rndr --example ui_compositing -- out.png` renders headless pixels.
 - **Document editing:** source sessions and structured editing have explicit ownership
   and regression coverage. The structured editor remains experimental; native IME,
   clipboard and assistive-technology acceptance must be checked independently of

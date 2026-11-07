@@ -79,6 +79,7 @@ mod chrome;
 mod clipboard;
 pub mod clock;
 mod close;
+mod compose;
 mod cursor;
 mod desktop;
 mod dialog;
@@ -172,6 +173,7 @@ pub use chrome::Chrome;
 pub use clipboard::{Clipboard, ClipboardImage};
 pub use clock::{ManualClock, SystemClock, Time};
 pub use close::{CloseGuard, CloseRequest, CloseState};
+pub use compose::{Opacity, Transform};
 pub use cursor::{cursor_image, rotate_cursor, CursorImage};
 pub use desktop::{
     deliver, desktop, install_wake, CountingWake, Desktop, OpenWindow, WindowHub, WindowId,

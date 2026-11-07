@@ -17,6 +17,7 @@ use rndr_core::{
 
 use crate::affine::{size_bucket, Affine, OUTLINE_PX};
 use crate::path::{FillRule, Path, Stroke};
+use crate::Quad;
 
 /// One recorded draw, in local space unless the variant says otherwise.
 #[derive(Clone, Debug)]
@@ -36,6 +37,12 @@ pub enum Op {
     PushLayer(SceneLayer),
     /// End the group started last. Extra pops are ignored.
     PopLayer,
+    /// UI quads drawn in screen space, ignoring the transform stack, like
+    /// [`ClipShape::Scissor`]. [`crate::paint`] records these inside a
+    /// [`SceneLayer`] for an entity with [`rndr_core::Opacity`] or
+    /// [`rndr_core::Transform`]; the layer's [`SceneLayer::transform`] then
+    /// moves the finished group.
+    Quads(Vec<Quad>),
 }
 
 /// Where a [`Op`] sits relative to the UI quad list.
@@ -156,6 +163,12 @@ pub struct SceneLayer {
     pub clip: Option<ClipShape>,
     /// Drawn under the group when it is composited.
     pub effect: Option<Effect>,
+    /// Screen-space map, in logical points, applied when the finished group
+    /// is composited. The group is drawn untransformed first. With a
+    /// non-identity map a [`ClipShape::Scissor`] clips the composited result
+    /// instead of the group's content, so content moved into view still
+    /// shows and content moved out of the scissor is cut.
+    pub transform: Affine,
 }
 
 impl Default for SceneLayer {
@@ -164,6 +177,7 @@ impl Default for SceneLayer {
             opacity: 1.0,
             clip: None,
             effect: None,
+            transform: Affine::IDENTITY,
         }
     }
 }
