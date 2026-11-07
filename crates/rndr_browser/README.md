@@ -25,12 +25,15 @@ system doing the thing. Headless tests do not move a cell.
 | macOS WKWebView | downloads and file input | Implemented | **Unverified** |
 | macOS WKWebView | find | Unsupported | Unsupported |
 | macOS WKWebView | script | Unsupported | Unsupported |
-| WebView2 | navigation, downloads, find, script | Unsupported | Unsupported |
+| WebView2 | navigation, show, hide, logical client bounds | Implemented | **Unverified** |
+| WebView2 | downloads and file input | Implemented | **Unverified** |
+| WebView2 | find | Unsupported | Unsupported |
+| WebView2 | script | Unsupported | Unsupported |
 | WebKitGTK | navigation, downloads, find, script | Unsupported | Unsupported |
 
-WebView2 and WebKitGTK stay unsupported until their own slices. Find and script
-stay unsupported until theirs. This crate does not download or bundle a
-browser runtime.
+WebKitGTK stays unsupported until its own slice. Find and script stay
+unsupported until theirs. WebView2 uses an already installed runtime. A missing
+runtime is an error. This crate does not download or bundle one.
 
 ## macOS smoke — outstanding
 
@@ -86,3 +89,22 @@ not by this smoke.
 
 Record the OS version, machine, Rust version, date, and the observed result
 before calling any cell `Supported`. This repository does not do that here.
+Merging the macOS slice did not certify its download callback, bounds smoke,
+or file input.
+
+## Windows smoke
+
+On Windows, with the WebView2 runtime already installed:
+
+```sh
+cargo run -p rndr_browser --example windows_smoke
+```
+
+The example parents a WebView2 controller in a Win32 window. It checks a
+logical rect and a later resize in parent-client pixels, hides on a zero-area
+rect without destroying the view, loads `https://example.com/`, fails
+`https://expired.badssl.com/`, refuses a localhost basic challenge, cancels one
+download, and accepts another into a host path. It does not trigger file
+input. A missing runtime prints `BrowserError::RuntimeMissing` and exits 3.
+The host message loop has to run; `frame` does not pump it. A green run is
+still not an R6 `Supported` cell.

@@ -18,6 +18,19 @@ native-auth-harness = []
 [dependencies]
 raw-window-handle = "0.6"
 
+[target.'cfg(target_os = "windows")'.dependencies]
+# The loader finds an already installed WebView2 runtime. It is not the runtime.
+# A missing runtime is reported. Nothing in this crate downloads or bundles one.
+webview2-com = "=0.39.1"
+windows = { version = "=0.62.2", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_System_Com",
+    "Win32_System_LibraryLoader",
+    "Win32_UI_HiDpi",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
 [target.'cfg(target_os = "macos")'.dependencies]
 # Same objc2 generation as rndr_render. A newer objc2 would load a second runtime.
 block2 = "=0.5.1"

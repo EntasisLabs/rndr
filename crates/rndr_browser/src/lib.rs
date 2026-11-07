@@ -5,11 +5,13 @@
 //! `rndr_core`, `rndr_ui`, and `rndr_paint` do not depend on this crate.
 //! Enabling `browser` does not enable `dialog`.
 //!
-//! This slice implements macOS WKWebView: show, hide, logical client-area
-//! bounds, navigation, and download and file-input intents. WebView2,
+//! This slice implements macOS WKWebView and Windows WebView2: show, hide,
+//! logical client-area bounds, navigation, and download and file-input intents.
 //! WebKitGTK, find, and script evaluation are unsupported. See [`support_matrix`].
-//! A headless test does not certify macOS. The native cells stay unverified
-//! until a session on that machine is recorded. See the crate README.
+//! A headless test does not certify either platform. The native cells stay
+//! unverified until a session on that machine is recorded. See the crate README.
+//! A missing WebView2 runtime is [`BrowserError::RuntimeMissing`]. This crate
+//! does not download or bundle one.
 //!
 //! A guest page does not receive a command channel. Navigation reports a URL,
 //! a title, a load outcome, and whether back and forward are available. The
@@ -41,10 +43,13 @@
 mod auth;
 mod contract;
 mod geometry;
+mod policy;
 mod session;
 
 #[cfg(target_os = "macos")]
 mod macos;
+#[cfg(target_os = "windows")]
+mod windows;
 
 pub use contract::{admit_client_rect, ClientRect, RectError};
 pub use session::{Browser, BrowserError, BrowserEvent, IntentToken};
@@ -184,7 +189,25 @@ const MATRIX: &[MatrixRow] = &[
     },
     MatrixRow {
         backend: "WebView2",
-        capability: "navigation, downloads, find, script",
+        capability: "navigation, show, hide, bounds",
+        slice: SliceStatus::Implemented,
+        native: NativeStatus::Unverified,
+    },
+    MatrixRow {
+        backend: "WebView2",
+        capability: "downloads and file input",
+        slice: SliceStatus::Implemented,
+        native: NativeStatus::Unverified,
+    },
+    MatrixRow {
+        backend: "WebView2",
+        capability: "find",
+        slice: SliceStatus::Unsupported,
+        native: NativeStatus::Unsupported,
+    },
+    MatrixRow {
+        backend: "WebView2",
+        capability: "script",
         slice: SliceStatus::Unsupported,
         native: NativeStatus::Unsupported,
     },
@@ -198,8 +221,8 @@ const MATRIX: &[MatrixRow] = &[
 
 /// Backend matrix for this slice.
 ///
-/// macOS navigation and intents are implemented and native-unverified.
-/// WebView2, WebKitGTK, find, and script are unsupported.
+/// macOS and WebView2 navigation and intents are implemented and native-unverified.
+/// WebKitGTK, find, and script are unsupported.
 pub fn support_matrix() -> &'static [MatrixRow] {
     MATRIX
 }
@@ -220,7 +243,14 @@ impl fmt::Display for BrowserError {
         match self {
             Self::Unsupported { backend } => write!(f, "{backend} is unsupported in this slice"),
             Self::Parent => f.write_str("the host window is not a view this slice can parent"),
-            Self::Thread => f.write_str("the browser must be used on the platform main thread"),
+            Self::Thread => f.write_str("the browser must be used on the platform UI thread"),
+            Self::RuntimeMissing { code } => write!(
+                f,
+                "the WebView2 runtime is not installed (0x{code:08X}); this crate does not download or bundle it"
+            ),
+            Self::Create { code } => {
+                write!(f, "the WebView2 view could not be created (0x{code:08X})")
+            }
             Self::Rect(error) => write!(f, "{error}"),
             Self::Url => f.write_str("the navigation URL is empty or was refused by the view"),
             Self::UnknownIntent => f.write_str("no open intent has that token"),
