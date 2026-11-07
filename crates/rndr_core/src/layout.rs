@@ -1,4 +1,5 @@
 use crate::entity::Entity;
+use crate::flex;
 use crate::font::{layout_cache_key, text_face, TextLayout};
 use crate::hierarchy::{children_of, roots, Parent};
 use crate::input::{Input, Viewport};
@@ -322,7 +323,7 @@ fn hit_walk(world: &World, entity: Entity, point: [f32; 2], hit: &mut Option<Ent
             *hit = Some(entity);
         }
     }
-    for child in children_of(world, entity) {
+    for child in flex::paint_order(world, entity) {
         hit_walk(world, child, point, hit);
     }
 }
@@ -495,8 +496,13 @@ fn measure(world: &mut World, entity: Entity) -> Rect {
     let kids = shown_children(world, entity);
     let mut content_w = 0.0f32;
     let mut content_h = 0.0f32;
+    let mut flow = 0usize;
     for child in &kids {
         let size = measure(world, *child);
+        if !flex::in_flow(world, *child) {
+            continue;
+        }
+        flow += 1;
         match layout.axis {
             Axis::Column => {
                 content_w = content_w.max(size.w);
@@ -508,27 +514,28 @@ fn measure(world: &mut World, entity: Entity) -> Rect {
             }
         }
     }
-    if kids.len() > 1 {
-        let extra = layout.gap * (kids.len() as f32 - 1.0);
+    if flow > 1 {
+        let extra = layout.gap * (flow as f32 - 1.0);
         match layout.axis {
             Axis::Column => content_h += extra,
             Axis::Row => content_w += extra,
         }
     }
-    let pad = layout.padding * 2.0;
+    let [top, right, bottom, left] = flex::insets(world, entity, &layout);
+    let (pad_w, pad_h) = (left + right, top + bottom);
     if world.has::<Scroll>(entity) {
         if let Some(scroll) = world.get_mut::<Scroll>(entity) {
-            scroll.content = [content_w + pad, content_h + pad];
+            scroll.content = [content_w + pad_w, content_h + pad_h];
         }
     }
     let mut w = match layout.width {
         Size::Px(px) => px,
-        Size::Hug => content_w + pad,
+        Size::Hug => content_w + pad_w,
         Size::Fill => 0.0,
     };
     let mut h = match layout.height {
         Size::Px(px) => px,
-        Size::Hug => content_h + pad,
+        Size::Hug => content_h + pad_h,
         Size::Fill => 0.0,
     };
     if kids.is_empty() {
@@ -541,8 +548,7 @@ fn measure(world: &mut World, entity: Entity) -> Rect {
             }
         }
     }
-    w = w.max(layout.min_width);
-    h = h.max(layout.min_height);
+    let (w, h) = flex::constrain(world, entity, &layout, w, h);
     let rect = Rect {
         x: 0.0,
         y: 0.0,
@@ -571,25 +577,29 @@ fn refine_wrapped_heights(world: &mut World, entity: Entity, available_w: f32, x
         .resource::<Viewport>()
         .map(|v| v.pixels_per_point())
         .unwrap_or(1.0);
-    let (x, width) = snap_span(x, width.max(layout.min_width), scale);
+    let width = flex::constrain(world, entity, &layout, width, rect.h).0;
+    let (x, width) = snap_span(x, width, scale);
     rect.w = width;
     let kids = shown_children(world, entity);
     if kids.is_empty() {
         if layout.height == Size::Hug {
-            if let Some((_, height)) = label_hug_at(world, entity, &layout, width) {
-                rect.h = height.max(layout.min_height);
-            }
+            let height = label_hug_at(world, entity, &layout, width).map_or(rect.h, |(_, h)| h);
+            rect.h = flex::constrain(world, entity, &layout, width, height).1;
         }
         world.insert(entity, rect);
         return rect;
     }
-    let pad = layout.padding * 2.0;
-    let inner_w = (width - pad).max(0.0);
-    let gaps = layout.gap * kids.len().saturating_sub(1) as f32;
+    let [top, right, bottom, left] = flex::insets(world, entity, &layout);
+    let (pad_w, pad_h) = (left + right, top + bottom);
+    let inner_w = (width - pad_w).max(0.0);
+    let (flow, absolute): (Vec<Entity>, Vec<Entity>) =
+        kids.into_iter().partition(|c| flex::in_flow(world, *c));
+    let wrap = flex::wraps(world, entity, &layout);
+    let gaps = layout.gap * flow.len().saturating_sub(1) as f32;
     let mut fixed_w = gaps;
     let mut fills = 0;
-    if layout.axis == Axis::Row {
-        for child in &kids {
+    if layout.axis == Axis::Row && wrap.is_none() {
+        for child in &flow {
             if world
                 .get::<Layout>(*child)
                 .is_some_and(|l| l.width == Size::Fill)
@@ -609,22 +619,29 @@ fn refine_wrapped_heights(world: &mut World, entity: Entity, available_w: f32, x
         .get::<Scroll>(entity)
         .map(|s| s.offset[0])
         .unwrap_or(0.0);
-    let mut child_x = x + layout.padding + offset_x;
+    let mut child_x = x + left + offset_x;
     let mut content_w = 0.0f32;
     let mut content_h = 0.0f32;
-    for child in kids {
+    let mut sizes = Vec::with_capacity(flow.len());
+    for child in flow {
         let child_layout = world.get::<Layout>(child).copied();
         let intrinsic_w = world.get::<Rect>(child).map(|r| r.w).unwrap_or(0.0);
+        let stretch = layout.axis == Axis::Column
+            && flex::self_items(world, entity, child) == Some(flex::Items::Stretch)
+            && child_layout.is_some_and(|l| !matches!(l.width, Size::Px(_)));
         let child_width = if child_layout.is_some_and(|l| l.width == Size::Fill) {
-            if layout.axis == Axis::Row {
+            if layout.axis == Axis::Row && wrap.is_none() {
                 share
             } else {
                 inner_w
             }
+        } else if stretch {
+            inner_w
         } else {
             intrinsic_w
         };
         let size = refine_wrapped_heights(world, child, child_width, child_x);
+        sizes.push(size);
         match layout.axis {
             Axis::Column => {
                 content_w = content_w.max(size.w);
@@ -633,22 +650,88 @@ fn refine_wrapped_heights(world: &mut World, entity: Entity, available_w: f32, x
             Axis::Row => {
                 content_w += size.w;
                 content_h = content_h.max(size.h);
-                child_x += size.w + layout.gap;
+                if wrap.is_none() {
+                    child_x += size.w + layout.gap;
+                }
             }
         }
     }
-    match layout.axis {
-        Axis::Column => content_h += gaps,
-        Axis::Row => content_w += gaps,
+    if let Some(line_gap) = wrap {
+        let widths: Vec<f32> = sizes.iter().map(|r| r.w).collect();
+        let lines = flex::break_lines(&widths, layout.gap, inner_w);
+        content_w = 0.0;
+        content_h = line_gap * lines.len().saturating_sub(1) as f32;
+        for line in lines {
+            let n = line.len();
+            let line_w: f32 =
+                widths[line.clone()].iter().sum::<f32>() + layout.gap * n.saturating_sub(1) as f32;
+            content_w = content_w.max(line_w);
+            content_h += sizes[line].iter().map(|r| r.h).fold(0.0, f32::max);
+        }
+    } else {
+        match layout.axis {
+            Axis::Column => content_h += gaps,
+            Axis::Row => content_w += gaps,
+        }
+    }
+    for child in absolute {
+        let pin = world
+            .get::<flex::Absolute>(child)
+            .copied()
+            .unwrap_or_default();
+        let intrinsic_w = world.get::<Rect>(child).map(|r| r.w).unwrap_or(0.0);
+        let size = world
+            .get::<Layout>(child)
+            .map(|l| l.width)
+            .unwrap_or(Size::Px(intrinsic_w));
+        let (w, _) = flex::absolute_span(pin.left, pin.right, size, intrinsic_w, width);
+        refine_wrapped_heights(world, child, w, x + pin.left.unwrap_or(left));
     }
     if layout.height == Size::Hug {
-        rect.h = (content_h + pad).max(layout.min_height);
+        rect.h = flex::constrain(world, entity, &layout, rect.w, content_h + pad_h).1;
     }
     if let Some(scroll) = world.get_mut::<Scroll>(entity) {
-        scroll.content = [content_w + pad, content_h + pad];
+        scroll.content = [content_w + pad_w, content_h + pad_h];
     }
     world.insert(entity, rect);
     rect
+}
+
+/// Place `child` with its width and/or height temporarily treated as
+/// [`Size::Fill`], so a stretched or pinned child takes the given size.
+#[allow(clippy::too_many_arguments)]
+fn place_filled(
+    world: &mut World,
+    child: Entity,
+    fill: (bool, bool),
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    clip: Clip,
+) -> (f32, f32) {
+    let original = world.get::<Layout>(child).copied();
+    if let (Some(mut layout), true) = (original, fill.0 || fill.1) {
+        if fill.0 {
+            layout.width = Size::Fill;
+        }
+        if fill.1 {
+            layout.height = Size::Fill;
+        }
+        world.insert(child, layout);
+        let used = place(world, child, x, y, w, h, clip);
+        world.insert(child, original.unwrap());
+        return used;
+    }
+    place(world, child, x, y, w, h, clip)
+}
+
+/// Child size inside a stack before placement: Fill resolved, then constrained.
+fn child_size(world: &World, child: Entity, w: f32, h: f32) -> (f32, f32) {
+    match world.get::<Layout>(child).copied() {
+        Some(layout) => flex::constrain(world, child, &layout, w, h),
+        None => (w, h),
+    }
 }
 
 fn place(
@@ -670,8 +753,7 @@ fn place(
     if matches!(layout.height, Size::Fill) {
         rect.h = avail_h;
     }
-    rect.w = rect.w.max(layout.min_width);
-    rect.h = rect.h.max(layout.min_height);
+    (rect.w, rect.h) = flex::constrain(world, entity, &layout, rect.w, rect.h);
     rect.x = x;
     rect.y = y;
     let scale = world
@@ -718,18 +800,82 @@ fn place(
         return (stack_w, stack_h);
     }
 
-    let inner_x = rect.x + layout.padding;
-    let inner_y = rect.y + layout.padding;
-    let inner_w = (rect.w - layout.padding * 2.0).max(0.0);
-    let inner_h = (rect.h - layout.padding * 2.0).max(0.0);
+    let [top, right, bottom, left] = flex::insets(world, entity, &layout);
+    let inner_x = rect.x + left;
+    let inner_y = rect.y + top;
+    let inner_w = (rect.w - left - right).max(0.0);
+    let inner_h = (rect.h - top - bottom).max(0.0);
     let offset = world
         .get::<Scroll>(entity)
         .map(|s| s.offset)
         .unwrap_or([0.0, 0.0]);
+    let (flow, absolute): (Vec<Entity>, Vec<Entity>) =
+        kids.into_iter().partition(|c| flex::in_flow(world, *c));
+    let justify = world
+        .get::<flex::Align>(entity)
+        .map(|a| a.justify)
+        .unwrap_or_default();
 
+    if let Some(line_gap) = flex::wraps(world, entity, &layout) {
+        place_wrapped(
+            world,
+            entity,
+            &flow,
+            [inner_x + offset[0], inner_y + offset[1], inner_w],
+            layout.gap,
+            line_gap,
+            justify,
+            clip,
+        );
+    } else {
+        place_stack(
+            world,
+            entity,
+            &layout,
+            &flow,
+            [inner_x, inner_y, inner_w, inner_h],
+            offset,
+            justify,
+            rect,
+            clip,
+        );
+    }
+
+    for child in absolute {
+        let pin = world
+            .get::<flex::Absolute>(child)
+            .copied()
+            .unwrap_or_default();
+        let child_rect = world.get::<Rect>(child).copied().unwrap_or_default();
+        let (size_w, size_h) = world
+            .get::<Layout>(child)
+            .map(|l| (l.width, l.height))
+            .unwrap_or((Size::Px(child_rect.w), Size::Px(child_rect.h)));
+        let (w, fill_w) = flex::absolute_span(pin.left, pin.right, size_w, child_rect.w, rect.w);
+        let (h, fill_h) = flex::absolute_span(pin.top, pin.bottom, size_h, child_rect.h, rect.h);
+        let (w, h) = child_size(world, child, w, h);
+        let cx = flex::absolute_origin(pin.left, pin.right, w, rect.x, rect.w, inner_x) + offset[0];
+        let cy = flex::absolute_origin(pin.top, pin.bottom, h, rect.y, rect.h, inner_y) + offset[1];
+        place_filled(world, child, (fill_w, fill_h), cx, cy, w, h, clip);
+    }
+    (stack_w, stack_h)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn place_stack(
+    world: &mut World,
+    entity: Entity,
+    layout: &Layout,
+    kids: &[Entity],
+    [inner_x, inner_y, inner_w, inner_h]: [f32; 4],
+    offset: [f32; 2],
+    justify: flex::Justify,
+    rect: Rect,
+    clip: Clip,
+) {
     let mut fixed = 0.0f32;
     let mut fill_count = 0usize;
-    for child in &kids {
+    for child in kids {
         let child_layout = world.get::<Layout>(*child).copied();
         let child_rect = world.get::<Rect>(*child).copied().unwrap_or_default();
         match layout.axis {
@@ -755,9 +901,18 @@ fn place(
     } else {
         0.0
     };
+    let (lead, extra) = if fill_count == 0 {
+        flex::distribute(justify, leftover, kids.len())
+    } else {
+        (0.0, 0.0)
+    };
 
     let mut cursor_x = inner_x + offset[0];
     let mut cursor_y = inner_y + offset[1];
+    match layout.axis {
+        Axis::Column => cursor_y += lead,
+        Axis::Row => cursor_x += lead,
+    }
     // A list's first pooled row is `floor(offset / row_height)`. The remainder
     // shifts that row up under the clip so a scroll can stop between rows.
     if let Some(list) = world.get::<crate::list::List>(entity).copied() {
@@ -767,57 +922,72 @@ fn place(
         }
     }
     let mut main_delta = 0.0f32;
-    for child in kids {
+    for &child in kids {
         let child_layout = world.get::<Layout>(child).copied();
         let child_rect = world.get::<Rect>(child).copied().unwrap_or_default();
-        let (cw, ch) = match layout.axis {
-            Axis::Column => {
-                let w = match child_layout.map(|l| l.width) {
+        let items = flex::self_items(world, entity, child);
+        let (w, h) = match layout.axis {
+            Axis::Column => (
+                match child_layout.map(|l| l.width) {
                     Some(Size::Fill) => inner_w,
                     _ => child_rect.w,
-                };
-                let h = match child_layout.map(|l| l.height) {
+                },
+                match child_layout.map(|l| l.height) {
                     Some(Size::Fill) => fill_share,
                     _ => child_rect.h,
-                };
-                (
-                    w.max(child_layout.map(|l| l.min_width).unwrap_or(0.0)),
-                    h.max(child_layout.map(|l| l.min_height).unwrap_or(0.0)),
-                )
-            }
-            Axis::Row => {
-                let w = match child_layout.map(|l| l.width) {
+                },
+            ),
+            Axis::Row => (
+                match child_layout.map(|l| l.width) {
                     Some(Size::Fill) => fill_share,
                     _ => child_rect.w,
-                };
-                let h = match child_layout.map(|l| l.height) {
+                },
+                match child_layout.map(|l| l.height) {
                     Some(Size::Fill) => inner_h,
                     _ => child_rect.h,
-                };
-                (
-                    w.max(child_layout.map(|l| l.min_width).unwrap_or(0.0)),
-                    h.max(child_layout.map(|l| l.min_height).unwrap_or(0.0)),
-                )
-            }
+                },
+            ),
         };
-        // An image in a row is centered on the cross axis. A 16px icon in a
-        // 32px row then sits below a rounded selection instead of on its corner.
-        let (mut place_x, mut place_y) = (cursor_x, cursor_y);
-        if world.has::<crate::image_view::ImageView>(child) {
-            match layout.axis {
-                Axis::Row => place_y += (inner_h - ch).max(0.0) * 0.5,
-                Axis::Column => place_x += (inner_w - cw).max(0.0) * 0.5,
+        let (mut cw, mut ch) = child_size(world, child, w, h);
+        let mut fill = (false, false);
+        if items == Some(flex::Items::Stretch) {
+            if let Some(l) = child_layout {
+                match layout.axis {
+                    Axis::Column if !matches!(l.width, Size::Px(_)) => {
+                        cw = child_size(world, child, inner_w, ch).0;
+                        fill.0 = true;
+                    }
+                    Axis::Row if !matches!(l.height, Size::Px(_)) => {
+                        ch = child_size(world, child, cw, inner_h).1;
+                        fill.1 = true;
+                    }
+                    _ => {}
+                }
             }
         }
-        let (used_w, used_h) = place(world, child, place_x, place_y, cw, ch, clip);
+        let (mut place_x, mut place_y) = (cursor_x, cursor_y);
+        match items {
+            Some(items) => match layout.axis {
+                Axis::Row => place_y += flex::cross_offset(items, inner_h, ch),
+                Axis::Column => place_x += flex::cross_offset(items, inner_w, cw),
+            },
+            // An image in a row is centered on the cross axis. A 16px icon in a
+            // 32px row then sits below a rounded selection instead of on its corner.
+            None if world.has::<crate::image_view::ImageView>(child) => match layout.axis {
+                Axis::Row => place_y += (inner_h - ch).max(0.0) * 0.5,
+                Axis::Column => place_x += (inner_w - cw).max(0.0) * 0.5,
+            },
+            None => {}
+        }
+        let (used_w, used_h) = place_filled(world, child, fill, place_x, place_y, cw, ch, clip);
         match layout.axis {
             Axis::Column => {
                 main_delta += used_h - ch;
-                cursor_y += used_h + layout.gap;
+                cursor_y += used_h + layout.gap + extra;
             }
             Axis::Row => {
                 main_delta += used_w - cw;
-                cursor_x += used_w + layout.gap;
+                cursor_x += used_w + layout.gap + extra;
             }
         }
     }
@@ -830,7 +1000,59 @@ fn place(
             scroll.clamp_to(rect.w, rect.h);
         }
     }
-    (stack_w, stack_h)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn place_wrapped(
+    world: &mut World,
+    entity: Entity,
+    kids: &[Entity],
+    [origin_x, origin_y, inner_w]: [f32; 3],
+    gap: f32,
+    line_gap: f32,
+    justify: flex::Justify,
+    clip: Clip,
+) {
+    let sizes: Vec<(f32, f32)> = kids
+        .iter()
+        .map(|&child| {
+            let child_layout = world.get::<Layout>(child).copied();
+            let r = world.get::<Rect>(child).copied().unwrap_or_default();
+            let w = match child_layout.map(|l| l.width) {
+                Some(Size::Fill) => inner_w,
+                _ => r.w,
+            };
+            child_size(world, child, w, r.h)
+        })
+        .collect();
+    let widths: Vec<f32> = sizes.iter().map(|s| s.0).collect();
+    let mut cursor_y = origin_y;
+    for line in flex::break_lines(&widths, gap, inner_w) {
+        let n = line.len();
+        let line_w = widths[line.clone()].iter().sum::<f32>() + gap * n.saturating_sub(1) as f32;
+        let line_h = sizes[line.clone()].iter().map(|s| s.1).fold(0.0, f32::max);
+        let (lead, extra) = flex::distribute(justify, inner_w - line_w, n);
+        let mut cursor_x = origin_x + lead;
+        for i in line {
+            let child = kids[i];
+            let (cw, mut ch) = sizes[i];
+            let items = flex::self_items(world, entity, child).unwrap_or_default();
+            let stretch = items == flex::Items::Stretch
+                && world
+                    .get::<Layout>(child)
+                    .is_some_and(|l| !matches!(l.height, Size::Px(_)));
+            if stretch {
+                ch = line_h;
+            }
+            let y = cursor_y + flex::cross_offset(items, line_h, ch);
+            let fill_w = world
+                .get::<Layout>(child)
+                .is_some_and(|l| l.width == Size::Fill);
+            place_filled(world, child, (fill_w, stretch), cursor_x, y, cw, ch, clip);
+            cursor_x += cw + gap + extra;
+        }
+        cursor_y += line_h + line_gap;
+    }
 }
 
 fn snap_span(origin: f32, size: f32, scale: f32) -> (f32, f32) {

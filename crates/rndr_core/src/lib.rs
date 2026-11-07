@@ -96,6 +96,7 @@ mod event;
 pub mod feed;
 mod field;
 pub mod file_drop;
+mod flex;
 mod focus;
 mod font;
 mod fs;
@@ -202,6 +203,9 @@ pub use field::{
     ImePreview, Submitted, TextChanged, TextField,
 };
 pub use file_drop::{FileDrop, FileHover, FileHoverCancel, FileHoverSet};
+pub use flex::{
+    paint_order, Absolute, Align, AlignSelf, AspectRatio, Items, Justify, MaxSize, Padding, Wrap,
+};
 pub use focus::{apply_focus, reveal_entity};
 pub use font::{
     apply_text_layout, field_text_width, layout_text, layout_text_spans, line_col, measure_text,

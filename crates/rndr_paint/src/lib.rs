@@ -889,7 +889,7 @@ fn walk_entity(
         }
     }
     record_geometry(world, entity, quads.borrow().len() as u32, draws, false);
-    for child in children_of(world, entity) {
+    for child in rndr_core::paint_order(world, entity) {
         walk(world, child, quads, draws, scale, solid, theme);
     }
     record_geometry(world, entity, quads.borrow().len() as u32, draws, true);
