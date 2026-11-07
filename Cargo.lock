@@ -3430,6 +3430,7 @@ dependencies = [
  "parley",
  "png 0.18.1",
  "pollster",
+ "resvg",
  "rfd",
  "rndr_core",
  "rndr_paint",

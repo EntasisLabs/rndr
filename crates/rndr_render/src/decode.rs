@@ -28,11 +28,17 @@ pub enum DecodeError {
     Empty,
 }
 
-/// Decode a PNG, JPEG, or WebP.
+/// Decode a PNG, JPEG, or WebP, or with the `svg` feature an SVG or SVGZ.
 ///
-/// PNG and WebP keep their alpha. JPEG is opaque. Other formats return
+/// PNG and WebP keep their alpha. JPEG is opaque. An SVG is rasterized at
+/// twice its own size; use [`decode_svg`] for an exact pixel size. Other formats return
 /// [`DecodeError::Unknown`].
 pub fn decode_image(bytes: &[u8]) -> Result<Raster, DecodeError> {
+    #[cfg(feature = "svg")]
+    if is_svg(bytes) {
+        let tree = svg_tree(bytes)?;
+        return rasterize_svg(&tree, 2.0);
+    }
     if bytes.starts_with(&[0x89, b'P', b'N', b'G']) {
         decode_png(bytes)
     } else if bytes.starts_with(&[0xff, 0xd8, 0xff]) {
@@ -42,6 +48,65 @@ pub fn decode_image(bytes: &[u8]) -> Result<Raster, DecodeError> {
     } else {
         Err(DecodeError::Unknown)
     }
+}
+
+/// Rasterize SVG or gzipped SVGZ bytes to fit inside `width` by `height`
+/// pixels, keeping the aspect ratio. The raster is the fitted size, not
+/// padded. Text must already be converted to paths; no fonts are loaded.
+#[cfg(feature = "svg")]
+pub fn decode_svg(bytes: &[u8], width: u32, height: u32) -> Result<Raster, DecodeError> {
+    let tree = svg_tree(bytes)?;
+    let size = tree.size();
+    let scale = (width as f32 / size.width()).min(height as f32 / size.height());
+    rasterize_svg(&tree, scale)
+}
+
+#[cfg(feature = "svg")]
+fn is_svg(bytes: &[u8]) -> bool {
+    if bytes.starts_with(&[0x1f, 0x8b]) {
+        return true;
+    }
+    let head = String::from_utf8_lossy(&bytes[..bytes.len().min(4096)]);
+    let text = head.trim_start_matches('\u{feff}').trim_start();
+    text.starts_with('<') && head.contains("<svg")
+}
+
+#[cfg(feature = "svg")]
+fn svg_tree(bytes: &[u8]) -> Result<resvg::usvg::Tree, DecodeError> {
+    resvg::usvg::Tree::from_data(bytes, &resvg::usvg::Options::default())
+        .map_err(|_| DecodeError::Invalid)
+}
+
+#[cfg(feature = "svg")]
+fn rasterize_svg(tree: &resvg::usvg::Tree, scale: f32) -> Result<Raster, DecodeError> {
+    const MAX_SIDE: f32 = 16384.0;
+    let size = tree.size();
+    let width = (size.width() * scale).round();
+    let height = (size.height() * scale).round();
+    if !(width >= 1.0 && height >= 1.0 && width <= MAX_SIDE && height <= MAX_SIDE) {
+        return Err(DecodeError::Empty);
+    }
+    let (width, height) = (width as u32, height as u32);
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(width, height).ok_or(DecodeError::Empty)?;
+    let transform = resvg::tiny_skia::Transform::from_scale(
+        width as f32 / size.width(),
+        height as f32 / size.height(),
+    );
+    resvg::render(tree, transform, &mut pixmap.as_mut());
+    let mut rgba = pixmap.take();
+    for i in (0..rgba.len()).step_by(4) {
+        let alpha = u32::from(rgba[i + 3]);
+        if alpha > 0 && alpha < 255 {
+            for channel in &mut rgba[i..i + 3] {
+                *channel = ((u32::from(*channel) * 255 + alpha / 2) / alpha).min(255) as u8;
+            }
+        }
+    }
+    Ok(Raster {
+        width,
+        height,
+        rgba,
+    })
 }
 
 fn decode_png(bytes: &[u8]) -> Result<Raster, DecodeError> {
@@ -199,6 +264,34 @@ pub fn mip_chain(rgba: &[u8], width: u32, height: u32) -> Vec<(u32, u32, Vec<u8>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "svg")]
+    const SQUARE: &str = r##"<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="8" viewBox="0 0 16 8">
+  <rect x="0" y="0" width="8" height="8" fill="#ff0000"/>
+  <rect x="8" y="0" width="8" height="8" fill="#0000ff" fill-opacity="0.5"/>
+</svg>"##;
+
+    #[cfg(feature = "svg")]
+    #[test]
+    fn svg_rasterizes_at_twice_size_or_a_requested_fit() {
+        let raster = decode_image(SQUARE.as_bytes()).unwrap();
+        assert_eq!((raster.width, raster.height), (32, 16));
+        assert_eq!(&raster.rgba[0..4], &[255, 0, 0, 255]);
+        let right = (8 * 32 + 24) * 4;
+        assert_eq!(
+            &raster.rgba[right..right + 4],
+            &[0, 0, 255, 128],
+            "straight alpha"
+        );
+        let fitted = decode_svg(SQUARE.as_bytes(), 64, 64).unwrap();
+        assert_eq!((fitted.width, fitted.height), (64, 32));
+        assert_eq!(decode_image(b"<svg").err(), Some(DecodeError::Invalid));
+        assert_eq!(
+            decode_svg(SQUARE.as_bytes(), 0, 64).err(),
+            Some(DecodeError::Empty)
+        );
+    }
 
     fn encode_png(width: u32, height: u32, rgba: &[u8]) -> Vec<u8> {
         let mut out = Vec::new();

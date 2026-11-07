@@ -40,7 +40,7 @@ fn facade_browser_feature_is_off_and_does_not_enable_dialog() {
         .find(|line| line.trim_start().starts_with("browser = "))
         .expect("browser feature");
     assert_eq!(browser.trim(), "browser = [\"dep:rndr_browser\"]");
-    assert!(facade.contains("default = [\"hotkey\", \"tray\", \"parley\", \"accesskit\"]"));
+    assert!(facade.contains("default = [\"hotkey\", \"tray\", \"parley\", \"accesskit\", \"svg\"]"));
     let browser_crate = read("crates/rndr_browser/Cargo.toml");
     assert!(
         !browser_crate.contains("publish = false"),

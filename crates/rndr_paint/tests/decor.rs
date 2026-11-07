@@ -1,8 +1,8 @@
 //! Paint decorations become typed quads in paint order.
 
 use rndr_core::{
-    set_parent, App, Border, BorderSides, Color, Corners, Entity, Gradient, Layout, Shadow,
-    Shadows, Size, Viewport,
+    set_parent, App, Border, BorderSides, ClipRounded, Color, Corners, Entity, Gradient, Layout,
+    Shadow, Shadows, Size, Viewport,
 };
 use rndr_paint::{frame, QuadKind, QuadShape};
 
@@ -119,4 +119,31 @@ fn decorations_paint_shadow_fill_gradient_inset_then_ring() {
         }
     );
     assert!(quads.iter().all(|q| q.shape.corners == corners));
+}
+
+#[test]
+fn clip_rounded_masks_the_subtree_and_inner_masks_win() {
+    let (mut app, tile) = scene();
+    let child = boxed(&mut app, 20.0, 20.0, Color::rgb(1.0, 0.0, 0.0));
+    let inner = boxed(&mut app, 10.0, 10.0, Color::rgb(0.0, 0.0, 1.0));
+    let world = app.world_mut();
+    set_parent(world, child, tile);
+    set_parent(world, inner, child);
+    world.insert(tile, ClipRounded::radius(10.0).feathered(4.0));
+    world.insert(inner, ClipRounded::radius(2.0));
+    let painted = frame(&mut app);
+    let quads = &painted.quads;
+    assert_eq!(quads.len(), 4, "{quads:#?}");
+    assert_eq!(
+        quads[0].shape.round_clip, None,
+        "the root is outside the mask"
+    );
+    let outer = quads[1].shape.round_clip.expect("the tile masks itself");
+    assert_eq!(outer.rect, quads[1].rect);
+    assert_eq!(outer.corners, [10.0; 4]);
+    assert_eq!(outer.feather, 4.0);
+    assert_eq!(quads[2].shape.round_clip, Some(outer));
+    let nested = quads[3].shape.round_clip.expect("inner mask");
+    assert_eq!(nested.corners, [2.0; 4]);
+    assert_eq!(nested.rect, quads[3].rect);
 }

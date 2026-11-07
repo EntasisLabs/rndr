@@ -176,6 +176,7 @@ The facade keeps optional integrations explicit:
 | `accesskit` | On | Native accessibility adapter; the core accessibility tree stays GPU-free |
 | `hotkey` | On | System-wide shortcuts through the platform backend |
 | `tray` | On | Menu-bar / notification-area integration |
+| `svg` | On | SVG and SVGZ decoding through `resvg` (`decode_svg`, `load_svg`; `load_image` accepts SVG). Text in an SVG must be converted to paths |
 | `ui` | Off | Semantic components under `rndr::ui` |
 | `dialog` | Off | Native open/save dialogs |
 | `notify` | Off | Present, dismiss, and a host-owned click token. Feature off returns unsupported. A click does not activate a window. Native cells stay unverified or unsupported |
@@ -218,6 +219,12 @@ native-platform acceptance are different things:
   spread) and `BorderSides` (per-side widths, optional dash) on any laid-out entity.
   They are drawn analytically on the quad pipeline, with no offscreen passes.
   `cargo run -p rndr --example decor_gallery -- out.png` renders a gallery.
+- **Rounded and soft clips:** `ClipRounded` masks an entity and its subtree to its
+  per-corner rounded rect, optionally with a feathered edge, in the quad shader.
+  It applies to fills, decorations and text; images and canvas drawings keep the
+  rectangular clip. Overlapping quads are masked one by one, so a lower layer can
+  show through inside a feathered edge. Hit testing stays rectangular.
+  `cargo run -p rndr --example svg_clip_gallery -- out.png` renders SVG icons and clips.
 - **Document editing:** source sessions and structured editing have explicit ownership
   and regression coverage. The structured editor remains experimental; native IME,
   clipboard and assistive-technology acceptance must be checked independently of

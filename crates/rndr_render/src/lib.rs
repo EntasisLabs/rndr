@@ -119,6 +119,8 @@ use winit::window::WindowId;
 
 use gpu::Gpu;
 
+#[cfg(feature = "svg")]
+pub use decode::decode_svg;
 pub use decode::{DecodeError, Raster};
 pub use export::{
     encode_png, render_frame_rgba, render_scene_rgba, ExportError, Exporter, RgbaImage,
@@ -126,6 +128,8 @@ pub use export::{
 };
 #[cfg(feature = "parley")]
 use gpu::{AtlasKind, AtlasRegion, AtlasUpload};
+#[cfg(feature = "svg")]
+pub use images::load_svg;
 pub use images::{
     decode, load_image, load_rgba, set_image_budget, DecodedImage, ImageError, IMAGE_BUDGET_DEFAULT,
 };

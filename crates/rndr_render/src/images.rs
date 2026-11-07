@@ -124,6 +124,27 @@ pub fn load_image(world: &mut World, id: u64, bytes: Vec<u8>) {
     .detach();
 }
 
+/// Rasterize SVG or SVGZ `bytes` off the UI thread to fit `width` by
+/// `height` pixels and store it under `id`, as [`load_image`] does.
+///
+/// Pass the size the image is drawn at times the window scale factor so it
+/// stays sharp. A bad payload is dropped.
+#[cfg(feature = "svg")]
+pub fn load_svg(world: &mut World, id: u64, bytes: Vec<u8>, width: u32, height: u32) {
+    let sender = hub_sender(world);
+    spawn_detached(world, async move {
+        if let Ok(raster) = crate::decode::decode_svg(&bytes, width, height) {
+            let _ = sender.try_send(DecodedImage {
+                id,
+                width: raster.width,
+                height: raster.height,
+                rgba: Arc::from(raster.rgba),
+            });
+        }
+    })
+    .detach();
+}
+
 /// GPU texture budget in bytes. The default is [`IMAGE_BUDGET_DEFAULT`].
 ///
 /// The cache evicts least-recently-used textures until an upload fits. One
