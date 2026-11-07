@@ -3,7 +3,8 @@
 //! Install [`UiPlugin`] for core interaction, scrolling and semantic styling.
 //! No window, GPU, filesystem runtime or parallel focus dispatcher is installed.
 //! Collections offer retained bounded rows and virtual ListView rows, uniform
-//! or variable height. Native screen-reader, IME and cross-platform visual
+//! or variable height. A host-supplied diff view draws gutter marks on the
+//! variable-height list. Native screen-reader, IME and cross-platform visual
 //! certification remain separate from headless tests.
 #![deny(missing_docs)]
 pub mod collections;
@@ -11,6 +12,7 @@ pub mod completion;
 pub mod composition;
 pub mod controls;
 pub mod data;
+pub mod diff;
 pub mod editing;
 pub mod editing_recipes;
 mod lifecycle;
