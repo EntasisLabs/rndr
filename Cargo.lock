@@ -2271,6 +2271,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "objc2-web-kit"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68bc69301064cebefc6c4c90ce9cba69225239e4b8ff99d445a2b5563797da65"
+dependencies = [
+ "bitflags 2.13.2",
+ "block2 0.5.1",
+ "objc2 0.5.2",
+ "objc2-app-kit 0.2.2",
+ "objc2-foundation 0.2.2",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2930,6 +2943,7 @@ dependencies = [
 name = "rndr"
 version = "0.4.0"
 dependencies = [
+ "rndr_browser",
  "rndr_core",
  "rndr_paint",
  "rndr_render",
@@ -2945,6 +2959,18 @@ dependencies = [
  "rndr_core",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "rndr_browser"
+version = "0.4.0"
+dependencies = [
+ "block2 0.5.1",
+ "objc2 0.5.2",
+ "objc2-app-kit 0.2.2",
+ "objc2-foundation 0.2.2",
+ "objc2-web-kit",
+ "raw-window-handle",
 ]
 
 [[package]]

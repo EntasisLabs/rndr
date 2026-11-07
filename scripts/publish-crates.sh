@@ -24,9 +24,11 @@
 # After each upload, the script waits until that version is visible in the
 # index before publishing the next crate.
 #
-# Not uploaded: every example, including desktop and source-session. They are
-# publish = false. This script excludes them from `cargo package --workspace`,
-# which otherwise refuses a publish = false member.
+# Not uploaded: every example, including desktop and source-session, and
+# rndr_browser. They are publish = false. This script excludes them from
+# `cargo package --workspace`, which otherwise refuses a publish = false member.
+# The facade's optional `browser` feature depends on rndr_browser. Publishing
+# the facade waits until that crate is published; this script does not upload it.
 #
 # `--dry-run` does not upload and does not need CARGO_REGISTRY_TOKEN.
 # It packages the eight crates with `cargo package --workspace --no-verify`,
@@ -148,7 +150,8 @@ if [[ "$dry_run" -eq 1 ]]; then
     cargo package --workspace --locked --no-verify \
         --exclude desktop --exclude source-session \
         --exclude expand --exclude idle --exclude overlay --exclude palette --exclude terminal --exclude stream \
-        --exclude two-windows --exclude pen-probe --exclude canvas-scene --exclude create-view
+        --exclude two-windows --exclude pen-probe --exclude canvas-scene --exclude create-view \
+        --exclude rndr_browser
 fi
 
 for index in "${!CRATES[@]}"; do
@@ -188,6 +191,7 @@ forbidden_prefixes = (
     "desktop-", "source-session-",
     "expand-", "idle-", "overlay-", "palette-", "terminal-", "stream-",
     "two-windows-", "pen-probe-", "canvas-scene-", "create-view-",
+    "rndr_browser-",
 )
 workspace = ("rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_ui", "rndr_app", "rndr_render", "rndr")
 licenses = {"rndr_paint": "MIT AND OFL-1.1", "rndr_render": "MIT AND OFL-1.1"}
@@ -223,6 +227,10 @@ for name in expected:
             sys.exit(f"facade features changed: ui={features.get('ui')!r}")
         if "ui" in features.get("default", []) or "observe" in features.get("default", []):
             sys.exit("ui or observe became a default feature")
+        if "browser" in features.get("default", []):
+            sys.exit("browser became a default feature")
+        if features.get("browser") != ["dep:rndr_browser"]:
+            sys.exit(f"browser feature changed: {features.get('browser')!r}")
     for table_name in ("dependencies", "dev-dependencies"):
         for dep_name, spec in manifest.get(table_name, {}).items():
             if dep_name not in workspace or not isinstance(spec, dict):
