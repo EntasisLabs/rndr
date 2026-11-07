@@ -14,7 +14,6 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
-use std::ptr::NonNull;
 use std::rc::Rc;
 
 use block2::RcBlock;
@@ -24,10 +23,10 @@ use objc2::runtime::{Bool, ProtocolObject};
 use objc2::{declare_class, msg_send, msg_send_id, sel, ClassType, DeclaredClass};
 use objc2_app_kit::NSView;
 use objc2_foundation::{
-    MainThreadMarker, NSArray, NSError, NSInvocation, NSMethodSignature, NSObject,
-    NSObjectProtocol, NSPoint, NSRect, NSSize, NSString, NSURLAuthenticationChallenge,
-    NSURLCredential, NSURLErrorFailingURLErrorKey, NSURLErrorFailingURLStringErrorKey,
-    NSURLRequest, NSURLResponse, NSURLSessionAuthChallengeDisposition, NSURL,
+    MainThreadMarker, NSArray, NSError, NSObject, NSObjectProtocol, NSPoint, NSRect, NSSize,
+    NSString, NSURLAuthenticationChallenge, NSURLCredential, NSURLErrorFailingURLErrorKey,
+    NSURLErrorFailingURLStringErrorKey, NSURLRequest, NSURLResponse,
+    NSURLSessionAuthChallengeDisposition, NSURL,
 };
 use objc2_web_kit::{
     WKDownload, WKDownloadDelegate, WKDownloadRedirectPolicy, WKFrameInfo, WKNavigation,
@@ -749,13 +748,15 @@ fn answer_authentication(
     // WebKit does not pass an NSURLAuthenticationChallenge. It passes
     // WKNSURLAuthenticationChallenge, an NSProxy that forwards the selector.
     // objc2's debug check requires the method to be in the class method list,
-    // so `protectionSpace` panics before the message is sent. Release builds
-    // skip that check, which is why the same navigation only failed the load
-    // with debug assertions disabled. The credential pointer stays null either
+    // so a checked `protectionSpace` send panics before the message is sent.
+    // Release builds skip that check. The credential pointer stays null either
     // way: default handling is the system trust evaluation, and cancel sends
     // no password or certificate.
     let challenge = unsafe { &*(challenge as *const _ as *const objc2::runtime::AnyObject) };
     let method = authentication_method(challenge);
+    if std::env::var_os("RNDR_BROWSER_AUTH_LOG").is_some() {
+        eprintln!("webkit authentication method={method:?}");
+    }
     let disposition = match method.as_deref().map(crate::auth::decide_authentication) {
         Some(crate::auth::AuthDecision::Cancel) => {
             NSURLSessionAuthChallengeDisposition::NSURLSessionAuthChallengeCancelAuthenticationChallenge
@@ -779,34 +780,24 @@ fn authentication_method(challenge: &objc2::runtime::AnyObject) -> Option<String
     Some(string.to_string())
 }
 
-/// Send a no-argument object getter, including through an NSProxy.
+/// Send a no-argument object getter, including one an NSProxy only forwards.
 ///
-/// `methodSignatureForSelector:` is a real method on NSObject and NSProxy, so
-/// the debug check accepts it. `NSInvocation` then performs the forwarded send.
+/// `class_getInstanceMethod` does not see a forwarded selector, and objc2 0.5
+/// panics on that in debug. `objc_msgSend` is the send WebKit's proxy accepts.
+/// Other messages stay on the checked path. The caller retains the result.
 fn forwarded_object(
     target: &objc2::runtime::AnyObject,
     selector: objc2::runtime::Sel,
 ) -> Option<Retained<objc2::runtime::AnyObject>> {
-    let signature: Option<Retained<NSMethodSignature>> =
-        unsafe { msg_send_id![target, methodSignatureForSelector: selector] };
-    let signature = signature?;
-    if unsafe { signature.numberOfArguments() } < 2 {
-        return None;
-    }
-    let invocation = unsafe { NSInvocation::invocationWithMethodSignature(&signature) };
-    unsafe {
-        invocation.setSelector(selector);
-        invocation.setTarget(Some(target));
-        invocation.invoke();
-    }
-    let mut result: *mut objc2::runtime::AnyObject = std::ptr::null_mut();
-    unsafe {
-        invocation.getReturnValue(NonNull::from(&mut result).cast());
-    }
+    let send: unsafe extern "C" fn(
+        *const objc2::runtime::AnyObject,
+        objc2::runtime::Sel,
+    ) -> *mut objc2::runtime::AnyObject =
+        unsafe { std::mem::transmute(objc2::ffi::objc_msgSend as *const ()) };
+    let result = unsafe { send(target, selector) };
     if result.is_null() {
         None
     } else {
-        // `getReturnValue` copies the pointer and does not retain it.
         unsafe { Retained::retain(result) }
     }
 }

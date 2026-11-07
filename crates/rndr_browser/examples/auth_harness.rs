@@ -50,6 +50,7 @@ mod macos {
     }
 
     pub(super) fn run() {
+        std::env::set_var("RNDR_BROWSER_AUTH_LOG", "1");
         let marker = MainThreadMarker::new().expect("the harness process is the main thread");
         let parent = unsafe {
             NSView::initWithFrame(
@@ -125,13 +126,29 @@ mod macos {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
         let port = listener.local_addr().expect("local address").port();
         std::thread::spawn(move || {
-            let response = b"HTTP/1.0 401 Unauthorized\r\nWWW-Authenticate: Basic realm=\"rndr\"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+            let body = b"authentication required";
+            let header = format!(
+                "HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm=\"rndr\"\r\nContent-Type: text/plain\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            );
             for stream in listener.incoming() {
                 let Ok(mut stream) = stream else {
                     continue;
                 };
-                let _ = std::io::Read::read(&mut stream, &mut [0_u8; 2048]);
-                let _ = std::io::Write::write_all(&mut stream, response);
+                let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(2)));
+                let mut request = Vec::new();
+                let mut byte = [0_u8; 1];
+                while request.len() < 8192 {
+                    if std::io::Read::read(&mut stream, &mut byte).unwrap_or(0) == 0 {
+                        break;
+                    }
+                    request.push(byte[0]);
+                    if request.ends_with(b"\r\n\r\n") {
+                        break;
+                    }
+                }
+                let _ = std::io::Write::write_all(&mut stream, header.as_bytes());
+                let _ = std::io::Write::write_all(&mut stream, body);
             }
         });
         port

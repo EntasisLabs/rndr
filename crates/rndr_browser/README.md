@@ -67,8 +67,9 @@ What a main-thread run is expected to show:
 
 Server trust uses the system certificate check and does not install a
 credential. Credential challenges are cancelled for both navigation and
-downloads. WebKit's challenge object is an `NSProxy`, so the method is sent
-through `NSInvocation` instead of a checked `protectionSpace` message.
+downloads. WebKit's challenge object is an `NSProxy`, so `protectionSpace` is
+sent with `objc_msgSend`. A checked send aborts debug builds before the proxy
+can forward it.
 
 On a Mac, debug and release:
 
