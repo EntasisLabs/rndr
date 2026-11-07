@@ -15,6 +15,8 @@ Default features:
 
 `dialog` is off by default. It shows native open and save dialogs. On Linux that dialog uses the file-chooser portal.
 
+File hover and drop follow winit 0.31 drag events. A finite client point becomes a logical `position`. Wayland is unsupported. The binding table and the native ledger are in [file drop](../../docs/file-drop.md).
+
 `--no-default-features` keeps the builtin bitmap text engine and skips fontconfig, the hotkey backends, the tray icon, and the accessibility adapter.
 
 docs.rs builds every feature. Its Linux image includes fontconfig, libxkbcommon, Wayland, and Vulkan. The hotkey and tray features do not link libdbus.

@@ -13,7 +13,8 @@
 //! # Identifiers
 //!
 //! * [`MOUSE_ID`](crate::MOUSE_ID) is the mouse.
-//! * [`PEN_ID`] is the tablet contact written by the macOS shim.
+//! * [`PEN_ID`] is the one stylus contact. The macOS monitor and winit
+//!   tablet-tool events both write it.
 //! * [`touch_id`] maps a platform finger id so it cannot collide with the mouse.
 //!
 //! [`Gesture`] is one pinch, rotation, and pan. The desktop runner emits one
@@ -26,7 +27,7 @@ use std::time::Duration;
 use crate::event::Event;
 use crate::input::{Pointer, PointerButton, MOUSE_ID};
 
-/// Tablet contact written by the macOS pen shim.
+/// Tablet contact written by the macOS pen monitor and by winit tablet-tool events.
 ///
 /// The bit does not overlap [`MOUSE_ID`](crate::MOUSE_ID) or [`touch_id`].
 pub const PEN_ID: u64 = 1 << 62;
@@ -44,7 +45,7 @@ pub const fn touch_id(platform_id: u64) -> u64 {
 pub enum PointerKind {
     /// A mouse, or a contact the platform reported as a mouse.
     Mouse,
-    /// A finger. winit 0.30 reports Windows pen input as touch.
+    /// A finger. A Windows pen is [`PointerKind::Pen`] from winit's tablet tool.
     Touch,
     /// A stylus tip.
     Pen,

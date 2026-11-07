@@ -732,7 +732,7 @@ impl Gpu {
     }
 
     #[cfg(any(feature = "accesskit", feature = "dialog"))]
-    pub(crate) fn winit_window(&self) -> Option<&winit::window::Window> {
+    pub(crate) fn winit_window(&self) -> Option<&dyn winit::window::Window> {
         self.shell.winit_window()
     }
 
