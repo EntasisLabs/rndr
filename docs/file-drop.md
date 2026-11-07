@@ -35,6 +35,11 @@ The cursor is not read.
 
 File names come from the transfer's `text/uri-list`, one `FileHover` or
 `FileDrop` per path. Every path in that transfer shares the drag's point.
+Windows `file://server/share/dir/file.txt` becomes the UNC path
+`\\server\share\dir\file.txt`. A Windows drive URI `file:///C:/notes.txt`
+becomes `C:/notes.txt`. On Unix that same URI stays the absolute path
+`/C:/notes.txt`. A percent-encoded byte that is not UTF-8 stays in the Unix
+path. A broken percent-escape is skipped.
 `DragLeft` is one `FileHoverCancel` and clears the hover set. A drop does not.
 
 On `DragEntered` the runner accepts `DndAction::Copy` and fetches the URI

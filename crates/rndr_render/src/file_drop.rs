@@ -294,33 +294,83 @@ impl DragTracker {
     }
 }
 
-/// A `file:` URI from a drag transfer, as a path.
+/// A `file:` URI from a drag transfer, as a path on this operating system.
 ///
 /// A non-file URI, an empty URI, and a broken percent-escape are skipped.
-/// A Windows drive letter keeps its letter. This does not look at the cursor.
+/// Windows keeps a UNC authority and a drive letter. Unix keeps the absolute
+/// path, including a path that only looks like a drive, and keeps bytes that
+/// are not UTF-8. This does not look at the cursor.
 pub(crate) fn path_from_file_uri(uri: &str) -> Option<PathBuf> {
+    file_uri_path(uri, cfg!(windows))
+}
+
+/// `windows` selects the path form. Tests use both values on one host.
+pub(crate) fn file_uri_path(uri: &str, windows: bool) -> Option<PathBuf> {
+    let bytes = file_uri_bytes(uri, windows)?;
+    Some(path_from_bytes(bytes))
+}
+
+fn file_uri_bytes(uri: &str, windows: bool) -> Option<Vec<u8>> {
     let uri = uri.trim();
     let rest = uri.strip_prefix("file://")?;
-    let rest = rest.strip_prefix("localhost").unwrap_or(rest);
-    let decoded = decode_percent(rest)?;
+    let (authority, path) = if let Some(path) = rest.strip_prefix('/') {
+        ("", path)
+    } else {
+        let (host, path) = rest.split_once('/')?;
+        (host, path)
+    };
+    if authority.eq_ignore_ascii_case("localhost") {
+        return local_file_bytes(path, windows);
+    }
+    if authority.is_empty() {
+        return local_file_bytes(path, windows);
+    }
+    if !windows {
+        return None;
+    }
+    let mut unc = Vec::from(&b"\\\\"[..]);
+    unc.extend_from_slice(authority.as_bytes());
+    unc.push(b'\\');
+    let decoded = decode_percent_bytes(path)?;
+    for byte in decoded {
+        unc.push(if byte == b'/' { b'\\' } else { byte });
+    }
+    Some(unc)
+}
+
+fn local_file_bytes(path: &str, windows: bool) -> Option<Vec<u8>> {
+    let decoded = decode_percent_bytes(path)?;
     if decoded.is_empty() {
         return None;
     }
-    let path = match decoded.strip_prefix('/') {
-        Some(drive)
-            if drive.len() >= 3
-                && drive.as_bytes()[0].is_ascii_alphabetic()
-                && drive.as_bytes()[1] == b':'
-                && (drive.as_bytes()[2] == b'/' || drive.as_bytes()[2] == b'\\') =>
-        {
-            drive.to_string()
+    if windows {
+        let drive = decoded.len() >= 2
+            && decoded[0].is_ascii_alphabetic()
+            && decoded[1] == b':'
+            && (decoded.len() == 2 || decoded[2] == b'/' || decoded[2] == b'\\');
+        if drive {
+            return Some(decoded);
         }
-        _ => decoded,
-    };
-    Some(PathBuf::from(path))
+    }
+    let mut absolute = Vec::with_capacity(decoded.len() + 1);
+    absolute.push(b'/');
+    absolute.extend_from_slice(&decoded);
+    Some(absolute)
 }
 
-fn decode_percent(input: &str) -> Option<String> {
+fn path_from_bytes(bytes: Vec<u8>) -> PathBuf {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStringExt;
+        PathBuf::from(std::ffi::OsString::from_vec(bytes))
+    }
+    #[cfg(not(unix))]
+    {
+        PathBuf::from(String::from_utf8_lossy(&bytes).as_ref())
+    }
+}
+
+fn decode_percent_bytes(input: &str) -> Option<Vec<u8>> {
     let bytes = input.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
     let mut index = 0;
@@ -338,7 +388,7 @@ fn decode_percent(input: &str) -> Option<String> {
         out.push(bytes[index]);
         index += 1;
     }
-    String::from_utf8(out).ok()
+    Some(out)
 }
 
 fn hex(byte: u8) -> Option<u8> {
@@ -583,12 +633,27 @@ mod tests {
             path_from_file_uri("file://localhost/tmp/a.txt").unwrap(),
             PathBuf::from("/tmp/a.txt")
         );
-        assert_eq!(
-            path_from_file_uri("file:///C:/notes.txt").unwrap(),
-            PathBuf::from("C:/notes.txt")
-        );
         assert!(path_from_file_uri("https://example.com/a").is_none());
         assert!(path_from_file_uri("file:///bad%").is_none());
         assert!(path_from_file_uri("").is_none());
+    }
+
+    #[test]
+    fn file_uris_keep_windows_unc_and_unix_absolute_paths() {
+        let unc = file_uri_path("file://server/share/dir/file.txt", true).unwrap();
+        assert_eq!(unc, PathBuf::from(r"\\server\share\dir\file.txt"));
+        let drive = file_uri_path("file:///C:/notes.txt", true).unwrap();
+        assert_eq!(drive, PathBuf::from("C:/notes.txt"));
+        let unix_drive = file_uri_path("file:///C:/notes.txt", false).unwrap();
+        assert_eq!(unix_drive, PathBuf::from("/C:/notes.txt"));
+        assert!(file_uri_path("file://server/share/dir/file.txt", false).is_none());
+        let raw = file_uri_bytes("file:///tmp/a%FFb.txt", false).unwrap();
+        assert_eq!(raw, b"/tmp/a\xffb.txt");
+        #[cfg(unix)]
+        {
+            use std::os::unix::ffi::OsStrExt;
+            let path = path_from_file_uri("file:///tmp/a%FFb.txt").unwrap();
+            assert_eq!(path.as_os_str().as_bytes(), b"/tmp/a\xffb.txt");
+        }
     }
 }
