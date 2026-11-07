@@ -2928,8 +2928,9 @@ fn quad_pipe(
         immediate_size: 0,
     });
     const QUAD_ATTRS: [wgpu::VertexAttribute; 1] = wgpu::vertex_attr_array![0 => Float32x2];
-    const INSTANCE_ATTRS: [wgpu::VertexAttribute; 5] = wgpu::vertex_attr_array![
+    const INSTANCE_ATTRS: [wgpu::VertexAttribute; 9] = wgpu::vertex_attr_array![
         1 => Float32x4, 2 => Float32x4, 3 => Float32x4, 4 => Float32x4, 5 => Float32x4,
+        6 => Float32x4, 7 => Float32x4, 8 => Float32x4, 9 => Float32x4,
     ];
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("quads"),

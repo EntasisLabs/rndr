@@ -213,6 +213,11 @@ native-platform acceptance are different things:
   redraws while anything moves. Not yet: shared-element moves, choreography,
   fling/decay, keyframes, and off-thread animation.
   `cargo run -p rndr --example motion_strip -- out.png` renders a frame strip.
+- **Decorations:** `Corners` (per-corner radii), `Gradient` (linear at any angle or
+  radial, multi-stop), `Shadows` (outer and inset box shadows with offset, blur and
+  spread) and `BorderSides` (per-side widths, optional dash) on any laid-out entity.
+  They are drawn analytically on the quad pipeline, with no offscreen passes.
+  `cargo run -p rndr --example decor_gallery -- out.png` renders a gallery.
 - **Document editing:** source sessions and structured editing have explicit ownership
   and regression coverage. The structured editor remains experimental; native IME,
   clipboard and assistive-technology acceptance must be checked independently of

@@ -7,7 +7,7 @@ use crate::shell::Shell;
 use crate::color::{clear_color, color_for_surface};
 
 const QUAD: [[f32; 2]; 4] = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
-const INSTANCE_FLOATS: usize = 20;
+const INSTANCE_FLOATS: usize = 36;
 pub(crate) const INSTANCE_STRIDE: u64 = (INSTANCE_FLOATS * 4) as u64;
 const INITIAL_INSTANCES: u64 = 2048;
 
@@ -19,6 +19,10 @@ struct VsIn {
     @location(3) uv_rect: vec4<f32>,
     @location(4) clip: vec4<f32>,
     @location(5) radius: vec4<f32>,
+    @location(6) corners: vec4<f32>,
+    @location(7) shape: vec4<f32>,
+    @location(8) params: vec4<f32>,
+    @location(9) color2: vec4<f32>,
 }
 
 struct VsOut {
@@ -29,6 +33,12 @@ struct VsOut {
     @location(3) rect: vec4<f32>,
     @location(4) radius: f32,
     @location(5) glyph_atlas: f32,
+    @location(6) corners: vec4<f32>,
+    @location(7) shape: vec4<f32>,
+    @location(8) params: vec4<f32>,
+    @location(9) color2: vec4<f32>,
+    @location(10) kind: vec2<f32>,
+    @location(11) box_rect: vec4<f32>,
 }
 
 struct ViewportUniform {
@@ -57,7 +67,87 @@ fn vs(in: VsIn) -> VsOut {
     out.rect = in.rect;
     out.radius = in.radius.x;
     out.glyph_atlas = in.radius.y;
+    out.corners = in.corners;
+    out.shape = in.shape;
+    out.params = in.params;
+    out.color2 = in.color2;
+    out.kind = in.radius.zw;
+    out.box_rect = in.uv_rect;
     return out;
+}
+
+// Radius of the corner in `p`'s quadrant. `r` is top-left, top-right,
+// bottom-right, bottom-left; `p` is relative to the box center.
+fn corner_of(p: vec2<f32>, r: vec4<f32>) -> f32 {
+    if p.x < 0.0 {
+        return select(r.w, r.x, p.y < 0.0);
+    }
+    return select(r.z, r.y, p.y < 0.0);
+}
+
+// Signed distance to a box (x, y, w, h) with per-corner radii.
+fn box_distance(px: vec2<f32>, rect: vec4<f32>, radii: vec4<f32>) -> f32 {
+    let half = rect.zw * 0.5;
+    let p = px - (rect.xy + half);
+    let r = clamp(corner_of(p, radii), 0.0, min(half.x, half.y));
+    let q = abs(p) - half + vec2<f32>(r);
+    return length(max(q, vec2<f32>(0.0))) + min(max(q.x, q.y), 0.0) - r;
+}
+
+fn box_coverage(px: vec2<f32>, rect: vec4<f32>, radii: vec4<f32>) -> f32 {
+    if rect.z <= 0.0 || rect.w <= 0.0 {
+        return 0.0;
+    }
+    return clamp(0.5 - box_distance(px, rect, radii), 0.0, 1.0);
+}
+
+fn erf2(x: vec2<f32>) -> vec2<f32> {
+    let s = sign(x);
+    let a = abs(x);
+    var r = 1.0 + (0.278393 + (0.230389 + 0.078108 * (a * a)) * a) * a;
+    r = r * r;
+    return s - s / (r * r);
+}
+
+fn shadow_x(x: f32, y: f32, sigma: f32, corner: f32, half: vec2<f32>) -> f32 {
+    let delta = min(half.y - corner - abs(y), 0.0);
+    let curved = half.x - corner + sqrt(max(0.0, corner * corner - delta * delta));
+    let integral = 0.5 + 0.5 * erf2((x + vec2<f32>(-curved, curved)) * (0.70710678 / sigma));
+    return integral.y - integral.x;
+}
+
+// Gaussian-blurred rounded box, integrated in x and sampled in y.
+fn box_shadow(px: vec2<f32>, rect: vec4<f32>, radii: vec4<f32>, sigma: f32) -> f32 {
+    if sigma < 0.25 {
+        return box_coverage(px, rect, radii);
+    }
+    let half = rect.zw * 0.5;
+    let p = px - (rect.xy + half);
+    let corner = clamp(corner_of(p, radii), 0.0, min(half.x, half.y));
+    let low = p.y - half.y;
+    let high = p.y + half.y;
+    let start = clamp(-3.0 * sigma, low, high);
+    let end = clamp(3.0 * sigma, low, high);
+    let step = (end - start) / 4.0;
+    var y = start + step * 0.5;
+    var value = 0.0;
+    for (var i = 0; i < 4; i = i + 1) {
+        let g = exp(-(y * y) / (2.0 * sigma * sigma)) / (2.5066283 * sigma);
+        value = value + shadow_x(p.x, p.y - y, sigma, corner, half) * g * step;
+        y = y + step;
+    }
+    return clamp(value, 0.0, 1.0);
+}
+
+// Color of a gradient band at position `t`, or alpha 0 outside it.
+fn band(t: f32, c0: vec4<f32>, c1: vec4<f32>, params: vec4<f32>) -> vec4<f32> {
+    let r0 = params.x;
+    let r1 = params.y;
+    if (t < r0 && params.z < 0.5) || (t >= r1 && params.w < 0.5) {
+        return vec4<f32>(0.0);
+    }
+    let u = clamp((t - r0) / max(r1 - r0, 1.0e-6), 0.0, 1.0);
+    return mix(c0, c1, u);
 }
 
 @fragment
@@ -66,6 +156,53 @@ fn fs(in: VsOut) -> @location(0) vec4<f32> {
     let clip = in.clip;
     if px.x < clip.x || px.y < clip.y || px.x >= clip.x + clip.z || px.y >= clip.y + clip.w {
         discard;
+    }
+    let kind = in.kind.x;
+    if kind > 0.5 && kind < 1.5 {
+        // Shadow. `box_rect` is the casting element's box; `shape` the blurred box.
+        let element = box_coverage(px, in.box_rect, in.corners);
+        let shade = box_shadow(px, in.shape, in.corners, in.kind.y);
+        var alpha: f32;
+        if in.params.x > 0.5 {
+            alpha = element * (1.0 - shade);
+        } else {
+            alpha = (1.0 - element) * shade;
+        }
+        return vec4<f32>(in.color.rgb, in.color.a * alpha);
+    }
+    if kind > 1.5 && kind < 3.5 {
+        var t: f32;
+        if kind < 2.5 {
+            let axis = in.shape.zw - in.shape.xy;
+            t = dot(px - in.shape.xy, axis) / max(dot(axis, axis), 1.0e-6);
+        } else {
+            t = length(px - in.shape.xy) / max(in.shape.z, 1.0e-6);
+        }
+        let c = band(t, in.color, in.color2, in.params);
+        return vec4<f32>(c.rgb, c.a * box_coverage(px, in.rect, in.corners));
+    }
+    if kind > 3.5 {
+        // Ring: outer box minus the box inset by top/right/bottom/left widths.
+        let w = in.shape;
+        let inner = vec4<f32>(in.rect.x + w.w, in.rect.y + w.x, in.rect.z - w.w - w.y, in.rect.w - w.x - w.z);
+        let inner_r = max(in.corners - vec4<f32>(max(w.w, w.x), max(w.x, w.y), max(w.y, w.z), max(w.z, w.w)), vec4<f32>(0.0));
+        var alpha = box_coverage(px, in.rect, in.corners) * (1.0 - box_coverage(px, inner, inner_r));
+        let period = in.params.x + in.params.y;
+        if in.params.x > 0.0 && period > 0.0 {
+            let local = px - in.rect.xy;
+            let edges = vec4<f32>(local.y, in.rect.z - local.x, in.rect.w - local.y, local.x);
+            let near = min(min(edges.x, edges.z), min(edges.y, edges.w));
+            var along: f32;
+            if near == edges.x || near == edges.z {
+                along = local.x;
+            } else {
+                along = local.y;
+            }
+            if fract(along / period) * period >= in.params.x {
+                alpha = 0.0;
+            }
+        }
+        return vec4<f32>(in.color.rgb, in.color.a * alpha);
     }
     // RGB is already in the surface working space: linear on an sRGB target,
     // authored sRGB on an 8-bit Unorm target. Coverage alpha is the mask.
@@ -76,7 +213,10 @@ fn fs(in: VsOut) -> @location(0) vec4<f32> {
     let color_glyph = in.glyph_atlas > 0.5;
     let rgb = select(in.color.rgb, sprite.rgb, color_glyph);
     let alpha = select(in.color.a * coverage, sprite.a * in.color.a, color_glyph);
-    let corner = round_rect(px, in.rect, in.radius);
+    var corner = round_rect(px, in.rect, in.radius);
+    if in.kind.y > 0.5 {
+        corner = box_coverage(px, in.rect, in.corners);
+    }
     return vec4<f32>(rgb, alpha * corner);
 }
 
@@ -372,12 +512,16 @@ impl Gpu {
         });
 
         const QUAD_ATTRS: [wgpu::VertexAttribute; 1] = wgpu::vertex_attr_array![0 => Float32x2];
-        const INSTANCE_ATTRS: [wgpu::VertexAttribute; 5] = wgpu::vertex_attr_array![
+        const INSTANCE_ATTRS: [wgpu::VertexAttribute; 9] = wgpu::vertex_attr_array![
             1 => Float32x4,
             2 => Float32x4,
             3 => Float32x4,
             4 => Float32x4,
             5 => Float32x4,
+            6 => Float32x4,
+            7 => Float32x4,
+            8 => Float32x4,
+            9 => Float32x4,
         ];
         let quad_layout = wgpu::VertexBufferLayout {
             array_stride: 8,
@@ -1072,6 +1216,8 @@ fn write_region(queue: &wgpu::Queue, texture: &wgpu::Texture, rect: TexelRect<'_
 /// Layout quads are points. The uniform and the fragment clip are physical pixels.
 /// Every quad color — solid fills, borders, glyph tints, carets, selections, and
 /// marks — is authored sRGB and is decoded here when `format` is sRGB.
+use rndr_paint::QuadKind;
+
 pub(crate) fn encode_instances(
     quads: &[Quad],
     scale: f32,
@@ -1082,6 +1228,74 @@ pub(crate) fn encode_instances(
     out.reserve(quads.len() * INSTANCE_FLOATS * 4);
     for quad in quads {
         let [r, g, b, a] = color_for_surface(quad.color, format);
+        let corners = quad
+            .shape
+            .corners
+            .unwrap_or([quad.radius; 4])
+            .map(|r| r * scale);
+        let per_corner = if quad.shape.corners.is_some() {
+            1.0
+        } else {
+            0.0
+        };
+        let px = |v: [f32; 2]| [v[0] * scale, v[1] * scale];
+        let flag = |b: bool| if b { 1.0 } else { 0.0 };
+        let mut uv = quad.uv;
+        let mut kind = [0.0, per_corner];
+        let mut shape = [0.0; 4];
+        let mut params = [0.0; 4];
+        let mut color2 = [0.0; 4];
+        match quad.shape.kind {
+            QuadKind::Fill => {}
+            QuadKind::Shadow {
+                shape: s,
+                element,
+                sigma,
+                inset,
+            } => {
+                kind = [1.0, sigma.max(0.0) * scale];
+                shape = [s.x * scale, s.y * scale, s.w * scale, s.h * scale];
+                uv = [
+                    element.x * scale,
+                    element.y * scale,
+                    element.w * scale,
+                    element.h * scale,
+                ];
+                params[0] = flag(inset);
+            }
+            QuadKind::Linear {
+                start,
+                end,
+                range,
+                to,
+                extend,
+            } => {
+                kind[0] = 2.0;
+                let [sx, sy] = px(start);
+                let [ex, ey] = px(end);
+                shape = [sx, sy, ex, ey];
+                params = [range[0], range[1], flag(extend[0]), flag(extend[1])];
+                color2 = color_for_surface(to, format);
+            }
+            QuadKind::Radial {
+                center,
+                radius,
+                range,
+                to,
+                extend,
+            } => {
+                kind[0] = 3.0;
+                let [cx, cy] = px(center);
+                shape = [cx, cy, radius * scale, 0.0];
+                params = [range[0], range[1], flag(extend[0]), flag(extend[1])];
+                color2 = color_for_surface(to, format);
+            }
+            QuadKind::Ring { widths, dash } => {
+                kind[0] = 4.0;
+                shape = widths.map(|w| w.max(0.0) * scale);
+                params = [dash[0].max(0.0) * scale, dash[1].max(0.0) * scale, 0.0, 0.0];
+            }
+        }
         for value in [
             quad.rect.x * scale,
             quad.rect.y * scale,
@@ -1091,19 +1305,25 @@ pub(crate) fn encode_instances(
             g,
             b,
             a,
-            quad.uv[0],
-            quad.uv[1],
-            quad.uv[2],
-            quad.uv[3],
+            uv[0],
+            uv[1],
+            uv[2],
+            uv[3],
             quad.clip.x * scale,
             quad.clip.y * scale,
             quad.clip.w * scale,
             quad.clip.h * scale,
             quad.radius * scale,
             quad.atlas as f32,
-            0.0,
-            0.0,
-        ] {
+            kind[0],
+            kind[1],
+        ]
+        .into_iter()
+        .chain(corners)
+        .chain(shape)
+        .chain(params)
+        .chain(color2)
+        {
             out.extend_from_slice(&value.to_le_bytes());
         }
     }
@@ -1135,6 +1355,7 @@ mod tests {
             },
             radius: 0.0,
             atlas: 0,
+            shape: Default::default(),
         }
     }
 
