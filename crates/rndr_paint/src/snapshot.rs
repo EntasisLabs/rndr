@@ -100,6 +100,7 @@ mod tests {
                 },
                 radius: 1.25,
                 atlas: 0,
+                shape: Default::default(),
             }],
             slots: vec![
                 SurfaceRect {

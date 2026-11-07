@@ -64,6 +64,7 @@ pub use font::{atlas_r8, glyph_uv, solid_uv, ATLAS_H, ATLAS_W};
 pub use latin::LatinFace;
 pub use path::{Cap, FillRule, Join, Marker, Path, PathBuilder, Stroke};
 pub use snapshot::quads_snapshot;
+
 pub use tess::{tessellate_fill, tessellate_stroke, Mesh, MeshCache};
 pub use zoom::{ZoomCamera, ZOOM_MAX_STEP, ZOOM_MIN_STEP};
 
@@ -98,6 +99,79 @@ pub struct Quad {
     /// Any non-zero value selects the color atlas.
     /// Snapshot text ignores this so a coverage glyph stays on the old dump.
     pub atlas: u8,
+    /// Per-corner radii and the non-solid kinds: shadows, gradient bands,
+    /// and border rings. The default is a plain fill or glyph.
+    pub shape: QuadShape,
+}
+
+/// Geometry a [`Quad`] carries beyond a uniform [`Quad::radius`].
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct QuadShape {
+    /// Radii in logical points: top-left, top-right, bottom-right,
+    /// bottom-left. `None` uses [`Quad::radius`] on every corner.
+    pub corners: Option<[f32; 4]>,
+    /// What the quad paints inside its rounded rectangle.
+    pub kind: QuadKind,
+}
+
+/// What a [`Quad`] paints. Positions are logical points.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum QuadKind {
+    /// Solid [`Quad::color`] or an atlas glyph.
+    #[default]
+    Fill,
+    /// Gaussian shadow of the rounded box `shape` (with [`QuadShape::corners`]
+    /// or [`Quad::radius`]). An outer shadow's quad covers the blurred
+    /// extent; an inset shadow's quad is the box it darkens.
+    Shadow {
+        /// Box casting the shadow, already offset and spread.
+        shape: Rect,
+        /// The element's own box. An outer shadow is hidden inside it; an
+        /// inset shadow paints only inside it.
+        element: Rect,
+        /// Gaussian standard deviation in points.
+        sigma: f32,
+        /// Darken inside the quad's box instead of outside `shape`.
+        inset: bool,
+    },
+    /// Linear gradient band: [`Quad::color`] at `range[0]` to `to` at
+    /// `range[1]`, where position runs 0 at `start` to 1 at `end`. Outside the
+    /// range the band paints nothing, except below the first band and above
+    /// the last, which `extend` clamps.
+    Linear {
+        /// Position 0.
+        start: [f32; 2],
+        /// Position 1.
+        end: [f32; 2],
+        /// Positions this band covers.
+        range: [f32; 2],
+        /// Color at `range[1]`.
+        to: Color,
+        /// Paint below `range[0]` (first band) and above `range[1]` (last band).
+        extend: [bool; 2],
+    },
+    /// Radial gradient band; position is the distance from `center` divided
+    /// by `radius`.
+    Radial {
+        /// Center.
+        center: [f32; 2],
+        /// Distance at position 1.
+        radius: f32,
+        /// Positions this band covers.
+        range: [f32; 2],
+        /// Color at `range[1]`.
+        to: Color,
+        /// Paint below `range[0]` (first band) and above `range[1]` (last band).
+        extend: [bool; 2],
+    },
+    /// Border ring inside the rounded rectangle, top/right/bottom/left
+    /// widths, with an optional dash and gap length (zero is solid).
+    Ring {
+        /// Top, right, bottom, left.
+        widths: [f32; 4],
+        /// Dash then gap; `[0, 0]` is solid.
+        dash: [f32; 2],
+    },
 }
 
 /// One world frame, then the quads in points.
@@ -277,6 +351,7 @@ fn paint_visited(
     metrics: rndr_core::LabelBox,
     secondary: &[rndr_core::source_presentation::SecondarySelectionMark],
     chrome: &[rndr_core::structured_chrome::StructuredChromePaint],
+    decor: &Decor,
 ) {
     let text_clip = if clip_text {
         clip.intersect(Clip {
@@ -289,8 +364,16 @@ fn paint_visited(
         clip
     };
     if let Some(color) = color {
+        out.extend_from_slice(&decor.before);
+        let at = out.len();
         push(out, rect, color, solid, clip, radius, 0);
+        if let (Some(corners), Some(fill)) = (decor.corners, out.get_mut(at)) {
+            fill.shape.corners = Some(corners);
+        }
+    } else {
+        out.extend_from_slice(&decor.before);
     }
+    out.extend_from_slice(&decor.after);
     for layer in chrome {
         push(
             out,
@@ -622,6 +705,7 @@ fn walk_entity(
             .unwrap_or(0.0);
         let needs_fallback =
             world.get::<Label>(entity).is_some() && world.get::<TextLayout>(entity).is_none();
+        let decor = decor_quads(world, entity, *rect, clip, radius, solid);
         let mut guard = quads.borrow_mut();
         let mut paint = |rect: Rect,
                          color: Option<Color>,
@@ -674,6 +758,7 @@ fn walk_entity(
                 rndr_core::label_box(world, entity),
                 &rndr_core::source_presentation::secondary_selection_marks(world, entity),
                 &rndr_core::structured_chrome::chrome_paint(world, entity),
+                &decor,
             );
             // Structural markers occupy a host-reserved sibling gutter, not editable bytes.
             for mark in rndr_core::structured_chrome::structured_marks(world, entity) {
@@ -758,6 +843,7 @@ fn walk_entity(
         walk(world, child, quads, draws, scale, solid, theme);
     }
     record_geometry(world, entity, quads.borrow().len() as u32, draws, true);
+    push_border_ring(world, entity, &mut quads.borrow_mut(), solid);
     record_scroll_indicator(world, entity, quads, solid);
     record_scrollbar(world, entity, quads, solid, theme);
 }
@@ -893,7 +979,8 @@ fn record_geometry(
     draws: &RefCell<Vec<Placed>>,
     outline: bool,
 ) {
-    if (outline && !world.has::<rndr_core::Border>(entity))
+    if (outline
+        && (!world.has::<rndr_core::Border>(entity) || world.has::<rndr_core::BorderSides>(entity)))
         || (!outline && !world.has::<rndr_core::CrossMark>(entity))
     {
         return;
@@ -1237,6 +1324,194 @@ fn emit(
     );
 }
 
+/// Decoration quads around an entity's fill.
+#[derive(Default)]
+struct Decor {
+    corners: Option<[f32; 4]>,
+    /// Outer shadows, behind the fill.
+    before: Vec<Quad>,
+    /// Gradient bands, then inset shadows, over the fill.
+    after: Vec<Quad>,
+}
+
+fn decor_quads(
+    world: &World,
+    entity: rndr_core::Entity,
+    rect: Rect,
+    clip: Clip,
+    radius: f32,
+    solid: [f32; 4],
+) -> Decor {
+    let corners = world.get::<rndr_core::Corners>(entity).map(|c| c.0);
+    let mut decor = Decor {
+        corners,
+        ..Decor::default()
+    };
+    let radii = corners.unwrap_or([radius; 4]);
+    let quad = |rect: Rect, color: Color, clip: Clip, radii: [f32; 4], kind: QuadKind| Quad {
+        rect,
+        color,
+        uv: solid,
+        clip,
+        radius,
+        atlas: 0,
+        shape: QuadShape {
+            corners: Some(radii),
+            kind,
+        },
+    };
+    if let Some(gradient) = world.get::<rndr_core::Gradient>(entity) {
+        let (stops, axis) = match gradient {
+            rndr_core::Gradient::Linear { angle, stops } => {
+                let angle = if angle.is_finite() { *angle } else { 0.0 };
+                let dir = [-angle.sin(), angle.cos()];
+                let half = (rect.w * dir[0].abs() + rect.h * dir[1].abs()) * 0.5;
+                let c = [rect.x + rect.w * 0.5, rect.y + rect.h * 0.5];
+                (
+                    stops,
+                    Ok((
+                        [c[0] - dir[0] * half, c[1] - dir[1] * half],
+                        [c[0] + dir[0] * half, c[1] + dir[1] * half],
+                    )),
+                )
+            }
+            rndr_core::Gradient::Radial {
+                center,
+                radius,
+                stops,
+            } => (
+                stops,
+                Err((
+                    [rect.x + rect.w * center[0], rect.y + rect.h * center[1]],
+                    radius * rect.w.min(rect.h) * 0.5,
+                )),
+            ),
+        };
+        let mut stops: Vec<_> = stops.iter().filter(|s| s.offset.is_finite()).collect();
+        stops.sort_by(|a, b| a.offset.total_cmp(&b.offset));
+        let bands: Vec<_> = match stops.len() {
+            0 => Vec::new(),
+            1 => vec![(stops[0], stops[0])],
+            _ => stops.windows(2).map(|w| (w[0], w[1])).collect(),
+        };
+        let last = bands.len().saturating_sub(1);
+        for (index, (from, to)) in bands.into_iter().enumerate() {
+            let range = [from.offset, to.offset.max(from.offset + 1.0e-6)];
+            let extend = [index == 0, index == last];
+            let kind = match axis {
+                Ok((start, end)) => QuadKind::Linear {
+                    start,
+                    end,
+                    range,
+                    to: to.color,
+                    extend,
+                },
+                Err((center, radius)) => QuadKind::Radial {
+                    center,
+                    radius,
+                    range,
+                    to: to.color,
+                    extend,
+                },
+            };
+            decor.after.push(quad(rect, from.color, clip, radii, kind));
+        }
+    }
+    if let Some(rndr_core::Shadows(list)) = world.get::<rndr_core::Shadows>(entity) {
+        let outer_clip = world
+            .get::<Parent>(entity)
+            .and_then(|p| world.get::<Clip>(p.entity).copied());
+        for shadow in list.iter().filter(|s| s.color.a > 0.0) {
+            let sigma = if shadow.blur.is_finite() {
+                (shadow.blur * 0.5).max(0.0)
+            } else {
+                0.0
+            };
+            let spread = if shadow.inset {
+                -shadow.spread
+            } else {
+                shadow.spread
+            };
+            let shape = Rect {
+                x: rect.x + shadow.offset[0] - spread,
+                y: rect.y + shadow.offset[1] - spread,
+                w: (rect.w + 2.0 * spread).max(0.0),
+                h: (rect.h + 2.0 * spread).max(0.0),
+            };
+            let shape_radii = radii.map(|r| if r > 0.0 { (r + spread).max(0.0) } else { 0.0 });
+            if shadow.inset {
+                decor.after.push(quad(
+                    rect,
+                    shadow.color,
+                    clip,
+                    shape_radii,
+                    QuadKind::Shadow {
+                        shape,
+                        element: rect,
+                        sigma,
+                        inset: true,
+                    },
+                ));
+            } else {
+                let pad = 3.0 * sigma + 1.0;
+                let bounds = Rect {
+                    x: shape.x - pad,
+                    y: shape.y - pad,
+                    w: shape.w + 2.0 * pad,
+                    h: shape.h + 2.0 * pad,
+                };
+                let clip = outer_clip.unwrap_or_else(|| Clip::from_rect(bounds));
+                decor.before.push(quad(
+                    bounds,
+                    shadow.color,
+                    clip,
+                    shape_radii,
+                    QuadKind::Shadow {
+                        shape,
+                        element: rect,
+                        sigma,
+                        inset: false,
+                    },
+                ));
+            }
+        }
+    }
+    decor
+}
+
+fn push_border_ring(
+    world: &World,
+    entity: rndr_core::Entity,
+    out: &mut Vec<Quad>,
+    solid: [f32; 4],
+) {
+    let Some(border) = world.get::<rndr_core::BorderSides>(entity).copied() else {
+        return;
+    };
+    let Some(rect) = world.get::<Rect>(entity).copied() else {
+        return;
+    };
+    let clip = world
+        .get::<Clip>(entity)
+        .copied()
+        .unwrap_or_else(|| Clip::from_rect(rect));
+    let radius = world.get::<Radius>(entity).map_or(0.0, |r| r.0);
+    let corners = world
+        .get::<rndr_core::Corners>(entity)
+        .map_or([radius; 4], |c| c.0);
+    let at = out.len();
+    push(out, rect, border.color, solid, clip, radius, 0);
+    if let Some(ring) = out.get_mut(at) {
+        ring.shape = QuadShape {
+            corners: Some(corners),
+            kind: QuadKind::Ring {
+                widths: border.widths,
+                dash: border.dash.unwrap_or([0.0, 0.0]),
+            },
+        };
+    }
+}
+
 fn lighten(color: Color) -> Color {
     Color::rgba(
         color.r + (1.0 - color.r) * 0.25,
@@ -1265,6 +1540,7 @@ fn push(
         clip,
         radius,
         atlas,
+        shape: QuadShape::default(),
     });
 }
 

@@ -81,6 +81,7 @@ pub mod clock;
 mod close;
 mod compose;
 mod cursor;
+mod decor;
 mod desktop;
 mod dialog;
 mod disclosure;
@@ -176,6 +177,7 @@ pub use clock::{ManualClock, SystemClock, Time};
 pub use close::{CloseGuard, CloseRequest, CloseState};
 pub use compose::{Opacity, Transform};
 pub use cursor::{cursor_image, rotate_cursor, CursorImage};
+pub use decor::{BorderSides, Corners, Gradient, GradientStop, Shadow, Shadows};
 pub use desktop::{
     deliver, desktop, install_wake, CountingWake, Desktop, OpenWindow, WindowHub, WindowId,
     WindowMsg,
