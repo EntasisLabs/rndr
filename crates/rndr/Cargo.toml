@@ -32,6 +32,8 @@ parley = ["rndr_render/parley"]
 accesskit = ["rndr_render/accesskit"]
 # Native open and save dialogs. Off by default.
 dialog = ["rndr_render/dialog"]
+# Desktop notifications. Off by default. Does not enable `dialog` or `browser`.
+notify = ["rndr_render/notify"]
 # Embedded browser. Off by default, so a desktop build does not link a webview.
 # Enabling it does not enable `dialog`.
 browser = ["dep:rndr_browser"]

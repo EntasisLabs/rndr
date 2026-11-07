@@ -33,7 +33,9 @@
 //! ```
 //!
 //! `hotkey`, `tray`, `parley`, and `accesskit` are on by default. `dialog` is
-//! off by default and shows native open and save dialogs. docs.rs builds every
+//! off by default and shows native open and save dialogs. `notify` is off by
+//! default. With it off, notification calls return unsupported. A click does
+//! not activate a window. docs.rs builds every
 //! feature. Its Linux image provides fontconfig (used by `parley`), plus
 //! libxkbcommon, Wayland, and Vulkan for winit and wgpu. `hotkey` and `tray`
 //! do not link libdbus. Linux dialogs use the file-chooser portal.
@@ -63,6 +65,9 @@ mod hotkey;
 mod images;
 #[cfg(target_os = "macos")]
 mod native_quit;
+mod notify;
+#[cfg(feature = "notify")]
+mod notify_os;
 #[cfg(feature = "observe")]
 pub mod observe;
 mod outline;
@@ -123,6 +128,10 @@ pub use export::{
 use gpu::{AtlasKind, AtlasRegion, AtlasUpload};
 pub use images::{
     decode, load_image, load_rgba, set_image_budget, DecodedImage, ImageError, IMAGE_BUDGET_DEFAULT,
+};
+pub use notify::{
+    Notifications, NotifyCallback, NotifyClick, NotifyError, NotifyPermission, NotifyRequest,
+    NotifyToken,
 };
 pub use startup::{device_init_plan, DeviceInit, StartupTrace};
 

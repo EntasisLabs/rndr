@@ -178,6 +178,7 @@ The facade keeps optional integrations explicit:
 | `tray` | On | Menu-bar / notification-area integration |
 | `ui` | Off | Semantic components under `rndr::ui` |
 | `dialog` | Off | Native open/save dialogs |
+| `notify` | Off | Present, dismiss, and a host-owned click token. Feature off returns unsupported. A click does not activate a window. Native cells stay unverified or unsupported |
 | `term` | Off | Embedded terminal re-exports and PTY dependency |
 | `browser` | Off | Embedded browser. Does not enable `dialog`. macOS WKWebView and Windows WebView2; WebKitGTK, find, and script are unsupported. Native cells stay unverified |
 | `observe` | Off | Explicitly opted-in live native-window observation |

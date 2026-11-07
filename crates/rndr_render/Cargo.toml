@@ -44,6 +44,8 @@ parley = ["dep:parley", "dep:swash", "dep:etagere"]
 accesskit = ["dep:accesskit", "dep:accesskit_unix", "dep:accesskit_macos", "dep:accesskit_windows"]
 # Native open and save dialogs. Off by default.
 dialog = ["dep:rfd"]
+# Desktop notifications. Off by default. Does not enable `dialog` or `browser`.
+notify = ["dep:zbus", "zbus/blocking-api"]
 
 [dependencies]
 rndr_core = { workspace = true, features = ["pool"] }
