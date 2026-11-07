@@ -1,0 +1,73 @@
+[package]
+name = "rndr_browser"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
+description = "Optional embedded browser session for rndr"
+readme = "README.md"
+keywords = ["browser", "webkit", "webview", "desktop"]
+categories = ["gui", "os::macos-apis"]
+publish = false
+
+[dependencies]
+raw-window-handle = "0.6"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# Same objc2 generation as rndr_render. A newer objc2 would load a second runtime.
+block2 = "=0.5.1"
+objc2 = "=0.5.2"
+objc2-app-kit = { version = "=0.2.2", features = ["NSResponder", "NSView", "NSWindow"] }
+objc2-foundation = { version = "=0.2.2", features = [
+    "NSArray",
+    "NSError",
+    "NSGeometry",
+    "NSObject",
+    "NSString",
+    "NSThread",
+    "NSURL",
+    "NSURLRequest",
+    "NSURLResponse",
+] }
+objc2-web-kit = { version = "=0.2.2", default-features = false, features = [
+    "std",
+    "block2",
+    "objc2-app-kit",
+    "WKDownload",
+    "WKDownloadDelegate",
+    "WKFrameInfo",
+    "WKNavigation",
+    "WKNavigationAction",
+    "WKNavigationDelegate",
+    "WKNavigationResponse",
+    "WKOpenPanelParameters",
+    "WKSecurityOrigin",
+    "WKUIDelegate",
+    "WKWebView",
+    "WKWebViewConfiguration",
+] }
+
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+objc2-app-kit = { version = "=0.2.2", features = [
+    "NSApplication",
+    "NSGraphics",
+    "NSResponder",
+    "NSView",
+    "NSWindow",
+] }
+objc2-foundation = { version = "=0.2.2", features = [
+    "NSArray",
+    "NSDate",
+    "NSGeometry",
+    "NSRunLoop",
+    "NSString",
+    "NSThread",
+] }
+raw-window-handle = "0.6"
+
+[package.metadata.docs.rs]
+# Linux docs.rs cannot link WebKit. The crate still documents the contract.
+default-target = "x86_64-unknown-linux-gnu"
+all-features = true

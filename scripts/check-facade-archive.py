@@ -50,6 +50,10 @@ def check(allow_dirty=False):
         assert "observe" in manifest["features"]
         assert "ui" not in manifest["features"]["default"]
         assert "observe" not in manifest["features"]["default"]
+        assert "browser" not in manifest["features"]["default"]
+        assert manifest["features"]["browser"] == ["dep:rndr_browser"]
+        browser = manifest["dependencies"]["rndr_browser"]
+        assert browser["optional"] is True and "path" not in browser
         ui = manifest["dependencies"]["rndr_ui"]
         assert ui["optional"] is True and ui["version"] == packages["rndr_ui"]["version"]
         dev_ui = manifest["dev-dependencies"]["rndr_ui"]

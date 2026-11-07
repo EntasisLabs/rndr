@@ -117,7 +117,8 @@ jobs:
             --exclude desktop --exclude source-session \
             --exclude expand --exclude idle --exclude overlay --exclude palette \
             --exclude terminal --exclude stream --exclude two-windows \
-            --exclude pen-probe --exclude canvas-scene --exclude create-view
+            --exclude pen-probe --exclude canvas-scene --exclude create-view \
+            --exclude rndr_browser
           paint_crate=(target/package/rndr_paint-*.crate)
           render_crate=(target/package/rndr_render-*.crate)
           ui_crate=(target/package/rndr_ui-*.crate)

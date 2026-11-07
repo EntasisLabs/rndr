@@ -85,7 +85,7 @@ in this order:
 7. `rndr_render` — depends on `rndr_core` and `rndr_paint`.
 8. `rndr` — depends on `rndr_core`, `rndr_paint`, `rndr_std`, and `rndr_render`. Optional `term` depends on `rndr_term`. Optional `ui` depends on `rndr_ui`. The dev-dependency on `rndr_ui` is also resolved from the registry.
 
-Examples stay `publish = false`, including `desktop` and `source-session`.
+Examples stay `publish = false`, including `desktop` and `source-session`. `rndr_browser` is also `publish = false`. The facade feature `browser` depends on it and is off by default. The eight-crate upload above does not include it, and publishing `rndr` with that feature enabled waits until `rndr_browser` itself is published.
 
 0.4.0 is a 0.y release. Shipping these crates does not promise a stable 1.0 API. Experimental source sessions and the structured document stay experimental in their module docs.
 
