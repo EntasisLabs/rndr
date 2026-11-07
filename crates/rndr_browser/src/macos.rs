@@ -248,13 +248,20 @@ impl WebKit {
     }
 
     pub(crate) fn apply(&self, rect: crate::ClientRect, visible: bool) {
-        let height = self.parent.bounds().size.height;
+        let bounds = self.parent.bounds();
+        let placed = crate::geometry::place_in_parent(
+            crate::geometry::ParentBounds {
+                flipped: self.parent.isFlipped(),
+                origin_x: bounds.origin.x,
+                origin_y: bounds.origin.y,
+                width: bounds.size.width,
+                height: bounds.size.height,
+            },
+            rect,
+        );
         let frame = NSRect::new(
-            NSPoint::new(
-                f64::from(rect.x),
-                height - f64::from(rect.y) - f64::from(rect.height),
-            ),
-            NSSize::new(f64::from(rect.width), f64::from(rect.height)),
+            NSPoint::new(placed.x, placed.y),
+            NSSize::new(placed.width, placed.height),
         );
         let view: &NSView = &self.web;
         // Safety: `frame` is a finite rect the contract already admitted.
@@ -271,6 +278,21 @@ impl WebKit {
     pub(crate) fn hide(&self) {
         let view: &NSView = &self.web;
         view.setHidden(true);
+    }
+
+    pub(crate) fn document(&self) -> crate::contract::LiveDocument {
+        crate::contract::LiveDocument {
+            title: unsafe { self.web.title() }
+                .map(|title| title.to_string())
+                .unwrap_or_default(),
+            url: unsafe { self.web.URL() }
+                .and_then(|url| unsafe { url.absoluteString() })
+                .map(|url| url.to_string())
+                .unwrap_or_default(),
+            loading: unsafe { self.web.isLoading() },
+            can_go_back: unsafe { self.web.canGoBack() },
+            can_go_forward: unsafe { self.web.canGoForward() },
+        }
     }
 
     pub(crate) fn pull(&self, contract: &mut Contract) {
@@ -489,11 +511,7 @@ declare_class!(
                 dyn Fn(NSURLSessionAuthChallengeDisposition, *mut NSURLCredential),
             >,
         ) {
-            // No credential panel. The load fails instead of prompting.
-            completion_handler.call((
-                NSURLSessionAuthChallengeDisposition::NSURLSessionAuthChallengeCancelAuthenticationChallenge,
-                std::ptr::null_mut(),
-            ));
+            answer_authentication(_challenge, completion_handler);
         }
 
         #[method(webView:navigationAction:didBecomeDownload:)]
@@ -659,10 +677,7 @@ declare_class!(
                 dyn Fn(NSURLSessionAuthChallengeDisposition, *mut NSURLCredential),
             >,
         ) {
-            completion_handler.call((
-                NSURLSessionAuthChallengeDisposition::NSURLSessionAuthChallengeCancelAuthenticationChallenge,
-                std::ptr::null_mut(),
-            ));
+            answer_authentication(_challenge, completion_handler);
         }
 
         #[method(downloadDidFinish:)]
@@ -715,6 +730,26 @@ impl WebKitHost {
         let delegate = ProtocolObject::from_ref(self);
         unsafe { download.setDelegate(Some(delegate)) };
     }
+}
+
+fn answer_authentication(
+    challenge: &NSURLAuthenticationChallenge,
+    completion_handler: &block2::Block<
+        dyn Fn(NSURLSessionAuthChallengeDisposition, *mut NSURLCredential),
+    >,
+) {
+    let method = unsafe { challenge.protectionSpace().authenticationMethod() };
+    // The credential pointer stays null. Default handling therefore uses the
+    // system trust evaluation, and cancel supplies no password or certificate.
+    let disposition = match crate::auth::decide_authentication(&method.to_string()) {
+        crate::auth::AuthDecision::PerformDefaultHandling => {
+            NSURLSessionAuthChallengeDisposition::NSURLSessionAuthChallengePerformDefaultHandling
+        }
+        crate::auth::AuthDecision::Cancel => {
+            NSURLSessionAuthChallengeDisposition::NSURLSessionAuthChallengeCancelAuthenticationChallenge
+        }
+    };
+    completion_handler.call((disposition, std::ptr::null_mut()));
 }
 
 fn snapshot(web_view: &WKWebView, load: LoadOutcome) -> NavigationState {

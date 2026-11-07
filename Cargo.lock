@@ -2971,6 +2971,7 @@ dependencies = [
  "objc2-foundation 0.2.2",
  "objc2-web-kit",
  "raw-window-handle",
+ "winit",
 ]
 
 [[package]]

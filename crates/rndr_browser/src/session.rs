@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 
 use raw_window_handle::HasWindowHandle;
 
-use crate::contract::{Contract, IntentKind};
+use crate::contract::{reconcile, Contract, IntentKind, LiveDocument};
 use crate::{ClientRect, DownloadIntent, FileInputIntent, LoadOutcome, NavigationState, RectError};
 
 /// Failure from the host session.
@@ -102,6 +102,7 @@ enum Engine {
 #[cfg(test)]
 struct Detached {
     probe: Arc<Mutex<Probe>>,
+    live: LiveDocument,
 }
 
 /// Records what the headless engine was asked to do. It is not a webview.
@@ -252,6 +253,11 @@ impl Browser {
             self.surface_shown = visible;
         }
         self.engine.pull(&mut self.contract);
+        if let Some(live) = self.engine.document() {
+            if let Some(next) = reconcile(self.contract.navigation(), &live) {
+                self.contract.observe(next);
+            }
+        }
         self.contract.drain()
     }
 
@@ -349,6 +355,13 @@ impl Browser {
             contract: Contract::new(),
             engine: Engine::Detached(Detached {
                 probe: Arc::clone(&probe),
+                live: LiveDocument {
+                    title: String::new(),
+                    url: String::new(),
+                    loading: false,
+                    can_go_back: false,
+                    can_go_forward: false,
+                },
             }),
             surface_shown: false,
         };
@@ -357,7 +370,14 @@ impl Browser {
 
     #[cfg(test)]
     pub(crate) fn guest_navigation(&mut self, state: NavigationState) {
+        self.engine
+            .set_document(LiveDocument::from_navigation(&state));
         self.contract.observe(state);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn guest_document(&mut self, live: LiveDocument) {
+        self.engine.set_document(live);
     }
 
     #[cfg(test)]
@@ -471,7 +491,10 @@ impl Engine {
     fn stop(&mut self) {
         match self {
             #[cfg(test)]
-            Self::Detached(engine) => Probe::push(&engine.probe, ProbeEvent::Stop),
+            Self::Detached(engine) => {
+                Probe::push(&engine.probe, ProbeEvent::Stop);
+                engine.live.loading = false;
+            }
             #[cfg(target_os = "macos")]
             Self::WebKit(engine) => engine.stop(),
             #[cfg(not(any(test, target_os = "macos")))]
@@ -513,6 +536,28 @@ impl Engine {
             Self::WebKit(engine) => engine.hide(),
             #[cfg(not(any(test, target_os = "macos")))]
             Self::Unavailable => {}
+        }
+    }
+
+    fn document(&self) -> Option<LiveDocument> {
+        match self {
+            #[cfg(test)]
+            Self::Detached(engine) => Some(engine.live.clone()),
+            #[cfg(target_os = "macos")]
+            Self::WebKit(engine) => Some(engine.document()),
+            #[cfg(not(any(test, target_os = "macos")))]
+            Self::Unavailable => None,
+        }
+    }
+
+    #[cfg(test)]
+    fn set_document(&mut self, live: LiveDocument) {
+        match self {
+            Self::Detached(engine) => engine.live = live,
+            #[cfg(target_os = "macos")]
+            Self::WebKit(_) => {
+                let _ = live;
+            }
         }
     }
 
@@ -627,6 +672,7 @@ impl Engine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::contract::LiveDocument;
     use raw_window_handle::{HandleError, HasWindowHandle, WindowHandle};
 
     /// A parent whose handle cannot be read. Attach must not invent a view.
@@ -929,6 +975,49 @@ mod tests {
         let token = browser.guest_file(true);
         drop(browser);
         assert_eq!(probe_events(&probe), vec![ProbeEvent::Files(token, None)]);
+    }
+
+    #[test]
+    fn frame_reconciles_a_late_title_and_a_same_document_history_change() {
+        let (mut browser, _) = Browser::detached();
+        browser.guest_navigation(NavigationState {
+            title: String::new(),
+            url: "data:text/html,page".into(),
+            load: LoadOutcome::Finished,
+            can_go_back: false,
+            can_go_forward: false,
+        });
+        browser.guest_document(LiveDocument {
+            title: "rndr-browser".into(),
+            url: "data:text/html,page".into(),
+            loading: false,
+            can_go_back: false,
+            can_go_forward: false,
+        });
+        let events = browser.frame();
+        assert_eq!(browser.navigation().title, "rndr-browser");
+        assert_eq!(browser.navigation().load, LoadOutcome::Finished);
+        assert!(events.iter().any(|event| matches!(
+            event,
+            BrowserEvent::Navigation(state) if state.title == "rndr-browser"
+        )));
+        assert!(browser.frame().is_empty());
+
+        browser.guest_document(LiveDocument {
+            title: "rndr-browser".into(),
+            url: "https://example.test/page#section".into(),
+            loading: false,
+            can_go_back: true,
+            can_go_forward: false,
+        });
+        let _ = browser.frame();
+        assert_eq!(
+            browser.navigation().url,
+            "https://example.test/page#section"
+        );
+        assert!(browser.navigation().can_go_back);
+        assert_eq!(browser.navigation().load, LoadOutcome::Finished);
+        assert_eq!(browser.navigation().title, "rndr-browser");
     }
 
     #[test]

@@ -56,17 +56,20 @@ cargo test -p rndr_browser --test macos_smoke -- --ignored --nocapture
 
 What a main-thread run is expected to show:
 
-1. A titled window opens and a `WKWebView` is added to its content view.
-2. `show`, then `set_bounds` of `(10, 20, 300, 200)` logical points, then
-   `frame`. The view's AppKit frame matches that rectangle converted from the
-   top-left of the content view. The view is visible.
-3. `navigate` to a `data:text/html` document. Within a few seconds, `frame`
-   reports a load outcome of finished or failed, and the URL is the navigation
-   report. The load is not an application command.
-4. A new rect, then `frame`, moves the view. A zero-area rect, then `frame`,
-   hides the view and leaves it in the hierarchy.
-5. Dropping the session removes the view. No file panel appears. No download
-   is written.
+1. A winit window opens. Its content view is flipped. `set_bounds` of
+   `(10, 20, 300, 200)` logical points, then `frame`, places the web view at
+   AppKit origin `(10, 20)`, not at `parent_height - 20 - 200`.
+2. Resizing that winit window's content and applying the same rect keeps the
+   origin at `(10, 20)`.
+3. The same rect in an unflipped `NSView` of height 600 lands at y = 380, and
+   at y = 280 after the parent height becomes 500.
+4. Dropping the session removes the view. No file panel appears.
+
+Server trust uses the system certificate check. That was not re-run here.
+Invalid certificates are not given a trust credential. Credential challenges
+are cancelled for both navigation and downloads. Downloads and file input
+still need a native acceptance session. A delayed title is covered by the
+headless reconcile test, not by this smoke.
 
 Record the OS version, machine, Rust version, date, and the observed result
 before calling any cell `Supported`. This repository does not do that here.

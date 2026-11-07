@@ -5,7 +5,9 @@
 
 use std::collections::{HashMap, HashSet};
 
-use crate::{BrowserEvent, DownloadIntent, FileInputIntent, IntentToken, NavigationState};
+use crate::{
+    BrowserEvent, DownloadIntent, FileInputIntent, IntentToken, LoadOutcome, NavigationState,
+};
 
 /// Logical rectangle in points. Origin is the top-left of the host client area.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -224,5 +226,127 @@ impl Contract {
         open.into_iter()
             .map(|(token, intent)| (token, intent.kind))
             .collect()
+    }
+}
+
+/// Properties read from the live view, independent of the last delegate callback.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct LiveDocument {
+    /// Document title currently stored on the view.
+    pub title: String,
+    /// URL currently stored on the view.
+    pub url: String,
+    /// The view is still loading.
+    pub loading: bool,
+    /// The view can go back.
+    pub can_go_back: bool,
+    /// The view can go forward.
+    pub can_go_forward: bool,
+}
+
+impl LiveDocument {
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(crate) fn from_navigation(state: &NavigationState) -> Self {
+        Self {
+            title: state.title.clone(),
+            url: state.url.clone(),
+            loading: state.load == LoadOutcome::Loading,
+            can_go_back: state.can_go_back,
+            can_go_forward: state.can_go_forward,
+        }
+    }
+}
+
+/// Fold the view's current properties onto the last published navigation.
+///
+/// A failure or a host stop is kept. A title, URL, or history flag that
+/// changes without a new load callback is published. Identical input returns
+/// nothing, so a frame does not repeat the same report.
+pub(crate) fn reconcile(
+    published: &NavigationState,
+    live: &LiveDocument,
+) -> Option<NavigationState> {
+    let load = if live.loading {
+        LoadOutcome::Loading
+    } else if published.load == LoadOutcome::Loading {
+        LoadOutcome::Finished
+    } else {
+        published.load
+    };
+    let next = NavigationState {
+        title: live.title.clone(),
+        url: live.url.clone(),
+        load,
+        can_go_back: live.can_go_back,
+        can_go_forward: live.can_go_forward,
+    };
+    if next == *published {
+        None
+    } else {
+        Some(next)
+    }
+}
+
+#[cfg(test)]
+mod reconcile_tests {
+    use super::*;
+
+    fn finished(title: &str, url: &str, back: bool, forward: bool) -> NavigationState {
+        NavigationState {
+            title: title.into(),
+            url: url.into(),
+            load: LoadOutcome::Finished,
+            can_go_back: back,
+            can_go_forward: forward,
+        }
+    }
+
+    #[test]
+    fn a_title_that_arrives_after_finish_replaces_the_empty_one() {
+        let published = finished("", "data:text/html,page", false, false);
+        let live = LiveDocument {
+            title: "rndr-browser".into(),
+            url: "data:text/html,page".into(),
+            loading: false,
+            can_go_back: false,
+            can_go_forward: false,
+        };
+        let next = reconcile(&published, &live).unwrap();
+        assert_eq!(next.title, "rndr-browser");
+        assert_eq!(next.load, LoadOutcome::Finished);
+        assert_eq!(next.url, "data:text/html,page");
+        assert!(reconcile(&next, &live).is_none());
+    }
+
+    #[test]
+    fn same_document_url_and_history_update_without_a_new_load() {
+        let published = finished("rndr-browser", "https://example.test/page", false, false);
+        let live = LiveDocument {
+            title: "rndr-browser".into(),
+            url: "https://example.test/page#section".into(),
+            loading: false,
+            can_go_back: true,
+            can_go_forward: false,
+        };
+        let next = reconcile(&published, &live).unwrap();
+        assert_eq!(next.url, "https://example.test/page#section");
+        assert!(next.can_go_back);
+        assert_eq!(next.load, LoadOutcome::Finished);
+        assert_eq!(next.title, "rndr-browser");
+    }
+
+    #[test]
+    fn failure_and_stop_are_not_rewritten_when_the_view_is_idle() {
+        for load in [LoadOutcome::Failed, LoadOutcome::Stopped] {
+            let published = NavigationState {
+                title: "kept".into(),
+                url: "https://example.test/".into(),
+                load,
+                can_go_back: false,
+                can_go_forward: false,
+            };
+            let live = LiveDocument::from_navigation(&published);
+            assert!(reconcile(&published, &live).is_none());
+        }
     }
 }

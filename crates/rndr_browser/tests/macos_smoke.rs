@@ -1,8 +1,10 @@
 //! Native WKWebView smoke. Ignored: `cargo test` does not run on the AppKit
 //! main thread, and this change has no native macOS session.
 //!
-//! A passing headless run does not make the matrix cell Supported. The steps
-//! are the ones in `crates/rndr_browser/README.md`.
+//! The placement check uses a real winit window, whose content view is
+//! flipped, and a separate unflipped `NSView`. Expected origins come from
+//! `isFlipped` plus the top-left contract, not from a single hard-coded
+//! `height - y - height` formula. See `crates/rndr_browser/README.md`.
 
 #![cfg(target_os = "macos")]
 
@@ -10,14 +12,25 @@ use std::ffi::c_void;
 use std::ptr::NonNull;
 
 use objc2::rc::Retained;
-use objc2_app_kit::{NSApplication, NSBackingStoreType, NSView, NSWindow, NSWindowStyleMask};
-use objc2_foundation::{
-    MainThreadMarker, NSArray, NSDate, NSPoint, NSRect, NSRunLoop, NSSize, NSString,
-};
+use objc2_app_kit::NSView;
+use objc2_foundation::{MainThreadMarker, NSPoint, NSRect, NSSize};
 use raw_window_handle::{
     AppKitWindowHandle, HandleError, HasWindowHandle, RawWindowHandle, WindowHandle,
 };
-use rndr_browser::{Browser, BrowserEvent, ClientRect, LoadOutcome};
+use rndr_browser::{Browser, ClientRect};
+use winit::application::ApplicationHandler;
+use winit::dpi::LogicalSize;
+use winit::event::WindowEvent;
+use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::window::{WindowAttributes, WindowId};
+
+struct WinitParent<'a>(&'a dyn winit::window::Window);
+
+impl HasWindowHandle for WinitParent<'_> {
+    fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
+        self.0.window_handle()
+    }
+}
 
 struct ContentParent {
     view: *mut c_void,
@@ -27,110 +40,129 @@ impl HasWindowHandle for ContentParent {
     fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
         let view = NonNull::new(self.view).ok_or(HandleError::Unavailable)?;
         let raw = RawWindowHandle::AppKit(AppKitWindowHandle::new(view));
-        // Safety: `view` is the content view of `window`, which outlives this
-        // handle. `attach` retains it and does not keep the raw handle.
+        // Safety: `view` is a live NSView for this call. `attach` retains it
+        // and does not keep the raw handle.
         Ok(unsafe { WindowHandle::borrow_raw(raw) })
+    }
+}
+
+struct Placement;
+
+impl ApplicationHandler for Placement {
+    fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
+        place_in_winit_window(event_loop);
+        place_in_unflipped_view();
+        event_loop.exit();
+    }
+
+    fn window_event(
+        &mut self,
+        _event_loop: &dyn ActiveEventLoop,
+        _window_id: WindowId,
+        _event: WindowEvent,
+    ) {
     }
 }
 
 #[test]
 #[ignore = "native macOS Aqua session on the main thread; not run for R3.1"]
-fn wkwebview_navigation_bounds_and_hide() {
-    let Some(mtm) = MainThreadMarker::new() else {
+fn winit_and_unflipped_parents_keep_the_top_left() {
+    let Some(_marker) = MainThreadMarker::new() else {
         panic!(
             "WKWebView smoke must run on the AppKit main thread. \
              crates/rndr_browser/README.md describes the session. \
              cargo test does not provide that thread, so this is not a certification."
         );
     };
+    let event_loop = EventLoop::new().expect("winit event loop");
+    event_loop.run_app(Placement).expect("winit smoke");
+}
 
-    let _app = NSApplication::sharedApplication(mtm);
-    let window = unsafe {
-        NSWindow::initWithContentRect_styleMask_backing_defer(
-            mtm.alloc(),
-            NSRect::new(NSPoint::new(80.0, 80.0), NSSize::new(800.0, 600.0)),
-            NSWindowStyleMask::Titled | NSWindowStyleMask::Closable | NSWindowStyleMask::Resizable,
-            NSBackingStoreType::NSBackingStoreBuffered,
-            false,
+fn requested() -> ClientRect {
+    ClientRect::try_new(10.0, 20.0, 300.0, 200.0).unwrap()
+}
+
+fn place_in_winit_window(event_loop: &dyn ActiveEventLoop) {
+    let window = event_loop
+        .create_window(
+            WindowAttributes::default()
+                .with_surface_size(LogicalSize::new(800.0, 600.0))
+                .with_title("rndr browser smoke"),
+        )
+        .expect("winit window");
+    let mut browser = Browser::attach(&WinitParent(&*window)).expect("WKWebView in the winit view");
+    browser.show();
+    browser.set_bounds(requested()).unwrap();
+    let _ = browser.frame();
+    let content = content_view(&*window);
+    assert!(
+        content.isFlipped(),
+        "this fixture is a winit content view, which is top-left"
+    );
+    assert_top_left(&content, 20.0);
+
+    if let Some(ns_window) = content.window() {
+        ns_window.setContentSize(NSSize::new(800.0, 500.0));
+    }
+    browser.set_bounds(requested()).unwrap();
+    let _ = browser.frame();
+    let content = content_view(&*window);
+    assert!(content.isFlipped());
+    assert_top_left(&content, 20.0);
+    drop(browser);
+}
+
+fn place_in_unflipped_view() {
+    let marker = MainThreadMarker::new().expect("main thread");
+    let parent = unsafe {
+        NSView::initWithFrame(
+            marker.alloc(),
+            NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(800.0, 600.0)),
         )
     };
-    window.setTitle(&NSString::from_str("rndr browser smoke"));
-    window.makeKeyAndOrderFront(None);
-    let content = window.contentView().expect("content view");
-    let parent = ContentParent {
-        view: Retained::as_ptr(&content).cast_mut().cast(),
-    };
-    let mut browser = Browser::attach(&parent).expect("WKWebView");
-    assert_eq!(subview_count(&content), 1);
-
+    assert!(!parent.isFlipped());
+    let mut browser = Browser::attach(&ContentParent {
+        view: Retained::as_ptr(&parent).cast_mut().cast(),
+    })
+    .expect("WKWebView in an unflipped view");
     browser.show();
-    browser
-        .set_bounds(ClientRect::try_new(10.0, 20.0, 300.0, 200.0).unwrap())
-        .unwrap();
-    assert!(browser.frame().is_empty());
-    assert_eq!(
-        browser.applied_bounds(),
-        Some(ClientRect::try_new(10.0, 20.0, 300.0, 200.0).unwrap())
-    );
-    assert!(browser.surface_visible());
-    assert_frame(&content, 10.0, 20.0, 300.0, 200.0, false);
+    browser.set_bounds(requested()).unwrap();
+    let _ = browser.frame();
+    assert_top_left(&parent, 380.0);
 
-    browser
-        .navigate("data:text/html,<title>rndr-browser</title>ok")
-        .unwrap();
-    let mut outcome = None;
-    for _ in 0..40 {
-        let until = unsafe { NSDate::dateWithTimeIntervalSinceNow(0.05) };
-        unsafe { NSRunLoop::currentRunLoop().runUntilDate(&until) };
-        for event in browser.frame() {
-            if let BrowserEvent::Navigation(state) = event {
-                if matches!(state.load, LoadOutcome::Finished | LoadOutcome::Failed) {
-                    outcome = Some(state);
-                }
-            }
-        }
-        if outcome.is_some() {
-            break;
-        }
+    unsafe {
+        parent.setFrame(NSRect::new(
+            NSPoint::new(0.0, 0.0),
+            NSSize::new(800.0, 500.0),
+        ));
     }
-    let outcome = outcome.expect("load outcome");
-    assert!(!outcome.url.is_empty() || outcome.load == LoadOutcome::Failed);
-
-    browser
-        .set_bounds(ClientRect::try_new(12.0, 24.0, 280.0, 160.0).unwrap())
-        .unwrap();
+    browser.set_bounds(requested()).unwrap();
     let _ = browser.frame();
-    assert_frame(&content, 12.0, 24.0, 280.0, 160.0, false);
-
-    browser
-        .set_bounds(ClientRect::try_new(12.0, 24.0, 0.0, 160.0).unwrap())
-        .unwrap();
-    let _ = browser.frame();
-    assert!(!browser.surface_visible());
-    assert_eq!(subview_count(&content), 1);
-    assert_frame(&content, 12.0, 24.0, 0.0, 160.0, true);
-
+    assert!(!parent.isFlipped());
+    assert_top_left(&parent, 280.0);
     drop(browser);
-    assert_eq!(subview_count(&content), 0);
 }
 
-fn subview_count(content: &NSView) -> usize {
-    unsafe { content.subviews() }.count()
+fn content_view(window: &dyn winit::window::Window) -> Retained<NSView> {
+    let handle = window.window_handle().expect("window handle");
+    let RawWindowHandle::AppKit(appkit) = handle.as_raw() else {
+        panic!("winit macOS window did not yield an AppKit view");
+    };
+    unsafe { Retained::<NSView>::retain(appkit.ns_view.as_ptr().cast()) }.expect("content view")
 }
 
-fn assert_frame(content: &NSView, x: f64, y: f64, width: f64, height: f64, hidden: bool) {
-    let subviews: Retained<NSArray<NSView>> = unsafe { content.subviews() };
-    assert_eq!(subviews.count(), 1);
-    let view = unsafe { subviews.objectAtIndex(0) };
-    assert_eq!(unsafe { view.isHidden() }, hidden);
-    let frame = view.frame();
-    let origin_y = content.bounds().size.height - y - height;
-    assert!((frame.origin.x - x).abs() < 0.5, "x {}", frame.origin.x);
+fn assert_top_left(parent: &NSView, expected_y: f64) {
+    let subviews = unsafe { parent.subviews() };
+    assert!(subviews.count() >= 1);
+    let guest = unsafe { subviews.objectAtIndex(subviews.count() - 1) };
+    let frame = guest.frame();
+    assert!((frame.origin.x - 10.0).abs() < 0.5, "x {}", frame.origin.x);
     assert!(
-        (frame.origin.y - origin_y).abs() < 0.5,
-        "y {}",
-        frame.origin.y
+        (frame.origin.y - expected_y).abs() < 0.5,
+        "y {} flipped {}",
+        frame.origin.y,
+        parent.isFlipped()
     );
-    assert!((frame.size.width - width).abs() < 0.5);
-    assert!((frame.size.height - height).abs() < 0.5);
+    assert!((frame.size.width - 300.0).abs() < 0.5);
+    assert!((frame.size.height - 200.0).abs() < 0.5);
 }

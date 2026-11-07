@@ -26,11 +26,21 @@
 //! Bounds are logical points, origin at the top-left of the host client area.
 //! A non-finite or negative component is refused and does not replace a rect
 //! already submitted. A zero-area rect hides the surface on the next frame and
-//! keeps the view. The rect the host submits is applied on the next [`Browser::frame`].
+//! keeps the view. The rect the host submits is applied on the next [`Browser::frame`],
+//! in the parent view's own orientation. A flipped parent, including winit's
+//! content view, keeps that top-left. An unflipped parent measures from the bottom.
+//!
+//! Server-trust challenges use the system certificate check. No credential is
+//! installed, so an invalid certificate stays rejected. Other authentication
+//! methods are cancelled. [`Browser::frame`] also reads the view's current
+//! title, URL, and back/forward state, so a title that arrives after the load
+//! callback, or a same-document URL change, is reported without another navigation.
 
 #![deny(missing_docs)]
 
+mod auth;
 mod contract;
+mod geometry;
 mod session;
 
 #[cfg(target_os = "macos")]
