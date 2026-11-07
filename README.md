@@ -234,6 +234,14 @@ native-platform acceptance are different things:
   siblings. `Wrap` breaks a row onto lines. Children are still clipped to their
   parent's rect, so an absolute child cannot overflow it.
   `cargo run -p rndr --example layout_gallery -- out.png` renders a gallery.
+- **Grid, sticky and horizontal scroll:** `Grid` lays children out in `Track`
+  columns (`Px`, `Fr`, `Auto`) with column and row gaps, filling rows in order;
+  `GridSpan` takes several columns. `Sticky::top` / `Sticky::bottom` pin a child
+  to the nearest vertically scrolling `Scroll` ancestor until its parent scrolls
+  away, painting and hit-testing above in-flow siblings; with no such ancestor it
+  stays in place. A `Scroll` row clamps and scrolls on X independently of Y, and
+  Shift turns a vertical-only wheel horizontal. Scrollbars remain vertical only.
+  `cargo run -p rndr --example grid_scroll_gallery -- out.png` renders a gallery.
 - **Document editing:** source sessions and structured editing have explicit ownership
   and regression coverage. The structured editor remains experimental; native IME,
   clipboard and assistive-technology acceptance must be checked independently of

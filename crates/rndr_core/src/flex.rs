@@ -13,6 +13,7 @@ impl Component for MaxSize {}
 impl Component for AspectRatio {}
 impl Component for Absolute {}
 impl Component for Wrap {}
+impl Component for Sticky {}
 
 /// Placement of children along a container's stack axis.
 ///
@@ -182,11 +183,52 @@ pub struct Wrap {
     pub line_gap: f32,
 }
 
-/// Children in paint and hit-test order: in-flow children, then [`Absolute`]
-/// children, each group in child order.
+/// Pin a child to the nearest vertical [`crate::Scroll`] ancestor's top or
+/// bottom edge while its parent is in view, like CSS `position: sticky`.
+///
+/// Offsets are in points inward from the scroll port's edge. The child keeps
+/// its place in the stack and is pushed out by its parent's content box (inside
+/// the parent's padding) as the parent scrolls away. Ancestors that cannot
+/// scroll vertically are skipped; with none, the child stays in place.
+/// Sticky children paint and hit-test after in-flow siblings and before
+/// [`Absolute`] siblings.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Sticky {
+    /// Pin this far below the port's top edge.
+    pub top: Option<f32>,
+    /// Pin this far above the port's bottom edge.
+    pub bottom: Option<f32>,
+}
+
+impl Sticky {
+    /// Pin to the top edge at `inset`.
+    pub fn top(inset: f32) -> Self {
+        Self {
+            top: Some(inset),
+            bottom: None,
+        }
+    }
+
+    /// Pin to the bottom edge at `inset`.
+    pub fn bottom(inset: f32) -> Self {
+        Self {
+            top: None,
+            bottom: Some(inset),
+        }
+    }
+}
+
+/// Children in paint and hit-test order: in-flow children, then [`Sticky`],
+/// then [`Absolute`] children, each group in child order.
 pub fn paint_order(world: &World, entity: Entity) -> Vec<Entity> {
     let mut kids = children_of(world, entity);
-    kids.sort_by_key(|child| world.has::<Absolute>(*child));
+    kids.sort_by_key(|child| {
+        if world.has::<Absolute>(*child) {
+            2
+        } else {
+            u8::from(world.has::<Sticky>(*child))
+        }
+    });
     kids
 }
 

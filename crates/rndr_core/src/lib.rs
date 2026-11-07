@@ -100,6 +100,7 @@ mod flex;
 mod focus;
 mod font;
 mod fs;
+mod grid;
 mod hierarchy;
 pub mod hotkey;
 mod image_view;
@@ -204,7 +205,8 @@ pub use field::{
 };
 pub use file_drop::{FileDrop, FileHover, FileHoverCancel, FileHoverSet};
 pub use flex::{
-    paint_order, Absolute, Align, AlignSelf, AspectRatio, Items, Justify, MaxSize, Padding, Wrap,
+    paint_order, Absolute, Align, AlignSelf, AspectRatio, Items, Justify, MaxSize, Padding, Sticky,
+    Wrap,
 };
 pub use focus::{apply_focus, reveal_entity};
 pub use font::{
@@ -216,6 +218,7 @@ pub use fs::{
     apply_dirty_marks, apply_fs_edit, apply_fs_load, apply_fs_save, spawn_fs_node, DirEntry, Dirty,
     DirtyMark, Files, Fs, FsPath,
 };
+pub use grid::{Grid, GridSpan, Track};
 pub use hierarchy::{children_of, despawn, roots, set_parent, Children, Parent};
 pub use hotkey::{
     note_unregistered, GlobalHotkey, HotkeyBinding, HotkeyError, HotkeyHandle, HotkeyId,
