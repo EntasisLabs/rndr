@@ -32,6 +32,10 @@ type Callback = Arc<dyn Fn(Event) + Send + Sync>;
 /// `surface_offset` is [`winit::window::Window::surface_position`]: pixels
 /// from the window's outer origin to the client area, not a desktop point.
 /// The inner origin is the outer origin plus that offset.
+///
+/// The Linux adapter is the caller. Other platforms do not compile that
+/// adapter, so the helper exists there only for the shared arithmetic test.
+#[cfg(any(target_os = "linux", test))]
 pub(crate) fn desktop_inner_origin(outer: [f64; 2], surface_offset: [i32; 2]) -> [f64; 2] {
     [
         outer[0] + f64::from(surface_offset[0]),
