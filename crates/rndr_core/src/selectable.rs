@@ -120,8 +120,11 @@ struct SelectState {
 
 /// True when a press on `hit` belongs to its selectable label, so focus and
 /// activation policies must leave it alone whatever their system order.
-pub(crate) fn owns_press(world: &World, hit: Entity) -> bool {
-    world.has_resource::<SelectState>() && world.has::<Selectable>(hit) && world.has::<Label>(hit)
+pub(crate) fn owns_press(world: &World, button: PointerButton, hit: Entity) -> bool {
+    button == PointerButton::Left
+        && world.has_resource::<SelectState>()
+        && world.has::<Selectable>(hit)
+        && world.has::<Label>(hit)
 }
 
 /// Input system installed by [`SelectablePlugin`].

@@ -631,7 +631,7 @@ pub(crate) fn apply_generic_input(world: &mut World) {
     if !escape && input.pointer.pressed && input.pointer.button == PointerButton::Left {
         let p = input.pointer.press_at.unwrap_or(input.pointer.position);
         if let Some(hit) = crate::layout::hit_test(world, p[0], p[1])
-            .filter(|hit| !crate::selectable::owns_press(world, *hit))
+            .filter(|hit| !crate::selectable::owns_press(world, input.pointer.button, *hit))
         {
             let mut current = Some(hit);
             while let Some(entity) = current {

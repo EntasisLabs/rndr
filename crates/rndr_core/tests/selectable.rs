@@ -60,13 +60,24 @@ fn at(world: &World, label: Entity, byte: usize) -> [f32; 2] {
     ]
 }
 
-fn pointer(app: &mut App, [x, y]: [f32; 2], pressed: bool, down: bool, released: bool) {
+fn pointer(app: &mut App, at: [f32; 2], pressed: bool, down: bool, released: bool) {
+    pointer_with(app, PointerButton::Left, at, pressed, down, released);
+}
+
+fn pointer_with(
+    app: &mut App,
+    button: PointerButton,
+    [x, y]: [f32; 2],
+    pressed: bool,
+    down: bool,
+    released: bool,
+) {
     let input = app.world_mut().resource_mut::<Input>().unwrap();
     input.pointer.position = [x, y];
     input.pointer.pressed = pressed;
     input.pointer.down = down;
     input.pointer.released = released;
-    input.pointer.button = PointerButton::Left;
+    input.pointer.button = button;
     app.update();
 }
 
@@ -351,4 +362,19 @@ fn selectable_text_keeps_the_press_from_its_button() {
             "order {selectable_first}"
         );
     }
+}
+
+#[test]
+fn right_press_on_selectable_text_still_focuses_its_row() {
+    let (mut app, button, label) = button_with_selectable_text(true);
+    let point = at(app.world(), label, 6);
+    pointer_with(&mut app, PointerButton::Right, point, true, true, false);
+    pointer_with(&mut app, PointerButton::Right, point, false, false, true);
+    assert_eq!(
+        app.world()
+            .resource::<rndr_core::Focus>()
+            .and_then(|focus| focus.entity),
+        Some(button)
+    );
+    assert!(app.world().get::<Selectable>(label).unwrap().is_empty());
 }
