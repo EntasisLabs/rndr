@@ -15,6 +15,7 @@ members = [
     "crates/rndr_std",
     "crates/rndr_term",
     "crates/rndr_browser",
+    "crates/rndr_media",
     "examples/expand",
     "examples/idle",
     "examples/desktop",
@@ -58,6 +59,7 @@ rndr_term = { path = "crates/rndr_term", version = "0.4.0" }
 rndr_browser = { path = "crates/rndr_browser", version = "0.4.0" }
 rndr_ui = { path = "crates/rndr_ui", version = "0.4.0" }
 rndr_app = { path = "crates/rndr_app", version = "0.4.0" }
+rndr_media = { path = "crates/rndr_media", version = "0.4.0" }
 wgpu = "30"
 # 0.31.0-beta.4 is the newest published winit with client drag coordinates.
 # Stable remains 0.30.13, which reports paths only. accesskit_winit 0.34

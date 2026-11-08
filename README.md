@@ -307,6 +307,15 @@ native-platform acceptance are different things:
   and converts NV12 on the GPU; frames are copied from CPU memory, not imported
   zero-copy. `stats()` counts frames pushed and shown.
   `cargo run -p rndr_render --example frame_surface` animates frames from a thread.
+- **Video and audio playback:** with the `media` feature, `rndr::media::Player`
+  plays a file or URL through the platform player (GStreamer on Linux,
+  AVFoundation on macOS; other platforms report `PlayerState::Failed`). Video
+  decodes into the player's `FrameSurface`, so a `SurfaceView` shows it, with the
+  first frame shown before playback; audio clips play without a view. Controls are
+  play, pause, seek, rate, loop and mute; state, time, duration and video size are
+  readable, `position()` is a `Live<f32>`, and `set_waker` reports state changes.
+  Linux builds need the GStreamer development packages. See
+  [crates/rndr_media/README.md](crates/rndr_media/README.md).
 - **Text features and selectable labels:** `TextStyle` and `TextSpan` take OpenType
   `FontFeature`s (`FontFeature::on(b"tnum")`) and variable-font `FontAxis` values
   (`FontAxis::new(b"wght", 550.0)`), applied by the Parley shaper; a span's settings

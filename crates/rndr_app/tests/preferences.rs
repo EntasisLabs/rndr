@@ -16,6 +16,8 @@ fn store() -> Preferences {
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
+    // CI caches target/, and Windows reuses process ids across runs.
+    let _ = std::fs::remove_dir_all(&dir);
     Preferences::at(dir.join("prefs.json"))
 }
 #[test]

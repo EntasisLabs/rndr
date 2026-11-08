@@ -12,13 +12,15 @@
 # Uploaded, in order:
 #   rndr_core, rndr_paint, rndr_std, rndr_term, rndr_ui, rndr_app,
 #   rndr_liquid, rndr_chart, rndr_liquid_ui, rndr_canvas, rndr_canvas_ui,
-#   rndr_render, rndr_browser, rndr.
+#   rndr_render, rndr_media, rndr_browser, rndr.
 # rndr_term and rndr_ui depend on rndr_core, and each has a versioned
 # dev-dependency on rndr_paint. Cargo writes a lockfile for the packaged crate
 # and resolves that dev-dependency from crates.io, so rndr_paint is published
 # before either of them. rndr_app depends on rndr_core only. rndr_render depends
 # on rndr_core and rndr_paint. The facade depends on those crates, and its
 # optional ui feature and its dev-dependency both require rndr_ui.
+# rndr_media depends on rndr_core and has a versioned dev-dependency on
+# rndr_render, so it follows rndr_render.
 # rndr_liquid and rndr_canvas have no workspace dependencies. rndr_chart
 # depends on rndr_core, rndr_paint and (optionally) rndr_liquid. rndr_liquid_ui
 # depends on those three and rndr_ui; rndr_canvas_ui on rndr_canvas, rndr_core,
@@ -75,14 +77,14 @@ if [[ "$dry_run" -eq 0 && -z "${CARGO_REGISTRY_TOKEN:-}" ]]; then
     exit 1
 fi
 
-CRATES=(rndr_core rndr_paint rndr_std rndr_term rndr_ui rndr_app rndr_liquid rndr_chart rndr_liquid_ui rndr_canvas rndr_canvas_ui rndr_render rndr_browser rndr)
+CRATES=(rndr_core rndr_paint rndr_std rndr_term rndr_ui rndr_app rndr_liquid rndr_chart rndr_liquid_ui rndr_canvas rndr_canvas_ui rndr_render rndr_media rndr_browser rndr)
 
 declare -A VERSIONS=()
 while IFS=$'\t' read -r name version; do
     VERSIONS["$name"]="$version"
 done < <(cargo metadata --format-version 1 --no-deps | python3 -c '
 import json, sys
-wanted = {"rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_ui", "rndr_app", "rndr_liquid", "rndr_chart", "rndr_liquid_ui", "rndr_canvas", "rndr_canvas_ui", "rndr_render", "rndr_browser", "rndr"}
+wanted = {"rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_ui", "rndr_app", "rndr_liquid", "rndr_chart", "rndr_liquid_ui", "rndr_canvas", "rndr_canvas_ui", "rndr_render", "rndr_media", "rndr_browser", "rndr"}
 meta = json.load(sys.stdin)
 for package in meta["packages"]:
     if package["name"] in wanted:
@@ -120,15 +122,17 @@ workspace_deps() {
     # rndr_paint is a versioned dev-dependency. The packaged lockfile resolves it.
     rndr_term | rndr_ui) echo rndr_core rndr_paint ;;
     rndr_render) echo rndr_core rndr_paint ;;
+    # rndr_render is a versioned dev-dependency.
+    rndr_media) echo rndr_core rndr_render ;;
     rndr_liquid | rndr_canvas) ;;
     rndr_chart) echo rndr_core rndr_paint rndr_liquid ;;
     rndr_liquid_ui) echo rndr_core rndr_paint rndr_ui rndr_liquid rndr_chart ;;
     rndr_canvas_ui) echo rndr_core rndr_paint rndr_ui rndr_canvas ;;
     # No workspace crates. objc2 and WebKit resolve from crates.io.
     rndr_browser) ;;
-    # Optional ui, term, browser, chart, liquid and canvas, and the rndr_ui
+    # Optional ui, term, browser, media, chart, liquid and canvas, and the rndr_ui
     # dev-dependency. Optional dependencies stay in the manifest when off.
-    rndr) echo rndr_core rndr_paint rndr_std rndr_term rndr_ui rndr_render rndr_browser rndr_liquid rndr_chart rndr_liquid_ui rndr_canvas rndr_canvas_ui ;;
+    rndr) echo rndr_core rndr_paint rndr_std rndr_term rndr_ui rndr_render rndr_media rndr_browser rndr_liquid rndr_chart rndr_liquid_ui rndr_canvas rndr_canvas_ui ;;
     *)
         echo "unknown crate: $1" >&2
         return 1
@@ -163,7 +167,7 @@ wait_for_index() {
 }
 
 if [[ "$dry_run" -eq 1 ]]; then
-    echo "packaging the fourteen publishable crates without uploading"
+    echo "packaging the fifteen publishable crates without uploading"
     cargo package --workspace --locked --no-verify \
         --exclude desktop --exclude source-session \
         --exclude expand --exclude idle --exclude overlay --exclude palette --exclude terminal --exclude stream \
@@ -208,13 +212,13 @@ forbidden_prefixes = (
     "expand-", "idle-", "overlay-", "palette-", "terminal-", "stream-",
     "two-windows-", "pen-probe-", "canvas-scene-", "create-view-", "chart-gallery-", "liquid-view-", "canvas-editor-", "web-hello-",
 )
-workspace = ("rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_ui", "rndr_app", "rndr_liquid", "rndr_chart", "rndr_liquid_ui", "rndr_canvas", "rndr_canvas_ui", "rndr_render", "rndr_browser", "rndr")
+workspace = ("rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_ui", "rndr_app", "rndr_liquid", "rndr_chart", "rndr_liquid_ui", "rndr_canvas", "rndr_canvas_ui", "rndr_render", "rndr_media", "rndr_browser", "rndr")
 licenses = {"rndr_paint": "MIT AND OFL-1.1", "rndr_render": "MIT AND OFL-1.1"}
 found = sorted(path.name for path in root.glob("*.crate"))
 for name in found:
     if name.startswith(forbidden_prefixes):
         sys.exit(f"unpublished crate was packaged: {name}")
-expected = ("rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_ui", "rndr_app", "rndr_liquid", "rndr_chart", "rndr_liquid_ui", "rndr_canvas", "rndr_canvas_ui", "rndr_render", "rndr_browser", "rndr")
+expected = ("rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_ui", "rndr_app", "rndr_liquid", "rndr_chart", "rndr_liquid_ui", "rndr_canvas", "rndr_canvas_ui", "rndr_render", "rndr_media", "rndr_browser", "rndr")
 for name in expected:
     matches = [item for item in found if item.startswith(name + "-")]
     if len(matches) != 1:
@@ -246,6 +250,10 @@ for name in expected:
             sys.exit("browser became a default feature")
         if features.get("browser") != ["dep:rndr_browser"]:
             sys.exit(f"browser feature changed: {features.get('browser')!r}")
+        if "media" in features.get("default", []):
+            sys.exit("media became a default feature")
+        if features.get("media") != ["dep:rndr_media"]:
+            sys.exit(f"media feature changed: {features.get('media')!r}")
         for feature in ("chart", "liquid", "canvas"):
             if feature not in features or feature in features.get("default", []):
                 sys.exit(f"{feature} must be an optional, non-default feature")
