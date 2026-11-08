@@ -119,7 +119,13 @@ pub fn open_popup(world: &mut World, root: Entity) -> bool {
     reveal_entity(world, p.anchor);
     world.insert(root, FocusOwner(p.anchor));
     world.insert(root, Layer(layer.saturating_add(1)));
-    world.insert(root, Modal);
+    // The outermost popup's Modal already blocks the app; a nested one leaves
+    // its parent popups interactive.
+    if parent_popup(world, root).is_some_and(|p| open(world, p)) {
+        world.remove::<Modal>(root);
+    } else {
+        world.insert(root, Modal);
+    }
     world.remove::<Hidden>(root);
     cancel_activation(world);
     true
