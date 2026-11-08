@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/rndr",
     "crates/rndr_core",
+    "crates/rndr_liquid",
     "crates/rndr_app",
     "crates/rndr_ui",
     "crates/rndr_paint",
@@ -38,6 +39,7 @@ rust-version = "1.95"
 [workspace.dependencies]
 rndr = { path = "crates/rndr", version = "0.4.0" }
 rndr_core = { path = "crates/rndr_core", version = "0.4.0" }
+rndr_liquid = { path = "crates/rndr_liquid", version = "0.4.0" }
 rndr_paint = { path = "crates/rndr_paint", version = "0.4.0" }
 rndr_render = { path = "crates/rndr_render", version = "0.4.0" }
 rndr_std = { path = "crates/rndr_std", version = "0.4.0" }
