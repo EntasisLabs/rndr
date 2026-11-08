@@ -296,6 +296,8 @@ fn named_key(event: &KeyEvent, mode: EncodeMode) -> Option<Vec<u8>> {
         NamedKey::PageDown => tilde(6, param),
         NamedKey::Space => prefixed(mods.alt, vec![b' ']),
         NamedKey::F(n) => function_key(n, param)?,
+        // Terminals have no common encoding for the Menu key.
+        NamedKey::ContextMenu => return None,
     };
     Some(bytes)
 }
