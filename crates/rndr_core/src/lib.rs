@@ -282,7 +282,7 @@ pub use runtime::{
 };
 pub use shell::Shell;
 pub use sim::Sim;
-pub use slot::SurfaceSlot;
+pub use slot::{effects_animating, EffectSlot, SurfaceSlot};
 pub use split::{apply_split, Drag, Splitter};
 pub use style::{
     label_box, Body, Border, Color, CrossMark, Label, LabelBox, ScrollIndicator, TextOverflow,

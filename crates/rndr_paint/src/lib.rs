@@ -57,8 +57,8 @@ use std::cell::RefCell;
 
 pub use affine::{bucket_scale, size_bucket, zoom_bucket, Affine, OUTLINE_PX};
 pub use display::{
-    Canvas, CanvasPainter, CanvasRegistry, ClipShape, Effect, FillStyle, GlyphOp, GlyphSprite,
-    ImageOp, Op, PathOp, Placed, Scene, SceneLayer, StrokeStyle, TextSource,
+    Canvas, CanvasPainter, CanvasRegistry, ClipShape, Effect, EffectSlotOp, FillStyle, GlyphOp,
+    GlyphSprite, ImageOp, Op, PathOp, Placed, Scene, SceneLayer, StrokeStyle, TextSource,
 };
 pub use font::{atlas_r8, glyph_uv, solid_uv, ATLAS_H, ATLAS_W};
 pub use latin::LatinFace;
@@ -721,6 +721,13 @@ fn walk_entity(
         }
         return;
     }
+    if world.has::<rndr_core::EffectSlot>(entity) {
+        record_effect(world, entity, quads, draws);
+        for child in rndr_core::paint_order(world, entity) {
+            walk(world, child, quads, draws, scale, solid, theme);
+        }
+        return;
+    }
     record_image(world, entity, quads, draws);
     if world.has::<MonoGrid>(entity) {
         paint_mono(world, entity, &mut quads.borrow_mut(), scale, solid, theme);
@@ -1127,6 +1134,40 @@ fn record_canvas(
     for op in canvas.finish_clipped(rect) {
         draws.borrow_mut().push(Placed { z, op });
     }
+}
+
+fn record_effect(
+    world: &World,
+    entity: rndr_core::Entity,
+    quads: &RefCell<Vec<Quad>>,
+    draws: &RefCell<Vec<Placed>>,
+) {
+    let Some(slot) = world.get::<rndr_core::EffectSlot>(entity).copied() else {
+        return;
+    };
+    let Some(rect) = world.get::<Rect>(entity).copied() else {
+        return;
+    };
+    let clip = world
+        .get::<Parent>(entity)
+        .and_then(|parent| world.get::<Clip>(parent.entity))
+        .map(|clip| Rect {
+            x: clip.x,
+            y: clip.y,
+            w: clip.w,
+            h: clip.h,
+        });
+    let z = quads.borrow().len() as u32;
+    draws.borrow_mut().push(Placed {
+        z,
+        op: Op::EffectSlot(EffectSlotOp {
+            id: slot.id,
+            rect,
+            clip,
+            data: slot.data,
+            backdrop: slot.backdrop,
+        }),
+    });
 }
 
 fn record_image(

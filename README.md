@@ -242,6 +242,18 @@ native-platform acceptance are different things:
   stays in place. A `Scroll` row clamps and scrolls on X independently of Y, and
   Shift turns a vertical-only wheel horizontal. Scrollbars remain vertical only.
   `cargo run -p rndr --example grid_scroll_gallery -- out.png` renders a gallery.
+- **GPU effects:** an `EffectSlot { id, data, backdrop, animated }` entity marks a
+  laid-out box that an app-registered `GpuEffect` (in the `GpuEffects` resource)
+  draws with wgpu, at the slot's place in paint order. The effect gets the device,
+  queue, frame encoder, slot pixel rect, parent clip, scale, target format, sample
+  count, frame time and four floats of data. Inside a faded or transformed group it
+  draws into the group's layer, so the group's opacity and transform apply. With
+  `backdrop` it also gets a copy of everything drawn before it in its target; inside
+  a group that is only the group's own layer. `animated` keeps frames coming while
+  the slot is shown. Each slot closes and reopens the current render pass, and a
+  backdrop copies the whole target, so many slots per frame cost passes and copies.
+  Native backdrops need a surface that allows copies; otherwise `backdrop()` is `None`.
+  `cargo run -p rndr --example effect_gallery -- out.png` renders a glow and a frosted panel.
 - **Document editing:** source sessions and structured editing have explicit ownership
   and regression coverage. The structured editor remains experimental; native IME,
   clipboard and assistive-technology acceptance must be checked independently of

@@ -411,6 +411,14 @@ impl Gpu {
             .get_default_config(&adapter, width, height)
             .expect("surface config");
         config.present_mode = wgpu::PresentMode::AutoVsync;
+        // Effect backdrops copy the frame drawn so far.
+        if surface
+            .get_capabilities(&adapter)
+            .usages
+            .contains(wgpu::TextureUsages::COPY_SRC)
+        {
+            config.usage |= wgpu::TextureUsages::COPY_SRC;
+        }
         #[cfg(feature = "observe")]
         if observe
             && surface
@@ -1054,6 +1062,7 @@ impl Gpu {
         let uploaded = self.scene.render(
             &mut encoder,
             &view,
+            Some(&texture.texture),
             frame,
             images,
             budget,

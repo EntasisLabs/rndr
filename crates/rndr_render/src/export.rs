@@ -284,6 +284,7 @@ impl Exporter {
         gpu.scene.render(
             &mut encoder,
             &view,
+            Some(&texture),
             frame,
             images,
             budget,

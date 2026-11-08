@@ -220,3 +220,20 @@ fn hit_testing_follows_the_animated_transform() {
     assert_eq!(rndr_core::hit_test(sim.world(), 110.0, 10.0), Some(card));
     assert_eq!(rndr_core::hit_test(sim.world(), 10.0, 10.0), Some(root));
 }
+
+#[test]
+fn animated_effect_slots_keep_frames_coming_while_shown() {
+    let mut app = rndr_core::App::new();
+    let slot = app
+        .world_mut()
+        .spawn((rndr_core::Layout::row(), rndr_core::EffectSlot::new(1)));
+    app.update();
+    assert!(!rndr_core::effects_animating(app.world()));
+    app.world_mut()
+        .insert(slot, rndr_core::EffectSlot::new(1).animated());
+    app.update();
+    assert!(rndr_core::effects_animating(app.world()));
+    assert!(app.wants_frame());
+    app.world_mut().insert(slot, rndr_core::Hidden);
+    assert!(!rndr_core::effects_animating(app.world()));
+}

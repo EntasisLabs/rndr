@@ -24,6 +24,7 @@ use rndr_paint::{
 
 use crate::color::color_for_surface;
 use crate::decode::{downsample, mip_chain};
+use crate::effect::{EffectContext, EffectSite, GpuEffects};
 use crate::gpu::{self, INSTANCE_STRIDE};
 use crate::images::CpuImage;
 
@@ -240,6 +241,7 @@ struct PipeSet {
 #[derive(Clone)]
 struct TargetUse {
     samples: u32,
+    texture: wgpu::Texture,
     color: wgpu::TextureView,
     msaa: Option<wgpu::TextureView>,
     stencil: wgpu::TextureView,
@@ -250,6 +252,7 @@ struct PoolSlot {
     width: u32,
     height: u32,
     samples: u32,
+    color_texture: wgpu::Texture,
     color_view: wgpu::TextureView,
     msaa_view: Option<wgpu::TextureView>,
     stencil_view: wgpu::TextureView,
@@ -310,6 +313,26 @@ enum Drawn {
         end: u32,
         extent: Option<[f32; 4]>,
     },
+    Effect(EffectDraw),
+}
+
+/// An [`Op::EffectSlot`] in target pixels.
+#[derive(Clone, Copy)]
+struct EffectDraw {
+    id: u64,
+    data: [f32; 4],
+    rect: [f32; 4],
+    clip: [u32; 4],
+    backdrop: bool,
+}
+
+/// What [`SceneGpu::execute`] needs to call app effects.
+struct EffectEnv<'a> {
+    effects: Option<&'a GpuEffects>,
+    root: Option<&'a wgpu::Texture>,
+    size: [u32; 2],
+    scale: f32,
+    time: f32,
 }
 
 #[derive(Clone)]
@@ -324,6 +347,7 @@ enum Cmd {
         bind: wgpu::BindGroup,
     },
     Quads(u32, u32),
+    Effect(EffectDraw),
 }
 
 struct GeomPass {
@@ -350,6 +374,7 @@ enum Pass {
 
 enum RootCmd {
     Quads(u32, u32),
+    Effect(EffectDraw),
     Sprite {
         offset: u64,
         verts: u32,
@@ -625,6 +650,7 @@ impl SceneGpu {
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
         target: &wgpu::TextureView,
+        target_texture: Option<&wgpu::Texture>,
         frame: &Frame,
         images: &[(u64, CpuImage)],
         budget: u64,
@@ -708,7 +734,16 @@ impl SceneGpu {
             &quad_bytes,
             "quads",
         );
-        self.execute(encoder, &plan, target, &quad_bind, clear);
+        let env = EffectEnv {
+            effects: world.and_then(|world| world.resource::<GpuEffects>()),
+            root: target_texture,
+            size: [width.max(1), height.max(1)],
+            scale: plan.quad_scale,
+            time: world
+                .and_then(|world| world.resource::<rndr_core::Time>())
+                .map_or(0.0, |time| time.now.as_secs_f32()),
+        };
+        self.execute(encoder, &plan, target, &quad_bind, clear, &env);
         self.uploaded.clone()
     }
 
@@ -793,6 +828,10 @@ impl SceneGpu {
                 Drawn::Quads { start, end, .. } => {
                     self.flush_paths(plan, &mut batch, width, height, scale);
                     plan.root.push(RootCmd::Quads(start, end));
+                }
+                Drawn::Effect(effect) => {
+                    self.flush_paths(plan, &mut batch, width, height, scale);
+                    plan.root.push(RootCmd::Effect(effect));
                 }
             }
         }
@@ -895,6 +934,12 @@ impl SceneGpu {
                             .into_iter()
                             .map(Drawn::Sprite),
                     );
+                    index += 1;
+                }
+                Op::EffectSlot(slot) => {
+                    if let Some(effect) = effect_draw(slot, scale, width, height) {
+                        out.push(Drawn::Effect(effect));
+                    }
                     index += 1;
                 }
                 Op::Quads(quads) => {
@@ -1429,14 +1474,76 @@ impl SceneGpu {
         target: &wgpu::TextureView,
         quad_bind: &wgpu::BindGroup,
         clear: wgpu::Color,
+        env: &EffectEnv<'_>,
     ) {
         for pass in &plan.passes {
             match pass {
-                Pass::Geom(geom) => self.run_geom(encoder, geom, quad_bind),
+                Pass::Geom(geom) => self.run_geom(encoder, geom, quad_bind, env),
                 Pass::Blur(job) => self.run_blur(encoder, job),
             }
         }
-        self.run_root(encoder, plan, target, quad_bind, clear);
+        self.run_root(encoder, plan, target, quad_bind, clear, env);
+    }
+
+    /// Call the app effect for `effect` on a target whose pass is closed.
+    #[allow(clippy::too_many_arguments)]
+    fn run_effect(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        env: &EffectEnv<'_>,
+        effect: &EffectDraw,
+        view: &wgpu::TextureView,
+        resolve: Option<&wgpu::TextureView>,
+        texture: Option<&wgpu::Texture>,
+        samples: u32,
+        in_layer: bool,
+    ) {
+        let Some(effects) = env.effects.filter(|effects| effects.contains(effect.id)) else {
+            return;
+        };
+        let backdrop = texture
+            .filter(|_| effect.backdrop)
+            .filter(|texture| texture.usage().contains(wgpu::TextureUsages::COPY_SRC))
+            .map(|texture| {
+                let copy = self.device.create_texture(&wgpu::TextureDescriptor {
+                    label: Some("effect-backdrop"),
+                    size: texture.size(),
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: texture.format(),
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                    view_formats: &[],
+                });
+                encoder.copy_texture_to_texture(
+                    texture.as_image_copy(),
+                    copy.as_image_copy(),
+                    texture.size(),
+                );
+                copy.create_view(&wgpu::TextureViewDescriptor::default())
+            });
+        let format = texture.map_or(self.format, |texture| texture.format());
+        let mut cx = EffectContext {
+            device: &self.device,
+            queue: &self.queue,
+            encoder,
+            site: EffectSite {
+                id: effect.id,
+                data: effect.data,
+                rect: effect.rect,
+                clip: effect.clip,
+                scale: env.scale,
+                size: env.size,
+                format,
+                samples,
+                in_layer,
+                time: env.time,
+            },
+            target: view,
+            resolve,
+            backdrop: backdrop.as_ref(),
+        };
+        effects.run(effect.id, &mut cx);
     }
 
     fn run_geom(
@@ -1444,6 +1551,7 @@ impl SceneGpu {
         encoder: &mut wgpu::CommandEncoder,
         pass: &GeomPass,
         quad_bind: &wgpu::BindGroup,
+        env: &EffectEnv<'_>,
     ) {
         if let Some(viewport) = &pass.viewport {
             encoder.copy_buffer_to_buffer(viewport, 0, &self.uniform, 0, 16);
@@ -1456,7 +1564,11 @@ impl SceneGpu {
         let color_view = pass.target.msaa.as_ref().unwrap_or(&pass.target.color);
         let resolve = pass.target.msaa.as_ref().map(|_| &pass.target.color);
         let path_bind = self.path_bind();
-        {
+        let mut at = 0;
+        let mut first = true;
+        loop {
+            // An effect closes the pass; the next segment keeps the colour
+            // and redraws the clip stencil.
             let mut render = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("layer"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -1464,7 +1576,11 @@ impl SceneGpu {
                     depth_slice: None,
                     resolve_target: resolve,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        load: if first {
+                            wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT)
+                        } else {
+                            wgpu::LoadOp::Load
+                        },
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -1480,6 +1596,7 @@ impl SceneGpu {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
+            first = false;
             if let Some((x, y, w, h)) = pass.scissor {
                 render.set_scissor_rect(x, y, w, h);
             }
@@ -1492,8 +1609,9 @@ impl SceneGpu {
                 render.draw(0..pass.clip_verts, 0..1);
             }
             let inside = pass.clip_offset.is_some();
-            for cmd in &pass.cmds {
+            while let Some(cmd) = pass.cmds.get(at) {
                 match cmd {
+                    Cmd::Effect(_) => break,
                     Cmd::Paths { offset, verts } if *verts > 0 => {
                         render.set_pipeline(if inside { &pipes.path_in } else { &pipes.path });
                         render.set_stencil_reference(1);
@@ -1528,6 +1646,28 @@ impl SceneGpu {
                     }
                     _ => {}
                 }
+                at += 1;
+            }
+            drop(render);
+            let Some(Cmd::Effect(effect)) = pass.cmds.get(at) else {
+                break;
+            };
+            // A shadow replay moves the layer; its effects stay out of it.
+            if pass.viewport.is_none() {
+                self.run_effect(
+                    encoder,
+                    env,
+                    effect,
+                    color_view,
+                    resolve,
+                    Some(&pass.target.texture),
+                    pass.target.samples,
+                    true,
+                );
+            }
+            at += 1;
+            if at >= pass.cmds.len() {
+                break;
             }
         }
         if pass.viewport.is_some() {
@@ -1565,44 +1705,65 @@ impl SceneGpu {
         target: &wgpu::TextureView,
         quad_bind: &wgpu::BindGroup,
         clear: wgpu::Color,
+        env: &EffectEnv<'_>,
     ) {
-        let mut render = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("root"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: target,
-                depth_slice: None,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(clear),
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: None,
-            timestamp_writes: None,
-            occlusion_query_set: None,
-            multiview_mask: None,
-        });
-        for cmd in &plan.root {
-            match cmd {
-                RootCmd::Quads(start, end) if end > start => {
-                    render.set_pipeline(&self.quad_pipeline);
-                    render.set_bind_group(0, quad_bind, &[]);
-                    render.set_vertex_buffer(0, self.quad_geo.slice(..));
-                    render.set_vertex_buffer(1, self.quad_buffer.slice(..));
-                    render.draw(0..4, *start..*end);
+        let mut at = 0;
+        let mut first = true;
+        loop {
+            let mut render = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("root"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: target,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: if first {
+                            wgpu::LoadOp::Clear(clear)
+                        } else {
+                            wgpu::LoadOp::Load
+                        },
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            first = false;
+            while let Some(cmd) = plan.root.get(at) {
+                match cmd {
+                    RootCmd::Effect(_) => break,
+                    RootCmd::Quads(start, end) if end > start => {
+                        render.set_pipeline(&self.quad_pipeline);
+                        render.set_bind_group(0, quad_bind, &[]);
+                        render.set_vertex_buffer(0, self.quad_geo.slice(..));
+                        render.set_vertex_buffer(1, self.quad_buffer.slice(..));
+                        render.draw(0..4, *start..*end);
+                    }
+                    RootCmd::Sprite {
+                        offset,
+                        verts,
+                        bind,
+                    } if *verts > 0 => {
+                        render.set_pipeline(&self.sprite_swap);
+                        render.set_bind_group(0, bind, &[]);
+                        let end = *offset + *verts as u64 * SPRITE_STRIDE as u64;
+                        render.set_vertex_buffer(0, self.sprite_buffer.slice(*offset..end));
+                        render.draw(0..*verts, 0..1);
+                    }
+                    _ => {}
                 }
-                RootCmd::Sprite {
-                    offset,
-                    verts,
-                    bind,
-                } if *verts > 0 => {
-                    render.set_pipeline(&self.sprite_swap);
-                    render.set_bind_group(0, bind, &[]);
-                    let end = *offset + *verts as u64 * SPRITE_STRIDE as u64;
-                    render.set_vertex_buffer(0, self.sprite_buffer.slice(*offset..end));
-                    render.draw(0..*verts, 0..1);
-                }
-                _ => {}
+                at += 1;
+            }
+            drop(render);
+            let Some(RootCmd::Effect(effect)) = plan.root.get(at) else {
+                break;
+            };
+            self.run_effect(encoder, env, effect, target, None, env.root, 1, false);
+            at += 1;
+            if at >= plan.root.len() {
+                break;
             }
         }
     }
@@ -1815,6 +1976,7 @@ impl SceneGpu {
         let stencil_view = stencil.create_view(&wgpu::TextureViewDescriptor::default());
         let sampler = self.image_sampler.clone();
         let bind = self.sprite_bind(&color_view, &sampler);
+        let color_texture = color.clone();
         let mut keep = vec![color, stencil];
         if let Some(msaa) = msaa {
             keep.push(msaa);
@@ -1823,6 +1985,7 @@ impl SceneGpu {
             width,
             height,
             samples,
+            color_texture,
             color_view,
             msaa_view,
             stencil_view,
@@ -1966,6 +2129,7 @@ impl PoolSlot {
     fn to_use(&self) -> TargetUse {
         TargetUse {
             samples: self.samples,
+            texture: self.color_texture.clone(),
             color: self.color_view.clone(),
             msaa: self.msaa_view.clone(),
             stencil: self.stencil_view.clone(),
@@ -1978,6 +2142,35 @@ fn plan_color_view(plan: &Plan) -> Option<wgpu::TextureView> {
     plan.passes.iter().rev().find_map(|pass| match pass {
         Pass::Geom(geom) => Some(geom.target.color.clone()),
         Pass::Blur(_) => None,
+    })
+}
+
+/// `slot` in target pixels, or `None` when its clip is empty or off target.
+fn effect_draw(
+    slot: &rndr_paint::EffectSlotOp,
+    scale: f32,
+    width: u32,
+    height: u32,
+) -> Option<EffectDraw> {
+    let full = rndr_core::Rect {
+        x: 0.0,
+        y: 0.0,
+        w: width as f32 / scale,
+        h: height as f32 / scale,
+    };
+    let (x, y, w, h) = scissor_px(slot.clip.unwrap_or(full), scale, width, height)?;
+    let rect = slot.rect;
+    Some(EffectDraw {
+        id: slot.id,
+        data: slot.data,
+        rect: [
+            rect.x * scale,
+            rect.y * scale,
+            rect.w * scale,
+            rect.h * scale,
+        ],
+        clip: [x, y, w, h],
+        backdrop: slot.backdrop,
     })
 }
 
@@ -2017,6 +2210,10 @@ fn pack_cmds(plan: &mut Plan, drawn: Vec<Drawn>, width: u32, height: u32) -> Vec
             Drawn::Quads { start, end, .. } => {
                 flush_paths_acc(plan, &mut acc, &mut cmds);
                 cmds.push(Cmd::Quads(start, end));
+            }
+            Drawn::Effect(effect) => {
+                flush_paths_acc(plan, &mut acc, &mut cmds);
+                cmds.push(Cmd::Effect(effect));
             }
         }
     }
@@ -2430,6 +2627,10 @@ fn content_extent(drawn: &[Drawn]) -> Option<[f32; 4]> {
                     union_box(&mut acc, extent);
                 }
             }
+            Drawn::Effect(effect) => {
+                let [x, y, w, h] = effect.clip.map(|v| v as f32);
+                union_box(&mut acc, [x, y, x + w, y + h]);
+            }
         }
     }
     acc
@@ -2591,6 +2792,7 @@ fn retarget_shadow_cmds(plan: &mut Plan, cmds: &[Cmd], origin: [f32; 2]) -> Vec<
                 }
                 Cmd::Quads(new_start, plan.quad_base + plan.quads.len() as u32)
             }
+            Cmd::Effect(effect) => Cmd::Effect(*effect),
         })
         .collect()
 }
