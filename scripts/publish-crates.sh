@@ -116,11 +116,14 @@ workspace_deps() {
     # rndr_paint is a versioned dev-dependency. The packaged lockfile resolves it.
     rndr_term | rndr_ui) echo rndr_core rndr_paint ;;
     rndr_render) echo rndr_core rndr_paint ;;
+    # rndr_render is a versioned dev-dependency.
+    rndr_media) echo rndr_core rndr_render ;;
     # No workspace crates. objc2 and WebKit resolve from crates.io.
     rndr_browser) ;;
-    # Optional ui, optional term, optional browser, and the rndr_ui dev-dependency.
-    # browser stays in the manifest when the feature is off.
-    rndr) echo rndr_core rndr_paint rndr_std rndr_term rndr_ui rndr_render rndr_browser ;;
+    # Optional ui, optional term, optional browser, optional media, and the
+    # rndr_ui dev-dependency. browser and media stay in the manifest when their
+    # features are off.
+    rndr) echo rndr_core rndr_paint rndr_std rndr_term rndr_ui rndr_render rndr_media rndr_browser ;;
     *)
         echo "unknown crate: $1" >&2
         return 1
@@ -155,7 +158,7 @@ wait_for_index() {
 }
 
 if [[ "$dry_run" -eq 1 ]]; then
-    echo "packaging the eight publishable crates without uploading"
+    echo "packaging the publishable crates without uploading"
     cargo package --workspace --locked --no-verify \
         --exclude desktop --exclude source-session \
         --exclude expand --exclude idle --exclude overlay --exclude palette --exclude terminal --exclude stream \
@@ -200,13 +203,13 @@ forbidden_prefixes = (
     "expand-", "idle-", "overlay-", "palette-", "terminal-", "stream-",
     "two-windows-", "pen-probe-", "canvas-scene-", "create-view-", "web-hello-",
 )
-workspace = ("rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_ui", "rndr_app", "rndr_render", "rndr_browser", "rndr")
+workspace = ("rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_ui", "rndr_app", "rndr_render", "rndr_media", "rndr_browser", "rndr")
 licenses = {"rndr_paint": "MIT AND OFL-1.1", "rndr_render": "MIT AND OFL-1.1"}
 found = sorted(path.name for path in root.glob("*.crate"))
 for name in found:
     if name.startswith(forbidden_prefixes):
         sys.exit(f"unpublished crate was packaged: {name}")
-expected = ("rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_ui", "rndr_app", "rndr_render", "rndr_browser", "rndr")
+expected = ("rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_ui", "rndr_app", "rndr_render", "rndr_media", "rndr_browser", "rndr")
 for name in expected:
     matches = [item for item in found if item.startswith(name + "-")]
     if len(matches) != 1:
@@ -238,6 +241,10 @@ for name in expected:
             sys.exit("browser became a default feature")
         if features.get("browser") != ["dep:rndr_browser"]:
             sys.exit(f"browser feature changed: {features.get('browser')!r}")
+        if "media" in features.get("default", []):
+            sys.exit("media became a default feature")
+        if features.get("media") != ["dep:rndr_media"]:
+            sys.exit(f"media feature changed: {features.get('media')!r}")
     for table_name in ("dependencies", "dev-dependencies"):
         for dep_name, spec in manifest.get(table_name, {}).items():
             if dep_name not in workspace or not isinstance(spec, dict):
