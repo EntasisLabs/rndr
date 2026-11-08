@@ -162,7 +162,7 @@ if [[ "$dry_run" -eq 1 ]]; then
     cargo package --workspace --locked --no-verify \
         --exclude desktop --exclude source-session \
         --exclude expand --exclude idle --exclude overlay --exclude palette --exclude terminal --exclude stream \
-        --exclude two-windows --exclude pen-probe --exclude canvas-scene --exclude create-view --exclude web-hello
+        --exclude two-windows --exclude pen-probe --exclude canvas-scene --exclude create-view --exclude chart-gallery --exclude liquid-view --exclude web-hello
 fi
 
 for index in "${!CRATES[@]}"; do
@@ -201,7 +201,7 @@ root = pathlib.Path("target/package")
 forbidden_prefixes = (
     "desktop-", "source-session-",
     "expand-", "idle-", "overlay-", "palette-", "terminal-", "stream-",
-    "two-windows-", "pen-probe-", "canvas-scene-", "create-view-", "web-hello-",
+    "two-windows-", "pen-probe-", "canvas-scene-", "create-view-", "chart-gallery-", "liquid-view-", "web-hello-",
 )
 workspace = ("rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_ui", "rndr_app", "rndr_render", "rndr_media", "rndr_browser", "rndr")
 licenses = {"rndr_paint": "MIT AND OFL-1.1", "rndr_render": "MIT AND OFL-1.1"}

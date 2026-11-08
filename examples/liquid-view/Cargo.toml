@@ -1,0 +1,14 @@
+[package]
+name = "liquid-view"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Liquid Markdown rendered natively with rndr_liquid_ui, or exported to PNG"
+publish = false
+
+[dependencies]
+rndr_core = { workspace = true }
+rndr_liquid_ui = { workspace = true }
+rndr_paint = { workspace = true }
+rndr_render = { workspace = true }
+rndr_ui = { workspace = true }
