@@ -1152,10 +1152,7 @@ fn paste_rich(world: &mut World, entity: Entity, html: &str) -> bool {
     if doc.is_readonly() || doc.text_selection().is_none() {
         return false;
     }
-    match doc.paste_html(html, EditOrigin::Keyboard) {
-        Ok(_) => true,
-        Err(_) => false,
-    }
+    doc.paste_html(html, EditOrigin::Keyboard).is_ok()
 }
 pub(crate) fn edit_focused(world: &mut World, entity: Entity) {
     let Some(input) = world.resource::<Input>() else {
