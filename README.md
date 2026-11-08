@@ -189,6 +189,9 @@ The facade keeps optional integrations explicit:
 | `browser` | Off | Embedded browser. Does not enable `dialog`. macOS WKWebView, Windows WebView2, and WebKitGTK on X11. WebKitGTK on Wayland, find, and script are unsupported. Native cells stay unverified |
 | `observe` | Off | Explicitly opted-in live native-window observation |
 | `tokio` | Off | Feed producers on an application-provided Tokio runtime |
+| `chart` | Off | `rndr_chart` under `rndr::chart` |
+| `liquid` | Off | Liquid Markdown under `rndr::liquid` (grammar) and `rndr::liquid::ui` (native blocks, `LiquidHost`). Enables `chart` |
+| `canvas` | Off | Canvas documents under `rndr::canvas` (model, history, geometry, storage) and `rndr::canvas::ui` (painter, editor, overlay, panels) |
 
 `--no-default-features` removes the default integrations, **not the desktop runner**.
 Depend on `rndr_core` (and optionally `rndr_ui` / `rndr_paint`) when no window or GPU
@@ -338,7 +341,7 @@ native-platform acceptance are different things:
   compositor presentation, or native screen-reader/IME certification.
 - **Pen input:** the pen probe is a hardware-validation spike, not a supported,
   cross-platform tablet API.
-- **Publishing:** 0.4.0 publishes `rndr_core`, `rndr_paint`, `rndr_std`, `rndr_term`, `rndr_ui`, `rndr_app`, `rndr_render`, and `rndr`. `rndr_browser` is now part of that package order, immediately before the facade, because the optional `browser` dependency is resolved even when the feature is off. Examples stay unpublished. This tree does not upload. See [package policy](docs/ui-status.md#package-policy).
+- **Publishing:** 0.4.0 publishes `rndr_core`, `rndr_paint`, `rndr_std`, `rndr_term`, `rndr_ui`, `rndr_app`, `rndr_liquid`, `rndr_chart`, `rndr_liquid_ui`, `rndr_canvas`, `rndr_canvas_ui`, `rndr_render`, and `rndr`. The facade's optional `chart`, `liquid` and `canvas` features version-depend on the five Liquid, chart and canvas crates, so they are packaged before it. `rndr_browser` is now part of that package order, immediately before the facade, because the optional `browser` dependency is resolved even when the feature is off. Examples stay unpublished. This tree does not upload. See [package policy](docs/ui-status.md#package-policy).
 
 ## Documentation
 

@@ -13,8 +13,8 @@ use std::path::PathBuf;
 use std::collections::BTreeMap;
 
 use create_view::{
-    export_scene, fixture_dir, fixture_paths, install_images, install_text, load_project,
-    paint_scene, pixel_rect, scene_bounds, scene_svg, CreativeNode, Project,
+    canvas::Node, export_scene, fixture_dir, fixture_paths, install_images, install_text,
+    load_project, paint_scene, pixel_rect, scene_bounds, scene_svg, text_measure, Project,
 };
 use rndr_core::{Rect, World};
 use rndr_paint::{Affine, Canvas, Scene, ZoomCamera};
@@ -48,7 +48,7 @@ fn fixtures_match_the_svg_raster() {
             .unwrap_or("scene")
             .to_string();
         let project = load_project(&path).unwrap_or_else(|err| panic!("{err}"));
-        let rect = pixel_rect(scene_bounds(&project.scene));
+        let rect = pixel_rect(scene_bounds(&project.scene, text_measure(&world).as_ref()));
         let svg = scene_svg(&project.scene, &project.assets, rect);
         let reference = rasterize_svg(&svg, &name);
         let images = install_images(&mut world, &project).unwrap();
@@ -161,13 +161,13 @@ fn a_rounded_frame_corner_clips_its_child() {
         "the corner child must cover both samples"
     );
 
-    let rect = pixel_rect(scene_bounds(&project.scene));
+    let mut world = World::new();
+    install_text(&mut world);
+    let rect = pixel_rect(scene_bounds(&project.scene, text_measure(&world).as_ref()));
     let reference = rasterize_svg(
         &scene_svg(&project.scene, &project.assets, rect),
         "layers-corner",
     );
-    let mut world = World::new();
-    install_text(&mut world);
     let images = install_images(&mut world, &project).unwrap();
     let (scene, _) = export_scene(&world, &project.scene, &images);
     let mut exporter = match Exporter::new() {
@@ -431,7 +431,7 @@ fn pixel_at(image: &RgbaImage, world_x: i32, world_y: i32, pan: [f32; 2]) -> [u8
     pixel(image, x.round() as u32, y.round() as u32)
 }
 
-fn covers(node: &CreativeNode, parent_origin: [f32; 2], world: [f32; 2]) -> bool {
+fn covers(node: &Node, parent_origin: [f32; 2], world: [f32; 2]) -> bool {
     let x = world[0] - parent_origin[0];
     let y = world[1] - parent_origin[1];
     let transform = &node.transform;

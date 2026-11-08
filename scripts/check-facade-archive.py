@@ -21,7 +21,8 @@ def check(allow_dirty=False):
     ]))
     packages = {p["name"]: p for p in metadata["packages"]}
     facade = packages["rndr"]
-    for name in ("rndr", "rndr_ui", "rndr_app", "rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_render", "rndr_browser"):
+    for name in ("rndr", "rndr_ui", "rndr_app", "rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_render", "rndr_browser",
+                 "rndr_liquid", "rndr_chart", "rndr_liquid_ui", "rndr_canvas", "rndr_canvas_ui"):
         assert packages[name]["publish"] is None, f"{name} must be publishable"
     for name in ("desktop", "source-session"):
         assert packages[name]["publish"] == [], f"{name} must stay unpublished"
@@ -54,6 +55,14 @@ def check(allow_dirty=False):
         assert manifest["features"]["browser"] == ["dep:rndr_browser"]
         browser = manifest["dependencies"]["rndr_browser"]
         assert browser["optional"] is True and "path" not in browser
+        assert manifest["features"]["chart"] == ["dep:rndr_chart"]
+        assert manifest["features"]["liquid"] == ["dep:rndr_liquid", "dep:rndr_liquid_ui", "chart"]
+        assert manifest["features"]["canvas"] == ["dep:rndr_canvas", "dep:rndr_canvas_ui"]
+        for feature in ("chart", "liquid", "canvas"):
+            assert feature not in manifest["features"]["default"]
+        for name in ("rndr_chart", "rndr_liquid", "rndr_liquid_ui", "rndr_canvas", "rndr_canvas_ui"):
+            dep = manifest["dependencies"][name]
+            assert dep["optional"] is True and dep["version"] == packages[name]["version"]
         ui = manifest["dependencies"]["rndr_ui"]
         assert ui["optional"] is True and ui["version"] == packages["rndr_ui"]["version"]
         dev_ui = manifest["dev-dependencies"]["rndr_ui"]

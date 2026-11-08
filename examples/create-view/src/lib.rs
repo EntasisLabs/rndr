@@ -1,9 +1,10 @@
 //! Read-only viewer for a saved Create scene.
 //!
-//! The scene types are a mirror of schema `medousa-create` version 3. A git
-//! dependency on `medousa-types` would pull that crate's whole module tree into
-//! every workspace check, and `medousa-sdk` would pull the daemon client with
-//! it. Fixtures in `fixtures/` keep `cargo test` offline. `--export` writes a
+//! Scenes load through [`rndr_canvas`], which reads Medousa Create's
+//! `medousa-create` version 3 documents, and paint through
+//! [`rndr_canvas_ui::paint`]. The SVG writer here is an independent copy of the
+//! Create canvas export, kept as the fidelity test's reference. Fixtures in
+//! `fixtures/` keep `cargo test` offline. `--export` writes a
 //! PNG through the offscreen renderer. Pass a scene path to open it.
 
 mod model;
@@ -17,18 +18,17 @@ use std::sync::Arc;
 use rndr_core::{TextEngine, World};
 use rndr_render::{decode, load_rgba};
 
-pub use model::{
-    content_kind, utf16_to_byte, CreativeContent, CreativeNode, CreativeScene, SCHEMA, VERSION,
-};
+pub use model::{canvas, content_kind, utf16_to_byte};
 pub use paint::{
-    export_scene, paint_scene, parse_color, pixel_rect, scene_bounds, scene_svg, Asset,
+    export_scene, paint_scene, parse_color, pixel_rect, scene_bounds, scene_svg, text_measure,
+    Asset,
 };
 
 /// A scene plus the PNG assets it references.
 #[derive(Clone, Debug)]
 pub struct Project {
     /// Parsed document.
-    pub scene: CreativeScene,
+    pub scene: canvas::Scene,
     /// `asset_id` to decoded pixels and the original PNG.
     pub assets: BTreeMap<String, Asset>,
 }
@@ -54,12 +54,16 @@ pub fn fixture_dir() -> PathBuf {
 pub fn load_project(path: &Path) -> Result<Project, LoadError> {
     let text =
         fs::read_to_string(path).map_err(|err| LoadError(format!("{}: {err}", path.display())))?;
-    let scene: CreativeScene = serde_json::from_str(&text)
+    let scene: canvas::Scene = serde_json::from_str(&text)
         .map_err(|err| LoadError(format!("{}: {err}", path.display())))?;
-    if scene.schema != SCHEMA || scene.version != VERSION {
+    if !scene.is_supported() {
         return Err(LoadError(format!(
-            "{}: expected {SCHEMA} version {VERSION}, found {} {}",
+            "{}: expected {} version {} or {} version {}, found {} {}",
             path.display(),
+            canvas::schema::MEDOUSA_SCHEMA,
+            canvas::schema::MEDOUSA_VERSION,
+            canvas::schema::SCHEMA,
+            canvas::schema::VERSION,
             scene.schema,
             scene.version
         )));
@@ -70,7 +74,7 @@ pub fn load_project(path: &Path) -> Result<Project, LoadError> {
         .unwrap_or_else(|| Path::new("."))
         .join("assets");
     for node in &scene.nodes {
-        let CreativeContent::Image { asset_id, .. } = &node.content else {
+        let canvas::Content::Image { asset_id, .. } = &node.content else {
             continue;
         };
         if assets.contains_key(asset_id) {
@@ -93,7 +97,7 @@ pub fn load_project(path: &Path) -> Result<Project, LoadError> {
     Ok(Project { scene, assets })
 }
 
-/// Stable ids for [`load_rgba`](rndr_render::load_rgba), starting at 1.
+/// Stable ids for [`load_rgba`], starting at 1.
 pub fn image_ids(project: &Project) -> BTreeMap<String, u64> {
     project
         .assets
@@ -182,7 +186,7 @@ mod tests {
                 if !node.visible {
                     saw_hidden = true;
                 }
-                if matches!(node.content, CreativeContent::Frame { .. })
+                if matches!(node.content, canvas::Content::Frame { .. })
                     && node
                         .appearance
                         .as_ref()
@@ -190,7 +194,7 @@ mod tests {
                 {
                     saw_clip = true;
                 }
-                if let CreativeContent::Shape {
+                if let canvas::Content::Shape {
                     line: Some(line), ..
                 } = &node.content
                 {
@@ -221,7 +225,7 @@ mod tests {
         let svg = scene_svg(
             &project.scene,
             &project.assets,
-            pixel_rect(scene_bounds(&project.scene)),
+            pixel_rect(scene_bounds(&project.scene, &canvas::EstimateMeasure)),
         );
         assert!(svg.contains("stroke-dasharray="), "{svg}");
         assert!(svg.contains("data-arrowhead"), "{svg}");
@@ -229,7 +233,7 @@ mod tests {
         let svg = scene_svg(
             &shapes.scene,
             &shapes.assets,
-            pixel_rect(scene_bounds(&shapes.scene)),
+            pixel_rect(scene_bounds(&shapes.scene, &canvas::EstimateMeasure)),
         );
         assert!(
             !svg.contains("data-node-id=\"hidden\""),
