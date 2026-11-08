@@ -111,6 +111,7 @@ mod keymap;
 mod keys;
 mod layout;
 mod list;
+pub mod live;
 mod markdown;
 mod memory_fs;
 mod mono;
@@ -263,6 +264,7 @@ pub use panel_place::{
     WIN32_SW_SHOWNOACTIVATE,
 };
 mod popup;
+pub use live::{Live, LiveFill, LiveOffset, LiveOpacity, LiveRect, LiveScale, LiveValue, Smooth};
 pub use pane::{
     apply_pane, detail_pane, field_height, set_selection, shell, splitter, tree_column, Pane,
     Selection,
