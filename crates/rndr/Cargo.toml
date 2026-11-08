@@ -102,6 +102,10 @@ required-features = ["parley"]
 name = "menus"
 required-features = ["parley"]
 
+[[example]]
+name = "motion_depth"
+required-features = ["parley"]
+
 [package.metadata.docs.rs]
 # docs.rs uses the crates-build-env image, which includes libfontconfig1-dev,
 # libxkbcommon, Wayland, and Vulkan. `parley` links fontconfig on Linux.
