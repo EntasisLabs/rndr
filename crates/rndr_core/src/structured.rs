@@ -103,10 +103,54 @@ pub struct Marks {
     pub strong: bool,
     /// Semantic emphasis.
     pub emphasis: bool,
+    /// Underline decoration.
+    pub underline: bool,
+    /// Strikethrough decoration.
+    pub strike: bool,
+    /// Inline code.
+    pub code: bool,
+    /// Atomic mention pill: an inert host id (1..=256 bytes, no controls or HTML
+    /// delimiters); the run text is its label. Positions inside a pill are invalid,
+    /// so carets, selections and deletions treat it as one unit, and adjacent pills
+    /// never merge.
+    pub pill: Option<String>,
     /// Validated destination; None removes a link.
     pub link: Option<String>,
     /// Validated presentational text styling; defaults inherit from the view.
     pub text_style: TextStyle,
+}
+/// One toggleable mark for [`StructuredDocument::toggle_mark`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MarkKind {
+    /// [`Marks::strong`].
+    Strong,
+    /// [`Marks::emphasis`].
+    Emphasis,
+    /// [`Marks::underline`].
+    Underline,
+    /// [`Marks::strike`].
+    Strike,
+    /// [`Marks::code`].
+    Code,
+}
+impl MarkKind {
+    fn flag(self, marks: &mut Marks) -> &mut bool {
+        match self {
+            Self::Strong => &mut marks.strong,
+            Self::Emphasis => &mut marks.emphasis,
+            Self::Underline => &mut marks.underline,
+            Self::Strike => &mut marks.strike,
+            Self::Code => &mut marks.code,
+        }
+    }
+    /// Whether `marks` has this mark.
+    pub fn get(self, marks: &Marks) -> bool {
+        *self.flag(&mut marks.clone())
+    }
+    /// Turn this mark on or off in `marks`.
+    pub fn set(self, marks: &mut Marks, on: bool) {
+        *self.flag(marks) = on;
+    }
 }
 /// Canonical nonempty inline run (empty blocks have no runs).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -842,6 +886,7 @@ impl StructuredDocument {
             .grapheme_indices(true)
             .next_back()
             .map_or(0, |(n, _)| n);
+        let start = pill_at(&self.state.blocks[i], start).map_or(start, |(a, _)| a);
         self.command(
             vec![Operation::Replace {
                 range: TextSelection {
@@ -887,6 +932,7 @@ impl StructuredDocument {
         use unicode_segmentation::UnicodeSegmentation;
         let text = self.state.blocks[i].text();
         let end = o + text[o..].graphemes(true).next().unwrap().len();
+        let end = pill_at(&self.state.blocks[i], end).map_or(end, |(_, z)| z);
         self.command(
             vec![Operation::Replace {
                 range: TextSelection {
@@ -985,6 +1031,93 @@ impl StructuredDocument {
             group: None,
             operations: vec![Operation::SetMarks { range, marks }],
         })
+    }
+    /// Toggle one mark across the text selection, keeping every other mark
+    /// (links, pills, styles) per run. It turns off only when every selected run has it.
+    pub fn toggle_mark(&mut self, kind: MarkKind, origin: EditOrigin) -> Result<bool, StructuredError> {
+        let range = self
+            .text_selection()
+            .ok_or(StructuredError::InvalidPosition)?;
+        let (first, last) = ordered(&self.state, range)?;
+        let mut segments = vec![];
+        for block in &self.state.blocks[first.0..=last.0] {
+            let index = block_index(&self.state, block.id)?;
+            let start = if index == first.0 { first.1 } else { 0 };
+            let end = if index == last.0 { last.1 } else { block.len() };
+            let mut n = 0;
+            for run in &block.runs {
+                let (a, z) = (start.max(n), end.min(n + run.text.len()));
+                if a < z {
+                    segments.push((block.id, a, z, run.marks.clone()));
+                }
+                n += run.text.len();
+            }
+        }
+        if segments.is_empty() {
+            return Ok(false);
+        }
+        let on = !segments.iter().all(|(.., marks)| kind.get(marks));
+        let at = |block, offset| Position {
+            block,
+            offset,
+            affinity: Affinity::After,
+        };
+        let operations = segments
+            .into_iter()
+            .map(|(block, a, z, mut marks)| {
+                kind.set(&mut marks, on);
+                Operation::SetMarks {
+                    range: TextSelection {
+                        anchor: at(block, a),
+                        head: at(block, z),
+                    },
+                    marks,
+                }
+            })
+            .collect();
+        self.command(operations, origin)
+    }
+    /// Replace the text selection with one atomic mention pill labelled `label`
+    /// and leave the caret after it. Typing there does not extend the pill.
+    pub fn insert_pill(
+        &mut self,
+        label: &str,
+        id: &str,
+        origin: EditOrigin,
+    ) -> Result<bool, StructuredError> {
+        if label.is_empty() || label.contains(['\n', '\r']) {
+            return Err(StructuredError::InvalidSchema);
+        }
+        let range = self
+            .text_selection()
+            .ok_or(StructuredError::InvalidPosition)?;
+        let (first, _) = ordered(&self.state, range)?;
+        let block = self.state.blocks[first.0].id;
+        let marks = Marks {
+            pill: Some(id.into()),
+            ..insertion_marks(&self.state.blocks[first.0], first.1)
+        };
+        let at = |offset| Position {
+            block,
+            offset,
+            affinity: Affinity::After,
+        };
+        self.command(
+            vec![
+                Operation::Replace {
+                    range,
+                    text: label.into(),
+                },
+                Operation::SetMarks {
+                    range: TextSelection {
+                        anchor: at(first.1),
+                        head: at(first.1 + label.len()),
+                    },
+                    marks,
+                },
+            ],
+            origin,
+        )
     }
     /// Set kind on every selected block, preserving directed selection.
     pub fn set_block_kind(
@@ -1608,7 +1741,8 @@ fn local(s: &State, p: Position) -> Result<(usize, usize), StructuredError> {
         return Err(StructuredError::InvalidPosition);
     }
     let t = s.blocks[i].text();
-    if p.offset > t.len() || !t.is_char_boundary(p.offset) {
+    if p.offset > t.len() || !t.is_char_boundary(p.offset) || pill_at(&s.blocks[i], p.offset).is_some()
+    {
         return Err(StructuredError::InvalidPosition);
     }
     Ok((i, p.offset))
@@ -1662,7 +1796,28 @@ fn validate_selection(s: &State, selection: StructuredSelection) -> Result<(), S
     }
     Ok(())
 }
+/// Byte range of the pill run that strictly contains `at`, if any.
+fn pill_at(b: &Block, at: usize) -> Option<(usize, usize)> {
+    let mut n = 0;
+    for r in &b.runs {
+        let end = n + r.text.len();
+        if r.marks.pill.is_some() && n < at && at < end {
+            return Some((n, end));
+        }
+        n = end;
+    }
+    None
+}
 fn valid_marks(m: &Marks) -> Result<(), StructuredError> {
+    if m.pill.as_ref().is_some_and(|id| {
+        id.is_empty()
+            || id.len() > 256
+            || id
+                .chars()
+                .any(|c| c.is_control() || matches!(c, '<' | '>' | '"' | '\'' | '&'))
+    }) {
+        return Err(StructuredError::InvalidSchema);
+    }
     if m.text_style.family.as_ref().is_some_and(|s| {
         s.is_empty()
             || s.len() > 80
@@ -1869,7 +2024,10 @@ fn normalize(s: &mut State) -> Result<(), StructuredError> {
             if r.text.is_empty() {
                 continue;
             }
-            if let Some(last) = runs.last_mut().filter(|last| last.marks == r.marks) {
+            if let Some(last) = runs
+                .last_mut()
+                .filter(|last| last.marks == r.marks && r.marks.pill.is_none())
+            {
                 last.text.push_str(&r.text);
             } else {
                 runs.push(r);
@@ -1900,7 +2058,10 @@ fn insertion_marks(b: &Block, at: usize) -> Marks {
     for r in &b.runs {
         n += r.text.len();
         if at <= n {
-            return r.marks.clone();
+            return Marks {
+                pill: None,
+                ..r.marks.clone()
+            };
         }
     }
     Marks::default()
