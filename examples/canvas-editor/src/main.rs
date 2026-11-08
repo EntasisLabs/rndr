@@ -11,16 +11,17 @@ use rndr_canvas_ui::editor::CanvasEditor;
 use rndr_canvas_ui::panels;
 use rndr_canvas_ui::view::{self, CanvasView};
 use rndr_core::{
-    set_parent, take_action_intents, App, Layout, LogicalSize, Schedule, Size, SurfaceSlot,
+    set_parent, take_action_intents, App, Layout, LogicalSize, Schedule, Scroll, Size, SurfaceSlot,
     TextEngine, Viewport, WindowConfig, World,
 };
 use rndr_render::{encode_png, Exporter};
-use rndr_ui::{apply_theme_bridge, UiPlugin, UiTheme};
+use rndr_ui::{apply_theme_bridge, Surface, UiId, UiPlugin, UiTheme};
 use std::sync::Arc;
 
 const WIDTH: f32 = 1280.0;
 const HEIGHT: f32 = 800.0;
 const SLOT: u64 = 1;
+const SIDE: f32 = 400.0;
 
 fn shape(id: &str, kind: ShapeKind, fill: &str, t: Transform) -> Node {
     Node::new(
@@ -178,11 +179,10 @@ fn app(store: Arc<dyn CanvasStore + Send + Sync>) -> App {
         gap: 8.0,
         ..Layout::column()
     },));
-    let toolbar = world.spawn((Layout {
-        gap: 6.0,
-        ..Layout::row()
-    },));
-    set_parent(world, toolbar, root);
+    let toolbar = Surface::Navigation
+        .mount(world, root, UiId(1))
+        .expect("toolbar surface")
+        .content;
     let body = world.spawn((Layout {
         width: Size::Fill,
         height: Size::Fill,
@@ -201,15 +201,22 @@ fn app(store: Arc<dyn CanvasStore + Send + Sync>) -> App {
         SurfaceSlot { id: SLOT },
     ));
     set_parent(world, slot, body);
-    let side = world.spawn((Layout {
-        width: Size::Px(380.0),
-        gap: 4.0,
-        ..Layout::column()
-    },));
-    set_parent(world, side, body);
+    let side = Surface::Raised
+        .mount(world, body, UiId(2))
+        .expect("side surface");
+    if let Some(layout) = world.get_mut::<Layout>(side.root) {
+        layout.width = Size::Px(SIDE);
+        layout.height = Size::Fill;
+    }
+    let side = side.content;
+    if let Some(layout) = world.get_mut::<Layout>(side) {
+        layout.height = Size::Fill;
+        layout.min_height = 0.0;
+    }
+    world.insert(side, Scroll::default());
     let editor = CanvasEditor::open(store, "board").expect("open board");
     view::install(world, CanvasView::new(editor, SLOT));
-    panels::mount(world, toolbar, side, [WIDTH - 16.0, 380.0]);
+    panels::mount(world, toolbar, side, [WIDTH - 32.0, SIDE - 48.0]);
     app.add_system(Schedule::Update, |world: &mut World| {
         for request in take_action_intents(world) {
             panels::dispatch(world, &request);
