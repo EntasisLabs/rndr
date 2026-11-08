@@ -21,7 +21,9 @@ fn caret(doc: &StructuredDocument) -> usize {
 
 fn mention(doc: &mut StructuredDocument) {
     select(doc, 3, 3);
-    assert!(doc.insert_pill("@alice", "user:1", EditOrigin::Host(0)).unwrap());
+    assert!(doc
+        .insert_pill("@alice", "user:1", EditOrigin::Host(0))
+        .unwrap());
 }
 
 const API: EditOrigin = EditOrigin::Host(0);
@@ -40,7 +42,11 @@ fn toggle_marks_keep_other_marks_per_run() {
         .collect();
     assert_eq!(
         text,
-        [("one ", true, false), ("two", true, true), (" three", false, true)]
+        [
+            ("one ", true, false),
+            ("two", true, true),
+            (" three", false, true)
+        ]
     );
     select(&mut doc, 4, 13);
     doc.toggle_mark(MarkKind::Strike, API).unwrap();
@@ -117,7 +123,10 @@ fn invalid_pill_ids_and_labels_are_refused() {
         doc.insert_pill("a\nb", "x", API),
         Err(StructuredError::InvalidSchema)
     );
-    assert_eq!(doc.insert_pill("@x", "", API), Err(StructuredError::InvalidSchema));
+    assert_eq!(
+        doc.insert_pill("@x", "", API),
+        Err(StructuredError::InvalidSchema)
+    );
     assert_eq!(doc.revision(), revision);
     let _ = Position {
         block: doc.blocks()[0].id,
@@ -176,12 +185,24 @@ fn html_paste_builds_headings_lists_and_quotes() {
             .collect()
     };
     assert!(kinds(1).contains(&ContainerKind::List(ListKind::Bullet)));
-    assert!(kinds(3).iter().filter(|k| matches!(k, ContainerKind::List(_))).count() == 2);
+    assert!(
+        kinds(3)
+            .iter()
+            .filter(|k| matches!(k, ContainerKind::List(_)))
+            .count()
+            == 2
+    );
     assert_eq!(kinds(4), [ContainerKind::Quote]);
     assert!(kinds(0).is_empty());
     let html = doc.to_html();
-    assert!(html.starts_with("<h1>Plan</h1><ul><li><p>a</p></li>"), "{html}");
-    assert!(html.ends_with("<blockquote><p>q</p></blockquote>"), "{html}");
+    assert!(
+        html.starts_with("<h1>Plan</h1><ul><li><p>a</p></li>"),
+        "{html}"
+    );
+    assert!(
+        html.ends_with("<blockquote><p>q</p></blockquote>"),
+        "{html}"
+    );
 }
 
 #[test]

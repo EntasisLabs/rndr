@@ -160,12 +160,12 @@ fn container_tags(kind: ContainerKind) -> (String, &'static str) {
         }
         ContainerKind::List(ListKind::Ordered { .. }) => ("<ol>".into(), "</ol>"),
         ContainerKind::List(_) => ("<ul>".into(), "</ul>"),
-        ContainerKind::Item { checked: Some(true) } => {
-            ("<li data-checked=\"true\">".into(), "</li>")
-        }
-        ContainerKind::Item { checked: Some(false) } => {
-            ("<li data-checked=\"false\">".into(), "</li>")
-        }
+        ContainerKind::Item {
+            checked: Some(true),
+        } => ("<li data-checked=\"true\">".into(), "</li>"),
+        ContainerKind::Item {
+            checked: Some(false),
+        } => ("<li data-checked=\"false\">".into(), "</li>"),
         ContainerKind::Item { checked: None } => ("<li>".into(), "</li>"),
     }
 }
@@ -284,8 +284,24 @@ struct Parsed {
 
 const SKIPPED: [&str; 6] = ["script", "style", "head", "title", "template", "noscript"];
 const BLOCKS: [&str; 18] = [
-    "p", "div", "li", "ul", "ol", "blockquote", "pre", "h1", "h2", "h3", "h4", "h5", "h6", "tr",
-    "table", "hr", "section", "article",
+    "p",
+    "div",
+    "li",
+    "ul",
+    "ol",
+    "blockquote",
+    "pre",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "tr",
+    "table",
+    "hr",
+    "section",
+    "article",
 ];
 
 #[derive(Default)]
@@ -302,7 +318,10 @@ struct Importer {
 
 impl Importer {
     fn marks(&self) -> Marks {
-        self.marks.last().map(|(_, m)| m.clone()).unwrap_or_default()
+        self.marks
+            .last()
+            .map(|(_, m)| m.clone())
+            .unwrap_or_default()
     }
     fn flush(&mut self) {
         if let Some(mut block) = self.current.take() {
@@ -371,7 +390,12 @@ impl Importer {
         if BLOCKS.contains(&tag) {
             self.flush();
         }
-        let attr = |name: &str| attrs.iter().find(|(k, _)| k == name).map(|(_, v)| v.as_str());
+        let attr = |name: &str| {
+            attrs
+                .iter()
+                .find(|(k, _)| k == name)
+                .map(|(_, v)| v.as_str())
+        };
         match tag {
             "br" => {
                 self.block();
@@ -380,7 +404,9 @@ impl Importer {
             }
             "ul" => self.lists.push(ListKind::Bullet),
             "ol" => self.lists.push(ListKind::Ordered {
-                start: attr("start").and_then(|s| s.trim().parse().ok()).unwrap_or(1),
+                start: attr("start")
+                    .and_then(|s| s.trim().parse().ok())
+                    .unwrap_or(1),
             }),
             "blockquote" => self.quotes += 1,
             "pre" => self.pre += 1,

@@ -1111,8 +1111,14 @@ fn apply_display_text_key(
         if readonly {
             return Err(StructuredError::Readonly.into());
         }
-        let start_position = doc.position_at(change.range.start, Affinity::After)?;
-        let end_position = doc.position_at(change.range.end, Affinity::After)?;
+        let start = snap_out_of_pill(doc, change.range.start, true);
+        let end = snap_out_of_pill(doc, change.range.end, false);
+        if (start, end) != (change.range.start, change.range.end) {
+            anchor = start + change.replacement.len();
+            index = anchor;
+        }
+        let start_position = doc.position_at(start, Affinity::After)?;
+        let end_position = doc.position_at(end, Affinity::After)?;
         doc.apply(Transaction {
             document: doc.id(),
             base,
@@ -1133,6 +1139,24 @@ fn apply_display_text_key(
     }
     Ok(step)
 }
+/// Explicit paste of clipboard HTML into a text selection. Returns false to let
+/// the plain-text path handle it (no HTML, node or cell selections, refusals).
+fn paste_rich(world: &mut World, entity: Entity, html: &str) -> bool {
+    if html.is_empty() || is_composing(world, entity) || crate::interaction::readonly(world, entity)
+    {
+        return false;
+    }
+    let Some(doc) = document_mut(world, entity) else {
+        return false;
+    };
+    if doc.is_readonly() || doc.text_selection().is_none() {
+        return false;
+    }
+    match doc.paste_html(html, EditOrigin::Keyboard) {
+        Ok(_) => true,
+        Err(_) => false,
+    }
+}
 pub(crate) fn edit_focused(world: &mut World, entity: Entity) {
     let Some(input) = world.resource::<Input>() else {
         return;
@@ -1140,17 +1164,28 @@ pub(crate) fn edit_focused(world: &mut World, entity: Entity) {
     let frame = crate::ime::text_frame(input);
     let platform = crate::keys::platform_of(world);
     let keys = native_keys(&frame, platform);
-    let mut clip = world
+    let (mut clip, mut clip_html) = world
         .resource::<Clipboard>()
-        .map(|c| c.text.clone())
+        .map(|c| (c.text.clone(), c.rich_html().unwrap_or_default().to_owned()))
         .unwrap_or_default();
     let mut copied = None;
     let mut clipboard_action = false;
     for event in keys {
+        let action = (!event.released && !event.synthetic)
+            .then(|| crate::keys::standard_action(platform, &event))
+            .flatten();
+        if action == Some(EditAction::Paste) && paste_rich(world, entity, &clip_html) {
+            project(world, entity);
+            continue;
+        }
+        let html = matches!(action, Some(EditAction::Copy | EditAction::Cut))
+            .then(|| document(world, entity).and_then(StructuredDocument::selection_html))
+            .flatten();
         match apply_key(world, entity, &event, &clip) {
             Ok(step) => {
                 if let Some(text) = step.copied {
                     clip = text.clone();
+                    clip_html = html.unwrap_or_default();
                     copied = Some(text);
                 }
                 clipboard_action |= step.clipboard_action;
@@ -1185,7 +1220,12 @@ pub(crate) fn edit_focused(world: &mut World, entity: Entity) {
     }
     project(world, entity);
     if clipboard_action {
-        crate::clipboard::note_clipboard(world, copied.as_deref());
+        let html = if copied.is_some() {
+            clip_html.as_str()
+        } else {
+            ""
+        };
+        crate::clipboard::note_rich_clipboard(world, copied.as_deref(), html);
     }
     if let Some(input) = world.resource_mut::<Input>() {
         input.keys.clear();

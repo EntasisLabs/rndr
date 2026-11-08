@@ -644,3 +644,100 @@ fn native_structured_orphan_cleanup_releases_history_for_remount() {
         .remove(id)
         .is_some());
 }
+fn command_key(w: &mut World, ch: char) {
+    let command = Modifiers {
+        super_key: true,
+        ..Modifiers::new()
+    };
+    w.resource_mut::<Input>().unwrap().keys = vec![KeyEvent::character(ch, command)];
+    crate::editor::apply_editor(w);
+}
+#[test]
+fn native_structured_primary_b_i_u_toggle_marks_on_selection() {
+    let (mut w, e, _) = setup("abc def");
+    select(&mut w, e, 0, 3);
+    command_key(&mut w, 'b');
+    command_key(&mut w, 'i');
+    command_key(&mut w, 'u');
+    let marks = &document(&w, e).unwrap().blocks()[0].runs[0].marks;
+    assert!(marks.strong && marks.emphasis && marks.underline);
+    let span = &w.get::<Spans>(e).unwrap().runs[0];
+    assert!(span.underline && span.italic && span.weight == Some(700));
+    command_key(&mut w, 'b');
+    assert!(!document(&w, e).unwrap().blocks()[0].runs[0].marks.strong);
+}
+#[test]
+fn native_structured_caret_steps_over_pills_and_backspace_removes_them() {
+    let (mut w, e, _) = setup("a b");
+    select(&mut w, e, 2, 2);
+    document_mut(&mut w, e)
+        .unwrap()
+        .insert_pill("@alice", "u:1", EditOrigin::Host(1))
+        .unwrap();
+    project(&mut w, e);
+    select(&mut w, e, 2, 2);
+    key(&mut w, e, NamedKey::ArrowRight);
+    assert_eq!(display_selection(document(&w, e).unwrap()).unwrap(), (8, 8));
+    key(&mut w, e, NamedKey::ArrowLeft);
+    assert_eq!(display_selection(document(&w, e).unwrap()).unwrap(), (2, 2));
+    select(&mut w, e, 5, 5);
+    assert_eq!(display_selection(document(&w, e).unwrap()).unwrap(), (8, 8));
+    key(&mut w, e, NamedKey::Backspace);
+    assert_eq!(document(&w, e).unwrap().plain_text(), "a b");
+}
+#[test]
+fn native_structured_copy_and_paste_carry_html_marks() {
+    let (mut w, e, _) = setup("bold rest");
+    select(&mut w, e, 0, 4);
+    command_key(&mut w, 'b');
+    select(&mut w, e, 0, 9);
+    command_key(&mut w, 'c');
+    let clip = w.resource::<Clipboard>().unwrap().clone();
+    assert_eq!(clip.text, "bold rest");
+    assert_eq!(clip.rich_html(), Some("<p><strong>bold</strong> rest</p>"));
+    select(&mut w, e, 9, 9);
+    command_key(&mut w, 'v');
+    let doc = document(&w, e).unwrap();
+    assert_eq!(doc.plain_text(), "bold restbold rest");
+    assert_eq!(
+        doc.blocks()[0]
+            .runs
+            .iter()
+            .filter(|r| r.marks.strong)
+            .count(),
+        2
+    );
+}
+#[test]
+fn native_structured_stale_clipboard_html_is_ignored() {
+    let (mut w, e, _) = setup("x");
+    {
+        let clip = w.resource_mut::<Clipboard>().unwrap();
+        clip.html = "<b>old</b>".into();
+        clip.html_text = "old".into();
+        clip.text = "new".into();
+    }
+    select(&mut w, e, 1, 1);
+    w.resource_mut::<Input>().unwrap().key = Some(Key::Paste);
+    crate::editor::apply_editor(&mut w);
+    let doc = document(&w, e).unwrap();
+    assert_eq!(doc.plain_text(), "xnew");
+    assert!(doc.blocks()[0].runs.iter().all(|r| !r.marks.strong));
+}
+#[test]
+fn native_structured_paste_key_uses_rich_html() {
+    let (mut w, e, _) = setup("");
+    {
+        let clip = w.resource_mut::<Clipboard>().unwrap();
+        clip.text = "a\nb".into();
+        clip.html = "<ul><li>a</li><li><s>b</s></li></ul>".into();
+        clip.html_text = "a\nb".into();
+    }
+    select(&mut w, e, 0, 0);
+    w.resource_mut::<Input>().unwrap().key = Some(Key::Paste);
+    crate::editor::apply_editor(&mut w);
+    let doc = document(&w, e).unwrap();
+    assert_eq!(doc.plain_text(), "a\nb");
+    assert!(doc.blocks()[1].runs[0].marks.strike);
+    assert!(!doc.ancestors(doc.blocks()[0].id).unwrap().is_empty());
+}

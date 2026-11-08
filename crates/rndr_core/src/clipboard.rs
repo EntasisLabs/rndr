@@ -4,13 +4,21 @@ use crate::keys::Platform;
 /// Write `copied` into the clipboard and clear a legacy copy/cut/paste [`Fired`]
 /// so this frame does not apply the same edit twice.
 pub(crate) fn note_clipboard(world: &mut World, copied: Option<&str>) {
+    note_rich_clipboard(world, copied, "");
+}
+
+pub(crate) fn note_rich_clipboard(world: &mut World, copied: Option<&str>, html: &str) {
     if let Some(copied) = copied {
         if let Some(clipboard) = world.resource_mut::<Clipboard>() {
             clipboard.text = copied.to_string();
+            clipboard.html = html.to_string();
+            clipboard.html_text = copied.to_string();
             clipboard.dirty = true;
         } else {
             world.insert_resource(Clipboard {
                 text: copied.to_string(),
+                html: html.to_string(),
+                html_text: copied.to_string(),
                 dirty: true,
                 ..Clipboard::default()
             });
@@ -78,6 +86,15 @@ use crate::world::World;
 pub struct Clipboard {
     /// Last string written by a copy or cut. Explicit paste reads it.
     pub text: String,
+    /// Safe HTML for the same content as [`Self::text`], or empty. A structured
+    /// document writes it on copy and reads it on paste. A plain-text copy
+    /// clears it. The runner pushes it with `text` as the plain fallback and
+    /// pulls it again whenever the OS clipboard text changes. It applies only
+    /// while [`Self::html_text`] equals [`Self::text`], so code that writes
+    /// `text` alone never publishes or pastes stale HTML.
+    pub html: String,
+    /// The [`Self::text`] that [`Self::html`] was written or pulled with.
+    pub html_text: String,
     /// Set when this frame wrote [`Self::text`]. Core leaves it set.
     /// The desktop runner clears it after pushing the value out.
     pub dirty: bool,
@@ -99,6 +116,13 @@ pub struct Clipboard {
     /// does not read images, so a platform that prompts on each paste is not
     /// prompted every frame.
     pub want_image: bool,
+}
+
+impl Clipboard {
+    /// [`Self::html`] when it is nonempty and was written with the current text.
+    pub fn rich_html(&self) -> Option<&str> {
+        (!self.html.is_empty() && self.html_text == self.text).then_some(self.html.as_str())
+    }
 }
 
 /// Straight RGBA8 image on the clipboard, row-major, origin top-left.

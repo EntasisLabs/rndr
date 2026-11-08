@@ -43,6 +43,8 @@ impl OsClipboard {
         if !clip.dirty {
             if let Ok(text) = board.get_text() {
                 if text != clip.text {
+                    clip.html = board.get().html().unwrap_or_default();
+                    clip.html_text.clone_from(&text);
                     clip.text = text;
                 }
             }
@@ -76,7 +78,10 @@ impl OsClipboard {
             return;
         };
         if clip.dirty {
-            let _ = board.set_text(clip.text.as_str());
+            let _ = match clip.rich_html() {
+                Some(html) => board.set().html(html, Some(clip.text.as_str())),
+                None => board.set_text(clip.text.as_str()),
+            };
         }
         #[cfg(all(
             unix,

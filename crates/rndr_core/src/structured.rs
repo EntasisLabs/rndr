@@ -7,8 +7,8 @@
 //! Split keeps the left identity/kind and creates a paragraph on the right; joining
 //! keeps the left identity/kind. Newline paste follows the same rule. History uses
 //! explicit consecutive group tokens; navigation and composition are barriers.
-mod table_ops;
 mod html;
+mod table_ops;
 mod text_ops;
 use table_ops::{edit_table, TableAxis, TableEdit};
 
@@ -1035,7 +1035,11 @@ impl StructuredDocument {
     }
     /// Toggle one mark across the text selection, keeping every other mark
     /// (links, pills, styles) per run. It turns off only when every selected run has it.
-    pub fn toggle_mark(&mut self, kind: MarkKind, origin: EditOrigin) -> Result<bool, StructuredError> {
+    pub fn toggle_mark(
+        &mut self,
+        kind: MarkKind,
+        origin: EditOrigin,
+    ) -> Result<bool, StructuredError> {
         let range = self
             .text_selection()
             .ok_or(StructuredError::InvalidPosition)?;
@@ -1742,7 +1746,9 @@ fn local(s: &State, p: Position) -> Result<(usize, usize), StructuredError> {
         return Err(StructuredError::InvalidPosition);
     }
     let t = s.blocks[i].text();
-    if p.offset > t.len() || !t.is_char_boundary(p.offset) || pill_at(&s.blocks[i], p.offset).is_some()
+    if p.offset > t.len()
+        || !t.is_char_boundary(p.offset)
+        || pill_at(&s.blocks[i], p.offset).is_some()
     {
         return Err(StructuredError::InvalidPosition);
     }
