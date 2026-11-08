@@ -831,6 +831,8 @@ version = "0.4.0"
 dependencies = [
  "base64",
  "resvg",
+ "rndr_canvas",
+ "rndr_canvas_ui",
  "rndr_core",
  "rndr_paint",
  "rndr_render",
@@ -3457,7 +3459,12 @@ name = "rndr"
 version = "0.4.0"
 dependencies = [
  "rndr_browser",
+ "rndr_canvas",
+ "rndr_canvas_ui",
+ "rndr_chart",
  "rndr_core",
+ "rndr_liquid",
+ "rndr_liquid_ui",
  "rndr_paint",
  "rndr_render",
  "rndr_std",

@@ -95,6 +95,8 @@ jobs:
           cargo test -p rndr --features ui --lib
           cargo test -p rndr --features ui --doc
           cargo clippy -p rndr --no-default-features --features ui --all-targets -- -D warnings
+          cargo test -p rndr --no-default-features --features liquid,canvas --lib
+          cargo clippy -p rndr --no-default-features --features liquid,canvas --all-targets -- -D warnings
 
       - uses: actions/setup-python@v5
         if: runner.os != 'Windows'

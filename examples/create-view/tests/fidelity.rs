@@ -6,6 +6,11 @@
 //! on both sides. The SVG places glyphs in a fixed em box with side bearings,
 //! while the renderer uses the face metrics, so that fixture is reported and
 //! only fails when the picture is unrelated.
+//!
+//! The comparisons share the export rect, so they cannot see content that
+//! both sides paint outside it. The containment tests render each fixture,
+//! and aligned, wrapped and bold-span text, into a viewport larger than that
+//! rect and require every visible pixel to land inside it.
 
 use std::fs;
 use std::path::PathBuf;
@@ -13,8 +18,8 @@ use std::path::PathBuf;
 use std::collections::BTreeMap;
 
 use create_view::{
-    export_scene, fixture_dir, fixture_paths, install_images, install_text, load_project,
-    paint_scene, pixel_rect, scene_bounds, scene_svg, CreativeNode, Project,
+    canvas, canvas::Node, export_scene, fixture_dir, fixture_paths, install_images, install_text,
+    load_project, paint_scene, pixel_rect, scene_bounds, scene_svg, text_measure, Project,
 };
 use rndr_core::{Rect, World};
 use rndr_paint::{Affine, Canvas, Scene, ZoomCamera};
@@ -48,8 +53,16 @@ fn fixtures_match_the_svg_raster() {
             .unwrap_or("scene")
             .to_string();
         let project = load_project(&path).unwrap_or_else(|err| panic!("{err}"));
-        let rect = pixel_rect(scene_bounds(&project.scene));
-        let svg = scene_svg(&project.scene, &project.assets, rect);
+        let measure = text_measure(&world);
+        let rect = pixel_rect(scene_bounds(&project.scene, measure.as_ref()));
+        // The SVG reads the file as stored, so legacy arrows go through its
+        // own recognizer while the renderer sees the upgraded lines.
+        let svg = scene_svg(
+            &stored_scene(&path),
+            &project.assets,
+            measure.as_ref(),
+            rect,
+        );
         let reference = rasterize_svg(&svg, &name);
         let images = install_images(&mut world, &project).unwrap();
         let (scene, exported) = export_scene(&world, &project.scene, &images);
@@ -107,6 +120,17 @@ fn fixtures_match_the_svg_raster() {
                     report.over_48
                 );
             }
+            // The SVG recognizes the stored five-point strokes itself, so a
+            // renderer drawing them as ink instead of lines lands near 0.005.
+            "legacy-arrow" => {
+                assert!(
+                    report.mae < 0.003 && report.over_48 < 0.5,
+                    "{} mae {} with {:.2}% off by more than 48",
+                    report.name,
+                    report.mae,
+                    report.over_48
+                );
+            }
             // The SVG em box and side bearings still differ from the face
             // metrics, so the ceiling only catches a blank or swapped picture.
             "text" => {
@@ -120,6 +144,272 @@ fn fixtures_match_the_svg_raster() {
             other => panic!("unexpected fixture {other}"),
         }
     }
+}
+
+#[test]
+fn legacy_arrows_load_as_lines() {
+    let path = fixture_dir().join("legacy-arrow.json");
+    let project = load_project(&path).unwrap();
+    for node in &project.scene.nodes {
+        let line = matches!(
+            &node.content,
+            canvas::Content::Shape {
+                shape: canvas::ShapeKind::Line,
+                line: Some(line),
+                ..
+            } if line.end_arrow && !line.start_arrow
+        );
+        assert_eq!(line, node.id != "stroke", "{}: {:?}", node.id, node.content);
+    }
+    let stored = stored_scene(&path);
+    assert!(stored
+        .nodes
+        .iter()
+        .all(|node| matches!(node.content, canvas::Content::Ink { .. })));
+}
+
+fn stored_scene(path: &std::path::Path) -> canvas::Scene {
+    let text = fs::read_to_string(path).unwrap_or_else(|err| panic!("{err}"));
+    serde_json::from_str(&text).unwrap_or_else(|err| panic!("{err}"))
+}
+
+/// Room around the export rect, so anything painted past it shows up.
+const PAD: f32 = 96.0;
+
+/// Coverage this faint or fainter counts as empty.
+const FAINT: u8 = 8;
+
+struct Containment {
+    inside: u32,
+    outside: u32,
+    /// Mean x of visible pixels, in world units.
+    center_x: f32,
+}
+
+/// Visible pixels inside and outside `rect`, rendered in a viewport `PAD`
+/// larger on every side.
+fn containment(image: &RgbaImage, view: Rect, rect: Rect) -> Containment {
+    let (mut inside, mut outside, mut sum_x) = (0u32, 0u32, 0f64);
+    for y in 0..image.height {
+        for x in 0..image.width {
+            if pixel(image, x, y)[3] <= FAINT {
+                continue;
+            }
+            let (wx, wy) = (view.x + x as f32 + 0.5, view.y + y as f32 + 0.5);
+            let within =
+                wx >= rect.x && wy >= rect.y && wx <= rect.x + rect.w && wy <= rect.y + rect.h;
+            if within {
+                inside += 1;
+            } else {
+                outside += 1;
+            }
+            sum_x += f64::from(wx);
+        }
+    }
+    let count = (inside + outside).max(1);
+    Containment {
+        inside,
+        outside,
+        center_x: (sum_x / f64::from(count)) as f32,
+    }
+}
+
+fn padded(rect: Rect) -> Rect {
+    Rect {
+        x: rect.x - PAD,
+        y: rect.y - PAD,
+        w: rect.w + PAD * 2.0,
+        h: rect.h + PAD * 2.0,
+    }
+}
+
+/// Both pictures of `project` on a transparent board in a padded viewport,
+/// with the export rect: SVG of `stored`, then the renderer.
+fn render_padded(
+    exporter: &mut Exporter,
+    world: &mut World,
+    project: &Project,
+    stored: &canvas::Scene,
+    name: &str,
+) -> (Rect, Rect, RgbaImage, RgbaImage) {
+    let mut project = Project {
+        scene: project.scene.clone(),
+        assets: project.assets.clone(),
+    };
+    project.scene.background = "transparent".into();
+    let mut stored = stored.clone();
+    stored.background = "transparent".into();
+    let measure = text_measure(world);
+    let rect = pixel_rect(scene_bounds(&project.scene, measure.as_ref()));
+    let view = padded(rect);
+    let svg = rasterize_svg(
+        &scene_svg(&stored, &project.assets, measure.as_ref(), view),
+        name,
+    );
+    let images = install_images(world, &project).unwrap();
+    let mut canvas = Canvas::new();
+    paint_scene(&mut canvas, world, &project.scene, &images);
+    let scene = Scene {
+        camera: Affine::IDENTITY,
+        commands: canvas.finish_clipped(view),
+    };
+    let gpu = exporter
+        .render_scene(world, &scene, view, 1.0)
+        .unwrap_or_else(|err| panic!("{name}: {err}"));
+    (rect, view, svg, gpu)
+}
+
+fn exporter() -> Exporter {
+    match Exporter::new() {
+        Ok(exporter) => exporter,
+        Err(ExportError::NoAdapter) => panic!("no graphics adapter"),
+        Err(err) => panic!("{err}"),
+    }
+}
+
+fn assert_contained(name: &str, rect: Rect, view: Rect, svg: &RgbaImage, gpu: &RgbaImage) {
+    for (side, image) in [("svg", svg), ("renderer", gpu)] {
+        let seen = containment(image, view, rect);
+        assert!(seen.inside > 0, "{name}: {side} painted nothing");
+        assert_eq!(
+            seen.outside, 0,
+            "{name}: {side} painted {} pixels outside the export rect {rect:?} ({} inside)",
+            seen.outside, seen.inside
+        );
+    }
+}
+
+#[test]
+fn every_fixture_paints_inside_its_export_rect() {
+    let mut exporter = exporter();
+    let mut world = World::new();
+    install_text(&mut world);
+    for path in fixture_paths() {
+        let name = path.file_stem().unwrap().to_string_lossy().into_owned();
+        let project = load_project(&path).unwrap_or_else(|err| panic!("{err}"));
+        let (rect, view, svg, gpu) = render_padded(
+            &mut exporter,
+            &mut world,
+            &project,
+            &stored_scene(&path),
+            &name,
+        );
+        assert_contained(&name, rect, view, &svg, &gpu);
+    }
+}
+
+fn text_project(text: &str, transform: canvas::Transform, layout: canvas::TextLayout) -> Project {
+    let mut node = Node::new(
+        "text",
+        canvas::Content::Text {
+            text: text.into(),
+            color: "#1f2a44".into(),
+            font_family: "Inter".into(),
+            font_size: 32.0,
+            font_weight: None,
+            font_style: None,
+        },
+        transform,
+    );
+    node.text_layout = Some(layout);
+    let mut scene = canvas::Scene::medousa();
+    scene.nodes = vec![node];
+    Project {
+        scene,
+        assets: BTreeMap::new(),
+    }
+}
+
+fn bold(start: u32, end: u32) -> canvas::TextSpan {
+    canvas::TextSpan {
+        start,
+        end,
+        font_weight: Some(700),
+        font_style: None,
+        color: None,
+        underline: None,
+    }
+}
+
+#[test]
+fn text_paints_inside_its_export_rect_and_agrees_on_alignment() {
+    let wide = canvas::Transform {
+        x: 40.0,
+        y: 30.0,
+        width: 800.0,
+        height: 60.0,
+        rotation: 0.0,
+    };
+    let layout = |align, width: Option<f64>, spans: Vec<canvas::TextSpan>| canvas::TextLayout {
+        align,
+        width,
+        spans,
+        ..canvas::TextLayout::default()
+    };
+    let ws = "WWWWWWWWWW";
+    let prose = "Pack my box with five dozen liquor jugs";
+    let cases = [
+        ("left", ws, layout(canvas::TextAlign::Left, None, vec![])),
+        (
+            "center",
+            ws,
+            layout(canvas::TextAlign::Center, None, vec![]),
+        ),
+        ("right", ws, layout(canvas::TextAlign::Right, None, vec![])),
+        (
+            "right-explicit",
+            ws,
+            layout(canvas::TextAlign::Right, Some(520.0), vec![]),
+        ),
+        (
+            "center-wrapped",
+            prose,
+            layout(canvas::TextAlign::Center, Some(260.0), vec![]),
+        ),
+        (
+            "right-wrapped",
+            prose,
+            layout(canvas::TextAlign::Right, Some(260.0), vec![]),
+        ),
+        ("regular", ws, layout(canvas::TextAlign::Left, None, vec![])),
+        (
+            "bold-span",
+            ws,
+            layout(canvas::TextAlign::Left, None, vec![bold(0, 10)]),
+        ),
+        (
+            "bold-span-right",
+            ws,
+            layout(canvas::TextAlign::Right, None, vec![bold(0, 10)]),
+        ),
+        (
+            "bold-wrapped",
+            prose,
+            layout(canvas::TextAlign::Left, Some(260.0), vec![bold(9, 39)]),
+        ),
+    ];
+    let mut exporter = exporter();
+    let mut world = World::new();
+    install_text(&mut world);
+    let mut widths = BTreeMap::new();
+    for (name, text, layout) in cases {
+        let project = text_project(text, wide, layout);
+        let (rect, view, svg, gpu) =
+            render_padded(&mut exporter, &mut world, &project, &project.scene, name);
+        assert_contained(name, rect, view, &svg, &gpu);
+        let (a, b) = (containment(&svg, view, rect), containment(&gpu, view, rect));
+        assert!(
+            (a.center_x - b.center_x).abs() < 8.0,
+            "{name}: svg ink centered at x {} but the renderer at {}",
+            a.center_x,
+            b.center_x
+        );
+        widths.insert(name, rect.w);
+    }
+    assert!(
+        widths["bold-span"] > widths["regular"],
+        "a bold span did not widen the export rect: {widths:?}"
+    );
 }
 
 #[test]
@@ -161,13 +451,14 @@ fn a_rounded_frame_corner_clips_its_child() {
         "the corner child must cover both samples"
     );
 
-    let rect = pixel_rect(scene_bounds(&project.scene));
-    let reference = rasterize_svg(
-        &scene_svg(&project.scene, &project.assets, rect),
-        "layers-corner",
-    );
     let mut world = World::new();
     install_text(&mut world);
+    let measure = text_measure(&world);
+    let rect = pixel_rect(scene_bounds(&project.scene, measure.as_ref()));
+    let reference = rasterize_svg(
+        &scene_svg(&project.scene, &project.assets, measure.as_ref(), rect),
+        "layers-corner",
+    );
     let images = install_images(&mut world, &project).unwrap();
     let (scene, _) = export_scene(&world, &project.scene, &images);
     let mut exporter = match Exporter::new() {
@@ -431,7 +722,7 @@ fn pixel_at(image: &RgbaImage, world_x: i32, world_y: i32, pan: [f32; 2]) -> [u8
     pixel(image, x.round() as u32, y.round() as u32)
 }
 
-fn covers(node: &CreativeNode, parent_origin: [f32; 2], world: [f32; 2]) -> bool {
+fn covers(node: &Node, parent_origin: [f32; 2], world: [f32; 2]) -> bool {
     let x = world[0] - parent_origin[0];
     let y = world[1] - parent_origin[1];
     let transform = &node.transform;

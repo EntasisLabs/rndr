@@ -1,4 +1,4 @@
-//! Draw a [`CreativeScene`](crate::model::CreativeScene) into a display list
+//! Draw a [`canvas::Scene`](canvas::Scene) into a display list
 //! and into the SVG the Create canvas exports.
 //!
 //! Both paths share the geometry: the local matrix rotates about the node
@@ -11,18 +11,12 @@
 use std::collections::BTreeMap;
 
 use base64::Engine;
-use rndr_core::{
-    Color, FontStyle, Rect, TextAlign, TextSpan, TextStyle, World, FONT_WEIGHT_REGULAR,
-};
-use rndr_paint::{
-    Affine, Canvas, Cap, ClipShape, Effect, FillRule, Path, Scene, SceneLayer, Stroke, TextSource,
-};
+use rndr_canvas::TextMeasure;
+use rndr_canvas_ui::paint::{visual_bounds, EngineMeasure};
+use rndr_core::{Color, Rect, World, FONT_WEIGHT_REGULAR};
+use rndr_paint::{Affine, Canvas, Scene};
 
-use crate::model::{
-    utf16_to_byte, CreativeAppearance, CreativeBrush, CreativeContent, CreativeFontStyle,
-    CreativeLine, CreativeNode, CreativePoint, CreativeScene, CreativeShapeKind, CreativeTextAlign,
-    CreativeTextLayout, CreativeTextSpan,
-};
+use crate::model::{canvas, utf16_to_byte};
 
 /// Loaded pixels for one image asset.
 #[derive(Clone, Debug)]
@@ -62,49 +56,52 @@ pub fn pixel_rect(bounds: Rect) -> Rect {
     }
 }
 
-/// Axis-aligned bounds of the visible roots, including stroke and shadow padding.
-pub fn scene_bounds(scene: &CreativeScene) -> Rect {
-    let rects: Vec<Rect> = scene
-        .nodes
-        .iter()
-        .filter(|node| node.parent_id.is_none())
-        .filter_map(|node| visual_bounds(node, &scene.nodes))
-        .collect();
-    union_rects(&rects).unwrap_or(Rect {
-        x: 0.0,
-        y: 0.0,
-        w: 640.0,
-        h: 400.0,
-    })
+/// Axis-aligned bounds of the visible roots, including stroke and shadow
+/// padding, with text sized by `measure`.
+pub fn scene_bounds(scene: &canvas::Scene, measure: &dyn TextMeasure) -> Rect {
+    match visual_bounds(scene, measure) {
+        Some(b) if b.width > 0.0 && b.height > 0.0 => Rect {
+            x: b.x as f32,
+            y: b.y as f32,
+            w: b.width as f32,
+            h: b.height as f32,
+        },
+        _ => Rect {
+            x: 0.0,
+            y: 0.0,
+            w: 640.0,
+            h: 400.0,
+        },
+    }
 }
 
-/// Record `scene` into `canvas`. The caller owns the camera.
+/// Record `scene` into `canvas` with the world's text engine. The caller owns
+/// the camera.
 pub fn paint_scene(
     canvas: &mut Canvas,
     world: &World,
-    scene: &CreativeScene,
+    scene: &canvas::Scene,
     images: &BTreeMap<String, u64>,
 ) {
-    let background = parse_color(&scene.background);
-    if background.a > 0.0 {
-        canvas.fill(
-            Path::polygon(&[
-                [-100_000.0, -100_000.0],
-                [100_000.0, -100_000.0],
-                [100_000.0, 100_000.0],
-                [-100_000.0, 100_000.0],
-            ]),
-            background,
-            FillRule::NonZero,
-        );
-    }
-    for node in scene.nodes.iter().filter(|node| node.parent_id.is_none()) {
-        paint_node(canvas, world, node, &scene.nodes, images);
+    let measure = text_measure(world);
+    rndr_canvas_ui::paint::paint_scene(canvas, world, scene, images, measure.as_ref());
+}
+
+/// The world's text engine, or the estimate when none is installed.
+pub fn text_measure(world: &World) -> Box<dyn TextMeasure> {
+    match EngineMeasure::from_world(world) {
+        Some(engine) => Box::new(engine),
+        None => Box::new(rndr_canvas::EstimateMeasure),
     }
 }
 
 /// SVG document for `rect`, with image assets inlined as data URLs.
-pub fn scene_svg(scene: &CreativeScene, images: &BTreeMap<String, Asset>, rect: Rect) -> String {
+pub fn scene_svg(
+    scene: &canvas::Scene,
+    images: &BTreeMap<String, Asset>,
+    measure: &dyn TextMeasure,
+    rect: Rect,
+) -> String {
     let mut out = String::new();
     out.push_str(&format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"{} {} {} {}\">",
@@ -123,7 +120,7 @@ pub fn scene_svg(scene: &CreativeScene, images: &BTreeMap<String, Asset>, rect: 
         ));
     }
     for node in scene.nodes.iter().filter(|node| node.parent_id.is_none()) {
-        svg_node(&mut out, node, &scene.nodes, images);
+        svg_node(&mut out, node, &scene.nodes, images, measure);
     }
     out.push_str("</svg>");
     out
@@ -132,262 +129,24 @@ pub fn scene_svg(scene: &CreativeScene, images: &BTreeMap<String, Asset>, rect: 
 /// Build a scene with an identity camera, for offscreen export.
 pub fn export_scene(
     world: &World,
-    scene: &CreativeScene,
+    scene: &canvas::Scene,
     images: &BTreeMap<String, u64>,
 ) -> (Scene, Rect) {
     let mut canvas = Canvas::new();
     paint_scene(&mut canvas, world, scene, images);
-    (canvas.into_scene(), pixel_rect(scene_bounds(scene)))
-}
-
-fn paint_node(
-    canvas: &mut Canvas,
-    world: &World,
-    node: &CreativeNode,
-    nodes: &[CreativeNode],
-    images: &BTreeMap<String, u64>,
-) {
-    if !node.visible {
-        return;
-    }
-    let opacity = (node.opacity as f32).clamp(0.0, 1.0);
-    if opacity <= 0.0 {
-        return;
-    }
-    canvas.push_transform(local_affine(node));
-    let fade = opacity < 0.999;
-    if fade {
-        canvas.push_layer(SceneLayer::opacity(opacity));
-    }
-    match &node.content {
-        CreativeContent::Frame { background, .. } => {
-            let (w, h) = size_of(node);
-            let radius = corner_radius(node);
-            let path = Path::round_rect(box_rect(w, h), radius);
-            let fill = parse_color(background);
-            let shadow = shadow_of(node);
-            if shadow.is_some() || fill.a > 0.0 {
-                push_effect(canvas, shadow, None);
-                if fill.a > 0.0 {
-                    canvas.fill(path, fill, FillRule::NonZero);
-                }
-                pop_effect(canvas, shadow, None);
-            }
-            let clip = ClipShape::RoundRect {
-                rect: box_rect(w, h),
-                radius,
-            };
-            canvas.push_layer(SceneLayer {
-                opacity: 1.0,
-                clip: Some(clip),
-                effect: None,
-                ..SceneLayer::default()
-            });
-            paint_children(canvas, world, node, nodes, images);
-            canvas.pop_layer();
-        }
-        CreativeContent::Group => paint_children(canvas, world, node, nodes, images),
-        CreativeContent::Text {
-            text,
-            color,
-            font_family,
-            font_size,
-            font_weight,
-            font_style,
-        } => {
-            canvas.text(
-                world,
-                TextSource {
-                    text: text.clone(),
-                    style: text_style(node, font_family, *font_size, *font_weight, *font_style),
-                    spans: text_spans(node, text, color),
-                    max_width: node
-                        .text_layout
-                        .as_ref()
-                        .and_then(|layout| layout.width)
-                        .map(|width| width as f32)
-                        .unwrap_or(f32::INFINITY),
-                    origin: [0.0, 0.0],
-                    color: parse_color(color),
-                },
-            );
-        }
-        CreativeContent::Shape {
-            shape,
-            fill,
-            stroke,
-            stroke_width,
-            line,
-        } => {
-            if let Some(geom) = line_geometry(node) {
-                paint_line(canvas, &geom);
-            } else if !matches!(shape, CreativeShapeKind::Line) {
-                let (w, h) = size_of(node);
-                let path = match shape {
-                    CreativeShapeKind::Ellipse => {
-                        Path::ellipse([w * 0.5, h * 0.5], [w * 0.5, h * 0.5])
-                    }
-                    _ => Path::round_rect(box_rect(w, h), corner_radius(node)),
-                };
-                let fill = parse_color(fill);
-                let stroke_color = parse_color(stroke);
-                let width = (*stroke_width as f32).max(0.0);
-                let shadow = shadow_of(node);
-                push_effect(canvas, shadow, None);
-                stroke_fill(canvas, path, fill, stroke_color, width, Cap::Butt, &[]);
-                pop_effect(canvas, shadow, None);
-            }
-            let _ = line;
-        }
-        CreativeContent::Ink {
-            color,
-            brush,
-            points,
-            ..
-        } => {
-            if let Some(geom) = line_geometry(node) {
-                paint_line(canvas, &geom);
-            } else {
-                let path = ink_outline(brush, points);
-                let mut ink = parse_color(color);
-                ink.a *= (brush.opacity as f32).clamp(0.0, 1.0);
-                if ink.a > 0.0 && !path.is_empty() {
-                    canvas.fill(path, ink, FillRule::NonZero);
-                }
-            }
-        }
-        CreativeContent::Image { asset_id, crop } => {
-            if let Some(id) = images.get(asset_id).copied() {
-                let (w, h) = size_of(node);
-                let radius = corner_radius(node);
-                let uv = crop_uv(crop);
-                let shadow = shadow_of(node);
-                let clip = (radius > 0.0).then(|| ClipShape::RoundRect {
-                    rect: box_rect(w, h),
-                    radius,
-                });
-                push_effect(canvas, shadow, clip.clone());
-                canvas.image(
-                    id,
-                    box_rect(w, h),
-                    uv,
-                    if clip.is_some() { 0.0 } else { radius },
-                );
-                pop_effect(canvas, shadow, clip);
-            } else {
-                let (w, h) = size_of(node);
-                canvas.fill(
-                    Path::round_rect(box_rect(w, h), corner_radius(node)),
-                    Color::rgba(0.53, 0.53, 0.53, 0.1),
-                    FillRule::NonZero,
-                );
-            }
-        }
-    }
-    if fade {
-        canvas.pop_layer();
-    }
-    canvas.pop_transform();
-}
-
-fn paint_children(
-    canvas: &mut Canvas,
-    world: &World,
-    node: &CreativeNode,
-    nodes: &[CreativeNode],
-    images: &BTreeMap<String, u64>,
-) {
-    for child in nodes
-        .iter()
-        .filter(|child| child.parent_id.as_deref() == Some(node.id.as_str()))
-    {
-        paint_node(canvas, world, child, nodes, images);
-    }
-}
-
-fn paint_line(canvas: &mut Canvas, line: &LineGeom) {
-    let paint = line_paint(line);
-    let color = parse_color(&line.color);
-    if color.a <= 0.0 || line.stroke_width <= 0.0 {
-        return;
-    }
-    let fade = line.opacity < 0.999;
-    if fade {
-        canvas.push_layer(SceneLayer::opacity(line.opacity));
-    }
-    let dash = if line.dashed {
-        vec![line.stroke_width * 3.0, line.stroke_width * 2.0]
-    } else {
-        Vec::new()
-    };
-    canvas.stroke(
-        Path::line(paint.start, paint.end),
-        color,
-        Stroke::solid(line.stroke_width)
-            .with_cap(Cap::Round)
-            .dashed(dash),
-    );
-    for triangle in paint.heads {
-        canvas.fill(Path::polygon(&triangle), color, FillRule::NonZero);
-    }
-    if fade {
-        canvas.pop_layer();
-    }
-}
-
-fn stroke_fill(
-    canvas: &mut Canvas,
-    path: Path,
-    fill: Color,
-    stroke: Color,
-    width: f32,
-    cap: Cap,
-    dash: &[f32],
-) {
-    let draw_fill = fill.a > 0.0;
-    let draw_stroke = stroke.a > 0.0 && width > 0.0;
-    if draw_fill && draw_stroke {
-        canvas.fill_stroke(
-            path,
-            fill,
-            FillRule::NonZero,
-            stroke,
-            Stroke::solid(width).with_cap(cap).dashed(dash.to_vec()),
-        );
-    } else if draw_fill {
-        canvas.fill(path, fill, FillRule::NonZero);
-    } else if draw_stroke {
-        canvas.stroke(
-            path,
-            stroke,
-            Stroke::solid(width).with_cap(cap).dashed(dash.to_vec()),
-        );
-    }
-}
-
-fn push_effect(canvas: &mut Canvas, shadow: Option<Effect>, clip: Option<ClipShape>) {
-    if shadow.is_none() && clip.is_none() {
-        return;
-    }
-    canvas.push_layer(SceneLayer {
-        opacity: 1.0,
-        clip,
-        effect: shadow,
-        ..SceneLayer::default()
-    });
-}
-
-fn pop_effect(canvas: &mut Canvas, shadow: Option<Effect>, clip: Option<ClipShape>) {
-    if shadow.is_some() || clip.is_some() {
-        canvas.pop_layer();
-    }
+    let measure = text_measure(world);
+    (
+        canvas.into_scene(),
+        pixel_rect(scene_bounds(scene, measure.as_ref())),
+    )
 }
 
 fn svg_node(
     out: &mut String,
-    node: &CreativeNode,
-    nodes: &[CreativeNode],
+    node: &canvas::Node,
+    nodes: &[canvas::Node],
     images: &BTreeMap<String, Asset>,
+    measure: &dyn TextMeasure,
 ) {
     if !node.visible {
         return;
@@ -409,7 +168,7 @@ fn svg_node(
         num(opacity as f32),
     ));
     match &node.content {
-        CreativeContent::Frame { background, .. } => {
+        canvas::Content::Frame { background, .. } => {
             let (w, h) = size_of(node);
             let radius = corner_radius(node);
             let clip = format!("clip-{}", node.id);
@@ -430,12 +189,12 @@ fn svg_node(
                 filter_attr(node),
             ));
             out.push_str(&format!("<g clip-path=\"url(#{clip})\">"));
-            svg_children(out, node, nodes, images);
+            svg_children(out, node, nodes, images, measure);
             out.push_str("</g>");
         }
-        CreativeContent::Group => svg_children(out, node, nodes, images),
-        CreativeContent::Text { .. } => svg_text(out, node),
-        CreativeContent::Shape {
+        canvas::Content::Group => svg_children(out, node, nodes, images, measure),
+        canvas::Content::Text { .. } => svg_text(out, node, measure),
+        canvas::Content::Shape {
             shape,
             fill,
             stroke,
@@ -444,12 +203,12 @@ fn svg_node(
         } => {
             if let Some(geom) = line_geometry(node) {
                 svg_line(out, &geom);
-            } else if !matches!(shape, CreativeShapeKind::Line) {
+            } else if !matches!(shape, canvas::ShapeKind::Line) {
                 let (w, h) = size_of(node);
                 svg_defs_shadow(out, node, w, h);
                 let filter = filter_attr(node);
                 match shape {
-                    CreativeShapeKind::Ellipse => out.push_str(&format!(
+                    canvas::ShapeKind::Ellipse => out.push_str(&format!(
                         "<ellipse cx=\"{}\" cy=\"{}\" rx=\"{}\" ry=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{}/>",
                         num(w * 0.5),
                         num(h * 0.5),
@@ -473,7 +232,7 @@ fn svg_node(
                 }
             }
         }
-        CreativeContent::Ink {
+        canvas::Content::Ink {
             color,
             brush,
             points,
@@ -490,7 +249,7 @@ fn svg_node(
                 ));
             }
         }
-        CreativeContent::Image { asset_id, crop } => {
+        canvas::Content::Image { asset_id, crop } => {
             let (w, h) = size_of(node);
             let radius = corner_radius(node);
             if let Some(asset) = images.get(asset_id) {
@@ -537,15 +296,16 @@ fn svg_node(
 
 fn svg_children(
     out: &mut String,
-    node: &CreativeNode,
-    nodes: &[CreativeNode],
+    node: &canvas::Node,
+    nodes: &[canvas::Node],
     images: &BTreeMap<String, Asset>,
+    measure: &dyn TextMeasure,
 ) {
     for child in nodes
         .iter()
         .filter(|child| child.parent_id.as_deref() == Some(node.id.as_str()))
     {
-        svg_node(out, child, nodes, images);
+        svg_node(out, child, nodes, images, measure);
     }
 }
 
@@ -584,8 +344,12 @@ fn svg_line(out: &mut String, line: &LineGeom) {
     out.push_str("</g>");
 }
 
-fn svg_text(out: &mut String, node: &CreativeNode) {
-    let CreativeContent::Text {
+/// Lines, wrapping, alignment width and line tops come from the shared
+/// [`rndr_canvas::text::layout_node`] box, the same one the painter and the
+/// export bounds use. Glyph placement inside a line is left to the SVG
+/// renderer.
+fn svg_text(out: &mut String, node: &canvas::Node, measure: &dyn TextMeasure) {
+    let canvas::Content::Text {
         text,
         color,
         font_family,
@@ -596,30 +360,32 @@ fn svg_text(out: &mut String, node: &CreativeNode) {
     else {
         return;
     };
+    let Some(text_box) = rndr_canvas::text::layout_node(node, measure) else {
+        return;
+    };
     let style = *font_style;
-    let weight = *font_weight;
     let layout = node.text_layout.as_ref();
     let size = *font_size as f32;
-    // The SVG cannot measure the face. The line box is the multiplier times
-    // the em size, the em is 0.8 ascent and 0.2 descent, and that box is
-    // centered in the line. Side bearings are omitted, so a left-aligned run
-    // starts at the 6% em padding. The display list uses the face metrics
-    // and the same multiplier.
-    let line_height = size * layout.map(|item| item.line_height as f32).unwrap_or(1.3);
-    let paragraph = layout
-        .and_then(|item| item.paragraph_spacing)
-        .unwrap_or(0.0) as f32;
-    let padding = size * 0.06;
+    // The SVG cannot measure the face. The em is 0.8 ascent and 0.2 descent,
+    // centered in the line box. Side bearings are omitted, so a left-aligned
+    // run starts at the 6% em padding.
+    let line_height = text_box.line_height as f32;
+    let padding = text_box.padding as f32;
     let ascent = size * 0.8;
     let descent = size * 0.2;
     let baseline = padding + (line_height - ascent - descent) / 2.0 + ascent;
     let letter = layout.and_then(|item| item.letter_spacing).unwrap_or(0.0) as f32;
-    let weight = weight.unwrap_or(FONT_WEIGHT_REGULAR);
-    let font_style = match style.unwrap_or(CreativeFontStyle::Normal) {
-        CreativeFontStyle::Italic => "italic",
-        CreativeFontStyle::Normal => "normal",
+    let weight = font_weight.unwrap_or(FONT_WEIGHT_REGULAR);
+    let font_style = match style.unwrap_or(canvas::FontStyle::Normal) {
+        canvas::FontStyle::Italic => "italic",
+        canvas::FontStyle::Normal => "normal",
     };
-    let (w, _) = size_of(node);
+    let w = text_box.width as f32;
+    let (x, text_anchor) = match text_box.align {
+        canvas::TextAlign::Center => (w * 0.5, "middle"),
+        canvas::TextAlign::Right => (w - padding, "end"),
+        canvas::TextAlign::Left => (padding, "start"),
+    };
     out.push_str(&format!(
         "<text fill=\"{}\" style=\"font-family:{};font-size:{}px;font-weight:{weight};font-style:{font_style};white-space:pre;letter-spacing:{}px;dominant-baseline:alphabetic\">",
         xml_attr(color),
@@ -627,34 +393,33 @@ fn svg_text(out: &mut String, node: &CreativeNode) {
         num(size),
         num(letter),
     ));
-    let mut byte = 0usize;
-    let mut line_y = 0.0f32;
-    for line in text.split('\n') {
-        let y = baseline + line_y;
-        let anchor = layout
-            .map(|item| item.align)
-            .unwrap_or(CreativeTextAlign::Left);
-        let (x, text_anchor) = match anchor {
-            CreativeTextAlign::Center => (w * 0.5, "middle"),
-            CreativeTextAlign::Right => (w - padding, "end"),
-            CreativeTextAlign::Left => (padding, "start"),
-        };
-        line_y += line_height + paragraph;
+    for (index, line) in text_box.lines.iter().enumerate() {
+        let y = baseline + text_box.ys[index] as f32;
         out.push_str(&format!(
             "<tspan x=\"{}\" y=\"{}\" text-anchor=\"{text_anchor}\">",
             num(x),
             num(y),
         ));
-        let end = byte + line.len();
+        let byte = utf16_to_byte(text, text_box.starts[index]);
+        // Whitespace at a wrap hangs past the box, as in a pre-wrap box.
+        let wrapped = text_box.starts.get(index + 1).is_some_and(|&next| {
+            next as usize == text_box.starts[index] as usize + line.encode_utf16().count()
+        });
+        let shown = if wrapped {
+            line.trim_end()
+        } else {
+            line.as_str()
+        };
+        let end = (byte + shown.len()).min(text.len());
         for segment in text_segments(text, layout, byte, end) {
             let seg_weight = segment.style.font_weight.unwrap_or(weight);
             let seg_style = match segment
                 .style
                 .font_style
-                .unwrap_or(style.unwrap_or(CreativeFontStyle::Normal))
+                .unwrap_or(style.unwrap_or(canvas::FontStyle::Normal))
             {
-                CreativeFontStyle::Italic => "italic",
-                CreativeFontStyle::Normal => "normal",
+                canvas::FontStyle::Italic => "italic",
+                canvas::FontStyle::Normal => "normal",
             };
             let seg_color = segment.style.color.unwrap_or(color);
             let underline = segment
@@ -669,16 +434,15 @@ fn svg_text(out: &mut String, node: &CreativeNode) {
                 xml_text(segment.text),
             ));
         }
-        if line.is_empty() {
+        if shown.is_empty() {
             out.push(' ');
         }
         out.push_str("</tspan>");
-        byte = end + 1;
     }
     out.push_str("</text>");
 }
 
-fn svg_defs_shadow(out: &mut String, node: &CreativeNode, w: f32, h: f32) {
+fn svg_defs_shadow(out: &mut String, node: &canvas::Node, w: f32, h: f32) {
     let Some(shadow) = node
         .appearance
         .as_ref()
@@ -708,7 +472,7 @@ fn svg_defs_shadow(out: &mut String, node: &CreativeNode, w: f32, h: f32) {
     ));
 }
 
-fn filter_attr(node: &CreativeNode) -> String {
+fn filter_attr(node: &canvas::Node) -> String {
     if node
         .appearance
         .as_ref()
@@ -722,17 +486,17 @@ fn filter_attr(node: &CreativeNode) -> String {
     }
 }
 
-fn uses_shadow(content: &CreativeContent) -> bool {
+fn uses_shadow(content: &canvas::Content) -> bool {
     match content {
-        CreativeContent::Frame { .. } | CreativeContent::Image { .. } => true,
-        CreativeContent::Shape { shape, .. } => !matches!(shape, CreativeShapeKind::Line),
+        canvas::Content::Frame { .. } | canvas::Content::Image { .. } => true,
+        canvas::Content::Shape { shape, .. } => !matches!(shape, canvas::ShapeKind::Line),
         _ => false,
     }
 }
 
-fn shape_stroke(node: &CreativeNode) -> f32 {
+fn shape_stroke(node: &canvas::Node) -> f32 {
     match &node.content {
-        CreativeContent::Shape { stroke_width, .. } => *stroke_width as f32,
+        canvas::Content::Shape { stroke_width, .. } => *stroke_width as f32,
         _ => 0.0,
     }
 }
@@ -744,14 +508,14 @@ struct Segment<'a> {
 
 struct SpanStyle<'a> {
     font_weight: Option<u16>,
-    font_style: Option<CreativeFontStyle>,
+    font_style: Option<canvas::FontStyle>,
     color: Option<&'a str>,
     underline: Option<bool>,
 }
 
 fn text_segments<'a>(
     text: &'a str,
-    layout: Option<&'a CreativeTextLayout>,
+    layout: Option<&'a canvas::TextLayout>,
     start: usize,
     end: usize,
 ) -> Vec<Segment<'a>> {
@@ -793,83 +557,13 @@ fn text_segments<'a>(
         .collect()
 }
 
-fn span_style(span: &CreativeTextSpan) -> SpanStyle<'_> {
+fn span_style(span: &canvas::TextSpan) -> SpanStyle<'_> {
     SpanStyle {
         font_weight: span.font_weight,
         font_style: span.font_style,
         color: span.color.as_deref(),
         underline: span.underline,
     }
-}
-
-fn text_style(
-    node: &CreativeNode,
-    family: &str,
-    size: f64,
-    weight: Option<u16>,
-    style: Option<CreativeFontStyle>,
-) -> TextStyle {
-    let layout = node.text_layout.as_ref();
-    TextStyle {
-        family: family.to_string(),
-        size: size as f32,
-        features: Vec::new(),
-        axes: Vec::new(),
-        weight: weight.unwrap_or(FONT_WEIGHT_REGULAR),
-        style: match style.unwrap_or(CreativeFontStyle::Normal) {
-            CreativeFontStyle::Italic => FontStyle::Italic,
-            CreativeFontStyle::Normal => FontStyle::Normal,
-        },
-        letter_spacing: layout.and_then(|item| item.letter_spacing).unwrap_or(0.0) as f32,
-        paragraph_spacing: layout
-            .and_then(|item| item.paragraph_spacing)
-            .unwrap_or(0.0) as f32,
-        align: match layout
-            .map(|item| item.align)
-            .unwrap_or(CreativeTextAlign::Left)
-        {
-            CreativeTextAlign::Left => TextAlign::Start,
-            CreativeTextAlign::Center => TextAlign::Center,
-            CreativeTextAlign::Right => TextAlign::End,
-        },
-        line_height: layout.and_then(|item| {
-            let factor = item.line_height as f32;
-            if factor.is_finite() && factor > 0.0 {
-                Some(factor)
-            } else {
-                None
-            }
-        }),
-    }
-}
-
-fn text_spans(node: &CreativeNode, text: &str, color: &str) -> Vec<TextSpan> {
-    let layout = node.text_layout.as_ref();
-    let underline_all = layout.and_then(|item| item.underline).unwrap_or(false);
-    let spans = layout.map(|item| item.spans.as_slice()).unwrap_or(&[]);
-    if spans.is_empty() {
-        if !underline_all {
-            return Vec::new();
-        }
-        return vec![TextSpan::new(0, text.len(), parse_color(color)).underline()];
-    }
-    spans
-        .iter()
-        .map(|span| {
-            let start = utf16_to_byte(text, span.start);
-            let end = utf16_to_byte(text, span.end);
-            let mut styled = TextSpan::new(
-                start,
-                end,
-                parse_color(span.color.as_deref().unwrap_or(color)),
-            );
-            styled.weight = span.font_weight;
-            styled.italic = matches!(span.font_style, Some(CreativeFontStyle::Italic));
-            styled.underline = span.underline.unwrap_or(underline_all);
-            styled
-        })
-        .filter(|span| span.start < span.end)
-        .collect()
 }
 
 struct LineGeom {
@@ -889,19 +583,19 @@ struct LinePaint {
     heads: Vec<[[f32; 2]; 3]>,
 }
 
-fn line_geometry(node: &CreativeNode) -> Option<LineGeom> {
+fn line_geometry(node: &canvas::Node) -> Option<LineGeom> {
     match &node.content {
-        CreativeContent::Shape {
-            shape: CreativeShapeKind::Line,
+        canvas::Content::Shape {
+            shape: canvas::ShapeKind::Line,
             stroke,
             stroke_width,
             line,
             ..
         } => {
             let (w, h) = size_of(node);
-            let line = line.clone().unwrap_or(CreativeLine {
-                start: crate::model::CreativeLinePoint { x: 0.0, y: 0.0 },
-                end: crate::model::CreativeLinePoint {
+            let line = line.unwrap_or(canvas::Line {
+                start: canvas::LinePoint { x: 0.0, y: 0.0 },
+                end: canvas::LinePoint {
                     x: f64::from(w),
                     y: f64::from(h),
                 },
@@ -920,7 +614,7 @@ fn line_geometry(node: &CreativeNode) -> Option<LineGeom> {
                 dashed: line.dashed,
             })
         }
-        CreativeContent::Ink {
+        canvas::Content::Ink {
             color,
             input,
             brush,
@@ -932,12 +626,12 @@ fn line_geometry(node: &CreativeNode) -> Option<LineGeom> {
 
 fn legacy_arrow(
     color: &str,
-    input: &crate::model::CreativeInputKind,
-    brush: &CreativeBrush,
-    points: &[CreativePoint],
+    input: &canvas::InputKind,
+    brush: &canvas::Brush,
+    points: &[canvas::InkPoint],
 ) -> Option<LineGeom> {
-    if !matches!(input, crate::model::CreativeInputKind::Mouse)
-        || !matches!(brush.kind, crate::model::CreativeBrushKind::Pen)
+    if !matches!(input, canvas::InputKind::Mouse)
+        || !matches!(brush.kind, canvas::BrushKind::Pen)
         || points.len() != 5
     {
         return None;
@@ -1037,24 +731,6 @@ fn line_paint(line: &LineGeom) -> LinePaint {
     }
 }
 
-fn line_outline(line: &LineGeom) -> Vec<[f32; 2]> {
-    let paint = line_paint(line);
-    let pad = line.stroke_width * 0.5;
-    let mut points = vec![line.start, line.end];
-    for head in paint.heads {
-        points.extend(head);
-    }
-    points
-        .into_iter()
-        .flat_map(|point| {
-            [
-                [point[0] - pad, point[1] - pad],
-                [point[0] + pad, point[1] + pad],
-            ]
-        })
-        .collect()
-}
-
 #[derive(Clone)]
 struct Sample {
     at: [f32; 2],
@@ -1062,11 +738,7 @@ struct Sample {
     elapsed_ms: Option<f32>,
 }
 
-fn ink_outline(brush: &CreativeBrush, points: &[CreativePoint]) -> Path {
-    quadratic_outline(&ribbon(brush, points))
-}
-
-fn ribbon(brush: &CreativeBrush, points: &[CreativePoint]) -> Vec<[f32; 2]> {
+fn ribbon(brush: &canvas::Brush, points: &[canvas::InkPoint]) -> Vec<[f32; 2]> {
     let smoothed = smooth_points(points, brush.smoothing * 0.7 + brush.streamline * 0.3);
     if smoothed.is_empty() {
         return Vec::new();
@@ -1103,7 +775,7 @@ fn ribbon(brush: &CreativeBrush, points: &[CreativePoint]) -> Vec<[f32; 2]> {
     left
 }
 
-fn smooth_points(points: &[CreativePoint], smoothing: f64) -> Vec<Sample> {
+fn smooth_points(points: &[canvas::InkPoint], smoothing: f64) -> Vec<Sample> {
     let raw: Vec<Sample> = points
         .iter()
         .map(|point| Sample {
@@ -1136,13 +808,13 @@ fn smooth_points(points: &[CreativePoint], smoothing: f64) -> Vec<Sample> {
         .collect()
 }
 
-fn stroke_radius(brush: &CreativeBrush, points: &[Sample], index: usize) -> f32 {
+fn stroke_radius(brush: &canvas::Brush, points: &[Sample], index: usize) -> f32 {
     let pressure = pressure_at(brush, points, index);
     let factor = 1.0 + brush.thinning as f32 * (pressure * 2.0 - 1.0);
     ((brush.size as f32) * 0.12).max((brush.size as f32) * 0.5 * factor)
 }
 
-fn pressure_at(brush: &CreativeBrush, points: &[Sample], index: usize) -> f32 {
+fn pressure_at(brush: &canvas::Brush, points: &[Sample], index: usize) -> f32 {
     if let Some(direct) = points[index].pressure {
         return direct.clamp(0.0, 1.0);
     }
@@ -1160,88 +832,11 @@ fn pressure_at(brush: &CreativeBrush, points: &[Sample], index: usize) -> f32 {
     velocity_pressure.clamp(0.25, 0.82)
 }
 
-fn quadratic_outline(outline: &[[f32; 2]]) -> Path {
-    if outline.is_empty() {
-        return Path::new();
-    }
-    let mut path = Path::builder();
-    let n = outline.len();
-    if n < 2 {
-        path.move_to(round2(outline[0]));
-        path.close();
-        return path.build();
-    }
-    // Start on the midpoint so every vertex, including the first, is a
-    // quadratic control. Both ends of the ribbon then use the same cap.
-    // `outline_data` writes this same sequence.
-    path.move_to(ribbon_mid(outline[n - 1], outline[0]));
-    for index in 0..n {
-        let point = outline[index];
-        let next = outline[(index + 1) % n];
-        path.quad_to(round2(point), ribbon_mid(point, next));
-    }
-    path.close();
-    path.build()
-}
-
 fn ribbon_mid(a: [f32; 2], b: [f32; 2]) -> [f32; 2] {
     round2([(a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5])
 }
 
-fn visual_bounds(node: &CreativeNode, nodes: &[CreativeNode]) -> Option<Rect> {
-    if !node.visible {
-        return None;
-    }
-    if matches!(node.content, CreativeContent::Group) {
-        let children: Vec<Rect> = nodes
-            .iter()
-            .filter(|child| child.parent_id.as_deref() == Some(node.id.as_str()))
-            .filter_map(|child| visual_bounds(child, nodes))
-            .collect();
-        return union_rects(&children).or_else(|| Some(node_bounds(node, nodes)));
-    }
-    let bounds = node_bounds(node, nodes);
-    let mut pad = shape_stroke(node) * 0.5;
-    if let Some(shadow) = node
-        .appearance
-        .as_ref()
-        .and_then(|item| item.shadow.as_ref())
-    {
-        if uses_shadow(&node.content) {
-            pad += shadow.blur as f32 * 4.0 + (shadow.x as f32).hypot(shadow.y as f32);
-        }
-    }
-    Some(inflate(bounds, pad))
-}
-
-fn node_bounds(node: &CreativeNode, nodes: &[CreativeNode]) -> Rect {
-    let matrix = world_affine(node, nodes);
-    let points = if let Some(line) = line_geometry(node) {
-        line_outline(&line)
-    } else {
-        let (w, h) = size_of(node);
-        vec![[0.0, 0.0], [w, 0.0], [0.0, h], [w, h]]
-    };
-    aabb(
-        points
-            .iter()
-            .copied()
-            .map(|point| matrix.transform_point(point)),
-    )
-}
-
-fn world_affine(node: &CreativeNode, nodes: &[CreativeNode]) -> Affine {
-    let local = local_affine(node);
-    let Some(parent_id) = node.parent_id.as_deref() else {
-        return local;
-    };
-    let Some(parent) = nodes.iter().find(|candidate| candidate.id == parent_id) else {
-        return local;
-    };
-    local.then(world_affine(parent, nodes))
-}
-
-fn local_affine(node: &CreativeNode) -> Affine {
+fn local_affine(node: &canvas::Node) -> Affine {
     let transform = &node.transform;
     let (x, y, w, h) = (
         transform.x as f32,
@@ -1262,10 +857,10 @@ fn local_affine(node: &CreativeNode) -> Affine {
     }
 }
 
-fn corner_radius(node: &CreativeNode) -> f32 {
+fn corner_radius(node: &canvas::Node) -> f32 {
     let surface = match &node.content {
-        CreativeContent::Frame { .. } | CreativeContent::Image { .. } => true,
-        CreativeContent::Shape { shape, .. } => matches!(shape, CreativeShapeKind::Rectangle),
+        canvas::Content::Frame { .. } | canvas::Content::Image { .. } => true,
+        canvas::Content::Shape { shape, .. } => matches!(shape, canvas::ShapeKind::Rectangle),
         _ => false,
     };
     if !surface {
@@ -1274,111 +869,15 @@ fn corner_radius(node: &CreativeNode) -> f32 {
     let radius = node
         .appearance
         .as_ref()
-        .map(|CreativeAppearance { corner_radius, .. }| *corner_radius as f32)
+        .map(|canvas::Appearance { corner_radius, .. }| *corner_radius as f32)
         .unwrap_or(0.0)
         .max(0.0);
     let (w, h) = size_of(node);
     radius.min(w * 0.5).min(h * 0.5)
 }
 
-fn shadow_of(node: &CreativeNode) -> Option<Effect> {
-    if !uses_shadow(&node.content) {
-        return None;
-    }
-    let shadow = node.appearance.as_ref()?.shadow.as_ref()?;
-    let mut color = parse_color(&shadow.color);
-    color.a *= (shadow.opacity as f32).clamp(0.0, 1.0);
-    if color.a <= 0.0 {
-        return None;
-    }
-    Some(Effect::DropShadow {
-        offset: [shadow.x as f32, shadow.y as f32],
-        blur: (shadow.blur as f32).max(0.0),
-        color,
-    })
-}
-
-fn size_of(node: &CreativeNode) -> (f32, f32) {
+fn size_of(node: &canvas::Node) -> (f32, f32) {
     (node.transform.width as f32, node.transform.height as f32)
-}
-
-fn box_rect(w: f32, h: f32) -> Rect {
-    Rect {
-        x: 0.0,
-        y: 0.0,
-        w,
-        h,
-    }
-}
-
-fn crop_uv(crop: &Option<crate::model::CreativeCrop>) -> [f32; 4] {
-    match crop {
-        Some(crop) => [
-            crop.x as f32,
-            crop.y as f32,
-            (crop.x + crop.width) as f32,
-            (crop.y + crop.height) as f32,
-        ],
-        None => [0.0, 0.0, 1.0, 1.0],
-    }
-}
-
-fn inflate(rect: Rect, pad: f32) -> Rect {
-    Rect {
-        x: rect.x - pad,
-        y: rect.y - pad,
-        w: rect.w + pad * 2.0,
-        h: rect.h + pad * 2.0,
-    }
-}
-
-fn union_rects(rects: &[Rect]) -> Option<Rect> {
-    let mut iter = rects.iter().copied();
-    let first = iter.next()?;
-    let mut x0 = first.x;
-    let mut y0 = first.y;
-    let mut x1 = first.x + first.w;
-    let mut y1 = first.y + first.h;
-    for rect in iter {
-        x0 = x0.min(rect.x);
-        y0 = y0.min(rect.y);
-        x1 = x1.max(rect.x + rect.w);
-        y1 = y1.max(rect.y + rect.h);
-    }
-    Some(Rect {
-        x: x0,
-        y: y0,
-        w: x1 - x0,
-        h: y1 - y0,
-    })
-}
-
-fn aabb(points: impl Iterator<Item = [f32; 2]>) -> Rect {
-    let mut points = points.filter(|point| point[0].is_finite() && point[1].is_finite());
-    let Some(first) = points.next() else {
-        return Rect {
-            x: 0.0,
-            y: 0.0,
-            w: 1.0,
-            h: 1.0,
-        };
-    };
-    let mut x0 = first[0];
-    let mut y0 = first[1];
-    let mut x1 = first[0];
-    let mut y1 = first[1];
-    for point in points {
-        x0 = x0.min(point[0]);
-        y0 = y0.min(point[1]);
-        x1 = x1.max(point[0]);
-        y1 = y1.max(point[1]);
-    }
-    Rect {
-        x: x0,
-        y: y0,
-        w: (x1 - x0).max(1.0),
-        h: (y1 - y0).max(1.0),
-    }
 }
 
 fn hypot(a: [f32; 2], b: [f32; 2]) -> f32 {
@@ -1462,7 +961,7 @@ fn xml_text(text: &str) -> String {
         .replace('>', "&gt;")
 }
 
-fn outline_data(brush: &CreativeBrush, points: &[CreativePoint]) -> String {
+fn outline_data(brush: &canvas::Brush, points: &[canvas::InkPoint]) -> String {
     let outline = ribbon(brush, points);
     if outline.is_empty() {
         return String::new();
@@ -1515,7 +1014,7 @@ mod tests {
             ];
             [f64::from(point[0]), f64::from(point[1])]
         };
-        let sample = |point: [f64; 2]| CreativePoint {
+        let sample = |point: [f64; 2]| canvas::InkPoint {
             x: point[0],
             y: point[1],
             pressure: Some(0.5),
@@ -1523,17 +1022,18 @@ mod tests {
             tilt_x: None,
             tilt_y: None,
         };
-        let scene = CreativeScene {
+        let scene = canvas::Scene {
             schema: "medousa-create".into(),
             version: 3,
             background: "transparent".into(),
-            nodes: vec![CreativeNode {
+            nodes: vec![canvas::Node {
                 id: "old-arrow".into(),
                 name: None,
                 appearance: None,
+                origin: None,
                 text_layout: None,
                 parent_id: None,
-                transform: crate::model::CreativeTransform {
+                transform: canvas::Transform {
                     x: 0.0,
                     y: 0.0,
                     width: 100.0,
@@ -1543,11 +1043,11 @@ mod tests {
                 opacity: 1.0,
                 visible: true,
                 locked: false,
-                content: CreativeContent::Ink {
+                content: canvas::Content::Ink {
                     color: "#111111".into(),
-                    input: crate::model::CreativeInputKind::Mouse,
-                    brush: CreativeBrush {
-                        kind: crate::model::CreativeBrushKind::Pen,
+                    input: canvas::InputKind::Mouse,
+                    brush: canvas::Brush {
+                        kind: canvas::BrushKind::Pen,
                         size: 4.0,
                         thinning: 0.0,
                         smoothing: 0.0,
@@ -1567,6 +1067,7 @@ mod tests {
         let svg = scene_svg(
             &scene,
             &BTreeMap::new(),
+            &canvas::EstimateMeasure,
             Rect {
                 x: 0.0,
                 y: 0.0,
@@ -1582,17 +1083,17 @@ mod tests {
     #[test]
     fn highlighter_caps_match() {
         use rndr_paint::tessellate_fill;
-        let brush = CreativeBrush {
-            kind: crate::model::CreativeBrushKind::Highlighter,
+        let brush = canvas::Brush {
+            kind: canvas::BrushKind::Highlighter,
             size: 28.0,
             thinning: 0.0,
             smoothing: 0.0,
             streamline: 0.0,
             opacity: 0.45,
         };
-        let points: Vec<CreativePoint> = [0.0, 100.0, 200.0]
+        let points: Vec<canvas::InkPoint> = [0.0, 100.0, 200.0]
             .into_iter()
-            .map(|x| CreativePoint {
+            .map(|x| canvas::InkPoint {
                 x,
                 y: 0.0,
                 pressure: Some(0.6),
@@ -1601,8 +1102,8 @@ mod tests {
                 tilt_y: None,
             })
             .collect();
-        let path = ink_outline(&brush, &points);
-        let mesh = tessellate_fill(&path, FillRule::NonZero, 4.0);
+        let path = rndr_canvas_ui::paint::ink_outline(&brush, &points);
+        let mesh = tessellate_fill(&path, rndr_paint::FillRule::NonZero, 4.0);
         let radius = 14.0;
         assert!(mesh.contains([100.0, 0.0]), "body");
         assert!(mesh.contains([4.0, 0.0]), "start cap");

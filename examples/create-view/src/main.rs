@@ -137,8 +137,11 @@ impl CanvasPainter for ViewPainter {
 }
 
 fn write_svg(project: &Project, path: &std::path::Path) -> Result<(), LoadError> {
-    let rect = create_view::pixel_rect(create_view::scene_bounds(&project.scene));
-    let svg = scene_svg(&project.scene, &project.assets, rect);
+    let mut world = World::new();
+    install_text(&mut world);
+    let measure = create_view::text_measure(&world);
+    let rect = create_view::pixel_rect(create_view::scene_bounds(&project.scene, measure.as_ref()));
+    let svg = scene_svg(&project.scene, &project.assets, measure.as_ref(), rect);
     fs::write(path, svg).map_err(|err| LoadError(format!("{}: {err}", path.display())))?;
     println!("wrote {}", path.display());
     Ok(())

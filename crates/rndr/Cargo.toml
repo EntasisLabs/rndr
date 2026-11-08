@@ -41,6 +41,14 @@ svg = ["rndr_render/svg"]
 browser = ["dep:rndr_browser"]
 # Spawn a feed producer on a tokio runtime the application already started.
 tokio = ["rndr_core/tokio"]
+# Charts painted with rndr_paint, under rndr::chart. Off by default.
+chart = ["dep:rndr_chart"]
+# Liquid Markdown under rndr::liquid: the grammar and, in rndr::liquid::ui, its
+# native blocks in markdown views. Enables `chart`. Off by default.
+liquid = ["dep:rndr_liquid", "dep:rndr_liquid_ui", "chart"]
+# Canvas documents under rndr::canvas, with the painter, editor and panels in
+# rndr::canvas::ui. Off by default.
+canvas = ["dep:rndr_canvas", "dep:rndr_canvas_ui"]
 
 [dependencies]
 # Optional and versioned so `cargo publish` can resolve `ui` from crates.io.
@@ -54,6 +62,11 @@ rndr_std = { workspace = true }
 rndr_render = { path = "../rndr_render", version = "0.4.0", default-features = false }
 rndr_term = { workspace = true, optional = true }
 rndr_browser = { workspace = true, optional = true }
+rndr_chart = { workspace = true, optional = true }
+rndr_liquid = { workspace = true, optional = true }
+rndr_liquid_ui = { workspace = true, optional = true }
+rndr_canvas = { workspace = true, optional = true }
+rndr_canvas_ui = { workspace = true, optional = true }
 
 [dev-dependencies]
 # Operating gallery only: default applications do not adopt rndr_ui.
