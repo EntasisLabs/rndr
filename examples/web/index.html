@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>rndr web</title>
+  <link rel="icon" href="data:,">
+  <style>
+    body { margin: 0; padding: 24px; font: 14px system-ui, sans-serif; background: #e7e9ee; }
+    #rndr { display: block; outline: none; }
+    #status { margin-top: 12px; color: #555; }
+  </style>
+</head>
+<body>
+  <canvas id="rndr" tabindex="0"></canvas>
+  <div id="status">Loading…</div>
+  <script type="module">
+    const status = document.getElementById("status");
+    if (!navigator.gpu) {
+      status.textContent = "This browser has no WebGPU (navigator.gpu is missing).";
+    } else {
+      const { default: init } = await import("./pkg/web_hello.js");
+      init().then(
+        () => { status.textContent = "Running."; },
+        (err) => { status.textContent = "Failed: " + err; },
+      );
+    }
+  </script>
+</body>
+</html>

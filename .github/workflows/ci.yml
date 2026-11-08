@@ -55,6 +55,12 @@ jobs:
       - name: Clippy with dialogs
         run: cargo clippy -p rndr_render -p rndr --features dialog --all-targets -- -D warnings
 
+      - name: Clippy for the browser (wasm32)
+        if: runner.os == 'Linux'
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cargo clippy -p rndr_render -p rndr -p web-hello --target wasm32-unknown-unknown -- -D warnings
+
       - name: Test
         run: cargo test --workspace
 

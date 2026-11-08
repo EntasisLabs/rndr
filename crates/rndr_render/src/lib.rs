@@ -51,23 +51,27 @@ mod access_winit;
 /// Opt-in component-targeted offscreen rendering; no native window or socket.
 #[cfg(feature = "observe")]
 pub mod capture;
+#[cfg(not(target_arch = "wasm32"))]
+mod clipboard;
+#[cfg(target_arch = "wasm32")]
+#[path = "clipboard_web.rs"]
 mod clipboard;
 mod close;
 mod color;
 mod decode;
-#[cfg(feature = "dialog")]
+#[cfg(native_dialog)]
 mod dialogs;
 mod effect;
 mod export;
 mod file_drop;
 mod gpu;
-#[cfg(feature = "hotkey")]
+#[cfg(native_hotkey)]
 mod hotkey;
 mod images;
 #[cfg(target_os = "macos")]
 mod native_quit;
 mod notify;
-#[cfg(feature = "notify")]
+#[cfg(native_notify)]
 mod notify_os;
 #[cfg(feature = "observe")]
 pub mod observe;
@@ -82,7 +86,7 @@ mod startup;
 mod tablet;
 #[cfg(feature = "parley")]
 mod text;
-#[cfg(feature = "tray")]
+#[cfg(native_tray)]
 mod tray;
 #[cfg(target_os = "linux")]
 mod wayland_layer;
@@ -93,7 +97,7 @@ pub use text::ParleyText;
 use std::hash::{Hash, Hasher};
 use std::sync::mpsc;
 use std::sync::Arc;
-use std::time::Instant;
+use web_time::Instant;
 
 #[cfg(feature = "parley")]
 use rndr_core::TextEngine;
@@ -152,7 +156,7 @@ enum RunnerEvent {
     LiveWake,
     #[cfg(target_os = "macos")]
     Quit,
-    #[cfg(feature = "tray")]
+    #[cfg(native_tray)]
     Tray(rndr_core::TrayReport),
     #[cfg(feature = "accesskit")]
     Access(access_winit::Event),
@@ -191,7 +195,7 @@ impl RunnerBus {
         self.post(RunnerEvent::Quit);
     }
 
-    #[cfg(feature = "tray")]
+    #[cfg(native_tray)]
     fn tray(&self, report: rndr_core::TrayReport) {
         self.post(RunnerEvent::Tray(report));
     }
@@ -286,7 +290,7 @@ pub fn register(
     world: &mut rndr_core::World,
     binding: impl rndr_core::hotkey::IntoHotkey,
 ) -> Result<rndr_core::HotkeyHandle, rndr_core::HotkeyError> {
-    #[cfg(feature = "hotkey")]
+    #[cfg(native_hotkey)]
     hotkey::ensure(world);
     rndr_core::hotkey::register(world, binding)
 }
@@ -299,7 +303,7 @@ pub fn toggle_window(
     world: &mut rndr_core::World,
     binding: impl rndr_core::hotkey::IntoHotkey,
 ) -> Result<rndr_core::HotkeyHandle, rndr_core::HotkeyError> {
-    #[cfg(feature = "hotkey")]
+    #[cfg(native_hotkey)]
     hotkey::ensure(world);
     rndr_core::hotkey::toggle_window(world, binding)
 }
@@ -360,7 +364,7 @@ fn run_apps(apps: Vec<App>) {
     if apps.is_empty() {
         return;
     }
-    #[cfg(feature = "hotkey")]
+    #[cfg(native_hotkey)]
     hotkey::ensure(apps[0].world_mut());
     let config = WindowConfig::get(apps[0].world());
     for app in &mut apps {
@@ -381,6 +385,10 @@ fn run_apps(apps: Vec<App>) {
     let wake: Arc<dyn Wake> = Arc::new(ProxyWake { bus: bus.clone() });
     let hub = WindowHub::new();
     hub.set_wake(Arc::clone(&wake));
+    // The browser runs background tasks between frames on the main thread.
+    #[cfg(target_arch = "wasm32")]
+    let pool: Arc<dyn rndr_core::Executor> = Arc::new(rndr_core::InlineExecutor::new(None));
+    #[cfg(not(target_arch = "wasm32"))]
     let pool = rndr_core::thread_pool();
     let pen = pen::PenFeed::new();
     let mut slots = Vec::with_capacity(apps.len());
@@ -423,6 +431,10 @@ fn install_text_engine(app: &mut App) {
         && !app.world().has_resource::<rndr_core::TextFace>())
         || rndr_core::has_implicit_text_engine(app.world())
     {
+        // A browser exposes no system fonts, so only the bundled faces load.
+        #[cfg(target_arch = "wasm32")]
+        let engine: Arc<dyn TextEngine> = Arc::new(ParleyText::bundled());
+        #[cfg(not(target_arch = "wasm32"))]
         let engine: Arc<dyn TextEngine> = Arc::new(ParleyText::new());
         app.world_mut().insert_resource(engine);
     }
@@ -431,7 +443,7 @@ fn install_text_engine(app: &mut App) {
 }
 
 fn install_tray_handlers(bus: &RunnerBus) {
-    #[cfg(feature = "tray")]
+    #[cfg(native_tray)]
     {
         let icon_bus = bus.clone();
         tray_icon::TrayIconEvent::set_event_handler(Some(move |event| {
@@ -446,7 +458,7 @@ fn install_tray_handlers(bus: &RunnerBus) {
             }
         }));
     }
-    #[cfg(not(feature = "tray"))]
+    #[cfg(not(native_tray))]
     {
         let _ = bus;
     }
@@ -513,7 +525,7 @@ struct Handler {
     access: Option<access_winit::Adapter>,
     #[cfg(feature = "accesskit")]
     access_bridge: a11y::Bridge,
-    #[cfg(feature = "tray")]
+    #[cfg(native_tray)]
     tray: tray::Session,
 }
 
@@ -574,7 +586,7 @@ impl Handler {
             access: None,
             #[cfg(feature = "accesskit")]
             access_bridge: a11y::Bridge::default(),
-            #[cfg(feature = "tray")]
+            #[cfg(native_tray)]
             tray: tray::Session::new(),
         }
     }
@@ -926,7 +938,7 @@ impl Handler {
     }
 
     fn poll_dialog(&mut self) {
-        #[cfg(feature = "dialog")]
+        #[cfg(native_dialog)]
         {
             let Some(dialog) = rndr_core::take_file_dialog(self.app.world_mut()) else {
                 return;
@@ -1412,7 +1424,7 @@ impl Handler {
 
     fn apply_tray(&mut self) {
         let commands = rndr_core::tray::drain_commands(self.app.world_mut());
-        #[cfg(feature = "tray")]
+        #[cfg(native_tray)]
         if !commands.is_empty() {
             if let Some(config) = self
                 .app
@@ -1423,7 +1435,7 @@ impl Handler {
                 self.tray.apply(&config, &commands);
             }
         }
-        #[cfg(not(feature = "tray"))]
+        #[cfg(not(native_tray))]
         let _ = commands;
     }
 
@@ -1487,7 +1499,9 @@ impl Handler {
             .pending_shell
             .take()
             .expect("shell kept for background device init");
-        self.gpu = Some(Gpu::from_parts(shell, parts));
+        let mut gpu = Gpu::from_parts(shell, parts);
+        gpu.fit_shell();
+        self.gpu = Some(gpu);
         self.trace.device_ready = Some(self.trace.started.elapsed());
         self.publish_trace();
         let effects = std::mem::take(&mut self.stashed_effects);
@@ -1514,30 +1528,37 @@ impl Handler {
         let transparent = self.config.transparent;
         let (tx, rx) = mpsc::sync_channel(1);
         let bus = self.bus.clone();
+        let build = async move {
+            let parts = Gpu::build_parts(
+                instance,
+                surface,
+                size,
+                gpu::AtlasBytes {
+                    width: atlas_w,
+                    height: atlas_h,
+                    pixels: &atlas_pixels,
+                },
+                gpu::AtlasBytes {
+                    width: color_w,
+                    height: color_h,
+                    pixels: &color_pixels,
+                },
+                transparent,
+                #[cfg(feature = "observe")]
+                observe,
+            )
+            .await;
+            let _ = tx.send(parts);
+            bus.wake();
+        };
+        // The browser has no blocking waits and wgpu's WebGPU handles stay on
+        // the main thread, so setup runs as a promise there.
+        #[cfg(target_arch = "wasm32")]
+        wasm_bindgen_futures::spawn_local(build);
+        #[cfg(not(target_arch = "wasm32"))]
         std::thread::Builder::new()
             .name("rndr-gpu".to_string())
-            .spawn(move || {
-                let parts = pollster::block_on(Gpu::build_parts(
-                    instance,
-                    surface,
-                    size,
-                    gpu::AtlasBytes {
-                        width: atlas_w,
-                        height: atlas_h,
-                        pixels: &atlas_pixels,
-                    },
-                    gpu::AtlasBytes {
-                        width: color_w,
-                        height: color_h,
-                        pixels: &color_pixels,
-                    },
-                    transparent,
-                    #[cfg(feature = "observe")]
-                    observe,
-                ));
-                let _ = tx.send(parts);
-                bus.wake();
-            })
+            .spawn(move || pollster::block_on(build))
             .expect("gpu thread");
         #[cfg(not(feature = "observe"))]
         let _ = observe;
@@ -1972,7 +1993,7 @@ impl ApplicationHandler for Handler {
                 false
             }
         };
-        if device_init_plan(show) == DeviceInit::OffUiThread {
+        if cfg!(target_arch = "wasm32") || device_init_plan(show) == DeviceInit::OffUiThread {
             self.trace.device_init_blocked_ui_thread = false;
             self.spawn_device(
                 event_loop,
@@ -2452,7 +2473,7 @@ impl ApplicationHandler for Running {
                         slot.on_access(&access);
                     }
                 }
-                #[cfg(feature = "tray")]
+                #[cfg(native_tray)]
                 RunnerEvent::Tray(report) => {
                     if let Some(slot) = self.slots.iter_mut().find(|slot| slot.primary) {
                         rndr_core::tray::push_report(slot.app.world_mut(), report);

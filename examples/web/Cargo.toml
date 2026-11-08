@@ -1,0 +1,18 @@
+[package]
+name = "web-hello"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "rndr in a browser: one WebGPU canvas built by scripts/web-build.sh"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+rndr_core = { workspace = true }
+rndr_render = { path = "../../crates/rndr_render", default-features = false, features = ["parley", "svg"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+console_error_panic_hook = "0.1"

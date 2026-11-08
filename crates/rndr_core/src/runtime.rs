@@ -1275,7 +1275,7 @@ pub(crate) fn tick_time(world: &mut World) {
     time.frame = time.frame.saturating_add(1);
 }
 
-pub(crate) fn next_deadline(world: &World) -> Option<std::time::Instant> {
+pub(crate) fn next_deadline(world: &World) -> Option<web_time::Instant> {
     let rt = runtime(world);
     let when = rt.soonest()?;
     let clock = Arc::clone(&*lock(&rt.inner.clock));

@@ -21,6 +21,7 @@ members = [
     "examples/pen-probe",
     "examples/canvas-scene",
     "examples/create-view",
+    "examples/web",
     "examples/source-session",
 ]
 
@@ -50,3 +51,4 @@ wgpu = "30"
 # is still built on 0.30, so the accesskit feature uses a local adapter.
 winit = "=0.31.0-beta.4"
 pollster = "0.4"
+web-time = "1.1"

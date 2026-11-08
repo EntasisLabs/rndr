@@ -189,6 +189,29 @@ The facade keeps optional integrations explicit:
 Depend on `rndr_core` (and optionally `rndr_ui` / `rndr_paint`) when no window or GPU
 is wanted. The default executor does not require Tokio.
 
+### In a browser
+
+`rndr_render` and `rndr` also build for `wasm32-unknown-unknown`. The app draws
+into one WebGPU canvas: the page's `<canvas id="rndr">`, or one appended to
+`<body>`. GPU setup is asynchronous, frames come from `requestAnimationFrame`,
+and background tasks run on the page's main thread between frames. Text uses
+the bundled fonts, since a browser exposes no system fonts.
+
+`hotkey`, `tray`, `dialog` and `notify` compile to nothing on wasm32, so default
+features build there. Copying from the app writes text, or HTML with a plain-text
+fallback, to the browser clipboard. Paste reads only rndr's own clipboard;
+pasting from other apps, IME and browser text input are not wired yet.
+
+```sh
+rustup target add wasm32-unknown-unknown
+cargo install wasm-bindgen-cli --version <version in Cargo.lock>
+scripts/web-build.sh
+python3 -m http.server -d examples/web 8000
+```
+
+Verified in Chrome 156 with WebGPU on a software adapter (SwiftShader), not on
+a hardware GPU. Other browsers are untested.
+
 ## Status and boundaries
 
 rndr is under active development. Implemented behavior, automated evidence and

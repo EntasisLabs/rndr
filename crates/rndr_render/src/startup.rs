@@ -6,7 +6,8 @@
 //! and focus never start that work. The wgpu surface is kept across hide and
 //! show, and each window still has its own device.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
+use web_time::Instant;
 
 /// Where adapter and device creation run.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
