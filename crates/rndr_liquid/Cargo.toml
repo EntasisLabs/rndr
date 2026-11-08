@@ -1,0 +1,23 @@
+[package]
+name = "rndr_liquid"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
+description = "Liquid Markdown: paste-first UI fences (cards, charts, plans, tabs, ...) for rndr"
+documentation = "https://docs.rs/rndr_liquid"
+readme = "README.md"
+keywords = ["markdown", "gui", "desktop"]
+categories = ["parser-implementations", "gui"]
+
+[dependencies]
+regex = "1.11"
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+serde_json = "1"
+
+[package.metadata.docs.rs]
+all-features = true
