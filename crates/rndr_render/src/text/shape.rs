@@ -103,20 +103,7 @@ fn shape_once(
             );
         }
     }
-    for run in runs {
-        let end = run.end.min(text.len());
-        let start = run.start.min(end);
-        if start < end && (!run.features.is_empty() || !run.axes.is_empty()) {
-            let features: Vec<_> = style
-                .features
-                .iter()
-                .chain(&run.features)
-                .copied()
-                .collect();
-            let axes: Vec<_> = style.axes.iter().chain(&run.axes).copied().collect();
-            push_font_settings(&mut builder, &features, &axes, Some(start..end));
-        }
-    }
+    push_span_settings(&mut builder, text.len(), style, runs);
     for (start, end, family) in family_runs {
         builder.push(
             StyleProperty::FontFamily(FontFamily::Source(std::borrow::Cow::Owned(family))),
@@ -489,6 +476,49 @@ fn push_line_height(builder: &mut parley::RangedBuilder<'_, ()>, style: &TextSty
 
 // Parley replaces, rather than merges, a range's settings, so a span's list
 // carries the style's settings first.
+/// Pushes span feature and axis settings, the first span containing a byte
+/// winning where spans overlap, as for span colour.
+fn push_span_settings(
+    builder: &mut parley::RangedBuilder<'_, ()>,
+    len: usize,
+    style: &TextStyle,
+    runs: &[rndr_core::TextSpan],
+) {
+    let settled = |run: &rndr_core::TextSpan| run.features.is_empty() && run.axes.is_empty();
+    if runs.iter().all(settled) {
+        return;
+    }
+    let mut cuts: Vec<usize> = runs
+        .iter()
+        .flat_map(|run| {
+            let end = run.end.min(len);
+            [run.start.min(end), end]
+        })
+        .collect();
+    cuts.sort_unstable();
+    cuts.dedup();
+    for pair in cuts.windows(2) {
+        let (start, end) = (pair[0], pair[1]);
+        let Some(run) = runs
+            .iter()
+            .find(|run| start >= run.start && start < run.end)
+        else {
+            continue;
+        };
+        if settled(run) {
+            continue;
+        }
+        let features: Vec<_> = style
+            .features
+            .iter()
+            .chain(&run.features)
+            .copied()
+            .collect();
+        let axes: Vec<_> = style.axes.iter().chain(&run.axes).copied().collect();
+        push_font_settings(builder, &features, &axes, Some(start..end));
+    }
+}
+
 fn push_font_settings(
     builder: &mut parley::RangedBuilder<'_, ()>,
     features: &[rndr_core::FontFeature],
@@ -788,20 +818,7 @@ fn outline_run(state: &mut State, source: &rndr_paint::TextSource) -> Option<Vec
             );
         }
     }
-    for run in runs {
-        let end = run.end.min(text.len());
-        let start = run.start.min(end);
-        if start < end && (!run.features.is_empty() || !run.axes.is_empty()) {
-            let features: Vec<_> = style
-                .features
-                .iter()
-                .chain(&run.features)
-                .copied()
-                .collect();
-            let axes: Vec<_> = style.axes.iter().chain(&run.axes).copied().collect();
-            push_font_settings(&mut builder, &features, &axes, Some(start..end));
-        }
-    }
+    push_span_settings(&mut builder, text.len(), style, runs);
     for (start, end, family) in family_runs {
         builder.push(
             StyleProperty::FontFamily(FontFamily::Source(std::borrow::Cow::Owned(family))),

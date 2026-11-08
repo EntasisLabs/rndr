@@ -434,6 +434,19 @@ fn span_features_apply_to_their_range_only() {
 }
 
 #[test]
+fn overlapping_span_features_follow_the_first_span() {
+    use rndr_core::{FontFeature, TextSpan};
+    let engine = bundled();
+    let style = inter(16.0).feature(FontFeature::on(b"pnum"));
+    let ink = Color::rgb(1.0, 1.0, 1.0);
+    let first = TextSpan::new(0, 4, ink).feature(FontFeature::on(b"tnum"));
+    let later = TextSpan::new(2, 4, ink).feature(FontFeature::on(b"pnum"));
+    let alone = digits_width(&engine, "1111", &style, std::slice::from_ref(&first));
+    let overlapped = digits_width(&engine, "1111", &style, &[first, later]);
+    assert!((alone - overlapped).abs() < 0.01, "{alone} vs {overlapped}");
+}
+
+#[test]
 fn features_and_axes_are_part_of_the_layout_cache_key() {
     use rndr_core::{FontAxis, FontFeature};
     let engine = bundled();

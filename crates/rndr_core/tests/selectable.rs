@@ -261,3 +261,94 @@ fn hovering_selectable_text_shows_the_text_cursor() {
         Some(rndr_core::CursorStyle::Arrow)
     );
 }
+
+#[test]
+fn selections_follow_label_text_changes() {
+    let (mut app, label, _) = boot();
+    app.world_mut().insert(
+        label,
+        Selectable {
+            anchor: 6,
+            head: 10,
+        },
+    );
+    app.world_mut().get_mut::<Label>(label).unwrap().text = "añb".into();
+    app.update();
+    assert_eq!(
+        *app.world().get::<Selectable>(label).unwrap(),
+        Selectable { anchor: 4, head: 4 }
+    );
+    app.world_mut()
+        .insert(label, Selectable { anchor: 2, head: 9 });
+    app.update();
+    let selection = *app.world().get::<Selectable>(label).unwrap();
+    assert_eq!(selection, Selectable { anchor: 1, head: 4 });
+    assert_eq!(selection.selected("añb"), "ñb");
+    assert_eq!(Selectable { anchor: 2, head: 9 }.selected("añb"), "ñb");
+}
+
+fn button_with_selectable_text(selectable_first: bool) -> (App, Entity, Entity) {
+    use rndr_core::{
+        apply_focus, Button, Focusable, GenericInteraction, ReleaseActivation, Schedule,
+    };
+    let mut app = App::new();
+    if selectable_first {
+        app.add_plugin(SelectablePlugin)
+            .add_plugin(GenericInteraction);
+    } else {
+        app.add_plugin(GenericInteraction)
+            .add_plugin(SelectablePlugin);
+    }
+    app.add_system(Schedule::Update, apply_focus);
+    app.world_mut().insert_resource(Viewport::new(480.0, 200.0));
+    app.world_mut().insert_resource(Platform::X11);
+    let button = app.world_mut().spawn((
+        Layout {
+            width: Size::Px(460.0),
+            height: Size::Px(80.0),
+            ..Layout::column()
+        },
+        Button::new("go"),
+        Focusable,
+        ReleaseActivation,
+    ));
+    let label = app.world_mut().spawn((
+        Layout {
+            width: Size::Px(400.0),
+            height: Size::Hug,
+            ..Layout::column()
+        },
+        Label::new(TEXT),
+        Selectable::default(),
+    ));
+    rndr_core::set_parent(app.world_mut(), label, button);
+    app.update();
+    (app, button, label)
+}
+
+#[test]
+fn selectable_text_keeps_the_press_from_its_button() {
+    for selectable_first in [true, false] {
+        let (mut app, button, label) = button_with_selectable_text(selectable_first);
+        let from = at(app.world(), label, 6);
+        let to = at(app.world(), label, 10);
+        pointer(&mut app, from, true, true, false);
+        pointer(&mut app, to, false, true, false);
+        pointer(&mut app, to, false, false, true);
+        assert_eq!(selected(&app, label), "beta", "order {selectable_first}");
+        let world = app.world();
+        assert_ne!(
+            world
+                .resource::<rndr_core::Focus>()
+                .and_then(|focus| focus.entity),
+            Some(button),
+            "order {selectable_first}"
+        );
+        assert!(
+            world
+                .resource::<rndr_core::ActionIntents>()
+                .is_none_or(|queue| queue.pending().is_empty()),
+            "order {selectable_first}"
+        );
+    }
+}

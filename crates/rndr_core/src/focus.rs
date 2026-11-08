@@ -48,7 +48,9 @@ pub fn apply_focus(world: &mut World) {
     };
 
     if input.pointer.pressed {
-        if let Some(hit) = hit_test(world, input.pointer.position[0], input.pointer.position[1]) {
+        if let Some(hit) = hit_test(world, input.pointer.position[0], input.pointer.position[1])
+            .filter(|hit| !crate::selectable::owns_press(world, *hit))
+        {
             if let Some(target) = ancestor_with::<Focusable>(world, hit) {
                 set_focus(world, Some(target));
                 set_selection(world, Some(target));

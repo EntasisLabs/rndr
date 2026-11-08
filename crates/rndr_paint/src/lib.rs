@@ -1455,6 +1455,8 @@ fn emit(
     });
     let selectable = world
         .get::<rndr_core::Selectable>(entity)
+        .zip(world.get::<Label>(entity))
+        .map(|(selection, label)| selection.clamped(&label.text))
         .filter(|selection| !selection.is_empty())
         .map(|selection| TextSelection {
             anchor: selection.anchor,

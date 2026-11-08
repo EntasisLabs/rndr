@@ -10,9 +10,10 @@
 //! text is published there when the drag ends.
 //!
 //! Selection is paint-only state: it leaves the label's box metrics, shaping
-//! and layout unchanged. A press on a selectable label releases focus, as a
-//! press on markdown text does, so a selectable label inside a button takes
-//! the press from the button.
+//! and layout unchanged. Selections are clamped to the label text when it
+//! changes. A press on a selectable label releases focus, as a press on
+//! markdown text does, and focus and activation skip that press, so a
+//! selectable label inside a button takes the press from the button.
 
 use std::time::Duration;
 
@@ -58,10 +59,26 @@ impl Selectable {
         self.anchor == self.head
     }
 
-    /// Selected slice of `text`, or `""` when the range is not on boundaries.
+    /// This selection with both ends clamped to `text` and moved back onto
+    /// UTF-8 boundaries, as after the label text changed.
+    pub fn clamped(&self, text: &str) -> Self {
+        let fit = |byte: usize| {
+            let mut byte = byte.min(text.len());
+            while !text.is_char_boundary(byte) {
+                byte -= 1;
+            }
+            byte
+        };
+        Self {
+            anchor: fit(self.anchor),
+            head: fit(self.head),
+        }
+    }
+
+    /// Selected slice of `text`, after [`Selectable::clamped`].
     pub fn selected<'a>(&self, text: &'a str) -> &'a str {
-        let (start, end) = self.range();
-        text.get(start..end.min(text.len())).unwrap_or("")
+        let (start, end) = self.clamped(text).range();
+        &text[start..end]
     }
 }
 
@@ -70,6 +87,7 @@ pub struct SelectablePlugin;
 
 impl Plugin for SelectablePlugin {
     fn build(self, app: &mut App) {
+        app.world_mut().insert_resource(SelectState::default());
         app.add_system(Schedule::Input, selectable_input);
     }
 }
@@ -100,11 +118,18 @@ struct SelectState {
     text_cursor: bool,
 }
 
+/// True when a press on `hit` belongs to its selectable label, so focus and
+/// activation policies must leave it alone whatever their system order.
+pub(crate) fn owns_press(world: &World, hit: Entity) -> bool {
+    world.has_resource::<SelectState>() && world.has::<Selectable>(hit) && world.has::<Label>(hit)
+}
+
 /// Input system installed by [`SelectablePlugin`].
 pub fn selectable_input(world: &mut World) {
     let Some(input) = world.resource::<Input>().cloned() else {
         return;
     };
+    normalize(world);
     let mut state = world.resource::<SelectState>().copied().unwrap_or_default();
     if state
         .engaged
@@ -140,6 +165,21 @@ pub fn selectable_input(world: &mut World) {
     }
     update_cursor(world, &mut state, x, y);
     world.insert_resource(state);
+}
+
+/// Keeps every selection inside its label's current text.
+fn normalize(world: &mut World) {
+    for entity in world.entities_with::<Selectable>() {
+        let (Some(selection), Some(label)) =
+            (world.get::<Selectable>(entity), world.get::<Label>(entity))
+        else {
+            continue;
+        };
+        let fitted = selection.clamped(&label.text);
+        if fitted != *selection {
+            world.insert(entity, fitted);
+        }
+    }
 }
 
 fn press(world: &mut World, state: &mut SelectState, input: &Input, x: f32, y: f32) {
