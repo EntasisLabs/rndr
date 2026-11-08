@@ -180,7 +180,29 @@ impl App {
     /// Inbox, ready task, due timer, or a [`crate::feed`] value waiting to be
     /// delivered. The runner requests a redraw when this is set.
     pub fn wants_frame(&self) -> bool {
+        runtime::wants_frame(self.world()) || crate::live::pending(self.world())
+    }
+
+    /// Some reason for a frame other than a [`crate::Live`] value: queued
+    /// work, a due timer, motion or an animated effect. Without one, and
+    /// without new platform input, [`Self::update_live`] is enough.
+    pub fn wants_update(&self) -> bool {
         runtime::wants_frame(self.world())
+    }
+
+    /// Live-only frame: tick [`crate::Time`] and copy bound [`crate::Live`]
+    /// values into their components. Input, Update, PostUpdate and Layout do
+    /// not run, so layout and text are untouched.
+    pub fn update_live(&mut self) {
+        runtime::tick_time(&mut self.world);
+        crate::live::apply(&mut self.world);
+    }
+
+    /// Send live wakes to `wake` instead of the frame wake, so a runner can
+    /// tell a live-only wake from one that needs [`Self::update`].
+    pub fn set_live_wake(&mut self, wake: Arc<dyn Wake>) -> &mut Self {
+        crate::live::set_live_wake(&mut self.world, wake);
+        self
     }
 
     /// One frame: Startup once, then Input, Update, PostUpdate, Layout.
@@ -267,6 +289,7 @@ impl App {
         crate::prompt::reveal_prompts(&mut self.world);
         crate::editor::apply_decorations(&mut self.world);
         crate::motion::step(&mut self.world);
+        crate::live::apply(&mut self.world);
         window::drive(&mut self.world);
     }
 

@@ -148,6 +148,8 @@ pub use wgpu;
 #[derive(Debug)]
 enum RunnerEvent {
     Wake,
+    /// A `Live` value changed; a live-only frame is enough.
+    LiveWake,
     #[cfg(target_os = "macos")]
     Quit,
     #[cfg(feature = "tray")]
@@ -202,6 +204,16 @@ impl RunnerBus {
 
 struct ProxyWake {
     bus: RunnerBus,
+}
+
+struct LiveProxyWake {
+    bus: RunnerBus,
+}
+
+impl Wake for LiveProxyWake {
+    fn wake(&self) {
+        self.bus.post(RunnerEvent::LiveWake);
+    }
 }
 
 impl Wake for ProxyWake {
@@ -377,6 +389,7 @@ fn run_apps(apps: Vec<App>) {
         let desktop_id = desktop.id();
         app.world_mut().insert_resource(desktop);
         app.set_wake(Arc::clone(&wake));
+        app.set_live_wake(Arc::new(LiveProxyWake { bus: bus.clone() }));
         app.set_executor(Arc::clone(&pool));
         let config = WindowConfig::get(app.world());
         slots.push(Handler::new(
@@ -475,6 +488,11 @@ struct Handler {
     key_order: u64,
     /// Cursor in physical pixels at the button-down this frame.
     press_px: Option<[f32; 2]>,
+    /// Platform input or a non-live wake arrived since the last frame, so
+    /// the next frame runs the full update rather than a live-only one.
+    full_pending: bool,
+    /// Last `WindowEvent::Occluded` from the OS.
+    os_occluded: bool,
     os_clipboard: clipboard::OsClipboard,
     /// The window was created hidden so the first present is the first frame
     /// the user sees. Cleared after [`Handler::reveal_window`].
@@ -538,6 +556,8 @@ impl Handler {
             platform: host_platform(),
             key_order: 0,
             press_px: None,
+            full_pending: true,
+            os_occluded: false,
             os_clipboard: clipboard::OsClipboard::new(),
             show_after_present: false,
             cursor_cache: None,
@@ -789,16 +809,38 @@ impl Handler {
                 board.pull(clipboard);
             }
         }
+        // Only Live values changed: skip Input, Update and Layout.
+        let live_only = !self.full_pending
+            && !self.app.wants_update()
+            && rndr_core::live::pending(self.app.world());
+        // Some window managers minimize without an `Occluded` event.
+        if live_only {
+            self.sync_occlusion();
+            if rndr_core::live::occluded(self.app.world()) {
+                return false;
+            }
+        }
+        self.full_pending = false;
         #[cfg(not(feature = "observe"))]
-        let painted = frame(&mut self.app);
+        let painted = if live_only {
+            rndr_paint::frame_live(&mut self.app)
+        } else {
+            frame(&mut self.app)
+        };
         #[cfg(feature = "observe")]
-        let (painted, observation) = rndr_paint::frame_with_snapshot(&mut self.app, |world| {
+        let begin = |world: &rndr_core::World| {
             let scale = world
                 .resource::<Viewport>()
                 .map(|v| v.pixels_per_point())
                 .unwrap_or(1.0);
             observe::begin(world, raw_width, raw_height, scale)
-        });
+        };
+        #[cfg(feature = "observe")]
+        let (painted, observation) = if live_only {
+            rndr_paint::frame_live_with_snapshot(&mut self.app, begin)
+        } else {
+            rndr_paint::frame_with_snapshot(&mut self.app, begin)
+        };
         {
             let board = &mut self.os_clipboard;
             if let Some(clipboard) = self.app.world_mut().resource_mut::<Clipboard>() {
@@ -891,6 +933,7 @@ impl Handler {
             };
             let path = dialogs::show(self.gpu.as_ref().and_then(Gpu::winit_window), &dialog);
             send(self.app.world_mut(), rndr_core::FileChosen { path });
+            self.full_pending = true;
         }
     }
 
@@ -1569,6 +1612,7 @@ impl Handler {
     }
 
     fn apply_shell_event(&mut self, event: shell::ShellEvent) -> bool {
+        self.full_pending = true;
         use shell::ShellEvent;
         match event {
             ShellEvent::Close => {
@@ -1741,6 +1785,25 @@ impl Handler {
             phase,
             time: self.started.elapsed(),
         });
+    }
+
+    /// Tell live values whether the OS shows this window, so a minimized or
+    /// covered window is not redrawn for them.
+    fn sync_occlusion(&mut self) {
+        let minimized = self.gpu.as_ref().is_some_and(|gpu| {
+            let size = gpu.shell().inner_size();
+            size.width == 0
+                || size.height == 0
+                || gpu
+                    .shell()
+                    .winit_window()
+                    .and_then(|window| window.is_minimized())
+                    .unwrap_or(false)
+        });
+        let hidden = self.os_occluded || minimized;
+        if rndr_core::live::set_occluded(self.app.world_mut(), hidden) {
+            self.request_redraw();
+        }
     }
 
     fn drag_window_is_wayland(&self) -> bool {
@@ -1963,6 +2026,19 @@ impl ApplicationHandler for Handler {
     ) {
         #[cfg(feature = "accesskit")]
         self.process_access(&event);
+        if !matches!(event, WindowEvent::RedrawRequested) {
+            self.full_pending = true;
+        }
+        if let WindowEvent::Occluded(occluded) = event {
+            self.os_occluded = occluded;
+        }
+        if matches!(
+            event,
+            WindowEvent::Occluded(_) | WindowEvent::SurfaceResized(_) | WindowEvent::Focused(_)
+        ) || rndr_core::live::occluded(self.app.world())
+        {
+            self.sync_occlusion();
+        }
         match event {
             WindowEvent::CloseRequested => {
                 // Running coordinates this after native dispatch; never destroy
@@ -2260,6 +2336,9 @@ impl Running {
             let desktop_id = desktop.id();
             app.world_mut().insert_resource(desktop);
             app.set_wake(Arc::clone(&self.wake));
+            app.set_live_wake(Arc::new(LiveProxyWake {
+                bus: self.bus.clone(),
+            }));
             app.set_executor(Arc::clone(&self.executor));
             install_text_engine(&mut app);
             (open.build)(&mut app);
@@ -2346,6 +2425,13 @@ impl ApplicationHandler for Running {
         }
         let pending: Vec<RunnerEvent> = self.events.try_iter().collect();
         for event in pending {
+            let live = matches!(event, RunnerEvent::LiveWake);
+            // Anything but a live wake may carry work only a full update sees.
+            if !live {
+                for slot in &mut self.slots {
+                    slot.full_pending = true;
+                }
+            }
             match event {
                 #[cfg(target_os = "macos")]
                 RunnerEvent::Quit => {
@@ -2371,15 +2457,17 @@ impl ApplicationHandler for Running {
                         rndr_core::tray::push_report(slot.app.world_mut(), report);
                     }
                 }
-                RunnerEvent::Wake => {}
+                RunnerEvent::Wake | RunnerEvent::LiveWake => {}
             }
             self.spawn_windows(event_loop);
             for slot in &mut self.slots {
                 slot.install_gpu_if_ready();
                 let drew = slot.pump_shell(event_loop);
+                // A live wake names no window; only those with work redraw.
+                let idle = live && !drew && !slot.app.wants_frame();
                 if slot.has_layer() {
                     if rndr_core::window::is_visible(slot.app.world()) {
-                        if !drew {
+                        if !drew && !idle {
                             slot.on_redraw(event_loop);
                         }
                     } else if slot.primary || slot.app.wants_frame() {
@@ -2388,7 +2476,9 @@ impl ApplicationHandler for Running {
                     continue;
                 }
                 if rndr_core::window::is_visible(slot.app.world()) {
-                    slot.request_redraw();
+                    if !idle {
+                        slot.request_redraw();
+                    }
                 } else if slot.primary || slot.app.wants_frame() {
                     slot.run_hidden_frame(event_loop);
                 }

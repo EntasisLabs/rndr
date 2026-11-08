@@ -254,6 +254,17 @@ native-platform acceptance are different things:
   backdrop copies the whole target, so many slots per frame cost passes and copies.
   Native backdrops need a surface that allows copies; otherwise `backdrop()` is `None`.
   `cargo run -p rndr --example effect_gallery -- out.png` renders a glow and a frosted panel.
+- **Live values:** a `Live<T>` (`f32`, `[f32; 2]`, `[f32; 4]` or `Color`) is a
+  cloneable latest-wins handle any thread can `set`. `LiveOpacity`, `LiveOffset`,
+  `LiveScale`, `LiveFill` and `LiveRect` bind it to an entity's `Opacity`,
+  `Transform` or fill, as is or through a motion `Spring`. A change wakes each
+  visible window that draws the handle once until its next frame; equal values and
+  hidden, minimized or fully covered windows do not wake. When a live value is the only reason for a frame the
+  runner calls `rndr_paint::frame_live`, which skips Input, Update, PostUpdate and
+  Layout, so text does not rewrap and siblings do not move. `LiveRect` moves and
+  scales the laid-out box through `Transform`. In a headless CPU probe
+  (`cargo test -p rndr_paint --release --test live_cost -- --ignored --nocapture`)
+  a live-only frame cost about a sixth of a full frame.
 - **Document editing:** source sessions and structured editing have explicit ownership
   and regression coverage. The structured editor remains experimental; native IME,
   clipboard and assistive-technology acceptance must be checked independently of

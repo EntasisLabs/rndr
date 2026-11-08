@@ -253,6 +253,29 @@ pub fn frame_with_snapshot_frame<T>(
     (frame, snapshot)
 }
 
+/// Live-only frame: [`App::update_live`] instead of [`App::update`], then
+/// paint. Use it when only [`rndr_core::Live`] values changed.
+pub fn frame_live(app: &mut App) -> Frame {
+    frame_live_with_snapshot(app, |_| ()).0
+}
+
+/// [`frame_live`] with the [`frame_with_snapshot`] paint-boundary snapshot.
+pub fn frame_live_with_snapshot<T>(
+    app: &mut App,
+    snapshot: impl FnOnce(&World) -> T,
+) -> (Frame, T) {
+    app.update_live();
+    let (quads, draws) = paint_parts(app.world());
+    let frame = Frame {
+        quads,
+        draws,
+        slots: surface_slots(app.world()),
+    };
+    let snapshot = snapshot(app.world());
+    app.render();
+    (frame, snapshot)
+}
+
 fn surface_slots(world: &World) -> Vec<SurfaceRect> {
     let mut slots = Vec::new();
     for entity in world.entities_with::<rndr_core::SurfaceSlot>() {
