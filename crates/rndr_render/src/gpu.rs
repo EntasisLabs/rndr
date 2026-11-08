@@ -915,7 +915,6 @@ impl Gpu {
         &mut self.shell
     }
 
-    #[cfg(any(feature = "accesskit", native_dialog))]
     pub(crate) fn winit_window(&self) -> Option<&dyn winit::window::Window> {
         self.shell.winit_window()
     }

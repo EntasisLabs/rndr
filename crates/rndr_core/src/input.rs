@@ -57,19 +57,86 @@ pub struct MotionWatch {
 /// Pointer shape the desktop runner applies to the window.
 ///
 /// Absent from the world, the runner draws the platform arrow. A widget
-/// that tracks hover writes this every Input frame.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+/// that tracks hover writes this every Input frame. The shapes follow CSS
+/// `cursor`; a platform without a shape draws its closest one.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum CursorStyle {
-    /// The platform arrow.
+    /// The platform arrow (CSS `default`).
     #[default]
     Arrow,
-    /// A pointing hand, for a link under the pointer.
+    /// A pointing hand, for a link under the pointer (CSS `pointer`).
     Hand,
     /// An I-beam, for selectable text under the pointer.
     Text,
     /// The [`crate::CursorImage`] resource. The runner draws the arrow when
     /// that resource is absent.
     Image,
+    /// No OS cursor, for views that draw their own (CSS `none`). The OS
+    /// shows its cursor again once the pointer leaves the window.
+    Hidden,
+    /// An open hand over something draggable.
+    Grab,
+    /// A closed hand while dragging.
+    Grabbing,
+    /// Four arrows, for moving an object.
+    Move,
+    /// A precise cross, for picking a point or dragging out a rect.
+    Crosshair,
+    /// The action is not allowed here.
+    NotAllowed,
+    /// Dropping here is not allowed.
+    NoDrop,
+    /// Dropping here copies.
+    Copy,
+    /// Dropping here makes a link or shortcut.
+    Alias,
+    /// A context menu is available.
+    ContextMenu,
+    /// Help is available.
+    Help,
+    /// Busy in the background; the app still responds.
+    Progress,
+    /// Busy; the app does not respond.
+    Wait,
+    /// A table cell or a set of cells.
+    Cell,
+    /// An I-beam for vertical text.
+    VerticalText,
+    /// Scrolling in any direction.
+    AllScroll,
+    /// Zooming in.
+    ZoomIn,
+    /// Zooming out.
+    ZoomOut,
+    /// Resizing a column (CSS `col-resize`).
+    ResizeColumn,
+    /// Resizing a row (CSS `row-resize`).
+    ResizeRow,
+    /// Resizing the right edge (CSS `e-resize`).
+    ResizeEast,
+    /// Resizing the top edge.
+    ResizeNorth,
+    /// Resizing the top-right corner.
+    ResizeNorthEast,
+    /// Resizing the top-left corner.
+    ResizeNorthWest,
+    /// Resizing the bottom edge.
+    ResizeSouth,
+    /// Resizing the bottom-right corner.
+    ResizeSouthEast,
+    /// Resizing the bottom-left corner.
+    ResizeSouthWest,
+    /// Resizing the left edge.
+    ResizeWest,
+    /// Resizing left or right (CSS `ew-resize`).
+    ResizeEastWest,
+    /// Resizing up or down (CSS `ns-resize`).
+    ResizeNorthSouth,
+    /// Resizing along the top-right to bottom-left diagonal.
+    ResizeNorthEastSouthWest,
+    /// Resizing along the top-left to bottom-right diagonal.
+    ResizeNorthWestSouthEast,
 }
 
 impl Default for Pointer {

@@ -1,7 +1,8 @@
-//! Logical-point design tokens. Explicit settings; OS following is unavailable.
-use rndr_core::{Color, TextStyle};
+//! Logical-point design tokens. Explicit settings; [`UiTheme::follow_system`]
+//! opts into the desktop's light/dark preference.
+use rndr_core::{Color, SystemAppearance, TextStyle};
 
-/// Explicit appearance, never inferred from an unavailable native preference.
+/// Explicit appearance. [`UiTheme::follow_system`] picks it from the desktop.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Appearance {
     /// Light surfaces.
@@ -135,6 +136,18 @@ fn hex(v: u32) -> Color {
     )
 }
 impl UiTheme {
+    /// This theme with the desktop's light/dark preference. A desktop with no
+    /// preference keeps the current appearance.
+    pub fn follow_system(mut self, system: &SystemAppearance) -> Self {
+        if let Some(dark) = system.dark {
+            self.appearance = if dark {
+                Appearance::Dark
+            } else {
+                Appearance::Light
+            };
+        }
+        self
+    }
     /// Resolve to opaque color. Explicit transparent colors never pass through this resolver.
     pub fn color(&self, token: Token) -> Color {
         use Token::*;
