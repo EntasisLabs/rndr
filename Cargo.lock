@@ -662,6 +662,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "canvas-editor"
+version = "0.4.0"
+dependencies = [
+ "rndr_canvas",
+ "rndr_canvas_ui",
+ "rndr_core",
+ "rndr_paint",
+ "rndr_render",
+ "rndr_ui",
+]
+
+[[package]]
 name = "canvas-scene"
 version = "0.4.0"
 dependencies = [
@@ -3489,6 +3501,16 @@ dependencies = [
  "serde_json",
  "sha2",
  "tempfile",
+]
+
+[[package]]
+name = "rndr_canvas_ui"
+version = "0.4.0"
+dependencies = [
+ "rndr_canvas",
+ "rndr_core",
+ "rndr_paint",
+ "rndr_ui",
 ]
 
 [[package]]

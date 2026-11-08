@@ -1,0 +1,19 @@
+[package]
+name = "rndr_canvas_ui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
+description = "Paint and edit rndr_canvas documents: scene painter, editing tools, overlay and panels"
+documentation = "https://docs.rs/rndr_canvas_ui"
+readme = "README.md"
+keywords = ["canvas", "drawing", "whiteboard", "editor", "gui"]
+categories = ["graphics", "gui"]
+
+[dependencies]
+rndr_canvas = { workspace = true }
+rndr_core = { workspace = true }
+rndr_paint = { workspace = true }
+rndr_ui = { workspace = true }

@@ -1,0 +1,15 @@
+[package]
+name = "canvas-editor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Interactive rndr_canvas editor, or a PNG export of its sample board"
+publish = false
+
+[dependencies]
+rndr_canvas = { workspace = true }
+rndr_canvas_ui = { workspace = true }
+rndr_core = { workspace = true }
+rndr_paint = { workspace = true }
+rndr_render = { workspace = true }
+rndr_ui = { workspace = true }

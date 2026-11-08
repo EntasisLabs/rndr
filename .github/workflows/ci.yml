@@ -116,7 +116,7 @@ jobs:
         run: cargo test -p rndr_core --features highlight
 
       - name: Build examples and rndr_render
-        run: cargo build -p desktop -p expand -p idle -p overlay -p palette -p terminal -p stream -p two-windows -p pen-probe -p canvas-scene -p create-view -p chart-gallery -p liquid-view -p rndr_render
+        run: cargo build -p desktop -p expand -p idle -p overlay -p palette -p terminal -p stream -p two-windows -p pen-probe -p canvas-scene -p create-view -p chart-gallery -p liquid-view -p canvas-editor -p rndr_render
 
       - name: Build native semantic galleries with observation
         run: cargo build -p rndr --features observe,ui --example ui_gallery --example data_gallery --example data_editors_gallery --example selection_gallery --example virtual_list_gallery --example markdown_gallery
@@ -146,7 +146,7 @@ jobs:
             --exclude desktop --exclude source-session \
             --exclude expand --exclude idle --exclude overlay --exclude palette \
             --exclude terminal --exclude stream --exclude two-windows \
-            --exclude pen-probe --exclude canvas-scene --exclude create-view --exclude chart-gallery --exclude liquid-view --exclude web-hello
+            --exclude pen-probe --exclude canvas-scene --exclude create-view --exclude chart-gallery --exclude liquid-view --exclude canvas-editor --exclude web-hello
           paint_crate=(target/package/rndr_paint-*.crate)
           render_crate=(target/package/rndr_render-*.crate)
           ui_crate=(target/package/rndr_ui-*.crate)
@@ -165,4 +165,4 @@ jobs:
           test "$(printf '%s\n' "$render_files" | grep -c '\.snap$')" = 2
           printf '%s\n' "$paint_files" | grep -q '/Inter-LICENSE.txt$'
           printf '%s\n' "$paint_files" | grep -q '/latin_atlas.bin$'
-          RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features --locked --exclude expand --exclude idle --exclude overlay --exclude palette --exclude terminal --exclude stream --exclude two-windows --exclude pen-probe --exclude canvas-scene --exclude create-view --exclude chart-gallery --exclude liquid-view --exclude web-hello
+          RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features --locked --exclude expand --exclude idle --exclude overlay --exclude palette --exclude terminal --exclude stream --exclude two-windows --exclude pen-probe --exclude canvas-scene --exclude create-view --exclude chart-gallery --exclude liquid-view --exclude canvas-editor --exclude web-hello
