@@ -1,0 +1,25 @@
+[package]
+name = "rndr_chart"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
+description = "Bar, line, area, pie, donut, radar, radial, scatter, combo and heatmap charts painted with rndr_paint"
+documentation = "https://docs.rs/rndr_chart"
+readme = "README.md"
+keywords = ["chart", "plot", "gui", "graphics"]
+categories = ["visualization", "gui", "graphics"]
+
+[features]
+# `Chart::from_liquid` for `rndr_liquid::ChartProps`.
+liquid = ["dep:rndr_liquid"]
+
+[dependencies]
+rndr_core = { workspace = true }
+rndr_paint = { workspace = true }
+rndr_liquid = { workspace = true, optional = true }
+
+[package.metadata.docs.rs]
+all-features = true

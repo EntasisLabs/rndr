@@ -1,0 +1,13 @@
+[package]
+name = "chart-gallery"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "All ten rndr_chart families, with hover tooltips, or exported to PNG"
+publish = false
+
+[dependencies]
+rndr_chart = { workspace = true }
+rndr_core = { workspace = true }
+rndr_paint = { workspace = true }
+rndr_render = { workspace = true }
