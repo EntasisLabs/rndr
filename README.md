@@ -158,6 +158,7 @@ available, but observation still requires an explicit application-session opt-in
 | --- | --- |
 | Controls and themes | `cargo run -p rndr --example ui_gallery --features observe` |
 | Checkboxes and selection popups | `cargo run -p rndr --example selection_gallery --features observe` |
+| Context, popup and app menus | `cargo run -p rndr --example menus` |
 | Tables and property inspection | `cargo run -p rndr --example data_gallery --features observe` |
 | Typed data-editor drafts | `cargo run -p rndr --example data_editors_gallery --features observe` |
 | Virtualized collections | `cargo run -p rndr --example virtual_list_gallery --features observe` |
@@ -181,6 +182,7 @@ The facade keeps optional integrations explicit:
 | `accesskit` | On | Native accessibility adapter; the core accessibility tree stays GPU-free |
 | `hotkey` | On | System-wide shortcuts through the platform backend |
 | `tray` | On | Menu-bar / notification-area integration |
+| `menubar` | Off | Native app menu bar on macOS and Windows through `muda` (`set_app_menu`, `AppMenuPicked`). Linux and browsers have none; use `rndr_ui::menu` |
 | `svg` | On | SVG and SVGZ decoding through `resvg` (`decode_svg`, `load_svg`; `load_image` accepts SVG). Text in an SVG must be converted to paths |
 | `appearance` | On | Linux dark/light, accent and reduced-motion settings through the XDG desktop portal. Off leaves Linux on winit's theme only; macOS, Windows and browsers need no extra dependency |
 | `ui` | Off | Semantic components under `rndr::ui` |
