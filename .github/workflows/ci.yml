@@ -55,6 +55,12 @@ jobs:
       - name: Clippy with dialogs
         run: cargo clippy -p rndr_render -p rndr --features dialog --all-targets -- -D warnings
 
+      - name: Clippy for the browser (wasm32)
+        if: runner.os == 'Linux'
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cargo clippy -p rndr_render -p rndr -p web-hello --target wasm32-unknown-unknown -- -D warnings
+
       - name: Test
         run: cargo test --workspace
 
@@ -140,7 +146,7 @@ jobs:
             --exclude desktop --exclude source-session \
             --exclude expand --exclude idle --exclude overlay --exclude palette \
             --exclude terminal --exclude stream --exclude two-windows \
-            --exclude pen-probe --exclude canvas-scene --exclude create-view
+            --exclude pen-probe --exclude canvas-scene --exclude create-view --exclude web-hello
           paint_crate=(target/package/rndr_paint-*.crate)
           render_crate=(target/package/rndr_render-*.crate)
           ui_crate=(target/package/rndr_ui-*.crate)
@@ -159,4 +165,4 @@ jobs:
           test "$(printf '%s\n' "$render_files" | grep -c '\.snap$')" = 2
           printf '%s\n' "$paint_files" | grep -q '/Inter-LICENSE.txt$'
           printf '%s\n' "$paint_files" | grep -q '/latin_atlas.bin$'
-          RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features --locked --exclude expand --exclude idle --exclude overlay --exclude palette --exclude terminal --exclude stream --exclude two-windows --exclude pen-probe --exclude canvas-scene --exclude create-view
+          RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features --locked --exclude expand --exclude idle --exclude overlay --exclude palette --exclude terminal --exclude stream --exclude two-windows --exclude pen-probe --exclude canvas-scene --exclude create-view --exclude web-hello

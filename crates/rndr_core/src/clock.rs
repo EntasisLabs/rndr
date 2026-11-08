@@ -22,7 +22,7 @@ pub struct Time {
     pub frame: u64,
 }
 
-/// Source of [`Time::now`]. Also maps a timestamp onto a wall [`std::time::Instant`]
+/// Source of [`Time::now`]. Also maps a timestamp onto a wall [`web_time::Instant`]
 /// so the window loop can wait until the next timer.
 pub trait Clock: Send + Sync + 'static {
     /// Monotonic time since this clock's origin.
@@ -36,7 +36,7 @@ pub trait Clock: Send + Sync + 'static {
     /// timestamp stays in the past. [`ManualClock`] returns the current wall
     /// time once `at` has been reached, and that wall time plus the remaining
     /// delay while `at` is still ahead.
-    fn instant(&self, at: Duration) -> std::time::Instant;
+    fn instant(&self, at: Duration) -> web_time::Instant;
 }
 
 /// `Instant::now()` sampled against construction.
@@ -45,14 +45,14 @@ pub trait Clock: Send + Sync + 'static {
 /// runner installs this clock.
 #[derive(Clone, Debug)]
 pub struct SystemClock {
-    start: std::time::Instant,
+    start: web_time::Instant,
 }
 
 impl SystemClock {
     /// Sample the wall clock. Elapsed time is zero at this call.
     pub fn new() -> Self {
         Self {
-            start: std::time::Instant::now(),
+            start: web_time::Instant::now(),
         }
     }
 }
@@ -68,7 +68,7 @@ impl Clock for SystemClock {
         self.start.elapsed()
     }
 
-    fn instant(&self, at: Duration) -> std::time::Instant {
+    fn instant(&self, at: Duration) -> web_time::Instant {
         self.start + at
     }
 }
@@ -110,9 +110,9 @@ impl Clock for ManualClock {
         Duration::from_nanos(self.nanos.load(Ordering::Relaxed))
     }
 
-    fn instant(&self, at: Duration) -> std::time::Instant {
+    fn instant(&self, at: Duration) -> web_time::Instant {
         let now = self.elapsed();
-        let wall = std::time::Instant::now();
+        let wall = web_time::Instant::now();
         if at > now {
             wall + (at - now)
         } else {

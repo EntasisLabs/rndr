@@ -235,8 +235,10 @@ fn paint(in: VsOut) -> vec4<f32> {
     // authored sRGB on an 8-bit Unorm target. Coverage alpha is the mask.
     // Color glyphs (emoji) sample the sRGB color atlas; `glyph_atlas` > 0.5
     // selects that path. The instance flag lives in `radius.y`.
-    let coverage = textureSample(atlas, atlas_samp, in.uv).r;
-    let sprite = textureSample(color_atlas, color_samp, in.uv);
+    // The atlases have one mip level. An explicit level keeps these samples
+    // valid after the branches above, which WGSL uniformity rules require.
+    let coverage = textureSampleLevel(atlas, atlas_samp, in.uv, 0.0).r;
+    let sprite = textureSampleLevel(color_atlas, color_samp, in.uv, 0.0);
     let color_glyph = in.glyph_atlas > 0.5;
     let rgb = select(in.color.rgb, sprite.rgb, color_glyph);
     let alpha = select(in.color.a * coverage, sprite.a * in.color.a, color_glyph);
@@ -913,9 +915,19 @@ impl Gpu {
         &mut self.shell
     }
 
-    #[cfg(any(feature = "accesskit", feature = "dialog"))]
+    #[cfg(any(feature = "accesskit", native_dialog))]
     pub(crate) fn winit_window(&self) -> Option<&dyn winit::window::Window> {
         self.shell.winit_window()
+    }
+
+    /// Reconfigure to the shell's current size when it no longer matches.
+    /// A resize that arrives while the device is still being built has no
+    /// surface to apply to, and a browser canvas usually resizes then.
+    pub(crate) fn fit_shell(&mut self) {
+        let size = self.shell().inner_size();
+        if size.width != self.config.width || size.height != self.config.height {
+            self.resize(size);
+        }
     }
 
     pub fn resize(&mut self, size: PhysicalSize<u32>) {

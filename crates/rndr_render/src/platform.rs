@@ -81,8 +81,31 @@ pub(crate) fn attributes(config: &WindowConfig) -> WindowAttributes {
             WindowAttributesX11::default().with_x11_window_type(vec![WindowType::Utility]),
         ));
     }
+    #[cfg(target_arch = "wasm32")]
+    {
+        attrs = attrs.with_platform_attributes(Box::new(web_canvas()));
+    }
     attrs
 }
+
+/// Draw into the page's `<canvas id="rndr">` when there is one, otherwise
+/// append a new canvas to `<body>`.
+#[cfg(target_arch = "wasm32")]
+fn web_canvas() -> winit::platform::web::WindowAttributesWeb {
+    use wasm_bindgen::JsCast;
+    let canvas = web_sys::window()
+        .and_then(|window| window.document())
+        .and_then(|document| document.get_element_by_id(WEB_CANVAS_ID))
+        .and_then(|element| element.dyn_into::<web_sys::HtmlCanvasElement>().ok());
+    let append = canvas.is_none();
+    winit::platform::web::WindowAttributesWeb::default()
+        .with_canvas(canvas)
+        .with_append(append)
+}
+
+/// Element id of the canvas a browser page can provide for rndr to draw into.
+#[cfg(target_arch = "wasm32")]
+pub const WEB_CANVAS_ID: &str = "rndr";
 
 pub(crate) fn finish_create(
     window: &dyn Window,

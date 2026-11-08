@@ -758,6 +758,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "console_error_panic_hook"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a06aeb73f470f66dcdbf7223caeebb85984942f22f1adb2a088cf9668146bbbc"
+dependencies = [
+ "cfg-if",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "core_maths"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3397,6 +3407,7 @@ dependencies = [
  "pulldown-cmark",
  "tokio",
  "unicode-segmentation",
+ "web-time",
 ]
 
 [[package]]
@@ -3424,6 +3435,7 @@ dependencies = [
  "image-webp",
  "insta",
  "jpeg-decoder",
+ "js-sys",
  "libc",
  "objc2 0.5.2",
  "objc2-app-kit 0.2.2",
@@ -3439,8 +3451,12 @@ dependencies = [
  "tokio",
  "tray-icon",
  "unicode-segmentation",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
  "wayland-client",
  "wayland-protocols-wlr",
+ "web-sys",
+ "web-time",
  "wgpu",
  "windows-sys 0.59.0",
  "winit",
@@ -4714,6 +4730,16 @@ dependencies = [
  "log",
  "once_cell",
  "pkg-config",
+]
+
+[[package]]
+name = "web-hello"
+version = "0.4.0"
+dependencies = [
+ "console_error_panic_hook",
+ "rndr_core",
+ "rndr_render",
+ "wasm-bindgen",
 ]
 
 [[package]]

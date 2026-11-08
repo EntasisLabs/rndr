@@ -105,12 +105,13 @@ fn vs(in: Vin) -> Vout {
 fn cover(local: vec2<f32>, extra: vec4<f32>) -> f32 {
     let radius = extra.x;
     let size = vec2<f32>(extra.y, extra.z);
-    if (radius <= 0.0 || size.x <= 0.0 || size.y <= 0.0) { return 1.0; }
     let half = size * 0.5;
     let r = min(radius, min(half.x, half.y));
     let q = abs(local - half) - half + vec2<f32>(r);
     let dist = length(max(q, vec2<f32>(0.0))) + min(max(q.x, q.y), 0.0) - r;
+    // Derivatives must run before any branch on per-quad values (WGSL uniformity).
     let fw = max(fwidth(dist), 1.0);
+    if (radius <= 0.0 || size.x <= 0.0 || size.y <= 0.0) { return 1.0; }
     return clamp(0.5 - dist / fw, 0.0, 1.0);
 }
 @fragment

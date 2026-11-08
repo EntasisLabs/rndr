@@ -8,7 +8,7 @@
 //! `notify` is off unless the crate is built with that feature. [`Notifications::open`]
 //! then returns [`NotifyError::Unsupported`] and does not present.
 
-#[cfg(feature = "notify")]
+#[cfg(native_notify)]
 use std::collections::BTreeSet;
 
 /// Opaque token created by the host.
@@ -68,18 +68,18 @@ pub struct NotifyClick {
 
 /// Present, dismiss, and accepted clicks for one process.
 pub struct Notifications {
-    #[cfg(feature = "notify")]
+    #[cfg(native_notify)]
     live: Live,
 }
 
-#[cfg(feature = "notify")]
+#[cfg(native_notify)]
 struct Live {
     permission: NotifyPermission,
     presented: BTreeSet<NotifyToken>,
     bridge: Bridge,
 }
 
-#[cfg(feature = "notify")]
+#[cfg(native_notify)]
 enum Bridge {
     Headless { callbacks: Vec<NotifyCallback> },
     System(crate::notify_os::SystemNotifications),
@@ -91,11 +91,11 @@ impl Notifications {
     /// Without the `notify` feature this is [`NotifyError::Unsupported`] and
     /// no notification is presented.
     pub fn open() -> Result<Self, NotifyError> {
-        #[cfg(not(feature = "notify"))]
+        #[cfg(not(native_notify))]
         {
             Err(NotifyError::Unsupported)
         }
-        #[cfg(feature = "notify")]
+        #[cfg(native_notify)]
         {
             Ok(Self {
                 live: Live {
@@ -111,12 +111,12 @@ impl Notifications {
     ///
     /// Without `notify` this returns [`NotifyError::Unsupported`].
     pub fn headless(permission: NotifyPermission) -> Result<Self, NotifyError> {
-        #[cfg(not(feature = "notify"))]
+        #[cfg(not(native_notify))]
         {
             let _ = permission;
             Err(NotifyError::Unsupported)
         }
-        #[cfg(feature = "notify")]
+        #[cfg(native_notify)]
         {
             Ok(Self {
                 live: Live {
@@ -132,12 +132,12 @@ impl Notifications {
 
     /// Permission the next [`Self::present`] will consult.
     pub fn permission(&self) -> Result<NotifyPermission, NotifyError> {
-        #[cfg(not(feature = "notify"))]
+        #[cfg(not(native_notify))]
         {
             let _ = self;
             Err(NotifyError::Unsupported)
         }
-        #[cfg(feature = "notify")]
+        #[cfg(native_notify)]
         {
             Ok(self.live.permission)
         }
@@ -145,12 +145,12 @@ impl Notifications {
 
     /// Replace the headless permission. A system service refuses this.
     pub fn set_permission(&mut self, permission: NotifyPermission) -> Result<(), NotifyError> {
-        #[cfg(not(feature = "notify"))]
+        #[cfg(not(native_notify))]
         {
             let _ = (self, permission);
             Err(NotifyError::Unsupported)
         }
-        #[cfg(feature = "notify")]
+        #[cfg(native_notify)]
         {
             match &self.live.bridge {
                 Bridge::Headless { .. } => {
@@ -167,12 +167,12 @@ impl Notifications {
     /// A denied or not-yet-granted permission returns [`NotifyError::PermissionDenied`]
     /// and does not call the platform. A failed platform call does not record the token.
     pub fn present(&mut self, request: NotifyRequest) -> Result<(), NotifyError> {
-        #[cfg(not(feature = "notify"))]
+        #[cfg(not(native_notify))]
         {
             let _ = request;
             Err(NotifyError::Unsupported)
         }
-        #[cfg(feature = "notify")]
+        #[cfg(native_notify)]
         {
             // A platform that cannot present is unsupported, including when
             // permission was never granted. That refusal is not a denial.
@@ -198,12 +198,12 @@ impl Notifications {
 
     /// Remove a live token. An unknown or already dismissed token is refused.
     pub fn dismiss(&mut self, token: NotifyToken) -> Result<(), NotifyError> {
-        #[cfg(not(feature = "notify"))]
+        #[cfg(not(native_notify))]
         {
             let _ = (self, token);
             Err(NotifyError::Unsupported)
         }
-        #[cfg(feature = "notify")]
+        #[cfg(native_notify)]
         {
             if !self.live.presented.contains(&token) {
                 return Err(NotifyError::UnknownToken);
@@ -218,12 +218,12 @@ impl Notifications {
     ///
     /// A system service refuses this. The callback is applied by [`Self::poll`].
     pub fn push_callback(&mut self, callback: NotifyCallback) -> Result<(), NotifyError> {
-        #[cfg(not(feature = "notify"))]
+        #[cfg(not(native_notify))]
         {
             let _ = (self, callback);
             Err(NotifyError::Unsupported)
         }
-        #[cfg(feature = "notify")]
+        #[cfg(native_notify)]
         {
             match &mut self.live.bridge {
                 Bridge::Headless { callbacks } => callbacks.push(callback),
@@ -237,12 +237,12 @@ impl Notifications {
     ///
     /// An accepted click retires the token. This does not focus a window.
     pub fn poll(&mut self) -> Result<Vec<NotifyClick>, NotifyError> {
-        #[cfg(not(feature = "notify"))]
+        #[cfg(not(native_notify))]
         {
             let _ = self;
             Err(NotifyError::Unsupported)
         }
-        #[cfg(feature = "notify")]
+        #[cfg(native_notify)]
         {
             let callbacks = self.live.bridge.poll();
             let mut accepted = Vec::new();
@@ -262,7 +262,7 @@ impl Notifications {
     }
 }
 
-#[cfg(feature = "notify")]
+#[cfg(native_notify)]
 impl Bridge {
     fn can_present(&self) -> bool {
         match self {
@@ -297,14 +297,14 @@ impl Bridge {
 mod tests {
     use super::*;
 
-    #[cfg(feature = "notify")]
+    #[cfg(native_notify)]
     fn token(byte: u8) -> NotifyToken {
         let mut bytes = [0; 16];
         bytes[0] = byte;
         NotifyToken(bytes)
     }
 
-    #[cfg(feature = "notify")]
+    #[cfg(native_notify)]
     fn request(byte: u8, title: &str) -> NotifyRequest {
         NotifyRequest {
             token: token(byte),
@@ -313,7 +313,7 @@ mod tests {
         }
     }
 
-    #[cfg(not(feature = "notify"))]
+    #[cfg(not(native_notify))]
     #[test]
     fn feature_off_returns_unsupported() {
         assert!(matches!(
@@ -326,7 +326,7 @@ mod tests {
         ));
     }
 
-    #[cfg(feature = "notify")]
+    #[cfg(native_notify)]
     #[test]
     fn denied_or_prompt_does_not_present() {
         let mut notes = Notifications::headless(NotifyPermission::Denied).unwrap();
@@ -346,7 +346,7 @@ mod tests {
         assert!(notes.poll().unwrap().is_empty());
     }
 
-    #[cfg(feature = "notify")]
+    #[cfg(native_notify)]
     #[test]
     fn present_dismiss_and_stale_clicks() {
         let mut notes = Notifications::headless(NotifyPermission::Granted).unwrap();
@@ -400,7 +400,7 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "notify")]
+    #[cfg(native_notify)]
     #[test]
     fn close_before_click_drops_the_click() {
         let mut notes = Notifications::headless(NotifyPermission::Granted).unwrap();
@@ -430,7 +430,7 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "notify")]
+    #[cfg(native_notify)]
     #[test]
     fn system_service_rejects_injected_callbacks() {
         let mut notes = Notifications::open().unwrap();
@@ -449,14 +449,14 @@ mod tests {
         assert!(notes.poll().unwrap().is_empty());
     }
 
-    #[cfg(all(feature = "notify", target_os = "linux"))]
+    #[cfg(all(native_notify, target_os = "linux"))]
     #[test]
     fn linux_system_starts_granted() {
         let notes = Notifications::open().unwrap();
         assert_eq!(notes.permission().unwrap(), NotifyPermission::Granted);
     }
 
-    #[cfg(all(feature = "notify", not(target_os = "linux")))]
+    #[cfg(all(native_notify, not(target_os = "linux")))]
     #[test]
     fn other_platforms_do_not_present() {
         let mut notes = Notifications::open().unwrap();

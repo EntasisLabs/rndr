@@ -55,6 +55,28 @@ rndr_paint = { workspace = true }
 wgpu = { workspace = true }
 winit = { workspace = true }
 pollster = { workspace = true }
+web-time = { workspace = true }
+parley = { version = "0.12", optional = true, features = ["complex-scripts"] }
+swash = { version = "0.2.10", optional = true }
+etagere = { version = "0.3", optional = true }
+serde_json = { version = "1", optional = true }
+getrandom = { version = "0.3", optional = true }
+png = "0.18"
+jpeg-decoder = "0.3"
+image-webp = "0.2"
+resvg = { version = "0.45", optional = true, default-features = false }
+unicode-segmentation = "1.13"
+accesskit = { version = "0.25.2", optional = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlCanvasElement", "Navigator", "Clipboard", "ClipboardItem", "Blob", "BlobPropertyBag"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# Hotkeys, tray and notifications have no browser backend; `build.rs` turns
+# their features off on wasm32.
 futures-util = { version = "0.3", optional = true, default-features = false, features = ["std"] }
 libc = { version = "0.2", optional = true }
 tokio = { version = "1", optional = true, default-features = false, features = ["macros", "net", "rt", "sync", "time"] }
@@ -66,19 +88,8 @@ windows-sys = { version = "0.59", optional = true, features = [
 ] }
 x11rb = { version = "0.13.1", optional = true, default-features = false, features = ["allow-unsafe-code", "xkb"] }
 zbus = { version = "5", optional = true, default-features = false, features = ["tokio"] }
-parley = { version = "0.12", optional = true, features = ["complex-scripts"] }
-swash = { version = "0.2.10", optional = true }
-etagere = { version = "0.3", optional = true }
 tray-icon = { version = "0.26.1", optional = true, default-features = false, features = ["ksni"] }
-serde_json = { version = "1", optional = true }
-getrandom = { version = "0.3", optional = true }
-png = "0.18"
-jpeg-decoder = "0.3"
-image-webp = "0.2"
-resvg = { version = "0.45", optional = true, default-features = false }
 arboard = { version = "3", default-features = false, features = ["wayland-data-control", "image-data"] }
-unicode-segmentation = "1.13"
-accesskit = { version = "0.25.2", optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 accesskit_macos = { version = "0.27.2", optional = true }
@@ -102,7 +113,7 @@ windows-sys = { version = "0.59", features = [
     "Win32_UI_WindowsAndMessaging",
 ] }
 
-[target.'cfg(not(any(target_os = "linux", target_os = "android", target_os = "ios")))'.dependencies]
+[target.'cfg(not(any(target_os = "linux", target_os = "android", target_os = "ios", target_arch = "wasm32")))'.dependencies]
 rfd = { version = "0.15", optional = true }
 
 [dev-dependencies]
