@@ -190,8 +190,8 @@ The facade keeps optional integrations explicit:
 | `observe` | Off | Explicitly opted-in live native-window observation |
 | `tokio` | Off | Feed producers on an application-provided Tokio runtime |
 | `chart` | Off | `rndr_chart` under `rndr::chart` |
-| `liquid` | Off | Liquid Markdown under `rndr::liquid` (grammar) and `rndr::liquid::ui` (native blocks, `LiquidHost`). Enables `chart` |
-| `canvas` | Off | Canvas documents under `rndr::canvas` (model, history, geometry, storage) and `rndr::canvas::ui` (painter, editor, overlay, panels) |
+| `liquid` | Off | Liquid Markdown under `rndr::liquid` (grammar) and `rndr::liquid::ui` (native blocks, `LiquidHost`). Enables `chart`. Icons, slide visuals and styled-block fonts are not drawn yet; see [`rndr_liquid_ui`](crates/rndr_liquid_ui/README.md#current-limits) |
+| `canvas` | Off | Canvas documents under `rndr::canvas` (model, history, geometry, storage) and `rndr::canvas::ui` (painter, editor, overlay, panels). Text editing is end-only and the app owns keyboard focus; see [`rndr_canvas_ui`](crates/rndr_canvas_ui/README.md#limits) |
 
 `--no-default-features` removes the default integrations, **not the desktop runner**.
 Depend on `rndr_core` (and optionally `rndr_ui` / `rndr_paint`) when no window or GPU

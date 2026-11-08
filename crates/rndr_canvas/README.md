@@ -70,9 +70,16 @@ named `a_<sha256>`).
 - `layer_rows` for a layers panel and `snap_targets` with
   `Snapping::snap_move` for grid and smart-guide snapping.
 
-Text boxes are laid out with a `TextMeasure`. `EstimateMeasure` assumes
-0.6 em per character, which is enough for tests and headless tools; a
-renderer should pass its own shaper so picking matches what it draws.
+Text boxes are laid out with a `TextMeasure` by `text::layout_node`, and
+that one box is the text policy for picking, bounds and painting. Lines
+wrap only at an explicit `text_layout.width`; otherwise the box is as wide
+as the widest line plus 0.06 em padding on each side, whatever the stored
+transform width says. Center and right alignment place lines inside that
+box, and rotation stays about the transform's center. Inline spans that
+change weight or style are measured with their own font through
+`TextMeasure::styled_width`. `EstimateMeasure` assumes 0.6 em per
+character, which is enough for tests and headless tools; a renderer should
+pass its own shaper so bounds and picking match what it draws.
 `Camera` maps between view and scene coordinates for fit and zoom.
 
 ```rust
@@ -111,7 +118,10 @@ assert!(index.hit(Vec2::new(50.0, 50.0), 0.0).is_some());
   included; the store keeps only documents, history, receipts and assets.
 - Store records are this crate's own format. Scene and document JSON is
   shared with Medousa; the record wrapper around them is not.
-- Medousa's legacy five-point "arrow" ink is drawn as ink, not as a line.
+- Medousa's legacy five-point "arrow" ink is ink in this model. Call
+  `upgrade_legacy_arrows` when loading Medousa documents to rewrite exactly
+  that pattern (the same check as Medousa's `lineGeometry`) as line nodes
+  with an end arrow; nothing else recognizes it.
 - Partial ink erasing removes the points the eraser touches and splits
   the stroke there; it does not cut segments between points.
 - Lasso selection takes ink when at least half its points are inside the

@@ -444,6 +444,52 @@ fn text_wraps_and_measures() {
     assert!(close(index.dimensions(&node).0, 40.0));
 }
 
+/// Bold glyphs are 0.8 em wide here, regular ones 0.6 em.
+struct WeightMeasure;
+
+impl TextMeasure for WeightMeasure {
+    fn width(&self, line: &str, font: &text::Font<'_>) -> f64 {
+        let em = if font.weight >= 700 { 0.8 } else { 0.6 };
+        line.chars().count() as f64 * font.size * em
+    }
+}
+
+#[test]
+fn text_layout_measures_inline_spans() {
+    let mut node = Node::new(
+        "t",
+        Content::Text {
+            text: "aaaa bbbb".into(),
+            color: "#000".into(),
+            font_family: "Inter".into(),
+            font_size: 10.0,
+            font_weight: None,
+            font_style: None,
+        },
+        Transform::default(),
+    );
+    let plain = text::layout_node(&node, &WeightMeasure).unwrap();
+    assert!(close(plain.width, 9.0 * 6.0 + 1.2));
+    node.text_layout = Some(TextLayout {
+        spans: vec![TextSpan {
+            start: 5,
+            end: 9,
+            font_weight: Some(700),
+            font_style: None,
+            color: None,
+            underline: None,
+        }],
+        ..TextLayout::default()
+    });
+    let bold = text::layout_node(&node, &WeightMeasure).unwrap();
+    assert!(close(bold.width, 5.0 * 6.0 + 4.0 * 8.0 + 1.2));
+    // Wrapping measures the second line with its bold span too.
+    node.text_layout.as_mut().unwrap().width = Some(45.0);
+    let wrapped = text::layout_node(&node, &WeightMeasure).unwrap();
+    assert_eq!(wrapped.lines, ["aaaa ", "bbbb"]);
+    assert_eq!(wrapped.starts, [0, 5]);
+}
+
 #[test]
 fn camera_fits_and_zooms_about_an_anchor() {
     let cam = Camera::fit(Some(Rect::new(0.0, 0.0, 100.0, 50.0)), 220.0, 220.0, 10.0);
@@ -457,4 +503,57 @@ fn camera_fits_and_zooms_about_an_anchor() {
     let still = zoomed.view_to_scene(anchor);
     assert!(close(still.x, under.x) && close(still.y, under.y));
     assert_eq!(Camera::fit(None, 10.0, 10.0, 0.0), Camera::default());
+}
+
+#[test]
+fn legacy_five_point_arrows_upgrade_to_lines() {
+    let (a, b) = ((10.0f64, 20.0f64), (110.0f64, 20.0f64));
+    let barb = |angle: f64| {
+        let mut p = InkPoint::new(b.0 - 30.0 * angle.cos(), b.1 - 30.0 * angle.sin());
+        p.pressure = Some(0.5);
+        p
+    };
+    let tip = || {
+        let mut p = InkPoint::new(b.0, b.1);
+        p.pressure = Some(0.5);
+        p
+    };
+    let mut tail = InkPoint::new(a.0, a.1);
+    tail.pressure = Some(0.5);
+    let arrow = Node::new(
+        "arrow",
+        Content::Ink {
+            color: "#123456".into(),
+            input: InputKind::Mouse,
+            brush: Brush {
+                opacity: 0.5,
+                ..Brush::default()
+            },
+            points: vec![tail, tip(), barb(-0.5), tip(), barb(0.5)],
+        },
+        tf(0.0, 0.0, 120.0, 40.0, 0.0),
+    );
+    let mut stroke = arrow.clone();
+    stroke.id = "stroke".into();
+    if let Content::Ink { points, .. } = &mut stroke.content {
+        points[4].x += 3.0;
+    }
+    let mut scene = Scene::medousa();
+    scene.nodes = vec![arrow, stroke];
+    assert_eq!(upgrade_legacy_arrows(&mut scene), 1);
+    let Content::Shape {
+        shape: ShapeKind::Line,
+        stroke: color,
+        line: Some(line),
+        ..
+    } = &scene.nodes[0].content
+    else {
+        panic!("arrow stays ink: {:?}", scene.nodes[0].content);
+    };
+    assert_eq!(color, "#123456");
+    assert!(line.end_arrow && !line.start_arrow);
+    assert_eq!((line.start.x, line.end.x), (10.0, 110.0));
+    assert!(close(scene.nodes[0].opacity, 0.5));
+    assert!(matches!(scene.nodes[1].content, Content::Ink { .. }));
+    assert!(validate_scene(&scene, &BTreeMap::new()).is_ok());
 }

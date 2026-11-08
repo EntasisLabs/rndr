@@ -96,7 +96,12 @@ pub fn text_measure(world: &World) -> Box<dyn TextMeasure> {
 }
 
 /// SVG document for `rect`, with image assets inlined as data URLs.
-pub fn scene_svg(scene: &canvas::Scene, images: &BTreeMap<String, Asset>, rect: Rect) -> String {
+pub fn scene_svg(
+    scene: &canvas::Scene,
+    images: &BTreeMap<String, Asset>,
+    measure: &dyn TextMeasure,
+    rect: Rect,
+) -> String {
     let mut out = String::new();
     out.push_str(&format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{}\" height=\"{}\" viewBox=\"{} {} {} {}\">",
@@ -115,7 +120,7 @@ pub fn scene_svg(scene: &canvas::Scene, images: &BTreeMap<String, Asset>, rect: 
         ));
     }
     for node in scene.nodes.iter().filter(|node| node.parent_id.is_none()) {
-        svg_node(&mut out, node, &scene.nodes, images);
+        svg_node(&mut out, node, &scene.nodes, images, measure);
     }
     out.push_str("</svg>");
     out
@@ -141,6 +146,7 @@ fn svg_node(
     node: &canvas::Node,
     nodes: &[canvas::Node],
     images: &BTreeMap<String, Asset>,
+    measure: &dyn TextMeasure,
 ) {
     if !node.visible {
         return;
@@ -183,11 +189,11 @@ fn svg_node(
                 filter_attr(node),
             ));
             out.push_str(&format!("<g clip-path=\"url(#{clip})\">"));
-            svg_children(out, node, nodes, images);
+            svg_children(out, node, nodes, images, measure);
             out.push_str("</g>");
         }
-        canvas::Content::Group => svg_children(out, node, nodes, images),
-        canvas::Content::Text { .. } => svg_text(out, node),
+        canvas::Content::Group => svg_children(out, node, nodes, images, measure),
+        canvas::Content::Text { .. } => svg_text(out, node, measure),
         canvas::Content::Shape {
             shape,
             fill,
@@ -293,12 +299,13 @@ fn svg_children(
     node: &canvas::Node,
     nodes: &[canvas::Node],
     images: &BTreeMap<String, Asset>,
+    measure: &dyn TextMeasure,
 ) {
     for child in nodes
         .iter()
         .filter(|child| child.parent_id.as_deref() == Some(node.id.as_str()))
     {
-        svg_node(out, child, nodes, images);
+        svg_node(out, child, nodes, images, measure);
     }
 }
 
@@ -337,7 +344,11 @@ fn svg_line(out: &mut String, line: &LineGeom) {
     out.push_str("</g>");
 }
 
-fn svg_text(out: &mut String, node: &canvas::Node) {
+/// Lines, wrapping, alignment width and line tops come from the shared
+/// [`rndr_canvas::text::layout_node`] box, the same one the painter and the
+/// export bounds use. Glyph placement inside a line is left to the SVG
+/// renderer.
+fn svg_text(out: &mut String, node: &canvas::Node, measure: &dyn TextMeasure) {
     let canvas::Content::Text {
         text,
         color,
@@ -349,30 +360,32 @@ fn svg_text(out: &mut String, node: &canvas::Node) {
     else {
         return;
     };
+    let Some(text_box) = rndr_canvas::text::layout_node(node, measure) else {
+        return;
+    };
     let style = *font_style;
-    let weight = *font_weight;
     let layout = node.text_layout.as_ref();
     let size = *font_size as f32;
-    // The SVG cannot measure the face. The line box is the multiplier times
-    // the em size, the em is 0.8 ascent and 0.2 descent, and that box is
-    // centered in the line. Side bearings are omitted, so a left-aligned run
-    // starts at the 6% em padding. The display list uses the face metrics
-    // and the same multiplier.
-    let line_height = size * layout.map(|item| item.line_height as f32).unwrap_or(1.3);
-    let paragraph = layout
-        .and_then(|item| item.paragraph_spacing)
-        .unwrap_or(0.0) as f32;
-    let padding = size * 0.06;
+    // The SVG cannot measure the face. The em is 0.8 ascent and 0.2 descent,
+    // centered in the line box. Side bearings are omitted, so a left-aligned
+    // run starts at the 6% em padding.
+    let line_height = text_box.line_height as f32;
+    let padding = text_box.padding as f32;
     let ascent = size * 0.8;
     let descent = size * 0.2;
     let baseline = padding + (line_height - ascent - descent) / 2.0 + ascent;
     let letter = layout.and_then(|item| item.letter_spacing).unwrap_or(0.0) as f32;
-    let weight = weight.unwrap_or(FONT_WEIGHT_REGULAR);
+    let weight = font_weight.unwrap_or(FONT_WEIGHT_REGULAR);
     let font_style = match style.unwrap_or(canvas::FontStyle::Normal) {
         canvas::FontStyle::Italic => "italic",
         canvas::FontStyle::Normal => "normal",
     };
-    let (w, _) = size_of(node);
+    let w = text_box.width as f32;
+    let (x, text_anchor) = match text_box.align {
+        canvas::TextAlign::Center => (w * 0.5, "middle"),
+        canvas::TextAlign::Right => (w - padding, "end"),
+        canvas::TextAlign::Left => (padding, "start"),
+    };
     out.push_str(&format!(
         "<text fill=\"{}\" style=\"font-family:{};font-size:{}px;font-weight:{weight};font-style:{font_style};white-space:pre;letter-spacing:{}px;dominant-baseline:alphabetic\">",
         xml_attr(color),
@@ -380,25 +393,24 @@ fn svg_text(out: &mut String, node: &canvas::Node) {
         num(size),
         num(letter),
     ));
-    let mut byte = 0usize;
-    let mut line_y = 0.0f32;
-    for line in text.split('\n') {
-        let y = baseline + line_y;
-        let anchor = layout
-            .map(|item| item.align)
-            .unwrap_or(canvas::TextAlign::Left);
-        let (x, text_anchor) = match anchor {
-            canvas::TextAlign::Center => (w * 0.5, "middle"),
-            canvas::TextAlign::Right => (w - padding, "end"),
-            canvas::TextAlign::Left => (padding, "start"),
-        };
-        line_y += line_height + paragraph;
+    for (index, line) in text_box.lines.iter().enumerate() {
+        let y = baseline + text_box.ys[index] as f32;
         out.push_str(&format!(
             "<tspan x=\"{}\" y=\"{}\" text-anchor=\"{text_anchor}\">",
             num(x),
             num(y),
         ));
-        let end = byte + line.len();
+        let byte = utf16_to_byte(text, text_box.starts[index]);
+        // Whitespace at a wrap hangs past the box, as in a pre-wrap box.
+        let wrapped = text_box.starts.get(index + 1).is_some_and(|&next| {
+            next as usize == text_box.starts[index] as usize + line.encode_utf16().count()
+        });
+        let shown = if wrapped {
+            line.trim_end()
+        } else {
+            line.as_str()
+        };
+        let end = (byte + shown.len()).min(text.len());
         for segment in text_segments(text, layout, byte, end) {
             let seg_weight = segment.style.font_weight.unwrap_or(weight);
             let seg_style = match segment
@@ -422,11 +434,10 @@ fn svg_text(out: &mut String, node: &canvas::Node) {
                 xml_text(segment.text),
             ));
         }
-        if line.is_empty() {
+        if shown.is_empty() {
             out.push(' ');
         }
         out.push_str("</tspan>");
-        byte = end + 1;
     }
     out.push_str("</text>");
 }
@@ -1056,6 +1067,7 @@ mod tests {
         let svg = scene_svg(
             &scene,
             &BTreeMap::new(),
+            &canvas::EstimateMeasure,
             Rect {
                 x: 0.0,
                 y: 0.0,

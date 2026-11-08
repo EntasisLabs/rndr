@@ -50,11 +50,12 @@ pub fn fixture_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures")
 }
 
-/// Read a scene. Image nodes load `assets/{id}.png` next to the file.
+/// Read a scene and upgrade legacy arrows. Image nodes load
+/// `assets/{id}.png` next to the file.
 pub fn load_project(path: &Path) -> Result<Project, LoadError> {
     let text =
         fs::read_to_string(path).map_err(|err| LoadError(format!("{}: {err}", path.display())))?;
-    let scene: canvas::Scene = serde_json::from_str(&text)
+    let mut scene: canvas::Scene = serde_json::from_str(&text)
         .map_err(|err| LoadError(format!("{}: {err}", path.display())))?;
     if !scene.is_supported() {
         return Err(LoadError(format!(
@@ -68,6 +69,9 @@ pub fn load_project(path: &Path) -> Result<Project, LoadError> {
             scene.version
         )));
     }
+    // Medousa Create's old five-point ink arrows become typed lines here,
+    // at the document boundary, so the painter only sees lines.
+    canvas::upgrade_legacy_arrows(&mut scene);
     let mut assets = BTreeMap::new();
     let dir = path
         .parent()
@@ -225,6 +229,7 @@ mod tests {
         let svg = scene_svg(
             &project.scene,
             &project.assets,
+            &canvas::EstimateMeasure,
             pixel_rect(scene_bounds(&project.scene, &canvas::EstimateMeasure)),
         );
         assert!(svg.contains("stroke-dasharray="), "{svg}");
@@ -233,6 +238,7 @@ mod tests {
         let svg = scene_svg(
             &shapes.scene,
             &shapes.assets,
+            &canvas::EstimateMeasure,
             pixel_rect(scene_bounds(&shapes.scene, &canvas::EstimateMeasure)),
         );
         assert!(

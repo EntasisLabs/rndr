@@ -104,6 +104,18 @@
 //!   `rndr::canvas::ui` is its painter, editor, overlay and panels
 //!   (`rndr_canvas_ui`).
 //!
+//! The Liquid and canvas features are ports of Medousa's Liquid Markdown and
+//! Create canvas, not complete parity with them. Supported subsets:
+//!
+//! - The Liquid grammar parses every Medousa fence kind. The native view does
+//!   not draw icons or emoji, slide layers, backgrounds or motion, or styled
+//!   block fonts, and writes nothing back to the source.
+//! - The canvas reads and writes Medousa Create version 3 scene JSON. Legacy
+//!   five-point ink arrows are ink unless the application calls
+//!   `canvas::upgrade_legacy_arrows`. The editor types and erases text only
+//!   at its end, and the application decides when the canvas owns keyboard
+//!   focus by calling its update only then.
+//!
 //! [`register`] and [`toggle_window`] install the operating-system hotkey
 //! backend. The parser and the registry stay at [`hotkey`].
 //!

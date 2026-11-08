@@ -6,7 +6,7 @@
 //! text is laid out by the same [`TextMeasure`] that sizes it.
 
 use rndr_canvas::geometry::local_matrix;
-use rndr_canvas::text::{Font, TextMeasure, DEFAULT_LINE_HEIGHT};
+use rndr_canvas::text::{Font, StyledRun, TextMeasure, DEFAULT_LINE_HEIGHT};
 use rndr_canvas::{
     Brush, Content, FontStyle as CanvasFontStyle, InkPoint, LineGeometry, Node, Rect as CanvasRect,
     Scene, SceneIndex, ShapeKind, TextAlign as CanvasAlign,
@@ -39,6 +39,11 @@ impl EngineMeasure {
 
 impl TextMeasure for EngineMeasure {
     fn width(&self, line: &str, font: &Font<'_>) -> f64 {
+        self.styled_width(line, font, &[])
+    }
+
+    /// Shapes the line once with its spans, as [`paint_scene`] draws it.
+    fn styled_width(&self, line: &str, font: &Font<'_>, runs: &[StyledRun]) -> f64 {
         let style = TextStyle {
             family: font.family.to_string(),
             size: font.size as f32,
@@ -49,7 +54,16 @@ impl TextMeasure for EngineMeasure {
             },
             ..TextStyle::default()
         };
-        f64::from(self.0.measure(line, &style, &[], f32::INFINITY).width)
+        let spans: Vec<TextSpan> = runs
+            .iter()
+            .map(|run| {
+                let mut span = TextSpan::new(run.start, run.end, Color::rgba(0.0, 0.0, 0.0, 1.0));
+                span.weight = Some(run.weight);
+                span.italic = matches!(run.style, CanvasFontStyle::Italic);
+                span
+            })
+            .collect();
+        f64::from(self.0.measure(line, &style, &spans, f32::INFINITY).width)
     }
 }
 

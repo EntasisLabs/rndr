@@ -56,6 +56,7 @@ mod error;
 pub mod geometry;
 pub mod hit;
 pub mod layout;
+pub mod legacy;
 pub mod ops;
 pub mod record;
 pub mod schema;
@@ -67,6 +68,7 @@ pub mod validate;
 pub use error::{CanvasError, Result};
 pub use geometry::{Camera, LineGeometry, Matrix, Rect, SceneIndex, Vec2};
 pub use layout::{Axis, Guide, Snapping};
+pub use legacy::upgrade_legacy_arrows;
 pub use ops::{apply_operations, HistoryRequest, Operation, Transaction};
 pub use record::{CanvasRecord, CreateRequest, Mutation};
 pub use schema::{
@@ -75,5 +77,5 @@ pub use schema::{
 };
 pub use selection::{Alignment, Endpoint, Handle, SelectionEdit, SelectionFrame};
 pub use store::{CanvasStore, FsStore, ListPage, ListQuery, MemoryStore, Summary};
-pub use text::{EstimateMeasure, TextMeasure};
+pub use text::{EstimateMeasure, StyledRun, TextMeasure};
 pub use validate::{validate_document, validate_scene};
