@@ -162,6 +162,8 @@ struct CacheKey {
     align: u8,
     /// [`TextStyle::line_height`] bits, or zero when the face's own line height is used.
     line_bits: u32,
+    features: Vec<rndr_core::FontFeature>,
+    axes: Vec<([u8; 4], u32)>,
     runs: Vec<RunKey>,
 }
 
@@ -174,6 +176,9 @@ struct RunKey {
     face: u8,
     italic: bool,
     highlight: Option<[u32; 4]>,
+    family: Option<String>,
+    features: Vec<rndr_core::FontFeature>,
+    axes: Vec<([u8; 4], u32)>,
 }
 
 impl ParleyText {
@@ -589,6 +594,8 @@ fn cache_key(
             TextAlign::Center => 1,
             TextAlign::End => 2,
         },
+        features: style.features.clone(),
+        axes: axes_key(&style.axes),
         runs: runs
             .iter()
             .map(|run| RunKey {
@@ -599,9 +606,18 @@ fn cache_key(
                 face: run.face,
                 italic: run.italic,
                 highlight: run.highlight.map(color_bits),
+                family: run.family.clone(),
+                features: run.features.clone(),
+                axes: axes_key(&run.axes),
             })
             .collect(),
     }
+}
+
+fn axes_key(axes: &[rndr_core::FontAxis]) -> Vec<([u8; 4], u32)> {
+    axes.iter()
+        .map(|axis| (axis.tag, axis.value.to_bits()))
+        .collect()
 }
 
 fn color_bits(color: Color) -> [u32; 4] {

@@ -125,6 +125,7 @@ mod pool;
 mod prompt;
 mod runtime;
 mod scrollbar;
+mod selectable;
 /// Owned revision-fenced asynchronous source extension protocols.
 pub mod source_extensions;
 /// Experimental whole-line source folds and optional language hooks.
@@ -212,8 +213,9 @@ pub use flex::{
 pub use focus::{apply_focus, reveal_entity};
 pub use font::{
     apply_text_layout, field_text_width, layout_text, layout_text_spans, line_col, measure_text,
-    text_face, BitmapFont, ColorAtlas, Font, FontAtlas, GlyphBox, PlacedGlyph, SelectionBox, Spans,
-    TextFace, TextHighlight, TextLayout, TextLine, TextMeasure, TextSpan,
+    text_face, BitmapFont, ColorAtlas, Font, FontAtlas, FontAxis, FontFeature, GlyphBox,
+    PlacedGlyph, SelectionBox, Spans, TextFace, TextHighlight, TextLayout, TextLine, TextMeasure,
+    TextSpan,
 };
 pub use fs::{
     apply_dirty_marks, apply_fs_edit, apply_fs_load, apply_fs_save, spawn_fs_node, DirEntry, Dirty,
@@ -262,6 +264,9 @@ pub use panel_place::{
     WindowsPanelAction, WIN32_EX_NOACTIVATE, WIN32_GWL_EXSTYLE, WIN32_HWND_TOPMOST,
     WIN32_SWP_NOACTIVATE, WIN32_SWP_NOMOVE, WIN32_SWP_NOSIZE, WIN32_SWP_SHOWWINDOW,
     WIN32_SW_SHOWNOACTIVATE,
+};
+pub use selectable::{
+    selectable_input, Selectable, SelectablePlugin, MULTI_PRESS_INTERVAL, MULTI_PRESS_SLOP,
 };
 mod popup;
 pub use live::{Live, LiveFill, LiveOffset, LiveOpacity, LiveRect, LiveScale, LiveValue, Smooth};

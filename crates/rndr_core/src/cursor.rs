@@ -142,6 +142,6 @@ fn rotate_point(x: f32, y: f32, sin: f32, cos: f32) -> (f32, f32) {
 pub fn cursor_image(style: CursorStyle, image: Option<&CursorImage>) -> Option<&CursorImage> {
     match style {
         CursorStyle::Image => image,
-        CursorStyle::Arrow | CursorStyle::Hand => None,
+        CursorStyle::Arrow | CursorStyle::Hand | CursorStyle::Text => None,
     }
 }

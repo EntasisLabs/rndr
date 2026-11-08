@@ -813,6 +813,8 @@ fn text_style(
     TextStyle {
         family: family.to_string(),
         size: size as f32,
+        features: Vec::new(),
+        axes: Vec::new(),
         weight: weight.unwrap_or(FONT_WEIGHT_REGULAR),
         style: match style.unwrap_or(CreativeFontStyle::Normal) {
             CreativeFontStyle::Italic => FontStyle::Italic,

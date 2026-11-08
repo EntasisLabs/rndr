@@ -519,7 +519,7 @@ fn underline_paths(layout: &TextLayout, source: &TextSource, px: f32) -> Vec<(Pa
     };
     let mut out = Vec::new();
     for span in &source.spans {
-        if !span.underline || span.start >= span.end {
+        if !(span.underline || span.strike) || span.start >= span.end {
             continue;
         }
         for selection in layout.selection_boxes(span.start, span.end) {
@@ -539,20 +539,32 @@ fn underline_paths(layout: &TextLayout, source: &TextSource, px: f32) -> Vec<(Pa
                     )
                 })
                 .unwrap_or((selection.h * 0.8, 1.0, 1.0));
-            let y = source.origin[1] + selection.y + baseline + offset;
-            let y0 = (y * px).round() / px;
             let h = (thickness.max(0.0) * px).round().max(1.0) / px;
-            let rect = Rect {
-                x: source.origin[0] + selection.x,
-                y: y0,
-                w: selection.w,
-                h,
+            let mut bar = |y: f32| {
+                let y0 = (y * px).round() / px;
+                let rect = Rect {
+                    x: source.origin[0] + selection.x,
+                    y: y0,
+                    w: selection.w,
+                    h,
+                };
+                out.push((Path::round_rect(rect, 0.0), span.color));
             };
-            out.push((Path::round_rect(rect, 0.0), span.color));
+            let base = source.origin[1] + selection.y + baseline;
+            if span.underline {
+                bar(base + offset);
+            }
+            if span.strike {
+                bar(base - source.style.size * STRIKE_EM - thickness * 0.5);
+            }
         }
     }
     out
 }
+
+/// Height of a strikethrough's centre above the baseline, in ems: about half
+/// the x-height of common faces.
+const STRIKE_EM: f32 = 0.28;
 
 /// Draws the interior of one [`rndr_core::SurfaceSlot`].
 ///

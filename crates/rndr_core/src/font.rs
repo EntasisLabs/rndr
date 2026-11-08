@@ -18,12 +18,62 @@ impl Component for Spans {}
 struct LayoutEngine(std::sync::Weak<dyn crate::text::TextEngine>);
 impl Component for LayoutEngine {}
 
+/// OpenType feature setting such as `tnum` (tabular figures) or `ss01`.
+///
+/// `value` 1 turns the feature on and 0 turns it off; alternates such as
+/// `salt` take a larger index. The builtin bitmap engine ignores features.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct FontFeature {
+    /// Four-byte OpenType tag.
+    pub tag: [u8; 4],
+    /// Setting for the feature.
+    pub value: u16,
+}
+
+impl FontFeature {
+    /// Feature `tag` set to `value`.
+    pub const fn new(tag: &[u8; 4], value: u16) -> Self {
+        Self { tag: *tag, value }
+    }
+
+    /// Feature `tag` turned on.
+    pub const fn on(tag: &[u8; 4]) -> Self {
+        Self::new(tag, 1)
+    }
+
+    /// Feature `tag` turned off, such as `liga` to drop ligatures.
+    pub const fn off(tag: &[u8; 4]) -> Self {
+        Self::new(tag, 0)
+    }
+}
+
+/// Variable-font axis coordinate such as `wght` 550 or `opsz` 14.
+///
+/// A face without the axis ignores it; values outside the face's range are
+/// clamped by the face. The builtin bitmap engine ignores axes.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FontAxis {
+    /// Four-byte axis tag.
+    pub tag: [u8; 4],
+    /// Axis coordinate in the axis's own units.
+    pub value: f32,
+}
+
+impl FontAxis {
+    /// Axis `tag` at `value`.
+    pub const fn new(tag: &[u8; 4], value: f32) -> Self {
+        Self { tag: *tag, value }
+    }
+}
+
 /// One styled byte range on a [`Label`].
 ///
 /// `color` tints the glyphs. `weight` overrides the run's font weight when set
 /// (`None` keeps the style weight). `highlight` paints a bar behind the range.
 /// `face` is reserved for a second atlas. `family` overrides the shaper's
-/// family for the range. `underline` draws a line in `color` under the range.
+/// family for the range. `underline` draws a line in `color` under the range
+/// and `strike` draws one through it. `features` and `axes` add OpenType
+/// features and variable-font coordinates on top of the style's.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextSpan {
     /// First byte of the range, inclusive.
@@ -48,6 +98,12 @@ pub struct TextSpan {
     pub family: Option<String>,
     /// Draw a line under this range, in [`Self::color`].
     pub underline: bool,
+    /// Draw a line through this range, in [`Self::color`].
+    pub strike: bool,
+    /// OpenType features for this range, applied after the style's.
+    pub features: Vec<FontFeature>,
+    /// Variable-font axis coordinates for this range, applied after the style's.
+    pub axes: Vec<FontAxis>,
 }
 
 impl TextSpan {
@@ -63,6 +119,9 @@ impl TextSpan {
             italic: false,
             family: None,
             underline: false,
+            strike: false,
+            features: Vec::new(),
+            axes: Vec::new(),
         }
     }
 
@@ -93,6 +152,24 @@ impl TextSpan {
     /// Set [`Self::underline`] and return the span.
     pub fn underline(mut self) -> Self {
         self.underline = true;
+        self
+    }
+
+    /// Set [`Self::strike`] and return the span.
+    pub fn strike(mut self) -> Self {
+        self.strike = true;
+        self
+    }
+
+    /// Append `feature` to [`Self::features`] and return the span.
+    pub fn feature(mut self, feature: FontFeature) -> Self {
+        self.features.push(feature);
+        self
+    }
+
+    /// Append `axis` to [`Self::axes`] and return the span.
+    pub fn axis(mut self, axis: FontAxis) -> Self {
+        self.axes.push(axis);
         self
     }
 }

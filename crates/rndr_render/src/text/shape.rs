@@ -83,6 +83,7 @@ fn shape_once(
         builder.push_default(StyleProperty::LetterSpacing(style.letter_spacing));
     }
     push_line_height(&mut builder, style);
+    push_font_settings(&mut builder, &style.features, &style.axes, None);
     for run in runs {
         let end = run.end.min(text.len());
         let start = run.start.min(end);
@@ -100,6 +101,20 @@ fn shape_once(
                 StyleProperty::FontStyle(parley::FontStyle::Italic),
                 start..end,
             );
+        }
+    }
+    for run in runs {
+        let end = run.end.min(text.len());
+        let start = run.start.min(end);
+        if start < end && (!run.features.is_empty() || !run.axes.is_empty()) {
+            let features: Vec<_> = style
+                .features
+                .iter()
+                .chain(&run.features)
+                .copied()
+                .collect();
+            let axes: Vec<_> = style.axes.iter().chain(&run.axes).copied().collect();
+            push_font_settings(&mut builder, &features, &axes, Some(start..end));
         }
     }
     for (start, end, family) in family_runs {
@@ -336,7 +351,7 @@ fn raster_glyph(
     let bytes = font.data.as_ref();
     let frac = x_px - x_px.floor();
     let bin = ((frac * f32::from(SUBPIXEL_BINS)) as u8).min(SUBPIXEL_BINS - 1);
-    let font_key = font_id(font);
+    let font_key = font_id(font) ^ coords_key(coords);
     let size_bits = px_size.to_bits();
     // The line cache only keeps two frames. The pixels stay, so a hide/show or
     // a scroll back reuses the slot instead of running swash again.
@@ -472,6 +487,41 @@ fn push_line_height(builder: &mut parley::RangedBuilder<'_, ()>, style: &TextSty
     ));
 }
 
+// Parley replaces, rather than merges, a range's settings, so a span's list
+// carries the style's settings first.
+fn push_font_settings(
+    builder: &mut parley::RangedBuilder<'_, ()>,
+    features: &[rndr_core::FontFeature],
+    axes: &[rndr_core::FontAxis],
+    range: Option<std::ops::Range<usize>>,
+) {
+    use parley::style::{FontFeatures, FontVariations};
+    use parley::{FontFeature, FontVariation};
+    let features: Vec<FontFeature> = features
+        .iter()
+        .map(|feature| FontFeature::new(parley::setting::Tag::new(&feature.tag), feature.value))
+        .collect();
+    let axes: Vec<FontVariation> = axes
+        .iter()
+        .filter(|axis| axis.value.is_finite())
+        .map(|axis| FontVariation::new(parley::setting::Tag::new(&axis.tag), axis.value))
+        .collect();
+    let mut push = |property: StyleProperty<'_, ()>| match &range {
+        Some(range) => builder.push(property, range.clone()),
+        None => builder.push_default(property),
+    };
+    if !features.is_empty() || range.is_some() {
+        push(StyleProperty::FontFeatures(FontFeatures::List(
+            features.into(),
+        )));
+    }
+    if !axes.is_empty() || range.is_some() {
+        push(StyleProperty::FontVariations(FontVariations::List(
+            axes.into(),
+        )));
+    }
+}
+
 fn underline_metrics(decoration: Option<(f32, f32)>, style: &TextStyle, scale: f32) -> (f32, f32) {
     let scale = if scale.is_finite() && scale > 0.0 {
         scale
@@ -564,6 +614,17 @@ fn scaler_for<'a>(
 fn font_id(font: &parley::FontData) -> u64 {
     let ptr = font.data.as_ref().as_ptr() as u64;
     ptr ^ (u64::from(font.index) << 48)
+}
+
+// Variable-font coordinates change the outline, so masks key on them too.
+fn coords_key(coords: &[i16]) -> u64 {
+    use std::hash::{Hash, Hasher};
+    if coords.is_empty() {
+        return 0;
+    }
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    coords.hash(&mut hasher);
+    hasher.finish()
 }
 
 fn apply_paragraph_spacing(layout: &mut TextLayout, text: &str, gap: f32) {
@@ -707,6 +768,7 @@ fn outline_run(state: &mut State, source: &rndr_paint::TextSource) -> Option<Vec
         builder.push_default(StyleProperty::LetterSpacing(style.letter_spacing));
     }
     push_line_height(&mut builder, style);
+    push_font_settings(&mut builder, &style.features, &style.axes, None);
     for run in runs {
         let end = run.end.min(text.len());
         let start = run.start.min(end);
@@ -724,6 +786,20 @@ fn outline_run(state: &mut State, source: &rndr_paint::TextSource) -> Option<Vec
                 StyleProperty::FontStyle(parley::FontStyle::Italic),
                 start..end,
             );
+        }
+    }
+    for run in runs {
+        let end = run.end.min(text.len());
+        let start = run.start.min(end);
+        if start < end && (!run.features.is_empty() || !run.axes.is_empty()) {
+            let features: Vec<_> = style
+                .features
+                .iter()
+                .chain(&run.features)
+                .copied()
+                .collect();
+            let axes: Vec<_> = style.axes.iter().chain(&run.axes).copied().collect();
+            push_font_settings(&mut builder, &features, &axes, Some(start..end));
         }
     }
     for (start, end, family) in family_runs {

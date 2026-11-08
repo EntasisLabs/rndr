@@ -316,7 +316,7 @@ fn surface_slots(world: &World) -> Vec<SurfaceRect> {
 /// [`rndr_core::Theme::caret`]. A text selection uses
 /// [`rndr_core::Theme::selection`] and draws no caret. The IME underline
 /// is at most 2 points tall, in that same caret color. A span underline
-/// is 1 point tall, in the span color. A glyph that overlaps a caret
+/// or strikethrough is 1 point tall, in the span color. A glyph that overlaps a caret
 /// selection or a [`rndr_core::TextSelection`], and the part of an
 /// underline inside that range, uses the label color, so a selected
 /// link reads like the rest of the selected text.
@@ -525,6 +525,39 @@ fn paint_visited(
         }
         let selected = selection_range(caret, selection);
         if let Some(spans) = spans {
+            for run in &spans.runs {
+                if !run.strike || run.start >= run.end {
+                    continue;
+                }
+                for (start, end, inside) in underline_parts(run.start, run.end, selected) {
+                    let color = if inside { text_color } else { run.color };
+                    for span in layout.selection_boxes(start, end) {
+                        let baseline = layout
+                            .lines
+                            .iter()
+                            .find(|line| (line.y - span.y).abs() < 0.01)
+                            .map_or(span.h * 0.8, |line| line.baseline);
+                        let bar = 1.0_f32.min(span.h);
+                        push(
+                            out,
+                            snap_box(
+                                rect.x + TEXT_ORIGIN_X + span.x,
+                                rect.y + TEXT_ORIGIN_Y + span.y + baseline * STRIKE_RISE
+                                    - bar * 0.5
+                                    + shift_y,
+                                span.w,
+                                bar,
+                                scale,
+                            ),
+                            color,
+                            solid,
+                            text_clip,
+                            0.0,
+                            0,
+                        );
+                    }
+                }
+            }
             for run in &spans.runs {
                 if !run.underline || run.start >= run.end {
                     continue;
@@ -1420,13 +1453,20 @@ fn emit(
                 .map_or("", |label| label.text.as_str()),
         ),
     });
+    let selectable = world
+        .get::<rndr_core::Selectable>(entity)
+        .filter(|selection| !selection.is_empty())
+        .map(|selection| TextSelection {
+            anchor: selection.anchor,
+            head: selection.head,
+        });
     visit(
         rect,
         color,
         clip,
         world.get::<Label>(entity),
         world.get::<Caret>(entity),
-        world.get::<TextSelection>(entity),
+        world.get::<TextSelection>(entity).or(selectable.as_ref()),
         spans.as_ref(),
         dirty,
         layout,
@@ -1783,6 +1823,10 @@ fn selection_range(
         Some((anchor.min(head), anchor.max(head)))
     }
 }
+
+/// A strikethrough's centre as a fraction of the line's baseline depth:
+/// about half the x-height above the baseline for common faces.
+const STRIKE_RISE: f32 = 0.7;
 
 fn underline_parts(
     start: usize,

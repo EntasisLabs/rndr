@@ -93,6 +93,12 @@ pub struct TextStyle {
     /// the face's em box. A non-finite or non-positive factor is treated as
     /// `None`. [`Self::paragraph_spacing`] is still added after a newline.
     pub line_height: Option<f32>,
+    /// OpenType features for the whole run, such as tabular figures. Empty
+    /// keeps the face's defaults.
+    pub features: Vec<crate::FontFeature>,
+    /// Variable-font axis coordinates for the whole run. Empty keeps the
+    /// coordinates implied by [`Self::weight`] and [`Self::style`].
+    pub axes: Vec<crate::FontAxis>,
 }
 
 impl Default for TextStyle {
@@ -106,11 +112,25 @@ impl Default for TextStyle {
             paragraph_spacing: 0.0,
             align: TextAlign::Start,
             line_height: None,
+            features: Vec::new(),
+            axes: Vec::new(),
         }
     }
 }
 
 impl TextStyle {
+    /// Append `feature` to [`Self::features`] and return the style.
+    pub fn feature(mut self, feature: crate::FontFeature) -> Self {
+        self.features.push(feature);
+        self
+    }
+
+    /// Append `axis` to [`Self::axes`] and return the style.
+    pub fn axis(mut self, axis: crate::FontAxis) -> Self {
+        self.axes.push(axis);
+        self
+    }
+
     /// Family and em size from `font`, at [`FONT_WEIGHT_REGULAR`] and
     /// [`FontStyle::Normal`], with no extra spacing.
     pub fn from_face(font: &dyn Font) -> Self {
@@ -169,7 +189,15 @@ pub(crate) fn style_key(style: &TextStyle) -> u64 {
     style.paragraph_spacing.to_bits().hash(&mut hasher);
     (style.align as u8).hash(&mut hasher);
     style.line_box().unwrap_or(0.0).to_bits().hash(&mut hasher);
+    style.features.hash(&mut hasher);
+    axes_key(&style.axes).hash(&mut hasher);
     hasher.finish()
+}
+
+pub(crate) fn axes_key(axes: &[crate::FontAxis]) -> Vec<([u8; 4], u32)> {
+    axes.iter()
+        .map(|axis| (axis.tag, axis.value.to_bits()))
+        .collect()
 }
 
 /// Shape and hit-test text. Insert an `Arc<dyn TextEngine>` to replace the
@@ -770,13 +798,7 @@ fn clip_runs(runs: &[TextSpan], start: usize, end: usize) -> Vec<TextSpan> {
         clipped.push(TextSpan {
             start: from - start,
             end: to - start,
-            color: run.color,
-            face: run.face,
-            weight: run.weight,
-            highlight: run.highlight,
-            italic: run.italic,
-            family: run.family.clone(),
-            underline: run.underline,
+            ..run.clone()
         });
     }
     clipped
