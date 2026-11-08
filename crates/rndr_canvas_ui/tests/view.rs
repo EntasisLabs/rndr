@@ -80,3 +80,34 @@ fn presses_outside_the_slot_are_ignored_but_drags_out_of_it_continue() {
     let t = view.editor.mutation().document.scene.nodes[0].transform;
     assert_eq!((t.x, t.y, t.width, t.height), (550.0, 350.0, 250.0, 200.0));
 }
+
+#[test]
+fn claimed_wheel_survives_the_layout_scroll_pass() {
+    let mut world = world();
+    world.insert_resource(Input {
+        pointer: Pointer {
+            position: [300.0, 200.0],
+            ..Pointer::default()
+        },
+        scroll: [0.0, 40.0],
+        ..Input::default()
+    });
+    view::take_wheel(&mut world);
+    assert_eq!(world.resource::<Input>().unwrap().scroll, [0.0, 0.0]);
+    view::update(&mut world);
+    assert_eq!(
+        world.resource::<CanvasView>().unwrap().editor.camera.pan_y,
+        40.0
+    );
+
+    world.insert_resource(Input {
+        pointer: Pointer {
+            position: [20.0, 20.0],
+            ..Pointer::default()
+        },
+        scroll: [0.0, 40.0],
+        ..Input::default()
+    });
+    view::take_wheel(&mut world);
+    assert_eq!(world.resource::<Input>().unwrap().scroll, [0.0, 40.0]);
+}

@@ -28,6 +28,7 @@ pub struct CanvasView {
     /// The [`SurfaceSlot`] id the canvas is laid out in.
     pub slot: u64,
     captured: bool,
+    wheel: [f32; 2],
 }
 
 impl CanvasView {
@@ -39,13 +40,15 @@ impl CanvasView {
             backdrop: Color::rgb(0.976, 0.98, 0.984),
             slot,
             captured: false,
+            wheel: [0.0, 0.0],
         }
     }
 }
 
 /// Inserts `view` and registers its painter for `view.slot`. Spawn a
-/// [`SurfaceSlot`] with that id where the canvas belongs, and run
-/// [`update`] each frame.
+/// [`SurfaceSlot`] with that id where the canvas belongs, run
+/// [`take_wheel`] at the front of the Input schedule and [`update`] each
+/// frame.
 pub fn install(world: &mut World, view: CanvasView) {
     let slot = view.slot;
     world.insert_resource(view);
@@ -219,6 +222,35 @@ pub fn editor_input(world: &World, rect: Rect, captured: bool) -> EditorInput {
     }
 }
 
+/// Claims the wheel while the pointer is over the canvas (or a press that
+/// began there is held), before layout's scroll pass consumes it for the
+/// surrounding scrollports. `rndr_ui` runs [`rndr_core::apply_scroll`] at the
+/// front of [`rndr_core::Schedule::Input`], so add this with
+/// `add_system_front` after the plugins. The next [`update`] pans or zooms
+/// with it.
+pub fn take_wheel(world: &mut World) {
+    let Some((slot, captured)) = world.resource::<CanvasView>().map(|v| (v.slot, v.captured))
+    else {
+        return;
+    };
+    let Some(rect) = slot_rect(world, slot) else {
+        return;
+    };
+    let Some(input) = world.resource_mut::<Input>() else {
+        return;
+    };
+    let [x, y] = input.pointer.position;
+    let inside = x >= rect.x && y >= rect.y && x < rect.x + rect.w && y < rect.y + rect.h;
+    if input.scroll == [0.0, 0.0] || !(inside || captured) {
+        return;
+    }
+    let scroll = std::mem::take(&mut input.scroll);
+    if let Some(view) = world.resource_mut::<CanvasView>() {
+        view.wheel[0] += scroll[0];
+        view.wheel[1] += scroll[1];
+    }
+}
+
 /// Feeds this frame's input to the installed [`CanvasView`].
 pub fn update(world: &mut World) {
     let Some(slot) = world.resource::<CanvasView>().map(|v| v.slot) else {
@@ -228,11 +260,14 @@ pub fn update(world: &mut World) {
         return;
     };
     let captured = world.resource::<CanvasView>().is_some_and(|v| v.captured);
-    let input = editor_input(world, rect, captured);
+    let mut input = editor_input(world, rect, captured);
     let measure = measure(world);
     let Some(view) = world.resource_mut::<CanvasView>() else {
         return;
     };
+    let wheel = std::mem::take(&mut view.wheel);
+    input.scroll[0] += wheel[0];
+    input.scroll[1] += wheel[1];
     let response = view.editor.handle(&input, measure.as_ref());
     if let Some(p) = &input.pointer {
         view.captured = p.down && !p.released;

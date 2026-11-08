@@ -48,6 +48,7 @@ ellipse (`O`), line (`L`), arrow (`A`), text (`T`) and frame (`F`).
 let editor = CanvasEditor::open(store, "board")?;
 view::install(world, CanvasView::new(editor, SLOT));      // world has a SurfaceSlot { id: SLOT }
 panels::mount(world, toolbar, side, [toolbar_width, side_width]);
+app.add_system_front(Schedule::Input, view::take_wheel);   // ahead of apply_scroll
 app.add_system(Schedule::Update, |world: &mut World| {
     for request in take_action_intents(world) {
         panels::dispatch(world, &request);

@@ -215,6 +215,7 @@ fn app(store: Arc<dyn CanvasStore + Send + Sync>) -> App {
     let editor = CanvasEditor::open(store, "board").expect("open board");
     view::install(world, CanvasView::new(editor, SLOT));
     panels::mount(world, toolbar, side, [WIDTH - 32.0, SIDE - 48.0]);
+    app.add_system_front(Schedule::Input, view::take_wheel);
     app.add_system(Schedule::Update, |world: &mut World| {
         for request in take_action_intents(world) {
             panels::dispatch(world, &request);
