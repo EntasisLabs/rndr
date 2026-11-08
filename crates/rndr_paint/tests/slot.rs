@@ -133,3 +133,38 @@ fn slot_follows_split() {
     assert!(reported.x > before);
     interior_is_empty(reported, &quads);
 }
+
+#[test]
+fn slot_paints_absolute_children_in_hit_order() {
+    let mut app = App::new();
+    app.world_mut().insert_resource(Viewport::new(200.0, 200.0));
+    let badge = {
+        let world = app.world_mut();
+        let slot = world.spawn((
+            px(200.0, 200.0),
+            Color::rgb(0.1, 0.1, 0.1),
+            SurfaceSlot { id: 9 },
+        ));
+        let badge = world.spawn((
+            px(40.0, 40.0),
+            Color::rgb(0.9, 0.2, 0.2),
+            rndr_core::Absolute {
+                left: Some(0.0),
+                top: Some(0.0),
+                right: None,
+                bottom: None,
+            },
+        ));
+        set_parent(world, badge, slot);
+        let body = world.spawn((px(100.0, 100.0), Color::rgb(0.2, 0.2, 0.9)));
+        set_parent(world, body, slot);
+        badge
+    };
+    let (_, quads) = slot_quads(&mut app, 9);
+    let at = |w: f32| quads.iter().position(|q| q.w == w).expect("quad");
+    assert!(
+        at(40.0) > at(100.0),
+        "badge must paint above the later sibling"
+    );
+    assert_eq!(rndr_core::hit_test(app.world(), 10.0, 10.0), Some(badge));
+}

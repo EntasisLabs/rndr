@@ -225,6 +225,15 @@ native-platform acceptance are different things:
   rectangular clip. Overlapping quads are masked one by one, so a lower layer can
   show through inside a feathered edge. Hit testing stays rectangular.
   `cargo run -p rndr --example svg_clip_gallery -- out.png` renders SVG icons and clips.
+- **Layout options:** optional components extend `Layout` without changing it.
+  `Align` sets main-axis `Justify` (start, center, end, space-between/around/evenly)
+  and cross-axis `Items` (start, center, end, stretch); `AlignSelf` overrides per
+  child. `Padding` gives per-side insets, `MaxSize` caps size (minimums win) and
+  `AspectRatio` derives the free axis. `Absolute` children leave the stack, pin to
+  any parent edges, scroll with content and paint and hit-test after in-flow
+  siblings. `Wrap` breaks a row onto lines. Children are still clipped to their
+  parent's rect, so an absolute child cannot overflow it.
+  `cargo run -p rndr --example layout_gallery -- out.png` renders a gallery.
 - **Document editing:** source sessions and structured editing have explicit ownership
   and regression coverage. The structured editor remains experimental; native IME,
   clipboard and assistive-technology acceptance must be checked independently of
