@@ -126,6 +126,7 @@ Application state, systems and document authorities
 | [`rndr_liquid`](crates/rndr_liquid) | Headless Liquid Markdown grammar: component fences parsed to typed blocks |
 | [`rndr_chart`](crates/rndr_chart) | Ten chart families laid out headlessly and painted with `rndr_paint` |
 | [`rndr_liquid_ui`](crates/rndr_liquid_ui) | Liquid blocks mounted natively in markdown views, with a `LiquidHost` for app behavior |
+| [`rndr_canvas`](crates/rndr_canvas) | Headless canvas documents: nodes, transactions, undo, geometry and storage; reads Medousa Create v3 scenes |
 | [`rndr_term`](crates/rndr_term) | Optional embedded terminal: PTY, VT state and cell projection |
 | [`rndr_browser`](crates/rndr_browser) | Optional embedded browser. Off by default. Publish-eligible and ordered immediately before the facade. macOS WKWebView, Windows WebView2, and Linux WebKitGTK on X11 |
 

@@ -1,0 +1,21 @@
+[package]
+name = "rndr_canvas"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
+description = "Headless canvas documents: nodes, transactions, validation, undo history, geometry and storage"
+documentation = "https://docs.rs/rndr_canvas"
+readme = "README.md"
+keywords = ["canvas", "drawing", "whiteboard", "undo", "geometry"]
+categories = ["graphics", "data-structures"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+
+[dev-dependencies]
+tempfile = "3"
