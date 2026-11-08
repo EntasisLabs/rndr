@@ -93,6 +93,28 @@
 //!   Capture metadata is geometry. It does not include accessible names.
 //! - `tokio` is off by default. It forwards to `rndr_core` and spawns a feed
 //!   producer on a tokio runtime the application already started.
+//! - `chart` is off by default and exposes `rndr_chart` at `rndr::chart`: ten
+//!   chart families painted with `rndr_paint`.
+//! - `liquid` is off by default and enables `chart`. `rndr::liquid` is the
+//!   headless Liquid Markdown grammar (`rndr_liquid`), and `rndr::liquid::ui`
+//!   renders its blocks natively in markdown views behind a `LiquidHost`
+//!   (`rndr_liquid_ui`).
+//! - `canvas` is off by default. `rndr::canvas` is the headless canvas
+//!   document model, history, geometry and storage (`rndr_canvas`), and
+//!   `rndr::canvas::ui` is its painter, editor, overlay and panels
+//!   (`rndr_canvas_ui`).
+//!
+//! The Liquid and canvas features are ports of Medousa's Liquid Markdown and
+//! Create canvas, not complete parity with them. Supported subsets:
+//!
+//! - The Liquid grammar parses every Medousa fence kind. The native view does
+//!   not draw icons or emoji, slide layers, backgrounds or motion, or styled
+//!   block fonts, and writes nothing back to the source.
+//! - The canvas reads and writes Medousa Create version 3 scene JSON. Legacy
+//!   five-point ink arrows are ink unless the application calls
+//!   `canvas::upgrade_legacy_arrows`. The editor types and erases text only
+//!   at its end, and the application decides when the canvas owns keyboard
+//!   focus by calling its update only then.
 //!
 //! [`register`] and [`toggle_window`] install the operating-system hotkey
 //! backend. The parser and the registry stay at [`hotkey`].
@@ -127,6 +149,34 @@ pub use rndr_std::*;
 /// ```
 #[cfg(feature = "ui")]
 pub use rndr_ui as ui;
+
+/// Charts painted with `rndr_paint`. Enable the `chart` feature.
+#[cfg(feature = "chart")]
+pub use rndr_chart as chart;
+
+/// Liquid Markdown. Enable the `liquid` feature.
+///
+/// The grammar parses fences, icons, styled blocks, slides and kanban without
+/// a window. [`liquid::ui`] places native widgets for those blocks in
+/// markdown views and sends actions to the application's `LiquidHost`.
+#[cfg(feature = "liquid")]
+pub mod liquid {
+    pub use rndr_liquid::*;
+    /// Native Liquid blocks in markdown views (`rndr_liquid_ui`).
+    pub use rndr_liquid_ui as ui;
+}
+
+/// Canvas documents. Enable the `canvas` feature.
+///
+/// The model, transactions, history, geometry and [`canvas::CanvasStore`] are
+/// headless. [`canvas::ui`] paints and edits documents with `rndr_paint` and
+/// `rndr_ui`.
+#[cfg(feature = "canvas")]
+pub mod canvas {
+    pub use rndr_canvas::*;
+    /// Painter, editor, overlay and panels (`rndr_canvas_ui`).
+    pub use rndr_canvas_ui as ui;
+}
 
 /// Embedded terminal. Enable the `term` feature.
 #[cfg(feature = "term")]
@@ -172,6 +222,25 @@ mod tests {
             TypeId::of::<crate::Item>(),
             TypeId::of::<crate::ui::collections::Item>()
         );
+    }
+
+    #[cfg(feature = "liquid")]
+    #[test]
+    fn liquid_namespace_parses_and_renders() {
+        let document =
+            crate::liquid::LiquidDocument::parse("```callout\ntone: tip\nbody: Ship it\n```\n");
+        assert!(document.block(0).is_some());
+        let _ = std::any::type_name::<crate::liquid::ui::LiquidView>();
+        let _ = std::any::type_name::<crate::chart::Chart>();
+    }
+
+    #[cfg(feature = "canvas")]
+    #[test]
+    fn canvas_namespace_covers_model_and_editor() {
+        let scene = crate::canvas::Scene::default();
+        assert!(scene.is_supported());
+        let _ = std::any::type_name::<crate::canvas::MemoryStore>();
+        let _ = std::any::type_name::<crate::canvas::ui::editor::CanvasEditor>();
     }
 
     #[test]

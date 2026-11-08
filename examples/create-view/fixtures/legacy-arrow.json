@@ -1,0 +1,227 @@
+{
+  "schema": "medousa-create",
+  "version": 3,
+  "background": "#fbf7f1",
+  "nodes": [
+    {
+      "id": "right",
+      "name": "Arrow right",
+      "parent_id": null,
+      "transform": {
+        "x": 40,
+        "y": 40,
+        "width": 240,
+        "height": 60,
+        "rotation": 0
+      },
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "content": {
+        "kind": "ink",
+        "color": "#1f2a44",
+        "input": "mouse",
+        "brush": {
+          "kind": "pen",
+          "size": 5,
+          "thinning": 0,
+          "smoothing": 0,
+          "streamline": 0,
+          "opacity": 1
+        },
+        "points": [
+          {
+            "x": 10,
+            "y": 30,
+            "pressure": 0.5
+          },
+          {
+            "x": 230,
+            "y": 30,
+            "pressure": 0.5
+          },
+          {
+            "x": 205.42768826706956,
+            "y": 43.42391508091768,
+            "pressure": 0.5
+          },
+          {
+            "x": 230,
+            "y": 30,
+            "pressure": 0.5
+          },
+          {
+            "x": 205.42768826706956,
+            "y": 16.576084919082316,
+            "pressure": 0.5
+          }
+        ]
+      }
+    },
+    {
+      "id": "diagonal",
+      "name": "Arrow diagonal",
+      "parent_id": null,
+      "transform": {
+        "x": 60,
+        "y": 130,
+        "width": 180,
+        "height": 120,
+        "rotation": 0
+      },
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "content": {
+        "kind": "ink",
+        "color": "#c4492c",
+        "input": "mouse",
+        "brush": {
+          "kind": "pen",
+          "size": 4,
+          "thinning": 0,
+          "smoothing": 0,
+          "streamline": 0,
+          "opacity": 0.6
+        },
+        "points": [
+          {
+            "x": 170,
+            "y": 10,
+            "pressure": 0.5
+          },
+          {
+            "x": 15,
+            "y": 105,
+            "pressure": 0.5
+          },
+          {
+            "x": 28.935555067976253,
+            "y": 80.71419540251134,
+            "pressure": 0.5
+          },
+          {
+            "x": 15,
+            "y": 105,
+            "pressure": 0.5
+          },
+          {
+            "x": 42.96521244828094,
+            "y": 103.60468902300846,
+            "pressure": 0.5
+          }
+        ]
+      }
+    },
+    {
+      "id": "rotated",
+      "name": "Arrow rotated",
+      "parent_id": null,
+      "transform": {
+        "x": 300,
+        "y": 60,
+        "width": 90,
+        "height": 200,
+        "rotation": 20
+      },
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "content": {
+        "kind": "ink",
+        "color": "#2f7d4f",
+        "input": "mouse",
+        "brush": {
+          "kind": "pen",
+          "size": 6,
+          "thinning": 0,
+          "smoothing": 0,
+          "streamline": 0,
+          "opacity": 1
+        },
+        "points": [
+          {
+            "x": 45,
+            "y": 190,
+            "pressure": 0.5
+          },
+          {
+            "x": 45,
+            "y": 15,
+            "pressure": 0.5
+          },
+          {
+            "x": 58.42391508091768,
+            "y": 39.57231173293044,
+            "pressure": 0.5
+          },
+          {
+            "x": 45,
+            "y": 15,
+            "pressure": 0.5
+          },
+          {
+            "x": 31.576084919082312,
+            "y": 39.57231173293043,
+            "pressure": 0.5
+          }
+        ]
+      }
+    },
+    {
+      "id": "stroke",
+      "name": "Five-point stroke",
+      "parent_id": null,
+      "transform": {
+        "x": 300,
+        "y": 260,
+        "width": 120,
+        "height": 60,
+        "rotation": 0
+      },
+      "opacity": 1,
+      "visible": true,
+      "locked": false,
+      "content": {
+        "kind": "ink",
+        "color": "#6b4fa0",
+        "input": "mouse",
+        "brush": {
+          "kind": "pen",
+          "size": 4,
+          "thinning": 0,
+          "smoothing": 0,
+          "streamline": 0,
+          "opacity": 1
+        },
+        "points": [
+          {
+            "x": 10,
+            "y": 30,
+            "pressure": 0.5
+          },
+          {
+            "x": 110,
+            "y": 30,
+            "pressure": 0.5
+          },
+          {
+            "x": 88.06043595274068,
+            "y": 41.985638465105076,
+            "pressure": 0.8
+          },
+          {
+            "x": 110,
+            "y": 30,
+            "pressure": 0.5
+          },
+          {
+            "x": 88.06043595274068,
+            "y": 18.014361534894924,
+            "pressure": 0.5
+          }
+        ]
+      }
+    }
+  ]
+}

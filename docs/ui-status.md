@@ -84,15 +84,20 @@ in this order:
 4. `rndr_term` — depends on `rndr_core`. Its dev-dependency on `rndr_paint` is resolved when the package is verified, so paint is already published. No behavior change in this release.
 5. `rndr_ui` — depends on `rndr_core`. Its dev-dependency on `rndr_paint` is resolved the same way.
 6. `rndr_app` — depends on `rndr_core`. It does not depend on `rndr_ui`.
-7. `rndr_render` — depends on `rndr_core` and `rndr_paint`.
-8. `rndr_browser` — no workspace dependencies. Optional on the facade, including when `browser` is off.
-9. `rndr` — depends on `rndr_core`, `rndr_paint`, `rndr_std`, and `rndr_render`. Optional `term` depends on `rndr_term`. Optional `ui` depends on `rndr_ui`. Optional `browser` depends on `rndr_browser`. The dev-dependency on `rndr_ui` is also resolved from the registry.
+7. `rndr_liquid` — no workspace dependencies.
+8. `rndr_chart` — depends on `rndr_core` and `rndr_paint`. Optional `liquid` depends on `rndr_liquid`.
+9. `rndr_liquid_ui` — depends on `rndr_core`, `rndr_paint`, `rndr_ui`, `rndr_liquid`, and `rndr_chart`.
+10. `rndr_canvas` — no workspace dependencies.
+11. `rndr_canvas_ui` — depends on `rndr_canvas`, `rndr_core`, `rndr_paint`, and `rndr_ui`.
+12. `rndr_render` — depends on `rndr_core` and `rndr_paint`.
+13. `rndr_browser` — no workspace dependencies. Optional on the facade, including when `browser` is off.
+14. `rndr` — depends on `rndr_core`, `rndr_paint`, `rndr_std`, and `rndr_render`. Optional `term` depends on `rndr_term`. Optional `ui` depends on `rndr_ui`. Optional `browser` depends on `rndr_browser`. Optional `chart`, `liquid`, and `canvas` depend on `rndr_chart`, `rndr_liquid` with `rndr_liquid_ui`, and `rndr_canvas` with `rndr_canvas_ui`. The dev-dependency on `rndr_ui` is also resolved from the registry.
 
 Examples stay `publish = false`, including `desktop` and `source-session`. `rndr_browser` is publish-eligible and is packaged with the other library crates. An optional versioned dependency is still resolved when the feature is off, so omitting `rndr_browser` from `cargo package --workspace` makes the default facade look for that crate on crates.io and fail. This repository does not upload it here. A later `cargo publish -p rndr` still waits until `rndr_browser` is on the index; the workspace package command is what resolves it locally.
 
 0.4.0 is a 0.y release. Shipping these crates does not promise a stable 1.0 API. Experimental source sessions and the structured document stay experimental in their module docs.
 
-`cargo package` in CI uses `--no-verify` for the library crates, including `rndr_browser`. Their 0.4.0 workspace dependencies are not on the index until a release is published, so a registry rebuild of a dependent crate cannot succeed in CI beforehand. The job still checks tarball membership, licenses, and the paint and render snapshot sets. `scripts/check-facade-archive.py` checks that the facade manifest normalizes, including optional `ui` and optional `browser`. `scripts/publish-crates.sh --dry-run` runs `cargo publish --dry-run` for each crate whose workspace dependencies are already on the index. That dry-run does not upload.
+`cargo package` in CI uses `--no-verify` for the library crates, including `rndr_browser`. Their 0.4.0 workspace dependencies are not on the index until a release is published, so a registry rebuild of a dependent crate cannot succeed in CI beforehand. The job still checks tarball membership, licenses, and the paint and render snapshot sets. `scripts/check-facade-archive.py` checks that the facade manifest normalizes, including optional `ui`, `browser`, `chart`, `liquid`, and `canvas`. `scripts/publish-crates.sh --dry-run` runs `cargo publish --dry-run` for each crate whose workspace dependencies are already on the index. That dry-run does not upload.
 
 ## Evidence
 
