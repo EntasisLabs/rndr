@@ -330,3 +330,24 @@ fn shapes_drawn_inside_a_frame_become_its_children() {
         "locked frame's child is not editable"
     );
 }
+
+#[test]
+fn line_arrow_and_frame_preview_follow_the_drag() {
+    for tool in [Tool::Rectangle, Tool::Line, Tool::Arrow, Tool::Frame] {
+        let mut rig = Rig::new();
+        rig.editor.set_tool(tool);
+        let p = |position: [f32; 2], pressed| PointerInput {
+            position,
+            pressed,
+            down: true,
+            ..PointerInput::default()
+        };
+        rig.frame(Some(p([10.0, 10.0], true)), vec![], NONE);
+        rig.frame(Some(p([60.0, 30.0], false)), vec![], NONE);
+        rig.frame(Some(p([210.0, 110.0], false)), vec![], NONE);
+        let draft = rig.editor.nodes();
+        assert_eq!(draft.len(), 1, "{tool:?}");
+        let bounds = SceneIndex::new(&draft).bounds(&draft[0]);
+        assert!(bounds.width >= 199.0, "{tool:?}: {bounds:?}");
+    }
+}

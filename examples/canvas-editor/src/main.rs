@@ -176,7 +176,6 @@ fn app(store: Arc<dyn CanvasStore + Send + Sync>) -> App {
     let root = world.spawn((Layout {
         width: Size::Fill,
         height: Size::Fill,
-        gap: 8.0,
         ..Layout::column()
     },));
     let toolbar = Surface::Navigation
@@ -186,7 +185,6 @@ fn app(store: Arc<dyn CanvasStore + Send + Sync>) -> App {
     let body = world.spawn((Layout {
         width: Size::Fill,
         height: Size::Fill,
-        gap: 8.0,
         ..Layout::row()
     },));
     set_parent(world, body, root);

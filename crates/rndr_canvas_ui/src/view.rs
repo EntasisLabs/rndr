@@ -8,11 +8,12 @@ use crate::editor::{
 use crate::overlay::{paint_overlay, OverlayTheme};
 use crate::paint::{affine, paint_scene, EngineMeasure, ImageIds};
 use rndr_canvas::text::{EstimateMeasure, TextMeasure};
+use rndr_canvas::Vec2;
 use rndr_core::{
-    platform_of, CursorStyle, Input, LogicalKey, MotionWatch, NamedKey, PointerButton,
+    platform_of, Color, CursorStyle, Input, LogicalKey, MotionWatch, NamedKey, PointerButton,
     PointerKind as CoreKind, Pointers, Rect, SurfaceSlot, World,
 };
-use rndr_paint::{Canvas, CanvasPainter, CanvasRegistry};
+use rndr_paint::{Canvas, CanvasPainter, CanvasRegistry, FillRule, Path};
 
 /// The editor and what painting it needs. Insert it as a resource with
 /// [`install`].
@@ -21,6 +22,9 @@ pub struct CanvasView {
     /// Texture ids for the document's image assets.
     pub images: ImageIds,
     pub overlay: OverlayTheme,
+    /// Painted under the scene across the whole slot, so a transparent scene
+    /// background still reads as a canvas. Transparent shows the window.
+    pub backdrop: Color,
     /// The [`SurfaceSlot`] id the canvas is laid out in.
     pub slot: u64,
     captured: bool,
@@ -32,6 +36,7 @@ impl CanvasView {
             editor,
             images: ImageIds::new(),
             overlay: OverlayTheme::default(),
+            backdrop: Color::rgb(0.976, 0.98, 0.984),
             slot,
             captured: false,
         }
@@ -251,9 +256,28 @@ impl CanvasPainter for ViewPainter {
         let measure = measure(world);
         // Surfaces paint in window coordinates; the editor works relative
         // to the slot.
-        let origin = slot_rect(world, view.slot).map_or([0.0, 0.0], |r| [r.x, r.y]);
-        let to_window = rndr_canvas::Matrix::translate(f64::from(origin[0]), f64::from(origin[1]));
-        canvas.set_camera(affine(to_window.then(view.editor.camera.matrix())));
+        let Some(rect) = slot_rect(world, view.slot) else {
+            return;
+        };
+        let to_window = rndr_canvas::Matrix::translate(f64::from(rect.x), f64::from(rect.y));
+        let camera = view.editor.camera;
+        canvas.set_camera(affine(to_window.then(camera.matrix())));
+        if view.backdrop.a > 0.0 {
+            let corner = |x: f32, y: f32| {
+                let p = camera.view_to_scene(Vec2::new(f64::from(x), f64::from(y)));
+                [p.x as f32, p.y as f32]
+            };
+            canvas.fill(
+                Path::polygon(&[
+                    corner(0.0, 0.0),
+                    corner(rect.w, 0.0),
+                    corner(rect.w, rect.h),
+                    corner(0.0, rect.h),
+                ]),
+                view.backdrop,
+                FillRule::NonZero,
+            );
+        }
         paint_scene(
             canvas,
             world,
