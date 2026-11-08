@@ -186,6 +186,7 @@ impl Shared {
 
     /// Call the waker for state changes made by a handle. Workers call this
     /// on every turn of their loop.
+    #[cfg_attr(not(any(target_os = "linux", target_os = "macos")), allow(dead_code))]
     pub fn flush_wake(&self) {
         if self.wake_pending.swap(false, Ordering::AcqRel) {
             self.wake();
