@@ -8,6 +8,7 @@
 //! keeps the left identity/kind. Newline paste follows the same rule. History uses
 //! explicit consecutive group tokens; navigation and composition are barriers.
 mod table_ops;
+mod html;
 mod text_ops;
 use table_ops::{edit_table, TableAxis, TableEdit};
 

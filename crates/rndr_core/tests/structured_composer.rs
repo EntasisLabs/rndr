@@ -125,3 +125,79 @@ fn invalid_pill_ids_and_labels_are_refused() {
         affinity: Affinity::After,
     };
 }
+
+#[test]
+fn html_round_trip_keeps_marks_and_pills_in_one_undo_step() {
+    let mut source = StructuredDocument::new("say hi  now");
+    select(&mut source, 0, 3);
+    source.toggle_mark(MarkKind::Strong, API).unwrap();
+    select(&mut source, 7, 7);
+    source.insert_pill("@bo", "u:2", API).unwrap();
+    let end = source.plain_text().len();
+    select(&mut source, 0, end);
+    let html = source.selection_html().unwrap();
+    assert_eq!(
+        html,
+        "<p><strong>say</strong> hi <span data-pill=\"u:2\">@bo</span> now</p>"
+    );
+    let mut target = StructuredDocument::new("[]");
+    select(&mut target, 1, 1);
+    let revision = target.revision();
+    assert!(target.paste_html(&html, API).unwrap());
+    assert_eq!(target.plain_text(), "[say hi @bo now]");
+    let runs = &target.blocks()[0].runs;
+    assert!(runs.iter().any(|r| r.text == "say" && r.marks.strong));
+    assert!(runs
+        .iter()
+        .any(|r| r.text == "@bo" && r.marks.pill.as_deref() == Some("u:2")));
+    assert_eq!(caret(&target), 15);
+    target.undo().unwrap();
+    assert_eq!(target.plain_text(), "[]");
+    assert!(target.revision() > revision);
+}
+
+#[test]
+fn html_paste_builds_headings_lists_and_quotes() {
+    let mut doc = StructuredDocument::new("");
+    select(&mut doc, 0, 0);
+    doc.paste_html(
+        "<h1>Plan</h1><ul><li>a</li><li>b<ul><li>c</li></ul></li></ul><blockquote>q</blockquote>",
+        API,
+    )
+    .unwrap();
+    assert_eq!(doc.plain_text(), "Plan\na\nb\nc\nq");
+    use rndr_core::structured::{BlockKind, ContainerKind, ListKind};
+    assert_eq!(doc.blocks()[0].kind, BlockKind::Heading(1));
+    let kinds = |i: usize| -> Vec<ContainerKind> {
+        doc.ancestors(doc.blocks()[i].id)
+            .unwrap()
+            .iter()
+            .map(|c| c.kind)
+            .collect()
+    };
+    assert!(kinds(1).contains(&ContainerKind::List(ListKind::Bullet)));
+    assert!(kinds(3).iter().filter(|k| matches!(k, ContainerKind::List(_))).count() == 2);
+    assert_eq!(kinds(4), [ContainerKind::Quote]);
+    assert!(kinds(0).is_empty());
+    let html = doc.to_html();
+    assert!(html.starts_with("<h1>Plan</h1><ul><li><p>a</p></li>"), "{html}");
+    assert!(html.ends_with("<blockquote><p>q</p></blockquote>"), "{html}");
+}
+
+#[test]
+fn html_paste_drops_unsafe_links_and_scripts() {
+    let mut doc = StructuredDocument::new("");
+    select(&mut doc, 0, 0);
+    doc.paste_html(
+        "<script>x()</script><a href=\"javascript:x()\">a</a> <a href=\"https://ok.dev\">b</a>",
+        API,
+    )
+    .unwrap();
+    assert_eq!(doc.plain_text(), "a b");
+    let links: Vec<_> = doc.blocks()[0]
+        .runs
+        .iter()
+        .map(|r| r.marks.link.clone())
+        .collect();
+    assert_eq!(links, [None, Some("https://ok.dev".into())]);
+}
