@@ -75,6 +75,7 @@ mod notify;
 mod notify_os;
 #[cfg(feature = "observe")]
 pub mod observe;
+mod open_url;
 mod outline;
 #[cfg(target_os = "linux")]
 mod overlay_keys;
@@ -84,6 +85,7 @@ mod scene;
 mod shell;
 mod startup;
 mod surface;
+mod system;
 mod tablet;
 #[cfg(feature = "parley")]
 mod text;
@@ -511,6 +513,10 @@ struct Handler {
     /// the user sees. Cleared after [`Handler::reveal_window`].
     show_after_present: bool,
     cursor_cache: Option<(u64, CustomCursor)>,
+    hidden_cursor: Option<CustomCursor>,
+    /// The desktop's preferences need rereading before the next frame.
+    appearance_dirty: bool,
+    appearance_generation: u64,
     pen_seen: u64,
     accepts_pen: bool,
     close: close::CloseSlot,
@@ -574,6 +580,9 @@ impl Handler {
             os_clipboard: clipboard::OsClipboard::new(),
             show_after_present: false,
             cursor_cache: None,
+            hidden_cursor: None,
+            appearance_dirty: true,
+            appearance_generation: 0,
             pen_seen: 0,
             accepts_pen: true,
             close: close::CloseSlot::default(),
@@ -811,6 +820,7 @@ impl Handler {
         deliver(self.app.world_mut(), self.desktop_id);
         self.sync_input();
         self.poll_dialog();
+        self.sync_appearance();
         // Publish before `frame` so this update's layout sees the new scale and
         // the resize events that flip at the start of `App::update`.
         rndr_core::window::publish_metrics(self.app.world_mut(), raw_width, raw_height, scale);
@@ -916,6 +926,8 @@ impl Handler {
         if !uploaded.is_empty() {
             crate::images::release_cpu(self.app.world_mut(), &uploaded);
         }
+        // Links requested by this frame's systems open now, not on the next frame.
+        self.poll_urls();
         self.apply_cursor(event_loop);
         self.reveal_window();
         self.place_ime_cursor();
@@ -936,6 +948,29 @@ impl Handler {
             self.pointers.end_frame();
         }
         presented
+    }
+
+    /// Open links the app queued. Headless runs never reach this.
+    fn poll_urls(&mut self) {
+        for url in rndr_core::take_url_requests(self.app.world_mut()) {
+            if let Err(error) = open_url::open(&url) {
+                eprintln!("rndr: open_url({url}): {error}");
+            }
+        }
+    }
+
+    /// Reread the desktop's preferences after a change and publish them.
+    fn sync_appearance(&mut self) {
+        let generation = system::generation();
+        if !self.appearance_dirty && generation == self.appearance_generation {
+            return;
+        }
+        self.appearance_dirty = false;
+        self.appearance_generation = generation;
+        let appearance = system::read(self.gpu.as_ref().and_then(Gpu::winit_window));
+        if rndr_core::publish_system_appearance(self.app.world_mut(), appearance) {
+            self.full_pending = true;
+        }
     }
 
     fn poll_dialog(&mut self) {
@@ -1015,10 +1050,26 @@ impl Handler {
             .copied()
             .unwrap_or_default();
         match style {
-            CursorStyle::Hand => gpu.shell().set_cursor_icon(CursorIcon::Pointer),
-            CursorStyle::Arrow => gpu.shell().set_cursor_icon(CursorIcon::Default),
-            CursorStyle::Text => gpu.shell().set_cursor_icon(CursorIcon::Text),
             CursorStyle::Image => self.apply_image_cursor(event_loop),
+            CursorStyle::Hidden => self.apply_hidden_cursor(event_loop),
+            style => gpu.shell().set_cursor_icon(cursor_icon(style)),
+        }
+    }
+
+    /// A clear 1x1 image rather than `set_cursor_visible(false)`, which on
+    /// Windows also confines the pointer and counts process-wide.
+    fn apply_hidden_cursor(&mut self, event_loop: &dyn ActiveEventLoop) {
+        if self.hidden_cursor.is_none() {
+            self.hidden_cursor = CustomCursorSource::from_rgba(vec![0; 4], 1, 1, 0, 0)
+                .ok()
+                .and_then(|source| event_loop.create_custom_cursor(source).ok());
+        }
+        let Some(gpu) = self.gpu.as_ref() else {
+            return;
+        };
+        match &self.hidden_cursor {
+            Some(cursor) => gpu.shell().set_custom_cursor(cursor.clone()),
+            None => gpu.shell().set_cursor_icon(CursorIcon::Default),
         }
     }
 
@@ -1157,6 +1208,45 @@ fn ime_cursor_area(world: &rndr_core::World) -> Option<(f64, f64, f64, f64)> {
         2.0,
         f64::from(h),
     ))
+}
+
+fn cursor_icon(style: CursorStyle) -> CursorIcon {
+    match style {
+        CursorStyle::Hand => CursorIcon::Pointer,
+        CursorStyle::Text => CursorIcon::Text,
+        CursorStyle::Grab => CursorIcon::Grab,
+        CursorStyle::Grabbing => CursorIcon::Grabbing,
+        CursorStyle::Move => CursorIcon::Move,
+        CursorStyle::Crosshair => CursorIcon::Crosshair,
+        CursorStyle::NotAllowed => CursorIcon::NotAllowed,
+        CursorStyle::NoDrop => CursorIcon::NoDrop,
+        CursorStyle::Copy => CursorIcon::Copy,
+        CursorStyle::Alias => CursorIcon::Alias,
+        CursorStyle::ContextMenu => CursorIcon::ContextMenu,
+        CursorStyle::Help => CursorIcon::Help,
+        CursorStyle::Progress => CursorIcon::Progress,
+        CursorStyle::Wait => CursorIcon::Wait,
+        CursorStyle::Cell => CursorIcon::Cell,
+        CursorStyle::VerticalText => CursorIcon::VerticalText,
+        CursorStyle::AllScroll => CursorIcon::AllScroll,
+        CursorStyle::ZoomIn => CursorIcon::ZoomIn,
+        CursorStyle::ZoomOut => CursorIcon::ZoomOut,
+        CursorStyle::ResizeColumn => CursorIcon::ColResize,
+        CursorStyle::ResizeRow => CursorIcon::RowResize,
+        CursorStyle::ResizeEast => CursorIcon::EResize,
+        CursorStyle::ResizeNorth => CursorIcon::NResize,
+        CursorStyle::ResizeNorthEast => CursorIcon::NeResize,
+        CursorStyle::ResizeNorthWest => CursorIcon::NwResize,
+        CursorStyle::ResizeSouth => CursorIcon::SResize,
+        CursorStyle::ResizeSouthEast => CursorIcon::SeResize,
+        CursorStyle::ResizeSouthWest => CursorIcon::SwResize,
+        CursorStyle::ResizeWest => CursorIcon::WResize,
+        CursorStyle::ResizeEastWest => CursorIcon::EwResize,
+        CursorStyle::ResizeNorthSouth => CursorIcon::NsResize,
+        CursorStyle::ResizeNorthEastSouthWest => CursorIcon::NeswResize,
+        CursorStyle::ResizeNorthWestSouthEast => CursorIcon::NwseResize,
+        _ => CursorIcon::Default,
+    }
 }
 
 fn host_platform() -> Platform {
@@ -1525,6 +1615,9 @@ impl Handler {
             .expect("shell kept for background device init");
         let mut gpu = Gpu::from_parts(shell, parts);
         gpu.fit_shell();
+        if let Some(window) = gpu.shell().winit_arc() {
+            system::follow(&window);
+        }
         self.gpu = Some(gpu);
         self.trace.device_ready = Some(self.trace.started.elapsed());
         self.publish_trace();
@@ -2052,6 +2145,9 @@ impl ApplicationHandler for Handler {
             #[cfg(feature = "observe")]
             observe,
         ));
+        if let Some(window) = gpu.shell().winit_arc() {
+            system::follow(&window);
+        }
         self.gpu = Some(gpu);
         self.trace.device_ready = Some(self.trace.started.elapsed());
         self.publish_trace();
@@ -2093,6 +2189,7 @@ impl ApplicationHandler for Handler {
             }
             WindowEvent::Focused(focused) => {
                 if focused {
+                    self.appearance_dirty = true;
                     rndr_core::window::platform_focused(self.app.world());
                 } else {
                     cancel_pointer_input(&mut self.pointer, &mut self.pointers);
@@ -2102,6 +2199,10 @@ impl ApplicationHandler for Handler {
                     self.queued_gestures.clear();
                     rndr_core::window::platform_blurred(self.app.world());
                 }
+                self.request_redraw();
+            }
+            WindowEvent::ThemeChanged(_) => {
+                self.appearance_dirty = true;
                 self.request_redraw();
             }
             WindowEvent::ScaleFactorChanged { .. } => {

@@ -23,7 +23,7 @@ required-features = ["observe"]
 [features]
 # Read-only per-session native surface observation. No listener without app opt-in.
 observe = ["dep:serde_json", "dep:getrandom"]
-default = ["hotkey", "tray", "parley", "accesskit", "svg"]
+default = ["hotkey", "tray", "parley", "accesskit", "svg", "appearance"]
 # System-wide hotkeys. Off skips Carbon, Win32, X11, and the portal client.
 hotkey = [
     "dep:futures-util",
@@ -46,6 +46,10 @@ accesskit = ["dep:accesskit", "dep:accesskit_unix", "dep:accesskit_macos", "dep:
 dialog = ["dep:rfd"]
 # SVG and SVGZ decoding through resvg. Text in an SVG must be converted to paths.
 svg = ["dep:resvg"]
+# Follow the desktop's dark/light, accent and reduced-motion settings on Linux
+# through the XDG desktop portal (pure-Rust D-Bus on a worker thread). macOS,
+# Windows and browsers need no extra dependency.
+appearance = ["dep:futures-util", "dep:tokio", "dep:zbus"]
 # Desktop notifications. Off by default. Does not enable `dialog` or `browser`.
 notify = ["dep:zbus", "zbus/blocking-api"]
 
@@ -72,7 +76,7 @@ accesskit = { version = "0.25.2", optional = true }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
-web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlCanvasElement", "Navigator", "Clipboard", "ClipboardItem", "Blob", "BlobPropertyBag"] }
+web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlCanvasElement", "Navigator", "MediaQueryList", "Clipboard", "ClipboardItem", "Blob", "BlobPropertyBag"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 # Hotkeys, tray and notifications have no browser backend; `build.rs` turns
@@ -109,7 +113,9 @@ libc = "0.2"
 accesskit_windows = { version = "0.35.2", optional = true }
 windows-sys = { version = "0.59", features = [
     "Win32_Foundation",
+    "Win32_System_Registry",
     "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",
 ] }
 

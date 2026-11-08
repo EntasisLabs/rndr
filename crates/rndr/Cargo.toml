@@ -18,7 +18,7 @@ exclude = ["**/*.snap.new"]
 ui = ["dep:rndr_ui"]
 # Native read-only observation; still requires explicit per-app session opt-in.
 observe = ["rndr_render/observe"]
-default = ["hotkey", "tray", "parley", "accesskit", "svg"]
+default = ["hotkey", "tray", "parley", "accesskit", "svg", "appearance"]
 # Embedded terminal. Off by default so a desktop build does not link a PTY.
 term = ["dep:rndr_term"]
 # Same flags as rndr_render. Off skips Carbon, Win32, X11, and the portal client.
@@ -30,6 +30,9 @@ tray = ["rndr_render/tray"]
 parley = ["rndr_render/parley"]
 # Accessibility tree. On by default, matching `rndr_render`.
 accesskit = ["rndr_render/accesskit"]
+# Follow the desktop's dark/light, accent and reduced-motion settings through
+# the XDG desktop portal on Linux. On by default, matching `rndr_render`.
+appearance = ["rndr_render/appearance"]
 # Native open and save dialogs. Off by default.
 dialog = ["rndr_render/dialog"]
 # Desktop notifications. Off by default. Does not enable `dialog` or `browser`.

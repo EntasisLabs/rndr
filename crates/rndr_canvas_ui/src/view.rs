@@ -275,8 +275,10 @@ pub fn update(world: &mut World) {
     if input.pointer.is_some() {
         world.insert_resource(match response.cursor {
             CursorHint::Text => CursorStyle::Text,
-            CursorHint::Grab | CursorHint::Move => CursorStyle::Hand,
-            _ => CursorStyle::Arrow,
+            CursorHint::Grab => CursorStyle::Grab,
+            CursorHint::Move => CursorStyle::Move,
+            CursorHint::Crosshair => CursorStyle::Crosshair,
+            CursorHint::Default => CursorStyle::Arrow,
         });
     }
 }

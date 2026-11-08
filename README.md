@@ -182,6 +182,7 @@ The facade keeps optional integrations explicit:
 | `hotkey` | On | System-wide shortcuts through the platform backend |
 | `tray` | On | Menu-bar / notification-area integration |
 | `svg` | On | SVG and SVGZ decoding through `resvg` (`decode_svg`, `load_svg`; `load_image` accepts SVG). Text in an SVG must be converted to paths |
+| `appearance` | On | Linux dark/light, accent and reduced-motion settings through the XDG desktop portal. Off leaves Linux on winit's theme only; macOS, Windows and browsers need no extra dependency |
 | `ui` | Off | Semantic components under `rndr::ui` |
 | `dialog` | Off | Native open/save dialogs |
 | `notify` | Off | Present, dismiss, and a host-owned click token. Feature off returns unsupported. A click does not activate a window. Native cells stay unverified or unsupported |
@@ -316,6 +317,16 @@ native-platform acceptance are different things:
   readable, `position()` is a `Live<f32>`, and `set_waker` reports state changes.
   Linux builds need the GStreamer development packages. See
   [crates/rndr_media/README.md](crates/rndr_media/README.md).
+- **Desktop settings, links and cursors:** the runner publishes the desktop's
+  `SystemAppearance` (light/dark, accent colour, reduced motion) and sends
+  `SystemAppearanceChanged` when it changes; `UiTheme::follow_system` applies the
+  light/dark preference. The OS reduced-motion setting makes the motion runtime
+  snap layout and transform animations. `request_open_url` opens checked `http`,
+  `https` and `mailto` links in the default handler (`xdg-open`, `open`,
+  `ShellExecuteW`, or a new browser tab). `CursorStyle` covers the CSS cursor set,
+  including `Hidden` and resize cursors, besides custom RGBA images. Linux is tested
+  natively; macOS and Windows are compile-checked only.
+  `cargo run -p rndr_render --example os_basics` shows them.
 - **Text features and selectable labels:** `TextStyle` and `TextSpan` take OpenType
   `FontFeature`s (`FontFeature::on(b"tnum")`) and variable-font `FontAxis` values
   (`FontAxis::new(b"wght", 550.0)`), applied by the Parley shaper; a span's settings

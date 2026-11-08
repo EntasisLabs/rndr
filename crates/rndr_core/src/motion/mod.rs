@@ -179,7 +179,8 @@ impl Default for LayoutMotion {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MotionSettings {
     /// Offsets, scale, rotation, and layout glides change instantly. Opacity
-    /// changes take a 0.18 s ease-in-out fade.
+    /// changes take a 0.18 s ease-in-out fade. The OS setting in
+    /// [`crate::SystemAppearance::reduced_motion`] also turns this on.
     pub reduced_motion: bool,
     /// Multiplier on motion time. `0.25` is slow motion; `0.0` pauses.
     pub time_scale: f32,
@@ -224,10 +225,12 @@ fn now(world: &mut World) -> f64 {
 }
 
 fn settings(world: &World) -> MotionSettings {
-    world
+    let mut settings = world
         .resource::<MotionSettings>()
         .copied()
-        .unwrap_or_default()
+        .unwrap_or_default();
+    settings.reduced_motion |= crate::appearance::system_appearance(world).reduced_motion;
+    settings
 }
 
 fn motion_mut(world: &mut World, entity: Entity) -> Option<&mut Motion> {

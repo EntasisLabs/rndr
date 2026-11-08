@@ -98,7 +98,6 @@ impl Shell {
         }
     }
 
-    #[cfg(feature = "accesskit")]
     pub(crate) fn winit_arc(&self) -> Option<Arc<dyn Window>> {
         match self {
             Self::Winit(window) => Some(Arc::clone(window)),

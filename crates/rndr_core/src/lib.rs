@@ -73,6 +73,7 @@ mod access;
 mod access_text;
 mod action;
 mod app;
+mod appearance;
 mod button;
 mod caret;
 mod chrome;
@@ -117,6 +118,7 @@ mod markdown;
 mod memory_fs;
 mod mono;
 pub mod motion;
+mod open_url;
 mod overlay;
 mod pane;
 mod panel_place;
@@ -171,6 +173,9 @@ pub use access::{
 pub use access_text::{access_text, AccessTextSnapshot, AccessTextState};
 pub use action::{apply_actions, Actions, Binding, Chord, Fired, COPY, CUT, PASTE};
 pub use app::{App, Plugin, Schedule, System};
+pub use appearance::{
+    publish_system_appearance, system_appearance, SystemAppearance, SystemAppearanceChanged,
+};
 pub use button::Button;
 pub use caret::{
     apply_caret, caret_line_col, selection_spans, set_editing, set_editing_field, Caret, CaretRow,
@@ -275,6 +280,7 @@ pub use selectable::{
 };
 mod popup;
 pub use live::{Live, LiveFill, LiveOffset, LiveOpacity, LiveRect, LiveScale, LiveValue, Smooth};
+pub use open_url::{check_url, request_open_url, take_url_requests, OpenUrlError};
 pub use pane::{
     apply_pane, detail_pane, field_height, set_selection, shell, splitter, tree_column, Pane,
     Selection,
