@@ -28,13 +28,14 @@ impl Button {
     }
 }
 
-/// Fire an enabled button under the pointer, or the focused button on Enter.
+/// Fire an enabled button under a primary press, or the focused button on Enter.
 pub fn apply_buttons(world: &mut World) {
     let Some(input) = world.resource::<Input>().cloned() else {
         return;
     };
 
-    if input.pointer.pressed {
+    // Secondary and middle presses never click; see `SecondaryPress`.
+    if input.pointer.pressed && input.pointer.button == crate::PointerButton::Left {
         if let Some(hit) = hit_test(world, input.pointer.position[0], input.pointer.position[1]) {
             if let Some(entity) = ancestor_with::<Button>(world, hit) {
                 let _ = fire(world, entity);

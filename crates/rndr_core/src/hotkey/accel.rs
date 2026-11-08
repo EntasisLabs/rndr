@@ -477,6 +477,7 @@ fn mac_named(named: NamedKey) -> Option<u32> {
         NamedKey::ArrowRight => 0x7C,
         NamedKey::ArrowDown => 0x7D,
         NamedKey::ArrowUp => 0x7E,
+        NamedKey::ContextMenu => 0x6E,
         NamedKey::F(_) => return None,
     })
 }
@@ -526,6 +527,7 @@ fn win_named(named: NamedKey) -> Option<u32> {
         NamedKey::ArrowDown => 0x28,
         NamedKey::Insert => 0x2D,
         NamedKey::Delete => 0x2E,
+        NamedKey::ContextMenu => 0x5D,
         NamedKey::F(_) => return None,
     })
 }
@@ -576,6 +578,7 @@ fn x11_named(named: NamedKey) -> Option<u32> {
         NamedKey::End => 0xff57,
         NamedKey::Insert => 0xff63,
         NamedKey::Delete => 0xffff,
+        NamedKey::ContextMenu => 0xff67,
         NamedKey::F(_) => return None,
     })
 }
@@ -603,6 +606,7 @@ fn wayland_key(key: AccelKey) -> Option<&'static str> {
         AccelKey::Function(n) if (1..=24).contains(&n) => return wayland_function(n),
         AccelKey::Function(_) => return None,
         AccelKey::Named(NamedKey::Space) => "space",
+        AccelKey::Named(NamedKey::ContextMenu) => "Menu",
         AccelKey::Named(NamedKey::Enter) => "Return",
         AccelKey::Named(NamedKey::Escape) => "Escape",
         AccelKey::Named(NamedKey::Tab) => "Tab",

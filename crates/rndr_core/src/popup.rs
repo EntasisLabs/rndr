@@ -23,14 +23,61 @@ impl Component for PassivePopup {}
 #[derive(Clone, Copy)]
 pub struct FocusOwner(pub Entity);
 impl Component for FocusOwner {}
+/// Where an [`AnchoredPopup`] opens relative to its anchor. Without this
+/// component it opens below (or above) the anchor at least 240 points wide.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum PopupPlacement {
+    /// Below the anchor, or above when there is more room there.
+    #[default]
+    Below,
+    /// At a window point, such as a right-click, at the popup's own width.
+    At([f32; 2]),
+    /// Beside the anchor: right of it, or left when the right side lacks room.
+    /// A popup anchored inside another open popup is its submenu.
+    Beside,
+}
+impl Component for PopupPlacement {}
 #[derive(Default)]
 struct SwallowRelease(bool);
 
+fn open(world: &World, e: Entity) -> bool {
+    world.has::<AnchoredPopup>(e) && !world.has::<Hidden>(e) && !world.has::<PassivePopup>(e)
+}
+/// The open popup containing `root`'s anchor: `root` is its submenu.
+pub(crate) fn parent_popup(world: &World, root: Entity) -> Option<Entity> {
+    let anchor = world.get::<AnchoredPopup>(root)?.anchor;
+    ancestor_with::<AnchoredPopup>(world, anchor).filter(|p| *p != root)
+}
+fn outermost(world: &World, mut root: Entity) -> Entity {
+    for _ in 0..64 {
+        match parent_popup(world, root).filter(|p| open(world, *p)) {
+            Some(parent) => root = parent,
+            None => break,
+        }
+    }
+    root
+}
+/// `root` and the open popups it is nested in.
+fn chain(world: &World, root: Entity) -> Vec<Entity> {
+    let mut out = vec![root];
+    while let Some(parent) = parent_popup(world, *out.last().unwrap()).filter(|p| open(world, *p)) {
+        if out.contains(&parent) || out.len() >= 64 {
+            break;
+        }
+        out.push(parent);
+    }
+    out
+}
+/// The innermost open popup scope. Submenus nest inside their parent's scope.
 pub(crate) fn active(world: &World) -> Option<Entity> {
-    world
+    let all: Vec<_> = world
         .entities_with::<AnchoredPopup>()
         .into_iter()
-        .find(|e| !world.has::<Hidden>(*e) && !world.has::<PassivePopup>(*e))
+        .filter(|e| open(world, *e))
+        .collect();
+    all.iter()
+        .copied()
+        .find(|e| !all.iter().any(|c| parent_popup(world, *c) == Some(*e)))
 }
 /// Open one popup, replacing any previous scope. Caller then focuses its row/surface.
 /// Rejects unavailable anchors and popups below a higher modal layer.
@@ -47,19 +94,38 @@ pub fn open_popup(world: &mut World, root: Entity) -> bool {
         return false;
     }
     let layer = crate::overlay::layer_of(world, p.anchor);
-    if crate::overlay::modal_floor(world).is_some_and(|floor| floor > layer) {
+    // Open popup scopes are replaced or nest this one, so only other modals block it.
+    let blocked = world
+        .entities_with::<Modal>()
+        .into_iter()
+        .filter(|e| !open(world, *e))
+        .any(|e| crate::overlay::layer_of(world, e) > layer);
+    if blocked {
         return false;
     }
     if let Some(old) = active(world) {
         if old == root {
             return true;
         }
-        close_popup(world, old, true);
+        // Keep the popups this one is nested in; close every other open scope.
+        let keep = chain(world, root);
+        let nested = keep.len() > 1;
+        for e in chain(world, old).into_iter() {
+            if !keep.contains(&e) {
+                close_popup(world, e, !nested);
+            }
+        }
     }
     reveal_entity(world, p.anchor);
     world.insert(root, FocusOwner(p.anchor));
     world.insert(root, Layer(layer.saturating_add(1)));
-    world.insert(root, Modal);
+    // The outermost popup's Modal already blocks the app; a nested one leaves
+    // its parent popups interactive.
+    if parent_popup(world, root).is_some_and(|p| open(world, p)) {
+        world.remove::<Modal>(root);
+    } else {
+        world.insert(root, Modal);
+    }
     world.remove::<Hidden>(root);
     cancel_activation(world);
     true
@@ -71,6 +137,11 @@ pub fn close_popup(world: &mut World, root: Entity, return_focus: bool) {
     };
     if world.has::<Hidden>(root) {
         return;
+    }
+    for child in world.entities_with::<AnchoredPopup>() {
+        if open(world, child) && parent_popup(world, child) == Some(root) {
+            close_popup(world, child, false);
+        }
     }
     world.remove::<Modal>(root);
     world.remove::<Layer>(root);
@@ -109,18 +180,28 @@ pub(crate) fn prepare(world: &mut World) {
         return;
     };
     let p = *world.get::<AnchoredPopup>(root).unwrap();
+    let scope = chain(world, root);
+    let outer = *scope.last().unwrap();
     let (enabled, readonly) = crate::interaction::policy(world, p.anchor);
     let blurred = events::<WindowFocus>(world).contains(&WindowFocus::Blurred);
     let focus = world.resource::<Focus>().and_then(|f| f.entity);
-    let inside_focus =
-        focus.is_some_and(|e| e == root || ancestor_with::<AnchoredPopup>(world, e) == Some(root));
+    let inside_focus = focus.is_some_and(|e| {
+        scope.contains(&e)
+            || ancestor_with::<AnchoredPopup>(world, e).is_some_and(|p| scope.contains(&p))
+    });
     let covered = crate::overlay::modal_floor(world)
         .is_some_and(|floor| floor > crate::overlay::layer_of(world, root));
     let clipped = world
         .get::<Clip>(p.anchor)
         .is_some_and(|r| r.w <= 0.0 || r.h <= 0.0);
     if !enabled || readonly || blurred || !inside_focus || covered || clipped {
-        close_popup(world, root, !blurred && inside_focus);
+        // A blurred window or a lost scope closes every nested level.
+        let close = if blurred || !inside_focus {
+            outer
+        } else {
+            root
+        };
+        close_popup(world, close, !blurred && inside_focus);
         if let Some(i) = world.resource_mut::<Input>() {
             let contact = i.pointer.pressed || i.pointer.released || i.pointer.down;
             let ended = i.pointer.released || !i.pointer.down;
@@ -136,12 +217,14 @@ pub(crate) fn prepare(world: &mut World) {
     let outside = world.resource::<Input>().is_some_and(|i| {
         let at = i.pointer.press_at.unwrap_or(i.pointer.position);
         i.pointer.pressed
-            && !world
-                .get::<Rect>(root)
-                .is_some_and(|r| r.contains(at[0], at[1]))
+            && !scope.iter().any(|e| {
+                world
+                    .get::<Rect>(*e)
+                    .is_some_and(|r| r.contains(at[0], at[1]))
+            })
     });
     if outside {
-        close_popup(world, root, true);
+        close_popup(world, outer, true);
         cancel_activation(world);
         let i = world.resource_mut::<Input>().unwrap();
         let ended = i.pointer.released || !i.pointer.down;
@@ -176,7 +259,7 @@ pub(crate) fn key(world: &mut World, event: &KeyEvent) -> bool {
             true
         }
         LogicalKey::Named(NamedKey::Tab) => {
-            close_popup(world, root, true);
+            close_popup(world, outermost(world, root), true);
             false
         }
         _ => false,
@@ -206,6 +289,28 @@ pub fn popup_rect(anchor: Rect, viewport: Viewport, width: f32, height: f32) -> 
         } else {
             (anchor_top - 4.0 - h).clamp(top, (bottom - h).max(top))
         },
+        w,
+        h,
+    }
+}
+
+/// Beside `anchor`: right of it, or left when the right lacks room. The top
+/// aligns with the anchor and moves up to stay inside the viewport.
+pub(crate) fn beside_rect(anchor: Rect, viewport: Viewport, width: f32, height: f32) -> Rect {
+    let left = viewport.insets.left;
+    let top = viewport.insets.top;
+    let right = left + viewport.content_width().max(0.0);
+    let bottom = top + viewport.content_height().max(0.0);
+    let w = width.max(0.0).min((right - left).max(0.0));
+    let h = height.max(0.0).min((bottom - top).max(0.0));
+    let x = if anchor.x + anchor.w + w <= right || anchor.x - w < left {
+        anchor.x + anchor.w
+    } else {
+        anchor.x - w
+    };
+    Rect {
+        x: x.clamp(left, (right - w).max(left)),
+        y: (anchor.y - 4.0).clamp(top, (bottom - h).max(top)),
         w,
         h,
     }

@@ -48,6 +48,8 @@ mod a11y;
 mod a11y_text;
 #[cfg(feature = "accesskit")]
 mod access_winit;
+#[cfg(native_menubar)]
+mod app_menu;
 /// Opt-in component-targeted offscreen rendering; no native window or socket.
 #[cfg(feature = "observe")]
 pub mod capture;
@@ -161,6 +163,8 @@ enum RunnerEvent {
     Quit,
     #[cfg(native_tray)]
     Tray(rndr_core::TrayReport),
+    #[cfg(native_menubar)]
+    AppMenu(rndr_core::TrayItemId),
     #[cfg(feature = "accesskit")]
     Access(access_winit::Event),
 }
@@ -201,6 +205,11 @@ impl RunnerBus {
     #[cfg(native_tray)]
     fn tray(&self, report: rndr_core::TrayReport) {
         self.post(RunnerEvent::Tray(report));
+    }
+
+    #[cfg(native_menubar)]
+    fn app_menu(&self, item: rndr_core::TrayItemId) {
+        self.post(RunnerEvent::AppMenu(item));
     }
 
     #[cfg(feature = "accesskit")]
@@ -454,14 +463,32 @@ fn install_tray_handlers(bus: &RunnerBus) {
                 icon_bus.tray(report);
             }
         }));
+        #[cfg(not(native_menubar))]
+        {
+            let menu_bus = bus.clone();
+            tray_icon::menu::MenuEvent::set_event_handler(Some(move |event| {
+                if let Some(report) = tray::map_menu_event(&event) {
+                    menu_bus.tray(report);
+                }
+            }));
+        }
+    }
+    // tray-icon re-exports this muda, so one handler serves both menus.
+    #[cfg(native_menubar)]
+    {
         let menu_bus = bus.clone();
-        tray_icon::menu::MenuEvent::set_event_handler(Some(move |event| {
+        muda::MenuEvent::set_event_handler(Some(move |event: muda::MenuEvent| {
+            if let Some(item) = rndr_core::parse_app_menu_id(event.id.as_ref()) {
+                menu_bus.app_menu(item);
+                return;
+            }
+            #[cfg(native_tray)]
             if let Some(report) = tray::map_menu_event(&event) {
                 menu_bus.tray(report);
             }
         }));
     }
-    #[cfg(not(native_tray))]
+    #[cfg(not(any(native_tray, native_menubar)))]
     {
         let _ = bus;
     }
@@ -534,6 +561,8 @@ struct Handler {
     access_bridge: a11y::Bridge,
     #[cfg(native_tray)]
     tray: tray::Session,
+    #[cfg(native_menubar)]
+    app_menu: Option<muda::Menu>,
 }
 
 impl Handler {
@@ -598,6 +627,8 @@ impl Handler {
             access_bridge: a11y::Bridge::default(),
             #[cfg(native_tray)]
             tray: tray::Session::new(),
+            #[cfg(native_menubar)]
+            app_menu: None,
         }
     }
 }
@@ -1398,6 +1429,7 @@ fn map_named(key: &NamedKey) -> Option<CoreNamed> {
         NamedKey::F22 => CoreNamed::F(22),
         NamedKey::F23 => CoreNamed::F(23),
         NamedKey::F24 => CoreNamed::F(24),
+        NamedKey::ContextMenu => CoreNamed::ContextMenu,
         _ => return None,
     })
 }
@@ -1511,7 +1543,11 @@ impl Handler {
         // A hidden window does not deliver redraws. Poll only while a tray
         // report or a task is still queued after the hidden pump; idle goes
         // back to Wait.
-        if hidden && (self.app.wants_frame() || rndr_core::tray::pending(self.app.world())) {
+        if hidden
+            && (self.app.wants_frame()
+                || (rndr_core::tray::pending(self.app.world())
+                    || rndr_core::app_menu_pending(self.app.world())))
+        {
             event_loop.set_control_flow(ControlFlow::Poll);
             return;
         }
@@ -1530,9 +1566,46 @@ impl Handler {
             self.app.update();
             self.apply_effects();
             self.apply_tray();
-            if !self.app.wants_frame() && !rndr_core::tray::pending(self.app.world()) {
+            self.apply_app_menu();
+            if !self.app.wants_frame()
+                && !(rndr_core::tray::pending(self.app.world())
+                    || rndr_core::app_menu_pending(self.app.world()))
+            {
                 break;
             }
+        }
+    }
+
+    /// Install the app menu bar when it changed. Windows waits for the window.
+    fn apply_app_menu(&mut self) {
+        #[cfg(native_menubar)]
+        {
+            #[cfg(target_os = "windows")]
+            let Some(hwnd) = self
+                .gpu
+                .as_ref()
+                .and_then(|gpu| gpu.shell().winit_window())
+                .and_then(app_menu::hwnd)
+            else {
+                return;
+            };
+            let Some(menu) = rndr_core::take_app_menu_change(self.app.world_mut()) else {
+                return;
+            };
+            let native = app_menu::build(&menu, &self.config.title);
+            #[cfg(target_os = "macos")]
+            native.init_for_nsapp();
+            #[cfg(target_os = "windows")]
+            // SAFETY: `hwnd` is this runner's live top-level window.
+            unsafe {
+                if let Some(old) = self.app_menu.take() {
+                    let _ = old.remove_for_hwnd(hwnd);
+                }
+                if let Err(err) = native.init_for_hwnd(hwnd) {
+                    eprintln!("rndr: app menu bar was not installed: {err}");
+                }
+            }
+            self.app_menu = Some(native);
         }
     }
 
@@ -1727,6 +1800,7 @@ impl Handler {
         }
         self.apply_effects();
         self.apply_tray();
+        self.apply_app_menu();
     }
 
     fn pump_shell(&mut self, event_loop: &dyn ActiveEventLoop) -> bool {
@@ -2046,7 +2120,11 @@ impl ApplicationHandler for Handler {
         self.install_gpu_if_ready();
         self.pump_shell(event_loop);
         let hidden = !rndr_core::window::is_visible(self.app.world());
-        if hidden && (self.app.wants_frame() || rndr_core::tray::pending(self.app.world())) {
+        if hidden
+            && (self.app.wants_frame()
+                || (rndr_core::tray::pending(self.app.world())
+                    || rndr_core::app_menu_pending(self.app.world())))
+        {
             self.run_hidden_frame(event_loop);
         }
         self.sync_flow(event_loop);
@@ -2518,7 +2596,9 @@ impl Running {
         let mut poll = false;
         for slot in &self.slots {
             let hidden = !rndr_core::window::is_visible(slot.app.world());
-            let tray_pending = slot.primary && rndr_core::tray::pending(slot.app.world());
+            let tray_pending = slot.primary
+                && (rndr_core::tray::pending(slot.app.world())
+                    || rndr_core::app_menu_pending(slot.app.world()));
             if hidden && (slot.app.wants_frame() || tray_pending) {
                 poll = true;
             } else if slot.app.wants_frame() {
@@ -2604,6 +2684,12 @@ impl ApplicationHandler for Running {
                         rndr_core::tray::push_report(slot.app.world_mut(), report);
                     }
                 }
+                #[cfg(native_menubar)]
+                RunnerEvent::AppMenu(item) => {
+                    if let Some(slot) = self.slots.iter_mut().find(|slot| slot.primary) {
+                        rndr_core::push_app_menu_pick(slot.app.world_mut(), item);
+                    }
+                }
                 RunnerEvent::Wake | RunnerEvent::LiveWake => {}
             }
             self.spawn_windows(event_loop);
@@ -2644,7 +2730,9 @@ impl ApplicationHandler for Running {
             slot.install_gpu_if_ready();
             slot.pump_shell(event_loop);
             let hidden = !rndr_core::window::is_visible(slot.app.world());
-            let tray_pending = slot.primary && rndr_core::tray::pending(slot.app.world());
+            let tray_pending = slot.primary
+                && (rndr_core::tray::pending(slot.app.world())
+                    || rndr_core::app_menu_pending(slot.app.world()));
             if hidden && (slot.app.wants_frame() || tray_pending) {
                 slot.run_hidden_frame(event_loop);
             }

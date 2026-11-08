@@ -205,6 +205,9 @@ pub enum NamedKey {
     /// Logical function key. `n` is 1 through 24, the same range as
     /// [`KeyCode::Function`]. [`legacy_key`] returns `None`.
     F(u8),
+    /// The Menu (application) key that opens a context menu. It has no
+    /// [`KeyCode`], and [`legacy_key`] returns `None`.
+    ContextMenu,
 }
 
 impl NamedKey {
@@ -231,6 +234,7 @@ impl NamedKey {
             Self::PageDown => KeyCode::PageDown,
             Self::Space => KeyCode::Space,
             Self::F(n) => KeyCode::Function(n),
+            Self::ContextMenu => return None,
         })
     }
 }
@@ -576,6 +580,7 @@ fn named_legacy(event: &KeyEvent) -> Option<Key> {
         | NamedKey::PageUp
         | NamedKey::PageDown
         | NamedKey::Space
+        | NamedKey::ContextMenu
         | NamedKey::F(_) => return None,
     })
 }
@@ -795,6 +800,7 @@ fn named_label(named: NamedKey) -> &'static str {
         NamedKey::PageDown => "PageDown",
         NamedKey::Space => "Space",
         NamedKey::F(_) => "F",
+        NamedKey::ContextMenu => "Menu",
     }
 }
 

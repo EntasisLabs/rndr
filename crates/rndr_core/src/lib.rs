@@ -128,6 +128,7 @@ mod pool;
 mod prompt;
 mod runtime;
 mod scrollbar;
+mod secondary;
 mod selectable;
 /// Owned revision-fenced asynchronous source extension protocols.
 pub mod source_extensions;
@@ -143,6 +144,7 @@ pub use scrollbar::{
     apply_scrollbars, scrollbar_dragging, scrollbar_geometry, set_scrollbar_value, Scrollbar,
     ScrollbarGeometry,
 };
+mod app_menu;
 mod shell;
 mod sim;
 mod slot;
@@ -279,6 +281,10 @@ pub use selectable::{
     selectable_input, Selectable, SelectablePlugin, MULTI_PRESS_INTERVAL, MULTI_PRESS_SLOP,
 };
 mod popup;
+pub use app_menu::{
+    app_menu, app_menu_id, app_menu_pending, app_menu_support, parse_app_menu_id,
+    push_app_menu_pick, set_app_menu, take_app_menu_change, AppMenuPicked,
+};
 pub use live::{Live, LiveFill, LiveOffset, LiveOpacity, LiveRect, LiveScale, LiveValue, Smooth};
 pub use open_url::{check_url, request_open_url, take_url_requests, OpenUrlError};
 pub use pane::{
@@ -291,13 +297,16 @@ pub use pointers::{
 };
 #[cfg(feature = "pool")]
 pub use pool::thread_pool;
-pub use popup::{close_popup, open_popup, popup_rect, AnchoredPopup, FocusOwner, PassivePopup};
+pub use popup::{
+    close_popup, open_popup, popup_rect, AnchoredPopup, FocusOwner, PassivePopup, PopupPlacement,
+};
 pub use prompt::{Placeholder, Prompt, PromptHistory};
 pub use runtime::{
     after, cancel_debounce, debounce, debounce_local, every, frame_wake, run_until_parked, sleep,
     spawn, spawn_detached, spawn_local, Executor, InlineExecutor, Job, NopWake, Sleep, TaskHandle,
     TimerHandle, Wake,
 };
+pub use secondary::{ContextTarget, SecondaryPress};
 pub use shell::Shell;
 pub use sim::Sim;
 pub use slot::{effects_animating, EffectSlot, SurfaceSlot};

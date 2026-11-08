@@ -36,6 +36,9 @@ hotkey = [
 # Menu bar, notification area, and StatusNotifierItem icon.
 # Linux uses tray-icon's ksni backend (D-Bus on a worker thread), not GTK.
 tray = ["dep:tray-icon"]
+# Native app menu bar on macOS and Windows through muda. Off by default.
+# Linux and the browser have no native bar; draw menus with rndr_ui::menu.
+menubar = ["dep:muda"]
 # Parley shaping and swash rasterization. Headless tests that do not call
 # `run` stay on the builtin atlas engine. `--no-default-features` keeps that
 # path and skips the fontconfig link.
@@ -100,6 +103,9 @@ accesskit_macos = { version = "0.27.2", optional = true }
 objc2 = "0.5.2"
 objc2-app-kit = { version = "0.2.2", features = ["NSWindow", "NSView", "NSResponder", "NSEvent", "block2"] }
 block2 = "0.5.1"
+
+[target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
+muda = { version = "0.21.2", optional = true, default-features = false }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 accesskit_unix = { version = "0.24.1", optional = true, default-features = false, features = ["async-io"] }
