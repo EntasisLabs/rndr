@@ -98,6 +98,8 @@ pub(crate) enum Kind {
     Audio,
 }
 
+// The unsupported backend fails at spawn and never reads commands.
+#[cfg_attr(not(any(target_os = "linux", target_os = "macos")), allow(dead_code))]
 pub(crate) enum Command {
     Play,
     Pause,
