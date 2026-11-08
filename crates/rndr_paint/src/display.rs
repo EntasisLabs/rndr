@@ -43,6 +43,23 @@ pub enum Op {
     /// [`rndr_core::Transform`]; the layer's [`SceneLayer::transform`] then
     /// moves the finished group.
     Quads(Vec<Quad>),
+    /// Pixels an app GPU effect draws here, from a [`rndr_core::EffectSlot`].
+    EffectSlot(EffectSlotOp),
+}
+
+/// A [`rndr_core::EffectSlot`] after layout, in logical points.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct EffectSlotOp {
+    /// [`rndr_core::EffectSlot::id`].
+    pub id: u64,
+    /// Layout rect of the slot entity.
+    pub rect: Rect,
+    /// Clip inherited from the slot's parent. `None` is unclipped.
+    pub clip: Option<Rect>,
+    /// [`rndr_core::EffectSlot::data`].
+    pub data: [f32; 4],
+    /// [`rndr_core::EffectSlot::backdrop`].
+    pub backdrop: bool,
 }
 
 /// Where a [`Op`] sits relative to the UI quad list.

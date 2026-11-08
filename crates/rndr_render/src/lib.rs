@@ -57,6 +57,7 @@ mod color;
 mod decode;
 #[cfg(feature = "dialog")]
 mod dialogs;
+mod effect;
 mod export;
 mod file_drop;
 mod gpu;
@@ -122,6 +123,7 @@ use gpu::Gpu;
 #[cfg(feature = "svg")]
 pub use decode::decode_svg;
 pub use decode::{DecodeError, Raster};
+pub use effect::{EffectContext, EffectSite, GpuEffect, GpuEffects};
 pub use export::{
     encode_png, render_frame_rgba, render_scene_rgba, ExportError, Exporter, RgbaImage,
     EXPORT_MAX_PIXELS, EXPORT_MAX_SIDE,
@@ -138,6 +140,7 @@ pub use notify::{
     NotifyToken,
 };
 pub use startup::{device_init_plan, DeviceInit, StartupTrace};
+pub use wgpu;
 
 /// User event the runtime posts when a task finishes, a timer is armed, or the
 /// tray icon is clicked. The tray variant is what wakes `Wait` while the
