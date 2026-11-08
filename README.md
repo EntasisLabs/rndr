@@ -274,6 +274,15 @@ native-platform acceptance are different things:
   Ctrl/Cmd+A, publishes the primary selection and shows an I-beam. Selection is
   paint-only: it does not re-lay out or reshape text. Native clipboard behavior is
   covered by headless tests only.
+- **Rich composer:** structured documents add `underline`, `strike`, `code` and
+  mention `pill` marks. `toggle_mark` flips one mark across a selection while keeping
+  each run's other marks; Ctrl/Cmd+B, I and U call it. `insert_pill` inserts an atomic
+  pill: carets step over it, Backspace and Delete remove it whole, and typing next to it
+  never extends it. `selection_html`, `to_html` and `paste_html` exchange a safe HTML
+  subset (marks, links, pills, headings, lists, quotes) with plain text as the fallback;
+  scripts, styles and unsafe link schemes are dropped. Copy writes `Clipboard::html`
+  beside the text and paste prefers it. The native runner exchanges it with the OS
+  clipboard; that path is covered by headless tests only.
   `cargo run -p rndr --example text_features_gallery -- out.png` renders a gallery.
 - **Document editing:** source sessions and structured editing have explicit ownership
   and regression coverage. The structured editor remains experimental; native IME,

@@ -322,6 +322,22 @@ pub fn set_display_selection(
     project(world, entity);
     Ok(())
 }
+/// A display offset inside a mention pill moves to the pill's start when moving
+/// backward, otherwise to its end.
+fn snap_out_of_pill(doc: &StructuredDocument, at: usize, backward: bool) -> usize {
+    let mut n = 0;
+    for block in doc.blocks() {
+        for run in &block.runs {
+            let end = n + run.text.len();
+            if run.marks.pill.is_some() && n < at && at < end {
+                return if backward { n } else { end };
+            }
+            n = end;
+        }
+        n += 1;
+    }
+    at
+}
 // A horizontal rule has a display row but no legal text position. Pointer/AT
 // and key motion select the actual node at that seam, not an empty paragraph.
 fn display_to_selection(
@@ -329,6 +345,9 @@ fn display_to_selection(
     anchor: usize,
     head: usize,
 ) -> Result<StructuredSelection, StructuredError> {
+    let previous = display_selection(doc).ok().map(|(_, head)| head);
+    let anchor = snap_out_of_pill(doc, anchor, previous.is_some_and(|p| anchor < p));
+    let head = snap_out_of_pill(doc, head, previous.is_some_and(|p| head < p));
     let mut start = 0;
     for block in doc.blocks() {
         if block.is_atomic() && anchor == start && head == start {
@@ -416,7 +435,7 @@ pub fn project(world: &mut World, entity: Entity) {
                 offset + run.text.len(),
                 if let Some([r, g, b]) = run.marks.text_style.color {
                     Color::rgb(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0)
-                } else if run.marks.link.is_some() {
+                } else if run.marks.link.is_some() || run.marks.pill.is_some() {
                     Color::rgb(0.35, 0.65, 1.0)
                 } else {
                     color
@@ -425,15 +444,26 @@ pub fn project(world: &mut World, entity: Entity) {
             span.weight = Some(
                 if run.marks.strong || matches!(block.kind, BlockKind::Heading(_)) {
                     700
-                } else if header {
+                } else if header || run.marks.pill.is_some() {
                     600
                 } else {
                     400
                 },
             );
             span.family = run.marks.text_style.family.clone();
+            if run.marks.code && span.family.is_none() {
+                span.family = Some("monospace".into());
+            }
             span.italic = run.marks.emphasis;
-            span.underline = run.marks.link.is_some();
+            span.underline = run.marks.link.is_some() || run.marks.underline;
+            span.strike = run.marks.strike;
+            span.highlight = if run.marks.pill.is_some() {
+                Some(Color::rgba(0.35, 0.65, 1.0, 0.18))
+            } else if run.marks.code {
+                Some(Color::rgba(0.5, 0.5, 0.5, 0.18))
+            } else {
+                None
+            };
             spans.push(span);
             offset += run.text.len();
         }
@@ -753,10 +783,43 @@ fn apply_key(
     if let KeyOutcome::Handled(step) = apply_node_key(world, entity, event, platform, readonly)? {
         return Ok(step);
     }
+    if let KeyOutcome::Handled(step) = apply_mark_key(world, entity, event, platform, readonly)? {
+        return Ok(step);
+    }
     if let KeyOutcome::Handled(step) = apply_structural_key(world, entity, event, readonly)? {
         return Ok(step);
     }
     apply_display_text_key(world, entity, event, clip, platform, readonly)
+}
+
+/// Primary+B, I and U toggle strong, emphasis and underline on the text selection.
+fn apply_mark_key(
+    world: &mut World,
+    entity: Entity,
+    event: &KeyEvent,
+    platform: Platform,
+    readonly: bool,
+) -> Result<KeyOutcome, StructuredViewError> {
+    use crate::structured::MarkKind;
+    let m = event.modifiers;
+    if !m.primary(platform) || m.alt || m.shift {
+        return Ok(KeyOutcome::Unhandled);
+    }
+    let kind = match event.logical {
+        LogicalKey::Character('b' | 'B') => MarkKind::Strong,
+        LogicalKey::Character('i' | 'I') => MarkKind::Emphasis,
+        LogicalKey::Character('u' | 'U') => MarkKind::Underline,
+        _ => return Ok(KeyOutcome::Unhandled),
+    };
+    let doc = document_mut(world, entity).ok_or(StructuredViewError::Unavailable)?;
+    if doc.text_selection().is_none() {
+        return Ok(KeyOutcome::Unhandled);
+    }
+    if readonly {
+        return Err(StructuredError::Readonly.into());
+    }
+    doc.toggle_mark(kind, EditOrigin::Keyboard)?;
+    Ok(KeyOutcome::consumed())
 }
 
 fn apply_history_key(
@@ -1048,8 +1111,14 @@ fn apply_display_text_key(
         if readonly {
             return Err(StructuredError::Readonly.into());
         }
-        let start_position = doc.position_at(change.range.start, Affinity::After)?;
-        let end_position = doc.position_at(change.range.end, Affinity::After)?;
+        let start = snap_out_of_pill(doc, change.range.start, true);
+        let end = snap_out_of_pill(doc, change.range.end, false);
+        if (start, end) != (change.range.start, change.range.end) {
+            anchor = start + change.replacement.len();
+            index = anchor;
+        }
+        let start_position = doc.position_at(start, Affinity::After)?;
+        let end_position = doc.position_at(end, Affinity::After)?;
         doc.apply(Transaction {
             document: doc.id(),
             base,
@@ -1070,6 +1139,21 @@ fn apply_display_text_key(
     }
     Ok(step)
 }
+/// Explicit paste of clipboard HTML into a text selection. Returns false to let
+/// the plain-text path handle it (no HTML, node or cell selections, refusals).
+fn paste_rich(world: &mut World, entity: Entity, html: &str) -> bool {
+    if html.is_empty() || is_composing(world, entity) || crate::interaction::readonly(world, entity)
+    {
+        return false;
+    }
+    let Some(doc) = document_mut(world, entity) else {
+        return false;
+    };
+    if doc.is_readonly() || doc.text_selection().is_none() {
+        return false;
+    }
+    doc.paste_html(html, EditOrigin::Keyboard).is_ok()
+}
 pub(crate) fn edit_focused(world: &mut World, entity: Entity) {
     let Some(input) = world.resource::<Input>() else {
         return;
@@ -1077,17 +1161,28 @@ pub(crate) fn edit_focused(world: &mut World, entity: Entity) {
     let frame = crate::ime::text_frame(input);
     let platform = crate::keys::platform_of(world);
     let keys = native_keys(&frame, platform);
-    let mut clip = world
+    let (mut clip, mut clip_html) = world
         .resource::<Clipboard>()
-        .map(|c| c.text.clone())
+        .map(|c| (c.text.clone(), c.rich_html().unwrap_or_default().to_owned()))
         .unwrap_or_default();
     let mut copied = None;
     let mut clipboard_action = false;
     for event in keys {
+        let action = (!event.released && !event.synthetic)
+            .then(|| crate::keys::standard_action(platform, &event))
+            .flatten();
+        if action == Some(EditAction::Paste) && paste_rich(world, entity, &clip_html) {
+            project(world, entity);
+            continue;
+        }
+        let html = matches!(action, Some(EditAction::Copy | EditAction::Cut))
+            .then(|| document(world, entity).and_then(StructuredDocument::selection_html))
+            .flatten();
         match apply_key(world, entity, &event, &clip) {
             Ok(step) => {
                 if let Some(text) = step.copied {
                     clip = text.clone();
+                    clip_html = html.unwrap_or_default();
                     copied = Some(text);
                 }
                 clipboard_action |= step.clipboard_action;
@@ -1122,7 +1217,12 @@ pub(crate) fn edit_focused(world: &mut World, entity: Entity) {
     }
     project(world, entity);
     if clipboard_action {
-        crate::clipboard::note_clipboard(world, copied.as_deref());
+        let html = if copied.is_some() {
+            clip_html.as_str()
+        } else {
+            ""
+        };
+        crate::clipboard::note_rich_clipboard(world, copied.as_deref(), html);
     }
     if let Some(input) = world.resource_mut::<Input>() {
         input.keys.clear();
