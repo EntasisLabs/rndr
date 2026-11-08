@@ -31,7 +31,34 @@ pub struct Live<T: LiveValue>(Arc<Shared<T>>);
 struct Shared<T> {
     value: Mutex<T>,
     version: AtomicU64,
-    hubs: Mutex<Vec<Weak<Hub>>>,
+    watchers: Watchers,
+}
+
+/// Windows that draw one handle. Touching them wakes each once per frame.
+#[derive(Default)]
+pub(crate) struct Watchers(Mutex<Vec<Weak<Hub>>>);
+
+impl Watchers {
+    pub(crate) fn touch(&self) {
+        let mut hubs = lock(&self.0);
+        hubs.retain(|hub| match hub.upgrade() {
+            Some(hub) => {
+                hub.touch();
+                true
+            }
+            None => false,
+        });
+    }
+
+    fn subscribe(&self, hub: &Arc<Hub>) {
+        let mut hubs = lock(&self.0);
+        if !hubs
+            .iter()
+            .any(|known| std::ptr::eq(known.as_ptr(), Arc::as_ptr(hub)))
+        {
+            hubs.push(Arc::downgrade(hub));
+        }
+    }
 }
 
 impl<T: LiveValue> Clone for Live<T> {
@@ -52,7 +79,7 @@ impl<T: LiveValue> Live<T> {
         Self(Arc::new(Shared {
             value: Mutex::new(value),
             version: AtomicU64::new(0),
-            hubs: Mutex::new(Vec::new()),
+            watchers: Watchers::default(),
         }))
     }
 
@@ -72,14 +99,7 @@ impl<T: LiveValue> Live<T> {
             *stored = value;
             self.0.version.fetch_add(1, Ordering::Release);
         }
-        let mut hubs = lock(&self.0.hubs);
-        hubs.retain(|hub| match hub.upgrade() {
-            Some(hub) => {
-                hub.touch();
-                true
-            }
-            None => false,
-        });
+        self.0.watchers.touch();
         true
     }
 
@@ -89,18 +109,12 @@ impl<T: LiveValue> Live<T> {
     }
 
     fn subscribe(&self, hub: &Arc<Hub>) {
-        let mut hubs = lock(&self.0.hubs);
-        if !hubs
-            .iter()
-            .any(|known| std::ptr::eq(known.as_ptr(), Arc::as_ptr(hub)))
-        {
-            hubs.push(Arc::downgrade(hub));
-        }
+        self.0.watchers.subscribe(hub);
     }
 }
 
 /// One world's wake state, shared with every handle it draws.
-struct Hub {
+pub(crate) struct Hub {
     wake: Mutex<Arc<dyn Wake>>,
     visible: AtomicBool,
     /// The OS reports the window minimized or fully covered.
@@ -303,6 +317,11 @@ pub(crate) fn apply(world: &mut World) {
         .min(0.1);
     let mut moving = false;
 
+    for entity in world.entities_with::<crate::SurfaceView>() {
+        if let Some(view) = world.get::<crate::SurfaceView>(entity) {
+            view.surface.watchers().subscribe(&hub);
+        }
+    }
     for entity in world.entities_with::<LiveOpacity>() {
         let Some(mut bind) = world.get::<LiveOpacity>(entity).cloned() else {
             continue;
