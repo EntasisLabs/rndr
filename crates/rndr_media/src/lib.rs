@@ -199,7 +199,11 @@ impl Drop for Inner {
             .unwrap_or_else(|e| e.into_inner())
             .take();
         if let Some(worker) = self.worker.lock().unwrap_or_else(|e| e.into_inner()).take() {
-            let _ = worker.join();
+            // A waker can drop the last handle on the worker itself, which
+            // then exits on its own once it sees the closed channel.
+            if worker.thread().id() != std::thread::current().id() {
+                let _ = worker.join();
+            }
         }
     }
 }
