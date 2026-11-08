@@ -242,17 +242,43 @@ fn layout_once(world: &mut World) {
         h: viewport.height,
     };
     let mut ordered = roots::<Layout>(world);
-    ordered.sort_by_key(|e| world.has::<crate::AnchoredPopup>(*e));
+    // Popups after ordinary roots, and submenus after the popup they open from.
+    ordered.sort_by_key(|e| popup_depth(world, *e));
     for root in ordered {
         if world.has::<crate::Hidden>(root) {
             continue;
         }
         if let Some(popup) = world.get::<crate::AnchoredPopup>(root).copied() {
             let anchor = world.get::<Rect>(popup.anchor).copied().unwrap_or_default();
-            let width = anchor.w.max(240.0).min(viewport.content_width().max(0.0));
+            let placement = world
+                .get::<crate::PopupPlacement>(root)
+                .copied()
+                .unwrap_or_default();
+            let hug = world.get::<Rect>(root).map_or(0.0, |r| r.w);
+            let width = match placement {
+                crate::PopupPlacement::Below => anchor.w.max(240.0),
+                _ if hug > 0.0 => hug,
+                _ => 240.0,
+            }
+            .min(viewport.content_width().max(0.0));
             refine_wrapped_heights(world, root, width, 0.0);
             let wanted = world.get::<Rect>(root).copied().unwrap_or_default();
-            let r = crate::popup_rect(anchor, viewport, width, wanted.h.min(popup.max_height));
+            let height = wanted.h.min(popup.max_height);
+            let r = match placement {
+                crate::PopupPlacement::Below => crate::popup_rect(anchor, viewport, width, height),
+                crate::PopupPlacement::At([x, y]) => {
+                    let point = Rect {
+                        x,
+                        y,
+                        w: 0.0,
+                        h: 0.0,
+                    };
+                    crate::popup_rect(point, viewport, width, height)
+                }
+                crate::PopupPlacement::Beside => {
+                    crate::popup::beside_rect(anchor, viewport, width, height)
+                }
+            };
             // Keep Hug intrinsic content for Scroll while constraining its viewport.
             world.insert(root, r);
             let original = *world.get::<Layout>(root).unwrap();
@@ -1487,6 +1513,19 @@ fn hug_lines(world: &World, entity: Entity, max_width: f32) -> Option<(usize, f3
     let style = style_for(world, entity);
     let measured = text_engine(world).measure(&text, &style, &spans, max_width);
     Some((measured.line_count.max(1), measured.width))
+}
+
+fn popup_depth(world: &World, root: Entity) -> usize {
+    let mut depth = 0;
+    let mut current = Some(root);
+    while let Some(e) = current.filter(|e| world.has::<crate::AnchoredPopup>(*e)) {
+        depth += 1;
+        if depth >= 64 {
+            break;
+        }
+        current = crate::popup::parent_popup(world, e);
+    }
+    depth
 }
 
 /// Walk up [`Parent`] links to the nearest ancestor (or self) that has `T`.

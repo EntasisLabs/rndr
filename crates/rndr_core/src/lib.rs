@@ -292,7 +292,9 @@ pub use pointers::{
 };
 #[cfg(feature = "pool")]
 pub use pool::thread_pool;
-pub use popup::{close_popup, open_popup, popup_rect, AnchoredPopup, FocusOwner, PassivePopup};
+pub use popup::{
+    close_popup, open_popup, popup_rect, AnchoredPopup, FocusOwner, PassivePopup, PopupPlacement,
+};
 pub use prompt::{Placeholder, Prompt, PromptHistory};
 pub use runtime::{
     after, cancel_debounce, debounce, debounce_local, every, frame_wake, run_until_parked, sleep,
