@@ -140,6 +140,10 @@ pub use rndr_term::*;
 #[cfg(feature = "browser")]
 pub use rndr_browser::*;
 
+/// Video and audio playback. Enable the `media` feature.
+#[cfg(feature = "media")]
+pub use rndr_media as media;
+
 #[cfg(test)]
 mod tests {
     #[cfg(feature = "ui")]

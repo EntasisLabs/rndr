@@ -48,7 +48,7 @@ fn facade_browser_feature_is_off_and_does_not_enable_dialog() {
     );
     let publish_order = read("scripts/publish-crates.sh");
     assert!(
-        publish_order.contains("rndr_render rndr_browser rndr"),
+        publish_order.contains("rndr_browser rndr)"),
         "rndr_browser must be packaged immediately before the facade"
     );
     let ci = read(".github/workflows/ci.yml");

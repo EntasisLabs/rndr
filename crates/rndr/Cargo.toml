@@ -39,6 +39,9 @@ svg = ["rndr_render/svg"]
 # Embedded browser. Off by default, so a desktop build does not link a webview.
 # Enabling it does not enable `dialog`.
 browser = ["dep:rndr_browser"]
+# Video and audio playback through rndr::media. Off by default. Links
+# GStreamer on Linux and AVFoundation on macOS.
+media = ["dep:rndr_media"]
 # Spawn a feed producer on a tokio runtime the application already started.
 tokio = ["rndr_core/tokio"]
 
@@ -54,6 +57,7 @@ rndr_std = { workspace = true }
 rndr_render = { path = "../rndr_render", version = "0.4.0", default-features = false }
 rndr_term = { workspace = true, optional = true }
 rndr_browser = { workspace = true, optional = true }
+rndr_media = { workspace = true, optional = true }
 
 [dev-dependencies]
 # Operating gallery only: default applications do not adopt rndr_ui.

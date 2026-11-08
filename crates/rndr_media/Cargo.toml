@@ -1,0 +1,37 @@
+[package]
+name = "rndr_media"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
+description = "Native video and audio playback for rndr: GStreamer on Linux, AVFoundation on macOS"
+documentation = "https://docs.rs/rndr_media"
+readme = "README.md"
+keywords = ["gui", "video", "audio", "media", "player"]
+categories = ["multimedia", "gui"]
+
+[dependencies]
+rndr_core.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+gst = { package = "gstreamer", version = "0.25" }
+gst-app = { package = "gstreamer-app", version = "0.25" }
+gst-video = { package = "gstreamer-video", version = "0.25" }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSURL", "NSDictionary", "NSValue", "NSArray", "NSAutoreleasePool", "NSError"] }
+objc2-av-foundation = { version = "0.3", default-features = false, features = ["std", "AVPlayer", "AVPlayerItem", "AVPlayerItemOutput", "AVAsset", "AVTime", "objc2-core-media", "objc2-core-video", "objc2-core-foundation"] }
+objc2-core-media = { version = "0.3", default-features = false, features = ["std", "CMTime", "CMTimeRange", "CMSync"] }
+objc2-core-video = { version = "0.3", default-features = false, features = ["std", "CVPixelBuffer", "CVImageBuffer", "CVBuffer", "CVReturn", "CVBase"] }
+objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFString", "CFDictionary"] }
+objc2-quartz-core = { version = "0.3", default-features = false, features = ["std", "CABase", "objc2-core-foundation"] }
+dispatch2 = { version = "0.3", default-features = false, features = ["std"] }
+
+[dev-dependencies]
+rndr_render = { path = "../rndr_render", version = "0.4.0" }
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu", "aarch64-apple-darwin"]
