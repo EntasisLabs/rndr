@@ -58,7 +58,8 @@ use std::cell::RefCell;
 pub use affine::{bucket_scale, size_bucket, zoom_bucket, Affine, OUTLINE_PX};
 pub use display::{
     Canvas, CanvasPainter, CanvasRegistry, ClipShape, Effect, EffectSlotOp, FillStyle, GlyphOp,
-    GlyphSprite, ImageOp, Op, PathOp, Placed, Scene, SceneLayer, StrokeStyle, TextSource,
+    GlyphSprite, ImageOp, Op, PathOp, Placed, Scene, SceneLayer, StrokeStyle, SurfaceOp,
+    TextSource,
 };
 pub use font::{atlas_r8, glyph_uv, solid_uv, ATLAS_H, ATLAS_W};
 pub use latin::LatinFace;
@@ -950,6 +951,8 @@ fn walk_entity(
             );
         }
     }
+    // Above the entity's own fill, which shows as letterbox bars.
+    record_surface(world, entity, quads, draws);
     record_geometry(world, entity, quads.borrow().len() as u32, draws, false);
     for child in rndr_core::paint_order(world, entity) {
         walk(world, child, quads, draws, scale, solid, theme);
@@ -1256,6 +1259,41 @@ fn record_image(
             uv: view.uv,
             radius: view.radius,
             opacity: 1.0,
+            clip,
+        }),
+    });
+}
+
+fn record_surface(
+    world: &World,
+    entity: rndr_core::Entity,
+    quads: &RefCell<Vec<Quad>>,
+    draws: &RefCell<Vec<Placed>>,
+) {
+    let Some(view) = world.get::<rndr_core::SurfaceView>(entity) else {
+        return;
+    };
+    let Some(rect) = world.get::<Rect>(entity).copied() else {
+        return;
+    };
+    let Some((dest, uv)) = view.placement(rect) else {
+        return;
+    };
+    let clip = world.get::<Clip>(entity).copied().map(|clip| Rect {
+        x: clip.x,
+        y: clip.y,
+        w: clip.w,
+        h: clip.h,
+    });
+    let z = quads.borrow().len() as u32;
+    draws.borrow_mut().push(Placed {
+        z,
+        op: Op::Surface(SurfaceOp {
+            surface: view.surface.clone(),
+            dest,
+            uv,
+            mirrored: view.mirrored,
+            radius: view.radius,
             clip,
         }),
     });

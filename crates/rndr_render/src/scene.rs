@@ -431,6 +431,9 @@ pub(crate) struct SceneGpu {
     meshes: MeshCache,
     images: HashMap<u64, GpuImage>,
     image_bytes: u64,
+    /// Frame surface textures by [`rndr_core::FrameSurface::key`].
+    surfaces: HashMap<u64, crate::surface::GpuSurface>,
+    nv12: Option<crate::surface::Nv12Pipe>,
     pool: Vec<PoolSlot>,
     frame: u64,
     uploaded: Vec<u64>,
@@ -635,6 +638,8 @@ impl SceneGpu {
             meshes: MeshCache::new(16_384),
             images: HashMap::new(),
             image_bytes: 0,
+            surfaces: HashMap::new(),
+            nv12: None,
             pool: Vec::new(),
             frame: 0,
             uploaded: Vec::new(),
@@ -669,6 +674,7 @@ impl SceneGpu {
         for (id, image) in images {
             self.ensure_image(*id, image, budget);
         }
+        self.sync_surfaces(encoder, frame);
         let viewport = viewport_bytes([width.max(1) as f32, height.max(1) as f32], [0.0, 0.0]);
         self.queue.write_buffer(&self.uniform, 0, &viewport);
         self.queue.write_buffer(&self.viewport_frame, 0, &viewport);
@@ -937,6 +943,12 @@ impl SceneGpu {
                     );
                     index += 1;
                 }
+                Op::Surface(op) => {
+                    if let Some(sprite) = self.surface_sprite(op, current, scale) {
+                        out.push(Drawn::Sprite(sprite));
+                    }
+                    index += 1;
+                }
                 Op::EffectSlot(slot) => {
                     if let Some(effect) = effect_draw(slot, scale, width, height) {
                         out.push(Drawn::Effect(effect));
@@ -1103,6 +1115,87 @@ impl SceneGpu {
             });
         }
         out
+    }
+
+    /// Upload each drawn surface's newest frame, and drop textures of
+    /// surfaces not drawn for a while.
+    fn sync_surfaces(&mut self, encoder: &mut wgpu::CommandEncoder, frame: &Frame) {
+        const KEEP_FRAMES: u64 = 120;
+        let srgb = self.format.is_srgb();
+        let sampler = self.image_sampler.clone();
+        for placed in &frame.draws {
+            let Op::Surface(op) = &placed.op else {
+                continue;
+            };
+            let key = op.surface.key();
+            let mut gpu = self.surfaces.remove(&key).unwrap_or_default();
+            gpu.stamp = self.frame;
+            if let Some((version, latest)) = op.surface.latest_after(gpu.version) {
+                gpu.version = version;
+                let view = latest.and_then(|latest| {
+                    crate::surface::upload(
+                        &self.device,
+                        &self.queue,
+                        encoder,
+                        &mut self.nv12,
+                        &mut gpu,
+                        &latest,
+                        crate::surface::Target {
+                            srgb,
+                            max_dim: self.max_dim,
+                        },
+                    )
+                });
+                gpu.bind = view.map(|view| self.sprite_bind(&view, &sampler));
+            }
+            self.surfaces.insert(key, gpu);
+        }
+        let now = self.frame;
+        self.surfaces
+            .retain(|_, gpu| now.wrapping_sub(gpu.stamp) < KEEP_FRAMES);
+    }
+
+    fn surface_sprite(
+        &self,
+        op: &rndr_paint::SurfaceOp,
+        affine: Affine,
+        scale: f32,
+    ) -> Option<SpriteDraw> {
+        let bind = self.surfaces.get(&op.surface.key())?.bind.clone()?;
+        let mut uv = op.uv;
+        if op.mirrored {
+            uv.swap(0, 2);
+        }
+        let scissor = match op.clip {
+            Some(rect) => [
+                rect.x * scale,
+                rect.y * scale,
+                rect.w * scale,
+                rect.h * scale,
+            ],
+            None => NO_SCISSOR,
+        };
+        let mut bytes = Vec::new();
+        push_quad(
+            &mut bytes,
+            affine,
+            scale,
+            affine.uniform_scale() * scale,
+            op.dest.x,
+            op.dest.y,
+            0.0,
+            0.0,
+            op.dest.w,
+            op.dest.h,
+            uv,
+            [1.0, 1.0, 1.0, 1.0],
+            op.radius,
+            op.dest.w,
+            op.dest.h,
+            0.0,
+            scissor,
+        );
+        Some(SpriteDraw { bytes, bind })
     }
 
     fn glyph_sprites(

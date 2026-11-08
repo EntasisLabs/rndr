@@ -45,6 +45,26 @@ pub enum Op {
     Quads(Vec<Quad>),
     /// Pixels an app GPU effect draws here, from a [`rndr_core::EffectSlot`].
     EffectSlot(EffectSlotOp),
+    /// The latest frame of a [`rndr_core::FrameSurface`], from a
+    /// [`rndr_core::SurfaceView`].
+    Surface(SurfaceOp),
+}
+
+/// A [`rndr_core::SurfaceView`] after layout, in logical points.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SurfaceOp {
+    /// Frames to draw. The renderer uploads a frame once per new version.
+    pub surface: rndr_core::FrameSurface,
+    /// Where the frame lands, after [`rndr_core::SurfaceFit`].
+    pub dest: Rect,
+    /// Crop as `(u0, v0, u1, v1)` in the 0–1 range of the frame.
+    pub uv: [f32; 4],
+    /// Flip left to right.
+    pub mirrored: bool,
+    /// Corner radius in local units. Zero is square.
+    pub radius: f32,
+    /// Scissor from the entity clip. `None` draws the whole destination.
+    pub clip: Option<Rect>,
 }
 
 /// A [`rndr_core::EffectSlot`] after layout, in logical points.

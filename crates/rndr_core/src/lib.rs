@@ -99,6 +99,7 @@ pub mod file_drop;
 mod flex;
 mod focus;
 mod font;
+mod frame_surface;
 mod fs;
 mod grid;
 mod hierarchy;
@@ -216,6 +217,10 @@ pub use font::{
     text_face, BitmapFont, ColorAtlas, Font, FontAtlas, FontAxis, FontFeature, GlyphBox,
     PlacedGlyph, SelectionBox, Spans, TextFace, TextHighlight, TextLayout, TextLine, TextMeasure,
     TextSpan,
+};
+pub use frame_surface::{
+    FrameError, FrameSurface, PixelFormat, SurfaceFit, SurfaceStats, SurfaceView, VideoFrame,
+    YuvMatrix, YuvRange,
 };
 pub use fs::{
     apply_dirty_marks, apply_fs_edit, apply_fs_load, apply_fs_save, spawn_fs_node, DirEntry, Dirty,

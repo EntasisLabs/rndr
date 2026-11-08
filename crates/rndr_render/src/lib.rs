@@ -83,6 +83,7 @@ mod platform;
 mod scene;
 mod shell;
 mod startup;
+mod surface;
 mod tablet;
 #[cfg(feature = "parley")]
 mod text;

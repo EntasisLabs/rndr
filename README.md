@@ -288,6 +288,17 @@ native-platform acceptance are different things:
   scales the laid-out box through `Transform`. In a headless CPU probe
   (`cargo test -p rndr_paint --release --test live_cost -- --ignored --nocapture`)
   a live-only frame cost about a sixth of a full frame.
+- **Video frames:** a `FrameSurface` is a cloneable latest-wins frame slot any
+  thread can `push` a `VideoFrame` into: RGBA, BGRA or NV12 with BT.601/BT.709
+  matrix and video/full range, tightly packed. Malformed frames are refused with a
+  `FrameError` and the old frame stays. A `SurfaceView` draws the latest frame in
+  its entity's box, contained, covered or stretched, optionally mirrored and with
+  a corner radius, in paint order and inside clips and faded or transformed groups.
+  A push wakes visible windows that draw the surface the same way `Live` values do,
+  so a new frame repaints without layout. The renderer uploads each new frame once
+  and converts NV12 on the GPU; frames are copied from CPU memory, not imported
+  zero-copy. `stats()` counts frames pushed and shown.
+  `cargo run -p rndr_render --example frame_surface` animates frames from a thread.
 - **Text features and selectable labels:** `TextStyle` and `TextSpan` take OpenType
   `FontFeature`s (`FontFeature::on(b"tnum")`) and variable-font `FontAxis` values
   (`FontAxis::new(b"wght", 550.0)`), applied by the Parley shaper; a span's settings
