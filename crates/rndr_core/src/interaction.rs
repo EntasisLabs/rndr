@@ -500,6 +500,7 @@ impl Plugin for GenericInteraction {
         if !app.world().has_resource::<Focus>() {
             app.world_mut().insert_resource(Focus::default());
         }
+        app.add_system_front(Schedule::Input, crate::secondary::apply_secondary);
     }
 }
 

@@ -1398,6 +1398,7 @@ fn map_named(key: &NamedKey) -> Option<CoreNamed> {
         NamedKey::F22 => CoreNamed::F(22),
         NamedKey::F23 => CoreNamed::F(23),
         NamedKey::F24 => CoreNamed::F(24),
+        NamedKey::ContextMenu => CoreNamed::ContextMenu,
         _ => return None,
     })
 }

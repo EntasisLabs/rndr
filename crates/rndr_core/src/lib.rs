@@ -128,6 +128,7 @@ mod pool;
 mod prompt;
 mod runtime;
 mod scrollbar;
+mod secondary;
 mod selectable;
 /// Owned revision-fenced asynchronous source extension protocols.
 pub mod source_extensions;
@@ -298,6 +299,7 @@ pub use runtime::{
     spawn, spawn_detached, spawn_local, Executor, InlineExecutor, Job, NopWake, Sleep, TaskHandle,
     TimerHandle, Wake,
 };
+pub use secondary::{ContextTarget, SecondaryPress};
 pub use shell::Shell;
 pub use sim::Sim;
 pub use slot::{effects_animating, EffectSlot, SurfaceSlot};
