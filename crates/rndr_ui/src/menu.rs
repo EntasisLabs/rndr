@@ -326,8 +326,21 @@ fn build(
                 separator(world, gap)?;
             }
             MenuEntry::Group(label) => {
-                let t = hug(world, menu, label, Typography::Secondary)?;
-                world.get_mut::<Layout>(t).unwrap().padding = 6.0;
+                let heading = world.spawn((Layout {
+                    width: Size::Fill,
+                    ..Layout::row()
+                },));
+                world.insert(
+                    heading,
+                    Padding {
+                        top: 6.0,
+                        right: 10.0,
+                        bottom: 2.0,
+                        left: 28.0,
+                    },
+                );
+                set_parent(world, heading, menu);
+                hug(world, heading, label, Typography::Secondary)?;
             }
             MenuEntry::Submenu { label, entries } => {
                 let r = row(world, menu, label, true)?;
@@ -358,6 +371,22 @@ fn row(world: &mut World, menu: Entity, label: &str, enabled: bool) -> Result<En
         ..Layout::row()
     },));
     set_parent(world, r, menu);
+    world.insert(
+        r,
+        Align {
+            items: Items::Center,
+            ..Align::default()
+        },
+    );
+    world.insert(
+        r,
+        Padding {
+            top: 6.0,
+            right: 10.0,
+            bottom: 6.0,
+            left: 6.0,
+        },
+    );
     world.insert(r, Focusable);
     world.insert(r, TabStop(false));
     world.insert(
@@ -400,6 +429,9 @@ fn hug(
 ) -> Result<Entity, UiError> {
     let t = text(world, parent, value, role)?;
     world.get_mut::<Layout>(t).unwrap().width = Size::Hug;
+    if let Some(label) = world.get_mut::<Label>(t) {
+        label.overflow = TextOverflow::Visible;
+    }
     Ok(t)
 }
 
