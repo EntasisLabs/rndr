@@ -146,7 +146,7 @@ jobs:
             --exclude desktop --exclude source-session \
             --exclude expand --exclude idle --exclude overlay --exclude palette \
             --exclude terminal --exclude stream --exclude two-windows \
-            --exclude pen-probe --exclude canvas-scene --exclude create-view
+            --exclude pen-probe --exclude canvas-scene --exclude create-view --exclude web-hello
           paint_crate=(target/package/rndr_paint-*.crate)
           render_crate=(target/package/rndr_render-*.crate)
           ui_crate=(target/package/rndr_ui-*.crate)
@@ -165,4 +165,4 @@ jobs:
           test "$(printf '%s\n' "$render_files" | grep -c '\.snap$')" = 2
           printf '%s\n' "$paint_files" | grep -q '/Inter-LICENSE.txt$'
           printf '%s\n' "$paint_files" | grep -q '/latin_atlas.bin$'
-          RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features --locked --exclude expand --exclude idle --exclude overlay --exclude palette --exclude terminal --exclude stream --exclude two-windows --exclude pen-probe --exclude canvas-scene --exclude create-view
+          RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features --locked --exclude expand --exclude idle --exclude overlay --exclude palette --exclude terminal --exclude stream --exclude two-windows --exclude pen-probe --exclude canvas-scene --exclude create-view --exclude web-hello
