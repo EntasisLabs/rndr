@@ -1,0 +1,20 @@
+[package]
+name = "rndr_liquid_ui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
+description = "Native rendering of Liquid Markdown blocks in rndr markdown views"
+documentation = "https://docs.rs/rndr_liquid_ui"
+readme = "README.md"
+keywords = ["markdown", "gui", "liquid", "components"]
+categories = ["gui", "text-processing"]
+
+[dependencies]
+rndr_core = { workspace = true }
+rndr_paint = { workspace = true }
+rndr_ui = { workspace = true }
+rndr_liquid = { workspace = true }
+rndr_chart = { workspace = true, features = ["liquid"] }
