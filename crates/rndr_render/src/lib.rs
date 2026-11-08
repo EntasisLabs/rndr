@@ -1167,13 +1167,36 @@ fn host_platform() -> Platform {
     {
         Platform::Windows
     }
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    #[cfg(target_arch = "wasm32")]
+    {
+        let agent = web_sys::window()
+            .and_then(|window| window.navigator().user_agent().ok())
+            .unwrap_or_default();
+        browser_platform(&agent)
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_arch = "wasm32")))]
     {
         if std::env::var_os("WAYLAND_DISPLAY").is_some() {
             Platform::Wayland
         } else {
             Platform::X11
         }
+    }
+}
+
+/// A browser's shortcut conventions follow the OS it runs on, so Cmd is the
+/// command key on Apple devices.
+#[cfg(any(target_arch = "wasm32", test))]
+fn browser_platform(user_agent: &str) -> Platform {
+    if ["Macintosh", "Mac OS X", "iPhone", "iPad"]
+        .iter()
+        .any(|apple| user_agent.contains(apple))
+    {
+        Platform::Mac
+    } else if user_agent.contains("Windows") {
+        Platform::Windows
+    } else {
+        Platform::X11
     }
 }
 
@@ -2550,6 +2573,21 @@ impl ApplicationHandler for Running {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn browser_platform_follows_the_host_os() {
+        use super::browser_platform;
+        use rndr_core::Platform;
+        let mac = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/131.0 Safari/537.36";
+        let iphone = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15";
+        let windows = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0";
+        let linux = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0";
+        assert_eq!(browser_platform(mac), Platform::Mac);
+        assert_eq!(browser_platform(iphone), Platform::Mac);
+        assert_eq!(browser_platform(windows), Platform::Windows);
+        assert_eq!(browser_platform(linux), Platform::X11);
+        assert_eq!(browser_platform(""), Platform::X11);
+    }
+
     use super::idle_control_flow;
     use std::time::{Duration, Instant};
     use winit::event_loop::{AsyncRequestSerial, ControlFlow};
