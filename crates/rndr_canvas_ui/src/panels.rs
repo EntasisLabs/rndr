@@ -5,7 +5,7 @@
 use crate::editor::{StyleChange, Tool};
 use crate::view::CanvasView;
 use rndr_canvas::SceneIndex;
-use rndr_core::{set_parent, ActionIntent, Entity, Layout, World};
+use rndr_core::{set_parent, ActionIntent, Entity, Layout, SelectedState, World};
 use rndr_ui::controls::{
     Button, ButtonProps, ButtonVariant, ControlHandle, HostIntent, Toolbar, ToolbarContentWidth,
 };
@@ -74,12 +74,11 @@ pub fn mount(world: &mut World, toolbar: Entity, side: Entity, widths: [f32; 2])
 fn signature(view: &CanvasView) -> String {
     let doc = &view.editor.mutation().document;
     format!(
-        "{}|{:?}|{:?}|{}|{}|{}",
+        "{}|{:?}|{:?}|{:?}|{}",
         doc.revision,
         view.editor.tool(),
         view.editor.selection(),
-        view.editor.style.stroke,
-        view.editor.style.fill,
+        view.editor.style,
         view.editor.mutation().can_undo as u8 + 2 * view.editor.mutation().can_redo as u8,
     )
 }
@@ -87,6 +86,9 @@ fn signature(view: &CanvasView) -> String {
 struct Builder<'a> {
     world: &'a mut World,
     panels: &'a mut Panels,
+    /// Accessible-name prefix and suffix around the visible label, so
+    /// repeated labels ("Grey", "Hide") stay distinct out of visual context.
+    context: (String, String),
 }
 
 impl Builder<'_> {
@@ -111,6 +113,10 @@ impl Builder<'_> {
         }
     }
 
+    fn context(&mut self, prefix: &str, suffix: &str) {
+        self.context = (prefix.into(), suffix.into());
+    }
+
     fn heading(&mut self, parent: Entity, value: &str) {
         let _ = rndr_ui::text(self.world, parent, value, Typography::Emphasis);
     }
@@ -126,6 +132,10 @@ impl Builder<'_> {
         let id = self.panels.next;
         self.panels.next += 1;
         let mut props = ButtonProps::new(label, HostIntent::Command(id));
+        let (prefix, suffix) = &self.context;
+        if !prefix.is_empty() || !suffix.is_empty() {
+            props.name = Some(format!("{prefix}{}{suffix}", label.trim()));
+        }
         props.variant = if active {
             ButtonVariant::Primary
         } else {
@@ -134,6 +144,7 @@ impl Builder<'_> {
         props.enabled = enabled;
         if let Ok(handle) = Button::mount(self.world, parent, UiId(id), props) {
             self.world.insert(handle.root, ToolbarContentWidth);
+            self.world.insert(handle.root, SelectedState(active));
             self.panels.handles.push(handle);
             self.panels.actions.insert(id, action);
         }
@@ -181,6 +192,7 @@ pub fn refresh(world: &mut World) {
     let mut b = Builder {
         world,
         panels: &mut panels,
+        context: Default::default(),
     };
     let tools = b.row(toolbar);
     for t in Tool::ALL {
@@ -209,6 +221,7 @@ pub fn refresh(world: &mut World) {
     b.button(order, "Backward", PanelAction::Backward, false, has);
     for (title, fill) in [("Stroke", false), ("Fill", true)] {
         b.heading(side, title);
+        b.context(&format!("{title} color "), "");
         let current = if fill { &style.fill } else { &style.stroke };
         let mut row = b.row(side);
         if fill {
@@ -234,6 +247,7 @@ pub fn refresh(world: &mut World) {
         }
     }
     b.heading(side, "Width");
+    b.context("Stroke width ", "");
     let sizes = b.row(side);
     for (name, width) in [
         ("Thin", 1.0),
@@ -251,6 +265,7 @@ pub fn refresh(world: &mut World) {
         );
     }
     b.heading(side, "Text size");
+    b.context("Text size ", "");
     let fonts = b.row(side);
     for size in [16.0, 24.0, 36.0, 64.0] {
         let active = (style.font_size - size).abs() < 1e-9;
@@ -269,13 +284,16 @@ pub fn refresh(world: &mut World) {
         let line = b.row(side);
         let indent = "  ".repeat(row.depth);
         let selected = selection.contains(&node.id);
+        let label = capitalized(&node.label());
+        b.context("Layer ", "");
         b.button(
             line,
-            &format!("{indent}{}", capitalized(&node.label())),
+            &format!("{indent}{label}"),
             PanelAction::Select(node.id.clone()),
             selected,
             index.editable(node) || !node.visible || node.locked,
         );
+        b.context("", &format!(" {label}"));
         b.button(
             line,
             if node.visible { "Hide" } else { "Show" },
