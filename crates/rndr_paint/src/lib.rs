@@ -69,10 +69,9 @@ pub use tess::{tessellate_fill, tessellate_stroke, Mesh, MeshCache};
 pub use zoom::{ZoomCamera, ZOOM_MAX_STEP, ZOOM_MIN_STEP};
 
 use rndr_core::{
-    children_of, layered_roots, style_for, style_of, text_engine, theme_of, App, Caret, Clip,
-    Color, DirtyMark, EditField, Field, Focus, Label, MonoCache, MonoCursorShape, MonoGrid, Parent,
-    Radius, Rect, Spans, TextLayout, TextSelection, Theme, Viewport, World, CELL_H, TEXT_ORIGIN_X,
-    TEXT_ORIGIN_Y,
+    layered_roots, style_for, style_of, text_engine, theme_of, App, Caret, Clip, Color, DirtyMark,
+    EditField, Field, Focus, Label, MonoCache, MonoCursorShape, MonoGrid, Parent, Radius, Rect,
+    Spans, TextLayout, TextSelection, Theme, Viewport, World, CELL_H, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
 
 /// One instanced quad in logical points.
@@ -717,7 +716,7 @@ fn walk_entity(
 ) {
     if world.has::<rndr_core::SurfaceSlot>(entity) {
         record_canvas(world, entity, quads, draws);
-        for child in children_of(world, entity) {
+        for child in rndr_core::paint_order(world, entity) {
             walk(world, child, quads, draws, scale, solid, theme);
         }
         return;
@@ -725,7 +724,7 @@ fn walk_entity(
     record_image(world, entity, quads, draws);
     if world.has::<MonoGrid>(entity) {
         paint_mono(world, entity, &mut quads.borrow_mut(), scale, solid, theme);
-        for child in children_of(world, entity) {
+        for child in rndr_core::paint_order(world, entity) {
             walk(world, child, quads, draws, scale, solid, theme);
         }
         return;

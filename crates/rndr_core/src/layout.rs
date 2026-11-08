@@ -726,6 +726,87 @@ fn place_filled(
     place(world, child, x, y, w, h, clip)
 }
 
+/// A stack child's box before constraints: Fill takes `fill_main` on the stack
+/// axis and the inner size across it; other sizes keep the refined rect.
+fn stack_box(
+    world: &World,
+    axis: Axis,
+    child: Entity,
+    fill_main: f32,
+    inner: [f32; 2],
+) -> (f32, f32) {
+    let layout = world.get::<Layout>(child).copied();
+    let rect = world.get::<Rect>(child).copied().unwrap_or_default();
+    let w_fill = layout.is_some_and(|l| l.width == Size::Fill);
+    let h_fill = layout.is_some_and(|l| l.height == Size::Fill);
+    match axis {
+        Axis::Column => (
+            if w_fill { inner[0] } else { rect.w },
+            if h_fill { fill_main } else { rect.h },
+        ),
+        Axis::Row => (
+            if w_fill { fill_main } else { rect.w },
+            if h_fill { inner[1] } else { rect.h },
+        ),
+    }
+}
+
+/// Stack-axis size of each Fill child (`None` for others). `leftover` is split
+/// evenly; a child whose [`flex::MaxSize`] caps it below its share keeps the
+/// capped size and the rest is shared again among the others.
+fn resolve_fills(
+    world: &World,
+    axis: Axis,
+    kids: &[Entity],
+    leftover: f32,
+    inner: [f32; 2],
+) -> Vec<Option<f32>> {
+    let is_fill = |c: &Entity| {
+        world.get::<Layout>(*c).is_some_and(|l| match axis {
+            Axis::Column => l.height == Size::Fill,
+            Axis::Row => l.width == Size::Fill,
+        })
+    };
+    let mut out: Vec<Option<f32>> = kids.iter().map(|c| is_fill(c).then_some(0.0)).collect();
+    let mut frozen = vec![false; kids.len()];
+    let mut remaining = leftover;
+    loop {
+        let open = out
+            .iter()
+            .zip(&frozen)
+            .filter(|(o, f)| o.is_some() && !**f)
+            .count();
+        if open == 0 {
+            break;
+        }
+        let share = remaining.max(0.0) / open as f32;
+        let mut changed = false;
+        for (i, child) in kids.iter().enumerate() {
+            if out[i].is_none() || frozen[i] {
+                continue;
+            }
+            let (w, h) = stack_box(world, axis, *child, share, inner);
+            let (w, h) = child_size(world, *child, w, h);
+            let main = match axis {
+                Axis::Column => h,
+                Axis::Row => w,
+            };
+            if main < share - 0.01 {
+                out[i] = Some(main);
+                frozen[i] = true;
+                remaining -= main;
+                changed = true;
+            } else {
+                out[i] = Some(share);
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    out
+}
+
 /// Child size inside a stack before placement: Fill resolved, then constrained.
 fn child_size(world: &World, child: Entity, w: f32, h: f32) -> (f32, f32) {
     match world.get::<Layout>(child).copied() {
@@ -767,21 +848,32 @@ fn place(
     let kids = shown_children(world, entity);
     if kids.is_empty() {
         if let Some((tw, th)) = label_hug_at(world, entity, &layout, rect.w) {
-            if matches!(layout.width, Size::Hug) {
-                let w = tw.max(layout.min_width);
-                if (w - avail_w).abs() > 0.01 {
-                    rect.w = w;
-                    stack_w = w;
-                    (rect.x, rect.w) = snap_span(rect.x, rect.w, scale);
-                }
+            let hug_w = matches!(layout.width, Size::Hug);
+            let hug_h = matches!(layout.height, Size::Hug);
+            let (w, h) = flex::constrain(
+                world,
+                entity,
+                &layout,
+                if hug_w {
+                    tw.max(layout.min_width)
+                } else {
+                    rect.w
+                },
+                if hug_h {
+                    th.max(layout.min_height)
+                } else {
+                    rect.h
+                },
+            );
+            if hug_w && (w - avail_w).abs() > 0.01 {
+                rect.w = w;
+                stack_w = w;
+                (rect.x, rect.w) = snap_span(rect.x, rect.w, scale);
             }
-            if matches!(layout.height, Size::Hug) {
-                let h = th.max(layout.min_height);
-                if (h - avail_h).abs() > 0.01 {
-                    rect.h = h;
-                    stack_h = h;
-                    (rect.y, rect.h) = snap_span(rect.y, rect.h, scale);
-                }
+            if hug_h && (h - avail_h).abs() > 0.01 {
+                rect.h = h;
+                stack_h = h;
+                (rect.y, rect.h) = snap_span(rect.y, rect.h, scale);
             }
         }
     }
@@ -896,13 +988,10 @@ fn place_stack(
         Axis::Column => (inner_h - fixed).max(0.0),
         Axis::Row => (inner_w - fixed).max(0.0),
     };
-    let fill_share = if fill_count > 0 {
-        leftover / fill_count as f32
-    } else {
-        0.0
-    };
-    let (lead, extra) = if fill_count == 0 {
-        flex::distribute(justify, leftover, kids.len())
+    let fills = resolve_fills(world, layout.axis, kids, leftover, [inner_w, inner_h]);
+    let unused = leftover - fills.iter().flatten().sum::<f32>();
+    let (lead, extra) = if fill_count == 0 || unused > 0.01 {
+        flex::distribute(justify, unused.max(0.0), kids.len())
     } else {
         (0.0, 0.0)
     };
@@ -922,32 +1011,16 @@ fn place_stack(
         }
     }
     let mut main_delta = 0.0f32;
-    for &child in kids {
+    for (&child, fill_main) in kids.iter().zip(&fills) {
         let child_layout = world.get::<Layout>(child).copied();
-        let child_rect = world.get::<Rect>(child).copied().unwrap_or_default();
         let items = flex::self_items(world, entity, child);
-        let (w, h) = match layout.axis {
-            Axis::Column => (
-                match child_layout.map(|l| l.width) {
-                    Some(Size::Fill) => inner_w,
-                    _ => child_rect.w,
-                },
-                match child_layout.map(|l| l.height) {
-                    Some(Size::Fill) => fill_share,
-                    _ => child_rect.h,
-                },
-            ),
-            Axis::Row => (
-                match child_layout.map(|l| l.width) {
-                    Some(Size::Fill) => fill_share,
-                    _ => child_rect.w,
-                },
-                match child_layout.map(|l| l.height) {
-                    Some(Size::Fill) => inner_h,
-                    _ => child_rect.h,
-                },
-            ),
-        };
+        let (w, h) = stack_box(
+            world,
+            layout.axis,
+            child,
+            fill_main.unwrap_or(0.0),
+            [inner_w, inner_h],
+        );
         let (mut cw, mut ch) = child_size(world, child, w, h);
         let mut fill = (false, false);
         if items == Some(flex::Items::Stretch) {
@@ -1073,7 +1146,7 @@ fn label_hug(world: &World, entity: Entity, layout: &Layout) -> Option<(f32, f32
         Size::Px(px) => px,
         Size::Fill if prev_w > 0.0 => prev_w,
         Size::Fill => return label_hug_width(world, entity, layout, f32::INFINITY),
-        Size::Hug => f32::INFINITY,
+        Size::Hug => hug_wrap_width(world, entity, layout),
     };
     label_hug_width(world, entity, layout, field_w)
 }
@@ -1087,10 +1160,17 @@ fn label_hug_at(
 ) -> Option<(f32, f32)> {
     let wrap_w = match layout.width {
         Size::Px(px) => px,
-        Size::Hug => f32::INFINITY,
+        Size::Hug => hug_wrap_width(world, entity, layout),
         Size::Fill => field_w,
     };
     label_hug_width(world, entity, layout, wrap_w)
+}
+
+/// Wrap width for a Hug-width label: its [`flex::MaxSize`] width, else unbounded.
+fn hug_wrap_width(world: &World, entity: Entity, layout: &Layout) -> f32 {
+    world
+        .get::<flex::MaxSize>(entity)
+        .map_or(f32::INFINITY, |max| max.width.max(layout.min_width))
 }
 
 fn label_hug_width(

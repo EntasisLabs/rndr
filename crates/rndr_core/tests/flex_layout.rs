@@ -1,7 +1,7 @@
 use rndr_core::{
     hit_test, layout_propagate, paint_order, set_parent, Absolute, Align, AlignSelf, AspectRatio,
-    Axis, Entity, Items, Justify, Layout, MaxSize, Padding, Rect, Scroll, Size, Viewport, World,
-    Wrap,
+    Axis, Entity, Items, Justify, Label, Layout, MaxSize, Padding, Rect, Scroll, Size, Viewport,
+    World, Wrap,
 };
 
 fn boxed(w: Size, h: Size, axis: Axis) -> Layout {
@@ -306,4 +306,64 @@ fn absolute_child_scrolls_with_content() {
     layout_propagate(&mut world);
     assert_eq!(rect(&world, marker)[1], 20.0);
     assert_eq!(world.get::<Scroll>(port).unwrap().content[1], 300.0);
+}
+
+#[test]
+fn capped_fill_leaves_space_for_justify() {
+    let mut world = world();
+    let row = world.spawn(boxed(Size::Px(200.0), Size::Px(20.0), Axis::Row));
+    world.insert(
+        row,
+        Align {
+            justify: Justify::End,
+            ..Align::default()
+        },
+    );
+    let capped = child(
+        &mut world,
+        row,
+        boxed(Size::Fill, Size::Px(10.0), Axis::Column),
+    );
+    world.insert(capped, MaxSize::width(50.0));
+    layout_propagate(&mut world);
+    assert_eq!(rect(&world, capped), [150.0, 0.0, 50.0, 10.0]);
+
+    let free = child(
+        &mut world,
+        row,
+        boxed(Size::Fill, Size::Px(10.0), Axis::Column),
+    );
+    layout_propagate(&mut world);
+    assert_eq!(rect(&world, capped), [0.0, 0.0, 50.0, 10.0]);
+    assert_eq!(rect(&world, free), [50.0, 0.0, 150.0, 10.0]);
+}
+
+#[test]
+fn hug_labels_keep_max_size_and_aspect_ratio() {
+    let mut world = world();
+    let row = world.spawn(boxed(Size::Px(300.0), Size::Hug, Axis::Row));
+    world.insert(row, Wrap { line_gap: 0.0 });
+    let label = world.spawn((
+        boxed(Size::Hug, Size::Hug, Axis::Column),
+        Label::new("a label far wider than forty points"),
+        MaxSize::width(40.0),
+    ));
+    set_parent(&mut world, label, row);
+    let next = child(&mut world, row, fixed(10.0, 10.0));
+    layout_propagate(&mut world);
+    let r = rect(&world, label);
+    assert_eq!(r[2], 40.0);
+    assert!(r[3] > 36.0, "capped label wraps onto more lines: {r:?}");
+    assert_eq!(rect(&world, next)[0], 40.0);
+    assert_eq!(rect(&world, row)[3], r[3]);
+
+    let square = world.spawn((
+        boxed(Size::Hug, Size::Hug, Axis::Column),
+        Label::new("hello"),
+        AspectRatio(1.0),
+    ));
+    layout_propagate(&mut world);
+    let s = rect(&world, square);
+    assert!(s[2] > 0.0);
+    assert_eq!(s[2], s[3]);
 }
