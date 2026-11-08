@@ -259,7 +259,7 @@ native-platform acceptance are different things:
   `LiveScale`, `LiveFill` and `LiveRect` bind it to an entity's `Opacity`,
   `Transform` or fill, as is or through a motion `Spring`. A change wakes each
   visible window that draws the handle once until its next frame; equal values and
-  hidden windows do not wake. When a live value is the only reason for a frame the
+  hidden, minimized or fully covered windows do not wake. When a live value is the only reason for a frame the
   runner calls `rndr_paint::frame_live`, which skips Input, Update, PostUpdate and
   Layout, so text does not rewrap and siblings do not move. `LiveRect` moves and
   scales the laid-out box through `Transform`. In a headless CPU probe

@@ -103,13 +103,15 @@ impl<T: LiveValue> Live<T> {
 struct Hub {
     wake: Mutex<Arc<dyn Wake>>,
     visible: AtomicBool,
+    /// The OS reports the window minimized or fully covered.
+    occluded: AtomicBool,
     dirty: AtomicBool,
 }
 
 impl Hub {
     fn touch(&self) {
         let was = self.dirty.swap(true, Ordering::AcqRel);
-        if !was && self.visible.load(Ordering::Acquire) {
+        if !was && self.visible.load(Ordering::Acquire) && !self.occluded.load(Ordering::Acquire) {
             lock(&self.wake).wake();
         }
     }
@@ -124,6 +126,7 @@ fn hub(world: &mut World) -> Arc<Hub> {
     let hub = Arc::new(Hub {
         wake: Mutex::new(frame_wake(world)),
         visible: AtomicBool::new(crate::window::is_visible(world)),
+        occluded: AtomicBool::new(false),
         dirty: AtomicBool::new(false),
     });
     world.insert_resource(LiveHub(Arc::clone(&hub)));
@@ -138,11 +141,30 @@ pub fn set_live_wake(world: &mut World, wake: Arc<dyn Wake>) {
     *lock(&hub(world).wake) = wake;
 }
 
-/// A bound handle changed since the last frame and the window is visible.
-pub fn pending(world: &World) -> bool {
+/// Record whether the OS shows the window. While it is minimized or fully
+/// covered, live values do not wake it and [`pending`] stays false; changes
+/// are kept. Returns `true` when this reveals a change not yet drawn, so the
+/// runner should request a frame.
+pub fn set_occluded(world: &mut World, occluded: bool) -> bool {
+    let hub = hub(world);
+    let was = hub.occluded.swap(occluded, Ordering::AcqRel);
+    was && !occluded && hub.dirty.load(Ordering::Acquire)
+}
+
+/// Whether [`set_occluded`] last recorded the window as not shown.
+pub fn occluded(world: &World) -> bool {
     world
         .resource::<LiveHub>()
-        .is_some_and(|hub| hub.0.dirty.load(Ordering::Acquire) && crate::window::is_visible(world))
+        .is_some_and(|hub| hub.0.occluded.load(Ordering::Acquire))
+}
+
+/// A bound handle changed since the last frame and the window is shown.
+pub fn pending(world: &World) -> bool {
+    world.resource::<LiveHub>().is_some_and(|hub| {
+        hub.0.dirty.load(Ordering::Acquire)
+            && !hub.0.occluded.load(Ordering::Acquire)
+            && crate::window::is_visible(world)
+    })
 }
 
 /// Optional smoothing for a binding.

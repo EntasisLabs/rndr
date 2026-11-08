@@ -491,6 +491,8 @@ struct Handler {
     /// Platform input or a non-live wake arrived since the last frame, so
     /// the next frame runs the full update rather than a live-only one.
     full_pending: bool,
+    /// Last `WindowEvent::Occluded` from the OS.
+    os_occluded: bool,
     os_clipboard: clipboard::OsClipboard,
     /// The window was created hidden so the first present is the first frame
     /// the user sees. Cleared after [`Handler::reveal_window`].
@@ -555,6 +557,7 @@ impl Handler {
             key_order: 0,
             press_px: None,
             full_pending: true,
+            os_occluded: false,
             os_clipboard: clipboard::OsClipboard::new(),
             show_after_present: false,
             cursor_cache: None,
@@ -807,9 +810,17 @@ impl Handler {
             }
         }
         // Only Live values changed: skip Input, Update and Layout.
-        let live_only = !std::mem::replace(&mut self.full_pending, false)
+        let live_only = !self.full_pending
             && !self.app.wants_update()
             && rndr_core::live::pending(self.app.world());
+        // Some window managers minimize without an `Occluded` event.
+        if live_only {
+            self.sync_occlusion();
+            if rndr_core::live::occluded(self.app.world()) {
+                return false;
+            }
+        }
+        self.full_pending = false;
         #[cfg(not(feature = "observe"))]
         let painted = if live_only {
             rndr_paint::frame_live(&mut self.app)
@@ -1776,6 +1787,25 @@ impl Handler {
         });
     }
 
+    /// Tell live values whether the OS shows this window, so a minimized or
+    /// covered window is not redrawn for them.
+    fn sync_occlusion(&mut self) {
+        let minimized = self.gpu.as_ref().is_some_and(|gpu| {
+            let size = gpu.shell().inner_size();
+            size.width == 0
+                || size.height == 0
+                || gpu
+                    .shell()
+                    .winit_window()
+                    .and_then(|window| window.is_minimized())
+                    .unwrap_or(false)
+        });
+        let hidden = self.os_occluded || minimized;
+        if rndr_core::live::set_occluded(self.app.world_mut(), hidden) {
+            self.request_redraw();
+        }
+    }
+
     fn drag_window_is_wayland(&self) -> bool {
         let Some(window) = self.gpu.as_ref().and_then(|gpu| gpu.shell().winit_window()) else {
             return self.platform == rndr_core::Platform::Wayland;
@@ -1998,6 +2028,16 @@ impl ApplicationHandler for Handler {
         self.process_access(&event);
         if !matches!(event, WindowEvent::RedrawRequested) {
             self.full_pending = true;
+        }
+        if let WindowEvent::Occluded(occluded) = event {
+            self.os_occluded = occluded;
+        }
+        if matches!(
+            event,
+            WindowEvent::Occluded(_) | WindowEvent::SurfaceResized(_) | WindowEvent::Focused(_)
+        ) || rndr_core::live::occluded(self.app.world())
+        {
+            self.sync_occlusion();
         }
         match event {
             WindowEvent::CloseRequested => {

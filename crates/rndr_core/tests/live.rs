@@ -250,3 +250,22 @@ fn a_spring_binding_follows_and_keeps_frames_coming_until_it_settles() {
     assert!(!live::pending(sim.world()));
     assert!(!sim.app.wants_frame());
 }
+
+#[test]
+fn an_occluded_window_is_not_woken_and_catches_up_when_shown() {
+    let (mut sim, wake) = sim_with_wake();
+    let e = card(sim.world());
+    let fade = Live::new(1.0_f32);
+    sim.world().insert(e, LiveOpacity::new(&fade));
+    sim.update();
+    assert!(!live::set_occluded(sim.world(), true));
+    fade.set(0.25);
+    assert_eq!(wake.count(), 0);
+    assert!(!sim.app.wants_frame());
+    assert!(live::set_occluded(sim.world(), false), "a change waits");
+    assert!(live::pending(sim.world()));
+    sim.app.update_live();
+    assert_eq!(sim.world().get::<Opacity>(e).unwrap().0, 0.25);
+    fade.set(0.5);
+    assert_eq!(wake.count(), 1);
+}
