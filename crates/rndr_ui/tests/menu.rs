@@ -299,3 +299,42 @@ fn opening_a_menu_replaces_the_open_one_and_rejects_bad_entries() {
         UiError::InvalidProps
     );
 }
+
+fn open_below(world: &mut World, button: Entity) {
+    let _ = open_menu(world, button, MenuAt::Below, &entries());
+}
+
+#[test]
+fn a_button_click_opens_a_menu_below_it() {
+    let (mut app, _card, other) = boot();
+    app.world_mut().insert(other, ReleaseActivation);
+    app.world_mut().insert(other, Focusable);
+    app.world_mut().insert(other, ActivationHandler(open_below));
+    let text = app.world_mut().spawn((Layout::row(), Label::new("File")));
+    set_parent(app.world_mut(), text, other);
+    app.update();
+    let at = center(rect(&app, text));
+    // A fast click can press and release inside one native frame.
+    let input = app.world_mut().resource_mut::<Input>().unwrap();
+    input.pointer.position = at;
+    input.pointer.press_at = Some(at);
+    input.pointer.button = PointerButton::Left;
+    input.pointer.pressed = true;
+    input.pointer.released = true;
+    input.pointer.down = false;
+    app.update();
+    let input = app.world_mut().resource_mut::<Input>().unwrap();
+    input.pointer.pressed = false;
+    input.pointer.released = false;
+    app.update();
+    app.update();
+    let f = focus(&app).expect("focus");
+    assert_ne!(f, other, "focus moved into the menu");
+    let root = app.world().get::<Parent>(f).map(|p| p.entity);
+    let popup = root.and_then(|r| app.world().get::<AnchoredPopup>(r).copied());
+    assert!(popup.is_some(), "focus is on a menu row");
+    assert!(
+        dismissed(&app).is_empty(),
+        "menu stays open after the click"
+    );
+}
