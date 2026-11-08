@@ -89,6 +89,7 @@ impl Pipeline {
                 Err(RecvTimeoutError::Timeout) => {}
                 Err(RecvTimeoutError::Disconnected) => break,
             }
+            self.shared.flush_wake();
             while let Some(message) = self.bus.pop() {
                 self.message(&message);
             }

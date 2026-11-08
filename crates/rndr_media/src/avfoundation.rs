@@ -110,6 +110,7 @@ fn pump(
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => break,
         }
+        shared.flush_wake();
         if polled.elapsed() >= POLL {
             polled = Instant::now();
             on_main(main, Main::poll);

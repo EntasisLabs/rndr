@@ -148,6 +148,8 @@ pub(crate) struct Shared {
     pub looping: AtomicBool,
     status: Mutex<Status>,
     waker: Mutex<Option<Waker>>,
+    /// A handle changed the state; the worker calls the waker for it.
+    wake_pending: AtomicBool,
 }
 
 impl Shared {
@@ -158,6 +160,20 @@ impl Shared {
     /// Apply `edit`, publish the time, and call the waker if the state or
     /// duration changed.
     pub fn update(&self, edit: impl FnOnce(&mut Status)) {
+        if self.edit(edit) {
+            self.wake();
+        }
+    }
+
+    /// Like [`update`](Self::update), but for a handle's thread: the worker
+    /// calls the waker later, from [`flush_wake`](Self::flush_wake).
+    fn update_from_handle(&self, edit: impl FnOnce(&mut Status)) {
+        if self.edit(edit) {
+            self.wake_pending.store(true, Ordering::Release);
+        }
+    }
+
+    fn edit(&self, edit: impl FnOnce(&mut Status)) -> bool {
         let (changed, time) = {
             let mut status = self.status();
             let before = (status.state(), status.duration);
@@ -165,7 +181,13 @@ impl Shared {
             ((status.state(), status.duration) != before, status.time)
         };
         self.position.set(time as f32);
-        if changed {
+        changed
+    }
+
+    /// Call the waker for state changes made by a handle. Workers call this
+    /// on every turn of their loop.
+    pub fn flush_wake(&self) {
+        if self.wake_pending.swap(false, Ordering::AcqRel) {
             self.wake();
         }
     }
@@ -273,6 +295,7 @@ impl Player {
                 muted: kind == Kind::Video,
             }),
             waker: Mutex::new(None),
+            wake_pending: AtomicBool::new(false),
         });
         let (tx, rx): (Sender<Command>, Receiver<Command>) = mpsc::channel();
         let worker = backend::spawn(shared.clone(), rx);
@@ -312,7 +335,7 @@ impl Player {
     /// the beginning.
     pub fn play(&self) {
         let mut ignored = false;
-        self.shared().update(|s| {
+        self.shared().update_from_handle(|s| {
             ignored = s.failed.is_some();
             if !ignored {
                 if s.ended {
@@ -328,7 +351,7 @@ impl Player {
     }
 
     pub fn pause(&self) {
-        self.shared().update(|s| s.playing = false);
+        self.shared().update_from_handle(|s| s.playing = false);
         self.send(Command::Pause);
     }
 
@@ -341,7 +364,7 @@ impl Player {
             0.0
         };
         let mut to = seconds;
-        self.shared().update(|s| {
+        self.shared().update_from_handle(|s| {
             to = s.duration.map_or(seconds, |d| seconds.min(d));
             s.time = to;
             s.ended = false;
@@ -353,7 +376,7 @@ impl Player {
     /// ignored.
     pub fn set_rate(&self, rate: f32) {
         if rate.is_finite() && rate > 0.0 {
-            self.shared().update(|s| s.rate = rate);
+            self.shared().update_from_handle(|s| s.rate = rate);
             self.send(Command::Rate(rate));
         }
     }
@@ -364,7 +387,7 @@ impl Player {
     }
 
     pub fn set_muted(&self, muted: bool) {
-        self.shared().update(|s| s.muted = muted);
+        self.shared().update_from_handle(|s| s.muted = muted);
         self.send(Command::Muted(muted));
     }
 

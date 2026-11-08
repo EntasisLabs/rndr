@@ -3,8 +3,8 @@
 #![cfg(target_os = "linux")]
 
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, OnceLock};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use gst::prelude::*;
@@ -220,6 +220,59 @@ fn the_waker_hears_state_changes() {
         calls.load(Ordering::SeqCst) >= 2,
         "calls {}",
         calls.load(Ordering::SeqCst)
+    );
+}
+
+#[test]
+fn controls_never_call_the_waker_on_the_callers_thread() {
+    let caller = std::thread::current().id();
+    let on_caller = Arc::new(AtomicBool::new(false));
+    let calls = Arc::new(AtomicUsize::new(0));
+    let clip = Player::file(video_clip());
+    let (flag, counter) = (on_caller.clone(), calls.clone());
+    clip.set_waker(move || {
+        flag.fetch_or(std::thread::current().id() == caller, Ordering::SeqCst);
+        counter.fetch_add(1, Ordering::SeqCst);
+    });
+    wait_state(&clip, PlayerState::Ready);
+    let before = calls.load(Ordering::SeqCst);
+    clip.play();
+    clip.pause();
+    clip.seek(0.5);
+    clip.set_rate(2.0);
+    clip.set_muted(false);
+    let start = Instant::now();
+    while calls.load(Ordering::SeqCst) == before && start.elapsed() < Duration::from_secs(5) {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(
+        calls.load(Ordering::SeqCst) > before,
+        "play/pause never woke"
+    );
+    assert!(!on_caller.load(Ordering::SeqCst));
+}
+
+#[test]
+fn a_waker_can_drop_the_last_clone() {
+    let slot = Arc::new(Mutex::new(Some(Player::file(video_clip()))));
+    let dropped = Arc::new(AtomicBool::new(false));
+    let (inner, done) = (slot.clone(), dropped.clone());
+    let clip = slot.lock().unwrap().clone().unwrap();
+    clip.set_waker(move || {
+        if inner.lock().unwrap().as_ref().map(Player::state) == Some(PlayerState::Ended) {
+            inner.lock().unwrap().take();
+            done.store(true, Ordering::SeqCst);
+        }
+    });
+    clip.play();
+    drop(clip);
+    let start = Instant::now();
+    while !dropped.load(Ordering::SeqCst) && start.elapsed() < Duration::from_secs(5) {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(
+        dropped.load(Ordering::SeqCst),
+        "the waker never finished dropping the player"
     );
 }
 
