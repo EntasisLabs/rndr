@@ -10,4 +10,10 @@ fn main() {
             println!("cargo::rustc-cfg=native_{feature}");
         }
     }
+    // The app menu bar is native on macOS and Windows only.
+    println!("cargo::rustc-check-cfg=cfg(native_menubar)");
+    let os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+    if std::env::var_os("CARGO_FEATURE_MENUBAR").is_some() && (os == "macos" || os == "windows") {
+        println!("cargo::rustc-cfg=native_menubar");
+    }
 }

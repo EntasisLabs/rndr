@@ -3,6 +3,8 @@
 //! Right-click the card (Control-click on macOS, or focus it and press the
 //! Menu key or Shift+F10) for a context menu with a submenu. Click "File" for a
 //! menu below the button. The status line shows the last pick or dismissal.
+//! With `--features menubar` on macOS or Windows the window also gets a
+//! native menu bar; Linux has none.
 //!
 //! `cargo run -p rndr --example menus` opens a window;
 //! `cargo run -p rndr --example menus -- --png OUT.png` writes the open menus headless.
@@ -127,6 +129,20 @@ fn build(app: &mut App) -> Entity {
         status,
         wrap: false,
     });
+    let mut bar = Menu::new();
+    bar.submenu("File", |m| {
+        m.add(Item::new("New window").shortcut("Ctrl+N"));
+        m.separator();
+        m.add(Item::new("Close").shortcut("Ctrl+W"));
+    });
+    bar.submenu("View", |m| {
+        m.add(Item::new("Wrap lines").checked(false));
+        m.submenu("Zoom", |z| {
+            z.add(Item::new("Zoom in").shortcut("Ctrl+="));
+            z.add(Item::new("Zoom out").shortcut("Ctrl+-"));
+        });
+    });
+    set_app_menu(world, bar);
     app.add_system(Schedule::Update, update);
     file
 }
@@ -135,6 +151,7 @@ fn update(world: &mut World) {
     let presses = events::<SecondaryPress>(world).to_vec();
     let picks = events::<MenuPicked>(world).to_vec();
     let dismissals = events::<MenuDismissed>(world).len();
+    let bar_picks = events::<AppMenuPicked>(world).to_vec();
     let Some(scene) = world.resource::<Scene>() else {
         return;
     };
@@ -148,6 +165,13 @@ fn update(world: &mut World) {
             wrap = !wrap;
         }
         text = Some(format!("Picked item {}", pick.item));
+    }
+    for pick in bar_picks {
+        let name = app_menu(world)
+            .and_then(|m| m.item(pick.item))
+            .map(|i| i.label.clone())
+            .unwrap_or_default();
+        text = Some(format!("Menu bar: {name}"));
     }
     if text.is_none() && dismissals > 0 {
         text = Some("Menu dismissed".into());

@@ -252,6 +252,7 @@ impl App {
         crate::hotkey::drive(&mut self.world);
         window::drive(&mut self.world);
         tray::drive(&mut self.world);
+        crate::app_menu::drive(&mut self.world);
         event::merge_events(&mut self.world);
         window::apply_dismiss(&mut self.world);
         for system in self.input.clone() {

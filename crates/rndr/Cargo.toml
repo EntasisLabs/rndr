@@ -25,6 +25,8 @@ term = ["dep:rndr_term"]
 hotkey = ["rndr_render/hotkey"]
 # Menu bar, notification area, and StatusNotifierItem icon.
 tray = ["rndr_render/tray"]
+# Native app menu bar on macOS and Windows. Off by default.
+menubar = ["rndr_render/menubar"]
 # Parley shaping and swash rasterization. `--no-default-features` keeps the
 # builtin atlas and skips the fontconfig link.
 parley = ["rndr_render/parley"]
