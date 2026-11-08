@@ -390,3 +390,89 @@ fn engine_in_the_world_is_the_one_paint_uses() {
     let installed = text_engine(app.world());
     assert!(installed.as_any().downcast_ref::<ParleyText>().is_some());
 }
+
+fn digits_width(
+    engine: &ParleyText,
+    text: &str,
+    style: &TextStyle,
+    spans: &[rndr_core::TextSpan],
+) -> f32 {
+    engine.layout(text, style, spans, f32::INFINITY).width
+}
+
+#[test]
+fn tabular_figures_equalize_digit_advances() {
+    use rndr_core::FontFeature;
+    let engine = bundled();
+    let tabular = inter(16.0).feature(FontFeature::on(b"tnum"));
+    let proportional = inter(16.0).feature(FontFeature::on(b"pnum"));
+    let ones = digits_width(&engine, "1111", &tabular, &[]);
+    let zeros = digits_width(&engine, "0000", &tabular, &[]);
+    assert!(
+        (ones - zeros).abs() < 0.01,
+        "tnum 1111 {ones} vs 0000 {zeros}"
+    );
+    let ones = digits_width(&engine, "1111", &proportional, &[]);
+    let zeros = digits_width(&engine, "0000", &proportional, &[]);
+    assert!(ones < zeros - 1.0, "pnum 1111 {ones} vs 0000 {zeros}");
+}
+
+#[test]
+fn span_features_apply_to_their_range_only() {
+    use rndr_core::{FontFeature, TextSpan};
+    let engine = bundled();
+    let style = inter(16.0).feature(FontFeature::on(b"pnum"));
+    let plain = digits_width(&engine, "1111", &style, &[]);
+    let half = [TextSpan::new(0, 2, Color::rgb(1.0, 1.0, 1.0)).feature(FontFeature::on(b"tnum"))];
+    let mixed = digits_width(&engine, "1111", &style, &half);
+    let all = [TextSpan::new(0, 4, Color::rgb(1.0, 1.0, 1.0)).feature(FontFeature::on(b"tnum"))];
+    let full = digits_width(&engine, "1111", &style, &all);
+    assert!(
+        plain < mixed - 0.5 && mixed < full - 0.5,
+        "{plain} < {mixed} < {full}"
+    );
+}
+
+#[test]
+fn overlapping_span_features_follow_the_first_span() {
+    use rndr_core::{FontFeature, TextSpan};
+    let engine = bundled();
+    let style = inter(16.0).feature(FontFeature::on(b"pnum"));
+    let ink = Color::rgb(1.0, 1.0, 1.0);
+    let first = TextSpan::new(0, 4, ink).feature(FontFeature::on(b"tnum"));
+    let later = TextSpan::new(2, 4, ink).feature(FontFeature::on(b"pnum"));
+    let alone = digits_width(&engine, "1111", &style, std::slice::from_ref(&first));
+    let overlapped = digits_width(&engine, "1111", &style, &[first, later]);
+    assert!((alone - overlapped).abs() < 0.01, "{alone} vs {overlapped}");
+}
+
+#[test]
+fn features_and_axes_are_part_of_the_layout_cache_key() {
+    use rndr_core::{FontAxis, FontFeature};
+    let engine = bundled();
+    let style = inter(16.0);
+    engine.layout("2024", &style, &[], f32::INFINITY);
+    let once = engine.shape_count();
+    engine.layout(
+        "2024",
+        &style.clone().feature(FontFeature::on(b"tnum")),
+        &[],
+        f32::INFINITY,
+    );
+    let featured = engine.shape_count();
+    assert!(featured > once);
+    engine.layout(
+        "2024",
+        &style.clone().axis(FontAxis::new(b"wght", 650.0)),
+        &[],
+        f32::INFINITY,
+    );
+    assert!(engine.shape_count() > featured);
+    engine.layout(
+        "2024",
+        &style.axis(FontAxis::new(b"wght", 650.0)),
+        &[],
+        f32::INFINITY,
+    );
+    assert_eq!(engine.shape_count(), featured + 1);
+}

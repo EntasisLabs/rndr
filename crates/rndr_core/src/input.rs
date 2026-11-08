@@ -65,6 +65,8 @@ pub enum CursorStyle {
     Arrow,
     /// A pointing hand, for a link under the pointer.
     Hand,
+    /// An I-beam, for selectable text under the pointer.
+    Text,
     /// The [`crate::CursorImage`] resource. The runner draws the arrow when
     /// that resource is absent.
     Image,

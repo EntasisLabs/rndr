@@ -71,6 +71,9 @@ fn wrap_inside_a_span_keeps_every_glyph() {
         italic: false,
         family: None,
         underline: false,
+        strike: false,
+        features: Vec::new(),
+        axes: Vec::new(),
     }];
     let layout = layout_text_spans(&BitmapFont, "abcd", 32.0, &spans);
     assert_eq!(layout.glyphs.len(), 4);

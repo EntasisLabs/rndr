@@ -265,6 +265,16 @@ native-platform acceptance are different things:
   scales the laid-out box through `Transform`. In a headless CPU probe
   (`cargo test -p rndr_paint --release --test live_cost -- --ignored --nocapture`)
   a live-only frame cost about a sixth of a full frame.
+- **Text features and selectable labels:** `TextStyle` and `TextSpan` take OpenType
+  `FontFeature`s (`FontFeature::on(b"tnum")`) and variable-font `FontAxis` values
+  (`FontAxis::new(b"wght", 550.0)`), applied by the Parley shaper; a span's settings
+  follow the style's. `TextSpan::strike` draws a strikethrough. A `Selectable` label
+  with `SelectablePlugin` selects by drag, double-click (word) and triple-click
+  (paragraph), extends with Shift, copies with Ctrl/Cmd+C, selects all with
+  Ctrl/Cmd+A, publishes the primary selection and shows an I-beam. Selection is
+  paint-only: it does not re-lay out or reshape text. Native clipboard behavior is
+  covered by headless tests only.
+  `cargo run -p rndr --example text_features_gallery -- out.png` renders a gallery.
 - **Document editing:** source sessions and structured editing have explicit ownership
   and regression coverage. The structured editor remains experimental; native IME,
   clipboard and assistive-technology acceptance must be checked independently of

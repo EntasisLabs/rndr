@@ -1004,6 +1004,7 @@ impl Handler {
         match style {
             CursorStyle::Hand => gpu.shell().set_cursor_icon(CursorIcon::Pointer),
             CursorStyle::Arrow => gpu.shell().set_cursor_icon(CursorIcon::Default),
+            CursorStyle::Text => gpu.shell().set_cursor_icon(CursorIcon::Text),
             CursorStyle::Image => self.apply_image_cursor(event_loop),
         }
     }
