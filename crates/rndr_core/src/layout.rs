@@ -1,6 +1,7 @@
 use crate::entity::Entity;
 use crate::flex;
 use crate::font::{layout_cache_key, text_face, TextLayout};
+use crate::grid::{self, Grid};
 use crate::hierarchy::{children_of, roots, Parent};
 use crate::input::{Input, Viewport};
 use crate::split::Splitter;
@@ -273,6 +274,7 @@ fn layout_once(world: &mut World) {
             parent_clip,
         );
     }
+    apply_sticky(world);
 }
 
 /// Topmost (deepest, then later sibling) entity whose visible clip contains the point.
@@ -356,6 +358,10 @@ fn apply_wheel(world: &mut World, input: &Input) {
     }
     let mut target = hit_test(world, input.pointer.position[0], input.pointer.position[1]);
     let mut remaining = input.scroll.map(|v| if v.is_finite() { v } else { 0. });
+    // Shift turns a vertical-only wheel horizontal, as desktop platforms do.
+    if input.shift && remaining[0] == 0.0 {
+        remaining = [remaining[1], 0.0];
+    }
     let mut changed = false;
     // Walk the hit's actual ancestry once; no viewport-wide fallback or axis
     // remapping. Defer relayout until consumption is complete so recycling
@@ -521,6 +527,14 @@ fn measure(world: &mut World, entity: Entity) -> Rect {
             Axis::Row => content_w += extra,
         }
     }
+    if let Some(grid) = world.get::<Grid>(entity).cloned() {
+        let flow: Vec<Entity> = kids
+            .iter()
+            .copied()
+            .filter(|c| flex::in_flow(world, *c))
+            .collect();
+        (content_w, content_h) = measure_grid(world, &grid, &flow);
+    }
     let [top, right, bottom, left] = flex::insets(world, entity, &layout);
     let (pad_w, pad_h) = (left + right, top + bottom);
     if world.has::<Scroll>(entity) {
@@ -622,56 +636,60 @@ fn refine_wrapped_heights(world: &mut World, entity: Entity, available_w: f32, x
     let mut child_x = x + left + offset_x;
     let mut content_w = 0.0f32;
     let mut content_h = 0.0f32;
-    let mut sizes = Vec::with_capacity(flow.len());
-    for child in flow {
-        let child_layout = world.get::<Layout>(child).copied();
-        let intrinsic_w = world.get::<Rect>(child).map(|r| r.w).unwrap_or(0.0);
-        let stretch = layout.axis == Axis::Column
-            && flex::self_items(world, entity, child) == Some(flex::Items::Stretch)
-            && child_layout.is_some_and(|l| !matches!(l.width, Size::Px(_)));
-        let child_width = if child_layout.is_some_and(|l| l.width == Size::Fill) {
-            if layout.axis == Axis::Row && wrap.is_none() {
-                share
-            } else {
+    if let Some(grid) = world.get::<Grid>(entity).cloned() {
+        (content_w, content_h) = refine_grid(world, &grid, &flow, inner_w, child_x);
+    } else {
+        let mut sizes = Vec::with_capacity(flow.len());
+        for child in flow {
+            let child_layout = world.get::<Layout>(child).copied();
+            let intrinsic_w = world.get::<Rect>(child).map(|r| r.w).unwrap_or(0.0);
+            let stretch = layout.axis == Axis::Column
+                && flex::self_items(world, entity, child) == Some(flex::Items::Stretch)
+                && child_layout.is_some_and(|l| !matches!(l.width, Size::Px(_)));
+            let child_width = if child_layout.is_some_and(|l| l.width == Size::Fill) {
+                if layout.axis == Axis::Row && wrap.is_none() {
+                    share
+                } else {
+                    inner_w
+                }
+            } else if stretch {
                 inner_w
-            }
-        } else if stretch {
-            inner_w
-        } else {
-            intrinsic_w
-        };
-        let size = refine_wrapped_heights(world, child, child_width, child_x);
-        sizes.push(size);
-        match layout.axis {
-            Axis::Column => {
-                content_w = content_w.max(size.w);
-                content_h += size.h;
-            }
-            Axis::Row => {
-                content_w += size.w;
-                content_h = content_h.max(size.h);
-                if wrap.is_none() {
-                    child_x += size.w + layout.gap;
+            } else {
+                intrinsic_w
+            };
+            let size = refine_wrapped_heights(world, child, child_width, child_x);
+            sizes.push(size);
+            match layout.axis {
+                Axis::Column => {
+                    content_w = content_w.max(size.w);
+                    content_h += size.h;
+                }
+                Axis::Row => {
+                    content_w += size.w;
+                    content_h = content_h.max(size.h);
+                    if wrap.is_none() {
+                        child_x += size.w + layout.gap;
+                    }
                 }
             }
         }
-    }
-    if let Some(line_gap) = wrap {
-        let widths: Vec<f32> = sizes.iter().map(|r| r.w).collect();
-        let lines = flex::break_lines(&widths, layout.gap, inner_w);
-        content_w = 0.0;
-        content_h = line_gap * lines.len().saturating_sub(1) as f32;
-        for line in lines {
-            let n = line.len();
-            let line_w: f32 =
-                widths[line.clone()].iter().sum::<f32>() + layout.gap * n.saturating_sub(1) as f32;
-            content_w = content_w.max(line_w);
-            content_h += sizes[line].iter().map(|r| r.h).fold(0.0, f32::max);
-        }
-    } else {
-        match layout.axis {
-            Axis::Column => content_h += gaps,
-            Axis::Row => content_w += gaps,
+        if let Some(line_gap) = wrap {
+            let widths: Vec<f32> = sizes.iter().map(|r| r.w).collect();
+            let lines = flex::break_lines(&widths, layout.gap, inner_w);
+            content_w = 0.0;
+            content_h = line_gap * lines.len().saturating_sub(1) as f32;
+            for line in lines {
+                let n = line.len();
+                let line_w: f32 = widths[line.clone()].iter().sum::<f32>()
+                    + layout.gap * n.saturating_sub(1) as f32;
+                content_w = content_w.max(line_w);
+                content_h += sizes[line].iter().map(|r| r.h).fold(0.0, f32::max);
+            }
+        } else {
+            match layout.axis {
+                Axis::Column => content_h += gaps,
+                Axis::Row => content_w += gaps,
+            }
         }
     }
     for child in absolute {
@@ -908,7 +926,16 @@ fn place(
         .map(|a| a.justify)
         .unwrap_or_default();
 
-    if let Some(line_gap) = flex::wraps(world, entity, &layout) {
+    if let Some(grid) = world.get::<Grid>(entity).cloned() {
+        place_grid(
+            world,
+            entity,
+            &grid,
+            &flow,
+            [inner_x + offset[0], inner_y + offset[1], inner_w],
+            clip,
+        );
+    } else if let Some(line_gap) = flex::wraps(world, entity, &layout) {
         place_wrapped(
             world,
             entity,
@@ -1125,6 +1152,200 @@ fn place_wrapped(
             cursor_x += cw + gap + extra;
         }
         cursor_y += line_h + line_gap;
+    }
+}
+
+fn grid_widths(world: &World, kids: &[Entity]) -> Vec<Option<f32>> {
+    kids.iter()
+        .map(|c| {
+            let fill = world
+                .get::<Layout>(*c)
+                .is_some_and(|l| l.width == Size::Fill);
+            (!fill).then(|| world.get::<Rect>(*c).map_or(0.0, |r| r.w))
+        })
+        .collect()
+}
+
+fn grid_heights(world: &World, kids: &[Entity]) -> Vec<Option<f32>> {
+    kids.iter()
+        .map(|c| {
+            let fill = world
+                .get::<Layout>(*c)
+                .is_some_and(|l| l.height == Size::Fill);
+            (!fill).then(|| world.get::<Rect>(*c).map_or(0.0, |r| r.h))
+        })
+        .collect()
+}
+
+fn measure_grid(world: &World, grid: &Grid, kids: &[Entity]) -> (f32, f32) {
+    let (cells, rows) = grid::auto_place(world, grid::tracks(grid).len(), kids);
+    let cols = grid::columns(grid, &cells, &grid_widths(world, kids), None);
+    let rows = grid::rows(&cells, &grid_heights(world, kids), rows);
+    (
+        grid::total(&cols, grid.column_gap),
+        grid::total(&rows, grid.row_gap),
+    )
+}
+
+fn refine_grid(
+    world: &mut World,
+    grid: &Grid,
+    kids: &[Entity],
+    inner_w: f32,
+    x: f32,
+) -> (f32, f32) {
+    let (cells, rows) = grid::auto_place(world, grid::tracks(grid).len(), kids);
+    let widths = grid_widths(world, kids);
+    let cols = grid::columns(grid, &cells, &widths, Some(inner_w));
+    let xs = grid::starts(&cols, grid.column_gap);
+    for ((child, cell), width) in kids.iter().zip(&cells).zip(&widths) {
+        let w = width.unwrap_or_else(|| grid::span_width(&cols, *cell, grid.column_gap));
+        refine_wrapped_heights(world, *child, w, x + xs[cell.col]);
+    }
+    let rows = grid::rows(&cells, &grid_heights(world, kids), rows);
+    (
+        grid::total(&cols, grid.column_gap),
+        grid::total(&rows, grid.row_gap),
+    )
+}
+
+fn place_grid(
+    world: &mut World,
+    entity: Entity,
+    grid: &Grid,
+    kids: &[Entity],
+    [origin_x, origin_y, inner_w]: [f32; 3],
+    clip: Clip,
+) {
+    let (cells, rows) = grid::auto_place(world, grid::tracks(grid).len(), kids);
+    let widths = grid_widths(world, kids);
+    let heights = grid_heights(world, kids);
+    let cols = grid::columns(grid, &cells, &widths, Some(inner_w));
+    let rows = grid::rows(&cells, &heights, rows);
+    let xs = grid::starts(&cols, grid.column_gap);
+    let ys = grid::starts(&rows, grid.row_gap);
+    for (i, (&child, cell)) in kids.iter().zip(&cells).enumerate() {
+        let row_h = rows[cell.row];
+        let items = flex::self_items(world, entity, child).unwrap_or_default();
+        let stretch = items == flex::Items::Stretch
+            && heights[i].is_some()
+            && world
+                .get::<Layout>(child)
+                .is_some_and(|l| !matches!(l.height, Size::Px(_)));
+        let w = widths[i].unwrap_or_else(|| grid::span_width(&cols, *cell, grid.column_gap));
+        let h = match heights[i] {
+            Some(h) if !stretch => h,
+            _ => row_h,
+        };
+        let (w, h) = child_size(world, child, w, h);
+        let y = origin_y + ys[cell.row] + flex::cross_offset(items, row_h, h);
+        place_filled(
+            world,
+            child,
+            (false, stretch),
+            origin_x + xs[cell.col],
+            y,
+            w,
+            h,
+            clip,
+        );
+    }
+}
+
+fn hidden_in_tree(world: &World, entity: Entity) -> bool {
+    let mut at = Some(entity);
+    while let Some(e) = at {
+        if world.has::<crate::tabs::Hidden>(e) {
+            return true;
+        }
+        at = world.get::<Parent>(e).map(|p| p.entity);
+    }
+    false
+}
+
+fn depth(world: &World, entity: Entity) -> usize {
+    let mut n = 0;
+    let mut at = world.get::<Parent>(entity).map(|p| p.entity);
+    while let Some(e) = at {
+        n += 1;
+        at = world.get::<Parent>(e).map(|p| p.entity);
+    }
+    n
+}
+
+/// Nearest ancestor, starting at `from`, whose [`Scroll`] can move vertically.
+fn vertical_port(world: &World, from: Entity) -> Option<Entity> {
+    let mut at = Some(from);
+    while let Some(e) = at {
+        if let (Some(scroll), Some(rect)) = (world.get::<Scroll>(e), world.get::<Rect>(e)) {
+            if scroll.content[1] > rect.h + 0.5 || scroll.offset[1] != 0.0 {
+                return Some(e);
+            }
+        }
+        at = world.get::<Parent>(e).map(|p| p.entity);
+    }
+    None
+}
+
+/// Move [`flex::Sticky`] entities after placement, outermost first, and lay
+/// their subtrees out again at the pinned position.
+fn apply_sticky(world: &mut World) {
+    let mut pinned: Vec<(usize, Entity, flex::Sticky)> = world
+        .query::<flex::Sticky>()
+        .into_iter()
+        .map(|(e, s)| (0, e, *s))
+        .collect();
+    if pinned.is_empty() {
+        return;
+    }
+    for p in &mut pinned {
+        p.0 = depth(world, p.1);
+    }
+    pinned.sort_by_key(|p| p.0);
+    for (_, entity, pin) in pinned {
+        let Some(parent) = world.get::<Parent>(entity).map(|p| p.entity) else {
+            continue;
+        };
+        if hidden_in_tree(world, entity) {
+            continue;
+        }
+        let (Some(rect), Some(port)) = (
+            world.get::<Rect>(entity).copied(),
+            vertical_port(world, parent),
+        ) else {
+            continue;
+        };
+        let port_rect = world.get::<Rect>(port).copied().unwrap_or_default();
+        let parent_rect = world.get::<Rect>(parent).copied().unwrap_or_default();
+        let [top, _, bottom, _] = world
+            .get::<Layout>(parent)
+            .copied()
+            .map_or([0.0; 4], |l| flex::insets(world, parent, &l));
+        let (y0, y1) = match world.get::<Scroll>(parent).filter(|_| parent == port) {
+            Some(scroll) => {
+                let origin = parent_rect.y + scroll.offset[1];
+                (origin + top, origin + scroll.content[1] - bottom)
+            }
+            None => (parent_rect.y + top, parent_rect.y + parent_rect.h - bottom),
+        };
+        let mut y = rect.y;
+        if let Some(inset) = pin.top {
+            y = y.max(port_rect.y + inset);
+        }
+        if let Some(inset) = pin.bottom {
+            y = y.min(port_rect.y + port_rect.h - inset - rect.h);
+        }
+        let y = y.clamp(y0.min(rect.y), (y1 - rect.h).max(rect.y));
+        if (y - rect.y).abs() < 0.01 {
+            continue;
+        }
+        let clip = world.get::<Clip>(parent).copied().unwrap_or(Clip {
+            x: f32::MIN / 4.0,
+            y: f32::MIN / 4.0,
+            w: f32::MAX / 2.0,
+            h: f32::MAX / 2.0,
+        });
+        place(world, entity, rect.x, y, rect.w, rect.h, clip);
     }
 }
 
