@@ -291,6 +291,12 @@ impl Lane {
         self.start_from(now, (value + by, velocity), self.target, anim);
     }
 
+    /// Move to `target` from the value and velocity presented at `t0`,
+    /// even when the target is unchanged. Keyframe steps start here.
+    pub fn step_to(&mut self, t0: f64, target: f32, anim: Anim) {
+        self.start_from(t0, self.sample(t0), target, anim);
+    }
+
     fn start_from(&mut self, now: f64, (value, velocity): (f32, f32), target: f32, anim: Anim) {
         let velocity = anim.velocity.unwrap_or(velocity);
         let delay = if anim.delay.is_finite() {

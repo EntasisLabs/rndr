@@ -244,10 +244,16 @@ native-platform acceptance are different things:
 - **Motion:** `rndr_core::motion` animates opacity, offset, scale, and rotation
   with closed-form springs and tweens sampled at the frame time. Retargeting keeps
   velocity; enter/exit transitions keep an exiting entity until it settles;
-  `LayoutMotion` glides position changes (size still snaps). The desktop runner
-  redraws while anything moves. Not yet: shared-element moves, choreography,
-  fling/decay, keyframes, and off-thread animation.
-  `cargo run -p rndr --example motion_strip -- out.png` renders a frame strip.
+  `LayoutMotion` glides position and size changes (children lay out at the final
+  size and the entity's clip reveals them). `animate_color` blends fills, border
+  and label colours in premultiplied OKLab. `play` runs a `Keyframes` track
+  (linear, eased, spring and jump steps, delay, repeats, endless or alternating
+  loops). `PressScale(0.97)` shrinks an element while a press on it is held.
+  The desktop runner redraws while anything moves. Not yet: shared-element
+  moves, fling/decay, animated scrolling, and off-thread animation.
+  `cargo run -p rndr --example motion_strip -- out.png` renders a frame strip;
+  `cargo run -p rndr --example motion_depth --features parley` shows colour,
+  size, keyframe and press motion in a window.
 - **Decorations:** `Corners` (per-corner radii), `Gradient` (linear at any angle or
   radial, multi-stop), `Shadows` (outer and inset box shadows with offset, blur and
   spread) and `BorderSides` (per-side widths, optional dash) on any laid-out entity.

@@ -237,6 +237,7 @@ impl App {
         }
         runtime::tick_time(&mut self.world);
         crate::motion::tick(&mut self.world);
+        crate::motion::restore(&mut self.world);
         if !self.started {
             for system in self.startup.clone() {
                 system(&mut self.world);
