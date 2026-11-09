@@ -25,12 +25,14 @@ pub mod style;
 pub mod surfaces;
 pub mod theme_bridge;
 pub mod tokens;
+pub mod window_controls;
 pub use composition::{section_layout, WorkspaceLayout};
 use rndr_core::{App, Layout, Plugin, Schedule, Size};
 pub use style::{detach_style, resolve_styles, Corner, UiColor, UiRecipe, UiStyle};
 pub use surfaces::{separator, text, Callout, Card, Feedback, Surface, UiError, UiHandle, UiId};
 pub use theme_bridge::apply_theme_bridge;
 pub use tokens::{Appearance, Contrast, Density, Space, Token, Typography, UiTheme};
+pub use window_controls::{window_controls, WindowControls};
 
 /// Read the caller-stable key of a mounted component root. Internal decoration,
 /// row children and borrowed nodes have no component key. Keys are unique only
@@ -61,6 +63,10 @@ impl Plugin for UiPlugin {
         // Installed after the front scroll registration, so a track claims its
         // input before parent scrolling regardless of Shell installation order.
         app.add_system_front(Schedule::Input, rndr_core::apply_scrollbars);
+        // Window edges and caption buttons claim a press before scrolling.
+        // `Chrome` also registers it later in Input; that second pass is a
+        // no-op because the first consumed the press.
+        app.add_system_front(Schedule::Input, rndr_core::apply_window_chrome);
         if !app.world().has_resource::<UiTheme>() {
             app.world_mut().insert_resource(UiTheme::default());
         }
@@ -73,6 +79,7 @@ impl Plugin for UiPlugin {
         app.add_system(Schedule::Layout, controls::resolve_controls);
         app.add_system(Schedule::Layout, selection::styles);
         app.add_system(Schedule::Layout, menu::styles);
+        app.add_system(Schedule::Layout, window_controls::styles);
         app.add_system(Schedule::Layout, resolve_styles);
         app.add_system(Schedule::Layout, structured::prepare_projection);
         app.add_system_front(Schedule::Input, structured_embeds::capture_exit);

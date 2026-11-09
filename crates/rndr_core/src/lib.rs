@@ -167,6 +167,7 @@ mod theme;
 pub mod tray;
 mod typing;
 pub mod window;
+mod window_chrome;
 mod world;
 mod wrap;
 
@@ -337,6 +338,11 @@ pub use window::{
     LogicalSize, Position, Resized, ScaleChanged, WindowConfig, WindowEffect, WindowFocus,
     WindowHandle, WindowKind, WindowMetrics, WindowPhase, WindowSignal, WindowSupport,
     WindowTransition,
+};
+pub use window_chrome::{
+    apply_window_chrome, request_window_action, resize_edge_at, take_window_actions, Backdrop,
+    ResizeEdge, Titlebar, WindowAction, WindowButton, WindowChrome, WindowDrag, RESIZE_CORNER,
+    RESIZE_EDGE,
 };
 pub use world::{Bundle, Component, World};
 pub use wrap::{

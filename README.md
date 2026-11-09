@@ -172,6 +172,7 @@ available, but observation still requires an explicit application-session opt-in
 | File tree, split pane and editing | `cargo run -p expand` |
 | Hidden overlay and global shortcut | `cargo run -p overlay` |
 | Multiple windows and messages | `cargo run -p two-windows` |
+| Custom titlebar, drag and resize | `cargo run -p titlebar` |
 | Embedded shell | `cargo run -p terminal` |
 | Pan/zoom vector scene | `cargo run -p canvas-scene` |
 
@@ -362,6 +363,18 @@ native-platform acceptance are different things:
   including `Hidden` and resize cursors, besides custom RGBA images. Linux is tested
   natively; macOS and Windows are compile-checked only.
   `cargo run -p rndr_render --example os_basics` shows them.
+- **Window chrome:** `WindowConfig::titlebar: Some(Titlebar::new(40.0))` lets the
+  app draw its own titlebar. On macOS the content runs under a transparent title
+  bar and the traffic lights stay, centred in the band (or placed with
+  `Titlebar::traffic_lights`); `WindowChrome::leading` says how much room they take.
+  On Windows and Linux the native frame goes, `rndr_ui::window_controls` draws
+  minimize, maximize and close, and a resizable window gets 6 pt resize edges with
+  matching cursors. A `WindowDrag` element moves the window when pressed; buttons
+  and fields inside it keep their presses, a double-click maximizes (or follows the
+  macOS setting) and a right-click opens the window menu on Windows.
+  `WindowConfig::backdrop` asks for Mica, Acrylic or Tabbed on Windows 11 and
+  vibrancy on macOS when the window is `transparent`. Linux X11 is tested natively;
+  macOS and Windows are compile-checked only. `cargo run -p titlebar` shows them.
 - **Text features and selectable labels:** `TextStyle` and `TextSpan` take OpenType
   `FontFeature`s (`FontFeature::on(b"tnum")`) and variable-font `FontAxis` values
   (`FontAxis::new(b"wght", 550.0)`), applied by the Parley shaper; a span's settings

@@ -192,6 +192,11 @@ pub struct WindowConfig {
     /// macOS only: run as an accessory app (no Dock icon) and do not activate
     /// over whatever was in front at launch. Ignored on other platforms.
     pub accessory: bool,
+    /// Replace the native title bar with a band the app draws. See
+    /// [`crate::Titlebar`]. Ignored when `decorations` is false.
+    pub titlebar: Option<crate::Titlebar>,
+    /// System material behind a transparent window. See [`crate::Backdrop`].
+    pub backdrop: crate::Backdrop,
 }
 
 impl Default for WindowConfig {
@@ -210,6 +215,8 @@ impl Default for WindowConfig {
             hide_on_blur: false,
             dismiss: Dismiss::Ignore,
             accessory: false,
+            titlebar: None,
+            backdrop: crate::Backdrop::None,
         }
     }
 }

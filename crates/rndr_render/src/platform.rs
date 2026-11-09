@@ -11,7 +11,9 @@
 //! A Windows panel show uses `SW_SHOWNOACTIVATE` and `HWND_TOPMOST`. Explicit
 //! focus takes the foreground. Virtual-desktop pinning is not requested.
 
-use rndr_core::{Position, WindowConfig, WindowEffect, WindowKind};
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+use rndr_core::Backdrop;
+use rndr_core::{Position, WindowChrome, WindowConfig, WindowEffect, WindowKind};
 use winit::dpi::{LogicalPosition, LogicalSize, PhysicalPosition};
 use winit::event_loop::{ActiveEventLoop, EventLoopBuilder};
 use winit::window::{Window, WindowAttributes, WindowLevel};
@@ -41,7 +43,7 @@ pub(crate) fn attributes(config: &WindowConfig) -> WindowAttributes {
             f64::from(config.size.height),
         ))
         .with_resizable(config.resizable)
-        .with_decorations(config.decorations)
+        .with_decorations(config.decorations && (!custom_titlebar(config) || keeps_native_frame()))
         .with_transparent(config.transparent)
         .with_window_level(
             if config.always_on_top || config.kind == WindowKind::Panel {
@@ -61,10 +63,32 @@ pub(crate) fn attributes(config: &WindowConfig) -> WindowAttributes {
         attrs = attrs.with_active(false);
     }
     #[cfg(target_os = "windows")]
-    if config.skip_taskbar {
-        use winit::platform::windows::WindowAttributesWindows;
+    {
+        use winit::platform::windows::{BackdropType, WindowAttributesWindows};
+        let backdrop = match config.backdrop {
+            Backdrop::None => None,
+            Backdrop::Window => Some(BackdropType::MainWindow),
+            Backdrop::Transient => Some(BackdropType::TransientWindow),
+            Backdrop::Sidebar => Some(BackdropType::TabbedWindow),
+        }
+        .filter(|_| config.transparent);
+        if config.skip_taskbar || backdrop.is_some() {
+            let mut windows =
+                WindowAttributesWindows::default().with_skip_taskbar(config.skip_taskbar);
+            if let Some(backdrop) = backdrop {
+                windows = windows.with_system_backdrop(backdrop);
+            }
+            attrs = attrs.with_platform_attributes(Box::new(windows));
+        }
+    }
+    #[cfg(target_os = "macos")]
+    if custom_titlebar(config) {
+        use winit::platform::macos::WindowAttributesMacOS;
         attrs = attrs.with_platform_attributes(Box::new(
-            WindowAttributesWindows::default().with_skip_taskbar(true),
+            WindowAttributesMacOS::default()
+                .with_titlebar_transparent(true)
+                .with_title_hidden(true)
+                .with_fullsize_content_view(true),
         ));
     }
     #[cfg(any(
@@ -86,6 +110,137 @@ pub(crate) fn attributes(config: &WindowConfig) -> WindowAttributes {
         attrs = attrs.with_platform_attributes(Box::new(web_canvas()));
     }
     attrs
+}
+
+/// The app draws its own titlebar band over a native frame (macOS) or in
+/// place of one (Windows and Linux).
+fn custom_titlebar(config: &WindowConfig) -> bool {
+    config.decorations && config.titlebar.is_some()
+}
+
+/// macOS keeps its frame, edges and traffic lights under a custom titlebar;
+/// the browser has no frame to remove.
+const fn keeps_native_frame() -> bool {
+    cfg!(any(target_os = "macos", target_arch = "wasm32"))
+}
+
+/// What the window's frame looks like now, for [`WindowChrome`]. On macOS
+/// this also keeps the traffic lights placed in the app's band.
+pub(crate) fn window_chrome(
+    window: &dyn Window,
+    config: &WindowConfig,
+    platform: rndr_core::Platform,
+) -> WindowChrome {
+    let mut chrome = WindowChrome::expected(config, platform);
+    chrome.maximized = window.is_maximized();
+    #[cfg(target_os = "macos")]
+    if let Some(titlebar) = config.titlebar.filter(|_| custom_titlebar(config)) {
+        chrome.leading = place_traffic_lights(window, titlebar);
+    }
+    chrome
+}
+
+/// A double-click on a drag region. macOS follows the system's "double-click
+/// a window's title bar to" setting; elsewhere it toggles maximize.
+pub(crate) fn titlebar_double_click(window: &dyn Window) {
+    #[cfg(target_os = "macos")]
+    {
+        use objc2_foundation::{NSString, NSUserDefaults};
+        let action = unsafe {
+            NSUserDefaults::standardUserDefaults()
+                .stringForKey(&NSString::from_str("AppleActionOnDoubleClick"))
+        }
+        .map(|action| action.to_string());
+        match action.as_deref() {
+            Some("None") => return,
+            Some("Minimize") => return window.set_minimized(true),
+            _ => {}
+        }
+    }
+    window.set_maximized(!window.is_maximized());
+}
+
+/// Move the traffic lights into the app's band and return the points they
+/// cover from the window's left edge. Full screen leaves them alone.
+#[cfg(target_os = "macos")]
+fn place_traffic_lights(window: &dyn Window, titlebar: rndr_core::Titlebar) -> f32 {
+    use objc2_app_kit::{NSWindowButton, NSWindowStyleMask};
+    use objc2_foundation::NSPoint;
+    let Some(ns) = ns_window(window) else {
+        return 0.0;
+    };
+    if ns.styleMask().contains(NSWindowStyleMask::FullScreen) {
+        return 0.0;
+    }
+    let buttons = [
+        NSWindowButton::NSWindowCloseButton,
+        NSWindowButton::NSWindowMiniaturizeButton,
+        NSWindowButton::NSWindowZoomButton,
+    ]
+    .map(|kind| ns.standardWindowButton(kind));
+    let [Some(close), Some(mini), Some(zoom)] = buttons else {
+        return 0.0;
+    };
+    // Buttons sit in NSTitlebarView inside NSTitlebarContainerView, which
+    // spans the window's top edge and is not flipped.
+    let Some(container) = (unsafe { close.superview().and_then(|view| view.superview()) }) else {
+        return 0.0;
+    };
+    let size = close.frame().size;
+    let spacing = mini.frame().origin.x - close.frame().origin.x;
+    let height = f64::from(titlebar.height.max(0.0));
+    let [x, y] = titlebar.traffic_lights.map_or_else(
+        || [16.0, ((height - size.height) / 2.0).max(0.0)],
+        |[x, y]| [f64::from(x), f64::from(y)],
+    );
+    let band = height.max(y + size.height);
+    let mut frame = container.frame();
+    frame.size.height = band;
+    frame.origin.y = ns.frame().size.height - band;
+    unsafe { container.setFrame(frame) };
+    for (index, button) in [&close, &mini, &zoom].into_iter().enumerate() {
+        let origin = NSPoint::new(x + spacing * index as f64, band - y - size.height);
+        unsafe { button.setFrameOrigin(origin) };
+    }
+    let zoom = zoom.frame();
+    (zoom.origin.x + zoom.size.width) as f32
+}
+
+/// A behind-window `NSVisualEffectView` under the content view.
+#[cfg(target_os = "macos")]
+fn add_vibrancy(window: &dyn Window, backdrop: Backdrop) {
+    use objc2_app_kit::{
+        NSAutoresizingMaskOptions, NSVisualEffectBlendingMode, NSVisualEffectMaterial,
+        NSVisualEffectState, NSVisualEffectView, NSWindowOrderingMode,
+    };
+    use objc2_foundation::MainThreadMarker;
+    let material = match backdrop {
+        Backdrop::None => return,
+        Backdrop::Window => NSVisualEffectMaterial::UnderWindowBackground,
+        Backdrop::Transient => NSVisualEffectMaterial::Popover,
+        Backdrop::Sidebar => NSVisualEffectMaterial::Sidebar,
+    };
+    let (Some(mtm), Some(ns)) = (MainThreadMarker::new(), ns_window(window)) else {
+        return;
+    };
+    let Some(content) = ns.contentView() else {
+        return;
+    };
+    unsafe {
+        let effect = NSVisualEffectView::initWithFrame(mtm.alloc(), content.bounds());
+        effect.setMaterial(material);
+        effect.setBlendingMode(NSVisualEffectBlendingMode::BehindWindow);
+        effect.setState(NSVisualEffectState::Active);
+        effect.setAutoresizingMask(
+            NSAutoresizingMaskOptions::NSViewWidthSizable
+                | NSAutoresizingMaskOptions::NSViewHeightSizable,
+        );
+        content.addSubview_positioned_relativeTo(
+            &effect,
+            NSWindowOrderingMode::NSWindowBelow,
+            None,
+        );
+    }
 }
 
 /// Draw into the page's `<canvas id="rndr">` when there is one, otherwise
@@ -121,6 +276,9 @@ pub(crate) fn finish_create(
             if let Some(ns) = ns_window(window) {
                 unsafe { ns.setExcludedFromWindowsMenu(true) };
             }
+        }
+        if config.transparent {
+            add_vibrancy(window, config.backdrop);
         }
     }
     #[cfg(target_os = "windows")]
