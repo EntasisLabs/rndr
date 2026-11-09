@@ -934,9 +934,17 @@ pub fn field_text_width(field_width: f32, unit: f32) -> f32 {
 /// A label whose text, wrap width, spans, face, and IME preview are unchanged
 /// keeps the layout it already has.
 pub fn apply_text_layout(world: &mut World) {
+    let labels = world.entities_with::<Label>();
+    shape_labels(world, labels);
+}
+
+/// [`apply_text_layout`] for `labels` only.
+pub(crate) fn shape_labels(world: &mut World, labels: Vec<crate::Entity>) {
+    if labels.is_empty() {
+        return;
+    }
     let engine = crate::text::text_engine(world);
     let font = text_face(world);
-    let labels = world.entities_with::<Label>();
     for entity in labels {
         let style = crate::text::style_for(world, entity);
         let unit = engine.unit_advance(&style);

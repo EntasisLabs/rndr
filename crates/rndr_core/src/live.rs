@@ -4,15 +4,19 @@
 //! A [`Live`] handle is shared between a producer and one or more bindings.
 //! [`Live::set`] stores the latest value and wakes each visible window that
 //! draws it once until that window's next frame. Bindings write the value into
-//! [`Opacity`], [`Transform`] or [`Color`] when the frame runs, so layout never
-//! sees it: text does not rewrap and siblings do not move.
+//! [`Opacity`], [`Transform`], [`Color`] or another paint property when the
+//! frame runs, so layout never sees it: text does not rewrap and siblings do
+//! not move. A [`LiveText`] bound with [`LiveLabel`] reshapes only its label,
+//! inside the box layout already gave it.
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, Weak};
 
 use crate::compose::{Blur, Opacity, Transform};
+use crate::decor::{Gradient, Shadows};
 use crate::motion::Spring;
 use crate::runtime::{frame_wake, Wake};
+use crate::style::{Border, Label};
 use crate::world::{Component, World};
 use crate::{Color, Rect};
 
@@ -112,6 +116,121 @@ impl<T: LiveValue> Live<T> {
         self.0.watchers.subscribe(hub);
     }
 }
+
+/// Cloneable, thread-safe, latest-wins string.
+///
+/// Like [`Live`], but setting it takes a short lock and may allocate. Clones
+/// share one value; setting an equal string does nothing.
+#[derive(Clone)]
+pub struct LiveText(Arc<TextShared>);
+
+struct TextShared {
+    text: Mutex<Arc<str>>,
+    version: AtomicU64,
+    watchers: Watchers,
+}
+
+impl std::fmt::Debug for LiveText {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("LiveText").field(&self.get()).finish()
+    }
+}
+
+impl LiveText {
+    /// Handle holding `text`.
+    pub fn new(text: impl Into<Arc<str>>) -> Self {
+        Self(Arc::new(TextShared {
+            text: Mutex::new(text.into()),
+            version: AtomicU64::new(0),
+            watchers: Watchers::default(),
+        }))
+    }
+
+    /// Latest text.
+    pub fn get(&self) -> Arc<str> {
+        Arc::clone(&lock(&self.0.text))
+    }
+
+    /// Store `text`. Wakes each visible window that draws this handle, once
+    /// per frame. Returns `false` when `text` equals the stored text.
+    pub fn set(&self, text: impl Into<Arc<str>>) -> bool {
+        let text = text.into();
+        {
+            let mut stored = lock(&self.0.text);
+            if *stored == text {
+                return false;
+            }
+            *stored = text;
+            self.0.version.fetch_add(1, Ordering::Release);
+        }
+        self.0.watchers.touch();
+        true
+    }
+
+    /// Count of accepted [`Self::set`] calls.
+    pub fn version(&self) -> u64 {
+        self.0.version.load(Ordering::Acquire)
+    }
+}
+
+/// Binds a [`LiveText`] to the entity's [`Label::text`].
+///
+/// A change reshapes that label alone, inside its current rect: the label's
+/// spans, font and overflow stay, and layout keeps its size until the next
+/// full frame measures the new text. Suits clocks, counters and status lines.
+#[derive(Clone, Debug)]
+pub struct LiveLabel {
+    /// Handle the binding reads.
+    pub text: LiveText,
+    seen: Option<u64>,
+}
+
+impl LiveLabel {
+    /// Draw `text` in the entity's label.
+    pub fn new(text: &LiveText) -> Self {
+        Self {
+            text: text.clone(),
+            seen: None,
+        }
+    }
+}
+
+impl Component for LiveLabel {}
+
+/// Binds a first and a last [`Live<Color>`] to the first and last stops of
+/// the entity's [`Gradient`]. Stops between them keep their colours.
+#[derive(Clone, Debug)]
+pub struct LiveGradient {
+    /// Colour of the first stop.
+    pub first: Live<Color>,
+    /// Colour of the last stop.
+    pub last: Live<Color>,
+    /// Smoothing toward the latest colours.
+    pub smooth: Smooth,
+    follow: [Follow; 2],
+}
+
+impl LiveGradient {
+    /// Draw `first` and `last` as they are.
+    pub fn new(first: &Live<Color>, last: &Live<Color>) -> Self {
+        Self {
+            first: first.clone(),
+            last: last.clone(),
+            smooth: Smooth::None,
+            follow: [Follow::default(); 2],
+        }
+    }
+
+    /// Follow `first` and `last` with `spring`.
+    pub fn spring(first: &Live<Color>, last: &Live<Color>, spring: Spring) -> Self {
+        Self {
+            smooth: Smooth::Spring(spring),
+            ..Self::new(first, last)
+        }
+    }
+}
+
+impl Component for LiveGradient {}
 
 /// One world's wake state, shared with every handle it draws.
 pub(crate) struct Hub {
@@ -288,6 +407,23 @@ binding!(
     Color
 );
 binding!(
+    /// Binds a [`Live<Color>`] to [`Label::color`]. The text is not shaped
+    /// again.
+    LiveTextColor,
+    Color
+);
+binding!(
+    /// Binds a [`Live<Color>`] to [`Border::color`]. Needs a [`Border`].
+    LiveBorder,
+    Color
+);
+binding!(
+    /// Binds a [`Live<Color>`] to the colour of the first shadow in
+    /// [`Shadows`]. Needs at least one shadow.
+    LiveShadow,
+    Color
+);
+binding!(
     /// Binds a [`Live<[f32; 4]>`](Live) `[x, y, w, h]` in window points to
     /// where the entity is drawn and hit. Layout keeps its own rect; the
     /// entity is moved and scaled from it through [`Transform`], so its text
@@ -306,6 +442,16 @@ fn lanes_2(value: [f32; 2]) -> [f32; 4] {
 
 fn lanes_color(color: Color) -> [f32; 4] {
     [color.r, color.g, color.b, color.a]
+}
+
+fn from_lanes([r, g, b, a]: [f32; 4]) -> Color {
+    Color { r, g, b, a }
+}
+
+fn gradient_ends(gradient: &mut Gradient) -> &mut Vec<crate::decor::GradientStop> {
+    match gradient {
+        Gradient::Linear { stops, .. } | Gradient::Radial { stops, .. } => stops,
+    }
 }
 
 /// Copy every bound value into its component. Runs on every frame, full or
@@ -363,6 +509,100 @@ pub(crate) fn apply(world: &mut World) {
         world.insert(entity, bind);
         world.insert(entity, Color { r, g, b, a });
     }
+    for entity in world.entities_with::<LiveTextColor>() {
+        let Some(mut bind) = world.get::<LiveTextColor>(entity).cloned() else {
+            continue;
+        };
+        bind.live.subscribe(&hub);
+        moving |= bind
+            .follow
+            .step(bind.smooth, lanes_color(bind.live.get()), dt, 4);
+        let color = from_lanes(bind.follow.value);
+        world.insert(entity, bind);
+        if let Some(label) = world.get_mut::<Label>(entity) {
+            label.color = Some(color);
+        }
+    }
+    for entity in world.entities_with::<LiveBorder>() {
+        let Some(mut bind) = world.get::<LiveBorder>(entity).cloned() else {
+            continue;
+        };
+        bind.live.subscribe(&hub);
+        moving |= bind
+            .follow
+            .step(bind.smooth, lanes_color(bind.live.get()), dt, 4);
+        let color = from_lanes(bind.follow.value);
+        world.insert(entity, bind);
+        if let Some(border) = world.get_mut::<Border>(entity) {
+            border.color = color;
+        }
+    }
+    for entity in world.entities_with::<LiveShadow>() {
+        let Some(mut bind) = world.get::<LiveShadow>(entity).cloned() else {
+            continue;
+        };
+        bind.live.subscribe(&hub);
+        moving |= bind
+            .follow
+            .step(bind.smooth, lanes_color(bind.live.get()), dt, 4);
+        let color = from_lanes(bind.follow.value);
+        world.insert(entity, bind);
+        if let Some(Shadows(list)) = world.get_mut::<Shadows>(entity) {
+            if let Some(first) = list.first_mut() {
+                first.color = color;
+            }
+        }
+    }
+    for entity in world.entities_with::<LiveGradient>() {
+        let Some(mut bind) = world.get::<LiveGradient>(entity).cloned() else {
+            continue;
+        };
+        bind.first.subscribe(&hub);
+        bind.last.subscribe(&hub);
+        let targets = [bind.first.get(), bind.last.get()];
+        for (follow, target) in bind.follow.iter_mut().zip(targets) {
+            moving |= follow.step(bind.smooth, lanes_color(target), dt, 4);
+        }
+        let [first, last] = bind.follow.map(|f| from_lanes(f.value));
+        world.insert(entity, bind);
+        if let Some(gradient) = world.get_mut::<Gradient>(entity) {
+            let stops = gradient_ends(gradient);
+            if let Some(stop) = stops.first_mut() {
+                stop.color = first;
+            }
+            if stops.len() > 1 {
+                if let Some(stop) = stops.last_mut() {
+                    stop.color = last;
+                }
+            }
+        }
+    }
+    let mut reshape = Vec::new();
+    for entity in world.entities_with::<LiveLabel>() {
+        let Some(mut bind) = world.get::<LiveLabel>(entity).cloned() else {
+            continue;
+        };
+        bind.text.0.watchers.subscribe(&hub);
+        let version = bind.text.version();
+        if bind.seen == Some(version) {
+            continue;
+        }
+        bind.seen = Some(version);
+        let text = bind.text.get();
+        world.insert(entity, bind);
+        match world.get_mut::<Label>(entity) {
+            Some(label) if *label.text == *text => {}
+            Some(label) => {
+                label.text = text.to_string();
+                reshape.push(entity);
+            }
+            None => {
+                world.insert(entity, Label::new(text.to_string()));
+                reshape.push(entity);
+            }
+        }
+    }
+    crate::font::shape_labels(world, reshape);
     let mut moved = world.entities_with::<LiveOffset>();
     moved.extend(world.entities_with::<LiveScale>());
     moved.extend(world.entities_with::<LiveRect>());
