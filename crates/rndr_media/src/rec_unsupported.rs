@@ -8,6 +8,10 @@ pub(crate) fn permission() -> MicPermission {
     MicPermission::Restricted
 }
 
+pub(crate) fn request_permission(callback: Box<dyn FnOnce(MicPermission) + Send>) {
+    callback(permission());
+}
+
 pub(crate) fn spawn(shared: Arc<Shared>, _commands: Receiver<Command>) -> Option<JoinHandle<()>> {
     shared.fail("recording is not supported on this platform");
     None

@@ -6,7 +6,7 @@ using the platform's own media stack:
 | Platform | Playback | Recording |
 | --- | --- | --- |
 | Linux | GStreamer 1.x (`playbin`) | GStreamer: WAV, Ogg Opus, FLAC |
-| macOS | AVFoundation (`AVPlayer`) | Not yet: reports `Failed` |
+| macOS | AVFoundation (`AVPlayer`) | AVFoundation (`AVAudioRecorder`): AAC (`.m4a`), WAV |
 | Others | Players report `PlayerState::Failed` | Reports `Failed` |
 
 A `Player` plays a file or URL. Video frames go to its `FrameSurface`; draw
@@ -30,12 +30,19 @@ State: `state`, `time`, `duration`, `natural_size`, plus `position()` as a
 `Live<f32>` for progress bars and `set_waker` for state changes.
 
 A `Recorder` records the default input to a file; the extension picks the
-format (`.wav`, `.ogg`/`.opus`, `.flac`). It has `start`, `pause`, `resume`,
+format (`.wav`, `.ogg`/`.opus`, `.flac` on Linux; `.m4a`, `.wav` on macOS). It has `start`, `pause`, `resume`,
 `stop` (returns the file and its length, pauses excluded) and `cancel`
 (deletes the file), plus `state`, `elapsed`, `level()` and `live_level()` as a
 `Live<f32>` for a meter bar. `RecordSource::TestTone(hz)` records a generated
 tone instead of a device. Run `cargo run -p rndr_media --example recorder --
-[--tone] [take.ogg]`.
+[--tone] [take.ogg]` (`take.m4a` on macOS).
+
+On macOS, `Recorder::permission()` reports the microphone authorization
+(`AVCaptureDevice`) without asking, and `Recorder::request_permission(callback)`
+shows the system prompt when the user hasn't been asked; `start` asks by
+itself. A bundled app needs `NSMicrophoneUsageDescription` in its Info.plist;
+without it `start` fails with that message instead of macOS ending the app. An
+unbundled binary run from a terminal is attributed to the terminal app.
 
 Linux builds need the GStreamer development packages
 (`libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev` on Debian/Ubuntu).
