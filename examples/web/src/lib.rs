@@ -1,6 +1,7 @@
 //! rndr in the browser: one WebGPU canvas with decorated cards, a spring that
-//! runs on each click, and a read-only label whose copy reaches the browser
-//! clipboard.
+//! runs on each click, a read-only label whose copy reaches the browser
+//! clipboard, a text field that takes typing, IME and paste from other apps,
+//! and a link that opens a new tab.
 //!
 //! ```text
 //! scripts/web-build.sh
@@ -11,12 +12,14 @@
 
 use rndr_core::motion::{self, Prop, Spring, Transition};
 use rndr_core::{
-    set_parent, App, Axis, Clipboard, Color, Corners, Entity, Gradient, Input, Label, Layout,
-    LogicalSize, Schedule, Selectable, SelectablePlugin, Shadow, Shadows, Size, TextStyle,
-    WindowConfig, World,
+    request_open_url, set_parent, App, Axis, Button, CapturesKeys, Chrome, Clipboard, Color,
+    Corners, Entity, Fired, Focus, Gradient, Input, Label, Layout, LogicalSize, Radius, Schedule,
+    Selectable, SelectablePlugin, Shadow, Shadows, Size, TextField, TextStyle, WindowConfig, World,
 };
 
 const INK: Color = Color::rgb(0.1, 0.11, 0.14);
+const LINK: Color = Color::rgb(0.15, 0.35, 0.85);
+const OPEN_LINK: &str = "open-link";
 
 /// Cards the click handler animates.
 struct Cards {
@@ -31,14 +34,17 @@ pub fn app() -> App {
         title: "rndr web".into(),
         size: LogicalSize {
             width: 720.0,
-            height: 420.0,
+            height: 560.0,
         },
         ..WindowConfig::default()
     });
     app.world_mut().insert_resource(Clipboard::default());
+    app.world_mut().insert_resource(Focus::default());
+    app.add_plugin(Chrome);
     app.add_plugin(SelectablePlugin);
     app.add_system(Schedule::Startup, setup);
     app.add_system(Schedule::Update, on_click);
+    app.add_system(Schedule::Update, on_link);
     app
 }
 
@@ -123,6 +129,27 @@ fn setup(world: &mut World) {
         400,
     );
     world.insert(note, Selectable::default());
+    let field = world.spawn((
+        Layout {
+            width: Size::Fill,
+            height: Size::Hug,
+            min_height: 36.0,
+            ..Layout::column()
+        },
+        Color::rgb(1.0, 1.0, 1.0),
+        Radius(8.0),
+        Label::new("").with_color(INK),
+        TextStyle {
+            size: 16.0,
+            ..TextStyle::default()
+        },
+        TextField,
+    ));
+    world.insert(field, CapturesKeys);
+    set_parent(world, field, root);
+    let link = label(world, root, "Open rndr on GitHub", 16.0, 600);
+    world.insert(link, Button::new(OPEN_LINK));
+    world.insert(link, Label::new("Open rndr on GitHub").with_color(LINK));
     world.insert_resource(Cards {
         cards,
         flipped: false,
@@ -154,10 +181,47 @@ fn on_click(world: &mut World) {
     }
 }
 
+fn on_link(world: &mut World) {
+    let fired = world
+        .resource::<Fired>()
+        .is_some_and(|fired| fired.name.as_deref() == Some(OPEN_LINK));
+    if fired {
+        let _ = request_open_url(world, "https://github.com/EntasisLabs/rndr");
+    }
+}
+
 /// Browser entry point that wasm-bindgen calls when the module loads.
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen::prelude::wasm_bindgen(start)]
 pub fn start() {
     console_error_panic_hook::set_once();
     rndr_render::run(app());
+}
+
+#[cfg(test)]
+mod tests {
+    use rndr_core::{Focus, Input, PointerButton, Rect, Sim, TextField};
+
+    #[test]
+    fn clicking_the_field_focuses_it() {
+        let mut sim = Sim::new();
+        sim.app = super::app();
+        sim.update();
+        let field = sim.world().entities_with::<TextField>()[0];
+        let rect = *sim.world().get::<Rect>(field).expect("field rect");
+        let at = [rect.x + 10.0, rect.y + rect.h * 0.5];
+        if let Some(input) = sim.world().resource_mut::<Input>() {
+            input.pointer.position = at;
+            input.pointer.press_at = Some(at);
+            input.pointer.pressed = true;
+            input.pointer.down = true;
+            input.pointer.button = PointerButton::Left;
+        }
+        sim.update();
+        let focus = sim
+            .world()
+            .resource::<Focus>()
+            .and_then(|focus| focus.entity);
+        assert_eq!(focus, Some(field), "rect {rect:?}");
+    }
 }
