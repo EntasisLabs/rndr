@@ -2,6 +2,7 @@
 //! meter. Click the window to start and stop; each take plays back once.
 //!
 //! `cargo run -p rndr_media --example recorder -- [--tone] [out.ogg]`
+//! (`out.m4a` or `out.wav` on macOS)
 use rndr_core::{
     set_parent, App, Color, Input, Label, Layout, Live, LiveLabel, LiveScale, LiveText, Size,
     Transform, WindowConfig, World,
@@ -53,7 +54,13 @@ fn main() {
         .iter()
         .find(|a| !a.starts_with("--"))
         .cloned()
-        .unwrap_or_else(|| "take.ogg".into());
+        .unwrap_or_else(|| {
+            if cfg!(target_os = "macos") {
+                "take.m4a".into()
+            } else {
+                "take.ogg".into()
+            }
+        });
     let source = if tone {
         RecordSource::TestTone(330.0)
     } else {

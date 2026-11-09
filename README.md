@@ -341,8 +341,9 @@ native-platform acceptance are different things:
   play, pause, seek, rate, loop and mute; state, time, duration and video size are
   readable, `position()` is a `Live<f32>`, and `set_waker` reports state changes.
   `rndr::media::Recorder` records the default input to WAV, Ogg Opus or FLAC on
-  Linux (GStreamer), with pause, resume, cancel, elapsed time and a `Live<f32>`
-  input level for meters; macOS recording is not implemented yet.
+  Linux (GStreamer) and to AAC (`.m4a`) or WAV on macOS (`AVAudioRecorder`, with
+  microphone permission checks and requests), with pause, resume, cancel,
+  elapsed time and a `Live<f32>` input level for meters.
   Linux builds need the GStreamer development packages. See
   [crates/rndr_media/README.md](crates/rndr_media/README.md).
 - **Desktop settings, links and cursors:** the runner publishes the desktop's
