@@ -6,6 +6,10 @@
 //! [`SurfaceView`](rndr_core::SurfaceView). Audio plays without a view.
 //! On other platforms a player reports [`PlayerState::Failed`].
 //!
+//! A [`Recorder`] records the default input to a file with a live input
+//! level. It records with GStreamer on Linux; elsewhere it reports
+//! [`RecorderState::Failed`].
+//!
 //! ```no_run
 //! use rndr_core::{SurfaceFit, SurfaceView};
 //! use rndr_media::Player;
@@ -34,6 +38,11 @@ use rndr_core::{FrameSurface, Live};
     path = "unsupported.rs"
 )]
 mod backend;
+mod recorder;
+
+pub use recorder::{
+    Level, MicPermission, RecordFormat, RecordSource, Recorder, RecorderState, Recording,
+};
 
 /// Where a [`Player`] reads its clip.
 #[derive(Clone, Debug, PartialEq, Eq)]
