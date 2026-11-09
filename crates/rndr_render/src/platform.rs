@@ -280,6 +280,13 @@ pub(crate) fn finish_create(
         if config.transparent {
             add_vibrancy(window, config.backdrop);
         }
+        if custom_titlebar(config) {
+            // The app's `WindowDrag` regions move the window. AppKit's own
+            // titlebar drag would also move it from buttons in the band.
+            if let Some(ns) = ns_window(window) {
+                ns.setMovable(false);
+            }
+        }
     }
     #[cfg(target_os = "windows")]
     if config.kind == WindowKind::Panel {
