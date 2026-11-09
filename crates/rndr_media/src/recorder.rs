@@ -8,7 +8,11 @@ use std::time::Duration;
 use rndr_core::Live;
 
 #[cfg_attr(target_os = "linux", path = "rec_gstreamer.rs")]
-#[cfg_attr(not(target_os = "linux"), path = "rec_unsupported.rs")]
+#[cfg_attr(target_os = "macos", path = "rec_avfoundation.rs")]
+#[cfg_attr(
+    not(any(target_os = "linux", target_os = "macos")),
+    path = "rec_unsupported.rs"
+)]
 mod backend;
 
 /// The file format a [`Recorder`] writes, from the path's extension.
@@ -17,20 +21,33 @@ mod backend;
 pub enum RecordFormat {
     /// 16-bit PCM WAV (`.wav`).
     Wav,
-    /// Opus in Ogg (`.ogg`, `.opus`).
+    /// Opus in Ogg (`.ogg`, `.opus`), Linux.
     Opus,
-    /// FLAC (`.flac`).
+    /// FLAC (`.flac`), Linux.
     Flac,
+    /// AAC in MPEG-4 (`.m4a`), macOS.
+    Aac,
 }
 
 impl RecordFormat {
+    /// The extensions this platform records, for messages.
+    #[cfg(target_os = "macos")]
+    const SUPPORTED: &str = ".m4a or .wav";
+    #[cfg(not(target_os = "macos"))]
+    const SUPPORTED: &str = ".wav, .ogg, .opus or .flac";
+
     /// Format for `path`'s extension, or `None` when this platform can't
-    /// write it.
+    /// write it: `.m4a` and `.wav` on macOS, `.wav`, `.ogg`, `.opus` and
+    /// `.flac` elsewhere.
     pub fn for_path(path: &Path) -> Option<Self> {
         let ext = path.extension()?.to_str()?.to_ascii_lowercase();
         match ext.as_str() {
             "wav" => Some(Self::Wav),
+            #[cfg(target_os = "macos")]
+            "m4a" => Some(Self::Aac),
+            #[cfg(not(target_os = "macos"))]
             "ogg" | "opus" => Some(Self::Opus),
+            #[cfg(not(target_os = "macos"))]
             "flac" => Some(Self::Flac),
             _ => None,
         }
@@ -114,7 +131,7 @@ pub struct Recording {
 }
 
 // The unsupported backend fails at spawn and never reads commands.
-#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+#[cfg_attr(not(any(target_os = "linux", target_os = "macos")), allow(dead_code))]
 pub(crate) enum Command {
     Start,
     Pause,
@@ -134,7 +151,7 @@ type Waker = Arc<dyn Fn() + Send + Sync>;
 
 pub(crate) struct Shared {
     pub path: PathBuf,
-    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    #[cfg_attr(not(any(target_os = "linux", target_os = "macos")), allow(dead_code))]
     pub source: RecordSource,
     pub level: Live<f32>,
     status: Mutex<Status>,
@@ -202,12 +219,14 @@ impl Drop for Inner {
 ///
 /// On Linux it records with GStreamer from the default input (PulseAudio,
 /// PipeWire or ALSA), and writes WAV, Ogg Opus or FLAC by the path's
-/// extension. Other platforms report [`RecorderState::Failed`].
+/// extension. On macOS it records with `AVAudioRecorder` to AAC (`.m4a`) or
+/// WAV, asking for microphone access first when the user hasn't been asked.
+/// Other platforms report [`RecorderState::Failed`].
 ///
 /// ```no_run
 /// use rndr_media::Recorder;
 ///
-/// let rec = Recorder::to_file("note.ogg");
+/// let rec = Recorder::to_file(if cfg!(target_os = "macos") { "note.m4a" } else { "note.ogg" });
 /// rec.start();
 /// // A meter bar that redraws without running Update:
 /// // world.insert(bar, rndr_core::LiveScale::new(&...)) from `rec.live_level()`.
@@ -273,14 +292,29 @@ impl Recorder {
             .is_some_and(|tx| tx.send(command).is_ok())
     }
 
-    /// Microphone access. Linux has no per-app permission and reports
-    /// [`MicPermission::Granted`]; unsupported platforms report
-    /// [`MicPermission::Restricted`].
+    /// Microphone access, without asking. macOS reports what the user
+    /// chose for this app (or the terminal that ran it); Linux has no
+    /// per-app permission and reports [`MicPermission::Granted`];
+    /// unsupported platforms report [`MicPermission::Restricted`].
     pub fn permission() -> MicPermission {
         backend::permission()
     }
 
-    /// Start recording, overwriting the file. Restarts after
+    /// Ask for microphone access when it is
+    /// [`Undetermined`](MicPermission::Undetermined), then call `callback`
+    /// with the answer, from any thread; at once when already decided.
+    /// macOS shows its prompt with the app's `NSMicrophoneUsageDescription`;
+    /// a bundled app without one gets [`MicPermission::Denied`] rather than
+    /// being ended by macOS. [`start`](Self::start) asks by itself.
+    pub fn request_permission(callback: impl FnOnce(MicPermission) + Send + 'static) {
+        backend::request_permission(Box::new(callback));
+    }
+
+    /// Start recording, overwriting the file. On macOS, a microphone
+    /// recording asks for access first when it is undetermined (the state
+    /// stays [`Starting`](RecorderState::Starting) meanwhile) and fails when
+    /// it is denied, or when a bundled app's Info.plist has no
+    /// `NSMicrophoneUsageDescription`. Restarts after
     /// [`stop`](Self::stop), [`cancel`](Self::cancel) or a failure, and
     /// resumes when paused.
     pub fn start(&self) {
@@ -293,7 +327,8 @@ impl Recorder {
             let shown = self.shared().path.display().to_string();
             self.shared().update(|s| {
                 s.state = RecorderState::Failed(format!(
-                    "can't record to {shown}: use .wav, .ogg, .opus or .flac"
+                    "can't record to {shown}: use {}",
+                    RecordFormat::SUPPORTED
                 ))
             });
             return;

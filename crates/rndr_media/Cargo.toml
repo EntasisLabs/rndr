@@ -22,13 +22,15 @@ gst-video = { package = "gstreamer-video", version = "0.25" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSURL", "NSDictionary", "NSValue", "NSArray", "NSAutoreleasePool", "NSError"] }
-objc2-av-foundation = { version = "0.3", default-features = false, features = ["std", "AVPlayer", "AVPlayerItem", "AVPlayerItemOutput", "AVAsset", "AVTime", "objc2-core-media", "objc2-core-video", "objc2-core-foundation"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSURL", "NSDictionary", "NSValue", "NSArray", "NSAutoreleasePool", "NSError", "NSBundle"] }
+objc2-av-foundation = { version = "0.3", default-features = false, features = ["std", "AVPlayer", "AVPlayerItem", "AVPlayerItemOutput", "AVAsset", "AVTime", "AVCaptureDevice", "AVMediaFormat", "block2", "objc2-core-media", "objc2-core-video", "objc2-core-foundation"] }
 objc2-core-media = { version = "0.3", default-features = false, features = ["std", "CMTime", "CMTimeRange", "CMSync"] }
 objc2-core-video = { version = "0.3", default-features = false, features = ["std", "CVPixelBuffer", "CVImageBuffer", "CVBuffer", "CVReturn", "CVBase"] }
 objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFString", "CFDictionary"] }
 objc2-quartz-core = { version = "0.3", default-features = false, features = ["std", "CABase", "objc2-core-foundation"] }
 dispatch2 = { version = "0.3", default-features = false, features = ["std"] }
+objc2-avf-audio = { version = "0.3", default-features = false, features = ["std", "AVAudioRecorder", "AVAudioFile", "AVAudioFormat", "AVAudioBuffer", "AVAudioSettings", "AVAudioTypes"] }
+block2 = { version = "0.6", default-features = false, features = ["std"] }
 
 [dev-dependencies]
 rndr_render = { path = "../rndr_render", version = "0.5.0" }
