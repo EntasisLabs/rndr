@@ -112,7 +112,7 @@ accesskit_unix = { version = "0.24.1", optional = true, default-features = false
 rfd = { version = "0.15", optional = true, default-features = false, features = ["xdg-portal", "tokio"] }
 wayland-client = { version = "0.31", features = ["system"] }
 wayland-protocols-wlr = { version = "0.3", features = ["client"] }
-xkbcommon = "0.8"
+xkbcommon = "0.9"
 libc = "0.2"
 
 [target.'cfg(windows)'.dependencies]
