@@ -53,11 +53,13 @@ native development libraries used by winit/wgpu and fontconfig; the repository's
 [CI configuration](.github/workflows/ci.yml) records the build packages. Runtime
 capabilities also depend on the desktop session and available graphics backend.
 
-**Release 0.4.0** publishes eight crates, in order: `rndr_core`, `rndr_paint`,
-`rndr_std`, `rndr_term`, `rndr_ui`, `rndr_app`, `rndr_render`, and `rndr`.
-The facade's `ui` feature uses `rndr_ui`. `ui` and `observe` are off by default.
-Examples, including Desktop Workshop and `source-session`, stay `publish = false`.
-This is a 0.y release, not a 1.0 stability promise.
+**Release 0.5.0** publishes fifteen crates, in order: `rndr_core`, `rndr_paint`,
+`rndr_std`, `rndr_term`, `rndr_ui`, `rndr_app`, `rndr_liquid`, `rndr_chart`,
+`rndr_liquid_ui`, `rndr_canvas`, `rndr_canvas_ui`, `rndr_render`, `rndr_media`,
+`rndr_browser`, and `rndr`. Optional facade features `ui`, `observe`, `browser`,
+`media`, `chart`, `liquid`, and `canvas` are off by default. Examples, including
+Desktop Workshop and `source-session`, stay `publish = false`. This is a 0.y
+release, not a 1.0 stability promise.
 See [package policy](docs/ui-status.md#package-policy).
 
 ### A small application
@@ -129,6 +131,7 @@ Application state, systems and document authorities
 | [`rndr_canvas`](crates/rndr_canvas) | Headless canvas documents: nodes, transactions, undo, geometry and storage; reads Medousa Create v3 scenes |
 | [`rndr_canvas_ui`](crates/rndr_canvas_ui) | Paints and edits `rndr_canvas` documents: scene painter, editing tools, overlay, toolbar, layers and inspector |
 | [`rndr_term`](crates/rndr_term) | Optional embedded terminal: PTY, VT state and cell projection |
+| [`rndr_media`](crates/rndr_media) | Optional native video and audio playback. Off by default. GStreamer on Linux, AVFoundation on macOS |
 | [`rndr_browser`](crates/rndr_browser) | Optional embedded browser. Off by default. Publish-eligible and ordered immediately before the facade. macOS WKWebView, Windows WebView2, and Linux WebKitGTK on X11 |
 
 ### One frame, explicit ownership
@@ -386,7 +389,7 @@ native-platform acceptance are different things:
   compositor presentation, or native screen-reader/IME certification.
 - **Pen input:** the pen probe is a hardware-validation spike, not a supported,
   cross-platform tablet API.
-- **Publishing:** 0.4.0 publishes `rndr_core`, `rndr_paint`, `rndr_std`, `rndr_term`, `rndr_ui`, `rndr_app`, `rndr_liquid`, `rndr_chart`, `rndr_liquid_ui`, `rndr_canvas`, `rndr_canvas_ui`, `rndr_render`, and `rndr`. The facade's optional `chart`, `liquid` and `canvas` features version-depend on the five Liquid, chart and canvas crates, so they are packaged before it. `rndr_browser` is now part of that package order, immediately before the facade, because the optional `browser` dependency is resolved even when the feature is off. Examples stay unpublished. This tree does not upload. See [package policy](docs/ui-status.md#package-policy).
+- **Publishing:** 0.5.0 publishes `rndr_core`, `rndr_paint`, `rndr_std`, `rndr_term`, `rndr_ui`, `rndr_app`, `rndr_liquid`, `rndr_chart`, `rndr_liquid_ui`, `rndr_canvas`, `rndr_canvas_ui`, `rndr_render`, `rndr_media`, `rndr_browser`, and `rndr`. The facade's optional `chart`, `liquid`, `canvas`, `media` and `browser` features version-depend on those crates, so they are packaged before the facade. Examples stay unpublished. This tree does not upload. See [package policy](docs/ui-status.md#package-policy).
 
 ## Documentation
 
