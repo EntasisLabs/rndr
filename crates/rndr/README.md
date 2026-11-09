@@ -16,8 +16,9 @@ or component-targeted/headless capture, nor compositor presentation proof.
 [Native observation](../../docs/native-observation.md) documents fail-closed
 whole-frame denial, limitations and the Python client/tests.
 
-0.4.0 publishes this crate. `ui` and `observe` are off by default. `ui` depends
-on published `rndr_ui`. `observe` enables the Unix whole-window probe and
+0.5.0 publishes this crate with the fifteen-crate SDK set. `ui`, `observe`,
+`browser`, `media`, `chart`, `liquid`, and `canvas` are off by default. `ui`
+depends on published `rndr_ui`. `observe` enables the Unix whole-window probe and
 headless component capture. Examples stay unpublished. This is a 0.y release,
 not a 1.0 stability promise. See [package policy](../../docs/ui-status.md#package-policy).
 

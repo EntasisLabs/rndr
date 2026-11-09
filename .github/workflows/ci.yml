@@ -164,7 +164,7 @@ jobs:
         if: runner.os == 'Linux'
         run: python3 scripts/check-desktop-packaging.py
 
-      # Facade manifest normalization. Registry rebuild waits until 0.4.0
+      # Facade manifest normalization. Registry rebuild waits until 0.5.0
       # dependencies are on the index; scripts/publish-crates.sh does that in order.
       - name: Facade archive normalization
         if: runner.os == 'Linux'
@@ -173,7 +173,7 @@ jobs:
       - name: Package and docs
         if: runner.os == 'Linux'
         run: |
-          # --no-verify: 0.4.0 path dependencies are not on crates.io until
+          # --no-verify: 0.5.0 path dependencies are not on crates.io until
           # publish. The tarball checks below still run. Ordered registry
           # verification is scripts/publish-crates.sh.
           cargo package --workspace --locked --no-verify \
@@ -187,16 +187,20 @@ jobs:
           app_crate=(target/package/rndr_app-*.crate)
           facade_crate=(target/package/rndr-*.crate)
           browser_crate=(target/package/rndr_browser-*.crate)
+          media_crate=(target/package/rndr_media-*.crate)
           test "${#paint_crate[@]}" -eq 1
           test "${#render_crate[@]}" -eq 1
           test "${#ui_crate[@]}" -eq 1
           test "${#app_crate[@]}" -eq 1
           test "${#facade_crate[@]}" -eq 1
           test "${#browser_crate[@]}" -eq 1
+          test "${#media_crate[@]}" -eq 1
           paint_files="$(tar -tzf "${paint_crate[0]}")"
           render_files="$(tar -tzf "${render_crate[0]}")"
+          media_files="$(tar -tzf "${media_crate[0]}")"
           test "$(printf '%s\n' "$paint_files" | grep -c '\.snap$')" = 7
           test "$(printf '%s\n' "$render_files" | grep -c '\.snap$')" = 2
           printf '%s\n' "$paint_files" | grep -q '/Inter-LICENSE.txt$'
           printf '%s\n' "$paint_files" | grep -q '/latin_atlas.bin$'
+          printf '%s\n' "$media_files" | grep -q '/LICENSE$'
           RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features --locked --exclude expand --exclude idle --exclude overlay --exclude palette --exclude terminal --exclude stream --exclude two-windows --exclude pen-probe --exclude canvas-scene --exclude create-view --exclude chart-gallery --exclude liquid-view --exclude canvas-editor --exclude web-hello

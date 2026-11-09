@@ -20,6 +20,6 @@ app.add_plugin(FormNavigation);
 
 The runnable reference is Desktop Workshop, `examples/desktop` in the [rndr repository](https://github.com/EntasisLabs/rndr/blob/main/docs/desktop-apps.md). That example stays `publish = false`. Its macOS bundle version string is example metadata. Native IME, clipboard, VoiceOver, and signed distribution are not certified by the headless tests. See the [readiness notes](https://github.com/EntasisLabs/rndr/blob/main/docs/desktop-readiness.md).
 
-0.4.0 publishes this crate with the rest of the workspace. The version is a 0.y release, not a 1.0 stability promise.
+0.5.0 publishes this crate with the rest of the workspace. The version is a 0.y release, not a 1.0 stability promise.
 
 License: MIT.
