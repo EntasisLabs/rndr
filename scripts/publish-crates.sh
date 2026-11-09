@@ -238,7 +238,7 @@ for name in expected:
         sys.exit(f"{name} manifest sets publish = false")
     if not package.get("description") or not package.get("readme"):
         sys.exit(f"{name} is missing description or readme")
-    if name in ("rndr_ui", "rndr_app") and not str(package.get("documentation", "")).startswith("https://docs.rs/"):
+    if name in ("rndr_ui", "rndr_app", "rndr_browser") and not str(package.get("documentation", "")).startswith("https://docs.rs/"):
         sys.exit(f"{name} documentation URL {package.get('documentation')!r}")
     if name == "rndr":
         features = manifest.get("features", {})
