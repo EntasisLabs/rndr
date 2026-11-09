@@ -286,7 +286,8 @@ pub use app_menu::{
     push_app_menu_pick, set_app_menu, take_app_menu_change, AppMenuPicked,
 };
 pub use live::{
-    Live, LiveBlur, LiveFill, LiveOffset, LiveOpacity, LiveRect, LiveScale, LiveValue, Smooth,
+    Live, LiveBlur, LiveBorder, LiveFill, LiveGradient, LiveLabel, LiveOffset, LiveOpacity,
+    LiveRect, LiveScale, LiveShadow, LiveText, LiveTextColor, LiveValue, Smooth,
 };
 pub use open_url::{check_url, request_open_url, take_url_requests, OpenUrlError};
 pub use pane::{

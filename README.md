@@ -308,12 +308,17 @@ native-platform acceptance are different things:
   `cargo run -p rndr --example effect_gallery -- out.png` renders a glow and a frosted panel.
 - **Live values:** a `Live<T>` (`f32`, `[f32; 2]`, `[f32; 4]` or `Color`) is a
   cloneable latest-wins handle any thread can `set`. `LiveOpacity`, `LiveOffset`,
-  `LiveScale`, `LiveFill`, `LiveRect` and `LiveBlur` bind it to an entity's `Opacity`,
-  `Transform`, fill or `Blur`, as is or through a motion `Spring`. A change wakes each
+  `LiveScale`, `LiveFill`, `LiveRect`, `LiveBlur`, `LiveTextColor`, `LiveBorder` and
+  `LiveShadow` bind it to an entity's `Opacity`, `Transform`, fill, `Blur`, label colour,
+  border colour or first shadow colour, and `LiveGradient` to a gradient's first and last
+  stops, as is or through a motion `Spring`. A change wakes each
   visible window that draws the handle once until its next frame; equal values and
   hidden, minimized or fully covered windows do not wake. When a live value is the only reason for a frame the
   runner calls `rndr_paint::frame_live`, which skips Input, Update, PostUpdate and
-  Layout, so text does not rewrap and siblings do not move. `LiveRect` moves and
+  Layout, so text does not rewrap and siblings do not move. A `LiveText` string bound
+  with `LiveLabel` reshapes only its label, inside the box layout already gave it; the
+  next full frame measures the new text (`cargo run -p rndr --example live_text
+  --features parley` drives a clock and colours from a thread). `LiveRect` moves and
   scales the laid-out box through `Transform`. In a headless CPU probe
   (`cargo test -p rndr_paint --release --test live_cost -- --ignored --nocapture`)
   a live-only frame cost about a sixth of a full frame.
