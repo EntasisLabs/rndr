@@ -19,7 +19,12 @@
 //!
 //! [`animate_color`] blends fills, border colours and label colours in
 //! OKLab. [`play`] runs a [`Keyframes`] track on a property. [`PressScale`]
-//! shrinks an element while a press on it is held.
+//! shrinks an element while a press on it is held. [`fly`] hands one
+//! element's drawn geometry, fill and corners to another, which then moves to
+//! its own layout.
+//!
+//! [`scroll_to`] glides a [`Scroll`](crate::Scroll) port; [`ScrollPhysics`] adds fling and
+//! rubber-banding to pointer drags.
 //!
 //! [`MotionSettings`] turns on reduced motion (offsets, scale, and rotation
 //! jump; opacity takes a short fade) and scales motion time.
@@ -46,6 +51,7 @@
 mod color;
 mod curve;
 mod keyframes;
+mod scroll;
 mod track;
 
 use std::time::Duration;
@@ -54,13 +60,19 @@ pub use color::ColorProp;
 pub use curve::{Anim, Curve, Easing, Spring};
 use keyframes::Script;
 pub use keyframes::{Keyframes, Repeat};
+pub(crate) use scroll::{
+    catch as scroll_catch, drag as scroll_drag, presented_offset as scroll_offset,
+    release as scroll_release,
+};
+pub use scroll::{is_scrolling, scroll_by, scroll_to, ScrollPhysics};
 use track::{Eps, Lane};
 
 use crate::compose::{Opacity, Transform};
+use crate::decor::Corners;
 use crate::entity::Entity;
 use crate::event::Event;
 use crate::hierarchy::Parent;
-use crate::layout::{Clip, Rect, Scroll};
+use crate::layout::{Clip, Rect};
 use crate::style::{Border, Color, Label};
 use crate::world::{Component, World};
 
@@ -147,6 +159,17 @@ pub struct Motion {
     colors: [Option<[Lane; 4]>; 3],
     scripts: Vec<Script>,
     pressed: bool,
+    flight: Option<Flight>,
+    corners: Option<[Lane; 4]>,
+}
+
+/// Where a [`fly`] starts, captured from the entity it leaves.
+#[derive(Clone, Copy, Debug)]
+struct Flight {
+    start: Rect,
+    fill: Option<Color>,
+    corners: [f32; 4],
+    anim: Anim,
 }
 
 impl Motion {
@@ -176,6 +199,8 @@ impl Motion {
             colors: [None; 3],
             scripts: Vec::new(),
             pressed: false,
+            flight: None,
+            corners: None,
         }
     }
 
@@ -268,6 +293,7 @@ struct MotionClock {
     now: f64,
     seen: Duration,
     active: usize,
+    scrolling: usize,
 }
 
 fn now(world: &mut World) -> f64 {
@@ -484,7 +510,7 @@ pub fn is_animating(world: &World, entity: Entity) -> bool {
 pub fn animating(world: &World) -> bool {
     world
         .resource::<MotionClock>()
-        .is_some_and(|clock| clock.active > 0)
+        .is_some_and(|clock| clock.active + clock.scrolling > 0)
         && crate::window::is_visible(world)
 }
 
@@ -629,6 +655,103 @@ pub(crate) fn tick(world: &mut World) {
         clock.seen = time.now;
         clock.now += delta.as_secs_f64() * scale;
     }
+    let scrolling = scroll::drive(world);
+    if let Some(clock) = world.resource_mut::<MotionClock>() {
+        clock.scrolling = scrolling;
+    }
+}
+
+/// Hide `from` and start `to` where `from` is drawn: its position, size,
+/// fill and corner radii. `to` then moves to its own layout with `anim`
+/// (a shared-element flight, like SwiftUI's `matchedGeometryEffect`). Call
+/// it in the frame that shows `to`; the flight starts after that frame's
+/// layout. `from` is hidden by opacity, so it keeps its layout space and
+/// input; flying back with the arguments swapped shows it again. While the
+/// size moves, `to`'s children are laid out at its final size and revealed
+/// by its clip. Under reduced motion `to` fades in where it is.
+pub fn fly(world: &mut World, from: Entity, to: Entity, anim: impl Into<Anim>) {
+    let anim = anim.into();
+    let start = world.get::<Rect>(from).copied();
+    let translate = world
+        .get::<Transform>(from)
+        .map_or([0.0, 0.0], |t| t.translate);
+    let fill = world.get::<Color>(from).copied();
+    let corners = world.get::<Corners>(from).map_or([0.0; 4], |c| c.0);
+    set(world, from, Prop::Opacity, 0.0);
+    if settings(world).reduced_motion {
+        set(world, to, Prop::Opacity, 0.0);
+        animate(world, to, Prop::Opacity, 1.0, anim);
+        return;
+    }
+    set(world, to, Prop::Opacity, 1.0);
+    let Some(start) = start else {
+        return;
+    };
+    if let Some(motion) = motion_mut(world, to) {
+        motion.flight = Some(Flight {
+            start: Rect {
+                x: start.x + translate[0],
+                y: start.y + translate[1],
+                ..start
+            },
+            fill,
+            corners,
+            anim,
+        });
+        motion.active = true;
+    }
+}
+
+// Start pending flights from this frame's layout.
+fn launch(world: &mut World, now: f64) {
+    for entity in world.entities_with::<Motion>() {
+        let Some(flight) = world
+            .get_mut::<Motion>(entity)
+            .and_then(|m| m.flight.take())
+        else {
+            continue;
+        };
+        let Some(rect) = world.get::<Rect>(entity).copied() else {
+            continue;
+        };
+        let position = flow_position(world, entity);
+        let fill = world.get::<Color>(entity).copied();
+        let corners = world.get::<Corners>(entity).map_or([0.0; 4], |c| c.0);
+        let Some(motion) = world.get_mut::<Motion>(entity) else {
+            continue;
+        };
+        let anim = flight.anim;
+        let start = flight.start;
+        let lead = [motion.lanes[X].sample(now).0, motion.lanes[Y].sample(now).0];
+        for (lane, from) in [
+            (FLOW_X, start.x - rect.x - lead[0]),
+            (FLOW_Y, start.y - rect.y - lead[1]),
+            (FLOW_W, start.w - rect.w),
+            (FLOW_H, start.h - rect.h),
+        ] {
+            motion.lanes[lane].set(from);
+            motion.lanes[lane].animate(now, 0.0, anim);
+        }
+        motion.flow = position;
+        motion.size = Some([rect.w, rect.h]);
+        if let (Some(from), Some(goal)) = (flight.fill, fill) {
+            let from = color::to_lanes(from);
+            let goal = color::to_lanes(goal);
+            let mut lanes: [Lane; 4] = std::array::from_fn(|c| Lane::new(from[c], color_eps(c)));
+            for (lane, goal) in lanes.iter_mut().zip(goal) {
+                lane.animate(now, goal, anim);
+            }
+            motion.colors[ColorProp::Fill.index()] = Some(lanes);
+        }
+        if flight.corners != corners {
+            let mut lanes: [Lane; 4] = flight.corners.map(|r| Lane::new(r, eps(FLOW_X)));
+            for (lane, goal) in lanes.iter_mut().zip(corners) {
+                lane.animate(now, goal, anim);
+            }
+            motion.corners = Some(lanes);
+        }
+        motion.active = true;
+    }
 }
 
 /// Absorb layout moves, sample every animation, and write [`Opacity`] and
@@ -639,6 +762,7 @@ pub(crate) fn step(world: &mut World) {
     }
     let now = now(world);
     let reduced = settings(world).reduced_motion;
+    launch(world, now);
     for (entity, LayoutMotion(anim)) in world
         .query::<LayoutMotion>()
         .into_iter()
@@ -679,6 +803,7 @@ pub(crate) fn step(world: &mut World) {
     let mut removed = Vec::new();
     let mut colors = Vec::new();
     let mut sized = Vec::new();
+    let mut radii = Vec::new();
     for entity in world.entities_with::<Motion>() {
         let origin = world
             .get::<Transform>(entity)
@@ -706,6 +831,14 @@ pub(crate) fn step(world: &mut World) {
                 moving = true;
             } else {
                 motion.colors[prop.index()] = None;
+            }
+        }
+        if let Some(lanes) = &mut motion.corners {
+            radii.push((entity, lanes.map(|l| l.sample(now).0.max(0.0))));
+            if lanes.iter_mut().fold(false, |any, l| l.settle(now) | any) {
+                moving = true;
+            } else {
+                motion.corners = None;
             }
         }
         let grow = [values[FLOW_W], values[FLOW_H]];
@@ -750,11 +883,16 @@ pub(crate) fn step(world: &mut World) {
             }
         }
     }
+    for (entity, radii) in radii {
+        world.insert(entity, Corners(radii));
+    }
     for (entity, grow) in sized {
         present_size(world, entity, grow);
     }
+    let scrolling = scroll::moving(world);
     if let Some(clock) = world.resource_mut::<MotionClock>() {
         clock.active = active;
+        clock.scrolling = scrolling;
     }
     for entity in settled {
         crate::event::send(
@@ -906,7 +1044,7 @@ fn flow_position(world: &World, entity: Entity) -> Option<[f32; 2]> {
         return Some([rect.x, rect.y]);
     };
     let origin = world.get::<Rect>(parent).map_or([0.0, 0.0], |r| [r.x, r.y]);
-    let scroll = world.get::<Scroll>(parent).map_or([0.0, 0.0], |s| s.offset);
+    let scroll = scroll::presented_offset(world, parent).unwrap_or([0.0, 0.0]);
     Some([
         rect.x - origin[0] - scroll[0],
         rect.y - origin[1] - scroll[1],

@@ -249,11 +249,16 @@ native-platform acceptance are different things:
   and label colours in premultiplied OKLab. `play` runs a `Keyframes` track
   (linear, eased, spring and jump steps, delay, repeats, endless or alternating
   loops). `PressScale(0.97)` shrinks an element while a press on it is held.
-  The desktop runner redraws while anything moves. Not yet: shared-element
-  moves, fling/decay, animated scrolling, and off-thread animation.
+  `scroll_to` and `scroll_by` glide a `Scroll` port; `ScrollPhysics` adds UIKit-style
+  fling and rubber-banding to pointer drags (wheel scrolling is unchanged).
+  `fly(from, to, anim)` starts `to` at `from`'s drawn position, size, fill and corners
+  and moves it to its own layout. The desktop runner redraws while anything moves.
+  Not yet: off-thread animation.
   `cargo run -p rndr --example motion_strip -- out.png` renders a frame strip;
   `cargo run -p rndr --example motion_depth --features parley` shows colour,
-  size, keyframe and press motion in a window.
+  size, keyframe and press motion in a window;
+  `cargo run -p rndr --example scroll_motion --features parley` shows scrolling
+  motion and flights.
 - **Decorations:** `Corners` (per-corner radii), `Gradient` (linear at any angle or
   radial, multi-stop), `Shadows` (outer and inset box shadows with offset, blur and
   spread) and `BorderSides` (per-side widths, optional dash) on any laid-out entity.

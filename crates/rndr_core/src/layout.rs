@@ -441,6 +441,9 @@ fn apply_wheel(world: &mut World, input: &Input) {
 
 fn apply_pointer_drag(world: &mut World, input: &Input) {
     if !input.pointer.down {
+        if let Some(entity) = world.resource::<ScrollDrag>().and_then(|d| d.entity) {
+            crate::motion::scroll_release(world, entity);
+        }
         clear_scroll_drag(world);
         return;
     }
@@ -459,6 +462,9 @@ fn apply_pointer_drag(world: &mut World, input: &Input) {
                 ancestor_with::<Scroll>(world, hit)
             }
         });
+        if let Some(entity) = entity {
+            crate::motion::scroll_catch(world, entity);
+        }
         world.insert_resource(ScrollDrag {
             entity,
             origin: position,
@@ -486,13 +492,17 @@ fn apply_pointer_drag(world: &mut World, input: &Input) {
         }
         drag.active = true;
     }
+    let delta = [position[0] - drag.last[0], position[1] - drag.last[1]];
+    let physics = crate::motion::scroll_drag(world, entity, delta);
     if position != drag.last {
-        if let Some(scroll) = world.get_mut::<Scroll>(entity) {
-            scroll.offset[0] += position[0] - drag.last[0];
-            scroll.offset[1] += position[1] - drag.last[1];
-            crate::focus::pause_focus_reveal(world);
-            layout_propagate(world);
+        if !physics {
+            if let Some(scroll) = world.get_mut::<Scroll>(entity) {
+                scroll.offset[0] += delta[0];
+                scroll.offset[1] += delta[1];
+            }
         }
+        crate::focus::pause_focus_reveal(world);
+        layout_propagate(world);
     }
     drag.last = position;
     world.insert_resource(drag);
@@ -655,10 +665,7 @@ fn refine_wrapped_heights(world: &mut World, entity: Entity, available_w: f32, x
     } else {
         (inner_w - fixed_w).max(0.0) / fills as f32
     };
-    let offset_x = world
-        .get::<Scroll>(entity)
-        .map(|s| s.offset[0])
-        .unwrap_or(0.0);
+    let offset_x = crate::motion::scroll_offset(world, entity).map_or(0.0, |o| o[0]);
     let mut child_x = x + left + offset_x;
     let mut content_w = 0.0f32;
     let mut content_h = 0.0f32;
@@ -941,10 +948,7 @@ fn place(
     let inner_y = rect.y + top;
     let inner_w = (rect.w - left - right).max(0.0);
     let inner_h = (rect.h - top - bottom).max(0.0);
-    let offset = world
-        .get::<Scroll>(entity)
-        .map(|s| s.offset)
-        .unwrap_or([0.0, 0.0]);
+    let offset = crate::motion::scroll_offset(world, entity).unwrap_or([0.0, 0.0]);
     let (flow, absolute): (Vec<Entity>, Vec<Entity>) =
         kids.into_iter().partition(|c| flex::in_flow(world, *c));
     let justify = world
@@ -1349,7 +1353,8 @@ fn apply_sticky(world: &mut World) {
             .map_or([0.0; 4], |l| flex::insets(world, parent, &l));
         let (y0, y1) = match world.get::<Scroll>(parent).filter(|_| parent == port) {
             Some(scroll) => {
-                let origin = parent_rect.y + scroll.offset[1];
+                let shown = crate::motion::scroll_offset(world, parent).map_or(0.0, |o| o[1]);
+                let origin = parent_rect.y + shown;
                 (origin + top, origin + scroll.content[1] - bottom)
             }
             None => (parent_rect.y + top, parent_rect.y + parent_rect.h - bottom),

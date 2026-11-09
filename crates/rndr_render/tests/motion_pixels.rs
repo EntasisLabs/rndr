@@ -96,3 +96,92 @@ fn growing_panel_reveals_children_through_its_clip() {
     assert_eq!(pixel(&open, 50, 90)[..3], [255, 0, 0]);
     assert_eq!(pixel(&open, 50, 110)[..3], [255, 255, 255]);
 }
+
+#[test]
+fn a_flight_paints_between_the_two_layouts() {
+    use rndr_core::Corners;
+    let mut sim = Sim::new();
+    sim.world().insert_resource(Viewport::new(120.0, 120.0));
+    let root = sim.world().spawn((
+        Layout {
+            width: Size::Px(120.0),
+            height: Size::Px(120.0),
+            ..Layout::row()
+        },
+        Color::rgb(1.0, 1.0, 1.0),
+    ));
+    let thumb = boxed(&mut sim, 20.0, 20.0, Color::rgb(1.0, 0.0, 0.0));
+    let gap = boxed(&mut sim, 60.0, 20.0, Color::rgba(0.0, 0.0, 0.0, 0.0));
+    let detail = boxed(&mut sim, 40.0, 120.0, Color::rgb(0.0, 0.0, 1.0));
+    sim.world().insert(thumb, Corners::all(10.0));
+    for e in [thumb, gap, detail] {
+        set_parent(sim.world(), e, root);
+    }
+    let mut exporter = exporter();
+    rndr_paint::frame(&mut sim.app);
+    motion::fly(
+        sim.world(),
+        thumb,
+        detail,
+        Curve::tween(1.0, Easing::Linear),
+    );
+    sim.advance(Duration::from_millis(16));
+    let start = render(&mut sim, &mut exporter);
+    // The detail is drawn over the hidden thumbnail, round and red.
+    assert!(
+        pixel(&start, 10, 10)[0] > 240,
+        "{:?}",
+        pixel(&start, 10, 10)
+    );
+    assert!(
+        pixel(&start, 1, 1)[1] > 240,
+        "corner {:?}",
+        pixel(&start, 1, 1)
+    );
+    assert_eq!(pixel(&start, 100, 60)[..3], [255, 255, 255]);
+    sim.advance(Duration::from_millis(484));
+    let mid = render(&mut sim, &mut exporter);
+    // Halfway: x 40..70, y 0..70, purple-ish.
+    let c = pixel(&mid, 55, 35);
+    assert!(c[0] > 60 && c[2] > 60, "{c:?}");
+    assert_eq!(pixel(&mid, 55, 100)[..3], [255, 255, 255]);
+    assert_eq!(pixel(&mid, 5, 5)[..3], [255, 255, 255]);
+    sim.advance(Duration::from_millis(600));
+    let end = render(&mut sim, &mut exporter);
+    assert!(pixel(&end, 100, 110)[2] > 250);
+    assert_eq!(pixel(&end, 55, 35)[..3], [255, 255, 255]);
+}
+
+#[test]
+fn scroll_to_paints_the_content_mid_glide() {
+    use rndr_core::Scroll;
+    let mut sim = Sim::new();
+    sim.world().insert_resource(Viewport::new(120.0, 120.0));
+    let port = sim.world().spawn((
+        Layout {
+            width: Size::Px(120.0),
+            height: Size::Px(120.0),
+            ..Layout::column()
+        },
+        Scroll::default(),
+    ));
+    let top = boxed(&mut sim, 120.0, 120.0, Color::rgb(1.0, 0.0, 0.0));
+    let bottom = boxed(&mut sim, 120.0, 120.0, Color::rgb(0.0, 0.0, 1.0));
+    set_parent(sim.world(), top, port);
+    set_parent(sim.world(), bottom, port);
+    let mut exporter = exporter();
+    rndr_paint::frame(&mut sim.app);
+    motion::scroll_to(
+        sim.world(),
+        port,
+        [0.0, -120.0],
+        Curve::tween(1.0, Easing::Linear),
+    );
+    sim.advance(Duration::from_millis(500));
+    let mid = render(&mut sim, &mut exporter);
+    assert_eq!(pixel(&mid, 60, 50)[..3], [255, 0, 0]);
+    assert_eq!(pixel(&mid, 60, 70)[..3], [0, 0, 255]);
+    sim.advance(Duration::from_millis(600));
+    let end = render(&mut sim, &mut exporter);
+    assert_eq!(pixel(&end, 60, 5)[..3], [0, 0, 255]);
+}
