@@ -9,9 +9,11 @@
 //! for foreign surfaces. Those quads are the fast path. A
 //! [`CanvasRegistry`] painter on a [`rndr_core::SurfaceSlot`], and an
 //! [`rndr_core::ImageView`] on a row, are recorded as [`Placed`] commands
-//! beside the quads. An entity with [`rndr_core::Opacity`] below one or a
-//! non-identity [`rndr_core::Transform`] moves its subtree out of the quad list
-//! into one [`SceneLayer`] of [`Op::Quads`] and draws, composited once. A
+//! beside the quads. An entity with [`rndr_core::Opacity`] below one, a
+//! non-identity [`rndr_core::Transform`] or a [`rndr_core::Blur`] moves its
+//! subtree out of the quad list into one [`SceneLayer`] of [`Op::Quads`] and
+//! draws, composited once. A [`rndr_core::BackdropBlur`] records an
+//! [`Op::Backdrop`] just before the entity's own quads. A
 //! window crate multiplies rectangles by [`rndr_core::Viewport::scale`] when it
 //! uploads them. [`paint`] is the same walk without stepping the app, and it
 //! returns only the quads, so it omits composited subtrees.
@@ -57,8 +59,8 @@ use std::cell::RefCell;
 
 pub use affine::{bucket_scale, size_bucket, zoom_bucket, Affine, OUTLINE_PX};
 pub use display::{
-    Canvas, CanvasPainter, CanvasRegistry, ClipShape, Effect, EffectSlotOp, FillStyle, GlyphOp,
-    GlyphSprite, ImageOp, Op, PathOp, Placed, Scene, SceneLayer, StrokeStyle, SurfaceOp,
+    BackdropOp, Canvas, CanvasPainter, CanvasRegistry, ClipShape, Effect, EffectSlotOp, FillStyle,
+    GlyphOp, GlyphSprite, ImageOp, Op, PathOp, Placed, Scene, SceneLayer, StrokeStyle, SurfaceOp,
     TextSource,
 };
 pub use font::{atlas_r8, glyph_uv, solid_uv, ATLAS_H, ATLAS_W};
@@ -699,6 +701,25 @@ fn walk_group(
     if layer.opacity <= 0.0 {
         return;
     }
+    // The entity's own layer starts empty, so its backdrop is read outside
+    // it, where the entity is drawn, and fades with it.
+    if let Some(rect) = world.get::<Rect>(entity).copied() {
+        let corners = world.get::<rndr_core::Corners>(entity).map(|c| c.0);
+        let radius = world.get::<Radius>(entity).map_or(0.0, |r| r.0);
+        record_backdrop(
+            world,
+            entity,
+            Drawn {
+                rect,
+                transform: layer.transform,
+                opacity: layer.opacity,
+            },
+            corners,
+            radius,
+            quads,
+            draws,
+        );
+    }
     // Paint the subtree as usual, then move its quads and draws into one
     // layer placed where the subtree started, keeping their relative order.
     let quad_start = quads.borrow().len();
@@ -738,14 +759,19 @@ fn group_layer(world: &World, entity: rndr_core::Entity) -> Option<SceneLayer> {
         .get::<rndr_core::Transform>(entity)
         .filter(|transform| !transform.is_identity())
         .zip(world.get::<Rect>(entity).copied());
-    if opacity >= 1.0 && transform.is_none() {
+    let blur = world
+        .get::<rndr_core::Blur>(entity)
+        .map_or(0.0, |blur| blur.sigma());
+    if opacity >= 1.0 && transform.is_none() && blur <= 0.0 {
         return None;
     }
-    let mut layer = SceneLayer::opacity(opacity);
+    let mut layer = SceneLayer::opacity(opacity).with_blur(blur);
     if let Some((transform, rect)) = transform {
         layer.transform = Affine {
             m: transform.matrix(rect),
         };
+    }
+    if transform.is_some() || blur > 0.0 {
         layer.clip = world
             .get::<Parent>(entity)
             .and_then(|parent| world.get::<Clip>(parent.entity))
@@ -819,6 +845,14 @@ fn walk_entity(
         let needs_fallback =
             world.get::<Label>(entity).is_some() && world.get::<TextLayout>(entity).is_none();
         let decor = decor_quads(world, entity, *rect, clip, radius, solid);
+        if group_layer(world, entity).is_none() {
+            let drawn = Drawn {
+                rect: *rect,
+                transform: Affine::IDENTITY,
+                opacity: 1.0,
+            };
+            record_backdrop(world, entity, drawn, decor.corners, radius, quads, draws);
+        }
         let mut guard = quads.borrow_mut();
         let mut paint = |rect: Rect,
                          color: Option<Color>,
@@ -1193,6 +1227,68 @@ fn record_canvas(
     for op in canvas.finish_clipped(rect) {
         draws.borrow_mut().push(Placed { z, op });
     }
+}
+
+/// Where an entity's box lands once its group is composited.
+struct Drawn {
+    rect: Rect,
+    transform: Affine,
+    opacity: f32,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn record_backdrop(
+    world: &World,
+    entity: rndr_core::Entity,
+    drawn: Drawn,
+    corners: Option<[f32; 4]>,
+    radius: f32,
+    quads: &RefCell<Vec<Quad>>,
+    draws: &RefCell<Vec<Placed>>,
+) {
+    let Some(sigma) = world
+        .get::<rndr_core::BackdropBlur>(entity)
+        .map(|blur| blur.sigma())
+        .filter(|sigma| *sigma > 0.0)
+    else {
+        return;
+    };
+    let radius = corners.map_or(radius, |c| c.into_iter().fold(0.0, f32::max));
+    // A rotated box blurs its bounding box; scale shrinks or grows the corner.
+    let Rect { x, y, w, h } = drawn.rect;
+    let points = [[x, y], [x + w, y], [x, y + h], [x + w, y + h]]
+        .map(|p| drawn.transform.transform_point(p));
+    let (x0, y0, x1, y1) = points.iter().fold(
+        (f32::MAX, f32::MAX, f32::MIN, f32::MIN),
+        |(x0, y0, x1, y1), p| (x0.min(p[0]), y0.min(p[1]), x1.max(p[0]), y1.max(p[1])),
+    );
+    let rect = Rect {
+        x: x0,
+        y: y0,
+        w: x1 - x0,
+        h: y1 - y0,
+    };
+    let radius = radius * drawn.transform.uniform_scale();
+    let clip = world
+        .get::<Parent>(entity)
+        .and_then(|parent| world.get::<Clip>(parent.entity))
+        .map(|clip| Rect {
+            x: clip.x,
+            y: clip.y,
+            w: clip.w,
+            h: clip.h,
+        });
+    let z = quads.borrow().len() as u32;
+    draws.borrow_mut().push(Placed {
+        z,
+        op: Op::Backdrop(BackdropOp {
+            rect,
+            radius: radius.max(0.0),
+            clip,
+            sigma,
+            opacity: drawn.opacity,
+        }),
+    });
 }
 
 fn record_effect(

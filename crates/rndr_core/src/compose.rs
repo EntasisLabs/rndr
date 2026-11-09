@@ -1,4 +1,5 @@
-//! Compositing properties for any entity: group opacity and a 2D transform.
+//! Compositing properties for any entity: group opacity, a 2D transform and
+//! blur.
 //!
 //! Both act after layout. Siblings keep their rectangles, and the entity's
 //! own [`Rect`] and [`crate::Clip`] stay in untransformed layout points.
@@ -11,6 +12,61 @@ use crate::world::Component;
 
 impl Component for Opacity {}
 impl Component for Transform {}
+impl Component for Blur {}
+impl Component for BackdropBlur {}
+
+/// Gaussian blur of an entity and its descendants after they are drawn, like
+/// CSS `filter: blur()`.
+///
+/// The value is the standard deviation in logical points. Zero, negative and
+/// non-finite values draw unblurred and cost nothing. The blurred group
+/// spreads about three sigma past its content and is cut by the parent's
+/// [`crate::Clip`]. Hit testing is unchanged.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Blur(
+    /// Gaussian sigma in logical points.
+    pub f32,
+);
+
+impl Blur {
+    /// Sigma to paint with: `0.0` for a zero, negative or non-finite value.
+    pub fn sigma(self) -> f32 {
+        finite_sigma(self.0)
+    }
+}
+
+/// Blurs what is already drawn behind an entity, like CSS
+/// `backdrop-filter: blur()`: a frosted panel.
+///
+/// The blur fills the entity's rect inside its largest corner radius and its
+/// parent's [`crate::Clip`]. The entity's own fill then draws over it as a
+/// tint, with its border and children on top, so a translucent fill such as
+/// white at 40% reads as frosted glass. The value is the standard deviation
+/// in logical points; zero, negative and non-finite values turn it off.
+///
+/// Inside a group drawn as one layer ([`Opacity`] below one, a [`Transform`]
+/// or [`Blur`]), the backdrop is what that group has drawn so far. A target
+/// the renderer cannot copy draws only the fill.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct BackdropBlur(
+    /// Gaussian sigma in logical points.
+    pub f32,
+);
+
+impl BackdropBlur {
+    /// Sigma to paint with: `0.0` for a zero, negative or non-finite value.
+    pub fn sigma(self) -> f32 {
+        finite_sigma(self.0)
+    }
+}
+
+fn finite_sigma(sigma: f32) -> f32 {
+    if sigma.is_finite() && sigma > 0.0 {
+        sigma
+    } else {
+        0.0
+    }
+}
 
 /// Group opacity for an entity and its descendants. `1.0` is opaque.
 ///
