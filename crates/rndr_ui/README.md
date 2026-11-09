@@ -2,7 +2,7 @@
 
 An additive, opt-in, GPU-free library above `rndr_core`. The integration/hygiene baseline `0b997b4` includes semantic foundations, operating controls, ListView/TreeView, DataTable, PropertyInspector, Checkbox, SingleSelect and MultiSelect. The owner integrated the data editors and selection controls after review/corrections and hands-on gallery testing. That is not cross-platform native certification. [Current status and boundaries](https://github.com/EntasisLabs/rndr/blob/main/docs/ui-status.md) supersede stale candidate/gate prose in historical A0/A1/A2 records; archived evidence and canonical proposals remain unchanged.
 
-Use this crate directly for headless composition, or enable the facade's `ui` feature and import `rndr::ui`. No semantic names are glob-exported into `rndr`'s legacy root. 0.4.0 publishes this crate. `ui` stays off by default on the facade. The version is a 0.y release, not a 1.0 stability promise, and the checks below are not cross-platform native certification.
+Use this crate directly for headless composition, or enable the facade's `ui` feature and import `rndr::ui`. No semantic names are glob-exported into `rndr`'s legacy root. 0.5.0 publishes this crate. `ui` stays off by default on the facade. The version is a 0.y release, not a 1.0 stability promise, and the checks below are not cross-platform native certification.
 
 ## Data browsers (first milestone)
 

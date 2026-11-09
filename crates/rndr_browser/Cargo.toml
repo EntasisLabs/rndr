@@ -7,6 +7,7 @@ repository.workspace = true
 homepage.workspace = true
 rust-version.workspace = true
 description = "Optional embedded browser session for rndr"
+documentation = "https://docs.rs/rndr_browser"
 readme = "README.md"
 keywords = ["browser", "webkit", "webview", "desktop"]
 categories = ["gui", "os::macos-apis"]

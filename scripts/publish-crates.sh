@@ -43,7 +43,7 @@
 # does not upload anything unless invoked without --dry-run.
 #
 # `--dry-run` does not upload and does not need CARGO_REGISTRY_TOKEN.
-# It packages the fourteen library crates with `cargo package --workspace --no-verify`,
+# It packages the fifteen library crates with `cargo package --workspace --no-verify`,
 # which does not need the crates.io index. A crate whose workspace
 # dependencies, including dev-dependencies, are already on the index also gets
 # `cargo publish --dry-run` (verify, then stop before upload). Packaging one
@@ -268,7 +268,7 @@ for name in expected:
             if name == "rndr" and table_name == "dependencies" and dep_name == "rndr_ui" and spec.get("optional") is not True:
                 sys.exit(f"{name} rndr_ui dependency is not optional: {spec}")
             if name == "rndr" and table_name == "dependencies" and dep_name in (
-                "rndr_browser", "rndr_chart", "rndr_liquid", "rndr_liquid_ui", "rndr_canvas", "rndr_canvas_ui",
+                "rndr_browser", "rndr_media", "rndr_chart", "rndr_liquid", "rndr_liquid_ui", "rndr_canvas", "rndr_canvas_ui",
             ) and spec.get("optional") is not True:
                 sys.exit(f"{name} {dep_name} dependency is not optional: {spec}")
 print("packaged archives:", ", ".join(found))

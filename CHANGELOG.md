@@ -2,20 +2,45 @@
 
 ## Unreleased
 
-### Embedded browser
+## 0.5.0
 
-- Linux WebKitGTK implements the same host session on an X11 parent: show, hide, logical client bounds, navigation, and download and file-input intents. A winit Wayland surface cannot host the GTK widget, because the two are different Wayland clients, so that handle is unsupported. A missing display is `BrowserError::Prerequisite`. Find and script stay unsupported. Native cells stay unverified.
+Workspace 0.5.0. `scripts/publish-crates.sh` uploads fifteen crates in this order: `rndr_core`, `rndr_paint`, `rndr_std`, `rndr_term`, `rndr_ui`, `rndr_app`, `rndr_liquid`, `rndr_chart`, `rndr_liquid_ui`, `rndr_canvas`, `rndr_canvas_ui`, `rndr_render`, `rndr_media`, `rndr_browser`, and `rndr`. First crates.io publish for `rndr_liquid`, `rndr_chart`, `rndr_liquid_ui`, `rndr_canvas`, `rndr_canvas_ui`, `rndr_media`, and `rndr_browser`. Examples, including Desktop Workshop and `source-session`, stay `publish = false`. 0.5.0 is a 0.y release, not a 1.0 stability promise. See [package policy](docs/ui-status.md#package-policy).
 
-- Windows WebView2 implements the same host session as macOS: show, hide, logical client bounds, navigation, and download and file-input intents. The loader uses an already installed runtime. A missing runtime is `BrowserError::RuntimeMissing`. This crate does not download or bundle one. Find, script, and WebKitGTK stay unsupported. Native cells stay unverified.
+### New publishable crates and facade features
 
-- Optional `rndr_browser`, facade feature `browser`, off by default. The crate is publish-eligible and ordered immediately before `rndr`, because the optional dependency is resolved even when the feature is off. `rndr_core`, `rndr_ui`, and `rndr_paint` do not depend on it, and enabling it does not enable `dialog`. macOS WKWebView can show, hide, navigate, and report title, URL, load outcome, and back/forward. Client rects are logical points from the top-left of the parent; a flipped parent keeps that top, and an unflipped parent measures from the bottom. A non-finite or negative rect is refused; a zero-area rect hides the view and keeps it; the host rect is applied on the next frame. `frame` also reads the view's current title, URL, and back/forward flags. Server-trust challenges use the system certificate check and do not install a credential. WebKit's challenge is an `NSProxy`, so `protectionSpace` is sent with `objc_msgSend` instead of a checked send that aborts debug builds. A provisional failure reports the URL from the load error. Other authentication challenges are cancelled, for both navigation and downloads. A 401 or 407 response is cancelled as well, so the unanswered challenge is not committed as a finished document. Downloads and file input are host intents. Nothing is written and no file panel is opened until the host answers. Dropping the session cancels intents that are still open. There is no guest command channel, no script evaluation, and no find. WebKitGTK is unsupported. Headless tests cover the contract. The macOS download callback, bounds smoke, and file input were not certified by merging that slice, so those cells stay unverified. This change does not upload.
+- `rndr_liquid`: headless Liquid Markdown grammar. Component fences parse to typed blocks; anything that does not parse stays a code fence.
+- `rndr_chart`: ten chart families (bar, line, area, pie, donut, radar, radial, scatter, combo, heatmap) laid out headlessly and painted with `rndr_paint`.
+- `rndr_liquid_ui`: mounts Liquid blocks in markdown host slots with `rndr_ui` controls and `rndr_chart` paint surfaces, behind a `LiquidHost`.
+- `rndr_canvas`: headless canvas documents (ink, text, shapes, lines, images, groups, frames), transactions with undo/redo, geometry, and storage. Reads Medousa Create v3 scenes and writes `rndr-canvas` v1.
+- `rndr_canvas_ui`: paints and edits canvas documents: scene painter, headless editor, overlay, `CanvasView`, toolbar and layers panels.
+- `rndr_media`: native video and audio `Player` (GStreamer on Linux, AVFoundation on macOS). Video frames go to a `FrameSurface` for `SurfaceView`. Optional facade feature `media`, off by default.
+- `rndr_browser`: optional embedded browser, facade feature `browser`, off by default. Ordered immediately before `rndr` because the optional dependency is resolved even when the feature is off. Enabling it does not enable `dialog`.
+  - macOS WKWebView: show, hide, navigate, title, URL, load outcome, back/forward, downloads and file-input intents as host answers. Client rects are logical points from the top-left of the parent. Server-trust challenges use the system certificate check; other authentication and 401/407 responses are cancelled. Find and script stay unsupported. Native cells stay unverified.
+  - Windows WebView2: same host session contract. Uses an already installed runtime; a missing runtime is `BrowserError::RuntimeMissing`. The crate does not download or bundle one.
+  - Linux WebKitGTK on an X11 parent: same host session. A winit Wayland surface cannot host the GTK widget; a missing display is `BrowserError::Prerequisite`.
+- Facade optional features `chart`, `liquid` (enables `chart`), `canvas`, `media`, and `browser`, all off by default.
 
-### Core and the desktop runner
+### Embedded browser, media, and surfaces
 
-- `FileHover` and `FileDrop` carry `position: Option<[f32; 2]>` in logical points. The desktop runner follows winit 0.31.0-beta.4 drag events: client physical pixels are divided by the window scale, every path in one transfer shares that point. A callback with no point leaves the stored point unchanged. A non-finite point clears it. A path list is applied only for the fetch still outstanding on the active drag, so a late response does not replace a newer drag or revive one that already finished. That check is simulated; no live drag was run. `FileHoverCancel` still clears every hovered path. Wayland drag events are not accepted and not forwarded. `accesskit_winit` 0.34 is still built on winit 0.30, so the accesskit feature uses a local adapter over the same platform crates and keeps the feature on. See [file drop](docs/file-drop.md).
-- Windows pen and eraser input follows winit tablet-tool pointer and button events: motion, tip contact and release, pressure, tilt, and twist, on the existing pen contact. The macOS pen monitor is unchanged and does not run on Windows. No tablet session was run.
-- Linux screen-reader bounds use the window's outer position plus the window-relative surface offset. A window whose outer origin is `(500, 300)` and whose surface offset is `(0, 30)` reports an inner origin of `(500, 330)` on move and on resize. No screen reader was run.
+- `FrameSurface` and `SurfaceView` for latest-wins video frames, with fit modes for embedding media in layout.
+- Media controls: play, pause, seek, rate, looping, mute; state, time, duration, natural size; `position()` as a `Live<f32>`; worker-thread wakers for state changes.
+
+### Core, layout, paint, and the desktop runner
+
+- Richer layout: align, justify, per-side padding, max size, aspect ratio, absolute children, wrap, grid, sticky headers, and shift-wheel horizontal scrolling. Hug labels stay within `MaxSize`/`AspectRatio`.
+- SVG decoding and rounded, feathered subtree clips. Subtree blur and backdrop blur with motion and live bindings.
+- GPU effect slots: application wgpu passes in paint order with an optional backdrop.
+- Live values: thread-safe bindings to opacity, offset, scale, fill, rect, text, border, shadow and gradient colours, plus `LiveText` labels. Live-only frames skip idle work; redraws stop while the OS minimizes or covers a window.
+- Colour animation, keyframes, size motion, press scale, scroll glides, fling, rubber-banding, and shared-element flights.
+- OpenType features, variable axes, strikethrough, and selectable labels. Structured documents gain underline, strike, code marks, atomic mention pills, safe HTML import/export, and HTML clipboard round-trips with composer keys.
+- Secondary gesture: right-click, macOS Control-click, Menu key, and Shift+F10. Drawn context and popup menus in `rndr_ui::menu`, with point and beside placement and nested popup scopes. Native app menu bar on macOS and Windows through `muda` (`menubar` path).
+- OS basics: open the default browser for a URL, CSS cursor set, system appearance, and reduced motion.
+- Range and multiple selection on lists and tables. `None` and `Single` still publish `Selected(Option<ItemId>)`; `Multiple` and `Range` emit a set-changed event with no id list. See [selection modes](docs/selection-modes.md).
+- `FileHover` and `FileDrop` carry `position: Option<[f32; 2]>` in logical points. The desktop runner follows winit 0.31.0-beta.4 drag events: client physical pixels are divided by the window scale; every path in one transfer shares that point. A callback with no point leaves the stored point unchanged. A non-finite point clears it. A path list is applied only for the fetch still outstanding on the active drag. `FileHoverCancel` still clears every hovered path. Wayland drag events are not accepted. `accesskit_winit` 0.34 is still built on winit 0.30, so the accesskit feature uses a local adapter. See [file drop](docs/file-drop.md).
+- Windows pen and eraser input follows winit tablet-tool pointer and button events: motion, tip contact and release, pressure, tilt, and twist. The macOS pen monitor is unchanged and does not run on Windows. No tablet session was run.
+- Linux screen-reader bounds use the window's outer position plus the window-relative surface offset.
 - A dragged file URI keeps its platform path. Windows `file://server/share/...` stays a UNC path. On Unix, `file:///C:/notes.txt` stays `/C:/notes.txt`, and a percent-encoded non-UTF-8 byte stays in the path.
+- Optional wasm32 WebGPU browser runner for `rndr_render` (`examples/web`). The example stays unpublished.
 
 ## 0.4.0
 
