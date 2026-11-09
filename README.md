@@ -213,8 +213,11 @@ the bundled fonts, since a browser exposes no system fonts.
 
 `hotkey`, `tray`, `dialog` and `notify` compile to nothing on wasm32, so default
 features build there. Copying from the app writes text, or HTML with a plain-text
-fallback, to the browser clipboard. Paste reads only rndr's own clipboard;
-pasting from other apps, IME and browser text input are not wired yet.
+fallback, to the browser clipboard. While a text field has focus, rndr focuses
+a hidden `<textarea>` at the caret: keys still reach winit, composition becomes
+IME preedit and commit, and the browser's `paste` event puts the other app's
+plain text and HTML on the clipboard before the paste runs, without a permission
+prompt. Tested in Chrome on Linux only; the bundled fonts have no CJK glyphs.
 
 ```sh
 rustup target add wasm32-unknown-unknown

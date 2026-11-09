@@ -95,6 +95,7 @@ mod text;
 mod tray;
 #[cfg(target_os = "linux")]
 mod wayland_layer;
+mod web_input;
 
 #[cfg(feature = "parley")]
 pub use text::ParleyText;
@@ -520,6 +521,8 @@ struct Handler {
     scroll: [f32; 2],
     keys: Vec<KeyEvent>,
     ime_events: Vec<ImeEvent>,
+    #[cfg(target_arch = "wasm32")]
+    web_input: Option<web_input::WebTextInput>,
     shift: bool,
     ctrl: bool,
     alt: bool,
@@ -597,6 +600,8 @@ impl Handler {
             scroll: [0.0, 0.0],
             keys: Vec::new(),
             ime_events: Vec::new(),
+            #[cfg(target_arch = "wasm32")]
+            web_input: None,
             shift: false,
             ctrl: false,
             alt: false,
@@ -849,6 +854,7 @@ impl Handler {
             return false;
         };
         deliver(self.app.world_mut(), self.desktop_id);
+        self.drain_web_input();
         self.sync_input();
         self.poll_dialog();
         self.sync_appearance();
@@ -858,9 +864,18 @@ impl Handler {
         let width = raw_width.max(1);
         let height = raw_height.max(1);
         {
+            #[cfg(target_arch = "wasm32")]
+            let pasted = self
+                .web_input
+                .as_ref()
+                .and_then(web_input::WebTextInput::take_paste);
             let board = &mut self.os_clipboard;
             if let Some(clipboard) = self.app.world_mut().resource_mut::<Clipboard>() {
                 board.pull(clipboard);
+                #[cfg(target_arch = "wasm32")]
+                if let Some(pasted) = pasted {
+                    web_input::receive_paste(clipboard, pasted);
+                }
             }
         }
         // Only Live values changed: skip Input, Update and Layout.
@@ -1016,7 +1031,7 @@ impl Handler {
         }
     }
 
-    fn allow_ime(&self) {
+    fn allow_ime(&mut self) {
         let Some(gpu) = self.gpu.as_ref() else {
             return;
         };
@@ -1027,6 +1042,26 @@ impl Handler {
             .and_then(|focus| focus.entity)
             .is_some_and(|entity| self.app.world().has::<rndr_core::CapturesKeys>(entity));
         gpu.shell().set_ime_allowed(allow);
+        #[cfg(target_arch = "wasm32")]
+        {
+            if self.web_input.is_none() && allow {
+                self.web_input = gpu
+                    .shell()
+                    .winit_arc()
+                    .and_then(web_input::WebTextInput::new);
+            }
+            if let Some(input) = self.web_input.as_mut() {
+                input.set_allowed(allow);
+            }
+        }
+    }
+
+    /// Move browser text-area input into this frame's events, in order.
+    fn drain_web_input(&mut self) {
+        #[cfg(target_arch = "wasm32")]
+        if let Some(input) = self.web_input.as_ref() {
+            input.drain(&mut self.ime_events);
+        }
     }
 
     fn publish_access(&mut self) {
@@ -1188,6 +1223,10 @@ impl Handler {
             winit::dpi::LogicalPosition::new(x, y),
             winit::dpi::LogicalSize::new(w, h),
         );
+        #[cfg(target_arch = "wasm32")]
+        if let Some(input) = self.web_input.as_ref() {
+            input.set_area(x, y, h);
+        }
     }
 }
 
@@ -2246,6 +2285,7 @@ impl ApplicationHandler for Handler {
     ) {
         #[cfg(feature = "accesskit")]
         self.process_access(&event);
+        self.drain_web_input();
         if !matches!(event, WindowEvent::RedrawRequested) {
             self.full_pending = true;
         }

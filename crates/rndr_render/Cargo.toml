@@ -79,7 +79,7 @@ accesskit = { version = "0.25.2", optional = true }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
-web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlCanvasElement", "Navigator", "MediaQueryList", "Clipboard", "ClipboardItem", "Blob", "BlobPropertyBag"] }
+web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlCanvasElement", "Navigator", "MediaQueryList", "Clipboard", "ClipboardItem", "Blob", "BlobPropertyBag", "HtmlTextAreaElement", "HtmlElement", "CssStyleDeclaration", "DomRect", "Event", "EventTarget", "AddEventListenerOptions", "KeyboardEvent", "KeyboardEventInit", "CompositionEvent", "InputEvent", "ClipboardEvent", "DataTransfer", "FocusEvent", "FocusEventInit"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 # Hotkeys, tray and notifications have no browser backend; `build.rs` turns
