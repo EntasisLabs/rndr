@@ -1,0 +1,12 @@
+[package]
+name = "titlebar"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "A window that draws its own titlebar, caption buttons and resize edges"
+publish = false
+
+[dependencies]
+rndr_core = { workspace = true }
+rndr_render = { workspace = true }
+rndr_ui = { workspace = true }

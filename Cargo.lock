@@ -3939,6 +3939,7 @@ dependencies = [
  "muda",
  "objc2 0.5.2",
  "objc2-app-kit 0.2.2",
+ "objc2-foundation 0.2.2",
  "parley",
  "png 0.18.1",
  "pollster",
@@ -4703,6 +4704,15 @@ name = "tinyvec"
 version = "1.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
+
+[[package]]
+name = "titlebar"
+version = "0.5.0"
+dependencies = [
+ "rndr_core",
+ "rndr_render",
+ "rndr_ui",
+]
 
 [[package]]
 name = "tokio"

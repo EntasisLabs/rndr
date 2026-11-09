@@ -689,6 +689,21 @@ pub(crate) fn positive_scale(factor: f64) -> f32 {
 // SetCapture, X11/Wayland button grabs). CursorGrabMode confines/locks the
 // cursor and is not selection capture. Keep coordinates free to leave the
 // window; clear held state on blur in case capture/release delivery was lost.
+fn resize_direction(edge: rndr_core::ResizeEdge) -> winit::window::ResizeDirection {
+    use rndr_core::ResizeEdge;
+    use winit::window::ResizeDirection;
+    match edge {
+        ResizeEdge::North => ResizeDirection::North,
+        ResizeEdge::South => ResizeDirection::South,
+        ResizeEdge::East => ResizeDirection::East,
+        ResizeEdge::West => ResizeDirection::West,
+        ResizeEdge::NorthEast => ResizeDirection::NorthEast,
+        ResizeEdge::NorthWest => ResizeDirection::NorthWest,
+        ResizeEdge::SouthEast => ResizeDirection::SouthEast,
+        ResizeEdge::SouthWest => ResizeDirection::SouthWest,
+    }
+}
+
 fn cancel_pointer_input(pointer: &mut Pointer, pointers: &mut Pointers) {
     pointer.down = false;
     pointer.pressed = false;
@@ -858,6 +873,7 @@ impl Handler {
         self.sync_input();
         self.poll_dialog();
         self.sync_appearance();
+        self.sync_window_chrome();
         // Publish before `frame` so this update's layout sees the new scale and
         // the resize events that flip at the start of `App::update`.
         rndr_core::window::publish_metrics(self.app.world_mut(), raw_width, raw_height, scale);
@@ -974,6 +990,7 @@ impl Handler {
         }
         // Links requested by this frame's systems open now, not on the next frame.
         self.poll_urls();
+        self.poll_window_actions();
         self.apply_cursor(event_loop);
         self.reveal_window();
         self.place_ime_cursor();
@@ -994,6 +1011,76 @@ impl Handler {
             self.pointers.end_frame();
         }
         presented
+    }
+
+    /// Publish the frame's [`rndr_core::WindowChrome`], keeping the hovered
+    /// caption button core tracks. The browser keeps the default.
+    fn sync_window_chrome(&mut self) {
+        let Some(window) = self.gpu.as_ref().and_then(|gpu| gpu.shell().winit_window()) else {
+            return;
+        };
+        if cfg!(target_arch = "wasm32") {
+            return;
+        }
+        let mut chrome = platform::window_chrome(window, &self.config, self.platform);
+        let world = self.app.world_mut();
+        let current = world
+            .resource::<rndr_core::WindowChrome>()
+            .copied()
+            .unwrap_or_default();
+        chrome.hovered = current.hovered;
+        if chrome != current {
+            world.insert_resource(chrome);
+        }
+    }
+
+    /// Perform the window actions this frame's systems queued. A drag or
+    /// resize hands the held pointer to the OS, which keeps the release, so
+    /// the press ends here.
+    fn poll_window_actions(&mut self) {
+        use rndr_core::WindowAction;
+        let actions = rndr_core::take_window_actions(self.app.world_mut());
+        if actions.is_empty() {
+            return;
+        }
+        let Some(window) = self.gpu.as_ref().and_then(|gpu| gpu.shell().winit_arc()) else {
+            return;
+        };
+        for action in actions {
+            match action {
+                WindowAction::Drag => {
+                    if let Err(error) = window.drag_window() {
+                        eprintln!("rndr: drag_window: {error}");
+                    }
+                    self.end_pointer_for_os();
+                }
+                WindowAction::Resize(edge) => {
+                    if let Err(error) = window.drag_resize_window(resize_direction(edge)) {
+                        eprintln!("rndr: drag_resize_window: {error}");
+                    }
+                    self.end_pointer_for_os();
+                }
+                WindowAction::Minimize => window.set_minimized(true),
+                WindowAction::ToggleMaximize => window.set_maximized(!window.is_maximized()),
+                WindowAction::TitlebarDoubleClick => {
+                    platform::titlebar_double_click(window.as_ref())
+                }
+                WindowAction::WindowMenu(at) => window.show_window_menu(
+                    winit::dpi::LogicalPosition::new(f64::from(at[0]), f64::from(at[1])).into(),
+                ),
+                WindowAction::Close => {
+                    // Same path as the native close button, so `CloseGuard` applies.
+                    self.close.requested = true;
+                    self.request_redraw();
+                }
+            }
+        }
+    }
+
+    fn end_pointer_for_os(&mut self) {
+        cancel_pointer_input(&mut self.pointer, &mut self.pointers);
+        self.press_px = None;
+        self.request_redraw();
     }
 
     /// Open links the app queued. Headless runs never reach this.

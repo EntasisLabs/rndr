@@ -54,6 +54,14 @@ impl Plugin for Chrome {
             actions.bindings.push(cut_binding());
             actions.bindings.push(paste_binding());
         }
+        if !app.world().has_resource::<crate::WindowChrome>() {
+            let chrome = crate::WindowChrome::expected(
+                &crate::WindowConfig::get(app.world()),
+                crate::keys::platform_of(app.world()),
+            );
+            app.world_mut().insert_resource(chrome);
+        }
+        app.add_system_front(Schedule::Input, crate::window_chrome::apply_window_chrome);
         app.add_system(Schedule::Input, apply_input);
         app.add_system_front(Schedule::Update, apply_chrome);
         app.add_system(Schedule::PostUpdate, apply_lists);
