@@ -1,7 +1,8 @@
 //! The desktop's appearance and reduced-motion preferences, read for
 //! [`rndr_core::SystemAppearance`].
 //!
-//! Windows and macOS report dark or light through winit. Linux reads the XDG
+//! Windows and macOS report dark or light through winit; macOS also follows
+//! AppKit's colour and accessibility notifications. Linux reads the XDG
 //! desktop portal (`color-scheme`, `accent-color` and GNOME's
 //! `enable-animations`) on a worker thread when the `appearance` feature is
 //! on, plus KDE's `AnimationDurationFactor`. Browsers answer media queries.
@@ -21,9 +22,11 @@ pub(crate) fn read(window: Option<&dyn Window>) -> SystemAppearance {
     }
 }
 
-/// Changes since the last [`read`] are pending: bumps when the portal or a
-/// media query reports one.
+/// Changes since the last [`read`] are pending: bumps when AppKit, the portal
+/// or a media query reports one.
 pub(crate) fn generation() -> u64 {
+    #[cfg(target_os = "macos")]
+    return appkit::generation();
     #[cfg(all(native_appearance, target_os = "linux"))]
     return portal::generation();
     #[allow(unreachable_code)]
@@ -32,6 +35,8 @@ pub(crate) fn generation() -> u64 {
 
 /// Redraw `window` when the desktop's preferences change.
 pub(crate) fn follow(window: &std::sync::Arc<dyn Window>) {
+    #[cfg(target_os = "macos")]
+    appkit::follow(window);
     #[cfg(all(native_appearance, target_os = "linux"))]
     portal::follow(window);
     let _ = window;
@@ -198,6 +203,82 @@ mod web {
     pub(super) fn matches(query: &str) -> Option<bool> {
         let list = web_sys::window()?.match_media(query).ok()??;
         Some(list.matches())
+    }
+}
+
+#[cfg(target_os = "macos")]
+mod appkit {
+    //! winit reports only dark or light. AppKit posts a notification when the
+    //! accent colour or an accessibility display option such as reduced motion
+    //! changes; each bumps the generation and redraws every followed window,
+    //! whose next frame rereads the values.
+
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::{Arc, Mutex, Once, Weak};
+
+    use block2::RcBlock;
+    use objc2::runtime::AnyObject;
+    use objc2::{class, msg_send};
+    use objc2_app_kit::{
+        NSSystemColorsDidChangeNotification,
+        NSWorkspaceAccessibilityDisplayOptionsDidChangeNotification,
+    };
+    use winit::window::Window;
+
+    static GENERATION: AtomicU64 = AtomicU64::new(0);
+    static OBSERVE: Once = Once::new();
+    static WINDOWS: Mutex<Vec<Weak<dyn Window>>> = Mutex::new(Vec::new());
+
+    pub(super) fn generation() -> u64 {
+        GENERATION.load(Ordering::Relaxed)
+    }
+
+    /// Runs on the event loop's (main) thread, where AppKit is registered.
+    pub(super) fn follow(window: &Arc<dyn Window>) {
+        OBSERVE.call_once(observe);
+        let mut windows = WINDOWS.lock().unwrap_or_else(|e| e.into_inner());
+        windows.retain(|w| w.strong_count() > 0);
+        windows.push(Arc::downgrade(window));
+    }
+
+    fn changed() {
+        GENERATION.fetch_add(1, Ordering::Relaxed);
+        let windows = WINDOWS.lock().unwrap_or_else(|e| e.into_inner());
+        for window in windows.iter().filter_map(Weak::upgrade) {
+            window.request_redraw();
+        }
+    }
+
+    fn observe() {
+        let block = RcBlock::new(|_notification: *mut AnyObject| changed());
+        // SAFETY: called on the main thread. Each centre copies the block and
+        // keeps the observer registered; the extra retain keeps the observer
+        // alive for the life of the process.
+        unsafe {
+            let queue: *mut AnyObject = msg_send![class!(NSOperationQueue), mainQueue];
+            let colors: *mut AnyObject = msg_send![class!(NSNotificationCenter), defaultCenter];
+            let workspace: *mut AnyObject = msg_send![class!(NSWorkspace), sharedWorkspace];
+            let display: *mut AnyObject = msg_send![workspace, notificationCenter];
+            for (center, name) in [
+                (colors, NSSystemColorsDidChangeNotification),
+                (
+                    display,
+                    NSWorkspaceAccessibilityDisplayOptionsDidChangeNotification,
+                ),
+            ] {
+                if center.is_null() {
+                    continue;
+                }
+                let observer: *mut AnyObject = msg_send![
+                    center,
+                    addObserverForName: name,
+                    object: std::ptr::null_mut::<AnyObject>(),
+                    queue: queue,
+                    usingBlock: &*block,
+                ];
+                let _: *mut AnyObject = msg_send![observer, retain];
+            }
+        }
     }
 }
 
