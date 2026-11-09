@@ -670,8 +670,17 @@ mod mac {
             unsafe {
                 let app: *mut AnyObject = msg_send![class!(NSApplication), sharedApplication];
                 let delegate: *mut AnyObject = msg_send![app, delegate];
-                let Some(delegate) = delegate.as_ref() else {
-                    return;
+                let delegate = match delegate.as_ref() {
+                    Some(delegate) => delegate,
+                    None => {
+                        // winit sets no application delegate. AppKit holds
+                        // the delegate weakly, so this one is kept for the
+                        // process.
+                        let Some(made) = app_delegate().as_ref() else {
+                            return;
+                        };
+                        made
+                    }
                 };
                 let answers: bool = msg_send![delegate, respondsToSelector: selector];
                 if answers {
@@ -694,6 +703,19 @@ mod mac {
                 let _: () = msg_send![app, setDelegate: delegate];
             }
         });
+    }
+
+    /// An empty application delegate, made when there is none to extend.
+    fn app_delegate() -> *mut AnyObject {
+        const NAME: &str = "RndrAppDelegate";
+        let class = AnyClass::get(NAME).or_else(|| {
+            ClassBuilder::new(NAME, NSObject::class()).map(|builder| builder.register())
+        });
+        let Some(class) = class else {
+            return std::ptr::null_mut();
+        };
+        // SAFETY: `new` on an NSObject subclass; the +1 reference is kept.
+        unsafe { msg_send![class, new] }
     }
 
     pub(super) fn set_dock_icon(bytes: &[u8]) {
