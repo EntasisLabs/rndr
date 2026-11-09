@@ -70,6 +70,7 @@ mod gpu;
 #[cfg(native_hotkey)]
 mod hotkey;
 mod images;
+mod lifecycle;
 #[cfg(target_os = "macos")]
 mod native_quit;
 mod notify;
@@ -145,6 +146,7 @@ pub use images::load_svg;
 pub use images::{
     decode, load_image, load_rgba, set_image_budget, DecodedImage, ImageError, IMAGE_BUDGET_DEFAULT,
 };
+pub use lifecycle::{set_app_icon, single_instance};
 pub use notify::{
     Notifications, NotifyCallback, NotifyClick, NotifyError, NotifyPermission, NotifyRequest,
     NotifyToken,
@@ -168,6 +170,8 @@ enum RunnerEvent {
     AppMenu(rndr_core::TrayItemId),
     #[cfg(feature = "accesskit")]
     Access(access_winit::Event),
+    /// A link or reopen from the OS (`lifecycle`).
+    Lifecycle(lifecycle::Incoming),
 }
 
 /// Posts a [`RunnerEvent`] and wakes the loop.
@@ -395,6 +399,13 @@ fn run_apps(apps: Vec<App>) {
         proxy: event_loop.create_proxy(),
     };
     install_tray_handlers(&bus);
+    #[cfg(all(not(target_os = "macos"), not(target_arch = "wasm32")))]
+    for url in rndr_core::launch_links(std::env::args().skip(1)) {
+        rndr_core::push_opened_url(apps[0].world_mut(), url);
+    }
+    #[cfg(target_os = "macos")]
+    lifecycle::install_open_url();
+    lifecycle::attach(&bus);
     let wake: Arc<dyn Wake> = Arc::new(ProxyWake { bus: bus.clone() });
     let hub = WindowHub::new();
     hub.set_wake(Arc::clone(&wake));
@@ -432,8 +443,10 @@ fn run_apps(apps: Vec<App>) {
         pen,
         executor: pool,
         close: close::CloseDrain::default(),
+        lifecycle: Vec::new(),
     };
     event_loop.run_app(session).expect("run");
+    lifecycle::detach();
     #[cfg(target_os = "macos")]
     native_quit::clear();
 }
@@ -508,6 +521,8 @@ struct Handler {
     winit_id: Option<WindowId>,
     /// First window. Closing it exits the session.
     primary: bool,
+    /// The [`lifecycle::icon_generation`] this window shows; 0 before any icon.
+    icon_generation: u64,
     desktop_id: rndr_core::WindowId,
     /// Last cursor in physical pixels. Converted to points in [`Handler::sync_input`].
     cursor_px: [f32; 2],
@@ -589,6 +604,7 @@ impl Handler {
             trace: StartupTrace::start(),
             winit_id: None,
             primary,
+            icon_generation: 0,
             desktop_id,
             cursor_px: [0.0, 0.0],
             pointer: Pointer::default(),
@@ -874,6 +890,7 @@ impl Handler {
         self.poll_dialog();
         self.sync_appearance();
         self.sync_window_chrome();
+        self.sync_app_icon();
         // Publish before `frame` so this update's layout sees the new scale and
         // the resize events that flip at the start of `App::update`.
         rndr_core::window::publish_metrics(self.app.world_mut(), raw_width, raw_height, scale);
@@ -1011,6 +1028,23 @@ impl Handler {
             self.pointers.end_frame();
         }
         presented
+    }
+
+    /// Show an icon [`set_app_icon`] set since this window last looked.
+    fn sync_app_icon(&mut self) {
+        let generation = lifecycle::icon_generation();
+        if generation == self.icon_generation {
+            return;
+        }
+        let Some(window) = self.gpu.as_ref().and_then(|gpu| gpu.shell().winit_window()) else {
+            return;
+        };
+        self.icon_generation = generation;
+        window.set_window_icon(lifecycle::window_icon());
+        #[cfg(target_os = "macos")]
+        if self.primary {
+            lifecycle::apply_dock_icon();
+        }
     }
 
     /// Publish the frame's [`rndr_core::WindowChrome`], keeping the hovered
@@ -2638,9 +2672,31 @@ struct Running {
     pen: pen::PenFeed,
     executor: Arc<dyn rndr_core::Executor>,
     close: close::CloseDrain,
+    /// Links and reopens that arrived before the primary window existed.
+    lifecycle: Vec<lifecycle::Incoming>,
 }
 
 impl Running {
+    fn deliver(&mut self, incoming: lifecycle::Incoming) {
+        let Some(slot) = self.slots.iter_mut().find(|slot| slot.primary) else {
+            self.lifecycle.push(incoming);
+            return;
+        };
+        let world = slot.app.world_mut();
+        match incoming {
+            lifecycle::Incoming::Url(url) => rndr_core::push_opened_url(world, url),
+            lifecycle::Incoming::Reopen => {
+                if !rndr_core::window::is_visible(world) {
+                    rndr_core::window::show(world);
+                }
+                rndr_core::window::focus(world);
+                rndr_core::push_reopened(world);
+            }
+        }
+        slot.full_pending = true;
+        slot.request_redraw();
+    }
+
     fn reconcile_close(&mut self, event_loop: &dyn ActiveEventLoop) {
         // Updates (including hidden frames) and build closures may queue opens.
         // Admit one batch before checking guards. Recursive opens stay queued
@@ -2704,6 +2760,11 @@ impl Running {
                 self.bus.clone(),
             ));
         }
+        for incoming in std::mem::take(&mut self.lifecycle) {
+            self.deliver(incoming);
+        }
+        #[cfg(target_os = "macos")]
+        lifecycle::install_reopen();
         #[cfg(target_os = "macos")]
         native_quit::configure(
             self.slots
@@ -2817,6 +2878,7 @@ impl ApplicationHandler for Running {
                         rndr_core::push_app_menu_pick(slot.app.world_mut(), item);
                     }
                 }
+                RunnerEvent::Lifecycle(incoming) => self.deliver(incoming),
                 RunnerEvent::Wake | RunnerEvent::LiveWake => {}
             }
             self.spawn_windows(event_loop);

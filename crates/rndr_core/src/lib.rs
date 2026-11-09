@@ -114,6 +114,7 @@ mod interaction;
 mod keymap;
 mod keys;
 mod layout;
+mod lifecycle;
 mod list;
 pub mod live;
 mod markdown;
@@ -288,6 +289,7 @@ pub use app_menu::{
     app_menu, app_menu_id, app_menu_pending, app_menu_support, parse_app_menu_id,
     push_app_menu_pick, set_app_menu, take_app_menu_change, AppMenuPicked,
 };
+pub use lifecycle::{is_link, launch_links, push_opened_url, push_reopened, Reopened, UrlOpened};
 pub use live::{
     Live, LiveBlur, LiveBorder, LiveFill, LiveGradient, LiveLabel, LiveOffset, LiveOpacity,
     LiveRect, LiveScale, LiveShadow, LiveText, LiveTextColor, LiveValue, Smooth,

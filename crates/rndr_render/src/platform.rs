@@ -52,6 +52,10 @@ pub(crate) fn attributes(config: &WindowConfig) -> WindowAttributes {
                 WindowLevel::Normal
             },
         );
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        attrs = attrs.with_window_icon(crate::lifecycle::window_icon());
+    }
     if let Some(min) = config.min_size {
         attrs = attrs.with_min_surface_size(LogicalSize::new(
             f64::from(min.width),
@@ -72,9 +76,11 @@ pub(crate) fn attributes(config: &WindowConfig) -> WindowAttributes {
             Backdrop::Sidebar => Some(BackdropType::TabbedWindow),
         }
         .filter(|_| config.transparent);
-        if config.skip_taskbar || backdrop.is_some() {
-            let mut windows =
-                WindowAttributesWindows::default().with_skip_taskbar(config.skip_taskbar);
+        let icon = crate::lifecycle::window_icon();
+        if config.skip_taskbar || backdrop.is_some() || icon.is_some() {
+            let mut windows = WindowAttributesWindows::default()
+                .with_skip_taskbar(config.skip_taskbar)
+                .with_taskbar_icon(icon);
             if let Some(backdrop) = backdrop {
                 windows = windows.with_system_backdrop(backdrop);
             }

@@ -173,6 +173,7 @@ available, but observation still requires an explicit application-session opt-in
 | Hidden overlay and global shortcut | `cargo run -p overlay` |
 | Multiple windows and messages | `cargo run -p two-windows` |
 | Custom titlebar, drag and resize | `cargo run -p titlebar` |
+| Single instance, incoming links and app icon | `cargo run -p lifecycle` |
 | Embedded shell | `cargo run -p terminal` |
 | Pan/zoom vector scene | `cargo run -p canvas-scene` |
 
@@ -375,6 +376,16 @@ native-platform acceptance are different things:
   `WindowConfig::backdrop` asks for Mica, Acrylic or Tabbed on Windows 11 and
   vibrancy on macOS when the window is `transparent`. Linux X11 is tested natively;
   macOS and Windows are compile-checked only. `cargo run -p titlebar` shows them.
+- **Launches, links and the app icon:** `rndr_render::single_instance(id)` in `main`
+  keeps one process per user: a later launch hands its arguments to the first and
+  returns `false` (a socket in `$XDG_RUNTIME_DIR` on Linux, a named pipe on Windows;
+  macOS already keeps one process). The primary window's world gets `UrlOpened` for
+  each `myapp://…` link the OS opens with the app (launch arguments on Linux and
+  Windows, the get-URL Apple event on macOS), and `Reopened` for a launch without a
+  link or a macOS Dock click, after the runner shows and focuses that window. Links
+  pass through unchecked. `set_app_icon(png_or_jpeg)` sets the Dock icon on macOS and
+  each window's icon on Windows and X11. Linux X11 is tested natively; macOS and
+  Windows are compile-checked only. `cargo run -p lifecycle` shows them.
 - **Text features and selectable labels:** `TextStyle` and `TextSpan` take OpenType
   `FontFeature`s (`FontFeature::on(b"tnum")`) and variable-font `FontAxis` values
   (`FontAxis::new(b"wght", 550.0)`), applied by the Parley shaper; a span's settings
