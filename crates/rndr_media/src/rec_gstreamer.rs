@@ -15,6 +15,10 @@ pub(crate) fn permission() -> MicPermission {
     MicPermission::Granted
 }
 
+pub(crate) fn request_permission(callback: Box<dyn FnOnce(MicPermission) + Send>) {
+    callback(permission());
+}
+
 pub(crate) fn spawn(shared: Arc<Shared>, commands: Receiver<Command>) -> Option<JoinHandle<()>> {
     let spawned = std::thread::Builder::new()
         .name("rndr-recorder".into())
@@ -57,6 +61,7 @@ impl Session {
             RecordFormat::Wav => "wavenc",
             RecordFormat::Opus => "opusenc ! oggmux",
             RecordFormat::Flac => "flacenc",
+            RecordFormat::Aac => return Err("AAC recording is macOS only".into()),
         };
         let description = format!(
             "{source} ! audioconvert ! audioresample ! level interval=33333333 \

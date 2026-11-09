@@ -1,10 +1,11 @@
-//! Recording a generated tone with GStreamer, then reading it back.
-#![cfg(target_os = "linux")]
+//! Recording a generated tone (GStreamer on Linux, AVFoundation on macOS),
+//! then reading it back.
+#![cfg(any(target_os = "linux", target_os = "macos"))]
 
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use rndr_media::{Player, PlayerState, RecordSource, Recorder, RecorderState};
+use rndr_media::{RecordSource, Recorder, RecorderState};
 
 fn temp(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("rndr-rec-{}", std::process::id()));
@@ -35,7 +36,9 @@ fn record(rec: &Recorder, ms: u64) {
     std::thread::sleep(Duration::from_millis(ms));
 }
 
+#[cfg(target_os = "linux")]
 fn played_duration(path: &PathBuf) -> f64 {
+    use rndr_media::{Player, PlayerState};
     let clip = Player::audio(path);
     wait("loaded", || {
         clip.duration().is_some() || matches!(clip.state(), PlayerState::Failed(_))
@@ -47,6 +50,28 @@ fn played_duration(path: &PathBuf) -> f64 {
     );
     clip.duration().unwrap()
 }
+
+/// `Player` runs on the main queue, which the test harness never drains, so
+/// read the file with Core Audio's `afinfo` instead.
+#[cfg(target_os = "macos")]
+fn played_duration(path: &PathBuf) -> f64 {
+    let out = std::process::Command::new("afinfo")
+        .arg(path)
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(out.status.success(), "afinfo {}: {text}", path.display());
+    text.lines()
+        .find_map(|line| line.trim().strip_prefix("estimated duration:"))
+        .and_then(|rest| rest.trim().trim_end_matches("sec").trim().parse().ok())
+        .unwrap_or_else(|| panic!("no duration in {text}"))
+}
+
+/// Compressed formats this platform records.
+#[cfg(target_os = "linux")]
+const COMPRESSED: &[&str] = &["tone.ogg", "tone.opus", "tone.flac"];
+#[cfg(target_os = "macos")]
+const COMPRESSED: &[&str] = &["tone.m4a"];
 
 #[test]
 fn a_wav_recording_has_its_length_and_a_level() {
@@ -76,8 +101,8 @@ fn a_wav_recording_has_its_length_and_a_level() {
 }
 
 #[test]
-fn ogg_and_flac_recordings_play_back() {
-    for name in ["tone.ogg", "tone.opus", "tone.flac"] {
+fn compressed_recordings_play_back() {
+    for &name in COMPRESSED {
         let rec = tone(name);
         record(&rec, 400);
         let note = rec.stop().expect(name);
@@ -138,6 +163,18 @@ fn an_unknown_extension_or_bad_path_fails() {
         panic!("{:?}", rec.state());
     };
     assert!(message.contains(".wav"), "{message}");
+    let other = if cfg!(target_os = "macos") {
+        "tone.ogg"
+    } else {
+        "tone.m4a"
+    };
+    let rec = tone(other);
+    rec.start();
+    assert!(
+        matches!(rec.state(), RecorderState::Failed(_)),
+        "{:?}",
+        rec.state()
+    );
     let rec = Recorder::with_source("/nonexistent-dir/x/tone.wav", RecordSource::TestTone(440.0));
     rec.start();
     wait("failed", || matches!(rec.state(), RecorderState::Failed(_)));
