@@ -302,6 +302,9 @@ struct BlitDraw {
     transform: Affine,
     /// Device-pixel scissor on the composited quads. See [`NO_SCISSOR`].
     scissor: [f32; 4],
+    /// Device-pixel rect `bind` covers, for a blurred layer: x, y, width,
+    /// height. `None` covers the viewport.
+    place: Option<[f32; 4]>,
 }
 
 enum Drawn {
@@ -315,6 +318,18 @@ enum Drawn {
         extent: Option<[f32; 4]>,
     },
     Effect(EffectDraw),
+    Backdrop(BackdropDraw),
+}
+
+/// An [`Op::Backdrop`] in target pixels: copy `region` of the target into
+/// `copy`, then run `jobs` to blur it. A sprite drawn next composites it.
+#[derive(Clone)]
+struct BackdropDraw {
+    copy: wgpu::Texture,
+    copy_view: wgpu::TextureView,
+    /// x, y, width, height in target pixels, inside the target.
+    region: [u32; 4],
+    jobs: Vec<BlurJob>,
 }
 
 /// An [`Op::EffectSlot`] in target pixels.
@@ -349,6 +364,7 @@ enum Cmd {
     },
     Quads(u32, u32),
     Effect(EffectDraw),
+    Backdrop(BackdropDraw),
 }
 
 struct GeomPass {
@@ -362,6 +378,7 @@ struct GeomPass {
     viewport: Option<wgpu::Buffer>,
 }
 
+#[derive(Clone)]
 struct BlurJob {
     view: wgpu::TextureView,
     bind: wgpu::BindGroup,
@@ -376,6 +393,7 @@ enum Pass {
 enum RootCmd {
     Quads(u32, u32),
     Effect(EffectDraw),
+    Backdrop(BackdropDraw),
     Sprite {
         offset: u64,
         verts: u32,
@@ -840,6 +858,10 @@ impl SceneGpu {
                     self.flush_paths(plan, &mut batch, width, height, scale);
                     plan.root.push(RootCmd::Effect(effect));
                 }
+                Drawn::Backdrop(draw) => {
+                    self.flush_paths(plan, &mut batch, width, height, scale);
+                    plan.root.push(RootCmd::Backdrop(draw));
+                }
             }
         }
         self.flush_paths(plan, &mut batch, width, height, scale);
@@ -952,6 +974,13 @@ impl SceneGpu {
                 Op::EffectSlot(slot) => {
                     if let Some(effect) = effect_draw(slot, scale, width, height) {
                         out.push(Drawn::Effect(effect));
+                    }
+                    index += 1;
+                }
+                Op::Backdrop(op) => {
+                    if let Some((draw, sprite)) = self.backdrop(op, scale, width, height) {
+                        out.push(Drawn::Backdrop(draw));
+                        out.push(Drawn::Sprite(sprite));
                     }
                     index += 1;
                 }
@@ -1251,14 +1280,17 @@ impl SceneGpu {
         let samples = self.msaa.as_ref().map(|set| set.samples).unwrap_or(1);
         let target = self.alloc(width, height, samples);
         let transformed = layer.transform != Affine::IDENTITY;
+        let sigma = layer.blur * base.uniform_scale() * scale;
+        let blurred = sigma.is_finite() && sigma > 0.0;
+        // A moved or blurred group spreads past its content, so its scissor
+        // cuts the composited result instead.
+        let after = transformed || blurred;
         let scissor = match &layer.clip {
-            Some(ClipShape::Scissor(rect)) if !transformed => {
-                scissor_px(*rect, scale, width, height)
-            }
+            Some(ClipShape::Scissor(rect)) if !after => scissor_px(*rect, scale, width, height),
             _ => None,
         };
         let composite_scissor = match &layer.clip {
-            Some(ClipShape::Scissor(rect)) if transformed => [
+            Some(ClipShape::Scissor(rect)) if after => [
                 rect.x * scale,
                 rect.y * scale,
                 rect.w.max(0.0) * scale,
@@ -1277,7 +1309,8 @@ impl SceneGpu {
         let extent = content_extent(&drawn);
         let cmds = pack_cmds(plan, drawn, width, height);
         let replay = layer.effect.is_some().then(|| cmds.clone());
-        let bind = target.bind.clone();
+        let mut bind = target.bind.clone();
+        let source = target.color.clone();
         plan.passes.push(Pass::Geom(GeomPass {
             target,
             scissor,
@@ -1300,6 +1333,21 @@ impl SceneGpu {
             extent,
         );
         let mut published = extent;
+        let mut place = None;
+        if blurred {
+            if let Some((result, region)) =
+                self.layer_blur(plan, &source, sigma, extent, width, height)
+            {
+                bind = result;
+                place = Some(region);
+                published = Some([
+                    region[0],
+                    region[1],
+                    region[0] + region[2],
+                    region[1] + region[3],
+                ]);
+            }
+        }
         if let Some(place) = shadow.place {
             let x = place[0] + shadow.offset[0];
             let y = place[1] + shadow.offset[1];
@@ -1332,6 +1380,235 @@ impl SceneGpu {
             extent: published,
             transform,
             scissor: composite_scissor,
+            place,
+        }
+    }
+
+    /// Blur the content of a layer texture inside `extent` plus the kernel.
+    /// Returns the blurred texture and the device rect it covers.
+    fn layer_blur(
+        &mut self,
+        plan: &mut Plan,
+        source: &wgpu::TextureView,
+        sigma: f32,
+        extent: Option<[f32; 4]>,
+        width: u32,
+        height: u32,
+    ) -> Option<(wgpu::BindGroup, [f32; 4])> {
+        let [ex0, ey0, ex1, ey1] = extent?;
+        let pad = blur_pad(sigma);
+        let x0 = (ex0.max(0.0) - pad).floor();
+        let y0 = (ey0.max(0.0) - pad).floor();
+        let x1 = (ex1.min(width as f32) + pad).ceil();
+        let y1 = (ey1.min(height as f32) + pad).ceil();
+        if x1 <= x0 || y1 <= y0 {
+            return None;
+        }
+        let (rw, rh) = ((x1 - x0) as u32, (y1 - y0) as u32);
+        let (bw, bh, sigma_texel) = blur_dims(sigma, rw, rh, 0.0, self.max_dim);
+        // Outside the layer texture reads transparent, so the kernel's tail
+        // past the viewport fades instead of repeating the edge.
+        let map = [
+            x0 / width as f32,
+            y0 / height as f32,
+            rw as f32 / width as f32,
+            rh as f32 / height as f32,
+        ];
+        let first = self.alloc(bw, bh, 1);
+        let bind = self.blur_bind(source, false, 0.0, bw, bh, 1.0, map);
+        plan.passes.push(Pass::Blur(BlurJob {
+            view: first.color.clone(),
+            bind,
+        }));
+        let mut view = first.color;
+        let mut result = first.bind;
+        for horizontal in [true, false] {
+            let target = self.alloc(bw, bh, 1);
+            let bind = self.blur_bind(&view, horizontal, sigma_texel, bw, bh, 0.0, [0.0; 4]);
+            plan.passes.push(Pass::Blur(BlurJob {
+                view: target.color.clone(),
+                bind,
+            }));
+            view = target.color;
+            result = target.bind;
+        }
+        Some((result, [x0, y0, rw as f32, rh as f32]))
+    }
+
+    /// Copy and blur the target under `op`, plus the sprite that draws the
+    /// blur back inside the op's corners and clip.
+    fn backdrop(
+        &mut self,
+        op: &rndr_paint::BackdropOp,
+        scale: f32,
+        width: u32,
+        height: u32,
+    ) -> Option<(BackdropDraw, SpriteDraw)> {
+        let sigma = op.sigma * scale;
+        if !sigma.is_finite()
+            || sigma <= 0.0
+            || op.rect.w <= 0.0
+            || op.rect.h <= 0.0
+            || op.opacity.is_nan()
+            || op.opacity <= 0.0
+        {
+            return None;
+        }
+        let scissor = match op.clip {
+            Some(clip) => {
+                let (x, y, w, h) = scissor_px(clip, scale, width, height)?;
+                [x as f32, y as f32, w as f32, h as f32]
+            }
+            None => NO_SCISSOR,
+        };
+        let rect = [
+            op.rect.x * scale,
+            op.rect.y * scale,
+            op.rect.w * scale,
+            op.rect.h * scale,
+        ];
+        // The kernel reads past the rect; clamp to the target, whose edge
+        // then repeats.
+        let pad = blur_pad(sigma);
+        let x0 = (rect[0] - pad).floor().max(0.0);
+        let y0 = (rect[1] - pad).floor().max(0.0);
+        let x1 = (rect[0] + rect[2] + pad).ceil().min(width as f32);
+        let y1 = (rect[1] + rect[3] + pad).ceil().min(height as f32);
+        if x1 <= x0 || y1 <= y0 {
+            return None;
+        }
+        let (rw, rh) = ((x1 - x0) as u32, (y1 - y0) as u32);
+        let copy = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("backdrop"),
+            size: wgpu::Extent3d {
+                width: rw,
+                height: rh,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: self.format,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_DST
+                | wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        });
+        let copy_view = copy.create_view(&wgpu::TextureViewDescriptor::default());
+        let (bw, bh, sigma_texel) = blur_dims(sigma, rw, rh, 0.0, self.max_dim);
+        let mut jobs = Vec::new();
+        let mut view = copy_view.clone();
+        if bw != rw || bh != rh {
+            let target = self.alloc(bw, bh, 1);
+            let bind = self.blur_bind(&view, false, 0.0, bw, bh, 1.0, [0.0, 0.0, 1.0, 1.0]);
+            jobs.push(BlurJob {
+                view: target.color.clone(),
+                bind,
+            });
+            view = target.color;
+        }
+        let mut result = None;
+        for horizontal in [true, false] {
+            let target = self.alloc(bw, bh, 1);
+            let bind = self.blur_bind(&view, horizontal, sigma_texel, bw, bh, 0.0, [0.0; 4]);
+            jobs.push(BlurJob {
+                view: target.color.clone(),
+                bind,
+            });
+            view = target.color;
+            result = Some(target.bind);
+        }
+        let (gw, gh) = (rw as f32, rh as f32);
+        let uv = [
+            (rect[0] - x0) / gw,
+            (rect[1] - y0) / gh,
+            (rect[0] + rect[2] - x0) / gw,
+            (rect[1] + rect[3] - y0) / gh,
+        ];
+        let mut bytes = Vec::new();
+        push_quad(
+            &mut bytes,
+            Affine::translate(rect[0], rect[1]),
+            1.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            rect[2],
+            rect[3],
+            uv,
+            [1.0, 1.0, 1.0, op.opacity.clamp(0.0, 1.0)],
+            op.radius.max(0.0) * scale,
+            rect[2],
+            rect[3],
+            3.0,
+            scissor,
+        );
+        let draw = BackdropDraw {
+            copy,
+            copy_view,
+            region: [x0 as u32, y0 as u32, rw, rh],
+            jobs,
+        };
+        Some((
+            draw,
+            SpriteDraw {
+                bytes,
+                bind: result?,
+            },
+        ))
+    }
+
+    /// Fill `draw.copy` from `source`, or clear it when `source` cannot be
+    /// copied, then blur it.
+    fn run_backdrop(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        draw: &BackdropDraw,
+        source: Option<&wgpu::Texture>,
+    ) {
+        let [x, y, w, h] = draw.region;
+        let source = source.filter(|texture| {
+            texture.usage().contains(wgpu::TextureUsages::COPY_SRC)
+                && texture.format() == draw.copy.format()
+                && texture.sample_count() == 1
+                && x + w <= texture.width()
+                && y + h <= texture.height()
+        });
+        if let Some(texture) = source {
+            let mut from = texture.as_image_copy();
+            from.origin = wgpu::Origin3d { x, y, z: 0 };
+            encoder.copy_texture_to_texture(
+                from,
+                draw.copy.as_image_copy(),
+                wgpu::Extent3d {
+                    width: w,
+                    height: h,
+                    depth_or_array_layers: 1,
+                },
+            );
+        } else {
+            let clear = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("backdrop-clear"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &draw.copy_view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            drop(clear);
+        }
+        for job in &draw.jobs {
+            self.run_blur(encoder, job);
         }
     }
 
@@ -1705,7 +1982,7 @@ impl SceneGpu {
             let inside = pass.clip_offset.is_some();
             while let Some(cmd) = pass.cmds.get(at) {
                 match cmd {
-                    Cmd::Effect(_) => break,
+                    Cmd::Effect(_) | Cmd::Backdrop(_) => break,
                     Cmd::Paths { offset, verts } if *verts > 0 => {
                         render.set_pipeline(if inside { &pipes.path_in } else { &pipes.path });
                         render.set_stencil_reference(1);
@@ -1743,21 +2020,28 @@ impl SceneGpu {
                 at += 1;
             }
             drop(render);
-            let Some(Cmd::Effect(effect)) = pass.cmds.get(at) else {
-                break;
-            };
             // A shadow replay moves the layer; its effects stay out of it.
-            if pass.viewport.is_none() {
-                self.run_effect(
-                    encoder,
-                    env,
-                    effect,
-                    color_view,
-                    resolve,
-                    Some(&pass.target.texture),
-                    pass.target.samples,
-                    true,
-                );
+            match pass.cmds.get(at) {
+                Some(Cmd::Effect(effect)) => {
+                    if pass.viewport.is_none() {
+                        self.run_effect(
+                            encoder,
+                            env,
+                            effect,
+                            color_view,
+                            resolve,
+                            Some(&pass.target.texture),
+                            pass.target.samples,
+                            true,
+                        );
+                    }
+                }
+                Some(Cmd::Backdrop(draw)) => {
+                    if pass.viewport.is_none() {
+                        self.run_backdrop(encoder, draw, Some(&pass.target.texture));
+                    }
+                }
+                _ => break,
             }
             at += 1;
             if at >= pass.cmds.len() {
@@ -1827,7 +2111,7 @@ impl SceneGpu {
             first = false;
             while let Some(cmd) = plan.root.get(at) {
                 match cmd {
-                    RootCmd::Effect(_) => break,
+                    RootCmd::Effect(_) | RootCmd::Backdrop(_) => break,
                     RootCmd::Quads(start, end) if end > start => {
                         render.set_pipeline(&self.quad_pipeline);
                         render.set_bind_group(0, quad_bind, &[]);
@@ -1851,10 +2135,13 @@ impl SceneGpu {
                 at += 1;
             }
             drop(render);
-            let Some(RootCmd::Effect(effect)) = plan.root.get(at) else {
-                break;
-            };
-            self.run_effect(encoder, env, effect, target, None, env.root, 1, false);
+            match plan.root.get(at) {
+                Some(RootCmd::Effect(effect)) => {
+                    self.run_effect(encoder, env, effect, target, None, env.root, 1, false);
+                }
+                Some(RootCmd::Backdrop(draw)) => self.run_backdrop(encoder, draw, env.root),
+                _ => break,
+            }
             at += 1;
             if at >= plan.root.len() {
                 break;
@@ -2309,6 +2596,10 @@ fn pack_cmds(plan: &mut Plan, drawn: Vec<Drawn>, width: u32, height: u32) -> Vec
                 flush_paths_acc(plan, &mut acc, &mut cmds);
                 cmds.push(Cmd::Effect(effect));
             }
+            Drawn::Backdrop(draw) => {
+                flush_paths_acc(plan, &mut acc, &mut cmds);
+                cmds.push(Cmd::Backdrop(draw));
+            }
         }
     }
     flush_paths_acc(plan, &mut acc, &mut cmds);
@@ -2429,7 +2720,27 @@ fn blit_sprites(blit: BlitDraw, width: u32, height: u32) -> Vec<SpriteDraw> {
     }
     if blit.opacity > 0.0 {
         let mut bytes = Vec::new();
-        if transformed || blit.scissor != NO_SCISSOR {
+        if let Some(place) = blit.place {
+            push_quad(
+                &mut bytes,
+                Affine::translate(place[0], place[1]).then(blit.transform),
+                1.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                place[2],
+                place[3],
+                [0.0, 0.0, 1.0, 1.0],
+                [1.0, 1.0, 1.0, blit.opacity],
+                0.0,
+                0.0,
+                0.0,
+                3.0,
+                blit.scissor,
+            );
+        } else if transformed || blit.scissor != NO_SCISSOR {
             let (w, h) = (width as f32, height as f32);
             push_quad(
                 &mut bytes,
@@ -2725,6 +3036,7 @@ fn content_extent(drawn: &[Drawn]) -> Option<[f32; 4]> {
                 let [x, y, w, h] = effect.clip.map(|v| v as f32);
                 union_box(&mut acc, [x, y, x + w, y + h]);
             }
+            Drawn::Backdrop(_) => {}
         }
     }
     acc
@@ -2887,6 +3199,7 @@ fn retarget_shadow_cmds(plan: &mut Plan, cmds: &[Cmd], origin: [f32; 2]) -> Vec<
                 Cmd::Quads(new_start, plan.quad_base + plan.quads.len() as u32)
             }
             Cmd::Effect(effect) => Cmd::Effect(*effect),
+            Cmd::Backdrop(draw) => Cmd::Backdrop(draw.clone()),
         })
         .collect()
 }

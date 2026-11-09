@@ -48,6 +48,24 @@ pub enum Op {
     /// The latest frame of a [`rndr_core::FrameSurface`], from a
     /// [`rndr_core::SurfaceView`].
     Surface(SurfaceOp),
+    /// Blur what is already drawn under a rect, from a
+    /// [`rndr_core::BackdropBlur`]. Drawn in screen space, like [`Op::Quads`].
+    Backdrop(BackdropOp),
+}
+
+/// A [`rndr_core::BackdropBlur`] after layout, in logical points.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BackdropOp {
+    /// Area the blur fills.
+    pub rect: Rect,
+    /// Corner radius of `rect`. Zero is square.
+    pub radius: f32,
+    /// Scissor from the entity's parent clip. `None` is unclipped.
+    pub clip: Option<Rect>,
+    /// Gaussian sigma in logical points.
+    pub sigma: f32,
+    /// Alpha of the blurred result, from the entity's [`rndr_core::Opacity`].
+    pub opacity: f32,
 }
 
 /// A [`rndr_core::SurfaceView`] after layout, in logical points.
@@ -206,6 +224,11 @@ pub struct SceneLayer {
     /// instead of the group's content, so content moved into view still
     /// shows and content moved out of the scissor is cut.
     pub transform: Affine,
+    /// Gaussian sigma, in local units, applied to the finished group before
+    /// it is composited. Zero draws it sharp. A blurred group's
+    /// [`ClipShape::Scissor`] clips the composited result, so the blur's
+    /// spread is cut there rather than at the content.
+    pub blur: f32,
 }
 
 impl Default for SceneLayer {
@@ -215,6 +238,7 @@ impl Default for SceneLayer {
             clip: None,
             effect: None,
             transform: Affine::IDENTITY,
+            blur: 0.0,
         }
     }
 }
@@ -257,6 +281,12 @@ impl SceneLayer {
     /// Store `effect` and return the layer.
     pub fn with_effect(mut self, effect: Effect) -> Self {
         self.effect = Some(effect);
+        self
+    }
+
+    /// Blur the finished group by `sigma` local units and return the layer.
+    pub fn with_blur(mut self, sigma: f32) -> Self {
+        self.blur = sigma;
         self
     }
 }

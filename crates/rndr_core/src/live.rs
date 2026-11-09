@@ -10,7 +10,7 @@
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, Weak};
 
-use crate::compose::{Opacity, Transform};
+use crate::compose::{Blur, Opacity, Transform};
 use crate::motion::Spring;
 use crate::runtime::{frame_wake, Wake};
 use crate::world::{Component, World};
@@ -268,6 +268,11 @@ binding!(
     f32
 );
 binding!(
+    /// Binds a [`Live<f32>`] to [`Blur`], in points.
+    LiveBlur,
+    f32
+);
+binding!(
     /// Binds a [`Live<[f32; 2]>`](Live) to [`Transform::translate`], in points.
     LiveOffset,
     [f32; 2]
@@ -333,6 +338,18 @@ pub(crate) fn apply(world: &mut World) {
         let value = bind.follow.value[0];
         world.insert(entity, bind);
         world.insert(entity, Opacity(value));
+    }
+    for entity in world.entities_with::<LiveBlur>() {
+        let Some(mut bind) = world.get::<LiveBlur>(entity).cloned() else {
+            continue;
+        };
+        bind.live.subscribe(&hub);
+        moving |= bind
+            .follow
+            .step(bind.smooth, lanes_f32(bind.live.get()), dt, 1);
+        let value = bind.follow.value[0];
+        world.insert(entity, bind);
+        world.insert(entity, Blur(value.max(0.0)));
     }
     for entity in world.entities_with::<LiveFill>() {
         let Some(mut bind) = world.get::<LiveFill>(entity).cloned() else {

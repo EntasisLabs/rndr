@@ -1,4 +1,6 @@
-//! Motion runtime: animated [`Opacity`] and [`Transform`] for any entity.
+//! Motion runtime: animated [`Opacity`] and [`Transform`] for any entity,
+//! plus [`Blur`] and [`BackdropBlur`] once [`Prop::Blur`] or
+//! [`Prop::BackdropBlur`] is targeted.
 //!
 //! Application code states targets with [`animate`], [`enter`], and [`exit`].
 //! Every frame, after layout, the runtime samples each running animation at
@@ -67,7 +69,7 @@ pub(crate) use scroll::{
 pub use scroll::{is_scrolling, scroll_by, scroll_to, ScrollPhysics};
 use track::{Eps, Lane};
 
-use crate::compose::{Opacity, Transform};
+use crate::compose::{BackdropBlur, Blur, Opacity, Transform};
 use crate::decor::Corners;
 use crate::entity::Entity;
 use crate::event::Event;
@@ -93,6 +95,10 @@ pub enum Prop {
     ScaleY,
     /// Rotation in radians, clockwise on screen.
     Rotate,
+    /// [`Blur`] sigma in logical points.
+    Blur,
+    /// [`BackdropBlur`] sigma in logical points.
+    BackdropBlur,
 }
 
 const OPACITY: usize = 0;
@@ -106,7 +112,9 @@ const FLOW_Y: usize = 7;
 const FLOW_W: usize = 8;
 const FLOW_H: usize = 9;
 const PRESS: usize = 10;
-const LANES: usize = 11;
+const BLUR: usize = 11;
+const BACKDROP: usize = 12;
+const LANES: usize = 13;
 
 /// Values the enter and exit transitions return to.
 const REST: [f32; 6] = [1.0, 0.0, 0.0, 1.0, 1.0, 0.0];
@@ -121,6 +129,8 @@ impl Prop {
             Self::ScaleX => &[SCALE_X],
             Self::ScaleY => &[SCALE_Y],
             Self::Rotate => &[ROTATE],
+            Self::Blur => &[BLUR],
+            Self::BackdropBlur => &[BACKDROP],
         }
     }
 }
@@ -131,7 +141,7 @@ fn eps(lane: usize) -> Eps {
             pos: 1.0e-3,
             vel: 1.0e-2,
         },
-        X | Y | FLOW_X | FLOW_Y | FLOW_W | FLOW_H => Eps {
+        X | Y | FLOW_X | FLOW_Y | FLOW_W | FLOW_H | BLUR | BACKDROP => Eps {
             pos: 0.01,
             vel: 0.1,
         },
@@ -161,6 +171,10 @@ pub struct Motion {
     pressed: bool,
     flight: Option<Flight>,
     corners: Option<[Lane; 4]>,
+    /// Lanes a target was set on, one bit each. Blur components are written
+    /// only once their lane is targeted, so a `Blur` the app sets itself on
+    /// an entity animating something else is left alone.
+    targeted: u16,
 }
 
 /// Where a [`fly`] starts, captured from the entity it leaves.
@@ -188,6 +202,8 @@ impl Motion {
             0.0,
             0.0,
             1.0,
+            world.get::<Blur>(entity).map_or(0.0, |b| b.0),
+            world.get::<BackdropBlur>(entity).map_or(0.0, |b| b.0),
         ];
         Self {
             lanes: std::array::from_fn(|lane| Lane::new(values[lane], eps(lane))),
@@ -201,6 +217,7 @@ impl Motion {
             pressed: false,
             flight: None,
             corners: None,
+            targeted: 0,
         }
     }
 
@@ -210,6 +227,9 @@ impl Motion {
     }
 
     fn cancel(&mut self, lanes: &[usize]) {
+        for &lane in lanes {
+            self.targeted |= 1 << lane;
+        }
         self.scripts.retain(|s| !lanes.contains(&s.lane));
     }
 }
@@ -847,6 +867,7 @@ pub(crate) fn step(world: &mut World) {
         }
         let was = std::mem::replace(&mut motion.active, moving);
         let exiting = motion.exiting;
+        let targeted = motion.targeted;
         if moving {
             active += 1;
         } else if exiting {
@@ -855,6 +876,12 @@ pub(crate) fn step(world: &mut World) {
             settled.push(entity);
         }
         world.insert(entity, Opacity(values[OPACITY]));
+        if targeted & (1 << BLUR) != 0 {
+            world.insert(entity, Blur(values[BLUR].max(0.0)));
+        }
+        if targeted & (1 << BACKDROP) != 0 {
+            world.insert(entity, BackdropBlur(values[BACKDROP].max(0.0)));
+        }
         world.insert(
             entity,
             Transform {

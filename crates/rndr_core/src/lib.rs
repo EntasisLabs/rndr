@@ -187,7 +187,7 @@ pub use chrome::Chrome;
 pub use clipboard::{Clipboard, ClipboardImage};
 pub use clock::{ManualClock, SystemClock, Time};
 pub use close::{CloseGuard, CloseRequest, CloseState};
-pub use compose::{Opacity, Transform};
+pub use compose::{BackdropBlur, Blur, Opacity, Transform};
 pub use cursor::{cursor_image, rotate_cursor, CursorImage};
 pub use decor::{BorderSides, ClipRounded, Corners, Gradient, GradientStop, Shadow, Shadows};
 pub use desktop::{
@@ -285,7 +285,9 @@ pub use app_menu::{
     app_menu, app_menu_id, app_menu_pending, app_menu_support, parse_app_menu_id,
     push_app_menu_pick, set_app_menu, take_app_menu_change, AppMenuPicked,
 };
-pub use live::{Live, LiveFill, LiveOffset, LiveOpacity, LiveRect, LiveScale, LiveValue, Smooth};
+pub use live::{
+    Live, LiveBlur, LiveFill, LiveOffset, LiveOpacity, LiveRect, LiveScale, LiveValue, Smooth,
+};
 pub use open_url::{check_url, request_open_url, take_url_requests, OpenUrlError};
 pub use pane::{
     apply_pane, detail_pane, field_height, set_selection, shell, splitter, tree_column, Pane,

@@ -238,11 +238,18 @@ native-platform acceptance are different things:
   one offscreen group and composited once; layout is unaffected and hit testing
   follows the transform. Positional gestures inside a transformed control (caret
   placement, slider drags) still read layout coordinates, a scaled group samples
-  its unscaled raster, and foreign surfaces (webviews) are not transformed. There
-  is no blur or backdrop effect yet.
-  `cargo run -p rndr --example ui_compositing -- out.png` renders headless pixels.
-- **Motion:** `rndr_core::motion` animates opacity, offset, scale, and rotation
-  with closed-form springs and tweens sampled at the frame time. Retargeting keeps
+  its unscaled raster, and foreign surfaces (webviews) are not transformed.
+  `Blur(sigma)` blurs an entity's finished subtree (CSS `filter: blur()`), cut by
+  its parent's clip. `BackdropBlur(sigma)` blurs what is already drawn behind an
+  entity inside its largest corner radius (CSS `backdrop-filter: blur()`); the
+  entity's fill then tints it, so a translucent fill reads as frosted glass. A
+  transformed or faded panel blurs where it is drawn and fades with it. Each
+  backdrop copies and blurs part of its target, and a target that can't be copied
+  draws only the fill. Neither blurs the desktop behind a transparent window.
+  `cargo run -p rndr --example ui_compositing -- out.png` renders headless pixels;
+  `cargo run -p rndr --example blur --features parley` shows a sliding frosted panel.
+- **Motion:** `rndr_core::motion` animates opacity, offset, scale, rotation, blur
+  and backdrop blur with closed-form springs and tweens sampled at the frame time. Retargeting keeps
   velocity; enter/exit transitions keep an exiting entity until it settles;
   `LayoutMotion` glides position and size changes (children lay out at the final
   size and the entity's clip reveals them). `animate_color` blends fills, border
@@ -301,8 +308,8 @@ native-platform acceptance are different things:
   `cargo run -p rndr --example effect_gallery -- out.png` renders a glow and a frosted panel.
 - **Live values:** a `Live<T>` (`f32`, `[f32; 2]`, `[f32; 4]` or `Color`) is a
   cloneable latest-wins handle any thread can `set`. `LiveOpacity`, `LiveOffset`,
-  `LiveScale`, `LiveFill` and `LiveRect` bind it to an entity's `Opacity`,
-  `Transform` or fill, as is or through a motion `Spring`. A change wakes each
+  `LiveScale`, `LiveFill`, `LiveRect` and `LiveBlur` bind it to an entity's `Opacity`,
+  `Transform`, fill or `Blur`, as is or through a motion `Spring`. A change wakes each
   visible window that draws the handle once until its next frame; equal values and
   hidden, minimized or fully covered windows do not wake. When a live value is the only reason for a frame the
   runner calls `rndr_paint::frame_live`, which skips Input, Update, PostUpdate and
