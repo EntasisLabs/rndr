@@ -113,6 +113,8 @@ pub struct Recording {
     pub duration: f64,
 }
 
+// The unsupported backend fails at spawn and never reads commands.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub(crate) enum Command {
     Start,
     Pause,
@@ -132,6 +134,7 @@ type Waker = Arc<dyn Fn() + Send + Sync>;
 
 pub(crate) struct Shared {
     pub path: PathBuf,
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     pub source: RecordSource,
     pub level: Live<f32>,
     status: Mutex<Status>,
