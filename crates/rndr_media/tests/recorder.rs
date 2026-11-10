@@ -123,13 +123,16 @@ fn pauses_are_left_out() {
     rec.resume();
     std::thread::sleep(Duration::from_millis(300));
     let note = rec.stop().unwrap();
+    // Two 300ms captures. The 500ms pause must not be in the file. macOS CI
+    // has written 39765 samples at 44.1 kHz (0.902s) when the sleeps ran long;
+    // a file that kept the pause would be about half a second longer than that.
     assert!(
-        note.duration > 0.45 && note.duration < 0.9,
+        note.duration > 0.45 && note.duration < 1.0,
         "{}",
         note.duration
     );
     let played = played_duration(&note.path);
-    assert!(played < 0.95, "{played}");
+    assert!(played < 1.05, "{played}");
 }
 
 #[test]
