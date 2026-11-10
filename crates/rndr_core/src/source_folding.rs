@@ -1,8 +1,9 @@
 //! Optional whole-line folding and small language-neutral source hooks.
 //!
 //! Folded bytes remain source: copying a selection across a fold includes them.
-//! Navigation or selection into a hidden line expands its fold. Every source
-//! edit invalidates folds; callers must re-publish against the new revision.
+//! Navigation or selection into a hidden line expands its fold. A source commit
+//! maps each range through that commit's [`crate::editing::SourceMap`]. A range
+//! that no longer covers whole lines is dropped; the rest stay collapsed.
 use crate::editing::{DocumentId, Revision, SourceBinding, SourceDocuments};
 pub use crate::editor::{source_position_box, source_range_boxes};
 use crate::{Buffer, Component, Entity, TextLayout, TextSpan, World};
@@ -36,6 +37,7 @@ pub enum FoldError {
 /// equal text length. Keep the opening/header line outside the hidden range.
 /// Nested/overlapping ranges must be resolved by the provider before publication.
 /// A selection endpoint in a collapsed range expands that range on the next pass.
+/// Later commits map these ranges; they do not have to be published again.
 pub fn set_source_folds(
     world: &mut World,
     view: Entity,
@@ -55,16 +57,16 @@ pub fn set_source_folds(
     ranges.sort_by_key(|r| r.start);
     let mut end = 0;
     for r in &ranges {
-        if r.start == 0
-            || r.start >= r.end
-            || r.end > text.len()
-            || r.start < end
-            || text.as_bytes().get(r.start - 1) != Some(&b'\n')
-            || (r.end != text.len() && text.as_bytes().get(r.end - 1) != Some(&b'\n'))
-        {
+        if r.start < end || !crate::editing::is_whole_line_fold(text, r.start, r.end) {
             return Err(FoldError::InvalidRange);
         }
         end = r.end;
+    }
+    if let Some(doc) = world
+        .resource_mut::<SourceDocuments>()
+        .and_then(|docs| docs.get_mut(document))
+    {
+        doc.set_view_folds(view, ranges.clone());
     }
     world.insert(
         view,
@@ -78,6 +80,14 @@ pub fn set_source_folds(
 }
 /// Expand all folds. Source bytes and history are untouched.
 pub fn clear_source_folds(world: &mut World, view: Entity) {
+    if let Some(document) = world.get::<SourceBinding>(view).map(|b| b.document) {
+        if let Some(doc) = world
+            .resource_mut::<SourceDocuments>()
+            .and_then(|docs| docs.get_mut(document))
+        {
+            doc.clear_view_folds(view);
+        }
+    }
     world.remove::<SourceFolds>(view);
 }
 
@@ -91,6 +101,18 @@ pub(crate) fn current(world: &World, view: Entity) -> Option<&SourceFolds> {
     .then_some(folds)
 }
 pub(crate) fn prepare(world: &mut World, view: Entity) {
+    // The binding still names the pre-commit revision. Leave the component
+    // alone until project_source publishes the buffer for the mapped ranges.
+    if let Some(binding) = world.get::<SourceBinding>(view).copied() {
+        let current_revision = world
+            .resource::<SourceDocuments>()
+            .and_then(|docs| docs.get(binding.document))
+            .map(|doc| doc.revision());
+        if current_revision.is_some_and(|revision| revision != binding.revision) {
+            return;
+        }
+    }
+    adopt_mapped_folds(world, view);
     if !world.has::<SourceFolds>(view) {
         return;
     }
@@ -118,6 +140,71 @@ pub(crate) fn prepare(world: &mut World, view: Entity) {
         folds
             .ranges
             .retain(|r| !endpoints.iter().any(|at| r.contains(at)));
+    }
+    let ranges = world
+        .get::<SourceFolds>(view)
+        .map(|folds| folds.ranges.clone())
+        .unwrap_or_default();
+    if let Some(document) = world
+        .get::<SourceBinding>(view)
+        .map(|binding| binding.document)
+    {
+        if let Some(doc) = world
+            .resource_mut::<SourceDocuments>()
+            .and_then(|docs| docs.get_mut(document))
+        {
+            doc.set_view_folds(view, ranges);
+        }
+    }
+    if world
+        .get::<SourceFolds>(view)
+        .is_some_and(|folds| folds.ranges.is_empty())
+    {
+        clear_source_folds(world, view);
+    }
+}
+
+/// Copy commit-mapped folds onto the view once its binding matches the document.
+/// A binding that is still on the previous revision keeps its component untouched
+/// so old coordinates are not applied to the new text, and are not cleared either.
+fn adopt_mapped_folds(world: &mut World, view: Entity) {
+    let Some(binding) = world.get::<SourceBinding>(view).copied() else {
+        return;
+    };
+    let Some(doc_revision) = world
+        .resource::<SourceDocuments>()
+        .and_then(|docs| docs.get(binding.document))
+        .map(|doc| doc.revision())
+    else {
+        return;
+    };
+    if binding.revision != doc_revision {
+        return;
+    }
+    let component_revision = world.get::<SourceFolds>(view).map(|folds| folds.revision);
+    let component_document = world.get::<SourceFolds>(view).map(|folds| folds.document);
+    if component_document.is_some_and(|document| document != binding.document) {
+        clear_source_folds(world, view);
+        return;
+    }
+    if component_revision == Some(doc_revision) {
+        return;
+    }
+    let mapped = world
+        .resource::<SourceDocuments>()
+        .and_then(|docs| docs.get(binding.document))
+        .and_then(|doc| doc.view_folds(view).map(|ranges| ranges.to_vec()));
+    if let Some(ranges) = mapped.filter(|ranges| !ranges.is_empty()) {
+        world.insert(
+            view,
+            SourceFolds {
+                document: binding.document,
+                revision: doc_revision,
+                ranges,
+            },
+        );
+    } else if world.has::<SourceFolds>(view) {
+        clear_source_folds(world, view);
     }
 }
 /// Remove folded rows from full-document geometry while preserving document

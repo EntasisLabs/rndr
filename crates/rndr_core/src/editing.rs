@@ -104,6 +104,40 @@ impl SourceMap {
         at - removed + inserted
     }
 }
+
+/// A fold hides whole lines: it starts after a newline and ends at a newline or EOF.
+pub(crate) fn is_whole_line_fold(text: &str, start: usize, end: usize) -> bool {
+    start > 0
+        && start < end
+        && end <= text.len()
+        && text.is_char_boundary(start)
+        && text.is_char_boundary(end)
+        && text.as_bytes().get(start - 1) == Some(&b'\n')
+        && (end == text.len() || text.as_bytes().get(end - 1) == Some(&b'\n'))
+}
+
+/// Map fold ranges through one commit. The exclusive end stays before an insertion
+/// at that boundary. A range that no longer covers whole lines is dropped.
+fn map_fold_ranges(text: &str, ranges: &[Range<usize>], map: &SourceMap) -> Vec<Range<usize>> {
+    let mut mapped = Vec::new();
+    for range in ranges {
+        let start = map.map(range.start, Affinity::After);
+        let end = map.map(range.end, Affinity::Before);
+        if is_whole_line_fold(text, start, end) {
+            mapped.push(start..end);
+        }
+    }
+    mapped.sort_by_key(|range| range.start);
+    let mut kept = Vec::new();
+    let mut covered = 0usize;
+    for range in mapped {
+        if range.start >= covered {
+            covered = range.end;
+            kept.push(range);
+        }
+    }
+    kept
+}
 /// Ordered notification, with exact forward/inverse operations and maps.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChangeEvent {
@@ -191,6 +225,8 @@ pub struct SourceSession {
     selections: SourceSelections,
     view_selections: HashMap<Entity, SourceSelections>,
     scroll_anchors: HashMap<Entity, usize>,
+    /// Per-view whole-line folds in the current revision. Mapped with each commit.
+    fold_ranges: HashMap<Entity, Vec<Range<usize>>>,
     active_view: Option<Entity>,
     readonly: bool,
     pub(crate) policy_epoch: u64,
@@ -283,6 +319,24 @@ impl SourceSession {
         if self.views.contains_key(&view) && self.text.is_char_boundary(at) {
             self.scroll_anchors.insert(view, at);
         }
+    }
+    /// Whole-line folds last mapped into this revision. Empty after a drop.
+    pub(crate) fn view_folds(&self, view: Entity) -> Option<&[Range<usize>]> {
+        self.fold_ranges.get(&view).map(Vec::as_slice)
+    }
+    /// Replace one attached view's folds. The caller has already checked line bounds.
+    pub(crate) fn set_view_folds(&mut self, view: Entity, ranges: Vec<Range<usize>>) {
+        if !self.views.contains_key(&view) {
+            return;
+        }
+        if ranges.is_empty() {
+            self.fold_ranges.remove(&view);
+        } else {
+            self.fold_ranges.insert(view, ranges);
+        }
+    }
+    pub(crate) fn clear_view_folds(&mut self, view: Entity) {
+        self.fold_ranges.remove(&view);
     }
     /// Set one attached view's selection against an explicit current revision.
     /// Stale callers and composition refuse without changing history or focus.
@@ -459,6 +513,10 @@ impl SourceSession {
         for at in self.scroll_anchors.values_mut() {
             *at = map.map(*at, Affinity::After);
         }
+        for ranges in self.fold_ranges.values_mut() {
+            *ranges = map_fold_ranges(&self.text, ranges, &map);
+        }
+        self.fold_ranges.retain(|_, ranges| !ranges.is_empty());
         for s in self.views.values_mut() {
             *s = snapped_selection(
                 &self.text,
@@ -1111,6 +1169,7 @@ impl SourceDocuments {
                 views: HashMap::new(),
                 view_selections: HashMap::new(),
                 scroll_anchors: HashMap::new(),
+                fold_ranges: HashMap::new(),
                 active_view: None,
                 readonly: false,
                 policy_epoch: 0,
@@ -1257,6 +1316,7 @@ pub fn detach_source(world: &mut World, entity: Entity) -> Result<(), EditError>
         doc.views.remove(&entity);
         doc.view_selections.remove(&entity);
         doc.scroll_anchors.remove(&entity);
+        doc.fold_ranges.remove(&entity);
         if doc.active_view == Some(entity) {
             doc.active_view = None;
             doc.history.break_run();
@@ -1473,6 +1533,7 @@ pub fn prepare_source_input(world: &mut World) {
             doc.views.retain(|e, _| live.get(e) == Some(&doc.id));
             doc.view_selections.retain(|e, _| doc.views.contains_key(e));
             doc.scroll_anchors.retain(|e, _| doc.views.contains_key(e));
+            doc.fold_ranges.retain(|e, _| doc.views.contains_key(e));
             if doc.active_view.is_some_and(|e| !doc.views.contains_key(&e)) {
                 doc.active_view = None;
                 doc.history.break_run();
