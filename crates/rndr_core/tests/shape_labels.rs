@@ -15,8 +15,8 @@ use rndr_core::structured::StructuredDocument;
 use rndr_core::structured_chrome::StructuredChromeGutter;
 use rndr_core::structured_native::{attach_structured, StructuredDocuments};
 use rndr_core::{
-    markdown_view, App, Buffer, BuiltinText, CapturesKeys, Children, Chrome, ColorAtlas, Editor,
-    Focus, Focusable, Font, FontAtlas, Input, Label, Layout, MarkdownPlugin, Scroll, Size,
+    markdown_view, App, Buffer, BuiltinText, CapturesKeys, Chrome, ColorAtlas, Editor, Focus,
+    Focusable, Font, FontAtlas, Input, Label, Layout, MarkdownPlugin, MarkdownView, Scroll, Size,
     TextEngine, TextLayout, TextMeasure, TextSpan, TextStyle, Viewport,
 };
 
@@ -267,16 +267,26 @@ fn markdown_idle_and_scroll_do_not_reshape_distinct_blocks() {
     app.world_mut().insert_resource(Viewport::new(960.0, 420.0));
     let view = markdown_view(app.world_mut(), distinct_lines(32, "\n\n"));
     let cold = warm(&mut app, &engine);
+    let blocks = app
+        .world()
+        .get::<MarkdownView>(view)
+        .unwrap()
+        .blocks()
+        .len();
     let labels = app.world().entities_with::<Label>().len();
-    assert!(labels >= 32, "expected one label per block, got {labels}");
+    assert_eq!(blocks, 32);
+    assert!(
+        labels > 0 && labels < blocks,
+        "window realized {labels} of {blocks} blocks"
+    );
     assert!(
         cold >= labels as u64,
-        "cold start shaped {cold} times for {labels} labels"
+        "cold start shaped {cold} times for {labels} realized labels"
     );
-    let sample = block_layout(&app, view);
+    let before_text = label_layouts(&app);
     let idle = during(&engine, || app.update());
     assert_eq!(idle, 0, "markdown idle frame reshaped");
-    assert_eq!(block_layout(&app, view), sample);
+    assert_eq!(label_layouts(&app), before_text);
 
     let before_offset = app.world().get::<Scroll>(view).unwrap().offset[1];
     let scrolled = during(&engine, || {
@@ -292,8 +302,31 @@ fn markdown_idle_and_scroll_do_not_reshape_distinct_blocks() {
         (after_offset - before_offset).abs() > 1.0,
         "wheel did not move the markdown scroll offset ({before_offset} -> {after_offset})"
     );
-    assert_eq!(scrolled, 0, "markdown scroll reshaped unchanged blocks");
-    assert_eq!(block_layout(&app, view), sample);
+    let after_text = label_layouts(&app);
+    for (text, layout) in &before_text {
+        if let Some(now) = after_text.iter().find(|(t, _)| t == text) {
+            assert_eq!(
+                now.1, *layout,
+                "scroll reshaped a block that stayed on screen: {text}"
+            );
+        }
+    }
+    let entered = after_text
+        .iter()
+        .filter(|(text, _)| !before_text.iter().any(|(old, _)| old == text))
+        .count();
+    assert!(
+        entered < blocks,
+        "scroll rebuilt the document ({entered} new labels)"
+    );
+    assert!(
+        scrolled <= (entered as u64) * 2,
+        "scroll shaped {scrolled} times for {entered} new labels"
+    );
+    assert!(
+        app.world().entities_with::<Label>().len() < blocks,
+        "scroll realized every block"
+    );
     let after_scroll = during(&engine, || app.update());
     assert_eq!(after_scroll, 0, "idle frame after a scroll reshaped");
 
@@ -306,9 +339,19 @@ fn markdown_idle_and_scroll_do_not_reshape_distinct_blocks() {
     assert_eq!(after_append, 0, "idle frame after an append reshaped");
 }
 
-fn block_layout(app: &App, view: rndr_core::Entity) -> TextLayout {
-    let child = app.world().get::<Children>(view).unwrap().list[0];
-    app.world().get::<TextLayout>(child).unwrap().clone()
+fn label_layouts(app: &App) -> Vec<(String, TextLayout)> {
+    let mut layouts: Vec<_> = app
+        .world()
+        .entities_with::<Label>()
+        .into_iter()
+        .filter_map(|entity| {
+            let text = app.world().get::<Label>(entity)?.text.clone();
+            let layout = app.world().get::<TextLayout>(entity)?.clone();
+            Some((text, layout))
+        })
+        .collect();
+    layouts.sort_by(|a, b| a.0.cmp(&b.0));
+    layouts
 }
 
 /// Release characterization. Paragraphs are unique so the line cache cannot

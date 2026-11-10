@@ -352,9 +352,6 @@ fn shift(value: usize, delta: isize) -> Option<usize> {
     (next >= 0).then_some(next as usize)
 }
 
-pub(super) fn stale(world: &World, doc: &MarkdownView) -> bool {
-    doc.hosts.iter().any(|b| !valid(world, doc, b))
-}
 pub(super) fn retire_stale(world: &mut World, doc: &mut MarkdownView) {
     let mut keep = Vec::new();
     for binding in std::mem::take(&mut doc.hosts) {

@@ -1,10 +1,13 @@
 //! Markdown text that can grow while tokens arrive.
 //!
 //! [`parse_markdown`] turns a string into blocks with [`pulldown_cmark`].
-//! [`markdown_view`] is a scrollport that turns those blocks into entities:
-//! a wrapping label for a paragraph, heading, or list item, a monospace label
-//! on a distinct fill for a fenced block, a bar beside a quote, and a thin
-//! rect for a rule. Inline bold, italic, code, and links are [`TextSpan`]s.
+//! [`markdown_view`] is a scrollport. It keeps a height for every block and
+//! turns the visible window, plus a little overscan, into entities: a wrapping
+//! label for a paragraph, heading, or list item, a monospace label on a
+//! distinct fill for a fenced block, a bar beside a quote, and a thin rect for
+//! a rule. A block scrolled out of that window is not an entity and is not
+//! shaped. A mounted host root stays alive offscreen and is not recycled.
+//! Inline bold, italic, code, and links are [`TextSpan`]s.
 //! A link click sends [`LinkActivated`] during Input. The view does not open
 //! the destination.
 //!
@@ -15,7 +18,7 @@
 //! writes only the blocks whose text or style changed. A boundary is the byte
 //! after two blank lines outside a fence, or the start of an unclosed fence.
 //! An unclosed fence stays inside that tail, so earlier blocks keep their
-//! entities and their shaped lines. A trailing inline that is still open
+//! parsed text. A realized block keeps its entity while it stays in the window. A trailing inline that is still open
 //! (bold, italic, a code span, or a link whose destination has not closed)
 //! is closed for the parse, and so is a trailing task marker that has not
 //! reached its item text yet. The frame shows the styled text or the
@@ -86,7 +89,7 @@ use crate::clipboard::{note_clipboard, note_primary, primary_selection};
 use crate::entity::Entity;
 use crate::event::{self, Event as EventTrait};
 use crate::font::{field_text_width, Spans, TextSpan};
-use crate::hierarchy::{children_of, despawn, set_parent};
+use crate::hierarchy::{children_of, despawn, set_parent, Children, Parent};
 use crate::input::{CursorStyle, Input, MotionWatch, PointerButton};
 use crate::keys::{platform_of, standard_action, EditAction, Key};
 use crate::layout::{hit_test, Axis, Layout, Rect, Scroll, Size, SCROLL_DRAG_SLOP};
@@ -303,8 +306,9 @@ impl Component for MarkerGap {}
 /// Scrollport of markdown blocks.
 ///
 /// Build one with [`markdown_view`] and add [`MarkdownPlugin`]. The source
-/// stays as given. [`Self::push_str`] appends. The block list and the child
-/// entities update on the plugin's PostUpdate pass.
+/// stays as given. [`Self::push_str`] appends. The block list is the whole
+/// document. Child entities are only the visible window plus overscan, and
+/// they are recycled as it moves. A mounted host root is not recycled.
 pub struct MarkdownView {
     source: String,
     blocks: Vec<MarkdownBlock>,
@@ -313,6 +317,12 @@ pub struct MarkdownView {
     commit: usize,
     parsed_from: usize,
     slots: Vec<Slot>,
+    /// Outer height of every block, including the gap after it. Unmeasured
+    /// entries are estimates. The scrollbar reads their sum.
+    heights: Vec<f32>,
+    measured: Vec<bool>,
+    lead: Option<Entity>,
+    trail_spacer: Option<Entity>,
     hosts: Vec<host::Binding>,
     /// Source text at the last sync. The next edit is diffed against this
     /// so host anchors follow one inserted, deleted, or replaced span.
@@ -341,6 +351,10 @@ impl MarkdownView {
             commit: 0,
             parsed_from: 0,
             slots: Vec::new(),
+            heights: Vec::new(),
+            measured: Vec::new(),
+            lead: None,
+            trail_spacer: None,
             hosts: Vec::new(),
             synced_source: String::new(),
             used_host_ids: Default::default(),
@@ -642,6 +656,16 @@ fn sync_one(world: &mut World, entity: Entity) {
         view.ends = assembled.ends;
         view.commit = assembled.commit;
         view.parsed_from = assembled.parsed_from;
+        let keep = if view.parsed_from == 0 {
+            0
+        } else {
+            view.starts
+                .iter()
+                .position(|start| *start >= view.parsed_from)
+                .unwrap_or(view.blocks.len())
+        };
+        view.heights.truncate(keep);
+        view.measured.truncate(keep);
         view.dirty = false;
         host::rebind(&mut view);
         view.synced_source.clone_from(&view.source);
@@ -650,16 +674,12 @@ fn sync_one(world: &mut World, entity: Entity) {
     host::measure_hosts(world, &mut view);
     let columns = list_columns(world, &base, &view.blocks);
     let width_changed = (view.width - width).abs() > 0.5;
-    if refresh
-        || view.hosts_dirty
-        || width_changed
-        || view.slots.len() != view.blocks.len()
-        || slots_stale(&view, &columns)
-        || host::stale(world, &view)
-    {
-        reconcile(world, entity, &mut view, width, &base, &columns);
-        view.width = width;
+    if refresh || width_changed {
+        view.measured.fill(false);
     }
+    fill_heights(world, &mut view, width, &base, &columns);
+    reconcile(world, entity, &mut view, width, &base, &columns);
+    view.width = width;
     apply_selection(world, &view);
     restore_selection_scroll(world, entity, &view);
     settle_pin(world, entity, &mut view);
@@ -667,13 +687,105 @@ fn sync_one(world: &mut World, entity: Entity) {
     world.insert(entity, view);
 }
 
-fn slots_stale(view: &MarkdownView, columns: &ListColumns) -> bool {
-    view.slots.iter().enumerate().any(|(i, slot)| {
-        view.blocks.get(i).is_none_or(|block| {
-            slot.shape != shape_of(block, columns)
-                || slot.fingerprint != fingerprint(block, columns)
+const OVERSCAN: f32 = 400.0;
+
+struct RunSpacer;
+
+impl Component for RunSpacer {}
+
+fn fill_heights(
+    world: &World,
+    doc: &mut MarkdownView,
+    width: f32,
+    base: &TextStyle,
+    columns: &ListColumns,
+) {
+    doc.heights.truncate(doc.blocks.len());
+    doc.measured.truncate(doc.blocks.len());
+    while doc.heights.len() < doc.blocks.len() {
+        let index = doc.heights.len();
+        let trail = trail_after(&doc.blocks, index);
+        doc.heights.push(estimate_outer(
+            world,
+            base,
+            &doc.blocks[index],
+            width,
+            columns,
+            trail,
+        ));
+        doc.measured.push(false);
+    }
+}
+
+fn estimate_outer(
+    world: &World,
+    base: &TextStyle,
+    block: &MarkdownBlock,
+    width: f32,
+    columns: &ListColumns,
+    trail: f32,
+) -> f32 {
+    if matches!(block.kind, MarkdownKind::Rule) {
+        return 2.0 + trail;
+    }
+    let style = block_style(base, block);
+    let engine = text_engine(world);
+    let line = engine.line_height(&style).max(1.0);
+    let unit = engine.unit_advance(&style).max(1.0);
+    let wrap = field_text_width(label_width(width, block, columns), unit).max(unit);
+    let per = (wrap / unit).max(1.0);
+    let lines: f32 = block
+        .text
+        .split('\n')
+        .map(|line| {
+            let chars = line.chars().count().max(1) as f32;
+            (chars / per).ceil().max(1.0)
         })
-    })
+        .sum();
+    (TEXT_ORIGIN_Y + lines.max(1.0) * line + TEXT_ORIGIN_Y).max(36.0) + trail
+}
+
+fn block_outer(doc: &MarkdownView, index: usize) -> f32 {
+    if let Some(host) = doc.hosts.iter().find(|host| host.index == index) {
+        if host.height > 0.0 {
+            return host.height + trail_after(&doc.blocks, index);
+        }
+    }
+    doc.heights.get(index).copied().unwrap_or(36.0)
+}
+
+fn prefix_sums(doc: &MarkdownView) -> Vec<f32> {
+    let mut prefix = Vec::with_capacity(doc.blocks.len() + 1);
+    let mut y = 0.0f32;
+    prefix.push(0.0);
+    for index in 0..doc.blocks.len() {
+        y += block_outer(doc, index);
+        prefix.push(y);
+    }
+    prefix
+}
+
+fn block_window(prefix: &[f32], offset: f32, viewport: f32) -> std::ops::Range<usize> {
+    let count = prefix.len().saturating_sub(1);
+    if count == 0 {
+        return 0..0;
+    }
+    let total = prefix[count];
+    let min_y = (viewport - total).min(0.0);
+    let offset = if offset.is_finite() {
+        offset.clamp(min_y, 0.0)
+    } else {
+        min_y
+    };
+    let top = -offset;
+    let from = (top - OVERSCAN).max(0.0);
+    let to = top + viewport.max(1.0) + OVERSCAN;
+    let first = prefix
+        .partition_point(|y| *y <= from)
+        .saturating_sub(1)
+        .min(count - 1);
+    let last = prefix.partition_point(|y| *y < to).clamp(first + 1, count);
+    first..last
 }
 
 fn clamp_selection(view: &mut MarkdownView) {
@@ -722,52 +834,80 @@ fn reconcile(
 ) {
     host::retire_stale(world, doc);
     doc.hosts_dirty = false;
+    if (doc.width - width).abs() > 0.5 {
+        doc.measured.fill(false);
+        for index in 0..doc.blocks.len() {
+            let trail = trail_after(&doc.blocks, index);
+            doc.heights[index] =
+                estimate_outer(world, base, &doc.blocks[index], width, columns, trail);
+        }
+    }
     let theme = doc.theme;
-    let mut index = 0;
-    while index < doc.blocks.len() {
-        let shape = shape_of(&doc.blocks[index], columns);
-        let fingerprint = fingerprint(&doc.blocks[index], columns);
-        if doc.slots.get(index).is_some_and(|slot| {
-            doc.hosts
-                .iter()
-                .any(|binding| binding.root == slot.entity && binding.index != index)
-        }) {
-            // The host followed its source range to another block. Keep that
-            // root and build a fresh row for the block that now sits here.
-            let content = block_height(world, base, &doc.blocks[index], width, columns);
-            let outer = content + trail_after(&doc.blocks, index);
-            let entity = spawn_block(
-                world,
-                view,
-                index,
-                &doc.blocks[index],
-                content,
-                outer,
-                &theme,
-                base,
-                columns,
-            );
-            doc.slots[index] = Slot {
-                entity,
-                shape,
-                fingerprint,
-                width_bits: width.to_bits(),
-                index: index as u32,
-            };
-            index += 1;
+    let offset = world
+        .get::<Scroll>(view)
+        .map(|scroll| scroll.offset[1])
+        .unwrap_or(0.0);
+    let viewport = world
+        .get::<Rect>(view)
+        .map(|rect| rect.h)
+        .filter(|h| *h > 1.0)
+        .unwrap_or_else(|| {
+            world
+                .resource::<crate::input::Viewport>()
+                .map(|viewport| viewport.content_height())
+                .unwrap_or(640.0)
+        });
+    let mut prefix = prefix_sums(doc);
+    let mut range = block_window(&prefix, offset, viewport);
+    for index in range.clone() {
+        if doc.hosts.iter().any(|host| host.index == index) {
             continue;
         }
-        if let Some(binding) = doc.hosts.iter().find(|binding| binding.index == index) {
+        if doc.measured.get(index).copied().unwrap_or(false) {
+            continue;
+        }
+        let content = block_height(world, base, &doc.blocks[index], width, columns);
+        let outer = content + trail_after(&doc.blocks, index);
+        doc.heights[index] = outer;
+        doc.measured[index] = true;
+    }
+    prefix = prefix_sums(doc);
+    range = block_window(&prefix, offset, viewport);
+    let mut kept = std::collections::HashMap::<u32, Slot>::new();
+    let mut free = Vec::new();
+    for slot in std::mem::take(&mut doc.slots) {
+        // Host roots are placed from the binding, never recycled onto another block.
+        if doc.hosts.iter().any(|host| host.root == slot.entity) {
+            continue;
+        }
+        if range.contains(&(slot.index as usize)) {
+            kept.insert(slot.index, slot);
+        } else {
+            free.push(slot);
+        }
+    }
+    let mut column = Vec::new();
+    let lead = prefix[range.start];
+    if lead > 0.5 {
+        let spacer = run_spacer(world, view, &mut doc.lead, lead);
+        column.push(spacer);
+    } else if let Some(spacer) = doc.lead.take() {
+        despawn(world, spacer);
+    }
+    let mut slots = Vec::new();
+    for index in range.clone() {
+        let block = &doc.blocks[index];
+        let shape = shape_of(block, columns);
+        let fingerprint = fingerprint(block, columns);
+        let trail = trail_after(&doc.blocks, index);
+        let outer = block_outer(doc, index);
+        let content = (outer - trail).max(1.0);
+        if let Some(binding) = doc.hosts.iter().find(|host| host.index == index) {
             let root = binding.root;
-            if let Some(old) = doc.slots.get(index) {
-                if old.entity != root {
-                    despawn(world, old.entity);
-                }
-            }
             let height = if binding.measured && binding.height <= 0.0 {
                 Size::Hug
             } else {
-                Size::Px(binding.height + trail_after(&doc.blocks, index))
+                Size::Px(binding.height + trail)
             };
             world.insert(
                 root,
@@ -777,114 +917,106 @@ fn reconcile(
                     ..Layout::column()
                 },
             );
-            let slot = Slot {
+            world.insert(root, Parent { entity: view });
+            slots.push(Slot {
                 entity: root,
                 shape,
                 fingerprint,
                 width_bits: width.to_bits(),
                 index: index as u32,
-            };
-            if index == doc.slots.len() {
-                doc.slots.push(slot);
-            } else {
-                doc.slots[index] = slot;
-            }
-            index += 1;
+            });
+            column.push(root);
             continue;
         }
-        let alive = doc
-            .slots
-            .get(index)
-            .is_some_and(|slot| slot.shape == shape && world.is_alive(slot.entity));
-        if !alive {
-            if let Some(slot) = doc.slots.get(index) {
-                despawn(world, slot.entity);
-            }
-            // Replace this block only. Later retained host subtrees are independent.
-            if let Some(slot) = doc.slots.get_mut(index) {
-                slot.fingerprint = !fingerprint;
-            }
-        }
-        let content = block_height(world, base, &doc.blocks[index], width, columns);
-        let outer = content + trail_after(&doc.blocks, index);
-        if index == doc.slots.len() {
+        let mut slot = if let Some(slot) = kept.remove(&(index as u32)) {
+            slot
+        } else if let Some(slot) = free.pop() {
+            slot
+        } else {
             let entity = spawn_block(
-                world,
-                view,
-                index,
-                &doc.blocks[index],
-                content,
-                outer,
-                &theme,
-                base,
-                columns,
+                world, view, index, block, content, outer, &theme, base, columns,
             );
-            doc.slots.push(Slot {
+            Slot {
                 entity,
                 shape,
                 fingerprint,
                 width_bits: width.to_bits(),
                 index: index as u32,
-            });
-        } else if !alive
-            || doc.slots[index].fingerprint != fingerprint
-            || doc.slots[index].width_bits != width.to_bits()
-        {
-            let entity = doc.slots[index].entity;
-            if !alive
-                || !update_block(
-                    world,
-                    view,
-                    entity,
-                    index,
-                    &doc.blocks[index],
-                    content,
-                    outer,
-                    &theme,
-                    base,
-                    columns,
-                )
-            {
-                despawn(world, entity);
-                let entity = spawn_block(
-                    world,
-                    view,
-                    index,
-                    &doc.blocks[index],
-                    content,
-                    outer,
-                    &theme,
-                    base,
-                    columns,
-                );
-                doc.slots[index] = Slot {
-                    entity,
-                    shape,
-                    fingerprint,
-                    width_bits: width.to_bits(),
-                    index: index as u32,
-                };
-            } else {
-                doc.slots[index].fingerprint = fingerprint;
-                doc.slots[index].width_bits = width.to_bits();
-                doc.slots[index].index = index as u32;
             }
+        };
+        let alive = world.is_alive(slot.entity) && slot.shape == shape;
+        if !alive
+            || slot.fingerprint != fingerprint
+            || slot.width_bits != width.to_bits()
+            || slot.index != index as u32
+        {
+            if !update_block(
+                world,
+                view,
+                slot.entity,
+                index,
+                block,
+                content,
+                outer,
+                &theme,
+                base,
+                columns,
+            ) {
+                if world.is_alive(slot.entity) {
+                    despawn(world, slot.entity);
+                }
+                slot.entity = spawn_block(
+                    world, view, index, block, content, outer, &theme, base, columns,
+                );
+            }
+            slot.shape = shape;
+            slot.fingerprint = fingerprint;
+            slot.width_bits = width.to_bits();
         } else {
-            apply_height(world, doc.slots[index].entity, content, outer);
-            doc.slots[index].index = index as u32;
+            apply_height(world, slot.entity, content, outer);
         }
-        index += 1;
+        slot.index = index as u32;
+        world.insert(slot.entity, Parent { entity: view });
+        column.push(slot.entity);
+        slots.push(slot);
     }
-    while doc.slots.len() > doc.blocks.len() {
-        despawn(world, doc.slots.pop().expect("slot").entity);
+    let tail = prefix[doc.blocks.len()] - prefix[range.end];
+    if tail > 0.5 {
+        let spacer = run_spacer(world, view, &mut doc.trail_spacer, tail);
+        column.push(spacer);
+    } else if let Some(spacer) = doc.trail_spacer.take() {
+        despawn(world, spacer);
     }
-    // Replacements append in hierarchy order; restore document reading order.
+    for slot in free {
+        despawn(world, slot.entity);
+    }
+    for slot in kept.into_values() {
+        if !doc.hosts.iter().any(|host| host.root == slot.entity) {
+            despawn(world, slot.entity);
+        }
+    }
+    doc.slots = slots;
+    for child in &column {
+        world.insert(*child, Parent { entity: view });
+    }
+    world.insert(view, Children { list: column });
+}
+
+fn run_spacer(world: &mut World, view: Entity, slot: &mut Option<Entity>, height: f32) -> Entity {
+    let entity = match *slot {
+        Some(entity) if world.is_alive(entity) => entity,
+        _ => {
+            let entity = world.spawn(RunSpacer);
+            *slot = Some(entity);
+            entity
+        }
+    };
     world.insert(
-        view,
-        crate::Children {
-            list: doc.slots.iter().map(|slot| slot.entity).collect(),
-        },
+        entity,
+        box_layout(Axis::Column, Size::Fill, Size::Px(height)),
     );
+    world.insert(entity, Parent { entity: view });
+    entity
 }
 
 fn shape_of(block: &MarkdownBlock, columns: &ListColumns) -> u16 {
