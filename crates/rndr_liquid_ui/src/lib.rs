@@ -35,6 +35,7 @@ mod chart;
 mod host;
 mod render;
 mod state;
+mod timer;
 mod view;
 
 pub use host::{FeedEntry, LiquidEvent, LiquidHost, LiquidImage, NoHost};
@@ -43,6 +44,9 @@ pub use state::{
     liquid_component_state, liquid_component_states, put_liquid_component_state,
     subscribe_liquid_interactions, LiquidComponentRecord, LiquidComponentState, LiquidDisposition,
     LiquidInteraction, LiquidInteractionEnvelope, LiquidInteractionHandler, LiquidRevisionError,
+};
+pub use timer::{
+    liquid_timer, liquid_timers, LiquidTimerAction, LiquidTimerRecord, LiquidTimerStatus,
 };
 pub use view::{dispatch, liquid_view, push_liquid_str, refresh, set_liquid_source, LiquidView};
 
@@ -71,6 +75,7 @@ impl Plugin for LiquidUiPlugin {
         app.world_mut()
             .insert_resource(view::HostSlot(Some(self.host)));
         app.add_system(Schedule::Update, chart::hover);
+        app.add_system(Schedule::Update, timer::reconcile);
         app.add_system(Schedule::PostUpdate, view::reconcile);
     }
 }

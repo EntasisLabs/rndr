@@ -321,7 +321,7 @@ fn tab_selection(world: &World, root: Entity) -> Option<usize> {
         .and_then(|tabs| world.get::<Tabs>(tabs).map(|tabs| tabs.selected as usize))
 }
 
-fn restore_tab(world: &mut World, root: Entity, selected: usize) {
+pub(crate) fn restore_tab(world: &mut World, root: Entity, selected: usize) {
     let Some(tabs) = find_tabs(world, root) else {
         return;
     };
@@ -480,6 +480,38 @@ pub(crate) fn reconcile(world: &mut World) {
     crate::chart::reclaim(world);
 }
 
+fn drive_timer(
+    world: &mut World,
+    root: Entity,
+    step: usize,
+    action: crate::timer::LiquidTimerAction,
+) {
+    let Some(info) = world.get::<BlockRoot>(root).cloned() else {
+        return;
+    };
+    let Some(view) = world.get::<Parent>(root).map(|parent| parent.entity) else {
+        return;
+    };
+    let Some(rndr_liquid::LiquidBlock::Recipe(recipe)) = info.blocks.get(info.index).cloned()
+    else {
+        return;
+    };
+    let Some(step_props) = recipe.steps.get(step) else {
+        return;
+    };
+    let duration = step_props.duration_ms.unwrap_or(60_000);
+    crate::timer::apply(world, view, info.source, step, duration, action);
+    if action == crate::timer::LiquidTimerAction::Start {
+        emit(
+            world,
+            LiquidEvent::StartTimer {
+                label: crate::render::plain(&step_props.label),
+                duration_ms: crate::timer::clamp_duration(duration),
+            },
+        );
+    }
+}
+
 fn commit_state(world: &mut World, root: Entity, interaction: Option<(LiquidInteraction, String)>) {
     let Some(info) = world.get::<BlockRoot>(root).cloned() else {
         return;
@@ -527,7 +559,7 @@ fn interaction_of(act: &Act, state: &BlockState) -> Option<(LiquidInteraction, S
         )),
         Act::Check(index) => Some((LiquidInteraction::Edit, index.to_string())),
         Act::Prev | Act::Next => Some((LiquidInteraction::Select, state.selected.to_string())),
-        Act::Host(_) => None,
+        Act::Host(_) | Act::Timer { .. } => None,
     }
 }
 
@@ -616,6 +648,7 @@ pub fn dispatch(world: &mut World, request: &ActionIntent) -> bool {
     };
     match act {
         Act::Host(event) => emit(world, event),
+        Act::Timer { step, action } => drive_timer(world, root, step, action),
         act => {
             if let Some(state) = world.get_mut::<BlockState>(root) {
                 state.apply(&act);

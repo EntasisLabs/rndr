@@ -38,6 +38,14 @@ pub enum LiquidInteraction {
     Collapse,
     /// A checklist mark changed.
     Edit,
+    /// A recipe timer started or resumed.
+    TimerStart,
+    /// A running recipe timer was paused.
+    TimerPause,
+    /// A recipe timer returned to idle.
+    TimerReset,
+    /// A recipe timer reached zero.
+    TimerComplete,
 }
 
 impl LiquidInteraction {
@@ -48,6 +56,10 @@ impl LiquidInteraction {
             Self::Expand => "expand",
             Self::Collapse => "collapse",
             Self::Edit => "edit",
+            Self::TimerStart => "timer_start",
+            Self::TimerPause => "timer_pause",
+            Self::TimerReset => "timer_reset",
+            Self::TimerComplete => "timer_complete",
         }
     }
 }

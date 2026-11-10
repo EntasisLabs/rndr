@@ -55,6 +55,13 @@ block and after `push_liquid_str` appends more source. `subscribe_liquid_interac
 receives a `LiquidInteractionEnvelope` for each reader change (`select`,
 `expand`, `collapse`, `edit`). `put_liquid_component_state` replaces a record
 only when its expected revision matches.
+
+Recipe steps with a duration have a timer: Start, Pause, Resume and Reset.
+The timer is a `LiquidTimerRecord` on the same source key, so it keeps running
+or stays paused while the recipe is scrolled offscreen. Start, pause, reset
+and completion are `LiquidInteractionEnvelope` events (`timer_start`,
+`timer_pause`, `timer_reset`, `timer_complete`). Start still also reports
+`LiquidEvent::StartTimer`.
 `push_liquid_str` appends source and reparses only the open tail, so a
 finished block is built once and keeps that state. `set_liquid_source` does
 the same when the new source extends the current one, and on any other
