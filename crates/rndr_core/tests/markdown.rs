@@ -276,6 +276,78 @@ fn point(app: &mut App, x: f32, y: f32, pressed: bool, released: bool, down: boo
     input.scroll = [0.0, 0.0];
 }
 
+#[test]
+fn a_long_markdown_document_keeps_only_the_window_alive() {
+    let mut source = String::new();
+    for index in 0..400 {
+        if index > 0 {
+            source.push_str("\n\n");
+        }
+        source.push_str(&format!("Window block {index} alpha beta gamma."));
+    }
+    let (mut app, view) = boot(&source, 800.0, 220.0);
+    let labels = app.world().entities_with::<Label>().len();
+    assert!(labels < 40, "realized {labels} labels for 400 blocks");
+    assert_eq!(
+        app.world()
+            .get::<MarkdownView>(view)
+            .unwrap()
+            .blocks()
+            .len(),
+        400
+    );
+    let content = app.world().get::<rndr_core::Scroll>(view).unwrap().content[1];
+    assert!(content > 220.0, "content {content}");
+    let before = labels;
+    {
+        let input = app.world_mut().resource_mut::<Input>().unwrap();
+        input.pointer.position = [40.0, 40.0];
+        input.scroll = [0.0, 2_000.0];
+    }
+    app.update();
+    let after = app.world().entities_with::<Label>().len();
+    assert!(after < 40, "scroll realized {after} labels");
+    assert!((after as isize - before as isize).abs() < 15);
+}
+
+#[test]
+fn a_mounted_host_stays_alive_when_scrolled_offscreen() {
+    let mut source = String::new();
+    for index in 0..80 {
+        if index > 0 {
+            source.push_str("\n\n");
+        }
+        source.push_str(&format!("Host block {index} alpha."));
+    }
+    let (mut app, view) = boot(&source, 640.0, 180.0);
+    let expected = app.world().get::<MarkdownView>(view).unwrap().blocks()[0].clone();
+    let slot = rndr_core::mount_markdown_slot(
+        app.world_mut(),
+        view,
+        0,
+        &expected,
+        rndr_core::MarkdownSlotId(7),
+    )
+    .unwrap();
+    let root = slot.root;
+    app.update();
+    assert!(slot.is_mounted(app.world()));
+    assert!(app.world().is_alive(root));
+    assert!(
+        !children_of(app.world(), view).contains(&root),
+        "pinned view should not keep the top host in the window"
+    );
+    {
+        let input = app.world_mut().resource_mut::<Input>().unwrap();
+        input.pointer.position = [24.0, 24.0];
+        input.scroll = [0.0, 100_000.0];
+    }
+    app.update();
+    assert!(slot.is_mounted(app.world()));
+    assert!(app.world().is_alive(root));
+    assert!(children_of(app.world(), view).contains(&root));
+}
+
 fn block_height(world: &World, view: Entity) -> f32 {
     world.get::<Rect>(block_label(world, view, 0)).unwrap().h
 }
@@ -523,7 +595,19 @@ fn block_label(world: &World, view: Entity, index: usize) -> Entity {
     let text = world.get::<MarkdownView>(view).unwrap().blocks()[index]
         .text
         .clone();
-    let root = children_of(world, view)[index];
+    let root = children_of(world, view)
+        .into_iter()
+        .find(|child| {
+            world
+                .get::<Label>(*child)
+                .is_some_and(|label| label.text == text)
+                || children_of(world, *child).iter().any(|nested| {
+                    world
+                        .get::<Label>(*nested)
+                        .is_some_and(|label| label.text == text)
+                })
+        })
+        .unwrap_or_else(|| panic!("block {index} is not realized"));
     if world
         .get::<Label>(root)
         .is_some_and(|label| label.text == text)

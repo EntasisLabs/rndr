@@ -77,7 +77,13 @@ shows the complete path.
   sync measures the children's heights (plus the root's gap) and reserves that
   height. Until a measurement exists the root hugs its children. `set_height`
   opts out of measurement and reserves a finite positive height. The normal
-  block trailing gap is added. Embedded content is not virtualized.
+  block trailing gap is added.
+- Ordinary blocks exist as entities only while they are in the visible window
+  plus overscan. Scrolling recycles those entities. Do not hold a block
+  `Entity` across a scroll and expect it to stay that block. A mounted host
+  root stays alive while mounted, including offscreen, and is not recycled.
+  The scrollbar uses the height of every block, measured when realized and
+  estimated until then.
 - The whole block body is replaced, including code backgrounds, quote/list
   decoration. Host content must fit the reserved rectangle; ordinary ancestor
   clips and scrolling apply. Overlays/portals parented outside the subtree are
