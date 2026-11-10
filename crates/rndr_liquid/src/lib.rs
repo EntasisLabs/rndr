@@ -11,6 +11,9 @@
 //! fence into a typed [`LiquidBlock`], and [`LiquidDocument::parse`] rewrites a
 //! whole document, resolving nested fences innermost-first and leaving block
 //! references in the Markdown for a host to mount.
+//! [`LiquidStream`] does the same incrementally: an append reparses only the
+//! unstable tail, and an unclosed Liquid fence stays pending instead of
+//! becoming a code fence.
 //!
 //! Intents, feed ids, image paths and URLs are carried as data; acting on them
 //! is the host's decision.
@@ -40,6 +43,7 @@ mod kv;
 mod parse;
 mod props;
 mod slides;
+mod stream;
 mod styled;
 
 pub use block::{parse_fence, LiquidBlock, FENCE_LANGS};
@@ -49,4 +53,5 @@ pub use document::{
 pub use icons::{normalize_icon_id, split_icons, InlineIcon, ICON_ALLOWLIST};
 pub use props::*;
 pub use slides::split_section_breaks;
+pub use stream::{LiquidStream, MarkdownWrite};
 pub use styled::{block_font_size, block_line_height, BlockFont};

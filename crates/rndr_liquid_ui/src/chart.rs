@@ -21,11 +21,13 @@ pub(crate) struct LiquidChart {
 
 impl Component for LiquidChart {}
 
-/// Paint slot ids per block root, reused across rebuilds because
-/// [`CanvasRegistry`] cannot drop a painter.
+/// Paint slot ids per block root. Freed ids are reused, and the painter is
+/// removed from [`CanvasRegistry`].
 #[derive(Default)]
 pub(crate) struct ChartSlots {
     by_root: HashMap<Entity, u64>,
+    free: Vec<u64>,
+    next: u64,
 }
 
 struct Plot(Entity);
@@ -72,6 +74,7 @@ pub(crate) fn mount(world: &mut World, root: Entity, parent: Entity, props: &Cha
     let chart = match Chart::from_liquid(props) {
         Ok(chart) => chart,
         Err(err) => {
+            release(world, root);
             line(
                 world,
                 props.title.as_deref().unwrap_or_default(),
@@ -93,8 +96,17 @@ pub(crate) fn mount(world: &mut World, root: Entity, parent: Entity, props: &Cha
             world.insert_resource(ChartSlots::default());
         }
         let slots = world.resource_mut::<ChartSlots>().expect("inserted");
-        let next = SLOT_BASE + slots.by_root.len() as u64;
-        *slots.by_root.entry(root).or_insert(next)
+        if let Some(id) = slots.by_root.get(&root).copied() {
+            id
+        } else {
+            let id = slots.free.pop().unwrap_or_else(|| {
+                let id = SLOT_BASE + slots.next;
+                slots.next += 1;
+                id
+            });
+            slots.by_root.insert(root, id);
+            id
+        }
     };
     let interactive = chart.interactive && chart.tooltip;
     let legend = ChartScene::new(&chart, &theme, 400.0, height(props)).legend;
@@ -157,9 +169,42 @@ pub(crate) fn mount(world: &mut World, root: Entity, parent: Entity, props: &Cha
     }
 }
 
+/// Forget the paint slot for `root` and return its id to the free list.
+pub(crate) fn release(world: &mut World, root: Entity) {
+    if !world.has_resource::<ChartSlots>() {
+        return;
+    }
+    let Some(id) = world
+        .resource_mut::<ChartSlots>()
+        .and_then(|slots| slots.by_root.remove(&root))
+    else {
+        return;
+    };
+    if let Some(registry) = world.resource_mut::<CanvasRegistry>() {
+        registry.remove(id);
+    }
+    if let Some(slots) = world.resource_mut::<ChartSlots>() {
+        slots.free.push(id);
+    }
+}
+
+/// Drop slots whose block root has been despawned.
+pub(crate) fn reclaim(world: &mut World) {
+    let roots: Vec<Entity> = world
+        .resource::<ChartSlots>()
+        .map(|slots| slots.by_root.keys().copied().collect())
+        .unwrap_or_default();
+    for root in roots {
+        if !world.is_alive(root) {
+            release(world, root);
+        }
+    }
+}
+
 /// Track the pointer over chart plots: the hovered series is highlighted
 /// and its tooltip rows shown under the plot.
 pub(crate) fn hover(world: &mut World) {
+    reclaim(world);
     let plots = world.entities_with::<LiquidChart>();
     if plots.is_empty() {
         return;
