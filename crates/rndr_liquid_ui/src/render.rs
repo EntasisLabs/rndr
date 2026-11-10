@@ -1,5 +1,6 @@
 //! One retained subtree per Liquid block, built from `rndr_ui` parts.
 use crate::chart;
+use crate::state::LiquidComponentState;
 use crate::view::{nested, with_host, BlockRoot};
 use crate::{LiquidEvent, LiquidImage};
 use rndr_core::*;
@@ -17,6 +18,10 @@ pub(crate) enum Act {
     Next,
     Toggle(usize),
     Check(usize),
+    Timer {
+        step: usize,
+        action: crate::timer::LiquidTimerAction,
+    },
 }
 
 /// Control root → action, on the block root.
@@ -56,7 +61,7 @@ impl BlockState {
                     self.checked.insert(i);
                 }
             }
-            Act::Host(_) => {}
+            Act::Host(_) | Act::Timer { .. } => {}
         }
     }
 
@@ -104,12 +109,59 @@ impl BlockState {
             _ => {}
         }
     }
+
+    pub(crate) fn select(&mut self, index: usize) {
+        self.selected = index;
+        self.ready = true;
+    }
+
+    pub(crate) fn snapshot(
+        &self,
+        block: &LiquidBlock,
+    ) -> Option<(&'static str, LiquidComponentState)> {
+        let state = match block {
+            LiquidBlock::Accordion(_) => LiquidComponentState::Accordion {
+                open: self.open.iter().copied().collect(),
+            },
+            LiquidBlock::Tabs(_) => LiquidComponentState::Tabs {
+                selected: self.selected,
+            },
+            LiquidBlock::Steps(_) | LiquidBlock::Recipe(_) | LiquidBlock::Kanban(_) => {
+                LiquidComponentState::Checklist {
+                    checked: self.checked.iter().copied().collect(),
+                }
+            }
+            LiquidBlock::Carousel(_) | LiquidBlock::Slides(_) => LiquidComponentState::Selection {
+                selected: self.selected,
+            },
+            _ => return None,
+        };
+        Some((block.kind(), state))
+    }
+
+    pub(crate) fn absorb(&mut self, block: &LiquidBlock, snap: &LiquidComponentState) {
+        self.ready = false;
+        self.init(block);
+        match snap {
+            LiquidComponentState::Accordion { open } => {
+                self.open = open.iter().copied().collect();
+            }
+            LiquidComponentState::Tabs { selected }
+            | LiquidComponentState::Selection { selected } => {
+                self.selected = *selected;
+            }
+            LiquidComponentState::Checklist { checked } => {
+                self.checked = checked.iter().copied().collect();
+            }
+        }
+        self.ready = true;
+    }
 }
 
 /// Clear `root` and render its block again from [`BlockRoot`] and
 /// [`BlockState`].
 pub(crate) fn rebuild(world: &mut World, root: Entity) {
-    let Some(BlockRoot { blocks, index }) = world.get::<BlockRoot>(root).cloned() else {
+    let Some(BlockRoot { blocks, index, .. }) = world.get::<BlockRoot>(root).cloned() else {
         return;
     };
     let Some(block) = blocks.get(index).cloned() else {
@@ -776,6 +828,60 @@ impl Cx<'_> {
         }
     }
 
+    fn timer_controls(&mut self, row: Entity, step: usize, duration_ms: u64) {
+        use crate::timer::{self, LiquidTimerAction, LiquidTimerStatus};
+        let view = self
+            .world
+            .get::<Parent>(self.root)
+            .map(|parent| parent.entity);
+        let source = self
+            .world
+            .get::<BlockRoot>(self.root)
+            .map(|root| root.source);
+        let record = view
+            .zip(source)
+            .and_then(|(view, source)| timer::liquid_timer(self.world, view, source, step));
+        let status = record
+            .as_ref()
+            .map(|record| record.status)
+            .unwrap_or(LiquidTimerStatus::Idle);
+        let now = self
+            .world
+            .resource::<Time>()
+            .map(|time| u64::try_from(time.now.as_millis()).unwrap_or(u64::MAX))
+            .unwrap_or(0);
+        let remaining = record
+            .as_ref()
+            .map(|record| timer::remaining_ms(record, now))
+            .unwrap_or_else(|| timer::clamp_duration(duration_ms));
+        let clock = if status == LiquidTimerStatus::Complete {
+            "Done".to_string()
+        } else {
+            timer::format_remaining(remaining)
+        };
+        self.text(row, &clock, Typography::Label);
+        let button = |this: &mut Self, name: &str, action: LiquidTimerAction| {
+            this.button(
+                row,
+                name,
+                ButtonVariant::Secondary,
+                Act::Timer { step, action },
+            );
+        };
+        match status {
+            LiquidTimerStatus::Idle => button(self, "Start", LiquidTimerAction::Start),
+            LiquidTimerStatus::Running => {
+                button(self, "Pause", LiquidTimerAction::Pause);
+                button(self, "Reset", LiquidTimerAction::Reset);
+            }
+            LiquidTimerStatus::Paused => {
+                button(self, "Resume", LiquidTimerAction::Start);
+                button(self, "Reset", LiquidTimerAction::Reset);
+            }
+            LiquidTimerStatus::Complete => button(self, "Reset", LiquidTimerAction::Reset),
+        }
+    }
+
     fn recipe(&mut self, parent: Entity, p: &RecipeProps) {
         self.text(parent, &p.title, Typography::Title);
         self.opt(parent, &p.subtitle, Typography::Secondary);
@@ -806,19 +912,7 @@ impl Cx<'_> {
             );
             self.opt(col, &step.body, Typography::Reading);
             if let Some(ms) = step.duration_ms.filter(|ms| *ms > 0) {
-                let label = filled(&step.duration_label)
-                    .map(str::to_string)
-                    .unwrap_or_else(|| format!("{} min", ms.div_ceil(60_000)));
-                let act = Act::Host(LiquidEvent::StartTimer {
-                    label: plain(&step.label),
-                    duration_ms: ms,
-                });
-                self.button(
-                    row,
-                    &format!("Timer {label}"),
-                    ButtonVariant::Secondary,
-                    act,
-                );
+                self.timer_controls(row, n, ms);
             }
         }
         if let Some(notes) = filled(&p.notes) {

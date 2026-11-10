@@ -392,6 +392,14 @@ impl MarkdownView {
         &self.blocks
     }
 
+    /// Source byte where block `index` starts.
+    ///
+    /// `None` when `index` is outside the last sync. Host recycling reports
+    /// this same offset when a slot leaves and returns.
+    pub fn block_start(&self, index: usize) -> Option<usize> {
+        self.starts.get(index).copied()
+    }
+
     /// Append `chunk` and mark the view dirty.
     ///
     /// An empty chunk does nothing. The parse runs on the next sync.

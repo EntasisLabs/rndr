@@ -1,5 +1,6 @@
 //! Markdown views whose Liquid block references are mounted as native blocks.
 use crate::render::{self, Act, Actions, BlockState};
+use crate::state::{self, LiquidDisposition, LiquidInteraction, LiquidInteractionEnvelope};
 use crate::{LiquidEvent, LiquidHost};
 use rndr_core::*;
 use rndr_liquid::{LiquidBlock, LiquidStream, MarkdownWrite, Segment};
@@ -44,6 +45,8 @@ struct Mounted {
 pub(crate) struct BlockRoot {
     pub blocks: Arc<Vec<LiquidBlock>>,
     pub index: usize,
+    /// Source byte of the markdown reference this root replaced.
+    pub source: usize,
 }
 
 impl Component for BlockRoot {}
@@ -236,15 +239,22 @@ impl MarkdownSlotHost for LiquidHooks {
             world.insert(slot.view, liquid);
             return;
         };
+        let mut restored = saved.state;
+        if let Some(record) = state::liquid_component_state(world, slot.view, source) {
+            if let Some(block) = liquid.blocks.get(saved.block) {
+                restored.absorb(block, &record.state);
+            }
+        }
         world.insert(
             slot.root,
             BlockRoot {
                 blocks: Arc::clone(&liquid.blocks),
                 index: saved.block,
+                source,
             },
         );
-        let selected = saved.state.selected;
-        world.insert(slot.root, saved.state);
+        let selected = restored.selected;
+        world.insert(slot.root, restored);
         render::rebuild(world, slot.root);
         restore_tab(world, slot.root, selected);
         liquid.mounted.push(Mounted {
@@ -271,6 +281,11 @@ impl MarkdownSlotHost for LiquidHooks {
             return;
         };
         if let Some(block) = block {
+            if let Some(parsed) = liquid.blocks.get(block).cloned() {
+                if let Some((kind, snap)) = state.snapshot(&parsed) {
+                    state::store_snapshot(world, slot.view, source, block, kind, snap);
+                }
+            }
             liquid.saved.insert(source, Saved { block, state });
         }
         liquid.mounted.retain(|mounted| mounted.slot.id != slot.id);
@@ -306,7 +321,7 @@ fn tab_selection(world: &World, root: Entity) -> Option<usize> {
         .and_then(|tabs| world.get::<Tabs>(tabs).map(|tabs| tabs.selected as usize))
 }
 
-fn restore_tab(world: &mut World, root: Entity, selected: usize) {
+pub(crate) fn restore_tab(world: &mut World, root: Entity, selected: usize) {
     let Some(tabs) = find_tabs(world, root) else {
         return;
     };
@@ -344,6 +359,9 @@ pub(crate) fn reconcile(world: &mut World) {
             continue;
         };
         let window = markdown_realized_blocks(world, view);
+        let origins: Vec<usize> = (0..md.blocks().len())
+            .map(|index| md.block_start(index).unwrap_or(0))
+            .collect();
         let blocks: Vec<MarkdownBlock> = md.blocks().to_vec();
         let mut liquid = world.remove::<LiquidView>(view).expect("listed");
         let ptr = Arc::as_ptr(&liquid.blocks) as usize;
@@ -379,6 +397,10 @@ pub(crate) fn reconcile(world: &mut World) {
                         BlockRoot {
                             blocks: Arc::clone(&liquid.blocks),
                             index: mounted.block,
+                            source: world
+                                .get::<BlockRoot>(mounted.slot.root)
+                                .map(|root| root.source)
+                                .unwrap_or(0),
                         },
                     );
                     render::rebuild(world, mounted.slot.root);
@@ -406,17 +428,34 @@ pub(crate) fn reconcile(world: &mut World) {
                 continue;
             };
             liquid.next_id += 1;
+            let source = origins.get(index).copied().unwrap_or(0);
             world.insert(
                 slot.root,
                 BlockRoot {
                     blocks: Arc::clone(&liquid.blocks),
                     index: target,
+                    source,
                 },
             );
-            if let Some(state) = liquid.carry.get_mut(target).and_then(|state| state.take()) {
+            if let Some(record) = state::liquid_component_state(world, view, source) {
+                if let Some(parsed) = liquid.blocks.get(target) {
+                    let mut restored = BlockState::default();
+                    restored.absorb(parsed, &record.state);
+                    world.insert(slot.root, restored);
+                }
+            } else if let Some(state) = liquid.carry.get_mut(target).and_then(|state| state.take())
+            {
                 world.insert(slot.root, state);
             }
             render::rebuild(world, slot.root);
+            restore_tab(
+                world,
+                slot.root,
+                world
+                    .get::<BlockState>(slot.root)
+                    .map(|s| s.selected)
+                    .unwrap_or(0),
+            );
             liquid.mounted.push(Mounted {
                 slot,
                 block: target,
@@ -436,8 +475,154 @@ pub(crate) fn reconcile(world: &mut World) {
                 .unwrap_or(0)
         });
         world.insert(view, liquid);
+        sync_tabs(world, view);
     }
     crate::chart::reclaim(world);
+}
+
+fn drive_timer(
+    world: &mut World,
+    root: Entity,
+    step: usize,
+    action: crate::timer::LiquidTimerAction,
+) {
+    let Some(info) = world.get::<BlockRoot>(root).cloned() else {
+        return;
+    };
+    let Some(view) = world.get::<Parent>(root).map(|parent| parent.entity) else {
+        return;
+    };
+    let Some(rndr_liquid::LiquidBlock::Recipe(recipe)) = info.blocks.get(info.index).cloned()
+    else {
+        return;
+    };
+    let Some(step_props) = recipe.steps.get(step) else {
+        return;
+    };
+    let duration = step_props.duration_ms.unwrap_or(60_000);
+    crate::timer::apply(world, view, info.source, step, duration, action);
+    if action == crate::timer::LiquidTimerAction::Start {
+        emit(
+            world,
+            LiquidEvent::StartTimer {
+                label: crate::render::plain(&step_props.label),
+                duration_ms: crate::timer::clamp_duration(duration),
+            },
+        );
+    }
+}
+
+fn commit_state(world: &mut World, root: Entity, interaction: Option<(LiquidInteraction, String)>) {
+    let Some(info) = world.get::<BlockRoot>(root).cloned() else {
+        return;
+    };
+    let Some(block) = info.blocks.get(info.index).cloned() else {
+        return;
+    };
+    let Some(reader) = world.get::<BlockState>(root).cloned() else {
+        return;
+    };
+    let Some((kind, snap)) = reader.snapshot(&block) else {
+        return;
+    };
+    let Some(view) = world.get::<Parent>(root).map(|parent| parent.entity) else {
+        return;
+    };
+    let record = state::store_snapshot(world, view, info.source, info.index, kind, snap);
+    let Some((event, instance_id)) = interaction else {
+        return;
+    };
+    state::emit(
+        world,
+        LiquidInteractionEnvelope {
+            version: 1,
+            view,
+            source: info.source,
+            node_id: record.component_type,
+            instance_id,
+            event,
+            disposition: LiquidDisposition::LocalState,
+            revision: record.revision,
+        },
+    );
+}
+
+fn interaction_of(act: &Act, state: &BlockState) -> Option<(LiquidInteraction, String)> {
+    match *act {
+        Act::Toggle(index) => Some((
+            if state.open.contains(&index) {
+                LiquidInteraction::Expand
+            } else {
+                LiquidInteraction::Collapse
+            },
+            index.to_string(),
+        )),
+        Act::Check(index) => Some((LiquidInteraction::Edit, index.to_string())),
+        Act::Prev | Act::Next => Some((LiquidInteraction::Select, state.selected.to_string())),
+        Act::Host(_) | Act::Timer { .. } => None,
+    }
+}
+
+fn sync_tabs(world: &mut World, view: Entity) {
+    let roots: Vec<Entity> = world
+        .entities_with::<BlockRoot>()
+        .into_iter()
+        .filter(|root| {
+            world
+                .get::<Parent>(*root)
+                .is_some_and(|parent| parent.entity == view)
+        })
+        .collect();
+    for root in roots {
+        let Some(selected) = tab_selection(world, root) else {
+            continue;
+        };
+        let Some(mut reader) = world.get::<BlockState>(root).cloned() else {
+            continue;
+        };
+        if reader.selected == selected {
+            continue;
+        }
+        reader.select(selected);
+        world.insert(root, reader);
+        commit_state(
+            world,
+            root,
+            Some((LiquidInteraction::Select, selected.to_string())),
+        );
+    }
+}
+
+pub(crate) fn apply_stored_state(
+    world: &mut World,
+    view: Entity,
+    record: &state::LiquidComponentRecord,
+) {
+    let roots: Vec<Entity> = world
+        .entities_with::<BlockRoot>()
+        .into_iter()
+        .filter(|root| {
+            world
+                .get::<BlockRoot>(*root)
+                .is_some_and(|info| info.source == record.source)
+                && world
+                    .get::<Parent>(*root)
+                    .is_some_and(|parent| parent.entity == view)
+        })
+        .collect();
+    for root in roots {
+        let Some(info) = world.get::<BlockRoot>(root).cloned() else {
+            continue;
+        };
+        let Some(block) = info.blocks.get(info.index).cloned() else {
+            continue;
+        };
+        let mut reader = world.get::<BlockState>(root).cloned().unwrap_or_default();
+        reader.absorb(&block, &record.state);
+        world.insert(root, reader.clone());
+        render::rebuild(world, root);
+        restore_tab(world, root, reader.selected);
+    }
 }
 
 /// Handle one request from [`take_action_intents`]. Returns `true` when it
@@ -463,11 +648,19 @@ pub fn dispatch(world: &mut World, request: &ActionIntent) -> bool {
     };
     match act {
         Act::Host(event) => emit(world, event),
+        Act::Timer { step, action } => drive_timer(world, root, step, action),
         act => {
             if let Some(state) = world.get_mut::<BlockState>(root) {
                 state.apply(&act);
             }
+            let interaction = world
+                .get::<BlockState>(root)
+                .and_then(|reader| interaction_of(&act, reader));
+            commit_state(world, root, interaction);
             render::rebuild(world, root);
+            if let Some(selected) = world.get::<BlockState>(root).map(|state| state.selected) {
+                restore_tab(world, root, selected);
+            }
         }
     }
     true
