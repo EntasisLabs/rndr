@@ -1837,7 +1837,30 @@ fn place_from_pointer(world: &mut World, entity: crate::entity::Entity) -> bool 
     };
     let text = buffer.snapshot();
     let old_anchor = buffer.anchor;
-    let layout = document_rows(world, entity, &text);
+    let mut layout = document_rows(world, entity, &text);
+    // Structured paragraphs are shaped at their indented width and the caret
+    // edges are shifted. Hit testing has to use that layout, not the plain
+    // source paragraph, or a click on the painted indent lands too far right.
+    let mut indented = false;
+    if world.has::<crate::structured_chrome::StructuredChromeGutter>(entity) {
+        let style = crate::text::style_for(world, entity);
+        let engine = crate::text::text_engine(world);
+        let width = world.get::<Rect>(entity).map_or(f32::INFINITY, |rect| {
+            crate::font::field_text_width(rect.w, engine.unit_advance(&style))
+        });
+        let spans = world
+            .get::<crate::Spans>(entity)
+            .map(|spans| spans.runs.clone())
+            .unwrap_or_default();
+        if let Some(mut canonical) =
+            crate::structured_chrome::text_layout(world, entity, &spans, &text, width, (0, 0, 0))
+        {
+            canonical.glyphs.clear();
+            canonical.highlights.clear();
+            layout = std::sync::Arc::new(canonical);
+            indented = true;
+        }
+    }
     if layout.lines.is_empty() {
         return false;
     }
@@ -1855,7 +1878,8 @@ fn place_from_pointer(world: &mut World, entity: crate::entity::Entity) -> bool 
     };
     let plain = std::sync::Arc::clone(&world.get::<DocumentRows>(entity).expect("rows").index);
     let grid = crate::structured_chrome::has_tables(world, entity);
-    let mut first = if grid {
+    let layout_hit = grid || indented;
+    let mut first = if layout_hit {
         layout
             .lines
             .iter()
@@ -1871,9 +1895,9 @@ fn place_from_pointer(world: &mut World, entity: crate::entity::Entity) -> bool 
     let map = |world: &mut World, position: [f32; 2], first: usize| {
         let x = position[0] - rect.x - TEXT_ORIGIN_X;
         let local = (position[1] - rect.y - TEXT_ORIGIN_Y).clamp(0.0, (available - 0.001).max(0.0));
-        if grid {
+        if layout_hit {
             let y = local
-                + if first == initial_first {
+                + if grid && first == initial_first {
                     offset
                 } else {
                     layout.lines[first].y
@@ -1943,7 +1967,7 @@ fn place_from_pointer(world: &mut World, entity: crate::entity::Entity) -> bool 
         } else if direction < 0 {
             first.saturating_sub(steps)
         } else {
-            let limit = if grid {
+            let limit = if layout_hit {
                 layout.lines.len()
             } else {
                 plain.line_count()
@@ -1956,7 +1980,7 @@ fn place_from_pointer(world: &mut World, entity: crate::entity::Entity) -> bool 
             next_step.saturating_add(DRAG_ROW_PERIOD * steps as u32)
         };
     }
-    let limit = if grid {
+    let limit = if layout_hit {
         layout.lines.len()
     } else {
         plain.line_count()
@@ -1965,7 +1989,7 @@ fn place_from_pointer(world: &mut World, entity: crate::entity::Entity) -> bool 
     if let Some(editor) = world.get_mut::<Editor>(entity) {
         editor.offset = if grid && first == initial_first {
             offset
-        } else if grid {
+        } else if layout_hit {
             layout.lines[first].y
         } else {
             plain.line(first).y
