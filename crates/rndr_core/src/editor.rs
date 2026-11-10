@@ -1631,13 +1631,14 @@ pub(crate) fn scroll_editor_wheel(world: &mut World, entity: crate::Entity, delt
         .filter(|state| state.published == offset && state.rows_key == rows_key)
         .map_or(offset, |state| state.requested.clamp(0.0, max));
     let requested = (before - delta).clamp(0.0, max);
-    let rows = &world.get::<DocumentRows>(entity).unwrap().layout.lines;
-    let published = rows
-        .iter()
-        .filter(|row| row.y <= requested)
-        .map(|row| row.y)
-        .reduce(f32::max)
-        .unwrap_or(0.0);
+    // Plain rows are stacked in increasing y. Table cells are not, so those
+    // views keep the spatial maximum. `has_tables` is a component check here;
+    // the structured layout itself is untouched.
+    let monotonic = !crate::structured_chrome::has_tables(world, entity);
+    let published = {
+        let rows = &world.get::<DocumentRows>(entity).unwrap().layout.lines;
+        row_top_at_most(rows, requested, monotonic)
+    };
     world.get_mut::<Editor>(entity).unwrap().offset = published;
     world.insert(
         entity,
@@ -1658,11 +1659,44 @@ pub(crate) fn scroll_editor_wheel(world: &mut World, entity: crate::Entity, delt
 /// so the virtual extent includes the trailing viewport, not just ink height.
 /// Returns None until layout has published the document rows.
 pub(crate) fn editor_scroll_metrics(world: &World, entity: crate::Entity) -> Option<(f32, f32)> {
+    let monotonic = !crate::structured_chrome::has_tables(world, entity);
     let rows = world.get::<DocumentRows>(entity)?;
     let rect = world.get::<Rect>(entity)?;
     let page = (rect.h - 2.0 * TEXT_ORIGIN_Y).max(1.0);
-    let maximum = rows.layout.lines.iter().map(|l| l.y).reduce(f32::max)?;
+    let maximum = max_row_y(&rows.layout.lines, monotonic)?;
     Some((maximum + page, page))
+}
+
+/// Largest row top that is still `<= requested`. No such row yields `0`.
+///
+/// `monotonic` is the plain-text stack: row tops never decrease, including
+/// after fold projection. The search is then the last row with
+/// `y <= requested`. Spatial layouts pass `false` and keep a full scan.
+fn row_top_at_most(lines: &[crate::TextLine], requested: f32, monotonic: bool) -> f32 {
+    if !monotonic {
+        return lines
+            .iter()
+            .filter(|row| row.y <= requested)
+            .map(|row| row.y)
+            .reduce(f32::max)
+            .unwrap_or(0.0);
+    }
+    let index = lines.partition_point(|line| line.y <= requested);
+    if index == 0 {
+        0.0
+    } else {
+        lines[index - 1].y
+    }
+}
+
+/// Bottom of the scroll extent is the greatest row top. On a plain stack that
+/// is the last row. Empty geometry returns None, matching the previous scan.
+fn max_row_y(lines: &[crate::TextLine], monotonic: bool) -> Option<f32> {
+    if monotonic {
+        lines.last().map(|line| line.y)
+    } else {
+        lines.iter().map(|line| line.y).reduce(f32::max)
+    }
 }
 
 pub(crate) fn access_caret_row(
@@ -2259,5 +2293,93 @@ mod tests {
         world.insert_resource(replacement);
         let replaced = document_rows(&mut world, entity, &text);
         assert!(!Arc::ptr_eq(&styled, &replaced));
+    }
+
+    fn line_at(y: f32) -> crate::TextLine {
+        crate::TextLine {
+            start: 0,
+            end: 0,
+            y,
+            h: 16.0,
+            baseline: 12.0,
+            underline_thickness: 1.0,
+            underline_offset: 1.0,
+            width: 10.0,
+            edges: Vec::new(),
+        }
+    }
+
+    fn linear_top(lines: &[crate::TextLine], requested: f32) -> f32 {
+        lines
+            .iter()
+            .filter(|row| row.y <= requested)
+            .map(|row| row.y)
+            .reduce(f32::max)
+            .unwrap_or(0.0)
+    }
+
+    #[test]
+    fn plain_row_query_matches_a_full_scan_and_spatial_rows_keep_the_scan() {
+        let stacked: Vec<_> = [0.0, 10.0, 10.0, 24.5, 40.0]
+            .into_iter()
+            .map(line_at)
+            .collect();
+        for requested in [-1.0, 0.0, 0.5, 10.0, 11.0, 24.5, 100.0] {
+            assert_eq!(
+                row_top_at_most(&stacked, requested, true),
+                linear_top(&stacked, requested),
+                "{requested}"
+            );
+        }
+        assert_eq!(row_top_at_most(&[], 4.0, true), 0.0);
+        assert_eq!(max_row_y(&stacked, true), Some(40.0));
+        assert_eq!(max_row_y(&[], true), None);
+
+        let spatial = vec![line_at(0.0), line_at(80.0), line_at(12.0)];
+        assert_eq!(row_top_at_most(&spatial, 20.0, false), 12.0);
+        assert_eq!(max_row_y(&spatial, false), Some(80.0));
+        assert_ne!(max_row_y(&spatial, true), Some(80.0));
+    }
+
+    #[test]
+    fn plain_editor_wheel_snaps_to_the_same_row_as_a_linear_scan() {
+        let mut world = World::new();
+        crate::text::ensure_text_engine(&mut world);
+        let text: String = (0..120)
+            .map(|i| format!("row {i} distinct text\n"))
+            .collect();
+        let entity = world.spawn((
+            Editor::default(),
+            Label::new(""),
+            Rect {
+                x: 0.0,
+                y: 0.0,
+                w: 280.0,
+                h: 90.0,
+            },
+        ));
+        let layout = document_rows(&mut world, entity, &text);
+        let lines = layout.lines.clone();
+        assert!(lines.len() > 40);
+        assert!(
+            lines.windows(2).all(|pair| pair[0].y <= pair[1].y),
+            "plain rows must stay y-ordered"
+        );
+        let (content, page) = editor_scroll_metrics(&world, entity).unwrap();
+        let scanned = lines.iter().map(|line| line.y).reduce(f32::max).unwrap();
+        assert_eq!(scanned, lines.last().unwrap().y);
+        assert_eq!(content, scanned + page);
+
+        let anchor = lines[8].y;
+        for delta in [-0.25, -1.0, -17.0, -80.0, 6.0, -10_000.0] {
+            reset_editor_wheel(&mut world, entity);
+            world.get_mut::<Editor>(entity).unwrap().offset = anchor;
+            scroll_editor_wheel(&mut world, entity, delta);
+            let offset = world.get::<Editor>(entity).unwrap().offset;
+            let max = (content - page).max(0.0);
+            let requested = (anchor - delta).clamp(0.0, max);
+            assert_eq!(offset, linear_top(&lines, requested), "{delta}");
+            assert!(lines.iter().any(|line| line.y == offset) || offset == 0.0);
+        }
     }
 }
