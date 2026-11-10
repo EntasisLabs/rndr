@@ -179,11 +179,29 @@ fn gap_of(style: &TextStyle, start: usize) -> f32 {
 }
 
 fn recompute(paras: &mut [Para], folds: &[Range<usize>]) -> (u32, f32) {
-    let mut y = 0.0f32;
-    let mut vis = 0u32;
-    let mut max_top = 0.0f32;
+    recompute_from(paras, folds, 0)
+}
+
+fn recompute_from(paras: &mut [Para], folds: &[Range<usize>], from: usize) -> (u32, f32) {
+    if paras.is_empty() {
+        return (0, 0.0);
+    }
+    if from >= paras.len() {
+        return recompute_from(paras, folds, 0);
+    }
     let pack = !folds.is_empty();
-    for para in paras.iter_mut() {
+    let from = if pack { 0 } else { from };
+    let (mut y, mut vis, mut max_top) = if from == 0 {
+        (0.0f32, 0u32, 0.0f32)
+    } else {
+        let prev = &paras[from - 1];
+        (
+            prev.y + prev.visible_h,
+            prev.vis + prev.shown.len() as u32,
+            0.0f32,
+        )
+    };
+    for para in paras.iter_mut().skip(from) {
         // Reuse the existing line list when visibility did not change. A tail
         // edit must not allocate a new box for every untouched paragraph.
         if folds.is_empty() {
@@ -428,31 +446,28 @@ pub(super) fn update_text(
     new: &str,
     spans: &[TextSpan],
     folds: &[Range<usize>],
+    span: Option<(usize, usize, usize)>,
 ) -> Built {
     if new.is_empty() {
         return build(engine, font, style, width, new, spans, folds, Some(&cache));
     }
-    let (old_lo, old_hi, _) = change_span(old, new);
-    let delta = new.len() as isize - old.len() as isize;
+    let (old_lo, old_hi, new_hi) = span.unwrap_or_else(|| change_span(old, new));
+    let delta = new_hi as isize - old_hi as isize;
     let mut work = Work::default();
     // Expand one replacement to the paragraphs it joins. A paragraph that
     // merely shifts, including one that begins at a newline-terminated insert,
     // stays in place. A paragraph the edit merges into is shaped with it.
-    let unchanged = old == new;
+    let unchanged = span.is_none() && old == new;
     let first_dirty = if unchanged {
         index.paras.len()
     } else {
-        index
-            .paras
-            .iter()
-            .position(|para| para.end > old_lo || (para.start == para.end && para.start == old_lo))
-            .unwrap_or(index.paras.len())
+        // Paragraph starts increase, so the first paragraph that meets the edit
+        // is a binary search rather than a walk of the document.
+        index.paras.partition_point(|para| {
+            para.end <= old_lo && !(para.start == para.end && para.start == old_lo)
+        })
     };
-    let mut suffix_from = index
-        .paras
-        .iter()
-        .position(|para| para.start >= old_hi)
-        .unwrap_or(index.paras.len());
+    let mut suffix_from = index.paras.partition_point(|para| para.start < old_hi);
     if suffix_from < first_dirty {
         suffix_from = first_dirty;
     }
@@ -476,27 +491,9 @@ pub(super) fn update_text(
         .map(|para| (para.start as isize + delta) as usize)
         .unwrap_or(new.len())
         .max(origin);
-    for para in &mut index.paras[..first_dirty] {
-        if spans_match(para, new, spans) {
-            work.reused += 1;
-        } else {
-            let (start, end) = (para.start, para.end);
-            *para = shape_range(
-                engine,
-                font,
-                style,
-                width,
-                new,
-                start,
-                end,
-                gap_of(style, start),
-                spans,
-                None,
-                &mut cache,
-                &mut work,
-            );
-        }
-    }
+    // Paragraphs before the edit keep their bytes. Span identity is part of the
+    // shape context, so a span change never reaches this path.
+    work.reused += first_dirty as u64;
     for para in &mut index.paras[suffix_from..] {
         shift_para(para, delta);
         if spans_match(para, new, spans) {
@@ -532,7 +529,7 @@ pub(super) fn update_text(
         }
     }
     index.paras.splice(first_dirty..suffix_from, middle);
-    let (visual_lines, max_top) = recompute(&mut index.paras, folds);
+    let (visual_lines, max_top) = recompute_from(&mut index.paras, folds, first_dirty);
     index.visual_lines = visual_lines;
     index.max_top = max_top;
     Built { index, cache, work }

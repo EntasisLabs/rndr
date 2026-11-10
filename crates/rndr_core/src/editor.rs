@@ -40,6 +40,8 @@ pub struct Buffer {
     lines: Vec<usize>,
     // Immutable decoded snapshots are shared by geometry/input until bytes change.
     snapshot: std::sync::OnceLock<std::sync::Arc<str>>,
+    /// False after a direct gap edit until source projection rewrites the bytes.
+    coherent: bool,
     /// Document caret, in bytes. Not a char index, and not the window-relative
     /// [`crate::Caret`] published for drawing.
     pub caret: usize,
@@ -66,6 +68,7 @@ impl Buffer {
             gap_end: gap_start + 32,
             lines: vec![0],
             snapshot: std::sync::OnceLock::new(),
+            coherent: true,
             caret: text.len(),
             anchor: text.len(),
         };
@@ -148,6 +151,7 @@ impl Buffer {
         }
         let index = index.min(self.len());
         self.snapshot.take();
+        self.coherent = false;
         self.move_gap_to(index);
         let bytes = text.as_bytes();
         self.ensure_gap(bytes.len());
@@ -169,9 +173,27 @@ impl Buffer {
             return;
         }
         self.snapshot.take();
+        self.coherent = false;
         self.move_gap_to(start);
         self.gap_end += end - start;
         self.update_lines(start, end, &[]);
+    }
+
+    pub(crate) fn is_coherent(&self) -> bool {
+        self.coherent
+    }
+
+    pub(crate) fn mark_coherent(&mut self) {
+        self.coherent = true;
+    }
+
+    pub(crate) fn apply_changes(&mut self, changes: &[crate::editing::SourceChange]) {
+        for change in changes.iter().rev() {
+            self.delete_range(change.range.start, change.range.end);
+            if !change.replacement.is_empty() {
+                self.insert_str(change.range.start, &change.replacement);
+            }
+        }
     }
 
     fn byte(&self, logical: usize) -> u8 {
@@ -468,12 +490,18 @@ pub struct EditorLayoutStats {
 impl Component for EditorLayoutStats {}
 
 // Only geometry is retained here; glyphs belong to the visible Label.
+pub(crate) fn forget_document_rows(world: &mut World, entity: crate::Entity) {
+    world.remove::<DocumentRows>(entity);
+}
+
 struct DocumentRows {
     /// Style, spans, font, and engine. Width and folds are separate.
     context: u64,
     width_bits: u32,
     fold_key: u64,
     text: std::sync::Arc<str>,
+    /// Source generation when `text` is not a retained copy. Zero for unmanaged buffers.
+    generation: u64,
     cache: geometry::Cache,
     // Keep engine allocation identity alive, so pointer-derived keys cannot alias.
     _engine: std::sync::Arc<dyn crate::TextEngine>,
@@ -644,6 +672,7 @@ fn finish_rows(
     window: crate::TextLayout,
     table: bool,
     anchor: Option<usize>,
+    generation: u64,
 ) -> std::sync::Arc<crate::TextLayout> {
     let mut stats = world
         .get::<EditorLayoutStats>(entity)
@@ -672,11 +701,17 @@ fn finish_rows(
     }
     world.remove::<VerticalGoal>(entity);
     let layout = std::sync::Arc::new(window);
-    let snapshot = world
-        .get::<Buffer>(entity)
-        .map(Buffer::snapshot)
-        .filter(|snapshot| std::ptr::eq(snapshot.as_ref(), text))
-        .unwrap_or_else(|| std::sync::Arc::from(text));
+    // Managed documents keep the bytes on the session. Retaining another full
+    // copy here would force the next commit to clone before a one-byte edit.
+    let snapshot = if generation > 0 {
+        std::sync::Arc::<str>::from("")
+    } else {
+        world
+            .get::<Buffer>(entity)
+            .map(Buffer::snapshot)
+            .filter(|snapshot| std::ptr::eq(snapshot.as_ref(), text))
+            .unwrap_or_else(|| std::sync::Arc::from(text))
+    };
     world.insert(
         entity,
         DocumentRows {
@@ -684,6 +719,7 @@ fn finish_rows(
             width_bits,
             fold_key,
             text: snapshot,
+            generation,
             cache: built.cache,
             _engine: engine,
             index: std::sync::Arc::new(built.index),
@@ -698,11 +734,23 @@ fn owned_index(index: std::sync::Arc<index::RowIndex>) -> index::RowIndex {
     std::sync::Arc::try_unwrap(index).unwrap_or_else(|shared| (*shared).clone())
 }
 
+fn source_generation(world: &World, entity: crate::Entity) -> u64 {
+    let Some(binding) = world.get::<crate::editing::SourceBinding>(entity) else {
+        return 0;
+    };
+    world
+        .resource::<crate::editing::SourceDocuments>()
+        .and_then(|docs| docs.get(binding.document))
+        .map(|doc| doc.generation())
+        .unwrap_or(0)
+}
+
 fn document_rows(
     world: &mut World,
     entity: crate::entity::Entity,
     text: &str,
 ) -> std::sync::Arc<crate::TextLayout> {
+    let generation = source_generation(world, entity);
     crate::source_folding::prepare(world, entity);
     let mapped_anchor = world.remove::<MappedScrollAnchor>(entity).map(|a| a.0);
     let style = crate::text::style_for(world, entity);
@@ -718,8 +766,13 @@ fn document_rows(
     let context = shape_context(world, entity, font.as_ref(), &style, &engine, &spans);
     let folds_key = fold_key(world, entity);
     let width_bits = width.to_bits();
-    let same_text =
-        |rows: &DocumentRows| std::ptr::eq(rows.text.as_ref(), text) || rows.text.as_ref() == text;
+    let same_text = |rows: &DocumentRows| {
+        if generation > 0 {
+            rows.generation == generation
+        } else {
+            std::ptr::eq(rows.text.as_ref(), text) || rows.text.as_ref() == text
+        }
+    };
     if let Some(rows) = world.get::<DocumentRows>(entity).filter(|rows| {
         rows.context == context
             && rows.width_bits == width_bits
@@ -754,7 +807,15 @@ fn document_rows(
             0.0
         };
         let at = anchor_from_rows(rows, offset)?;
-        Some(map_scroll_anchor(&rows.text, text, at))
+        if generation > 0 && rows.generation > 0 {
+            let binding = world.get::<crate::editing::SourceBinding>(entity)?;
+            world
+                .resource::<crate::editing::SourceDocuments>()
+                .and_then(|docs| docs.get(binding.document))
+                .and_then(|doc| doc.map_since(rows.generation, at))
+        } else {
+            Some(map_scroll_anchor(&rows.text, text, at))
+        }
     });
     if crate::structured_chrome::has_tables(world, entity) {
         let (mut layout, cache, work) = if let Some(mut layout) =
@@ -812,6 +873,7 @@ fn document_rows(
             layout,
             true,
             old_anchor,
+            generation,
         );
     }
     let folds = fold_ranges(world, entity);
@@ -824,19 +886,45 @@ fn document_rows(
                     work: geometry::Work::default(),
                 }
             } else {
-                let old = rows.text.clone();
-                index::update_text(
-                    owned_index(rows.index),
-                    rows.cache,
-                    engine.as_ref(),
-                    font.as_ref(),
-                    &style,
-                    width,
-                    &old,
-                    text,
-                    &spans,
-                    &folds,
-                )
+                let span = if generation > 0 && rows.generation > 0 {
+                    let binding = world.get::<crate::editing::SourceBinding>(entity);
+                    binding.and_then(|binding| {
+                        world
+                            .resource::<crate::editing::SourceDocuments>()
+                            .and_then(|docs| docs.get(binding.document))
+                            .and_then(|doc| doc.span_since(rows.generation, text.len()))
+                    })
+                } else {
+                    None
+                };
+                if rows.generation > 0 && (generation == 0 || span.is_none()) {
+                    let previous_cache = rows.cache;
+                    index::build(
+                        engine.as_ref(),
+                        font.as_ref(),
+                        &style,
+                        width,
+                        text,
+                        &spans,
+                        &folds,
+                        Some(&previous_cache),
+                    )
+                } else {
+                    let old = rows.text.clone();
+                    index::update_text(
+                        owned_index(rows.index),
+                        rows.cache,
+                        engine.as_ref(),
+                        font.as_ref(),
+                        &style,
+                        width,
+                        &old,
+                        text,
+                        &spans,
+                        &folds,
+                        span,
+                    )
+                }
             }
         }
         Some(rows) if !rows.table && rows.context == context && same_text(&rows) => {
@@ -897,6 +985,7 @@ fn document_rows(
         window,
         false,
         None,
+        generation,
     )
 }
 
@@ -2346,15 +2435,46 @@ pub(crate) fn reveal_selection(world: &mut World, entity: crate::Entity) {
     publish_window(world, entity, true);
 }
 
+enum HeldText {
+    Shared(std::sync::Arc<String>),
+    Owned(std::sync::Arc<str>),
+}
+impl HeldText {
+    fn as_str(&self) -> &str {
+        match self {
+            Self::Shared(text) => text.as_str(),
+            Self::Owned(text) => text.as_ref(),
+        }
+    }
+}
+fn held_text(world: &World, entity: crate::Entity) -> HeldText {
+    if let Some(binding) = world.get::<crate::editing::SourceBinding>(entity) {
+        if let Some(text) = world
+            .resource::<crate::editing::SourceDocuments>()
+            .and_then(|docs| docs.get(binding.document))
+            .map(|doc| doc.share_text())
+        {
+            return HeldText::Shared(text);
+        }
+    }
+    HeldText::Owned(
+        world
+            .get::<Buffer>(entity)
+            .map(|buffer| buffer.snapshot())
+            .unwrap_or_else(|| std::sync::Arc::from("")),
+    )
+}
+
 fn publish_window(world: &mut World, entity: crate::entity::Entity, reveal: bool) {
     let height = world.get::<Rect>(entity).map(|rect| rect.h).unwrap_or(0.0);
-    let Some(buffer) = world.get::<Buffer>(entity) else {
+    if world.get::<Buffer>(entity).is_none() {
         return;
-    };
-    let text = buffer.snapshot();
-    let layout = document_rows(world, entity, &text);
+    }
+    let held = held_text(world, entity);
+    let text = held.as_str();
+    let layout = document_rows(world, entity, text);
     if crate::structured_chrome::has_tables(world, entity) {
-        publish_grid_window(world, entity, &text, &layout, reveal);
+        publish_grid_window(world, entity, text, &layout, reveal);
         return;
     }
     // Reflow/edit invalidation may have restored the source-byte scroll anchor.
@@ -2362,8 +2482,8 @@ fn publish_window(world: &mut World, entity: crate::entity::Entity, reveal: bool
         .get::<Editor>(entity)
         .map_or(0.0, |editor| editor.offset);
     let buffer = world.get::<Buffer>(entity).expect("buffer exists");
-    let caret = floor_grapheme(&text, buffer.caret.min(text.len()));
-    let anchor = floor_grapheme(&text, buffer.anchor.min(text.len()));
+    let caret = floor_grapheme(text, buffer.caret.min(text.len()));
+    let anchor = floor_grapheme(text, buffer.anchor.min(text.len()));
     let available = (height - 2.0 * TEXT_ORIGIN_Y).max(1.0);
     let rows_index = std::sync::Arc::clone(&world.get::<DocumentRows>(entity).expect("rows").index);
     let affinity = world

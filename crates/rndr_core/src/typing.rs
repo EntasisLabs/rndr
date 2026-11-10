@@ -13,17 +13,21 @@ impl Component for EditHistory {}
 
 #[derive(Clone, Debug)]
 struct Snap {
-    text: String,
+    /// Full preimage for steps that have no splice (legacy whole-buffer edits).
+    /// Delta steps leave this empty and retain only `deleted`.
+    text: Option<String>,
     index: usize,
     anchor: usize,
-    // Forward source operations from this snapshot to the current state.
+    // Forward source operations from this snapshot to the state they produce.
     source_changes: Option<Vec<crate::editing::SourceChange>>,
+    /// Bytes each forward range replaced. Parallel to `source_changes`.
+    deleted: Option<Vec<String>>,
     selections: Option<crate::source_selection::SourceSelections>,
 }
 
 impl Snap {
     fn retained_bytes(&self) -> usize {
-        self.text.capacity()
+        self.text.as_ref().map_or(0, String::capacity)
             + std::mem::size_of::<Self>()
             + self.selections.as_ref().map_or(0, |s| s.retained_bytes())
             + self.source_changes.as_ref().map_or(0, |changes| {
@@ -33,6 +37,49 @@ impl Snap {
                         .map(|c| c.replacement.capacity())
                         .sum::<usize>()
             })
+            + self.deleted.as_ref().map_or(0, |deleted| {
+                deleted.capacity() * std::mem::size_of::<String>()
+                    + deleted.iter().map(String::capacity).sum::<usize>()
+            })
+    }
+}
+
+/// Invert forward splices using the bytes they replaced. The second vector is
+/// what a later redo of this inverse must remove (the original replacements).
+pub(crate) fn invert_changes(
+    changes: &[crate::editing::SourceChange],
+    deleted: &[String],
+) -> (Vec<crate::editing::SourceChange>, Vec<String>) {
+    let mut inverse: Vec<crate::editing::SourceChange> = Vec::new();
+    let mut inverse_deleted: Vec<String> = Vec::new();
+    let mut removed = 0usize;
+    let mut inserted = 0usize;
+    for (change, gone) in changes.iter().zip(deleted) {
+        let start = change.range.start - removed + inserted;
+        let next_end = start + change.replacement.len();
+        if let Some(last) = inverse.last_mut().filter(|last| last.range.end == start) {
+            last.range.end = next_end;
+            last.replacement.push_str(gone);
+            inverse_deleted
+                .last_mut()
+                .unwrap()
+                .push_str(&change.replacement);
+        } else {
+            inverse.push(crate::editing::SourceChange {
+                range: start..next_end,
+                replacement: gone.clone(),
+            });
+            inverse_deleted.push(change.replacement.clone());
+        }
+        removed += change.range.len();
+        inserted += change.replacement.len();
+    }
+    (inverse, inverse_deleted)
+}
+
+fn apply_splices(text: &mut String, changes: &[crate::editing::SourceChange]) {
+    for change in changes.iter().rev() {
+        text.replace_range(change.range.clone(), &change.replacement);
     }
 }
 
@@ -57,10 +104,19 @@ pub struct EditHistory {
     run: Option<TypingRun>,
     // Transient exact operation for the current native event, consumed by a session.
     native_change: Option<SourceChange>,
+    native_deleted: Option<String>,
     pub(crate) source_selections: Option<crate::source_selection::SourceSelections>,
 }
 
 impl EditHistory {
+    pub(crate) fn retained_bytes(&self) -> usize {
+        self.undo
+            .iter()
+            .chain(&self.redo)
+            .map(Snap::retained_bytes)
+            .sum()
+    }
+
     /// Enforce the managed-session snapshot budget, evicting oldest steps.
     pub(crate) fn trim_bytes(&mut self, limit: usize) {
         let mut bytes: usize = self
@@ -85,27 +141,35 @@ impl EditHistory {
     /// Record a validated external source edit in the keyboard history.
     pub(crate) fn record_source_edit(&mut self, text: String, index: usize, anchor: usize) {
         self.push_undo(Snap {
-            text,
+            text: Some(text),
             index,
             anchor,
             source_changes: None,
+            deleted: None,
             selections: None,
         });
         self.break_run();
     }
 
+    /// Record forward splices. `text` is the preimage; only the replaced slices
+    /// are retained, not the document.
     pub(crate) fn record_source_changes(
         &mut self,
-        text: String,
+        text: &str,
         index: usize,
         anchor: usize,
         changes: Vec<crate::editing::SourceChange>,
     ) {
+        let deleted = changes
+            .iter()
+            .map(|change| text[change.range.clone()].to_string())
+            .collect();
         self.push_undo(Snap {
-            text,
+            text: None,
             index,
             anchor,
             source_changes: Some(changes),
+            deleted: Some(deleted),
             selections: None,
         });
         self.break_run();
@@ -113,7 +177,12 @@ impl EditHistory {
 
     /// Consume the operation captured from input semantics, never a text diff.
     pub(crate) fn take_native_change(&mut self) -> Option<SourceChange> {
+        self.native_deleted = None;
         self.native_change.take()
+    }
+
+    pub(crate) fn take_native_edit(&mut self) -> Option<(SourceChange, String)> {
+        Some((self.native_change.take()?, self.native_deleted.take()?))
     }
 
     fn push_undo(&mut self, mut snap: Snap) {
@@ -351,13 +420,17 @@ fn apply_action(
                 None,
                 |text, index, anchor| {
                     let (start, end) = span(text, *index, *anchor);
+                    let deleted = text[start..end].to_string();
                     text.replace_range(start..end, "");
                     *index = start;
                     *anchor = start;
-                    SourceChange {
-                        range: start..end,
-                        replacement: String::new(),
-                    }
+                    (
+                        SourceChange {
+                            range: start..end,
+                            replacement: String::new(),
+                        },
+                        deleted,
+                    )
                 },
             );
             StepResult {
@@ -376,14 +449,18 @@ fn apply_action(
                 None,
                 |text, index, anchor| {
                     let (start, end) = span(text, *index, *anchor);
+                    let deleted = text[start..end].to_string();
                     text.replace_range(start..end, &clip);
                     let next = start + clip.len();
                     *index = next;
                     *anchor = next;
-                    SourceChange {
-                        range: start..end,
-                        replacement: clip.clone(),
-                    }
+                    (
+                        SourceChange {
+                            range: start..end,
+                            replacement: clip.clone(),
+                        },
+                        deleted,
+                    )
                 },
             );
             StepResult {
@@ -445,20 +522,110 @@ fn apply_action(
                     }
                     let end = *index;
                     let start = word_left(text, end);
+                    let deleted = text[start..end].to_string();
                     if start < end {
                         text.replace_range(start..end, "");
                         *index = start;
                         *anchor = start;
                     }
-                    SourceChange {
-                        range: start..end,
-                        replacement: String::new(),
-                    }
+                    (
+                        SourceChange {
+                            range: start..end,
+                            replacement: String::new(),
+                        },
+                        deleted,
+                    )
                 },
             );
             StepResult::default()
         }
     }
+}
+
+struct RestorePlan {
+    changes: Vec<crate::editing::SourceChange>,
+    index: usize,
+    anchor: usize,
+    selections: Option<crate::source_selection::SourceSelections>,
+    /// Full preimage to install by moving the allocation. Delta steps leave this empty.
+    install: Option<String>,
+}
+
+fn plan_restore(
+    history: &mut EditHistory,
+    _current: &str,
+    index: usize,
+    anchor: usize,
+    undo: bool,
+) -> Option<RestorePlan> {
+    let prev = if undo {
+        history.undo.pop()
+    } else {
+        history.redo.pop()
+    }?;
+    let saved_index = index;
+    let saved_anchor = anchor;
+    let selections = history.source_selections.clone();
+    let (changes, deleted, install) =
+        if let (Some(forward), Some(gone)) = (&prev.source_changes, &prev.deleted) {
+            let (inverse, inverse_deleted) = invert_changes(forward, gone);
+            (inverse, Some(inverse_deleted), None)
+        } else if let Some(snapshot) = prev.text {
+            let inverse = prev
+                .source_changes
+                .as_ref()
+                .map(|changes| crate::editing::inverse_changes(&snapshot, changes));
+            (inverse.unwrap_or_default(), None, Some(snapshot))
+        } else {
+            (Vec::new(), None, None)
+        };
+    let opposite = Snap {
+        text: None,
+        index: saved_index,
+        anchor: saved_anchor,
+        source_changes: (!changes.is_empty()).then(|| changes.clone()),
+        deleted,
+        selections,
+    };
+    history.source_selections = prev.selections.clone();
+    if undo {
+        history.redo.push(opposite);
+    } else {
+        history.undo.push(opposite);
+    }
+    history.run = None;
+    Some(RestorePlan {
+        changes,
+        index: prev.index,
+        anchor: prev.anchor,
+        selections: prev.selections,
+        install,
+    })
+}
+
+pub(crate) struct SessionRestore {
+    pub changes: Vec<crate::editing::SourceChange>,
+    pub selections: crate::source_selection::SourceSelections,
+}
+
+pub(crate) fn plan_session_restore(
+    history: &mut EditHistory,
+    current: &str,
+    index: usize,
+    anchor: usize,
+    undo: bool,
+) -> Option<SessionRestore> {
+    let plan = plan_restore(history, current, index, anchor, undo)?;
+    let selections = plan.selections.clone().unwrap_or_else(|| {
+        crate::source_selection::SourceSelections::single(crate::editing::SourceSelection {
+            head: plan.index,
+            anchor: plan.anchor,
+        })
+    });
+    Some(SessionRestore {
+        changes: plan.changes,
+        selections,
+    })
 }
 
 pub(crate) fn restore(
@@ -468,35 +635,25 @@ pub(crate) fn restore(
     history: &mut EditHistory,
     undo: bool,
 ) -> Option<Vec<crate::editing::SourceChange>> {
-    let prev = if undo {
-        history.undo.pop()
+    let plan = plan_restore(history, text, *index, *anchor, undo)?;
+    if let Some(install) = plan.install {
+        // Move the snapshot allocation into the live buffer and keep the
+        // displaced buffer on the opposite stack. Delta steps never do this.
+        let displaced = std::mem::replace(text, install);
+        let stack = if undo {
+            &mut history.redo
+        } else {
+            &mut history.undo
+        };
+        if let Some(snap) = stack.last_mut() {
+            snap.text = Some(displaced);
+        }
     } else {
-        history.redo.pop()
-    };
-    let prev = prev?;
-    let changes = prev
-        .source_changes
-        .as_ref()
-        .map(|changes| crate::editing::inverse_changes(&prev.text, changes));
-    let current = Snap {
-        // Transfer the current allocation to the opposite stack instead of
-        // copying the entire document merely to restore an owned snapshot.
-        text: std::mem::replace(text, prev.text),
-        index: *index,
-        anchor: *anchor,
-        source_changes: changes.clone(),
-        selections: history.source_selections.clone(),
-    };
-    history.source_selections = prev.selections;
-    if undo {
-        history.redo.push(current);
-    } else {
-        history.undo.push(current);
+        apply_splices(text, &plan.changes);
     }
-    history.run = None;
-    *index = prev.index.min(text.len());
-    *anchor = prev.anchor.min(text.len());
-    changes
+    *index = plan.index.min(text.len());
+    *anchor = plan.anchor.min(text.len());
+    Some(plan.changes)
 }
 
 /// Replace the whole buffer and record one undo step when the text changes.
@@ -515,14 +672,17 @@ pub(crate) fn rewrite(surface: &mut EditSurface<'_>, history: &mut EditHistory, 
         None,
         |text, index, anchor| {
             let end = text.len();
-            text.clear();
+            let deleted = std::mem::take(text);
             text.push_str(&next);
             *index = text.len();
             *anchor = *index;
-            SourceChange {
-                range: 0..end,
-                replacement: next.clone(),
-            }
+            (
+                SourceChange {
+                    range: 0..end,
+                    replacement: next.clone(),
+                },
+                deleted,
+            )
         },
     );
 }
@@ -549,21 +709,17 @@ fn change(
     history: &mut EditHistory,
     now: Duration,
     typed: Option<&str>,
-    mutate: impl FnOnce(&mut String, &mut usize, &mut usize) -> SourceChange,
+    mutate: impl FnOnce(&mut String, &mut usize, &mut usize) -> (SourceChange, String),
 ) {
     let extend = typed.is_some_and(|typed| history.can_extend(*index, *anchor, now, typed));
-    let mut before = Snap {
-        text: text.clone(),
-        index: *index,
-        anchor: *anchor,
-        source_changes: None,
-        selections: None,
-    };
-    let change = mutate(text, index, anchor);
-    if *text == before.text {
+    let saved_index = *index;
+    let saved_anchor = *anchor;
+    let (change, deleted) = mutate(text, index, anchor);
+    if deleted == change.replacement {
         return;
     }
     history.native_change = Some(change.clone());
+    history.native_deleted = Some(deleted.clone());
     if extend {
         // Only consecutive insertions at the previous run end can extend.
         // Keep the initial base range (possibly a replaced selection) and
@@ -587,8 +743,14 @@ fn change(
         history.note_typed(*index, now);
         return;
     }
-    before.source_changes = Some(vec![change]);
-    history.push_undo(before);
+    history.push_undo(Snap {
+        text: None,
+        index: saved_index,
+        anchor: saved_anchor,
+        source_changes: Some(vec![change]),
+        deleted: Some(vec![deleted]),
+        selections: None,
+    });
     if typed.is_some_and(is_typed_run) && *index == *anchor {
         history.note_typed(*index, now);
     } else {
@@ -604,7 +766,7 @@ fn step_key(
     shift: bool,
     chars: &str,
     newline: bool,
-) -> SourceChange {
+) -> (SourceChange, String) {
     // Capture the same replacement range used by edit_string before mutation.
     // Selection replacement and backward grapheme deletion are deliberately
     // not reconstructed by matching equal prefix/suffix bytes afterwards.
@@ -620,6 +782,7 @@ fn step_key(
     } else {
         caret..caret
     };
+    let deleted = text[range.clone()].to_string();
     let (next, next_anchor) = edit_string(text, *index, *anchor, key, shift, chars, newline);
     let replacement = if editing {
         text[range.start..next].to_string()
@@ -628,7 +791,7 @@ fn step_key(
     };
     *index = next;
     *anchor = next_anchor;
-    SourceChange { range, replacement }
+    (SourceChange { range, replacement }, deleted)
 }
 
 fn place(index: &mut usize, anchor: &mut usize, dest: usize, shift: bool) -> StepResult {
@@ -648,28 +811,40 @@ fn span(text: &str, index: usize, anchor: usize) -> (usize, usize) {
     crate::edit::grapheme_selection(text, anchor, index)
 }
 
-fn delete_forward(text: &mut String, index: &mut usize, anchor: &mut usize) -> SourceChange {
+fn delete_forward(
+    text: &mut String,
+    index: &mut usize,
+    anchor: &mut usize,
+) -> (SourceChange, String) {
     if *index != *anchor {
         let (start, end) = span(text, *index, *anchor);
+        let deleted = text[start..end].to_string();
         text.replace_range(start..end, "");
         *index = start;
         *anchor = start;
-        return SourceChange {
-            range: start..end,
-            replacement: String::new(),
-        };
+        return (
+            SourceChange {
+                range: start..end,
+                replacement: String::new(),
+            },
+            deleted,
+        );
     }
     let start = crate::edit::floor_grapheme(text, *index);
     let end = crate::edit::next_grapheme(text, start);
+    let deleted = text[start..end].to_string();
     if start < end {
         text.replace_range(start..end, "");
         *index = start;
         *anchor = start;
     }
-    SourceChange {
-        range: start..end,
-        replacement: String::new(),
-    }
+    (
+        SourceChange {
+            range: start..end,
+            replacement: String::new(),
+        },
+        deleted,
+    )
 }
 
 fn line_start(text: &str, index: usize) -> usize {
@@ -765,7 +940,7 @@ mod storage_tests {
         use crate::editing::SourceChange;
         let mut history = EditHistory::default();
         history.record_source_changes(
-            "abcd".into(),
+            "abcd",
             2,
             2,
             vec![SourceChange {
@@ -778,7 +953,7 @@ mod storage_tests {
         history.trim_bytes(1024);
         assert!(history.undo.is_empty());
         history.record_source_changes(
-            "abcd".into(),
+            "abcd",
             2,
             2,
             vec![
@@ -813,11 +988,11 @@ mod storage_tests {
         let (mut index, mut anchor) = (0, text.len());
         restore(&mut text, &mut index, &mut anchor, &mut history, true);
         assert_eq!(text.as_ptr(), before_ptr);
-        assert_eq!(history.redo[0].text.as_ptr(), after_ptr);
+        assert_eq!(history.redo[0].text.as_ref().unwrap().as_ptr(), after_ptr);
         assert_eq!((index, anchor), (2, 0));
         restore(&mut text, &mut index, &mut anchor, &mut history, false);
         assert_eq!(text.as_ptr(), after_ptr);
-        assert_eq!(history.undo[0].text.as_ptr(), before_ptr);
+        assert_eq!(history.undo[0].text.as_ref().unwrap().as_ptr(), before_ptr);
         assert_eq!((index, anchor), (0, text.len()));
     }
 

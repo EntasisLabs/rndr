@@ -428,6 +428,36 @@ fn net_noop_batch_and_identical_reload_preserve_redo() {
 }
 
 #[test]
+fn repeated_tail_edits_keep_undo_history_to_the_splices() {
+    let mut docs = SourceDocuments::default();
+    let original = "x".repeat(10_000);
+    let id = docs.open(&original);
+    let doc = docs.get_mut(id).unwrap();
+    for step in 0..30 {
+        let end = doc.text().len();
+        let replacement = if step % 2 == 0 { "y" } else { "x" };
+        doc.commit(batch(
+            id,
+            doc.revision(),
+            vec![change(end - 1..end, replacement)],
+        ))
+        .unwrap()
+        .unwrap();
+    }
+    assert!(
+        doc.history_retained_bytes() < 8_000,
+        "history retained {} bytes",
+        doc.history_retained_bytes()
+    );
+    for _ in 0..30 {
+        doc.undo().unwrap();
+    }
+    assert_eq!(doc.text(), original);
+    doc.redo().unwrap();
+    assert!(doc.text().ends_with('y'));
+}
+
+#[test]
 fn explicit_host_selection_survives_projection_without_content_revision() {
     let (mut app, entity, id) = boot("abcdef");
     doc_mut(&mut app, id)
