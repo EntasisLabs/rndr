@@ -451,6 +451,9 @@ pub struct TextLayout {
     /// Sum of line heights, in points.
     pub height: f32,
     pub(crate) cache_key: u64,
+    /// Engine line-cache ids for the runs in this layout. Empty when the
+    /// layout did not come from the installed engine.
+    pub(crate) line_ids: Vec<u64>,
     /// Caret inside an IME preedit, as a byte index in the shaped string.
     /// `None` keeps the field caret.
     pub ime_cursor: Option<usize>,
@@ -469,9 +472,23 @@ impl TextLayout {
             width,
             height,
             cache_key: 0,
+            line_ids: Vec::new(),
             ime_cursor: None,
             ime_range: None,
         }
+    }
+
+    /// Line-cache ids recorded by the engine that built this layout.
+    ///
+    /// Empty when the layout did not come from that cache.
+    /// [`crate::TextEngine::touch_lines`] uses them.
+    pub fn line_cache_ids(&self) -> &[u64] {
+        &self.line_ids
+    }
+
+    /// Replace the line-cache ids. The engine does this before returning a layout.
+    pub fn set_line_cache_ids(&mut self, ids: Vec<u64>) {
+        self.line_ids = ids;
     }
 }
 
@@ -604,6 +621,7 @@ pub(crate) fn layout_text_weighted(
         width,
         height: y,
         cache_key: 0,
+        line_ids: Vec::new(),
         ime_cursor: None,
         ime_range: None,
     };
@@ -1024,9 +1042,12 @@ pub(crate) fn shape_labels(world: &mut World, labels: Vec<crate::Entity>) {
         }
         // Paint, hit testing, and accessibility read the layout stored on the
         // entity. Building another one when this key and engine already match
-        // only produces a value that is thrown away. The engine line cache
-        // memoizes `TextEngine::layout`; it is not what paint samples. A face,
-        // fallback, or atlas change bumps the epoch and misses this key.
+        // only produces a value that is thrown away. The line cache still has
+        // to hear that this run is on screen, or the next frame drops it.
+        // Block layout shapes each paragraph on its own and is not one run.
+        // An ellipsis run's cached string is the measured truncation, so a
+        // touch would measure again. A face, fallback, or atlas change bumps
+        // the epoch and misses this key.
         let same_engine = world
             .get::<LayoutEngine>(entity)
             .and_then(|stored| stored.0.upgrade())
@@ -1036,6 +1057,15 @@ pub(crate) fn shape_labels(world: &mut World, labels: Vec<crate::Entity>) {
                 .get::<TextLayout>(entity)
                 .is_some_and(|stored| stored.cache_key == key)
         {
+            if overflow != TextOverflow::Ellipsis
+                && !crate::structured_chrome::uses_block_layout(world, entity)
+            {
+                let ids = world
+                    .get::<TextLayout>(entity)
+                    .map(|stored| stored.line_cache_ids().to_vec())
+                    .unwrap_or_default();
+                engine.touch_lines(&ids);
+            }
             continue;
         }
         let insert_at = floor_preview(at, &source);

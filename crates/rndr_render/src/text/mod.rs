@@ -139,8 +139,11 @@ pub(super) struct State {
 }
 
 struct FrameCache {
-    frames: [HashMap<CacheKey, Arc<CachedLine>>; 2],
+    frames: [HashMap<u64, Arc<CachedLine>>; 2],
+    by_key: HashMap<CacheKey, u64>,
+    key_of: HashMap<u64, CacheKey>,
     current: usize,
+    next_id: u64,
 }
 
 struct CachedLine {
@@ -225,7 +228,10 @@ impl ParleyText {
                 color: Atlas::new(true, size, max),
                 cache: FrameCache {
                     frames: [HashMap::new(), HashMap::new()],
+                    by_key: HashMap::new(),
+                    key_of: HashMap::new(),
                     current: 0,
+                    next_id: 1,
                 },
                 fallbacks: HashMap::new(),
                 scale: 1.0,
@@ -363,6 +369,8 @@ impl State {
         for frame in &mut self.cache.frames {
             dropped.extend(std::mem::take(frame).into_values());
         }
+        self.cache.by_key.clear();
+        self.cache.key_of.clear();
         for entry in dropped {
             self.release(&entry.keys);
         }
@@ -398,20 +406,8 @@ impl TextEngine for ParleyText {
         max_width: f32,
     ) -> TextLayout {
         let key = cache_key(text, style, runs, max_width, self.lock().scale);
-        {
-            let mut state = self.lock();
-            let current = state.cache.current;
-            if let Some(hit) = state.cache.frames[current].get(&key).cloned() {
-                state.touch(&hit.keys);
-                return hit.layout.clone();
-            }
-            let previous = current ^ 1;
-            if let Some(hit) = state.cache.frames[previous].get(&key).cloned() {
-                state.touch(&hit.keys);
-                state.remember(&hit.keys);
-                state.cache.frames[current].insert(key, Arc::clone(&hit));
-                return hit.layout.clone();
-            }
+        if let Some(layout) = self.cached_layout(&key) {
+            return layout;
         }
         let shaped = {
             let mut state = self.lock();
@@ -421,17 +417,20 @@ impl TextEngine for ParleyText {
         // scale and store the line that matches the atlases just written.
         let mut state = self.lock();
         let key = cache_key(text, style, runs, max_width, state.scale);
-        if let Some(hit) = state.cache.frames[state.cache.current].get(&key).cloned() {
-            state.touch(&hit.keys);
-            return hit.layout.clone();
+        if let Some(layout) = cached_hit(&mut state, &key) {
+            return layout;
         }
         state.remember(&shaped.keys);
         let layout = shaped.layout.clone();
+        let id = state.cache.next_id;
+        state.cache.next_id = state.cache.next_id.wrapping_add(1);
         let current = state.cache.current;
-        state.cache.frames[current].insert(key, Arc::new(cached(shaped)));
+        state.cache.frames[current].insert(id, Arc::new(cached(shaped)));
+        state.cache.key_of.insert(id, key.clone());
+        state.cache.by_key.insert(key, id);
         drop(state);
         self.shapes.fetch_add(1, Ordering::Relaxed);
-        layout
+        with_line_id(layout, id)
     }
 
     fn measure(
@@ -531,9 +530,16 @@ impl TextEngine for ParleyText {
     fn begin_frame(&self) {
         let mut state = self.lock();
         let next = state.cache.current ^ 1;
+        let kept = state.cache.current;
         let dropped = std::mem::take(&mut state.cache.frames[next]);
-        for (_, entry) in dropped {
+        for (id, entry) in dropped {
             state.release(&entry.keys);
+            if state.cache.frames[kept].contains_key(&id) {
+                continue;
+            }
+            if let Some(key) = state.cache.key_of.remove(&id) {
+                state.cache.by_key.remove(&key);
+            }
         }
         state.cache.current = next;
     }
@@ -544,6 +550,36 @@ impl TextEngine for ParleyText {
 
     fn cache_epoch(&self) -> u64 {
         self.lock().epoch
+    }
+
+    fn touch_cached(&self, text: &str, style: &TextStyle, runs: &[TextSpan], max_width: f32) {
+        let state = self.lock();
+        let key = cache_key(text, style, runs, max_width, state.scale);
+        let Some(&id) = state.cache.by_key.get(&key) else {
+            return;
+        };
+        drop(state);
+        self.touch_lines(&[id]);
+    }
+
+    fn touch_lines(&self, ids: &[u64]) {
+        if ids.is_empty() {
+            return;
+        }
+        let mut state = self.lock();
+        let current = state.cache.current;
+        let previous = current ^ 1;
+        for &id in ids {
+            if let Some(hit) = state.cache.frames[current].get(&id).cloned() {
+                state.touch(&hit.keys);
+                continue;
+            }
+            if let Some(hit) = state.cache.frames[previous].get(&id).cloned() {
+                state.touch(&hit.keys);
+                state.remember(&hit.keys);
+                state.cache.frames[current].insert(id, hit);
+            }
+        }
     }
 
     fn set_pixels_per_point(&self, scale: f32) {
@@ -557,6 +593,37 @@ impl TextEngine for ParleyText {
             state.scale = scale;
             state.invalidate_lines();
         }
+    }
+}
+
+fn with_line_id(mut layout: TextLayout, id: u64) -> TextLayout {
+    layout.set_line_cache_ids(vec![id]);
+    layout
+}
+
+fn cached_hit(state: &mut State, key: &CacheKey) -> Option<TextLayout> {
+    let id = *state.cache.by_key.get(key)?;
+    let current = state.cache.current;
+    if let Some(hit) = state.cache.frames[current].get(&id).cloned() {
+        state.touch(&hit.keys);
+        return Some(with_line_id(hit.layout.clone(), id));
+    }
+    let previous = current ^ 1;
+    if let Some(hit) = state.cache.frames[previous].get(&id).cloned() {
+        state.touch(&hit.keys);
+        state.remember(&hit.keys);
+        state.cache.frames[current].insert(id, Arc::clone(&hit));
+        return Some(with_line_id(hit.layout.clone(), id));
+    }
+    state.cache.by_key.remove(key);
+    state.cache.key_of.remove(&id);
+    None
+}
+
+impl ParleyText {
+    fn cached_layout(&self, key: &CacheKey) -> Option<TextLayout> {
+        let mut state = self.lock();
+        cached_hit(&mut state, key)
     }
 }
 

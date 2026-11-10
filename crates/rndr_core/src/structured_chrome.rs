@@ -257,6 +257,16 @@ fn indent(depth: usize, width: f32) -> f32 {
     (depth as f32 * STRUCTURED_INDENT).min((width - 48.0).max(0.0))
 }
 
+pub(crate) fn uses_block_layout(world: &World, view: Entity) -> bool {
+    world.has::<StructuredChromeGutter>(view)
+        && crate::structured_native::attached_structured(world, view).is_some_and(|handle| {
+            world
+                .resource::<StructuredDocuments>()
+                .and_then(|docs| docs.get(handle))
+                .is_some()
+        })
+}
+
 // Shape each logical paragraph at its own available width. Shift both glyphs
 // and caret edges: paint, selection, pointer, keyboard, IME and accessibility
 // consequently consume one canonical layout, never synthetic buffer prefixes.

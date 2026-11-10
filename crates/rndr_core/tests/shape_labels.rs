@@ -107,6 +107,14 @@ impl TextEngine for CountingEngine {
         self.inner.begin_frame();
     }
 
+    fn touch_cached(&self, text: &str, style: &TextStyle, runs: &[TextSpan], max_width: f32) {
+        self.inner.touch_cached(text, style, runs, max_width);
+    }
+
+    fn touch_lines(&self, ids: &[u64]) {
+        self.inner.touch_lines(ids);
+    }
+
     fn shape_count(&self) -> u64 {
         self.calls()
     }
