@@ -25,7 +25,7 @@ def check(allow_dirty=False):
                  "rndr_media", "rndr_browser", "rndr_liquid", "rndr_chart", "rndr_liquid_ui", "rndr_canvas",
                  "rndr_canvas_ui"):
         assert packages[name]["publish"] is None, f"{name} must be publishable"
-    for name in ("desktop", "source-session"):
+    for name in ("desktop", "source-session", "titlebar", "lifecycle"):
         assert packages[name]["publish"] == [], f"{name} must stay unpublished"
     command = ["cargo", "package", "--offline", "--locked", "-p", "rndr",
                "--no-verify", "--exclude-lockfile"]

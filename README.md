@@ -58,8 +58,8 @@ capabilities also depend on the desktop session and available graphics backend.
 `rndr_liquid_ui`, `rndr_canvas`, `rndr_canvas_ui`, `rndr_render`, `rndr_media`,
 `rndr_browser`, and `rndr`. Optional facade features `ui`, `observe`, `browser`,
 `media`, `chart`, `liquid`, and `canvas` are off by default. Examples, including
-Desktop Workshop and `source-session`, stay `publish = false`. This is a 0.y
-release, not a 1.0 stability promise.
+Desktop Workshop, `source-session`, `titlebar`, and `lifecycle`, stay
+`publish = false`. This is a 0.y release, not a 1.0 stability promise.
 See [package policy](docs/ui-status.md#package-policy).
 
 ### A small application

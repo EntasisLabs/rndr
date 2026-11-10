@@ -34,21 +34,25 @@
 # After each upload, the script waits until that version is visible in the
 # index before publishing the next crate.
 #
-# Not uploaded: every example, including desktop and source-session. They are
-# publish = false. This script excludes them from `cargo package --workspace`,
-# which otherwise refuses a publish = false member.
+# Not uploaded: every example, including desktop, source-session, titlebar and
+# lifecycle. They are publish = false. This script excludes every unpublished
+# workspace member from `cargo package --workspace`, which otherwise refuses a
+# publish = false member. The exclude list and the expected archive set are
+# derived from cargo metadata by scripts/check-package-archives.py, so a new
+# unpublished example cannot slip into the dry-run unnoticed.
 # rndr_browser is publish-eligible. Leaving it out of this package set makes
 # `cargo package` of the default facade look for rndr_browser on crates.io and
 # fail, because an optional versioned dependency is still resolved. This script
 # does not upload anything unless invoked without --dry-run.
 #
 # `--dry-run` does not upload and does not need CARGO_REGISTRY_TOKEN.
-# It packages the fifteen library crates with `cargo package --workspace --no-verify`,
-# which does not need the crates.io index. A crate whose workspace
-# dependencies, including dev-dependencies, are already on the index also gets
-# `cargo publish --dry-run` (verify, then stop before upload). Packaging one
-# dependent with `-p` fails until those dependencies exist in the index, so
-# the dry-run does not do that. It also runs scripts/check-facade-archive.py.
+# It packages the publishable library crates with `cargo package --workspace --no-verify`,
+# which does not need the crates.io index, then rejects both missing and
+# unexpected archives. A crate whose workspace dependencies, including
+# dev-dependencies, are already on the index also gets `cargo publish --dry-run`
+# (verify, then stop before upload). Packaging one dependent with `-p` fails
+# until those dependencies exist in the index, so the dry-run does not do that.
+# It also runs scripts/check-facade-archive.py.
 
 set -euo pipefail
 
@@ -167,11 +171,10 @@ wait_for_index() {
 }
 
 if [[ "$dry_run" -eq 1 ]]; then
-    echo "packaging the fifteen publishable crates without uploading"
-    cargo package --workspace --locked --no-verify \
-        --exclude desktop --exclude source-session \
-        --exclude expand --exclude idle --exclude overlay --exclude palette --exclude terminal --exclude stream \
-        --exclude two-windows --exclude pen-probe --exclude canvas-scene --exclude create-view --exclude chart-gallery --exclude liquid-view --exclude canvas-editor --exclude web-hello
+    echo "packaging the publishable crates without uploading"
+    # Excludes every publish = false member and refuses missing/unexpected archives.
+    python3 scripts/check-package-archives.py --self-test
+    python3 scripts/check-package-archives.py --run-package
 fi
 
 for index in "${!CRATES[@]}"; do
@@ -204,73 +207,6 @@ done
 if [[ "$dry_run" -eq 1 ]]; then
     echo "facade archive check (normalization only; no upload)"
     python3 scripts/check-facade-archive.py
-    python3 - <<'PY'
-import pathlib, sys, tarfile, tomllib
-root = pathlib.Path("target/package")
-forbidden_prefixes = (
-    "desktop-", "source-session-",
-    "expand-", "idle-", "overlay-", "palette-", "terminal-", "stream-",
-    "two-windows-", "pen-probe-", "canvas-scene-", "create-view-", "chart-gallery-", "liquid-view-", "canvas-editor-", "web-hello-",
-)
-workspace = ("rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_ui", "rndr_app", "rndr_liquid", "rndr_chart", "rndr_liquid_ui", "rndr_canvas", "rndr_canvas_ui", "rndr_render", "rndr_media", "rndr_browser", "rndr")
-licenses = {"rndr_paint": "MIT AND OFL-1.1", "rndr_render": "MIT AND OFL-1.1"}
-found = sorted(path.name for path in root.glob("*.crate"))
-for name in found:
-    if name.startswith(forbidden_prefixes):
-        sys.exit(f"unpublished crate was packaged: {name}")
-expected = ("rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_ui", "rndr_app", "rndr_liquid", "rndr_chart", "rndr_liquid_ui", "rndr_canvas", "rndr_canvas_ui", "rndr_render", "rndr_media", "rndr_browser", "rndr")
-for name in expected:
-    matches = [item for item in found if item.startswith(name + "-")]
-    if len(matches) != 1:
-        sys.exit(f"expected one {name} archive, found {matches}")
-    version = matches[0][len(name) + 1 : -len(".crate")]
-    with tarfile.open(root / matches[0]) as tar:
-        archived = tar.getnames()
-        if f"{name}-{version}/LICENSE" not in archived:
-            sys.exit(f"{name} archive is missing LICENSE")
-        manifest = tomllib.loads(tar.extractfile(f"{name}-{version}/Cargo.toml").read().decode())
-    package = manifest["package"]
-    if package["version"] != version:
-        sys.exit(f"{name} archive version {package['version']} != {version}")
-    if package.get("license") != licenses.get(name, "MIT"):
-        sys.exit(f"{name} license {package.get('license')!r}")
-    if package.get("publish") is False or package.get("publish") == []:
-        sys.exit(f"{name} manifest sets publish = false")
-    if not package.get("description") or not package.get("readme"):
-        sys.exit(f"{name} is missing description or readme")
-    if name in ("rndr_ui", "rndr_app", "rndr_browser") and not str(package.get("documentation", "")).startswith("https://docs.rs/"):
-        sys.exit(f"{name} documentation URL {package.get('documentation')!r}")
-    if name == "rndr":
-        features = manifest.get("features", {})
-        if features.get("ui") != ["dep:rndr_ui"] or "observe" not in features:
-            sys.exit(f"facade features changed: ui={features.get('ui')!r}")
-        if "ui" in features.get("default", []) or "observe" in features.get("default", []):
-            sys.exit("ui or observe became a default feature")
-        if "browser" in features.get("default", []):
-            sys.exit("browser became a default feature")
-        if features.get("browser") != ["dep:rndr_browser"]:
-            sys.exit(f"browser feature changed: {features.get('browser')!r}")
-        if "media" in features.get("default", []):
-            sys.exit("media became a default feature")
-        if features.get("media") != ["dep:rndr_media"]:
-            sys.exit(f"media feature changed: {features.get('media')!r}")
-        for feature in ("chart", "liquid", "canvas"):
-            if feature not in features or feature in features.get("default", []):
-                sys.exit(f"{feature} must be an optional, non-default feature")
-    for table_name in ("dependencies", "dev-dependencies"):
-        for dep_name, spec in manifest.get(table_name, {}).items():
-            if dep_name not in workspace or not isinstance(spec, dict):
-                continue
-            if "path" in spec:
-                sys.exit(f"{name} packaged {table_name}.{dep_name} still has a path")
-            if spec.get("version") != version:
-                sys.exit(f"{name} {table_name}.{dep_name} version {spec.get('version')}, want {version}")
-            if name == "rndr" and table_name == "dependencies" and dep_name == "rndr_ui" and spec.get("optional") is not True:
-                sys.exit(f"{name} rndr_ui dependency is not optional: {spec}")
-            if name == "rndr" and table_name == "dependencies" and dep_name in (
-                "rndr_browser", "rndr_media", "rndr_chart", "rndr_liquid", "rndr_liquid_ui", "rndr_canvas", "rndr_canvas_ui",
-            ) and spec.get("optional") is not True:
-                sys.exit(f"{name} {dep_name} dependency is not optional: {spec}")
-print("packaged archives:", ", ".join(found))
-PY
+    echo "exact publishable archive set and packaged manifests"
+    python3 scripts/check-package-archives.py --contents
 fi

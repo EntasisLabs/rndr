@@ -4,7 +4,7 @@
 
 ## 0.5.0
 
-Workspace 0.5.0. `scripts/publish-crates.sh` uploads fifteen crates in this order: `rndr_core`, `rndr_paint`, `rndr_std`, `rndr_term`, `rndr_ui`, `rndr_app`, `rndr_liquid`, `rndr_chart`, `rndr_liquid_ui`, `rndr_canvas`, `rndr_canvas_ui`, `rndr_render`, `rndr_media`, `rndr_browser`, and `rndr`. First crates.io publish for `rndr_liquid`, `rndr_chart`, `rndr_liquid_ui`, `rndr_canvas`, `rndr_canvas_ui`, `rndr_media`, and `rndr_browser`. Examples, including Desktop Workshop and `source-session`, stay `publish = false`. 0.5.0 is a 0.y release, not a 1.0 stability promise. See [package policy](docs/ui-status.md#package-policy).
+Workspace 0.5.0. `scripts/publish-crates.sh` uploads fifteen crates in this order: `rndr_core`, `rndr_paint`, `rndr_std`, `rndr_term`, `rndr_ui`, `rndr_app`, `rndr_liquid`, `rndr_chart`, `rndr_liquid_ui`, `rndr_canvas`, `rndr_canvas_ui`, `rndr_render`, `rndr_media`, `rndr_browser`, and `rndr`. First crates.io publish for `rndr_liquid`, `rndr_chart`, `rndr_liquid_ui`, `rndr_canvas`, `rndr_canvas_ui`, `rndr_media`, and `rndr_browser`. Examples, including Desktop Workshop, `source-session`, `titlebar`, and `lifecycle`, stay `publish = false`. Minimum Rust version is **1.95** (`AtomicU64::try_update` in `rndr_core`). 0.5.0 is a 0.y release, not a 1.0 stability promise. See [package policy](docs/ui-status.md#package-policy).
 
 ### New publishable crates and facade features
 
@@ -24,6 +24,16 @@ Workspace 0.5.0. `scripts/publish-crates.sh` uploads fifteen crates in this orde
 
 - `FrameSurface` and `SurfaceView` for latest-wins video frames, with fit modes for embedding media in layout.
 - Media controls: play, pause, seek, rate, looping, mute; state, time, duration, natural size; `position()` as a `Live<f32>`; worker-thread wakers for state changes.
+- `rndr::media::Recorder` records the default input: WAV, Ogg Opus or FLAC on Linux (GStreamer) and AAC (`.m4a`) or WAV on macOS (`AVAudioRecorder`), with pause, resume, cancel, elapsed time, a `Live<f32>` input level, and macOS microphone permission checks/requests. Windows recording is not claimed. See [`rndr_media`](crates/rndr_media/README.md).
+
+### Window chrome, launches, links, and the app icon
+
+- Custom window chrome: `WindowConfig::titlebar: Some(Titlebar::new(40.0))` draws an app titlebar. On macOS the content runs under a transparent title bar with traffic lights centred in the band (or placed with `Titlebar::traffic_lights`); `WindowChrome::leading` reports their width. On Windows and Linux the native frame is removed, `rndr_ui::window_controls` draws minimize/maximize/close, and a resizable window gets 6 pt resize edges with matching cursors. `WindowDrag` moves the window on press while nested buttons and fields keep their presses; double-click maximizes (or follows the macOS setting); right-click opens the window menu on Windows. `WindowConfig::backdrop` asks for Mica, Acrylic or Tabbed on Windows 11 and vibrancy on macOS when the window is `transparent`. Linux X11 is tested natively; macOS and Windows are compile-checked only. On macOS, AppKit titlebar drag no longer moves the window from buttons in a custom band. `cargo run -p titlebar` shows them.
+- Single-instance launches, incoming links, Dock reopen, and the app icon: `rndr_render::single_instance(id)` keeps one process per user (a later launch hands arguments to the first and returns `false`; macOS already keeps one process). The primary window's world gets `UrlOpened` for each `myapp://…` link and `Reopened` for a launch without a link or a macOS Dock click, after the runner shows and focuses that window. Links pass through unchecked. `set_app_icon(png_or_jpeg)` sets the Dock icon on macOS and each window's icon on Windows and X11. Linux X11 is tested natively; macOS and Windows are compile-checked only. `cargo run -p lifecycle` shows them.
+
+### Browser (wasm32) text input and IME
+
+- While a text field has focus in the wasm32 WebGPU runner, rndr focuses a hidden `<textarea>` at the caret: keys still reach winit, composition becomes IME preedit and commit, and the browser `paste` event puts the other app's plain text and HTML on the clipboard before paste runs, without a permission prompt. Tested in Chrome on Linux only; the bundled fonts have no CJK glyphs. Other browsers are untested.
 
 ### Core, layout, paint, and the desktop runner
 
@@ -41,6 +51,13 @@ Workspace 0.5.0. `scripts/publish-crates.sh` uploads fifteen crates in this orde
 - Linux screen-reader bounds use the window's outer position plus the window-relative surface offset.
 - A dragged file URI keeps its platform path. Windows `file://server/share/...` stays a UNC path. On Unix, `file:///C:/notes.txt` stays `/C:/notes.txt`, and a percent-encoded non-UTF-8 byte stays in the path.
 - Optional wasm32 WebGPU browser runner for `rndr_render` (`examples/web`). The example stays unpublished.
+
+### Dependencies and packaging
+
+- `pulldown-cmark` minimum raised to **0.13.6** (RUSTSEC-2026-0433). rndr's markdown parser never enabled `ENABLE_WIKILINKS`; the bump still clears the advisory.
+- Lockfile picks up non-yanked `clipboard-win` **5.4.3** (Windows `arboard` path) and `async-executor` **1.14.1** (Linux accesskit/tray/`zbus` path).
+- **Known limitation (Linux `browser` feature):** `glib` **0.18.5** remains via the pinned `gtk`/`webkit2gtk` **0.18** / **2.0.2** stack (`RUSTSEC-2024-0429`, unsound `VariantStrIter`). rndr_browser does not call `VariantStrIter` / `array_iter_str`. Whether transitive GTK/WebKit bindings reach those iterators is not proven here. There is no newer `webkit2gtk` release on the GTK 3 binding line that pulls `glib >= 0.20`. The optional facade `browser` feature stays off by default. Accepted for 0.5.0 with this disclosure; revisit when upstream WebKitGTK bindings move.
+- Packaging dry-run and CI derive `--exclude` and the expected archive set from publishable workspace packages, and reject both missing and unexpected archives (so unpublished examples such as `titlebar` cannot enter the upload set unnoticed).
 
 ## 0.4.0
 
