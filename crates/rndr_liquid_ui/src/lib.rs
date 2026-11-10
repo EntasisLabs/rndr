@@ -1,7 +1,8 @@
 //! Native rendering of [Liquid Markdown](rndr_liquid) in an rndr markdown view.
 //!
 //! [`liquid_view`] parses Liquid source, shows the ordinary markdown with
-//! [`rndr_core::markdown_view`], and mounts every Liquid block in a
+//! [`rndr_core::markdown_view`], and mounts each Liquid block in the visible
+//! window in a
 //! [markdown host slot](rndr_core::mount_markdown_slot) as `rndr_ui`
 //! surfaces and controls. Charts are painted with [`rndr_chart`].
 //!

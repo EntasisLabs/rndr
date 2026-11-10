@@ -23,8 +23,10 @@ pub enum MarkdownSlotError {
 /// `set_parent`, or mount a semantic UI component under `root`. The host owns
 /// descendant content/updates, not the root's layout or parent. Descendants
 /// still attached at removal die on detach, block replacement/removal, or view
-/// despawn; explicitly reparented descendants follow their new owner. No
-/// removal callbacks run.
+/// despawn; explicitly reparented descendants follow their new owner.
+/// [`MarkdownView::set_recycle_host_slots`] is the only path that releases a
+/// root without [`MarkdownSlot::detach`], and it tells [`MarkdownSlotHost`]
+/// first. `detach` itself does not.
 /// Copying a handle does not extend lifetime; methods validate it each time.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MarkdownSlot {
@@ -47,6 +49,12 @@ pub(super) struct Binding {
     end: usize,
     /// When true, [`measure_hosts`] replaces [`Self::height`] from the subtree.
     pub(super) measured: bool,
+    /// The root was released because the block left the window. The id and
+    /// measured height stay so the same slot can return.
+    pub(super) released: bool,
+    /// Skip the next measurement. A slot that just came back builds its
+    /// subtree during this sync, so the laid-out height is still the empty one.
+    pub(super) defer_measure: bool,
 }
 struct HostRoot;
 impl Component for HostRoot {}
@@ -140,6 +148,8 @@ pub fn mount_markdown_slot(
         start,
         end,
         measured: true,
+        released: false,
+        defer_measure: false,
     });
     doc.used_host_ids.insert(id);
     doc.hosts_dirty = true;
@@ -152,10 +162,9 @@ impl MarkdownSlot {
     pub fn is_mounted(self, world: &World) -> bool {
         world.get::<MarkdownView>(self.view).is_some_and(|doc| {
             !doc.dirty
-                && doc
-                    .hosts
-                    .iter()
-                    .any(|b| b.id == self.id && b.root == self.root && valid(world, doc, b))
+                && doc.hosts.iter().any(|b| {
+                    b.id == self.id && b.root == self.root && !b.released && valid(world, doc, b)
+                })
         })
     }
     /// Reserve a new content height without replacing descendants/state.
@@ -176,32 +185,121 @@ impl MarkdownSlot {
     /// Destroy this subtree now; ordinary markdown returns on the next sync.
     /// Host-owned application records/resources are not modified or destroyed.
     pub fn detach(self, world: &mut World) -> Result<(), MarkdownSlotError> {
-        if !world.is_alive(self.root) {
+        let (index, released) = {
+            let doc = world
+                .get::<MarkdownView>(self.view)
+                .ok_or(MarkdownSlotError::StaleHandle)?;
+            let index = doc
+                .hosts
+                .iter()
+                .position(|b| b.id == self.id && b.root == self.root)
+                .ok_or(MarkdownSlotError::StaleHandle)?;
+            (index, doc.hosts[index].released)
+        };
+        if !released && !world.is_alive(self.root) {
             return Err(MarkdownSlotError::StaleHandle);
         }
-        let doc = world
-            .get_mut::<MarkdownView>(self.view)
-            .ok_or(MarkdownSlotError::StaleHandle)?;
-        let index = doc
-            .hosts
-            .iter()
-            .position(|b| b.id == self.id && b.root == self.root)
-            .ok_or(MarkdownSlotError::StaleHandle)?;
+        let doc = world.get_mut::<MarkdownView>(self.view).unwrap();
         doc.hosts.remove(index);
         doc.hosts_dirty = true;
         despawn(world, self.root);
         Ok(())
     }
 }
-fn valid(world: &World, doc: &MarkdownView, binding: &Binding) -> bool {
-    world.is_alive(binding.root)
-        && binding.start != usize::MAX
+
+/// Told when a recycled host slot leaves the window and when it returns.
+///
+/// The [`MarkdownSlotId`] is the same one the host passed to
+/// [`mount_markdown_slot`]. The root is new on the way back in; descendants
+/// are gone and the host rebuilds them. `source` is the block's source byte
+/// start, so state can be stored by position rather than by a live entity.
+pub trait MarkdownSlotHost: Send + Sync {
+    /// The slot's block entered the visible window plus overscan.
+    fn slot_mounted(&mut self, world: &mut World, slot: MarkdownSlot, index: usize, source: usize);
+    /// The slot's block left that window. The root is still alive for this call.
+    fn slot_unmounted(
+        &mut self,
+        world: &mut World,
+        slot: MarkdownSlot,
+        index: usize,
+        source: usize,
+    );
+}
+
+/// Per-view [`MarkdownSlotHost`] values. Installed by [`set_markdown_slot_host`].
+#[derive(Default)]
+pub struct MarkdownSlotHosts {
+    hosts: std::collections::HashMap<Entity, Box<dyn MarkdownSlotHost>>,
+}
+
+/// Remove every host binding on `view`, including slots released offscreen.
+pub fn clear_markdown_slots(world: &mut World, view: Entity) {
+    let hosts = {
+        let Some(doc) = world.get_mut::<MarkdownView>(view) else {
+            return;
+        };
+        doc.hosts_dirty = true;
+        std::mem::take(&mut doc.hosts)
+    };
+    for binding in hosts {
+        despawn(world, binding.root);
+    }
+}
+
+/// Register `host` for `view`. A later call replaces the previous host.
+pub fn set_markdown_slot_host(
+    world: &mut World,
+    view: Entity,
+    host: impl MarkdownSlotHost + 'static,
+) {
+    if world.resource_mut::<MarkdownSlotHosts>().is_none() {
+        world.insert_resource(MarkdownSlotHosts::default());
+    }
+    world
+        .resource_mut::<MarkdownSlotHosts>()
+        .unwrap()
+        .hosts
+        .insert(view, Box::new(host));
+}
+
+fn notify(
+    world: &mut World,
+    view: Entity,
+    slot: MarkdownSlot,
+    index: usize,
+    source: usize,
+    mount: bool,
+) {
+    let Some(mut host) = world
+        .resource_mut::<MarkdownSlotHosts>()
+        .and_then(|hosts| hosts.hosts.remove(&view))
+    else {
+        return;
+    };
+    if mount {
+        host.slot_mounted(world, slot, index, source);
+    } else {
+        host.slot_unmounted(world, slot, index, source);
+    }
+    if let Some(hosts) = world.resource_mut::<MarkdownSlotHosts>() {
+        hosts.hosts.insert(view, host);
+    }
+}
+fn anchored(doc: &MarkdownView, binding: &Binding) -> bool {
+    binding.start != usize::MAX
         && doc.starts.get(binding.index) == Some(&binding.start)
         && doc.ends.get(binding.index) == Some(&binding.end)
         && doc
             .blocks
             .get(binding.index)
             .is_some_and(|block| same(block, &binding.block))
+}
+
+fn valid(world: &World, doc: &MarkdownView, binding: &Binding) -> bool {
+    if !anchored(doc, binding) {
+        return false;
+    }
+    binding.released || world.is_alive(binding.root)
 }
 
 /// Move anchors through the edit since the last sync, before the new parse.
@@ -255,6 +353,13 @@ pub(super) fn rebind(doc: &mut MarkdownView) {
 /// Replace measured slot heights from the previous layout of their children.
 pub(super) fn measure_hosts(world: &World, doc: &mut MarkdownView) {
     for binding in &mut doc.hosts {
+        if binding.released {
+            continue;
+        }
+        if binding.defer_measure {
+            binding.defer_measure = false;
+            continue;
+        }
         if !binding.measured {
             continue;
         }
@@ -350,6 +455,99 @@ fn only<'a>(mut found: impl Iterator<Item = (usize, &'a usize)>) -> Option<usize
 fn shift(value: usize, delta: isize) -> Option<usize> {
     let next = value as isize + delta;
     (next >= 0).then_some(next as usize)
+}
+
+pub(super) fn recycle(
+    world: &mut World,
+    view: Entity,
+    doc: &mut MarkdownView,
+    range: std::ops::Range<usize>,
+) {
+    if !doc.recycle_hosts {
+        return;
+    }
+    let release: Vec<_> = doc
+        .hosts
+        .iter()
+        .filter(|binding| !binding.released && !range.contains(&binding.index))
+        .map(|binding| binding.id)
+        .collect();
+    for id in release {
+        release_one(world, view, doc, id);
+    }
+    let realize: Vec<_> = doc
+        .hosts
+        .iter()
+        .filter(|binding| binding.released && range.contains(&binding.index))
+        .map(|binding| binding.id)
+        .collect();
+    for id in realize {
+        realize_one(world, view, doc, id);
+    }
+}
+
+fn release_one(world: &mut World, view: Entity, doc: &mut MarkdownView, id: MarkdownSlotId) {
+    let Some(binding) = doc.hosts.iter_mut().find(|binding| binding.id == id) else {
+        return;
+    };
+    if binding.height <= 0.0 {
+        if let Some(height) = content_height(world, binding.root) {
+            binding.height = height;
+        }
+    }
+    let index = binding.index;
+    let source = binding.start;
+    let root = binding.root;
+    let height = binding.height;
+    if height > 0.0 {
+        if let Some(slot) = doc.heights.get_mut(index) {
+            *slot = height + super::trail_after(&doc.blocks, index);
+        }
+        if let Some(measured) = doc.measured.get_mut(index) {
+            *measured = true;
+        }
+    }
+    let slot = MarkdownSlot { view, id, root };
+    notify(world, view, slot, index, source, false);
+    despawn(world, root);
+    if let Some(binding) = doc.hosts.iter_mut().find(|binding| binding.id == id) {
+        binding.released = true;
+    }
+}
+
+fn realize_one(world: &mut World, view: Entity, doc: &mut MarkdownView, id: MarkdownSlotId) {
+    let Some(binding) = doc.hosts.iter().find(|binding| binding.id == id) else {
+        return;
+    };
+    let index = binding.index;
+    let source = binding.start;
+    let height = binding.height;
+    let root = world.spawn((
+        Layout {
+            width: Size::Fill,
+            height: if height > 0.0 {
+                Size::Px(height)
+            } else {
+                Size::Hug
+            },
+            ..Layout::column()
+        },
+        HostRoot,
+    ));
+    set_parent(world, root, view);
+    if let Some(binding) = doc.hosts.iter_mut().find(|binding| binding.id == id) {
+        binding.root = root;
+        binding.released = false;
+        binding.defer_measure = true;
+    }
+    notify(
+        world,
+        view,
+        MarkdownSlot { view, id, root },
+        index,
+        source,
+        true,
+    );
 }
 
 pub(super) fn retire_stale(world: &mut World, doc: &mut MarkdownView) {

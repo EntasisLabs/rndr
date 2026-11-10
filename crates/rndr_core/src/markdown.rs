@@ -6,7 +6,10 @@
 //! label for a paragraph, heading, or list item, a monospace label on a
 //! distinct fill for a fenced block, a bar beside a quote, and a thin rect for
 //! a rule. A block scrolled out of that window is not an entity and is not
-//! shaped. A mounted host root stays alive offscreen and is not recycled.
+//! shaped. A mounted host root stays alive offscreen unless
+//! [`MarkdownView::set_recycle_host_slots`] is on. That policy releases a slot
+//! outside the visible window plus overscan, keeps its measured height, and
+//! asks the host to mount the same [`MarkdownSlotId`] again when it returns.
 //! Inline bold, italic, code, and links are [`TextSpan`]s.
 //! A link click sends [`LinkActivated`] during Input. The view does not open
 //! the destination.
@@ -75,7 +78,10 @@
 //! it, a code block is one color.
 
 mod host;
-pub use host::{mount_markdown_slot, MarkdownSlot, MarkdownSlotError, MarkdownSlotId};
+pub use host::{
+    clear_markdown_slots, mount_markdown_slot, set_markdown_slot_host, MarkdownSlot,
+    MarkdownSlotError, MarkdownSlotHost, MarkdownSlotHosts, MarkdownSlotId,
+};
 
 use std::borrow::Cow;
 use std::collections::hash_map::DefaultHasher;
@@ -308,7 +314,8 @@ impl Component for MarkerGap {}
 /// Build one with [`markdown_view`] and add [`MarkdownPlugin`]. The source
 /// stays as given. [`Self::push_str`] appends. The block list is the whole
 /// document. Child entities are only the visible window plus overscan, and
-/// they are recycled as it moves. A mounted host root is not recycled.
+/// they are recycled as it moves. A mounted host root stays mounted offscreen
+/// unless [`Self::set_recycle_host_slots`] is set.
 pub struct MarkdownView {
     source: String,
     blocks: Vec<MarkdownBlock>,
@@ -329,6 +336,8 @@ pub struct MarkdownView {
     synced_source: String,
     used_host_ids: std::collections::HashSet<MarkdownSlotId>,
     hosts_dirty: bool,
+    /// Release host roots that leave the visible window plus overscan.
+    recycle_hosts: bool,
     style_key: u64,
     theme: MarkdownTheme,
     width: f32,
@@ -359,6 +368,7 @@ impl MarkdownView {
             synced_source: String::new(),
             used_host_ids: Default::default(),
             hosts_dirty: false,
+            recycle_hosts: false,
             style_key: 0,
             theme: MarkdownTheme::default(),
             width: 0.0,
@@ -412,6 +422,24 @@ impl MarkdownView {
     /// A new view follows. [`Self::set_follow`] changes it.
     pub fn follow(&self) -> bool {
         self.follow
+    }
+
+    /// Release host slots that scroll out of the visible window plus overscan.
+    ///
+    /// Off by default: a mounted root stays alive anywhere in the document.
+    /// When on, the last measured height remains, so the scroll extent does
+    /// not jump, and [`set_markdown_slot_host`] hears the same slot id leave
+    /// and return.
+    pub fn set_recycle_host_slots(&mut self, enabled: bool) {
+        self.recycle_hosts = enabled;
+        if enabled {
+            self.hosts_dirty = true;
+        }
+    }
+
+    /// Whether offscreen host slots are released.
+    pub fn recycle_host_slots(&self) -> bool {
+        self.recycle_hosts
     }
 
     /// Turn bottom pinning on or off.
@@ -765,6 +793,32 @@ fn prefix_sums(doc: &MarkdownView) -> Vec<f32> {
     prefix
 }
 
+/// Blocks currently realized: the visible window plus overscan, or every
+/// block when host recycling is off.
+pub fn markdown_realized_blocks(world: &World, view: Entity) -> std::ops::Range<usize> {
+    let Some(doc) = world.get::<MarkdownView>(view) else {
+        return 0..0;
+    };
+    if !doc.recycle_hosts {
+        return 0..doc.blocks.len();
+    }
+    let offset = world
+        .get::<Scroll>(view)
+        .map(|scroll| scroll.offset[1])
+        .unwrap_or(0.0);
+    let viewport = world
+        .get::<Rect>(view)
+        .map(|rect| rect.h)
+        .filter(|h| *h > 1.0)
+        .unwrap_or_else(|| {
+            world
+                .resource::<crate::input::Viewport>()
+                .map(|viewport| viewport.content_height())
+                .unwrap_or(640.0)
+        });
+    block_window(&prefix_sums(doc), offset, viewport)
+}
+
 fn block_window(prefix: &[f32], offset: f32, viewport: f32) -> std::ops::Range<usize> {
     let count = prefix.len().saturating_sub(1);
     if count == 0 {
@@ -873,6 +927,7 @@ fn reconcile(
     }
     prefix = prefix_sums(doc);
     range = block_window(&prefix, offset, viewport);
+    host::recycle(world, view, doc, range.clone());
     let mut kept = std::collections::HashMap::<u32, Slot>::new();
     let mut free = Vec::new();
     for slot in std::mem::take(&mut doc.slots) {
@@ -902,7 +957,11 @@ fn reconcile(
         let trail = trail_after(&doc.blocks, index);
         let outer = block_outer(doc, index);
         let content = (outer - trail).max(1.0);
-        if let Some(binding) = doc.hosts.iter().find(|host| host.index == index) {
+        if let Some(binding) = doc
+            .hosts
+            .iter()
+            .find(|host| host.index == index && !host.released && world.is_alive(host.root))
+        {
             let root = binding.root;
             let height = if binding.measured && binding.height <= 0.0 {
                 Size::Hug

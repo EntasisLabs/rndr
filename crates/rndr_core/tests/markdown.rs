@@ -348,6 +348,89 @@ fn a_mounted_host_stays_alive_when_scrolled_offscreen() {
     assert!(children_of(app.world(), view).contains(&root));
 }
 
+#[test]
+fn recycling_releases_an_offscreen_host_and_restores_the_same_slot() {
+    let mut source = String::new();
+    for index in 0..80 {
+        if index > 0 {
+            source.push_str("\n\n");
+        }
+        source.push_str(&format!("Host block {index} alpha."));
+    }
+    let (mut app, view) = boot(&source, 640.0, 180.0);
+    let expected = app.world().get::<MarkdownView>(view).unwrap().blocks()[0].clone();
+    let slot = rndr_core::mount_markdown_slot(
+        app.world_mut(),
+        view,
+        0,
+        &expected,
+        rndr_core::MarkdownSlotId(7),
+    )
+    .unwrap();
+    slot.set_height(app.world_mut(), 96.0).unwrap();
+    let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    rndr_core::set_markdown_slot_host(
+        app.world_mut(),
+        view,
+        SlotWatch {
+            seen: std::sync::Arc::clone(&seen),
+        },
+    );
+    app.update();
+    let content = app.world().get::<rndr_core::Scroll>(view).unwrap().content[1];
+    let root = slot.root;
+    assert!(slot.is_mounted(app.world()));
+    app.world_mut()
+        .get_mut::<MarkdownView>(view)
+        .unwrap()
+        .set_recycle_host_slots(true);
+    app.update();
+    assert!(
+        !app.world().is_alive(root),
+        "a host outside the window is released"
+    );
+    assert!(!slot.is_mounted(app.world()));
+    let released = app.world().get::<rndr_core::Scroll>(view).unwrap().content[1];
+    assert!(
+        (released - content).abs() < 0.5,
+        "scroll extent moved from {content} to {released}"
+    );
+    {
+        let input = app.world_mut().resource_mut::<Input>().unwrap();
+        input.pointer.position = [24.0, 24.0];
+        input.scroll = [0.0, 100_000.0];
+    }
+    app.update();
+    let log = seen.lock().unwrap().clone();
+    assert!(
+        log.iter().any(|(mount, id, _)| !*mount && *id == 7),
+        "unmount kept the slot id: {log:?}"
+    );
+    let restored = log.iter().rev().find(|(mount, id, _)| *mount && *id == 7);
+    let Some((_, _, entity)) = restored else {
+        panic!("slot 7 did not mount again: {log:?}");
+    };
+    assert_ne!(*entity, root);
+    assert!(app.world().is_alive(*entity));
+    assert!(children_of(app.world(), view).contains(entity));
+}
+
+struct SlotWatch {
+    seen: std::sync::Arc<std::sync::Mutex<Vec<(bool, u64, Entity)>>>,
+}
+
+impl rndr_core::MarkdownSlotHost for SlotWatch {
+    fn slot_mounted(&mut self, _: &mut World, slot: rndr_core::MarkdownSlot, _: usize, _: usize) {
+        self.seen.lock().unwrap().push((true, slot.id.0, slot.root));
+    }
+    fn slot_unmounted(&mut self, _: &mut World, slot: rndr_core::MarkdownSlot, _: usize, _: usize) {
+        self.seen
+            .lock()
+            .unwrap()
+            .push((false, slot.id.0, slot.root));
+    }
+}
+
 fn block_height(world: &World, view: Entity) -> f32 {
     world.get::<Rect>(block_label(world, view, 0)).unwrap().h
 }
