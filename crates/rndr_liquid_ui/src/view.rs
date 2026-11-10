@@ -559,7 +559,7 @@ fn interaction_of(act: &Act, state: &BlockState) -> Option<(LiquidInteraction, S
         )),
         Act::Check(index) => Some((LiquidInteraction::Edit, index.to_string())),
         Act::Prev | Act::Next => Some((LiquidInteraction::Select, state.selected.to_string())),
-        Act::Host(_) | Act::Timer { .. } => None,
+        Act::Host(_) | Act::Timer { .. } | Act::FeedRefresh { .. } => None,
     }
 }
 
@@ -649,6 +649,7 @@ pub fn dispatch(world: &mut World, request: &ActionIntent) -> bool {
     match act {
         Act::Host(event) => emit(world, event),
         Act::Timer { step, action } => drive_timer(world, root, step, action),
+        Act::FeedRefresh { instance } => crate::feed::refresh(world, root, &instance),
         act => {
             if let Some(state) = world.get_mut::<BlockState>(root) {
                 state.apply(&act);

@@ -46,6 +46,8 @@ pub enum LiquidInteraction {
     TimerReset,
     /// A recipe timer reached zero.
     TimerComplete,
+    /// A feed or dashboard tile started or finished a reload.
+    FeedRefresh,
 }
 
 impl LiquidInteraction {
@@ -60,6 +62,7 @@ impl LiquidInteraction {
             Self::TimerPause => "timer_pause",
             Self::TimerReset => "timer_reset",
             Self::TimerComplete => "timer_complete",
+            Self::FeedRefresh => "feed_refresh",
         }
     }
 }
@@ -87,6 +90,43 @@ pub enum LiquidComponentState {
         /// Item index.
         selected: usize,
     },
+    /// Async feed and dashboard-tile loads for one block.
+    Feeds {
+        /// One entry per feed id or tile id.
+        slots: Vec<FeedSlot>,
+    },
+}
+
+/// Where an async feed load is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FeedPhase {
+    /// No last-good body yet, and a load is running.
+    Loading,
+    /// The latest load succeeded.
+    Ready,
+    /// The latest load failed and there is no body to keep.
+    Error,
+    /// A later load failed or is still running, and the previous body is kept.
+    Stale,
+}
+
+/// One feed or tile inside [`LiquidComponentState::Feeds`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FeedSlot {
+    /// Feed id, or dashboard tile id.
+    pub instance: String,
+    /// Feed id the host was asked to load.
+    pub feed_id: String,
+    /// `md`, `text`, `json`, `csv`, or `image`.
+    pub datatype: String,
+    /// Load phase.
+    pub phase: FeedPhase,
+    /// Last successful body.
+    pub body: Option<String>,
+    /// Latest failure, when [`Self::phase`] is [`FeedPhase::Error`] or [`FeedPhase::Stale`].
+    pub error: Option<String>,
+    /// A load is still running.
+    pub inflight: bool,
 }
 
 /// One persisted component record.
@@ -292,5 +332,6 @@ fn component_type_of(state: &LiquidComponentState) -> &'static str {
         LiquidComponentState::Tabs { .. } => "tabs",
         LiquidComponentState::Checklist { .. } => "checklist",
         LiquidComponentState::Selection { .. } => "selection",
+        LiquidComponentState::Feeds { .. } => "feed",
     }
 }

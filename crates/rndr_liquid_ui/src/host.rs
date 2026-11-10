@@ -38,6 +38,89 @@ pub enum LiquidEvent {
     },
 }
 
+/// The five feed bodies Medousa's Liquid fence accepts.
+///
+/// `md`, `text`, `json`, `csv`, and `image`, matching the parser and
+/// Medousa's `FeedDatatype`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FeedDatatype {
+    /// Markdown body.
+    Md,
+    /// Plain text.
+    Text,
+    /// JSON text.
+    Json,
+    /// Comma-separated rows.
+    Csv,
+    /// Image source, passed to [`LiquidHost::image`].
+    Image,
+}
+
+impl FeedDatatype {
+    /// Parse a fence `datatype` value.
+    pub fn parse(raw: &str) -> Option<Self> {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "md" => Some(Self::Md),
+            "text" => Some(Self::Text),
+            "json" => Some(Self::Json),
+            "csv" => Some(Self::Csv),
+            "image" => Some(Self::Image),
+            _ => None,
+        }
+    }
+
+    /// Fence spelling.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Md => "md",
+            Self::Text => "text",
+            Self::Json => "json",
+            Self::Csv => "csv",
+            Self::Image => "image",
+        }
+    }
+}
+
+/// What the renderer asks the host to load.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FeedRequest {
+    /// Feed id from the fence.
+    pub feed_id: String,
+    /// Expected body kind.
+    pub datatype: FeedDatatype,
+    /// Dashboard field path, when this request is for one tile.
+    pub field: Option<String>,
+    /// Stable child id: the feed id, or the dashboard tile id.
+    pub instance: String,
+}
+
+/// A loaded feed body. The host owns how it was fetched.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FeedBody {
+    /// Kind of `body`.
+    pub datatype: FeedDatatype,
+    /// Raw payload. Empty is a successful empty feed.
+    pub body: String,
+}
+
+/// Result of one [`LiquidHost::load_feed`] call.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum FeedOutcome {
+    /// This host has no async loader. The renderer uses [`LiquidHost::feed`]
+    /// or [`LiquidHost::tile`].
+    #[default]
+    Defer,
+    /// The load is still running. Call again on a later frame.
+    Pending,
+    /// A finished payload. Replaces the last good body.
+    Ready(FeedBody),
+    /// The load failed. A previous body is kept and shown as stale.
+    Failed {
+        /// Host message. Shown next to the last good body when one exists.
+        message: String,
+    },
+}
+
 /// An image the host has loaded for a `media`, `card` or `plan` source.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LiquidImage {
@@ -86,6 +169,17 @@ pub trait LiquidHost: Send + Sync {
     fn tile(&mut self, world: &mut World, feed_id: &str, field: Option<&str>) -> Option<String> {
         let _ = (world, feed_id, field);
         None
+    }
+
+    /// Async feed load. The default defers to [`Self::feed`] and [`Self::tile`].
+    ///
+    /// Return [`FeedOutcome::Pending`] until the bytes are ready, then
+    /// [`FeedOutcome::Ready`] or [`FeedOutcome::Failed`]. The renderer does
+    /// not open a network connection. A later failure keeps the last ready
+    /// body.
+    fn load_feed(&mut self, world: &mut World, request: &FeedRequest) -> FeedOutcome {
+        let _ = (world, request);
+        FeedOutcome::Defer
     }
 }
 

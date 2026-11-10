@@ -1,5 +1,6 @@
 //! One retained subtree per Liquid block, built from `rndr_ui` parts.
 use crate::chart;
+use crate::host::FeedDatatype;
 use crate::state::LiquidComponentState;
 use crate::view::{nested, with_host, BlockRoot};
 use crate::{LiquidEvent, LiquidImage};
@@ -21,6 +22,11 @@ pub(crate) enum Act {
     Timer {
         step: usize,
         action: crate::timer::LiquidTimerAction,
+    },
+    /// Reload one feed or dashboard tile through the host loader.
+    FeedRefresh {
+        /// Feed id or tile id.
+        instance: String,
     },
 }
 
@@ -61,7 +67,7 @@ impl BlockState {
                     self.checked.insert(i);
                 }
             }
-            Act::Host(_) | Act::Timer { .. } => {}
+            Act::Host(_) | Act::Timer { .. } | Act::FeedRefresh { .. } => {}
         }
     }
 
@@ -153,6 +159,7 @@ impl BlockState {
             LiquidComponentState::Checklist { checked } => {
                 self.checked = checked.iter().copied().collect();
             }
+            LiquidComponentState::Feeds { .. } => {}
         }
         self.ready = true;
     }
@@ -382,6 +389,54 @@ impl Cx<'_> {
     fn heading(&mut self, parent: Entity, title: &Option<String>, subtitle: &Option<String>) {
         self.opt(parent, title, Typography::Heading);
         self.opt(parent, subtitle, Typography::Secondary);
+    }
+
+    fn paint_feed(&mut self, parent: Entity, slot: &crate::state::FeedSlot, empty: &str) {
+        if slot.inflight && slot.body.as_ref().is_none_or(|body| body.is_empty()) {
+            self.text(parent, "Loading feed…", Typography::Secondary);
+            return;
+        }
+        if slot.inflight {
+            self.text(parent, "Refreshing…", Typography::Secondary);
+        }
+        if let Some(error) = slot.error.as_deref() {
+            self.text(
+                parent,
+                &format!("Feed error: {error}"),
+                Typography::Secondary,
+            );
+        }
+        let Some(body) = slot.body.as_deref().filter(|body| !body.is_empty()) else {
+            self.text(parent, empty, Typography::Secondary);
+            return;
+        };
+        match slot.datatype.as_str() {
+            "md" => self.markdown(parent, body),
+            "json" => {
+                let _ = text(self.world, parent, body, Typography::Code);
+            }
+            "csv" => {
+                for line in body.lines() {
+                    let cells: Vec<&str> = line
+                        .split(',')
+                        .map(str::trim)
+                        .filter(|cell| !cell.is_empty())
+                        .collect();
+                    if cells.is_empty() {
+                        continue;
+                    }
+                    let row = self.row(parent);
+                    for cell in cells {
+                        self.text(row, cell, Typography::Reading);
+                    }
+                }
+            }
+            "image" => {
+                self.text(parent, body, Typography::Secondary);
+                self.image(parent, body, Some(body), 120.0);
+            }
+            _ => self.text(parent, body, Typography::Reading),
+        }
     }
 
     fn image(&mut self, parent: Entity, src: &str, alt: Option<&str>, height: f32) -> bool {
@@ -665,21 +720,46 @@ impl Cx<'_> {
                     p.title.as_deref().unwrap_or(&p.feed_id),
                     Typography::Heading,
                 );
-                let act = Act::Host(LiquidEvent::RefreshFeed {
+                let datatype = FeedDatatype::parse(&p.datatype).unwrap_or(FeedDatatype::Text);
+                let spec = crate::feed::Spec {
+                    instance: p.feed_id.clone(),
                     feed_id: p.feed_id.clone(),
-                });
-                self.button(row, "Refresh", ButtonVariant::Quiet, act);
-                let (id, kind) = (p.feed_id.clone(), p.datatype.clone());
-                let rows = with_host(self.world, |host, world| host.feed(world, &id, &kind));
-                if rows.is_empty() {
-                    let empty = filled(&p.empty).unwrap_or("Nothing here yet.").to_string();
-                    self.text(parent, &empty, Typography::Secondary);
-                }
-                for entry in rows {
-                    let s = self.surface(parent);
-                    self.text(s, &entry.title, Typography::Emphasis);
-                    self.opt(s, &entry.detail, Typography::Reading);
-                    self.opt(s, &entry.meta, Typography::Secondary);
+                    datatype,
+                    field: None,
+                    autoload: p.refresh.as_deref() != Some("manual"),
+                    interval_ms: None,
+                };
+                let empty = filled(&p.empty)
+                    .unwrap_or("No feed output yet.")
+                    .to_string();
+                match crate::feed::ensure(self.world, self.root, spec) {
+                    crate::feed::Shown::Sync(rows) => {
+                        let act = Act::Host(LiquidEvent::RefreshFeed {
+                            feed_id: p.feed_id.clone(),
+                        });
+                        self.button(row, "Refresh", ButtonVariant::Quiet, act);
+                        if rows.is_empty() {
+                            let empty = filled(&p.empty).unwrap_or("Nothing here yet.").to_string();
+                            self.text(parent, &empty, Typography::Secondary);
+                        }
+                        for entry in rows {
+                            let s = self.surface(parent);
+                            self.text(s, &entry.title, Typography::Emphasis);
+                            self.opt(s, &entry.detail, Typography::Reading);
+                            self.opt(s, &entry.meta, Typography::Secondary);
+                        }
+                    }
+                    crate::feed::Shown::Live(slot) => {
+                        self.button(
+                            row,
+                            "Refresh",
+                            ButtonVariant::Quiet,
+                            Act::FeedRefresh {
+                                instance: p.feed_id.clone(),
+                            },
+                        );
+                        self.paint_feed(parent, &slot, &empty);
+                    }
                 }
             }
         }
@@ -764,13 +844,50 @@ impl Cx<'_> {
             for tile in chunk {
                 let s = self.surface(row);
                 self.text(s, &tile.label, Typography::Secondary);
-                let live = tile.feed.as_deref().and_then(|feed| {
-                    let (feed, field) = (feed.to_string(), tile.field.clone());
-                    with_host(self.world, |host, world| {
-                        host.tile(world, &feed, field.as_deref())
-                    })
-                });
-                let value = live.unwrap_or_else(|| tile.value.clone());
+                let value = if let Some(feed) = tile.feed.as_deref() {
+                    let spec = crate::feed::Spec {
+                        instance: tile.id.clone(),
+                        feed_id: feed.to_string(),
+                        datatype: FeedDatatype::Text,
+                        field: tile.field.clone(),
+                        autoload: true,
+                        interval_ms: crate::feed::tile_interval(tile),
+                    };
+                    match crate::feed::ensure(self.world, self.root, spec) {
+                        crate::feed::Shown::Sync(_) => tile.feed.as_deref().and_then(|feed| {
+                            let (feed, field) = (feed.to_string(), tile.field.clone());
+                            with_host(self.world, |host, world| {
+                                host.tile(world, &feed, field.as_deref())
+                            })
+                        }),
+                        crate::feed::Shown::Live(slot) => {
+                            if slot.inflight && slot.body.is_none() {
+                                self.text(s, "Loading feed…", Typography::Secondary);
+                            }
+                            if let Some(error) = slot.error.as_deref() {
+                                self.text(
+                                    s,
+                                    &format!("Feed error: {error}"),
+                                    Typography::Secondary,
+                                );
+                            }
+                            if crate::feed::tile_manual(tile) {
+                                self.button(
+                                    s,
+                                    &format!("Refresh {}", tile.label),
+                                    ButtonVariant::Quiet,
+                                    Act::FeedRefresh {
+                                        instance: tile.id.clone(),
+                                    },
+                                );
+                            }
+                            slot.body.clone().filter(|body| !body.is_empty())
+                        }
+                    }
+                } else {
+                    None
+                };
+                let value = value.unwrap_or_else(|| tile.value.clone());
                 let value = match filled(&tile.unit) {
                     Some(u) => format!("{value} {u}"),
                     None => value,

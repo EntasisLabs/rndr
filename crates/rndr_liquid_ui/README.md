@@ -37,9 +37,10 @@ a `LiquidHost`, and every method defaults to doing nothing:
 | `event(LiquidEvent::Copy)` | the copy button of `code` blocks |
 | `event(LiquidEvent::StartTimer)` | recipe steps with a duration |
 | `event(LiquidEvent::RefreshFeed)` | the refresh button of `feed` blocks |
+| `load_feed(request)` | async `feed` and dashboard-tile loads; `Pending` until ready or failed |
 | `image(src)` | `media`, `card` and `plan` images; `None` shows alt text |
-| `feed(id, datatype)` | `feed` rows, on mount and after `refresh` |
-| `tile(feed, field)` | live values for feed-bound `dashboard` tiles |
+| `feed(id, datatype)` | sync `feed` rows when `load_feed` defers |
+| `tile(feed, field)` | sync values for feed-bound `dashboard` tiles when `load_feed` defers |
 
 Intents, URLs and image sources are untrusted document text. Host slots are
 for trusted application content, so render documents you would also let
@@ -62,6 +63,13 @@ or stays paused while the recipe is scrolled offscreen. Start, pause, reset
 and completion are `LiquidInteractionEnvelope` events (`timer_start`,
 `timer_pause`, `timer_reset`, `timer_complete`). Start still also reports
 `LiquidEvent::StartTimer`.
+`load_feed` is the async path for `md`, `text`, `json`, `csv`, and `image`
+feeds. `Pending` shows a loading line. A later failure keeps the last ready
+body and shows the error beside it. Dashboard tiles with a `feed` poll on
+an interval (15s unless `interval:` says otherwise) and can be refreshed
+by hand. Those records use the same source-keyed component state as the
+other blocks, and a reload publishes `feed_refresh`.
+
 `push_liquid_str` appends source and reparses only the open tail, so a
 finished block is built once and keeps that state. `set_liquid_source` does
 the same when the new source extends the current one, and on any other
