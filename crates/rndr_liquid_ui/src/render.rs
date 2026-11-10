@@ -26,7 +26,7 @@ pub(crate) struct Actions(pub HashMap<Entity, Act>);
 impl Component for Actions {}
 
 /// Reader state that survives a rebuild of the block.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(crate) struct BlockState {
     ready: bool,
     single: bool,
@@ -112,14 +112,17 @@ pub(crate) fn rebuild(world: &mut World, root: Entity) {
     let Some(BlockRoot { blocks, index }) = world.get::<BlockRoot>(root).cloned() else {
         return;
     };
-    let Some(block) = blocks.get(index) else {
+    let Some(block) = blocks.get(index).cloned() else {
         return;
     };
+    if !matches!(block, LiquidBlock::Chart(_)) {
+        chart::release(world, root);
+    }
     for child in children_of(world, root) {
         despawn(world, child);
     }
     let mut state = world.remove::<BlockState>(root).unwrap_or_default();
-    state.init(block);
+    state.init(&block);
     if let Some(layout) = world.get_mut::<Layout>(root) {
         layout.gap = 8.0;
     }
@@ -131,10 +134,75 @@ pub(crate) fn rebuild(world: &mut World, root: Entity) {
         state,
         next: 1,
     };
-    cx.block(root, block);
+    cx.block(root, &block);
     let Cx { actions, state, .. } = cx;
     world.insert(root, actions);
     world.insert(root, state);
+}
+
+/// Marker on the stand-in for an unclosed Liquid fence.
+pub(crate) struct PendingMark;
+
+impl Component for PendingMark {}
+
+/// Show `lang` as a skeleton under `view`, or remove the skeleton.
+pub(crate) fn sync_pending(
+    world: &mut World,
+    view: Entity,
+    slot: &mut Option<Entity>,
+    lang: Option<&str>,
+) {
+    let Some(lang) = lang else {
+        if let Some(entity) = slot.take() {
+            if world.is_alive(entity) {
+                despawn(world, entity);
+            }
+        }
+        return;
+    };
+    let text_value = if lang.is_empty() {
+        "Pending block".to_string()
+    } else {
+        format!("Pending {lang}")
+    };
+    let entity = match *slot {
+        Some(entity) if world.is_alive(entity) => entity,
+        _ => {
+            let entity = world.spawn((
+                Layout {
+                    width: Size::Fill,
+                    height: Size::Hug,
+                    gap: 4.0,
+                    ..Layout::column()
+                },
+                PendingMark,
+            ));
+            set_parent(world, entity, view);
+            let _ = text(world, entity, &text_value, Typography::Secondary);
+            *slot = Some(entity);
+            entity
+        }
+    };
+    if let Some(label) = children_of(world, entity)
+        .into_iter()
+        .find(|child| world.has::<Label>(*child))
+    {
+        if let Some(label) = world.get_mut::<Label>(label) {
+            if label.text != text_value {
+                label.text = text_value;
+            }
+        }
+    }
+    let mut list = world
+        .get::<Children>(view)
+        .map(|children| children.list.clone())
+        .unwrap_or_default();
+    if list.last() != Some(&entity) {
+        list.retain(|child| *child != entity);
+        list.push(entity);
+        world.insert(view, Children { list });
+    }
+    world.insert(entity, Parent { entity: view });
 }
 
 /// Text with `{{icon:id}}` shortcodes removed. Icons have no glyphs here.

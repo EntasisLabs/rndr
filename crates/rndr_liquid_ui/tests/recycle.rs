@@ -158,6 +158,68 @@ fn tab_selected(world: &World, root: Entity) -> Option<u64> {
 }
 
 #[test]
+fn streaming_appends_keep_state_through_a_release() {
+    let (mut app, view) = boot("Intro.\n\n");
+    push_liquid_str(
+        app.world_mut(),
+        view,
+        "```accordion\ntitle: FAQ\n\n---\nlabel: One\nbody: First body\n---\nlabel: Two\nbody: Second body\n```\n\n",
+    );
+    rndr_paint::frame(&mut app);
+    rndr_paint::frame(&mut app);
+    press(&mut app, view, "+ One");
+    assert!(has(&app, view, "First body"));
+    push_liquid_str(app.world_mut(), view, &prose(80));
+    rndr_paint::frame(&mut app);
+    rndr_paint::frame(&mut app);
+    let bottom = {
+        let scroll = app.world().get::<Scroll>(view).unwrap();
+        let rect = app.world().get::<Rect>(view).unwrap();
+        (rect.h - scroll.content[1]).min(0.0)
+    };
+    scroll_to(&mut app, view, bottom);
+    assert!(
+        !has(&app, view, "First body"),
+        "the accordion left the window"
+    );
+    push_liquid_str(
+        app.world_mut(),
+        view,
+        "```callout\ntitle: Later\nbody: Appended while away.\n```\n\n",
+    );
+    rndr_paint::frame(&mut app);
+    rndr_paint::frame(&mut app);
+    scroll_to(&mut app, view, 0.0);
+    rndr_paint::frame(&mut app);
+    assert!(
+        has(&app, view, "− One"),
+        "accordion stayed open across the append"
+    );
+    assert!(has(&app, view, "First body"), "accordion body came back");
+    push_liquid_str(app.world_mut(), view, &prose(40));
+    rndr_paint::frame(&mut app);
+    rndr_paint::frame(&mut app);
+    assert!(
+        has(&app, view, "First body"),
+        "a later append kept the open accordion"
+    );
+    let mounted = app.world().get::<LiquidView>(view).unwrap().mounted().len();
+    let blocks = app
+        .world()
+        .get::<MarkdownView>(view)
+        .unwrap()
+        .blocks()
+        .len();
+    assert!(blocks > 80, "document stayed short: {blocks} blocks");
+    assert!(mounted < 20, "mounted {mounted} blocks after scrolling");
+    assert!(
+        layout_entities(&app) < 400,
+        "layout entities grew to {}",
+        layout_entities(&app)
+    );
+}
+
+#[test]
 fn a_markdown_host_without_the_policy_stays_mounted_offscreen() {
     let mut source = String::new();
     for index in 0..80 {

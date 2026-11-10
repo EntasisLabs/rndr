@@ -230,6 +230,173 @@ fn source_replacement_remounts_and_foreign_intents_are_ignored() {
     assert!(!dispatch(app.world_mut(), &request));
 }
 
+fn label_entity(world: &World, root: Entity, text: &str) -> Entity {
+    let mut all = Vec::new();
+    under(world, root, &mut all);
+    all.into_iter()
+        .find(|e| world.get::<Label>(*e).is_some_and(|l| l.text == text))
+        .unwrap_or_else(|| panic!("no {text:?}"))
+}
+
+const STATE: &str = "\
+```accordion
+title: FAQ
+
+---
+label: One
+body: First body
+---
+label: Two
+body: Second body
+```
+
+```carousel
+---
+title: Alpha
+---
+title: Beta
+```
+
+```slides
+---
+label: Deck one
+body: Slide one
+---
+label: Deck two
+body: Slide two
+```
+
+```steps
+title: Build
+
+---
+label: Mix
+body: Stir
+---
+label: Bake
+body: Heat
+```
+
+```tabs
+---
+label: One
+body: First panel
+---
+label: Two
+body: Second panel
+```
+";
+
+#[test]
+fn reader_state_survives_appends_and_unchanged_blocks() {
+    let (mut app, view) = setup(STATE, Recorder::default());
+    let has = |app: &App, text: &str| texts(app.world(), view).iter().any(|t| t == text);
+    assert!(press(&mut app, view, "+ Two"));
+    assert!(press(&mut app, view, "Next"));
+    assert!(press(&mut app, view, "Next"));
+    assert!(press(&mut app, view, "[ ]"));
+    let tab = label_entity(app.world(), view, "Two");
+    assert!(has(&app, "Second body"));
+    assert!(has(&app, "Beta"));
+    assert!(has(&app, "Deck two"));
+    assert!(has(&app, "[x]"));
+    let body = label_entity(app.world(), view, "Second body");
+    let beta = label_entity(app.world(), view, "Beta");
+    let slide = label_entity(app.world(), view, "Deck two");
+    let checked = label_entity(app.world(), view, "[x]");
+    let panel = label_entity(app.world(), view, "Second panel");
+    assert!(app.world().is_alive(tab));
+    push_liquid_str(app.world_mut(), view, "\n\nTail after the blocks.\n");
+    rndr_paint::frame(&mut app);
+    rndr_paint::frame(&mut app);
+    assert!(app.world().is_alive(body));
+    assert!(app.world().is_alive(beta));
+    assert!(app.world().is_alive(slide));
+    assert!(app.world().is_alive(checked));
+    assert!(app.world().is_alive(panel));
+    assert!(app.world().is_alive(tab));
+    assert!(has(&app, "Second body") && has(&app, "Beta") && has(&app, "Deck two"));
+    assert!(has(&app, "Tail after the blocks."));
+    let rewritten = STATE.replacen("FAQ", "Questions", 1);
+    set_liquid_source(app.world_mut(), view, &rewritten);
+    rndr_paint::frame(&mut app);
+    rndr_paint::frame(&mut app);
+    assert!(
+        has(&app, "Second body"),
+        "unchanged accordion lost its open item"
+    );
+    assert!(has(&app, "Beta"));
+    assert!(has(&app, "Deck two"));
+    assert!(has(&app, "[x]"));
+    assert!(has(&app, "Second panel"));
+}
+
+#[test]
+fn an_unclosed_fence_is_pending_until_it_closes() {
+    let (mut app, view) = setup("Before the fence.\n\n", Recorder::default());
+    push_liquid_str(app.world_mut(), view, "```callout\ntone: tip\nbody: Soon\n");
+    rndr_paint::frame(&mut app);
+    rndr_paint::frame(&mut app);
+    let md = app.world().get::<MarkdownView>(view).unwrap();
+    assert!(
+        md.blocks().iter().all(|block| {
+            !(matches!(block.kind, MarkdownKind::Code) && block.language == "callout")
+        }),
+        "open fence rendered as code: {:?}",
+        md.blocks()
+    );
+    let all = texts(app.world(), view);
+    assert!(all.iter().any(|t| t == "Pending callout"), "{all:?}");
+    assert!(!all.iter().any(|t| t == "Soon"), "{all:?}");
+    push_liquid_str(app.world_mut(), view, "```\n");
+    rndr_paint::frame(&mut app);
+    rndr_paint::frame(&mut app);
+    let all = texts(app.world(), view);
+    assert!(all.iter().any(|t| t == "Soon"), "{all:?}");
+    assert!(!all.iter().any(|t| t == "Pending callout"), "{all:?}");
+    assert_eq!(
+        app.world().get::<LiquidView>(view).unwrap().mounted(),
+        vec![0]
+    );
+}
+
+#[test]
+fn chart_paint_slots_are_not_leaked_across_rebuilds() {
+    let chart = "\
+```chart
+type: bar
+title: Users
+| Month | Users |
+|---|---|
+| Jan | 3 |
+| Feb | 4 |
+```
+";
+    let (mut app, view) = setup(chart, Recorder::default());
+    let slots = |app: &App| {
+        app.world()
+            .resource::<rndr_paint::CanvasRegistry>()
+            .map(|registry| registry.len())
+            .unwrap_or(0)
+    };
+    assert_eq!(slots(&app), 1);
+    for _ in 0..12 {
+        push_liquid_str(app.world_mut(), view, " more");
+        rndr_paint::frame(&mut app);
+        refresh(app.world_mut());
+        rndr_paint::frame(&mut app);
+    }
+    assert_eq!(slots(&app), 1, "append and refresh grew chart slots");
+    set_liquid_source(app.world_mut(), view, "No chart left.\n");
+    rndr_paint::frame(&mut app);
+    rndr_paint::frame(&mut app);
+    assert_eq!(slots(&app), 0, "removing the chart left its paint slot");
+    set_liquid_source(app.world_mut(), view, chart);
+    rndr_paint::frame(&mut app);
+    rndr_paint::frame(&mut app);
+    assert_eq!(slots(&app), 1, "a new chart did not reuse the freed slot");
+}
+
 #[test]
 fn feeds_and_tiles_come_from_the_host() {
     let host = Recorder {
