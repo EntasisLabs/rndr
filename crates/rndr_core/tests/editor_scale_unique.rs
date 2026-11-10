@@ -70,7 +70,7 @@ fn boot(text: &str) -> (App, Entity, Entity, DocumentId) {
 #[ignore = "opt-in release scale characterization; no timing threshold assertions"]
 fn unique_line_editor_costs() {
     println!(
-        "lines,bytes,cold_us,idle_p50,edit_tail_p50,resize_p50,scrollbar_geometry_us,paragraph_cache_bytes,row_geometry_bytes,visible_glyphs,label_bytes"
+        "lines,bytes,cold_us,idle_p50,edit_tail_p50,resize_p50,scrollbar_geometry_us,paragraph_cache_bytes,row_geometry_bytes,visible_glyphs,label_bytes,history_bytes,history_bytes_per_edit"
     );
     for lines in [2_000usize, 20_000, 80_000] {
         let text = source(lines);
@@ -158,14 +158,23 @@ fn unique_line_editor_costs() {
             "visible glyphs grew with the document: {visible}"
         );
         assert!(stats.row_geometry_bytes > label);
+        let history = app
+            .world()
+            .resource::<SourceDocuments>()
+            .unwrap()
+            .get(doc)
+            .unwrap()
+            .history_retained_bytes();
+        let edits = 5usize;
         println!(
-            "{lines},{},{cold},{},{},{},{geometry_us:.2},{},{},{visible},{label}",
+            "{lines},{},{cold},{},{},{},{geometry_us:.2},{},{},{visible},{label},{history},{}",
             text.len(),
             percentile(&mut idle, 5),
             percentile(&mut edit, 2),
             percentile(&mut resize, 1),
             stats.paragraph_cache_bytes,
-            stats.row_geometry_bytes
+            stats.row_geometry_bytes,
+            history / edits
         );
     }
 }

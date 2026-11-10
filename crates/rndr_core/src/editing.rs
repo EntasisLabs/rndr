@@ -218,7 +218,7 @@ pub const EVENT_LIMIT: usize = 256;
 pub struct SourceSession {
     id: DocumentId,
     revision: Revision,
-    text: String,
+    text: std::sync::Arc<String>,
     selection: SourceSelection,
     history: EditHistory,
     views: HashMap<Entity, SourceSelection>,
@@ -227,6 +227,11 @@ pub struct SourceSession {
     scroll_anchors: HashMap<Entity, usize>,
     /// Per-view whole-line folds in the current revision. Mapped with each commit.
     fold_ranges: HashMap<Entity, Vec<Range<usize>>>,
+    /// Bumps on every accepted text change. Views use it instead of a second document copy.
+    generation: u64,
+    /// Splices newer than a view's last projection, oldest first. Each entry's
+    /// generation is the document generation after that splice.
+    edits: Vec<(u64, Vec<SourceChange>)>,
     active_view: Option<Entity>,
     readonly: bool,
     pub(crate) policy_epoch: u64,
@@ -237,6 +242,67 @@ impl SourceSession {
     /// Exact current source.
     pub fn text(&self) -> &str {
         &self.text
+    }
+    /// Bytes retained by undo and redo steps, excluding the live document.
+    pub fn history_retained_bytes(&self) -> usize {
+        self.history.retained_bytes()
+    }
+    pub(crate) fn generation(&self) -> u64 {
+        self.generation
+    }
+    /// Forward splices applied after `generation`, in order. `None` when a step
+    /// was discarded and the view must reload the whole document.
+    pub(crate) fn edits_after(&self, generation: u64) -> Option<&[(u64, Vec<SourceChange>)]> {
+        if generation >= self.generation {
+            return Some(&[]);
+        }
+        let first = self.edits.first()?;
+        if first.0 > generation + 1 {
+            return None;
+        }
+        let start = self.edits.partition_point(|(gen, _)| *gen <= generation);
+        Some(&self.edits[start..])
+    }
+    /// Map a byte from `generation` through later splices. `None` if a step was dropped.
+    pub(crate) fn map_since(&self, generation: u64, at: usize) -> Option<usize> {
+        let edits = self.edits_after(generation)?;
+        let mut at = at;
+        for (_, changes) in edits {
+            at = SourceMap {
+                changes: changes.clone(),
+            }
+            .map(at, Affinity::After);
+        }
+        Some(at)
+    }
+    /// Tight changed span of the single splice since `generation`, as
+    /// `(old_start, old_end, new_end)`. `None` when more than one step is pending.
+    pub(crate) fn span_since(
+        &self,
+        generation: u64,
+        new_len: usize,
+    ) -> Option<(usize, usize, usize)> {
+        let edits = self.edits_after(generation)?;
+        if edits.is_empty() {
+            return Some((0, new_len, new_len));
+        }
+        if edits.len() != 1 {
+            return None;
+        }
+        let changes = &edits[0].1;
+        if changes.is_empty() {
+            return Some((0, new_len, new_len));
+        }
+        let old_lo = changes[0].range.start;
+        let old_hi = changes.last().unwrap().range.end;
+        let removed: usize = changes.iter().map(|change| change.range.len()).sum();
+        let inserted: usize = changes.iter().map(|change| change.replacement.len()).sum();
+        let old_len = new_len + removed - inserted;
+        let suffix = old_len.saturating_sub(old_hi);
+        Some((old_lo, old_hi, new_len.saturating_sub(suffix)))
+    }
+    pub(crate) fn share_text(&self) -> std::sync::Arc<String> {
+        std::sync::Arc::clone(&self.text)
     }
     /// Current revision.
     pub fn revision(&self) -> Revision {
@@ -431,7 +497,7 @@ impl SourceSession {
         SourceSnapshot {
             document: self.id,
             revision: self.revision,
-            text: self.text.clone(),
+            text: (*self.text).clone(),
         }
     }
     /// Drain ordered changes. No callback is invoked inside a commit.
@@ -481,19 +547,12 @@ impl SourceSession {
             .into_iter()
             .filter(|c| self.text[c.range.clone()] != c.replacement)
             .collect();
-        if changes.is_empty() {
-            return Ok(None);
-        }
-        let mut next = self.text.clone();
-        for c in changes.iter().rev() {
-            next.replace_range(c.range.clone(), &c.replacement);
-        }
-        if next == self.text {
+        if changes.is_empty() || net_noop(self.text.as_str(), &changes) {
             return Ok(None);
         }
         self.history.source_selections = Some(self.selections.clone());
         self.history.record_source_changes(
-            self.text.clone(),
+            &self.text,
             self.selection.head,
             self.selection.anchor,
             changes.clone(),
@@ -507,8 +566,11 @@ impl SourceSession {
         let map = SourceMap {
             changes: changes.clone(),
         };
-        for c in changes.iter().rev() {
-            self.text.replace_range(c.range.clone(), &c.replacement);
+        {
+            let text = std::sync::Arc::make_mut(&mut self.text);
+            for c in changes.iter().rev() {
+                text.replace_range(c.range.clone(), &c.replacement);
+            }
         }
         for at in self.scroll_anchors.values_mut() {
             *at = map.map(*at, Affinity::After);
@@ -517,6 +579,11 @@ impl SourceSession {
             *ranges = map_fold_ranges(&self.text, ranges, &map);
         }
         self.fold_ranges.retain(|_, ranges| !ranges.is_empty());
+        self.generation = self.generation.saturating_add(1);
+        self.edits.push((self.generation, changes.clone()));
+        if self.edits.len() > 64 {
+            self.edits.remove(0);
+        }
         for s in self.views.values_mut() {
             *s = snapped_selection(
                 &self.text,
@@ -558,33 +625,35 @@ impl SourceSession {
     }
     fn restore(&mut self, undo: bool) -> Result<Option<ChangeEvent>, EditError> {
         self.admit()?;
-        let old = self.text.clone();
         self.history.source_selections = Some(self.selections.clone());
-        let changes = crate::typing::restore(
-            &mut self.text,
-            &mut self.selection.head,
-            &mut self.selection.anchor,
+        let Some(plan) = crate::typing::plan_session_restore(
             &mut self.history,
+            &self.text,
+            self.selection.head,
+            self.selection.anchor,
             undo,
-        );
-        let next = std::mem::replace(&mut self.text, old);
-        if self.text == next {
+        ) else {
+            return Ok(None);
+        };
+        if plan
+            .changes
+            .iter()
+            .all(|change| self.text.get(change.range.clone()) == Some(change.replacement.as_str()))
+        {
             return Ok(None);
         }
-        let selection = self.selection;
-        let selections = self.history.source_selections.clone();
-        // apply maps current coordinates, not the restored snapshot's offsets.
+        // apply maps the selections that were current before this undo, then
+        // the history selection replaces them.
         self.selection = self.selections.primary();
-        let changes = changes.unwrap_or_else(|| vec![minimal_change(&self.text, &next)]);
         let event = self.apply(
-            changes,
+            plan.changes,
             if undo {
                 EditOrigin::Undo
             } else {
                 EditOrigin::Redo
             },
         );
-        self.select_many(selections.unwrap_or_else(|| SourceSelections::single(selection)));
+        self.select_many(plan.selections);
         self.history.trim_bytes(HISTORY_BYTES);
         Ok(Some(event))
     }
@@ -601,7 +670,7 @@ impl SourceSession {
         }
         self.admit()?;
         let next = text.into();
-        if self.text == next {
+        if self.text.as_str() == next {
             return Ok(None);
         }
         self.history = EditHistory::default();
@@ -690,7 +759,7 @@ impl SourceSession {
         for selection in before.ranges() {
             // Reuse native grapheme/word/chord semantics in the immutable base.
             // No per-caret history or mutation escapes this planning phase.
-            let mut text = self.text.clone();
+            let mut text = (*self.text).clone();
             let mut s = *selection;
             let mut history = EditHistory::default();
             apply_text_event(
@@ -826,14 +895,13 @@ impl SourceSession {
         if self.selections.ranges().len() > 1 && origin != EditOrigin::Ime {
             return self.native_multi_key(&event, platform, now, clip, origin);
         }
-        let old = self.text.clone();
         self.history.source_selections = Some(self.selections.clone());
         if origin == EditOrigin::Ime {
             self.history.break_run();
         }
         let step = apply_text_event(
             &mut EditSurface {
-                text: &mut self.text,
+                text: std::sync::Arc::make_mut(&mut self.text),
                 index: &mut self.selection.head,
                 anchor: &mut self.selection.anchor,
             },
@@ -847,13 +915,16 @@ impl SourceSession {
         if origin == EditOrigin::Ime {
             self.history.break_run();
         }
-        let next = std::mem::replace(&mut self.text, old);
         let selection = self.selection;
-        if self.text != next {
-            let change = self
-                .history
-                .take_native_change()
-                .expect("native mutation must retain its exact source operation");
+        if let Some((change, deleted)) = self.history.take_native_edit() {
+            let (inverse, _) =
+                crate::typing::invert_changes(std::slice::from_ref(&change), &[deleted]);
+            {
+                let text = std::sync::Arc::make_mut(&mut self.text);
+                for change in inverse.iter().rev() {
+                    text.replace_range(change.range.clone(), &change.replacement);
+                }
+            }
             self.apply(vec![change], origin);
         }
         self.select(selection);
@@ -1081,6 +1152,39 @@ mod multi_selection_tests {
     }
 }
 
+/// True when applying `changes` reproduces `text`. A single same-length splice
+/// compares only its own bytes. Several splices are compared when their net
+/// length is unchanged, which is how cancelling batches preserve redo.
+fn net_noop(text: &str, changes: &[SourceChange]) -> bool {
+    let removed: usize = changes.iter().map(|change| change.range.len()).sum();
+    let inserted: usize = changes.iter().map(|change| change.replacement.len()).sum();
+    if removed != inserted {
+        return false;
+    }
+    if changes.len() == 1 {
+        return text[changes[0].range.clone()] == changes[0].replacement;
+    }
+    let bytes = text.as_bytes();
+    let mut at = 0usize;
+    let mut src = 0usize;
+    for change in changes {
+        let gap = change.range.start - src;
+        if at + gap > bytes.len() || bytes[at..at + gap] != bytes[src..change.range.start] {
+            return false;
+        }
+        at += gap;
+        let replacement = change.replacement.as_bytes();
+        if at + replacement.len() > bytes.len() || bytes[at..at + replacement.len()] != *replacement
+        {
+            return false;
+        }
+        at += replacement.len();
+        src = change.range.end;
+    }
+    let tail = &bytes[src..];
+    at + tail.len() == bytes.len() && bytes[at..] == *tail
+}
+
 /// Invert exact base-coordinate splices, retaining unchanged interior gaps.
 pub(crate) fn inverse_changes(text: &str, changes: &[SourceChange]) -> Vec<SourceChange> {
     let mut inverse: Vec<SourceChange> = Vec::new();
@@ -1113,32 +1217,6 @@ fn snapped_selection(text: &str, s: SourceSelection) -> SourceSelection {
     }
 }
 
-pub(crate) fn minimal_change(before: &str, after: &str) -> SourceChange {
-    let mut start = before
-        .bytes()
-        .zip(after.bytes())
-        .take_while(|(a, b)| a == b)
-        .count();
-    while !before.is_char_boundary(start) || !after.is_char_boundary(start) {
-        start -= 1;
-    }
-    let mut suffix = before[start..]
-        .bytes()
-        .rev()
-        .zip(after[start..].bytes().rev())
-        .take_while(|(a, b)| a == b)
-        .count();
-    while !before.is_char_boundary(before.len() - suffix)
-        || !after.is_char_boundary(after.len() - suffix)
-    {
-        suffix -= 1;
-    }
-    SourceChange {
-        range: start..before.len() - suffix,
-        replacement: after[start..after.len() - suffix].to_string(),
-    }
-}
-
 /// Resource holding source documents independently of view entities.
 #[derive(Default)]
 pub struct SourceDocuments {
@@ -1152,7 +1230,7 @@ impl SourceDocuments {
             NEXT.try_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
                 .expect("document identity exhausted"),
         );
-        let text = text.into();
+        let text = std::sync::Arc::new(text.into());
         let selection = SourceSelection {
             anchor: text.len(),
             head: text.len(),
@@ -1170,6 +1248,8 @@ impl SourceDocuments {
                 view_selections: HashMap::new(),
                 scroll_anchors: HashMap::new(),
                 fold_ranges: HashMap::new(),
+                generation: 1,
+                edits: Vec::new(),
                 active_view: None,
                 readonly: false,
                 policy_epoch: 0,
@@ -1323,6 +1403,7 @@ pub fn detach_source(world: &mut World, entity: Entity) -> Result<(), EditError>
         }
     }
     world.remove::<SourceBinding>(entity);
+    crate::editor::forget_document_rows(world, entity);
     crate::source_folding::clear_source_folds(world, entity);
     world.remove::<crate::ImePreview>(entity);
     if world.resource::<Focus>().and_then(|f| f.entity) == Some(entity) {
@@ -1359,9 +1440,9 @@ pub(crate) fn sync_selection(world: &mut World, entity: Entity) {
     }
 }
 struct SourceProjection {
-    text: std::sync::Arc<str>,
     document: DocumentId,
     revision: Revision,
+    generation: u64,
 }
 impl crate::Component for SourceProjection {}
 
@@ -1381,25 +1462,32 @@ pub fn project_source(world: &mut World, entity: Entity) {
     let Some(s) = doc.view_selection(entity) else {
         return;
     };
-    let unchanged = world
+    let projected_generation = world
         .get::<SourceProjection>(entity)
-        .is_some_and(|projection| {
-            projection.document == b.document
-                && projection.revision == doc.revision
-                && b.revision == doc.revision
-                && world.get::<Buffer>(entity).is_some_and(|buffer| {
-                    std::sync::Arc::ptr_eq(&buffer.snapshot(), &projection.text)
-                })
-        });
+        .filter(|projection| projection.document == b.document)
+        .map(|projection| projection.generation)
+        .unwrap_or(0);
+    let coherent = world
+        .get::<Buffer>(entity)
+        .is_some_and(|buffer| buffer.is_coherent());
+    let unchanged =
+        projected_generation == doc.generation() && b.revision == doc.revision && coherent;
+    let edits = (!unchanged).then(|| {
+        doc.edits_after(projected_generation).map(|edits| {
+            edits
+                .iter()
+                .map(|(generation, changes)| (*generation, changes.clone()))
+                .collect::<Vec<_>>()
+        })
+    });
+    let text = (!unchanged).then(|| doc.share_text());
+    let revision = doc.revision;
+    let readonly = doc.readonly;
+    let generation = doc.generation();
     let mapped_anchor = world
         .get::<SourceProjection>(entity)
         .filter(|p| p.document == b.document && p.revision != doc.revision)
         .and_then(|_| doc.view_scroll_anchor(entity));
-    let (text, revision, readonly) = (
-        (!unchanged).then(|| doc.text.clone()),
-        doc.revision,
-        doc.readonly,
-    );
     if let Some(byte) = mapped_anchor {
         crate::editor::project_scroll_anchor(world, entity, byte);
     }
@@ -1425,24 +1513,41 @@ pub fn project_source(world: &mut World, entity: Entity) {
         binding.published_readonly = effective_readonly;
     }
     if let Some(buffer) = world.get_mut::<Buffer>(entity) {
-        if let Some(text) = &text {
-            crate::editor::replace_buffer(buffer, text, s.head, s.anchor);
-        } else {
+        if unchanged {
             buffer.caret = s.head;
             buffer.anchor = s.anchor;
+        } else if let Some(Some(edits)) = edits.as_ref() {
+            let final_len = text.as_ref().map(|text| text.len()).unwrap_or(0);
+            let mut len = final_len;
+            for (_, changes) in edits.iter().rev() {
+                let inserted: usize = changes.iter().map(|change| change.replacement.len()).sum();
+                let removed: usize = changes.iter().map(|change| change.range.len()).sum();
+                len = len + removed - inserted;
+            }
+            if !edits.is_empty() && buffer.len() == len {
+                for (_, changes) in edits {
+                    buffer.apply_changes(changes);
+                }
+                let len = buffer.len();
+                buffer.caret = s.head.min(len);
+                buffer.anchor = s.anchor.min(len);
+            } else if let Some(text) = &text {
+                crate::editor::replace_buffer(buffer, text.as_str(), s.head, s.anchor);
+            }
+            buffer.mark_coherent();
+        } else if let Some(text) = &text {
+            crate::editor::replace_buffer(buffer, text.as_str(), s.head, s.anchor);
+            buffer.mark_coherent();
         }
     }
-    if let Some(buffer) = world.get::<Buffer>(entity) {
-        let text = buffer.snapshot();
-        world.insert(
-            entity,
-            SourceProjection {
-                text,
-                document: b.document,
-                revision,
-            },
-        );
-    }
+    world.insert(
+        entity,
+        SourceProjection {
+            document: b.document,
+            revision,
+            generation,
+        },
+    );
     if let Some(binding) = world.get_mut::<SourceBinding>(entity) {
         binding.revision = revision;
         binding.selection = s;
