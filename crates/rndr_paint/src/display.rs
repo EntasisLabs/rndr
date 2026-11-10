@@ -651,6 +651,21 @@ impl CanvasRegistry {
     pub fn get(&self, slot: u64) -> Option<Arc<dyn CanvasPainter>> {
         self.painters.get(&slot).map(Arc::clone)
     }
+
+    /// Drop the painter for `slot`. Later frames draw that id empty.
+    pub fn remove(&mut self, slot: u64) -> bool {
+        self.painters.remove(&slot).is_some()
+    }
+
+    /// Number of painters currently stored.
+    pub fn len(&self) -> usize {
+        self.painters.len()
+    }
+
+    /// No painters stored.
+    pub fn is_empty(&self) -> bool {
+        self.painters.is_empty()
+    }
 }
 
 #[cfg(test)]

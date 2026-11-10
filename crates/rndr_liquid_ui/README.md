@@ -49,8 +49,17 @@ mount controls.
 
 Tabs, accordions, carousels, slides and checklists (`steps`, `recipe`,
 `kanban`) keep their state in the view and survive `refresh`.
-`set_liquid_source` rebuilds every block and resets that state. Checklist
+`push_liquid_str` appends source and reparses only the open tail, so a
+finished block is built once and keeps that state. `set_liquid_source` does
+the same when the new source extends the current one, and on any other
+replacement it keeps a block whose parsed source is unchanged. Checklist
 state is not written back to the source.
+
+An unclosed Liquid fence is a pending skeleton (`Pending callout`, and so
+on) until the closing line arrives. It is not shown as a code block.
+Pushing the fence into the markdown view directly, instead of through
+`push_liquid_str`, still leaves it as code: the markdown view does not know
+about Liquid.
 
 ## Current limits
 

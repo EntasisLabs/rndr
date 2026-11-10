@@ -10,7 +10,7 @@ use crate::kv::re;
 pub const BLOCK_TOKEN_DELIMITER: char = '\u{E001}';
 const DOC_SLOT: char = '\u{E000}';
 
-const PROSE_MISTAKEN_LANGS: &[&str] = &[
+pub(crate) const PROSE_MISTAKEN_LANGS: &[&str] = &[
     "code",
     "text",
     "plaintext",
@@ -133,16 +133,20 @@ pub fn looks_like_prose(body: &str) -> bool {
         || (SENTENCE_BREAK.is_match(t) && len > 48)
 }
 
-fn is_liquid_lang(lang: &str) -> bool {
+pub(crate) fn body_has_opener(body: &str) -> bool {
+    BODY_HAS_OPENER.is_match(body)
+}
+
+pub(crate) fn is_liquid_lang(lang: &str) -> bool {
     FENCE_LANGS.contains(&lang)
 }
 
-fn fence_open(line: &str) -> Option<(usize, String)> {
+pub(crate) fn fence_open(line: &str) -> Option<(usize, String)> {
     let caps = FENCE_OPEN.captures(line)?;
     Some((caps[1].len(), caps[2].to_lowercase()))
 }
 
-fn fence_close(line: &str, ticks: usize) -> bool {
+pub(crate) fn fence_close(line: &str, ticks: usize) -> bool {
     FENCE_CLOSE
         .captures(line)
         .is_some_and(|c| c[1].len() >= ticks)
@@ -387,7 +391,7 @@ fn normalize_icons(source: &str) -> String {
         .join("\n")
 }
 
-fn preprocess(source: &str, blocks: &mut Vec<LiquidBlock>) -> String {
+pub(crate) fn preprocess(source: &str, blocks: &mut Vec<LiquidBlock>) -> String {
     let normalized = source.replace("\r\n", "\n");
     let out = SOURCE_WHISPER.replace_all(&normalized, |caps: &regex::Captures| {
         format!("*Source: {}*", caps[1].trim())
