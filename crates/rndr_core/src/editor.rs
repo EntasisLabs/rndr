@@ -441,6 +441,8 @@ impl Component for EditorDrag {}
 
 #[path = "editor_geometry.rs"]
 mod geometry;
+#[path = "editor_index.rs"]
+mod index;
 
 /// Deterministic per-view geometry costs, separate from visible glyph publication.
 /// Counters accumulate until the view is destroyed. Retained byte counts include
@@ -458,20 +460,28 @@ pub struct EditorLayoutStats {
     pub assemblies: u64,
     /// Current retained paragraph payload, capped at 8 MiB per view.
     pub paragraph_cache_bytes: usize,
-    /// Current assembled document row/edge geometry (document-size dependent).
+    /// Caret-edge geometry this view retains. Plain text keeps the visible
+    /// window plus a small overscan, so the count does not grow with the
+    /// document. Tables still retain every row.
     pub row_geometry_bytes: usize,
 }
 impl Component for EditorLayoutStats {}
 
 // Only geometry is retained here; glyphs belong to the visible Label.
 struct DocumentRows {
-    key: u64,
+    /// Style, spans, font, and engine. Width and folds are separate.
     context: u64,
+    width_bits: u32,
+    fold_key: u64,
     text: std::sync::Arc<str>,
     cache: geometry::Cache,
     // Keep engine allocation identity alive, so pointer-derived keys cannot alias.
     _engine: std::sync::Arc<dyn crate::TextEngine>,
+    /// Paragraph heights for plain text. Empty when `table` is set.
+    index: std::sync::Arc<index::RowIndex>,
+    /// Table layouts keep every row. Plain text keeps the visible window's edges.
     layout: std::sync::Arc<crate::TextLayout>,
+    table: bool,
 }
 impl Component for DocumentRows {}
 
@@ -487,12 +497,23 @@ pub(crate) fn sync_source_scroll_anchor(world: &mut World, entity: crate::Entity
     let Some(editor) = world.get::<Editor>(entity) else {
         return;
     };
-    let row = rows
-        .layout
-        .lines
-        .partition_point(|l| l.y <= editor.offset)
-        .saturating_sub(1);
-    let Some(at) = rows.layout.lines.get(row).map(|l| l.start) else {
+    let at = if rows.table {
+        let row = rows
+            .layout
+            .lines
+            .partition_point(|l| l.y <= editor.offset)
+            .saturating_sub(1);
+        rows.layout.lines.get(row).map(|l| l.start)
+    } else if rows.index.line_count() == 0 {
+        None
+    } else {
+        Some(
+            rows.index
+                .line(rows.index.row_at_y(editor.offset.max(0.0)))
+                .start,
+        )
+    };
+    let Some(at) = at else {
         return;
     };
     if let Some(doc) = world
@@ -512,6 +533,171 @@ pub(crate) fn project_scroll_anchor(world: &mut World, entity: crate::Entity, by
     }
 }
 
+fn fold_key(world: &World, entity: crate::Entity) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let Some(folds) = crate::source_folding::current(world, entity) else {
+        return 0;
+    };
+    let mut hash = std::collections::hash_map::DefaultHasher::new();
+    folds.ranges.hash(&mut hash);
+    hash.finish()
+}
+
+fn fold_ranges(world: &World, entity: crate::Entity) -> Vec<std::ops::Range<usize>> {
+    crate::source_folding::current(world, entity)
+        .map(|folds| folds.ranges.clone())
+        .unwrap_or_default()
+}
+
+fn shape_context(
+    world: &World,
+    entity: crate::Entity,
+    font: &dyn crate::Font,
+    style: &crate::TextStyle,
+    engine: &std::sync::Arc<dyn crate::TextEngine>,
+    spans: &[crate::TextSpan],
+) -> u64 {
+    let mut context = crate::font::layout_cache_key(font, "", 0.0, spans, "", 0);
+    context ^= crate::text::style_key(style);
+    context ^= crate::structured_chrome::layout_key(world, entity);
+    context ^= (std::sync::Arc::as_ptr(engine) as *const () as usize as u64).rotate_left(17);
+    context ^= engine.cache_epoch().wrapping_mul(0x9E37_79B9_7F4A_7C15);
+    context
+}
+
+fn anchor_from_rows(rows: &DocumentRows, offset: f32) -> Option<usize> {
+    if rows.table {
+        let row = rows
+            .layout
+            .lines
+            .partition_point(|line| line.y <= offset)
+            .saturating_sub(1);
+        rows.layout.lines.get(row).map(|line| line.start)
+    } else if rows.index.line_count() == 0 {
+        None
+    } else {
+        Some(rows.index.line(rows.index.row_at_y(offset)).start)
+    }
+}
+
+fn place_index_anchor(
+    world: &mut World,
+    entity: crate::Entity,
+    index: &index::RowIndex,
+    byte: usize,
+) {
+    if index.line_count() == 0 {
+        return;
+    }
+    let line = index.line_for_byte(byte);
+    place_anchored_row(world, entity, line.y, line.h);
+}
+
+#[allow(clippy::too_many_arguments)]
+fn window_for(
+    world: &mut World,
+    entity: crate::Entity,
+    text: &str,
+    index: &index::RowIndex,
+    cache: &mut geometry::Cache,
+    work: &mut geometry::Work,
+    engine: &dyn crate::TextEngine,
+    font: &dyn crate::Font,
+    style: &crate::TextStyle,
+    width: f32,
+    spans: &[crate::TextSpan],
+) -> crate::TextLayout {
+    let offset = world
+        .get::<Editor>(entity)
+        .map(|editor| editor.offset)
+        .filter(|offset| offset.is_finite())
+        .unwrap_or(0.0)
+        .max(0.0);
+    let height = world
+        .get::<Rect>(entity)
+        .map(|rect| rect.h)
+        .unwrap_or(400.0);
+    let available = (height - 2.0 * TEXT_ORIGIN_Y).max(1.0);
+    if index.line_count() == 0 {
+        return crate::TextLayout::shaped(Vec::new(), Vec::new(), 0.0, 0.0);
+    }
+    let first = index.row_at_y(offset);
+    let last = index
+        .row_at_y(offset + available)
+        .saturating_add(4)
+        .min(index.line_count().saturating_sub(1));
+    index::window_layout(
+        index, engine, font, style, width, text, spans, first, last, None, cache, work,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn finish_rows(
+    world: &mut World,
+    entity: crate::Entity,
+    text: &str,
+    context: u64,
+    width_bits: u32,
+    fold_key: u64,
+    engine: std::sync::Arc<dyn crate::TextEngine>,
+    built: index::Built,
+    window: crate::TextLayout,
+    table: bool,
+    anchor: Option<usize>,
+) -> std::sync::Arc<crate::TextLayout> {
+    let mut stats = world
+        .get::<EditorLayoutStats>(entity)
+        .copied()
+        .unwrap_or_default();
+    stats.paragraphs_shaped += built.work.paragraphs;
+    stats.bytes_shaped += built.work.bytes;
+    stats.paragraphs_reused += built.work.reused;
+    stats.assemblies += 1;
+    stats.paragraph_cache_bytes = built.cache.bytes;
+    stats.row_geometry_bytes = geometry::geometry_bytes(&window);
+    world.insert(entity, stats);
+    if let Some(byte) = anchor {
+        if table {
+            let row = window
+                .lines
+                .partition_point(|line| line.start <= byte)
+                .saturating_sub(1);
+            if let Some(line) = window.lines.get(row) {
+                let (y, h) = (line.y, line.h);
+                place_anchored_row(world, entity, y, h);
+            }
+        } else {
+            place_index_anchor(world, entity, &built.index, byte);
+        }
+    }
+    world.remove::<VerticalGoal>(entity);
+    let layout = std::sync::Arc::new(window);
+    let snapshot = world
+        .get::<Buffer>(entity)
+        .map(Buffer::snapshot)
+        .filter(|snapshot| std::ptr::eq(snapshot.as_ref(), text))
+        .unwrap_or_else(|| std::sync::Arc::from(text));
+    world.insert(
+        entity,
+        DocumentRows {
+            context,
+            width_bits,
+            fold_key,
+            text: snapshot,
+            cache: built.cache,
+            _engine: engine,
+            index: std::sync::Arc::new(built.index),
+            layout: std::sync::Arc::clone(&layout),
+            table,
+        },
+    );
+    layout
+}
+
+fn owned_index(index: std::sync::Arc<index::RowIndex>) -> index::RowIndex {
+    std::sync::Arc::try_unwrap(index).unwrap_or_else(|shared| (*shared).clone())
+}
+
 fn document_rows(
     world: &mut World,
     entity: crate::entity::Entity,
@@ -526,121 +712,192 @@ fn document_rows(
     });
     let spans = world
         .get::<crate::Spans>(entity)
-        .map(|spans| spans.runs.as_slice())
-        .unwrap_or(&[]);
-    let font = crate::font::text_face(world);
-    let mut context = crate::font::layout_cache_key(font.as_ref(), "", width, &[], "", 0);
-    context ^= crate::text::style_key(&style);
-    context ^= crate::structured_chrome::layout_key(world, entity);
-    context ^= (std::sync::Arc::as_ptr(&engine) as *const () as usize as u64).rotate_left(17);
-    context ^= engine.cache_epoch().wrapping_mul(0x9E37_79B9_7F4A_7C15);
-    let mut key = context.rotate_left(23)
-        ^ crate::font::layout_cache_key(font.as_ref(), "", width, spans, "", 0);
-    if let Some(folds) = crate::source_folding::current(world, entity) {
-        use std::hash::{Hash, Hasher};
-        let mut hash = std::collections::hash_map::DefaultHasher::new();
-        folds.ranges.hash(&mut hash);
-        key ^= hash.finish();
-    }
+        .map(|spans| spans.runs.clone())
+        .unwrap_or_default();
+    let font = crate::text_face(world);
+    let context = shape_context(world, entity, font.as_ref(), &style, &engine, &spans);
+    let folds_key = fold_key(world, entity);
+    let width_bits = width.to_bits();
+    let same_text =
+        |rows: &DocumentRows| std::ptr::eq(rows.text.as_ref(), text) || rows.text.as_ref() == text;
     if let Some(rows) = world.get::<DocumentRows>(entity).filter(|rows| {
-        rows.key == key && (std::ptr::eq(rows.text.as_ref(), text) || rows.text.as_ref() == text)
+        rows.context == context
+            && rows.width_bits == width_bits
+            && rows.fold_key == folds_key
+            && same_text(rows)
     }) {
         let layout = std::sync::Arc::clone(&rows.layout);
         if let Some(byte) = mapped_anchor {
-            let row = layout
-                .lines
-                .partition_point(|l| l.start <= byte)
-                .saturating_sub(1);
-            if let Some(line) = layout.lines.get(row) {
-                let (y, h) = (line.y, line.h);
-                place_anchored_row(world, entity, y, h);
+            if rows.table {
+                let row = layout
+                    .lines
+                    .partition_point(|line| line.start <= byte)
+                    .saturating_sub(1);
+                if let Some(line) = layout.lines.get(row) {
+                    let (y, h) = (line.y, line.h);
+                    place_anchored_row(world, entity, y, h);
+                }
+            } else {
+                let index = std::sync::Arc::clone(&rows.index);
+                place_index_anchor(world, entity, &index, byte);
             }
         }
         return layout;
     }
-    let previous = world.get::<DocumentRows>(entity);
+    let previous = world.remove::<DocumentRows>(entity);
     let old_anchor = mapped_anchor.or_else(|| {
-        previous.and_then(|rows| {
-            let offset = world.get::<Editor>(entity)?.offset;
-            let row = rows
-                .layout
-                .lines
-                .partition_point(|l| l.y <= offset)
-                .saturating_sub(1);
-            let at = rows.layout.lines.get(row)?.start;
-            Some(map_scroll_anchor(&rows.text, text, at))
-        })
+        let rows = previous.as_ref()?;
+        let offset = world.get::<Editor>(entity)?.offset;
+        let offset = if offset.is_finite() {
+            offset.max(0.0)
+        } else {
+            0.0
+        };
+        let at = anchor_from_rows(rows, offset)?;
+        Some(map_scroll_anchor(&rows.text, text, at))
     });
-    let (mut layout, cache, work) = if let Some(mut layout) =
-        crate::structured_chrome::text_layout(world, entity, spans, text, width, (0, 0, 0))
-    {
-        // Native input/scrolling and visible paint must use identical paragraph
-        // origins and wrap widths. Retain only row geometry in this cache.
-        layout.glyphs = Vec::new();
-        layout.highlights = Vec::new();
-        (
-            layout,
-            geometry::Cache::default(),
-            geometry::Work {
-                paragraphs: text.split('\n').count() as u64,
-                bytes: text.len() as u64,
-                reused: 0,
+    if crate::structured_chrome::has_tables(world, entity) {
+        let (mut layout, cache, work) = if let Some(mut layout) =
+            crate::structured_chrome::text_layout(world, entity, &spans, text, width, (0, 0, 0))
+        {
+            layout.glyphs = Vec::new();
+            layout.highlights = Vec::new();
+            (
+                layout,
+                geometry::Cache::default(),
+                geometry::Work {
+                    paragraphs: text.split('\n').count() as u64,
+                    bytes: text.len() as u64,
+                    reused: 0,
+                },
+            )
+        } else {
+            geometry::build(
+                engine.as_ref(),
+                font.as_ref(),
+                &style,
+                width,
+                text,
+                &spans,
+                previous
+                    .as_ref()
+                    .filter(|rows| rows.context == context)
+                    .map(|rows| &rows.cache),
+            )
+        };
+        crate::source_folding::project_fold_layout(world, entity, &mut layout);
+        let dummy = index::build(
+            engine.as_ref(),
+            font.as_ref(),
+            &style,
+            width,
+            "",
+            &[],
+            &[],
+            None,
+        );
+        return finish_rows(
+            world,
+            entity,
+            text,
+            context,
+            width_bits,
+            folds_key,
+            engine,
+            index::Built {
+                index: dummy.index,
+                cache,
+                work,
             },
-        )
-    } else {
-        geometry::build(
+            layout,
+            true,
+            old_anchor,
+        );
+    }
+    let folds = fold_ranges(world, entity);
+    let built = match previous {
+        Some(rows) if !rows.table && rows.context == context && rows.width_bits == width_bits => {
+            if same_text(&rows) {
+                index::Built {
+                    index: index::refold(owned_index(rows.index), &folds),
+                    cache: rows.cache,
+                    work: geometry::Work::default(),
+                }
+            } else {
+                let old = rows.text.clone();
+                index::update_text(
+                    owned_index(rows.index),
+                    rows.cache,
+                    engine.as_ref(),
+                    font.as_ref(),
+                    &style,
+                    width,
+                    &old,
+                    text,
+                    &spans,
+                    &folds,
+                )
+            }
+        }
+        Some(rows) if !rows.table && rows.context == context && same_text(&rows) => {
+            index::refit_width(
+                owned_index(rows.index),
+                rows.cache,
+                engine.as_ref(),
+                font.as_ref(),
+                &style,
+                width,
+                text,
+                &spans,
+                &folds,
+            )
+        }
+        previous => index::build(
             engine.as_ref(),
             font.as_ref(),
             &style,
             width,
             text,
-            spans,
-            previous
-                .filter(|rows| rows.context == context)
-                .map(|rows| &rows.cache),
-        )
+            &spans,
+            &folds,
+            previous.as_ref().map(|rows| &rows.cache),
+        ),
     };
-    crate::source_folding::project_fold_layout(world, entity, &mut layout);
-    let mut stats = world
-        .get::<EditorLayoutStats>(entity)
-        .copied()
-        .unwrap_or_default();
-    stats.paragraphs_shaped += work.paragraphs;
-    stats.bytes_shaped += work.bytes;
-    stats.paragraphs_reused += work.reused;
-    stats.assemblies += 1;
-    stats.paragraph_cache_bytes = cache.bytes;
-    stats.row_geometry_bytes = geometry::geometry_bytes(&layout);
-    world.insert(entity, stats);
-    if let Some(at) = old_anchor {
-        let row = layout
-            .lines
-            .partition_point(|l| l.start <= at)
-            .saturating_sub(1);
-        if let Some(line) = layout.lines.get(row) {
-            let (y, h) = (line.y, line.h);
-            place_anchored_row(world, entity, y, h);
-        }
+    if let Some(byte) = old_anchor {
+        place_index_anchor(world, entity, &built.index, byte);
     }
-    world.remove::<VerticalGoal>(entity);
-    let layout = std::sync::Arc::new(layout);
-    let snapshot = world
-        .get::<Buffer>(entity)
-        .map(Buffer::snapshot)
-        .filter(|snapshot| std::ptr::eq(snapshot.as_ref(), text))
-        .unwrap_or_else(|| std::sync::Arc::from(text));
-    world.insert(
+    let mut cache = built.cache;
+    let mut work = built.work;
+    let window = window_for(
+        world,
         entity,
-        DocumentRows {
-            key,
-            context,
-            text: snapshot,
-            cache,
-            _engine: engine,
-            layout: std::sync::Arc::clone(&layout),
-        },
+        text,
+        &built.index,
+        &mut cache,
+        &mut work,
+        engine.as_ref(),
+        font.as_ref(),
+        &style,
+        width,
+        &spans,
     );
-    layout
+    finish_rows(
+        world,
+        entity,
+        text,
+        context,
+        width_bits,
+        folds_key,
+        engine,
+        index::Built {
+            index: built.index,
+            cache,
+            work,
+        },
+        window,
+        false,
+        None,
+    )
 }
 
 // Conservative single-replacement map for legacy buffers and style reflow.
@@ -686,6 +943,62 @@ struct VerticalGoal {
 }
 impl Component for VerticalGoal {}
 
+fn index_holds(index: &index::RowIndex, row: usize, byte: usize) -> bool {
+    if index.line_count() == 0 || row >= index.line_count() {
+        return false;
+    }
+    let line = index.line(row);
+    byte >= line.start && byte <= line.end
+}
+
+fn shaped_row(world: &mut World, entity: crate::Entity, text: &str, row: usize) -> crate::TextLine {
+    let style = crate::text::style_for(world, entity);
+    let engine = crate::text::text_engine(world);
+    let font = crate::text_face(world);
+    let width = world.get::<Rect>(entity).map_or(f32::INFINITY, |rect| {
+        crate::font::field_text_width(rect.w, engine.unit_advance(&style))
+    });
+    let spans = world
+        .get::<crate::Spans>(entity)
+        .map(|spans| spans.runs.clone())
+        .unwrap_or_default();
+    let mut rows = world.remove::<DocumentRows>(entity).expect("document rows");
+    let mut work = geometry::Work::default();
+    let layout = index::window_layout(
+        &rows.index,
+        engine.as_ref(),
+        font.as_ref(),
+        &style,
+        width,
+        text,
+        &spans,
+        row,
+        row,
+        None,
+        &mut rows.cache,
+        &mut work,
+    );
+    if let Some(stats) = world.get_mut::<EditorLayoutStats>(entity) {
+        stats.paragraphs_shaped += work.paragraphs;
+        stats.bytes_shaped += work.bytes;
+        stats.paragraphs_reused += work.reused;
+        stats.paragraph_cache_bytes = rows.cache.bytes;
+    }
+    let line = layout.lines.into_iter().next().unwrap_or(crate::TextLine {
+        start: 0,
+        end: 0,
+        y: 0.0,
+        h: 1.0,
+        baseline: 0.8,
+        underline_thickness: 1.0,
+        underline_offset: 1.0,
+        width: 0.0,
+        edges: Vec::new(),
+    });
+    world.insert(entity, rows);
+    line
+}
+
 fn row_contains(layout: &crate::TextLayout, row: usize, index: usize) -> bool {
     layout
         .lines
@@ -723,7 +1036,26 @@ pub(crate) fn vertical_delta(
     if !page {
         return Some(direction);
     }
-    let layout = document_rows(world, entity, text);
+    document_rows(world, entity, text);
+    if !crate::structured_chrome::has_tables(world, entity) {
+        let rows = std::sync::Arc::clone(&world.get::<DocumentRows>(entity).unwrap().index);
+        if rows.line_count() == 0 {
+            return Some(direction);
+        }
+        let row = world
+            .get::<VerticalGoal>(entity)
+            .filter(|goal| goal.index == index && index_holds(&rows, goal.row, index))
+            .map(|goal| goal.row)
+            .unwrap_or_else(|| rows.row_at_byte(index));
+        let line = rows.line(row);
+        let height = world.get::<Rect>(entity).map_or(line.h, |rect| rect.h);
+        let distance = (height - 2.0 * TEXT_ORIGIN_Y - line.h).max(line.h);
+        let target_y = line.y + direction as f32 * distance;
+        let target = rows.row_at_y(target_y);
+        let delta = target as isize - row as isize;
+        return Some(if delta == 0 { direction } else { delta });
+    }
+    let layout = world.get::<DocumentRows>(entity).unwrap().layout.clone();
     let (_, y) = layout.caret_xy(index);
     let row = world
         .get::<VerticalGoal>(entity)
@@ -756,6 +1088,57 @@ pub(crate) fn vertical_delta(
     Some(if delta == 0 { direction } else { delta })
 }
 
+pub(crate) fn move_indexed(
+    world: &mut World,
+    entity: crate::Entity,
+    text: &str,
+    index: usize,
+    anchor: usize,
+    delta: isize,
+    shift: bool,
+) -> (usize, usize) {
+    let rows = std::sync::Arc::clone(&world.get::<DocumentRows>(entity).expect("rows").index);
+    if rows.line_count() == 0 {
+        return (index, if shift { anchor } else { index });
+    }
+    let previous = world.get::<VerticalGoal>(entity).copied();
+    let row = previous
+        .filter(|goal| goal.index == index && index_holds(&rows, goal.row, index))
+        .map(|goal| goal.row)
+        .unwrap_or_else(|| rows.row_at_byte(index));
+    let current = shaped_row(world, entity, text, row);
+    let here = crate::TextLayout::shaped(Vec::new(), vec![current], 0.0, 0.0);
+    let x = previous.map_or_else(|| here.caret_xy_on_line(index, 0).0, |goal| goal.x);
+    let next_row =
+        (row as isize + delta).clamp(0, rows.line_count().saturating_sub(1) as isize) as usize;
+    let next = if next_row == row {
+        index
+    } else {
+        let line = shaped_row(world, entity, text, next_row);
+        let laid = crate::TextLayout::shaped(Vec::new(), vec![line], 0.0, 0.0);
+        laid.index_on_line(0, x)
+    };
+    let mut next = floor_grapheme(text, next.min(text.len()));
+    let next_start = rows.line(next_row).start;
+    if delta > 0 && next < next_start {
+        next = next_grapheme(text, next);
+    }
+    let next_row = if index_holds(&rows, next_row, next) {
+        next_row
+    } else {
+        rows.row_at_byte(next)
+    };
+    world.insert(
+        entity,
+        VerticalGoal {
+            x,
+            index: next,
+            row: next_row,
+        },
+    );
+    (next, if shift { anchor } else { next })
+}
+
 pub(crate) fn move_vertical(
     world: &mut World,
     entity: crate::entity::Entity,
@@ -776,7 +1159,11 @@ pub(crate) fn move_vertical(
         world.remove::<VerticalGoal>(entity);
         return (edge, edge);
     }
-    let layout = document_rows(world, entity, text);
+    document_rows(world, entity, text);
+    if !crate::structured_chrome::has_tables(world, entity) {
+        return move_indexed(world, entity, text, index, anchor, delta, shift);
+    }
+    let layout = std::sync::Arc::clone(&world.get::<DocumentRows>(entity).unwrap().layout);
     let previous = world.get::<VerticalGoal>(entity).copied();
     let (next, x, next_row) = {
         let (x, y) = layout.caret_xy(index);
@@ -1450,7 +1837,30 @@ fn place_from_pointer(world: &mut World, entity: crate::entity::Entity) -> bool 
     };
     let text = buffer.snapshot();
     let old_anchor = buffer.anchor;
-    let layout = document_rows(world, entity, &text);
+    let mut layout = document_rows(world, entity, &text);
+    // Structured paragraphs are shaped at their indented width and the caret
+    // edges are shifted. Hit testing has to use that layout, not the plain
+    // source paragraph, or a click on the painted indent lands too far right.
+    let mut indented = false;
+    if world.has::<crate::structured_chrome::StructuredChromeGutter>(entity) {
+        let style = crate::text::style_for(world, entity);
+        let engine = crate::text::text_engine(world);
+        let width = world.get::<Rect>(entity).map_or(f32::INFINITY, |rect| {
+            crate::font::field_text_width(rect.w, engine.unit_advance(&style))
+        });
+        let spans = world
+            .get::<crate::Spans>(entity)
+            .map(|spans| spans.runs.clone())
+            .unwrap_or_default();
+        if let Some(mut canonical) =
+            crate::structured_chrome::text_layout(world, entity, &spans, &text, width, (0, 0, 0))
+        {
+            canonical.glyphs.clear();
+            canonical.highlights.clear();
+            layout = std::sync::Arc::new(canonical);
+            indented = true;
+        }
+    }
     if layout.lines.is_empty() {
         return false;
     }
@@ -1466,35 +1876,50 @@ fn place_from_pointer(world: &mut World, entity: crate::entity::Entity) -> bool 
     } else {
         0.0
     };
-    let mut first = layout
-        .lines
-        .iter()
-        .enumerate()
-        .filter(|(_, line)| line.y <= offset)
-        .max_by(|(_, a), (_, b)| a.y.total_cmp(&b.y))
-        .map_or(0, |(i, _)| i);
+    let plain = std::sync::Arc::clone(&world.get::<DocumentRows>(entity).expect("rows").index);
     let grid = crate::structured_chrome::has_tables(world, entity);
+    let layout_hit = grid || indented;
+    let mut first = if layout_hit {
+        layout
+            .lines
+            .iter()
+            .enumerate()
+            .filter(|(_, line)| line.y <= offset)
+            .max_by(|(_, a), (_, b)| a.y.total_cmp(&b.y))
+            .map_or(0, |(i, _)| i)
+    } else {
+        plain.row_at_y(offset)
+    };
     let initial_first = first;
     let available = (rect.h - 2.0 * TEXT_ORIGIN_Y).max(1.0);
-    let map = |position: [f32; 2], first: usize| {
+    let map = |world: &mut World, position: [f32; 2], first: usize| {
         let x = position[0] - rect.x - TEXT_ORIGIN_X;
-        let y = (position[1] - rect.y - TEXT_ORIGIN_Y).clamp(0.0, (available - 0.001).max(0.0))
-            + if grid && first == initial_first {
-                offset
-            } else {
-                layout.lines[first].y
-            };
-        let row = layout.line_at_point(x, y);
-        let index = floor_grapheme(&text, layout.index_at(x, y).min(text.len()));
-        // Preserve B001's preferred-column contract: subsequent Up/Down
-        // starts at the actual caret stop, not a distant off-text pointer x.
-        (index, row, layout.caret_xy_on_line(index, row).0)
+        let local = (position[1] - rect.y - TEXT_ORIGIN_Y).clamp(0.0, (available - 0.001).max(0.0));
+        if layout_hit {
+            let y = local
+                + if grid && first == initial_first {
+                    offset
+                } else {
+                    layout.lines[first].y
+                };
+            let row = layout.line_at_point(x, y);
+            let index = floor_grapheme(&text, layout.index_at(x, y).min(text.len()));
+            // Preserve B001's preferred-column contract: subsequent Up/Down
+            // starts at the actual caret stop, not a distant off-text pointer x.
+            return (index, row, layout.caret_xy_on_line(index, row).0);
+        }
+        let y = local + plain.line(first).y;
+        let row = plain.row_at_y(y);
+        let line = shaped_row(world, entity, &text, row);
+        let laid = crate::TextLayout::shaped(Vec::new(), vec![line], 0.0, 0.0);
+        let index = floor_grapheme(&text, laid.index_on_line(0, x).min(text.len()));
+        (index, row, laid.caret_xy_on_line(index, 0).0)
     };
     let anchor = if starting {
         if shift {
             floor_grapheme(&text, old_anchor.min(text.len()))
         } else {
-            map(start, first).0
+            map(world, start, first).0
         }
     } else {
         floor_grapheme(
@@ -1542,7 +1967,12 @@ fn place_from_pointer(world: &mut World, entity: crate::entity::Entity) -> bool 
         } else if direction < 0 {
             first.saturating_sub(steps)
         } else {
-            first.saturating_add(steps).min(layout.lines.len() - 1)
+            let limit = if layout_hit {
+                layout.lines.len()
+            } else {
+                plain.line_count()
+            };
+            first.saturating_add(steps).min(limit.saturating_sub(1))
         };
         next_step = if due > 5 {
             now.saturating_add(DRAG_ROW_PERIOD)
@@ -1550,16 +1980,22 @@ fn place_from_pointer(world: &mut World, entity: crate::entity::Entity) -> bool 
             next_step.saturating_add(DRAG_ROW_PERIOD * steps as u32)
         };
     }
-    let can_scroll =
-        (direction < 0 && first > 0) || (direction > 0 && first + 1 < layout.lines.len());
+    let limit = if layout_hit {
+        layout.lines.len()
+    } else {
+        plain.line_count()
+    };
+    let can_scroll = (direction < 0 && first > 0) || (direction > 0 && first + 1 < limit);
     if let Some(editor) = world.get_mut::<Editor>(entity) {
         editor.offset = if grid && first == initial_first {
             offset
-        } else {
+        } else if layout_hit {
             layout.lines[first].y
+        } else {
+            plain.line(first).y
         };
     }
-    let (index, row, x) = map(pointer.position, first);
+    let (index, row, x) = map(world, pointer.position, first);
     if let Some(buffer) = world.get_mut::<Buffer>(entity) {
         buffer.caret = index;
         buffer.anchor = anchor;
@@ -1711,9 +2147,14 @@ pub(crate) fn scroll_editor_wheel(world: &mut World, entity: crate::Entity, delt
     // Plain rows are stacked in increasing y. Table cells are not, so those
     // views keep the spatial maximum.
     let monotonic = !crate::structured_chrome::has_tables(world, entity);
-    let (published, row_h) = {
+    let (published, row_h) = if monotonic {
+        let index = std::sync::Arc::clone(&world.get::<DocumentRows>(entity).unwrap().index);
+        let published = index.top_at_most(requested);
+        let row_h = index.line(index.row_at_y(published)).h;
+        (published, row_h)
+    } else {
         let rows = &world.get::<DocumentRows>(entity).unwrap().layout.lines;
-        let published = row_top_at_most(rows, requested, monotonic);
+        let published = row_top_at_most(rows, requested, false);
         let row_h = rows
             .iter()
             .find(|row| row.y.to_bits() == published.to_bits())
@@ -1746,7 +2187,11 @@ pub(crate) fn editor_scroll_metrics(world: &World, entity: crate::Entity) -> Opt
     let rows = world.get::<DocumentRows>(entity)?;
     let rect = world.get::<Rect>(entity)?;
     let page = (rect.h - 2.0 * TEXT_ORIGIN_Y).max(1.0);
-    let maximum = max_row_y(&rows.layout.lines, monotonic)?;
+    let maximum = if monotonic {
+        (rows.index.line_count() > 0).then(|| rows.index.max_top)
+    } else {
+        max_row_y(&rows.layout.lines, false)
+    }?;
     Some((maximum + page, page))
 }
 
@@ -1920,43 +2365,49 @@ fn publish_window(world: &mut World, entity: crate::entity::Entity, reveal: bool
     let caret = floor_grapheme(&text, buffer.caret.min(text.len()));
     let anchor = floor_grapheme(&text, buffer.anchor.min(text.len()));
     let available = (height - 2.0 * TEXT_ORIGIN_Y).max(1.0);
+    let rows_index = std::sync::Arc::clone(&world.get::<DocumentRows>(entity).expect("rows").index);
     let affinity = world
         .get::<VerticalGoal>(entity)
-        .filter(|goal| goal.index == caret && row_contains(&layout, goal.row, caret));
+        .filter(|goal| goal.index == caret && index_holds(&rows_index, goal.row, caret));
     let (base, end, top, visible, numbers, first, caret_row) = {
         let offset = if offset.is_finite() {
             offset.max(0.0)
         } else {
             0.0
         };
-        let mut first = layout
-            .lines
-            .partition_point(|line| line.y <= offset)
-            .saturating_sub(1);
-        let caret_row = affinity.map_or_else(|| document_row_at(&layout, caret), |goal| goal.row);
-        if reveal && height > 0.0 {
+        let mut first = rows_index.row_at_y(offset);
+        let caret_row = affinity.map_or_else(|| rows_index.row_at_byte(caret), |goal| goal.row);
+        if reveal && height > 0.0 && rows_index.line_count() > 0 {
             if caret_row < first {
                 first = caret_row;
             }
-            let needed = layout.lines[caret_row].y + layout.lines[caret_row].h - available;
-            first = first.max(
-                layout
-                    .lines
-                    .partition_point(|line| line.y < needed)
-                    .min(caret_row),
-            );
+            let caret_line = rows_index.line(caret_row);
+            let needed = caret_line.y + caret_line.h - available;
+            // First visual row whose top is at or below the caret only as far
+            // as the viewport still contains the caret line (y >= needed).
+            let reveal_row = if needed <= 0.0 {
+                0
+            } else {
+                let containing = rows_index.row_at_y(needed);
+                let top = rows_index.line(containing).y;
+                if top < needed {
+                    containing.saturating_add(1)
+                } else {
+                    containing
+                }
+            };
+            first = first.max(reveal_row.min(caret_row));
         }
-        let top = layout.lines.get(first).map_or(0.0, |line| line.y);
-        let last = layout
-            .lines
-            .partition_point(|line| line.y < top + available)
-            .saturating_sub(1)
+        let top = rows_index.line(first).y;
+        let last = rows_index
+            .row_at_y((top + available - 0.001).max(top))
             .max(first);
-        let base = layout.lines.get(first).map_or(0, |line| line.start);
-        let end = layout
-            .lines
-            .get(last + 1)
-            .map_or(text.len(), |line| line.start);
+        let base = rows_index.line(first).start;
+        let end = if last + 1 < rows_index.line_count() {
+            rows_index.line(last + 1).start
+        } else {
+            text.len()
+        };
         let visible = height > 0.0
             && caret_row >= first
             && caret_row <= last
@@ -1967,7 +2418,8 @@ fn publish_window(world: &mut World, entity: crate::entity::Entity, reveal: bool
             if row > first {
                 numbers.push('\n');
             }
-            if let Some(line) = layout.lines.get(row) {
+            if rows_index.line_count() > row {
+                let line = rows_index.line(row);
                 let logical = buffer
                     .lines
                     .partition_point(|start| *start <= line.start)
@@ -2000,21 +2452,21 @@ fn publish_window(world: &mut World, entity: crate::entity::Entity, reveal: bool
         cursor = range.end;
     }
     window.push_str(&text[cursor..end]);
-    let row_h = layout.lines.get(first).map(|line| line.h).unwrap_or(0.0);
+    let row_h = if rows_index.line_count() > first {
+        rows_index.line(first).h
+    } else {
+        0.0
+    };
     let sane = if offset.is_finite() {
         offset.max(0.0)
     } else {
         0.0
     };
-    let anchored_index = layout
-        .lines
-        .partition_point(|line| line.y <= sane)
-        .saturating_sub(1);
-    let anchored_top = layout
-        .lines
-        .get(anchored_index)
-        .map(|line| line.y)
-        .unwrap_or(0.0);
+    let anchored_top = if rows_index.line_count() == 0 {
+        0.0
+    } else {
+        rows_index.line(rows_index.row_at_y(sane)).y
+    };
     finish_scroll_publication(world, entity, top, row_h, anchored_top);
     if let Some(buffer) = world.get_mut::<Buffer>(entity) {
         buffer.caret = caret;
@@ -2461,8 +2913,9 @@ mod tests {
                 h: 90.0,
             },
         ));
-        let layout = document_rows(&mut world, entity, &text);
-        let lines = layout.lines.clone();
+        let _layout = document_rows(&mut world, entity, &text);
+        let index = std::sync::Arc::clone(&world.get::<DocumentRows>(entity).unwrap().index);
+        let lines: Vec<_> = (0..index.line_count()).map(|row| index.line(row)).collect();
         assert!(lines.len() > 40);
         assert!(
             lines.windows(2).all(|pair| pair[0].y <= pair[1].y),
@@ -2481,7 +2934,13 @@ mod tests {
             let offset = world.get::<Editor>(entity).unwrap().offset;
             let max = (content - page).max(0.0);
             let requested = (anchor - delta).clamp(0.0, max);
-            assert_eq!(offset, linear_top(&lines, requested), "{delta}");
+            let expected = lines
+                .iter()
+                .filter(|line| line.y <= requested)
+                .map(|line| line.y)
+                .reduce(f32::max)
+                .unwrap_or(0.0);
+            assert_eq!(offset, expected, "{delta}");
             assert!(lines.iter().any(|line| line.y == offset) || offset == 0.0);
         }
     }
@@ -2520,5 +2979,84 @@ mod tests {
             world.get::<Editor>(entity).unwrap().offset,
             layout.lines[1].y
         );
+    }
+
+    #[test]
+    fn height_index_matches_paragraph_layout_for_wraps_and_folds() {
+        let mut world = World::new();
+        crate::text::ensure_text_engine(&mut world);
+        let engine = crate::text::text_engine(&world);
+        let font = crate::text_face(&world);
+        let style = crate::TextStyle::default();
+        let text = format!("{}folded line\nvisible tail\n", "word ".repeat(30));
+        let fold_at = text.find("folded line\n").unwrap();
+        let fold = fold_at..fold_at + "folded line\n".len();
+        let folds = std::slice::from_ref(&fold);
+        let width = 96.0;
+        let (mut full, _, _) = geometry::build(
+            engine.as_ref(),
+            font.as_ref(),
+            &style,
+            width,
+            &text,
+            &[],
+            None,
+        );
+        assert!(
+            full.lines.len() > 4,
+            "the fixture must wrap, got {} lines",
+            full.lines.len()
+        );
+        let built = index::build(
+            engine.as_ref(),
+            font.as_ref(),
+            &style,
+            width,
+            &text,
+            &[],
+            &[],
+            None,
+        );
+        assert_eq!(built.index.line_count(), full.lines.len());
+        for row in 0..full.lines.len() {
+            let indexed = built.index.line(row);
+            let line = &full.lines[row];
+            assert_eq!(indexed.start, line.start, "row {row} start");
+            assert_eq!(indexed.end, line.end, "row {row} end");
+            assert_eq!(indexed.y.to_bits(), line.y.to_bits(), "row {row} y");
+            assert_eq!(indexed.h.to_bits(), line.h.to_bits(), "row {row} h");
+        }
+        // Same projection as `project_fold_layout`: drop hidden line starts and
+        // pack the rest with no paragraph gap.
+        full.lines.retain(|line| {
+            let next = folds.partition_point(|range| range.end <= line.start);
+            !folds
+                .get(next)
+                .is_some_and(|range| range.contains(&line.start))
+        });
+        let mut y = 0.0;
+        for line in &mut full.lines {
+            line.y = y;
+            y += line.h;
+        }
+        let folded = index::build(
+            engine.as_ref(),
+            font.as_ref(),
+            &style,
+            width,
+            &text,
+            &[],
+            folds,
+            None,
+        );
+        assert_eq!(folded.index.line_count(), full.lines.len());
+        assert!(folded.index.line_count() < built.index.line_count());
+        for row in 0..full.lines.len() {
+            let indexed = folded.index.line(row);
+            let line = &full.lines[row];
+            assert_eq!(indexed.start, line.start, "folded row {row} start");
+            assert_eq!(indexed.y.to_bits(), line.y.to_bits(), "folded row {row} y");
+            assert_eq!(indexed.h.to_bits(), line.h.to_bits(), "folded row {row} h");
+        }
     }
 }

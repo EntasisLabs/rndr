@@ -44,6 +44,80 @@ pub(super) struct Work {
     pub reused: u64,
 }
 
+/// Shape one paragraph, reusing `previous` or `cache` when the text and spans match.
+/// A trailing newline's empty terminal row is removed, matching [`build`].
+#[allow(clippy::too_many_arguments)]
+pub(super) fn shape_piece(
+    engine: &dyn TextEngine,
+    font: &dyn crate::Font,
+    style: &TextStyle,
+    width: f32,
+    part: &str,
+    local: &[TextSpan],
+    previous: Option<&Cache>,
+    cache: &mut Cache,
+) -> (Arc<Paragraph>, bool) {
+    use std::hash::{Hash, Hasher};
+    let mut hash = std::collections::hash_map::DefaultHasher::new();
+    part.hash(&mut hash);
+    let key = hash.finish() ^ crate::font::layout_cache_key(font, "", width, local, "", 0);
+    if let Some(found) = previous
+        .and_then(|c| c.entries.get(&key))
+        .and_then(|items| items.iter().find(|p| p.text == part && p.spans == local))
+        .or_else(|| {
+            cache
+                .entries
+                .get(&key)
+                .and_then(|items| items.iter().find(|p| p.text == part && p.spans == local))
+        })
+        .cloned()
+    {
+        return (found, false);
+    }
+    let mut layout = engine.layout(part, style, local, width);
+    layout.glyphs = Vec::new();
+    layout.highlights = Vec::new();
+    if part.ends_with('\n') && layout.lines.last().is_some_and(|l| l.start == part.len()) {
+        layout.lines.pop();
+        layout.height = layout.lines.last().map_or(0.0, |l| l.y + l.h);
+    }
+    let paragraph = Arc::new(Paragraph {
+        text: part.to_owned(),
+        spans: local.to_vec(),
+        layout,
+    });
+    retain(cache, key, &paragraph);
+    (paragraph, true)
+}
+
+fn retain(cache: &mut Cache, key: u64, paragraph: &Arc<Paragraph>) {
+    let already = cache
+        .entries
+        .get(&key)
+        .is_some_and(|items| items.iter().any(|p| Arc::ptr_eq(p, paragraph)));
+    if already {
+        return;
+    }
+    let bytes = paragraph.bytes()
+        + std::mem::size_of::<Paragraph>()
+        + std::mem::size_of::<(u64, Vec<Arc<Paragraph>>)>()
+        + std::mem::size_of::<Arc<Paragraph>>();
+    if bytes <= CACHE_BYTES.saturating_sub(cache.bytes) {
+        cache.bytes += bytes;
+        cache
+            .entries
+            .entry(key)
+            .or_default()
+            .push(Arc::clone(paragraph));
+    }
+}
+
+impl Paragraph {
+    pub(super) fn layout(&self) -> &TextLayout {
+        &self.layout
+    }
+}
+
 pub(super) fn build(
     engine: &dyn TextEngine,
     font: &dyn crate::Font,
