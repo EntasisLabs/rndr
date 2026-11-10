@@ -3,6 +3,7 @@ use crate::render::{self, Act, Actions, BlockState};
 use crate::{LiquidEvent, LiquidHost};
 use rndr_core::*;
 use rndr_liquid::{LiquidBlock, LiquidStream, MarkdownWrite, Segment};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Liquid state of one [`MarkdownView`].
@@ -11,7 +12,8 @@ use std::sync::Arc;
 /// [`LiquidStream`]; each paragraph that is exactly one block reference is
 /// replaced by that block, rendered with `rndr_ui`, after the markdown sync
 /// of the same frame. An unclosed Liquid fence is a pending skeleton, not a
-/// code block.
+/// code block. Blocks outside the visible window are released, and their
+/// reader state is kept by source position until they return.
 pub struct LiquidView {
     blocks: Arc<Vec<LiquidBlock>>,
     mounted: Vec<Mounted>,
@@ -19,6 +21,13 @@ pub struct LiquidView {
     stream: Option<LiquidStream>,
     pending: Option<Entity>,
     carry: Vec<Option<BlockState>>,
+    /// Reader state for blocks released outside the window, keyed by source byte.
+    saved: HashMap<usize, Saved>,
+}
+
+struct Saved {
+    block: usize,
+    state: BlockState,
 }
 
 impl Component for LiquidView {}
@@ -58,6 +67,10 @@ pub fn liquid_view(world: &mut World, source: &str) -> Entity {
     let markdown = stream.markdown().to_string();
     let blocks = Arc::new(stream.blocks().to_vec());
     let view = markdown_view(world, markdown);
+    if let Some(markdown) = world.get_mut::<MarkdownView>(view) {
+        markdown.set_recycle_host_slots(true);
+    }
+    set_markdown_slot_host(world, view, LiquidHooks);
     world.insert(view, LiquidView::streaming(stream, blocks));
     view
 }
@@ -141,6 +154,7 @@ impl LiquidView {
             stream: None,
             pending: None,
             carry: Vec::new(),
+            saved: HashMap::new(),
         }
     }
 
@@ -152,6 +166,7 @@ impl LiquidView {
             next_id: 1,
             pending: None,
             carry: Vec::new(),
+            saved: HashMap::new(),
         }
     }
 }
@@ -204,6 +219,65 @@ fn match_states(
     carry
 }
 
+struct LiquidHooks;
+
+impl MarkdownSlotHost for LiquidHooks {
+    fn slot_mounted(
+        &mut self,
+        world: &mut World,
+        slot: MarkdownSlot,
+        _index: usize,
+        source: usize,
+    ) {
+        let Some(mut liquid) = world.remove::<LiquidView>(slot.view) else {
+            return;
+        };
+        let Some(saved) = liquid.saved.remove(&source) else {
+            world.insert(slot.view, liquid);
+            return;
+        };
+        world.insert(
+            slot.root,
+            BlockRoot {
+                blocks: Arc::clone(&liquid.blocks),
+                index: saved.block,
+            },
+        );
+        let selected = saved.state.selected;
+        world.insert(slot.root, saved.state);
+        render::rebuild(world, slot.root);
+        restore_tab(world, slot.root, selected);
+        liquid.mounted.push(Mounted {
+            slot,
+            block: saved.block,
+            arc: Arc::as_ptr(&liquid.blocks) as usize,
+        });
+        world.insert(slot.view, liquid);
+    }
+
+    fn slot_unmounted(
+        &mut self,
+        world: &mut World,
+        slot: MarkdownSlot,
+        _index: usize,
+        source: usize,
+    ) {
+        let block = world.get::<BlockRoot>(slot.root).map(|root| root.index);
+        let mut state = world.remove::<BlockState>(slot.root).unwrap_or_default();
+        if let Some(selected) = tab_selection(world, slot.root) {
+            state.selected = selected;
+        }
+        let Some(mut liquid) = world.remove::<LiquidView>(slot.view) else {
+            return;
+        };
+        if let Some(block) = block {
+            liquid.saved.insert(source, Saved { block, state });
+        }
+        liquid.mounted.retain(|mounted| mounted.slot.id != slot.id);
+        world.insert(slot.view, liquid);
+    }
+}
+
 /// A markdown body inside a block: a view without its own scrollport that
 /// hugs its content and mounts its own nested blocks.
 pub(crate) fn nested(
@@ -227,6 +301,31 @@ pub(crate) fn nested(
     view
 }
 
+fn tab_selection(world: &World, root: Entity) -> Option<usize> {
+    find_tabs(world, root)
+        .and_then(|tabs| world.get::<Tabs>(tabs).map(|tabs| tabs.selected as usize))
+}
+
+fn restore_tab(world: &mut World, root: Entity, selected: usize) {
+    let Some(tabs) = find_tabs(world, root) else {
+        return;
+    };
+    if let Some(tabs) = world.get_mut::<Tabs>(tabs) {
+        tabs.selected = selected as u64;
+    }
+}
+
+fn find_tabs(world: &World, root: Entity) -> Option<Entity> {
+    let mut stack = vec![root];
+    while let Some(entity) = stack.pop() {
+        if world.has::<Tabs>(entity) {
+            return Some(entity);
+        }
+        stack.extend(children_of(world, entity));
+    }
+    None
+}
+
 fn token_of(block: &MarkdownBlock) -> Option<usize> {
     if block.kind != MarkdownKind::Paragraph || block.quote > 0 || block.depth > 0 {
         return None;
@@ -244,6 +343,7 @@ pub(crate) fn reconcile(world: &mut World) {
         let Some(md) = world.get::<MarkdownView>(view) else {
             continue;
         };
+        let window = markdown_realized_blocks(world, view);
         let blocks: Vec<MarkdownBlock> = md.blocks().to_vec();
         let mut liquid = world.remove::<LiquidView>(view).expect("listed");
         let ptr = Arc::as_ptr(&liquid.blocks) as usize;
@@ -289,6 +389,9 @@ pub(crate) fn reconcile(world: &mut World) {
         }
         liquid.mounted = kept;
         for (index, block) in blocks.iter().enumerate() {
+            if !window.contains(&index) {
+                continue;
+            }
             let Some(target) = token_of(block) else {
                 continue;
             };

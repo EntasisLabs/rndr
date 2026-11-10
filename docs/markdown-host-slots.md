@@ -61,9 +61,13 @@ shows the complete path.
   reject without partial mutation. Use a new ID to deliberately remount.
 - `MarkdownSlot` carries a generation-bearing root plus view/ID; its methods
   validate them. `is_mounted` is false during pending parsing. Query after sync
-  before updating descendants that might have been retired. There are no removal
-  callbacks or hidden application-state writes. `detach` may cancel a live
-  binding even while parsing is pending; a dead/removed handle is rejected.
+  before updating descendants that might have been retired. `detach` may cancel a
+  live binding even while parsing is pending; a dead or removed handle is
+  rejected. With recycling off there is no removal callback. With
+  [`MarkdownView::set_recycle_host_slots`] on, the same slot id is released
+  outside the visible window plus overscan and realized again on the way back.
+  [`set_markdown_slot_host`] hears both, while the root is still alive on the
+  way out. `detach` does not call it.
 - The markdown view **owns the root and all descendants**. Attachments are
   transferred, not borrowed: detach, replacement/removal and view `despawn`
   cascade through them. A descendant explicitly reparented outside the root
@@ -81,9 +85,12 @@ shows the complete path.
 - Ordinary blocks exist as entities only while they are in the visible window
   plus overscan. Scrolling recycles those entities. Do not hold a block
   `Entity` across a scroll and expect it to stay that block. A mounted host
-  root stays alive while mounted, including offscreen, and is not recycled.
-  The scrollbar uses the height of every block, measured when realized and
-  estimated until then.
+  root stays alive while mounted, including offscreen, unless the view calls
+  [`MarkdownView::set_recycle_host_slots`]. That policy despawns the root
+  outside the same window, keeps the slot id and the last measured height, and
+  spawns a new root when the block returns. The scrollbar uses the height of
+  every block, measured when realized and estimated until then, so a released
+  slot does not change the scroll extent.
 - The whole block body is replaced, including code backgrounds, quote/list
   decoration. Host content must fit the reserved rectangle; ordinary ancestor
   clips and scrolling apply. Overlays/portals parented outside the subtree are
