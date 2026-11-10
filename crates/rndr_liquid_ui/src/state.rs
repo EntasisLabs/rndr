@@ -10,7 +10,7 @@ use std::collections::HashMap;
 
 /// Where an interaction should be routed.
 ///
-/// Component changes are [`LocalState`]. The other variants match the
+/// Component changes are [`LiquidDisposition::LocalState`]. The other variants match the
 /// dispositions a host already has to tell apart, and are available for
 /// events that leave the view.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
