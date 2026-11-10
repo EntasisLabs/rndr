@@ -209,7 +209,7 @@ fn platform_node(world: &World, node: &rndr_core::AccessNode) -> Node {
     } else if !node.name.is_empty() {
         out.set_label(node.name.clone());
     }
-    if node.role == AccessRole::TextInput && !node.value.is_empty() {
+    if matches!(node.role, AccessRole::TextInput | AccessRole::Code) && !node.value.is_empty() {
         out.set_value(node.value.clone());
     }
     out.set_bounds(Rect {
@@ -246,18 +246,27 @@ fn platform_node(world: &World, node: &rndr_core::AccessNode) -> Node {
     if let Some(id) = details.controls {
         out.set_controls(vec![NodeId(id)]);
     }
-    if let Some(data) =
-        entity_from_access_id(node.id).and_then(|e| world.get::<rndr_core::DataAccess>(e))
+    let mut described: Vec<NodeId> = entity_from_access_id(node.id)
+        .and_then(|e| world.get::<rndr_core::DataAccess>(e))
+        .map(|data| {
+            data.headers
+                .iter()
+                .filter(|e| world.is_alive(**e))
+                .map(|e| NodeId(rndr_core::access_id(*e)))
+                .collect()
+        })
+        .unwrap_or_default();
+    if let Some(by) =
+        entity_from_access_id(node.id).and_then(|e| world.get::<rndr_core::DescribedBy>(e))
     {
-        if !data.headers.is_empty() {
-            out.set_described_by(
-                data.headers
-                    .iter()
-                    .filter(|e| world.is_alive(**e))
-                    .map(|e| NodeId(rndr_core::access_id(*e)))
-                    .collect::<Vec<_>>(),
-            );
-        }
+        described.extend(
+            by.0.iter()
+                .filter(|e| world.is_alive(**e) && !world.has::<rndr_core::Hidden>(**e))
+                .map(|e| NodeId(rndr_core::access_id(*e))),
+        );
+    }
+    if !described.is_empty() {
+        out.set_described_by(described);
     }
     if let Some(id) = details.labelled_by {
         out.set_labelled_by(vec![NodeId(id)]);
@@ -358,6 +367,9 @@ fn role(role: AccessRole) -> Role {
         AccessRole::ListBox => Role::ListBox,
         AccessRole::Option => Role::ListBoxOption,
         AccessRole::ScrollBar => Role::ScrollBar,
+        AccessRole::Code => Role::Code,
+        AccessRole::Tooltip => Role::Tooltip,
+        AccessRole::Image => Role::Image,
     }
 }
 
@@ -794,5 +806,48 @@ mod tests {
         assert!(native(cell).labelled_by().is_empty());
         assert!(!native(cell).supports_action(Action::Focus));
         assert!(!native(cell).supports_action(Action::Click));
+    }
+
+    #[test]
+    fn code_value_and_tooltip_described_by_reach_accesskit() {
+        use rndr_core::*;
+        let mut w = World::new();
+        let plot = w.spawn((
+            Layout::column(),
+            AccessMark(AccessRole::Group),
+            Semantics {
+                name: Some("Weekly".into()),
+                ..Semantics::default()
+            },
+        ));
+        let tip = w.spawn((
+            Label::new("Mon — Visits: 3"),
+            AccessMark(AccessRole::Tooltip),
+        ));
+        set_parent(&mut w, tip, plot);
+        w.insert(plot, DescribedBy(vec![tip]));
+        let code = w.spawn((
+            Label::new("fn main() {}"),
+            AccessMark(AccessRole::Code),
+            Semantics {
+                name: Some("rust".into()),
+                ..Semantics::default()
+            },
+        ));
+        let t = tree_update(&w);
+        let native = |e| {
+            &t.nodes
+                .iter()
+                .find(|(id, _)| *id == NodeId(access_id(e)))
+                .unwrap()
+                .1
+        };
+        assert_eq!(native(plot).role(), Role::Group);
+        assert_eq!(native(plot).label(), Some("Weekly"));
+        assert_eq!(native(plot).described_by(), &[NodeId(access_id(tip))]);
+        assert_eq!(native(tip).role(), Role::Tooltip);
+        assert_eq!(native(code).role(), Role::Code);
+        assert_eq!(native(code).label(), Some("rust"));
+        assert_eq!(native(code).value(), Some("fn main() {}"));
     }
 }

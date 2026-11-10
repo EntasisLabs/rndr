@@ -1,5 +1,6 @@
 //! `chart` blocks: an `rndr_chart` painter in a paint surface, with the
-//! title, legend, tooltip and caption as ordinary text around it.
+//! title, legend and caption as ordinary text around it. The tooltip is an
+//! absolute overlay on the plot, and the plot is described by that overlay.
 use rndr_chart::{Chart, ChartPainter, ChartScene, ChartTheme};
 use rndr_core::*;
 use rndr_liquid::chart::ChartProps;
@@ -123,6 +124,15 @@ pub(crate) fn mount(world: &mut World, root: Entity, parent: Entity, props: &Cha
             ..Layout::column()
         },
         SurfaceSlot { id: slot },
+        AccessMark(AccessRole::Group),
+        Semantics {
+            name: Some(if chart.title.trim().is_empty() {
+                "Chart".to_string()
+            } else {
+                chart.title.clone()
+            }),
+            ..Semantics::default()
+        },
     ));
     set_parent(world, plot, parent);
     if !legend.is_empty() {
@@ -144,9 +154,7 @@ pub(crate) fn mount(world: &mut World, root: Entity, parent: Entity, props: &Cha
             }
         }
     }
-    let tip = interactive
-        .then(|| text(world, parent, " ", Typography::Secondary).ok())
-        .flatten();
+    let tip = interactive.then(|| overlay_tip(world, plot)).flatten();
     line(world, &caption, Typography::Secondary);
     world.insert(
         plot,
@@ -201,8 +209,27 @@ pub(crate) fn reclaim(world: &mut World) {
     }
 }
 
+fn overlay_tip(world: &mut World, plot: Entity) -> Option<Entity> {
+    let tip = text(world, plot, "", Typography::Secondary).ok()?;
+    if let Some(layout) = world.get_mut::<Layout>(tip) {
+        layout.width = Size::Hug;
+        layout.height = Size::Hug;
+    }
+    world.insert(tip, Hidden);
+    world.insert(
+        tip,
+        Absolute {
+            left: Some(8.0),
+            top: Some(8.0),
+            ..Absolute::default()
+        },
+    );
+    world.insert(tip, AccessMark(AccessRole::Tooltip));
+    Some(tip)
+}
+
 /// Track the pointer over chart plots: the hovered series is highlighted
-/// and its tooltip rows shown under the plot.
+/// and its tooltip floats over the plot, which is described by that tooltip.
 pub(crate) fn hover(world: &mut World) {
     reclaim(world);
     let plots = world.entities_with::<LiquidChart>();
@@ -211,41 +238,71 @@ pub(crate) fn hover(world: &mut World) {
     }
     let pointer = world.resource::<Input>().map(|i| i.pointer.position);
     for plot in plots {
-        let (Some(c), Some(rect)) = (world.get::<LiquidChart>(plot), world.get::<Rect>(plot))
-        else {
-            continue;
+        let (rect, tip, chart, theme) = {
+            let (Some(c), Some(rect)) = (
+                world.get::<LiquidChart>(plot),
+                world.get::<Rect>(plot).copied(),
+            ) else {
+                continue;
+            };
+            let Some(tip) = c.tip else { continue };
+            (rect, tip, c.chart.clone(), c.theme.clone())
         };
-        let Some(tip) = c.tip else { continue };
         let hit = pointer.and_then(|[x, y]| {
-            let scene = ChartScene::new(&c.chart, &c.theme, rect.w, rect.h);
+            let scene = ChartScene::new(&chart, &theme, rect.w, rect.h);
             let inside = x >= rect.x && y >= rect.y && x < rect.x + rect.w && y < rect.y + rect.h;
             inside
                 .then(|| scene.hit([x - rect.x, y - rect.y]).cloned())
                 .flatten()
         });
         let key = hit.as_ref().and_then(|h| h.key.clone());
-        let line = match &hit {
-            Some(h) => {
-                let rows: Vec<String> = h
-                    .lines
-                    .iter()
-                    .map(|l| format!("{}: {}", l.label, l.value))
-                    .collect();
-                if rows.is_empty() {
-                    h.title.clone()
-                } else {
-                    format!("{} — {}", h.title, rows.join(", "))
-                }
+        let line = hit.as_ref().map(|h| {
+            let rows: Vec<String> = h
+                .lines
+                .iter()
+                .map(|l| format!("{}: {}", l.label, l.value))
+                .collect();
+            if rows.is_empty() {
+                h.title.clone()
+            } else {
+                format!("{} — {}", h.title, rows.join(", "))
             }
-            None => " ".to_string(),
-        };
+        });
         if let Some(c) = world.get_mut::<LiquidChart>(plot) {
             c.hover = key;
         }
+        let Some(line) = line else {
+            world.insert(tip, Hidden);
+            world.remove::<DescribedBy>(plot);
+            if let Some(label) = world.get_mut::<Label>(tip) {
+                if !label.text.is_empty() {
+                    label.text.clear();
+                }
+            }
+            continue;
+        };
+        world.remove::<Hidden>(tip);
         if let Some(label) = world.get_mut::<Label>(tip) {
             if label.text != line {
                 label.text = line;
             }
         }
+        let (left, top) = pointer
+            .map(|[x, y]| {
+                (
+                    (x - rect.x + 12.0).clamp(0.0, rect.w.max(0.0)),
+                    (y - rect.y + 12.0).clamp(0.0, rect.h.max(0.0)),
+                )
+            })
+            .unwrap_or((8.0, 8.0));
+        world.insert(
+            tip,
+            Absolute {
+                left: Some(left),
+                top: Some(top),
+                ..Absolute::default()
+            },
+        );
+        world.insert(plot, DescribedBy(vec![tip]));
     }
 }
