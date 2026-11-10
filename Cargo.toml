@@ -25,6 +25,7 @@ members = [
     "examples/stream",
     "examples/windows",
     "examples/titlebar",
+    "examples/lifecycle",
     "examples/pen-probe",
     "examples/canvas-scene",
     "examples/chart-gallery",

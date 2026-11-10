@@ -1,0 +1,12 @@
+[package]
+name = "lifecycle"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Single-instance launches, incoming links, Dock reopen and an app icon"
+publish = false
+
+[dependencies]
+rndr_core = { workspace = true }
+rndr_render = { workspace = true }
+rndr_ui = { workspace = true }
