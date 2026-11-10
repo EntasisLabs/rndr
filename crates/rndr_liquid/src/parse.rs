@@ -997,6 +997,8 @@ pub(crate) fn dashboard(body: &str) -> Option<DashboardProps> {
             .get("field")
             .map(|v| v.trim().to_string())
             .filter(|v| !v.is_empty());
+        tile.refresh = one_of(f.get("refresh"), &["manual", "interval", "both"]);
+        tile.interval_ms = f.get("interval").and_then(|raw| duration_ms(Some(raw)));
         tiles.push(tile);
     }
     if tiles.len() < 2 {

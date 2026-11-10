@@ -467,6 +467,12 @@ props!(
         /// Field within the feed payload.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         field: Option<String>,
+        /// manual | interval | both. Feed-bound tiles default to both.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        refresh: Option<String>,
+        /// Poll period in milliseconds when interval refresh is on.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        interval_ms: Option<u64>,
     }
 );
 

@@ -32,18 +32,23 @@
 #![warn(missing_docs)]
 
 mod chart;
+mod feed;
 mod host;
 mod render;
 mod state;
 mod timer;
 mod view;
 
-pub use host::{FeedEntry, LiquidEvent, LiquidHost, LiquidImage, NoHost};
+pub use host::{
+    FeedBody, FeedDatatype, FeedEntry, FeedOutcome, FeedRequest, LiquidEvent, LiquidHost,
+    LiquidImage, NoHost,
+};
 pub use render::plain;
 pub use state::{
     liquid_component_state, liquid_component_states, put_liquid_component_state,
-    subscribe_liquid_interactions, LiquidComponentRecord, LiquidComponentState, LiquidDisposition,
-    LiquidInteraction, LiquidInteractionEnvelope, LiquidInteractionHandler, LiquidRevisionError,
+    subscribe_liquid_interactions, FeedPhase, FeedSlot, LiquidComponentRecord,
+    LiquidComponentState, LiquidDisposition, LiquidInteraction, LiquidInteractionEnvelope,
+    LiquidInteractionHandler, LiquidRevisionError,
 };
 pub use timer::{
     liquid_timer, liquid_timers, LiquidTimerAction, LiquidTimerRecord, LiquidTimerStatus,
@@ -76,6 +81,7 @@ impl Plugin for LiquidUiPlugin {
             .insert_resource(view::HostSlot(Some(self.host)));
         app.add_system(Schedule::Update, chart::hover);
         app.add_system(Schedule::Update, timer::reconcile);
+        app.add_system(Schedule::Update, feed::reconcile);
         app.add_system(Schedule::PostUpdate, view::reconcile);
     }
 }
