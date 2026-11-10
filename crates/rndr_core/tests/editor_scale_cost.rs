@@ -5,6 +5,9 @@ use rndr_core::*;
 use std::time::Instant;
 
 fn fixture(bytes: usize) -> String {
+    // One repeated paragraph. The editor cache matches on text equality, so
+    // this probe measures assembly and source copies, not per-line shaping.
+    // Distinct lines live in `editor_scale_unique`.
     let unit = "alpha beta gamma delta epsilon zeta eta theta 0123456789\n";
     unit.repeat(bytes.div_ceil(unit.len()))
 }
