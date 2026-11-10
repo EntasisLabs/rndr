@@ -932,7 +932,8 @@ pub fn field_text_width(field_width: f32, unit: f32) -> f32 {
 /// Write a [`TextLayout`] onto every [`Label`] after rects are final.
 ///
 /// A label whose text, wrap width, spans, face, and IME preview are unchanged
-/// keeps the layout it already has.
+/// keeps the layout it already has. Idle frames, and scrolls that leave those
+/// inputs unchanged, do not shape it again.
 pub fn apply_text_layout(world: &mut World) {
     let labels = world.entities_with::<Label>();
     shape_labels(world, labels);
@@ -1017,6 +1018,26 @@ pub(crate) fn shape_labels(world: &mut World, labels: Vec<crate::Entity>) {
                     .wrapping_add((end as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15));
             }
         }
+        let epoch = engine.cache_epoch();
+        if epoch != 0 {
+            key ^= epoch.wrapping_mul(0x9E37_79B9_7F4A_7C15);
+        }
+        // Paint, hit testing, and accessibility read the layout stored on the
+        // entity. Building another one when this key and engine already match
+        // only produces a value that is thrown away. The engine line cache
+        // memoizes `TextEngine::layout`; it is not what paint samples. A face,
+        // fallback, or atlas change bumps the epoch and misses this key.
+        let same_engine = world
+            .get::<LayoutEngine>(entity)
+            .and_then(|stored| stored.0.upgrade())
+            .is_some_and(|stored| Arc::ptr_eq(&stored, &engine));
+        if same_engine
+            && world
+                .get::<TextLayout>(entity)
+                .is_some_and(|stored| stored.cache_key == key)
+        {
+            continue;
+        }
         let insert_at = floor_preview(at, &source);
         let mut text = source;
         if !preview.is_empty() {
@@ -1032,7 +1053,6 @@ pub(crate) fn shape_labels(world: &mut World, labels: Vec<crate::Entity>) {
         } else {
             max_width
         };
-        // Always shape through the engine so the line cache records this frame.
         let mut layout = crate::structured_chrome::text_layout(
             world,
             entity,
@@ -1058,10 +1078,6 @@ pub(crate) fn shape_labels(world: &mut World, labels: Vec<crate::Entity>) {
                 highlight.y -= offset;
             }
         }
-        let epoch = engine.cache_epoch();
-        if epoch != 0 {
-            key ^= epoch.wrapping_mul(0x9E37_79B9_7F4A_7C15);
-        }
         if !preview.is_empty() && insert_at <= text.len() {
             let end = cursor
                 .map(|(_, end)| end.min(preview.len()))
@@ -1069,17 +1085,6 @@ pub(crate) fn shape_labels(world: &mut World, labels: Vec<crate::Entity>) {
             let range_end = (insert_at + preview.len()).min(text.len());
             layout.ime_range = Some((insert_at, range_end));
             layout.ime_cursor = Some((insert_at + end).min(text.len()));
-        }
-        let same_engine = world
-            .get::<LayoutEngine>(entity)
-            .and_then(|stored| stored.0.upgrade())
-            .is_some_and(|stored| Arc::ptr_eq(&stored, &engine));
-        if same_engine
-            && world
-                .get::<TextLayout>(entity)
-                .is_some_and(|stored| stored.cache_key == key)
-        {
-            continue;
         }
         layout.cache_key = key;
         world.insert(entity, LayoutEngine(Arc::downgrade(&engine)));
