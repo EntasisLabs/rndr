@@ -1,5 +1,6 @@
 //! One retained subtree per Liquid block, built from `rndr_ui` parts.
 use crate::chart;
+use crate::state::LiquidComponentState;
 use crate::view::{nested, with_host, BlockRoot};
 use crate::{LiquidEvent, LiquidImage};
 use rndr_core::*;
@@ -104,12 +105,59 @@ impl BlockState {
             _ => {}
         }
     }
+
+    pub(crate) fn select(&mut self, index: usize) {
+        self.selected = index;
+        self.ready = true;
+    }
+
+    pub(crate) fn snapshot(
+        &self,
+        block: &LiquidBlock,
+    ) -> Option<(&'static str, LiquidComponentState)> {
+        let state = match block {
+            LiquidBlock::Accordion(_) => LiquidComponentState::Accordion {
+                open: self.open.iter().copied().collect(),
+            },
+            LiquidBlock::Tabs(_) => LiquidComponentState::Tabs {
+                selected: self.selected,
+            },
+            LiquidBlock::Steps(_) | LiquidBlock::Recipe(_) | LiquidBlock::Kanban(_) => {
+                LiquidComponentState::Checklist {
+                    checked: self.checked.iter().copied().collect(),
+                }
+            }
+            LiquidBlock::Carousel(_) | LiquidBlock::Slides(_) => LiquidComponentState::Selection {
+                selected: self.selected,
+            },
+            _ => return None,
+        };
+        Some((block.kind(), state))
+    }
+
+    pub(crate) fn absorb(&mut self, block: &LiquidBlock, snap: &LiquidComponentState) {
+        self.ready = false;
+        self.init(block);
+        match snap {
+            LiquidComponentState::Accordion { open } => {
+                self.open = open.iter().copied().collect();
+            }
+            LiquidComponentState::Tabs { selected }
+            | LiquidComponentState::Selection { selected } => {
+                self.selected = *selected;
+            }
+            LiquidComponentState::Checklist { checked } => {
+                self.checked = checked.iter().copied().collect();
+            }
+        }
+        self.ready = true;
+    }
 }
 
 /// Clear `root` and render its block again from [`BlockRoot`] and
 /// [`BlockState`].
 pub(crate) fn rebuild(world: &mut World, root: Entity) {
-    let Some(BlockRoot { blocks, index }) = world.get::<BlockRoot>(root).cloned() else {
+    let Some(BlockRoot { blocks, index, .. }) = world.get::<BlockRoot>(root).cloned() else {
         return;
     };
     let Some(block) = blocks.get(index).cloned() else {

@@ -34,10 +34,16 @@
 mod chart;
 mod host;
 mod render;
+mod state;
 mod view;
 
 pub use host::{FeedEntry, LiquidEvent, LiquidHost, LiquidImage, NoHost};
 pub use render::plain;
+pub use state::{
+    liquid_component_state, liquid_component_states, put_liquid_component_state,
+    subscribe_liquid_interactions, LiquidComponentRecord, LiquidComponentState, LiquidDisposition,
+    LiquidInteraction, LiquidInteractionEnvelope, LiquidInteractionHandler, LiquidRevisionError,
+};
 pub use view::{dispatch, liquid_view, push_liquid_str, refresh, set_liquid_source, LiquidView};
 
 use rndr_core::{App, Plugin, Schedule};

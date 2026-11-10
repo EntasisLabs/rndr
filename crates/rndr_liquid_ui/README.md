@@ -49,6 +49,12 @@ mount controls.
 
 Tabs, accordions, carousels, slides and checklists (`steps`, `recipe`,
 `kanban`) keep their state in the view and survive `refresh`.
+The same state is a `LiquidComponentRecord` keyed by the view and the
+block's source byte, so it is still there while recycling has released the
+block and after `push_liquid_str` appends more source. `subscribe_liquid_interactions`
+receives a `LiquidInteractionEnvelope` for each reader change (`select`,
+`expand`, `collapse`, `edit`). `put_liquid_component_state` replaces a record
+only when its expected revision matches.
 `push_liquid_str` appends source and reparses only the open tail, so a
 finished block is built once and keeps that state. `set_liquid_source` does
 the same when the new source extends the current one, and on any other
