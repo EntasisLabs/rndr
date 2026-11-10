@@ -11,6 +11,7 @@
 //! - Each shaped line is kept in the two-frame cache, keyed by the line text,
 //!   the style, and the width. Lines touched this frame or the previous frame
 //!   stay; the rest are dropped on the next [`TextEngine::begin_frame`].
+//!   [`TextEngine::touch_cached`] records a run the caller already holds.
 //! - swash rasters outline glyphs into the coverage atlas and emoji into the
 //!   color atlas. Glyphs record which atlas to sample (`PlacedGlyph::atlas`).
 //! - [`TextEngine::fallbacks`] is the ordered family list parley walks when a
@@ -225,6 +226,28 @@ pub trait TextEngine: Send + Sync + 'static {
         max_width: f32,
     ) -> TextLayout;
 
+    /// Keep a run shaped by [`layout`](Self::layout) in this frame's line cache.
+    ///
+    /// An unchanged label already stores the glyphs paint reads, so it must
+    /// not build another layout. The cache still has to hear that the run is
+    /// on screen. Otherwise the next [`begin_frame`](Self::begin_frame) drops
+    /// it, and a scroll reshapes every visible row. A hit is not a new shape.
+    /// A miss builds nothing: the caller already holds the glyphs.
+    ///
+    /// The default shapes and drops the result, which is enough for an engine
+    /// whose cache is filled only by [`layout`](Self::layout).
+    fn touch_cached(&self, text: &str, style: &TextStyle, runs: &[TextSpan], max_width: f32) {
+        drop(self.layout(text, style, runs, max_width));
+    }
+
+    /// Mark lines from a layout this engine returned as still on screen.
+    ///
+    /// `ids` come from the layout this engine returned. This does not build
+    /// glyphs. Unknown ids are ignored. The default does nothing; an engine
+    /// that drops unmentioned lines at [`begin_frame`](Self::begin_frame)
+    /// should promote the ids it still holds.
+    fn touch_lines(&self, _ids: &[u64]) {}
+
     /// Width, height, and line count for the same wrap as [`layout`](Self::layout).
     fn measure(
         &self,
@@ -351,8 +374,12 @@ struct EngineState {
 }
 
 struct LineCache {
-    frames: [HashMap<LineKey, Arc<TextLayout>>; 2],
+    /// Lines used this frame and the previous one, addressed by id.
+    frames: [HashMap<u64, Arc<TextLayout>>; 2],
+    by_key: HashMap<LineKey, u64>,
+    key_of: HashMap<u64, LineKey>,
     current: usize,
+    next_id: u64,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -403,7 +430,10 @@ impl BuiltinText {
                 default_family: "bitmap".to_string(),
                 cache: LineCache {
                     frames: [HashMap::new(), HashMap::new()],
+                    by_key: HashMap::new(),
+                    key_of: HashMap::new(),
                     current: 0,
+                    next_id: 1,
                 },
             }),
             shapes: AtomicU64::new(0),
@@ -430,6 +460,8 @@ impl BuiltinText {
         if state.default_family != name {
             state.default_family = name;
             state.cache.frames.iter_mut().for_each(HashMap::clear);
+            state.cache.by_key.clear();
+            state.cache.key_of.clear();
             self.epoch.fetch_add(1, Ordering::Relaxed);
         }
     }
@@ -497,6 +529,7 @@ impl TextEngine for BuiltinText {
         let mut glyphs = Vec::new();
         let mut lines = Vec::new();
         let mut highlights = Vec::new();
+        let mut line_ids = Vec::new();
         let mut width = 0.0f32;
         let mut y = 0.0f32;
         for (origin, end) in ranges {
@@ -509,7 +542,7 @@ impl TextEngine for BuiltinText {
             let line_text = &text[origin..end];
             let local_runs = clip_runs(runs, origin, end);
             let key = line_key(line_text, style, max_width, &local_runs);
-            let cached = self.cached_line(key, || {
+            let (cached, line_id) = self.cached_line(key, || {
                 layout_text_weighted(
                     &stack,
                     line_text,
@@ -519,6 +552,7 @@ impl TextEngine for BuiltinText {
                     style.letter_spacing,
                 )
             });
+            line_ids.push(line_id);
             let shift = align_shift(style.align, max_width, cached.width);
             let line_y = y;
             let natural = cached
@@ -604,6 +638,7 @@ impl TextEngine for BuiltinText {
             width,
             height: y,
             cache_key: 0,
+            line_ids,
             ime_cursor: None,
             ime_range: None,
         }
@@ -683,6 +718,8 @@ impl TextEngine for BuiltinText {
         if state.fallbacks.get(family).is_none_or(|old| old != faces) {
             state.fallbacks.insert(family.to_string(), faces.to_vec());
             state.cache.frames.iter_mut().for_each(HashMap::clear);
+            state.cache.by_key.clear();
+            state.cache.key_of.clear();
             self.epoch.fetch_add(1, Ordering::Relaxed);
         }
     }
@@ -698,6 +735,8 @@ impl TextEngine for BuiltinText {
         }
         state.fonts.insert(name.to_string(), font);
         state.cache.frames.iter_mut().for_each(HashMap::clear);
+        state.cache.by_key.clear();
+        state.cache.key_of.clear();
         self.epoch.fetch_add(1, Ordering::Relaxed);
         state.fallbacks.entry(name.to_string()).or_insert_with(|| {
             if name == "bitmap" {
@@ -711,8 +750,35 @@ impl TextEngine for BuiltinText {
     fn begin_frame(&self) {
         let mut state = self.lock();
         let next = state.cache.current ^ 1;
-        state.cache.current = next;
+        let dropped: Vec<u64> = state.cache.frames[next].keys().copied().collect();
         state.cache.frames[next].clear();
+        let kept = state.cache.current;
+        for id in dropped {
+            if state.cache.frames[kept].contains_key(&id) {
+                continue;
+            }
+            if let Some(key) = state.cache.key_of.remove(&id) {
+                state.cache.by_key.remove(&key);
+            }
+        }
+        state.cache.current = next;
+    }
+
+    fn touch_lines(&self, ids: &[u64]) {
+        if ids.is_empty() {
+            return;
+        }
+        let mut state = self.lock();
+        let current = state.cache.current;
+        let previous = current ^ 1;
+        for &id in ids {
+            if state.cache.frames[current].contains_key(&id) {
+                continue;
+            }
+            if let Some(hit) = state.cache.frames[previous].get(&id).cloned() {
+                state.cache.frames[current].insert(id, hit);
+            }
+        }
     }
 
     fn shape_count(&self) -> u64 {
@@ -722,30 +788,61 @@ impl TextEngine for BuiltinText {
     fn cache_epoch(&self) -> u64 {
         self.epoch.load(Ordering::Relaxed)
     }
+
+    fn touch_cached(&self, text: &str, style: &TextStyle, runs: &[TextSpan], max_width: f32) {
+        let fonts = self.fonts_for(&style.family);
+        let stack = FaceStack {
+            fonts,
+            size: style.size,
+            letter_spacing: style.letter_spacing,
+        };
+        let mut ids = Vec::new();
+        let state = self.lock();
+        for (origin, end) in wrap_ranges(&stack, text, max_width) {
+            let local_runs = clip_runs(runs, origin, end);
+            let key = line_key(&text[origin..end], style, max_width, &local_runs);
+            if let Some(&id) = state.cache.by_key.get(&key) {
+                ids.push(id);
+            }
+        }
+        drop(state);
+        self.touch_lines(&ids);
+    }
 }
 
 impl BuiltinText {
-    fn cached_line(&self, key: LineKey, build: impl FnOnce() -> TextLayout) -> Arc<TextLayout> {
+    fn cached_line(
+        &self,
+        key: LineKey,
+        build: impl FnOnce() -> TextLayout,
+    ) -> (Arc<TextLayout>, u64) {
         {
             let mut state = self.lock();
-            let current = state.cache.current;
-            if let Some(hit) = state.cache.frames[current].get(&key) {
-                return Arc::clone(hit);
-            }
-            let previous = current ^ 1;
-            if let Some(hit) = state.cache.frames[previous].get(&key).cloned() {
-                state.cache.frames[current].insert(key, Arc::clone(&hit));
-                return hit;
+            if let Some(&id) = state.cache.by_key.get(&key) {
+                let current = state.cache.current;
+                if let Some(hit) = state.cache.frames[current].get(&id).cloned() {
+                    return (hit, id);
+                }
+                let previous = current ^ 1;
+                if let Some(hit) = state.cache.frames[previous].get(&id).cloned() {
+                    state.cache.frames[current].insert(id, Arc::clone(&hit));
+                    return (hit, id);
+                }
+                state.cache.by_key.remove(&key);
+                state.cache.key_of.remove(&id);
             }
         }
         let line = Arc::new(build());
-        {
-            let mut state = self.lock();
-            let current = state.cache.current;
-            state.cache.frames[current].insert(key, Arc::clone(&line));
-        }
+        let mut state = self.lock();
+        let id = state.cache.next_id;
+        state.cache.next_id = state.cache.next_id.wrapping_add(1);
+        let current = state.cache.current;
+        state.cache.frames[current].insert(id, Arc::clone(&line));
+        state.cache.key_of.insert(id, key.clone());
+        state.cache.by_key.insert(key, id);
+        drop(state);
         self.shapes.fetch_add(1, Ordering::Relaxed);
-        line
+        (line, id)
     }
 }
 

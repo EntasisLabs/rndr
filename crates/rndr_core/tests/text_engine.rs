@@ -74,6 +74,24 @@ fn layout_cache_reuses_a_line_and_drops_it_after_two_idle_frames() {
 }
 
 #[test]
+fn touch_cached_keeps_a_line_across_idle_frames_without_shaping() {
+    let engine = BuiltinText::new();
+    let style = style();
+    engine.layout("row 3", &style, &[], f32::INFINITY);
+    let once = engine.shape_count();
+    for _ in 0..4 {
+        engine.begin_frame();
+        engine.touch_cached("row 3", &style, &[], f32::INFINITY);
+        assert_eq!(engine.shape_count(), once);
+    }
+    engine.begin_frame();
+    engine.layout("row 3", &style, &[], f32::INFINITY);
+    assert_eq!(engine.shape_count(), once, "touch dropped the cached line");
+    engine.layout("row 4", &style, &[], f32::INFINITY);
+    assert_eq!(engine.shape_count(), once + 1);
+}
+
+#[test]
 fn an_idle_line_is_evicted_while_a_touched_line_stays() {
     let engine = BuiltinText::new();
     let style = style();
