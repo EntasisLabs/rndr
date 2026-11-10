@@ -51,7 +51,7 @@ pub struct LiquidTimerRecord {
     pub status: LiquidTimerStatus,
     /// Step duration in milliseconds, clamped to one second through one day.
     pub duration_ms: u64,
-    /// Milliseconds left while paused or idle. While running, prefer [`remaining_ms`].
+    /// Milliseconds left while paused or idle. While running, this is the time until [`Self::deadline_ms`].
     pub remaining_ms: u64,
     /// Absolute [`rndr_core::Time`] deadline, in milliseconds, while running.
     pub deadline_ms: Option<u64>,
