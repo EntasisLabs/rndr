@@ -169,3 +169,97 @@ fn unique_line_editor_costs() {
         );
     }
 }
+
+fn wheel(app: &mut App, editor: Entity, delta_y: f32) {
+    let rect = *app.world().get::<Rect>(editor).unwrap();
+    let input = app.world_mut().resource_mut::<Input>().unwrap();
+    input.pointer.position = [rect.x + 8.0, rect.y + 8.0];
+    input.scroll = [0.0, delta_y];
+    apply_scroll(app.world_mut());
+    app.update();
+}
+
+/// Scroll identity and folds across an edit and a resize.
+/// Ignored with the other scale probe; correctness is also locked by non-ignored tests.
+#[test]
+#[ignore = "opt-in release scale characterization; no timing threshold assertions"]
+fn scroll_and_fold_stability() {
+    use rndr_core::editing::{EditOrigin, SourceBatch, SourceChange};
+    use rndr_core::source_folding::{set_source_folds, SourceFolds};
+    let text = "header\nhidden line stays folded\ntail\n";
+    let hidden = "hidden line stays folded\n";
+    let fold = text.find(hidden).unwrap()..text.find(hidden).unwrap() + hidden.len();
+    let (mut app, editor, _bar, doc) = boot(&("prefix\n".repeat(40) + text + &"row\n".repeat(40)));
+    for _ in 0..3 {
+        app.update();
+    }
+    let rev = app
+        .world()
+        .resource::<SourceDocuments>()
+        .unwrap()
+        .get(doc)
+        .unwrap()
+        .revision();
+    let fold = fold.start + "prefix\n".repeat(40).len()..fold.end + "prefix\n".repeat(40).len();
+    set_source_folds(app.world_mut(), editor, doc, rev, vec![fold]).unwrap();
+    app.update();
+    let row_h = app.world().get::<TextLayout>(editor).unwrap().lines[0].h;
+    wheel(&mut app, editor, -(row_h - 2.0));
+    let after_fraction = app.world().get::<Editor>(editor).unwrap().offset;
+    app.world_mut().get_mut::<Layout>(editor).unwrap().width = Size::Px(420.0);
+    app.update();
+    app.update();
+    let after_resize = app.world().get::<Editor>(editor).unwrap().offset;
+    wheel(&mut app, editor, -4.0);
+    let after_followup = app.world().get::<Editor>(editor).unwrap().offset;
+    let session = app
+        .world_mut()
+        .resource_mut::<SourceDocuments>()
+        .unwrap()
+        .get_mut(doc)
+        .unwrap();
+    session
+        .commit(SourceBatch {
+            document: doc,
+            base: session.revision(),
+            origin: EditOrigin::Host(1),
+            changes: vec![SourceChange {
+                range: 0..0,
+                replacement: "INSERTED\n".into(),
+            }],
+        })
+        .unwrap();
+    app.update();
+    let folds = app
+        .world()
+        .get::<SourceFolds>(editor)
+        .map(|f| f.ranges().len())
+        .unwrap_or(0);
+    let offset = app.world().get::<Editor>(editor).unwrap().offset;
+    let source = app
+        .world()
+        .resource::<SourceDocuments>()
+        .unwrap()
+        .get(doc)
+        .unwrap()
+        .text()
+        .to_string();
+    let fold_text = app
+        .world()
+        .get::<SourceFolds>(editor)
+        .and_then(|folds| folds.ranges().first().cloned())
+        .map(|range| source[range].to_string())
+        .unwrap_or_default();
+    println!(
+        "row_h={row_h:.3} offset_after_fraction={after_fraction:.3} offset_after_resize={after_resize:.3} offset_after_followup_wheel={after_followup:.3} folds_after_insert={folds} fold_text={fold_text:?} offset_after_insert={offset:.3}"
+    );
+    assert_eq!(
+        folds, 1,
+        "a whole-line fold must survive an insert above it"
+    );
+    assert_eq!(fold_text, "hidden line stays folded\n");
+    assert!(
+        after_followup > after_resize + 1.0,
+        "sub-row remainder must survive resize: fraction={after_fraction} resize={after_resize} followup={after_followup}"
+    );
+}

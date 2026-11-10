@@ -551,10 +551,9 @@ fn document_rows(
                 .lines
                 .partition_point(|l| l.start <= byte)
                 .saturating_sub(1);
-            if let (Some(line), Some(editor)) =
-                (layout.lines.get(row), world.get_mut::<Editor>(entity))
-            {
-                editor.offset = line.y;
+            if let Some(line) = layout.lines.get(row) {
+                let (y, h) = (line.y, line.h);
+                place_anchored_row(world, entity, y, h);
             }
         }
         return layout;
@@ -618,9 +617,9 @@ fn document_rows(
             .lines
             .partition_point(|l| l.start <= at)
             .saturating_sub(1);
-        if let (Some(line), Some(editor)) = (layout.lines.get(row), world.get_mut::<Editor>(entity))
-        {
-            editor.offset = line.y;
+        if let Some(line) = layout.lines.get(row) {
+            let (y, h) = (line.y, line.h);
+            place_anchored_row(world, entity, y, h);
         }
     }
     world.remove::<VerticalGoal>(entity);
@@ -1599,20 +1598,96 @@ fn place_from_pointer(world: &mut World, entity: crate::entity::Entity) -> bool 
     starting
 }
 
-#[derive(Clone, Copy)]
-struct WheelPosition {
-    rows_key: u64,
+/// Milli-points in one logical point. Matches the virtual-list scroll identity.
+const MILLI_PER_POINT: i64 = 1000;
+
+/// Scroll identity beside the source-byte anchor: distance into that row.
+/// `published` is the last offset this view wrote. A different [`Editor::offset`]
+/// is paint input and clears the remainder.
+struct ScrollRemainder {
     published: f32,
-    requested: f32,
+    remainder_mp: i64,
 }
-impl crate::Component for WheelPosition {}
+impl crate::Component for ScrollRemainder {}
+
+fn points_to_mp(points: f32) -> i64 {
+    if !points.is_finite() || points <= 0.0 {
+        return 0;
+    }
+    let milli = f64::from(points) * MILLI_PER_POINT as f64;
+    if !milli.is_finite() {
+        return 0;
+    }
+    milli.round().clamp(0.0, i64::MAX as f64) as i64
+}
+
+fn mp_to_points(mp: i64) -> f32 {
+    (mp.max(0) as f64 / MILLI_PER_POINT as f64) as f32
+}
+
+/// One milli-point short of the row height, so the remainder stays on this row.
+fn remainder_limit(row_h: f32) -> i64 {
+    points_to_mp(row_h).saturating_sub(1).max(0)
+}
+
+fn place_anchored_row(world: &mut World, entity: crate::Entity, y: f32, h: f32) {
+    let remainder_mp = world
+        .get::<ScrollRemainder>(entity)
+        .map(|state| state.remainder_mp)
+        .unwrap_or(0)
+        .clamp(0, remainder_limit(h));
+    if let Some(editor) = world.get_mut::<Editor>(entity) {
+        editor.offset = y;
+    }
+    world.insert(
+        entity,
+        ScrollRemainder {
+            published: y,
+            remainder_mp,
+        },
+    );
+}
+
+fn finish_scroll_publication(
+    world: &mut World,
+    entity: crate::Entity,
+    top: f32,
+    row_h: f32,
+    anchored_top: f32,
+) {
+    let incoming = world.get::<Editor>(entity).map(|editor| editor.offset);
+    let keep = world.get::<ScrollRemainder>(entity).is_some_and(|state| {
+        incoming.is_some_and(|offset| state.published.to_bits() == offset.to_bits())
+            && top.to_bits() == anchored_top.to_bits()
+    });
+    let remainder_mp = if keep {
+        world
+            .get::<ScrollRemainder>(entity)
+            .map(|state| state.remainder_mp)
+            .unwrap_or(0)
+    } else {
+        0
+    }
+    .clamp(0, remainder_limit(row_h));
+    if let Some(editor) = world.get_mut::<Editor>(entity) {
+        editor.offset = top;
+    }
+    world.insert(
+        entity,
+        ScrollRemainder {
+            published: top,
+            remainder_mp,
+        },
+    );
+}
 
 pub(crate) fn reset_editor_wheel(world: &mut World, entity: crate::Entity) {
-    world.remove::<WheelPosition>(entity);
+    world.remove::<ScrollRemainder>(entity);
 }
 
-// Return the bounded signed consumption for ancestor wheel chaining. Keep
-// sub-row motion separately: publish_window deliberately snaps to row tops.
+// Return the bounded signed consumption for ancestor wheel chaining. The
+// published offset snaps to a row top. The milli-point remainder is the
+// position inside that row and survives a later reflow.
 pub(crate) fn scroll_editor_wheel(world: &mut World, entity: crate::Entity, delta: f32) -> f32 {
     if !delta.is_finite() || delta == 0.0 {
         return 0.0;
@@ -1625,27 +1700,35 @@ pub(crate) fn scroll_editor_wheel(world: &mut World, entity: crate::Entity, delt
     };
     let max = (content - page).max(0.0);
     let offset = editor.offset.clamp(0.0, max);
-    let rows_key = world.get::<DocumentRows>(entity).unwrap().key;
-    let before = world
-        .get::<WheelPosition>(entity)
-        .filter(|state| state.published == offset && state.rows_key == rows_key)
-        .map_or(offset, |state| state.requested.clamp(0.0, max));
+    let carried = world.get::<ScrollRemainder>(entity).and_then(|state| {
+        (state.published.to_bits() == offset.to_bits()).then_some(state.remainder_mp)
+    });
+    let before = match carried {
+        Some(mp) => (offset + mp_to_points(mp)).clamp(0.0, max),
+        None => offset,
+    };
     let requested = (before - delta).clamp(0.0, max);
     // Plain rows are stacked in increasing y. Table cells are not, so those
-    // views keep the spatial maximum. `has_tables` is a component check here;
-    // the structured layout itself is untouched.
+    // views keep the spatial maximum.
     let monotonic = !crate::structured_chrome::has_tables(world, entity);
-    let published = {
+    let (published, row_h) = {
         let rows = &world.get::<DocumentRows>(entity).unwrap().layout.lines;
-        row_top_at_most(rows, requested, monotonic)
+        let published = row_top_at_most(rows, requested, monotonic);
+        let row_h = rows
+            .iter()
+            .find(|row| row.y.to_bits() == published.to_bits())
+            .map(|row| row.h)
+            .unwrap_or(0.0);
+        (published, row_h)
     };
+    let remainder_mp =
+        points_to_mp((requested - published).max(0.0)).clamp(0, remainder_limit(row_h));
     world.get_mut::<Editor>(entity).unwrap().offset = published;
     world.insert(
         entity,
-        WheelPosition {
-            rows_key,
+        ScrollRemainder {
             published,
-            requested,
+            remainder_mp,
         },
     );
     if requested != before {
@@ -1783,6 +1866,13 @@ fn publish_grid_window(
     }
     world.insert(
         entity,
+        ScrollRemainder {
+            published: offset,
+            remainder_mp: 0,
+        },
+    );
+    world.insert(
+        entity,
         EditorWindow {
             base: 0,
             end: text.len(),
@@ -1910,9 +2000,22 @@ fn publish_window(world: &mut World, entity: crate::entity::Entity, reveal: bool
         cursor = range.end;
     }
     window.push_str(&text[cursor..end]);
-    if let Some(editor) = world.get_mut::<Editor>(entity) {
-        editor.offset = top;
-    }
+    let row_h = layout.lines.get(first).map(|line| line.h).unwrap_or(0.0);
+    let sane = if offset.is_finite() {
+        offset.max(0.0)
+    } else {
+        0.0
+    };
+    let anchored_index = layout
+        .lines
+        .partition_point(|line| line.y <= sane)
+        .saturating_sub(1);
+    let anchored_top = layout
+        .lines
+        .get(anchored_index)
+        .map(|line| line.y)
+        .unwrap_or(0.0);
+    finish_scroll_publication(world, entity, top, row_h, anchored_top);
     if let Some(buffer) = world.get_mut::<Buffer>(entity) {
         buffer.caret = caret;
         buffer.anchor = anchor;
@@ -2381,5 +2484,41 @@ mod tests {
             assert_eq!(offset, linear_top(&lines, requested), "{delta}");
             assert!(lines.iter().any(|line| line.y == offset) || offset == 0.0);
         }
+    }
+
+    #[test]
+    fn sub_row_remainder_survives_a_width_change_and_the_next_wheel_crosses() {
+        let mut world = World::new();
+        crate::text::ensure_text_engine(&mut world);
+        let text: String = (0..40).map(|i| format!("row {i:02}\n")).collect();
+        let entity = world.spawn((
+            Editor::default(),
+            Label::new(""),
+            Rect {
+                x: 0.0,
+                y: 0.0,
+                w: 280.0,
+                h: 90.0,
+            },
+        ));
+        let layout = document_rows(&mut world, entity, &text);
+        let row_h = layout.lines[0].h;
+        assert!(row_h > 4.0);
+        scroll_editor_wheel(&mut world, entity, -(row_h - 2.0));
+        assert_eq!(
+            world.get::<Editor>(entity).unwrap().offset,
+            layout.lines[0].y
+        );
+        world.get_mut::<Rect>(entity).unwrap().w = 120.0;
+        let layout = document_rows(&mut world, entity, &text);
+        assert_eq!(
+            world.get::<Editor>(entity).unwrap().offset,
+            layout.lines[0].y
+        );
+        scroll_editor_wheel(&mut world, entity, -4.0);
+        assert_eq!(
+            world.get::<Editor>(entity).unwrap().offset,
+            layout.lines[1].y
+        );
     }
 }

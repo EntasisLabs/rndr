@@ -154,7 +154,7 @@ fn malformed_publications_are_atomic_and_clear_restores_geometry() {
     assert_eq!(app.world().get::<Label>(view).unwrap().text, TEXT);
 }
 #[test]
-fn gutter_uses_source_line_numbers_and_edits_invalidate_fold_geometry() {
+fn gutter_uses_source_line_numbers_and_edits_map_whole_line_folds() {
     use rndr_core::editing::{EditOrigin, SourceBatch, SourceChange};
     use rndr_core::{set_parent, Gutter};
     let (mut app, view, id) = boot();
@@ -201,11 +201,105 @@ fn gutter_uses_source_line_numbers_and_edits_invalidate_fold_geometry() {
     );
     app.update();
     app.update();
+    // '!' inserted before the fold shifts 7..17 to 8..18 and the hidden line stays out.
+    assert_eq!(
+        app.world().get::<SourceFolds>(view).unwrap().ranges(),
+        one_fold(8..18).as_slice()
+    );
     assert_eq!(
         app.world().get::<Label>(view).unwrap().text,
-        format!("!{TEXT}")
+        "!header\ntail\n"
     );
+}
+#[test]
+fn insert_above_keeps_the_fold_and_undo_restores_its_bytes() {
+    use rndr_core::editing::{EditOrigin, SourceBatch, SourceChange};
+    let (mut app, view, id) = boot();
+    collapse(&mut app, view, id);
+    let doc = app
+        .world_mut()
+        .resource_mut::<SourceDocuments>()
+        .unwrap()
+        .get_mut(id)
+        .unwrap();
+    doc.commit(SourceBatch {
+        document: id,
+        base: doc.revision(),
+        origin: EditOrigin::Host(1),
+        changes: vec![SourceChange {
+            range: 0..0,
+            replacement: "INSERTED\n".into(),
+        }],
+    })
+    .unwrap();
+    app.update();
+    let shifted = 7 + "INSERTED\n".len()..17 + "INSERTED\n".len();
+    assert_eq!(
+        app.world().get::<SourceFolds>(view).unwrap().ranges(),
+        std::slice::from_ref(&shifted)
+    );
+    let source = app
+        .world()
+        .resource::<SourceDocuments>()
+        .unwrap()
+        .get(id)
+        .unwrap()
+        .text()
+        .to_string();
+    assert_eq!(&source[shifted], "hidden β\n");
+    assert!(!app
+        .world()
+        .get::<Label>(view)
+        .unwrap()
+        .text
+        .contains("hidden β"));
+    app.world_mut()
+        .resource_mut::<SourceDocuments>()
+        .unwrap()
+        .get_mut(id)
+        .unwrap()
+        .undo()
+        .unwrap();
+    app.update();
+    assert_eq!(
+        app.world().get::<SourceFolds>(view).unwrap().ranges(),
+        one_fold(7..17).as_slice()
+    );
+    assert_eq!(
+        app.world().get::<Label>(view).unwrap().text,
+        "header\ntail\n"
+    );
+}
+#[test]
+fn an_edit_that_splits_the_folded_line_drops_that_fold() {
+    use rndr_core::editing::{EditOrigin, SourceBatch, SourceChange};
+    let (mut app, view, id) = boot();
+    collapse(&mut app, view, id);
+    let doc = app
+        .world_mut()
+        .resource_mut::<SourceDocuments>()
+        .unwrap()
+        .get_mut(id)
+        .unwrap();
+    // Delete the newline that closed the hidden line. The range is no longer whole lines.
+    doc.commit(SourceBatch {
+        document: id,
+        base: doc.revision(),
+        origin: EditOrigin::Host(1),
+        changes: vec![SourceChange {
+            range: 16..17,
+            replacement: "".into(),
+        }],
+    })
+    .unwrap();
+    app.update();
     assert!(app.world().get::<SourceFolds>(view).is_none());
+    assert!(app
+        .world()
+        .get::<Label>(view)
+        .unwrap()
+        .text
+        .contains("hidden β"));
 }
 #[test]
 fn representative_hooks_exclude_brackets_inside_strings_comments_and_preserve_utf8_spans() {
