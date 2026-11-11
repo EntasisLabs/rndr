@@ -10,7 +10,7 @@ use crate::render;
 use std::collections::{HashMap, VecDeque};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
-    Arc,
+    Arc, Mutex,
 };
 
 /// Identity and liveness of one local feed observation, never backend authority.
@@ -21,6 +21,7 @@ pub struct LiquidFeedContext {
     path: Vec<u64>,
     retired: Arc<AtomicBool>,
     acknowledged: Arc<AtomicBool>,
+    settlement: Arc<Mutex<Settlement>>,
 }
 impl PartialEq for LiquidFeedContext {
     fn eq(&self, other: &Self) -> bool {
@@ -44,9 +45,68 @@ impl LiquidFeedContext {
         }
     }
 }
+// Settlement belongs to the exact request, independent of publication eligibility
+// or its current registry container. Never hold this lock across host code.
+#[derive(Debug, Default)]
+struct Settlement {
+    pending: bool,
+    in_flight: bool,
+    result: Arc<()>,
+}
+impl LiquidFeedContext {
+    fn charged(&self) -> bool {
+        let s = self.settlement.lock().unwrap();
+        s.in_flight || (s.pending && !self.acknowledged.load(Ordering::Acquire))
+    }
+    fn settle(&self, outcome: &FeedOutcome) {
+        let mut s = self.settlement.lock().unwrap();
+        s.pending = matches!(outcome, FeedOutcome::Pending);
+        // A reentrant contextual result supersedes the enclosing loader result.
+        s.result = Arc::new(());
+    }
+}
+// Owns the callback's accounting even if its observation retires, is drained,
+// or is superseded while the host runs. Unwind conservatively retains escaped
+// work until acknowledgment; it cannot infer that no worker escaped a panic.
+struct LoadSettlement {
+    context: LiquidFeedContext,
+    result: Arc<()>,
+    completed: bool,
+}
+impl LoadSettlement {
+    fn begin(context: &LiquidFeedContext) -> Self {
+        let mut s = context.settlement.lock().unwrap();
+        s.in_flight = true;
+        Self {
+            context: context.clone(),
+            result: s.result.clone(),
+            completed: false,
+        }
+    }
+    fn finish(mut self, outcome: &FeedOutcome) -> bool {
+        let mut s = self.context.settlement.lock().unwrap();
+        let current = Arc::ptr_eq(&s.result, &self.result);
+        if current {
+            s.pending = matches!(outcome, FeedOutcome::Pending);
+        }
+        s.in_flight = false;
+        self.completed = true;
+        current
+    }
+}
+impl Drop for LoadSettlement {
+    fn drop(&mut self) {
+        if !self.completed {
+            let mut s = self.context.settlement.lock().unwrap();
+            if Arc::ptr_eq(&s.result, &self.result) {
+                s.pending = true;
+            }
+            s.in_flight = false;
+        }
+    }
+}
 struct Observation {
     context: LiquidFeedContext,
-    pending: bool,
 }
 #[derive(Default)]
 struct Observations {
@@ -68,8 +128,7 @@ fn observation(
     let max_lanes = lifecycle::limits(world).lanes;
     {
         let r = world.resource_mut::<Observations>()?;
-        r.unacknowledged
-            .retain(|c| !c.acknowledged.load(Ordering::Acquire));
+        r.unacknowledged.retain(LiquidFeedContext::charged);
         if !fresh {
             if let Some(old) = r.active.get(&(key, instance.to_string())) {
                 return Some(old.context.clone());
@@ -102,12 +161,12 @@ fn observation(
         path,
         retired: Arc::new(AtomicBool::new(false)),
         acknowledged: Arc::new(AtomicBool::new(false)),
+        settlement: Arc::default(),
     };
     r.active.insert(
         (key, instance.to_string()),
         Observation {
             context: context.clone(),
-            pending: false,
         },
     );
     Some(context)
@@ -134,22 +193,27 @@ fn drain_notifications(world: &mut World) {
             break;
         }
         let old = world
-            .resource_mut::<Observations>()
+            .resource::<Observations>()
             .unwrap()
             .retiring
-            .pop_front()
-            .unwrap();
+            .front()
+            .unwrap()
+            .context
+            .clone();
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             view::with_host(world, |host, world| {
-                host.retire_feed_observation(world, &old.context)
+                host.retire_feed_observation(world, &old)
             })
         }));
         if result.is_err() {
             lifecycle::panicked(world);
         }
-        if old.pending && !old.context.acknowledged.load(Ordering::Acquire) {
-            if let Some(r) = world.resource_mut::<Observations>() {
-                r.unacknowledged.push(old.context);
+        // Keep the notification charged in the queue while host code reenters.
+        // The borrowed host prevents recursive notification dispatch.
+        if let Some(r) = world.resource_mut::<Observations>() {
+            r.retiring.pop_front();
+            if old.charged() {
+                r.unacknowledged.push(old);
             }
         }
     }
@@ -197,11 +261,7 @@ pub fn put_liquid_feed_result(
         interval_ms: None,
     };
     let record = commit_outcome(world, view, source, block, &spec, &outcome);
-    if let Some(r) = world.resource_mut::<Observations>() {
-        if let Some(o) = r.active.get_mut(&(context.key, spec.instance.clone())) {
-            o.pending = matches!(outcome, FeedOutcome::Pending);
-        }
-    }
+    context.settle(&outcome);
     state::emit_reserved(
         world,
         permit,
@@ -274,8 +334,7 @@ pub(crate) fn retire_dead(world: &mut World) {
         retire(world, old);
     }
     if let Some(r) = world.resource_mut::<Observations>() {
-        r.unacknowledged
-            .retain(|c| !c.acknowledged.load(Ordering::Acquire));
+        r.unacknowledged.retain(LiquidFeedContext::charged);
     }
     // Source transactions may temporarily extract LiquidView. Defer host
     // notifications until that whole publication has committed.
@@ -471,9 +530,17 @@ fn poll(world: &mut World, root: Entity, spec: &Spec, manual: bool) -> FeedOutco
     // A reentrant refresh can supersede a request while its host is borrowed.
     // That is deferred async work, not a declaration that the feed is sync.
     let outcome = if view::host_available(world) {
-        view::with_host(world, |host, world| {
+        let settlement = LoadSettlement::begin(&context);
+        let outcome = view::with_host(world, |host, world| {
             host.load_feed_for(world, &context, &request)
-        })
+        });
+        // Settle before any publication/staleness check, by exact identity.
+        if !settlement.finish(&outcome) {
+            // Identical contextual results can leave the component revision
+            // unchanged. Their exact result token still supersedes this load.
+            return FeedOutcome::Defer;
+        }
+        outcome
     } else {
         FeedOutcome::Pending
     };
@@ -499,11 +566,6 @@ fn poll(world: &mut World, root: Entity, spec: &Spec, manual: bool) -> FeedOutco
     if state::liquid_component_state(world, view, source).is_some_and(|r| r.revision == u64::MAX) {
         lifecycle::refused(world, crate::LiquidUpdateError::Exhausted);
         return FeedOutcome::Pending;
-    }
-    if let Some(r) = world.resource_mut::<Observations>() {
-        if let Some(o) = r.active.get_mut(&(key, spec.instance.clone())) {
-            o.pending = matches!(outcome, FeedOutcome::Pending);
-        }
     }
     if matches!(outcome, FeedOutcome::Defer) {
         mark(world, root, spec, false);
@@ -746,6 +808,115 @@ mod retirement_tests {
         }
     }
     #[test]
+    fn in_flight_settlement_follows_exact_request_through_drain_and_replacement() {
+        let (mut w, _, key, _) = setup();
+        w.insert_resource(crate::LiquidLimits {
+            scopes: 2,
+            ..crate::LiquidLimits::default()
+        });
+        let old = observation(&mut w, key, "feed", false).unwrap();
+        let guard = LoadSettlement::begin(&old);
+        let new = observation(&mut w, key, "feed", true).unwrap();
+        new.settle(&FeedOutcome::Ready(FeedBody {
+            datatype: FeedDatatype::Text,
+            body: "new".into(),
+        }));
+        drain_notifications(&mut w);
+        assert_eq!(counts(&w), (0, 1, 0, 1));
+        assert!(observation(&mut w, key, "third", false).is_none());
+        guard.finish(&FeedOutcome::Pending);
+        assert!(old.charged());
+        assert!(
+            !new.charged(),
+            "old settlement cannot charge replacement by slot"
+        );
+        old.acknowledge_retirement();
+        assert!(observation(&mut w, key, "third", false).is_some());
+    }
+
+    #[test]
+    fn callback_settlement_controls_ack_unwind_and_newer_results() {
+        for mode in 0..8 {
+            let (mut w, _, key, _) = setup();
+            let c = observation(&mut w, key, "feed", false).unwrap();
+            let guard = LoadSettlement::begin(&c);
+            if mode == 3 || mode == 4 {
+                // Contextual result wins over an enclosing loader's stale
+                // return (or unwind), independently of publication revision.
+                c.settle(&FeedOutcome::Ready(FeedBody {
+                    datatype: FeedDatatype::Text,
+                    body: "newer".into(),
+                }));
+            }
+            let old = w
+                .resource_mut::<Observations>()
+                .unwrap()
+                .active
+                .remove(&(key, "feed".into()))
+                .unwrap();
+            retire(&mut w, old);
+            drain_notifications(&mut w);
+            assert_eq!(counts(&w).3, 1, "in-flight callback is still charged");
+            if mode == 2 {
+                c.acknowledge_retirement();
+            }
+            // Even an early acknowledgment cannot release an executing load.
+            if mode == 2 {
+                assert!(c.charged());
+            }
+            match mode {
+                0 | 2 | 3 => guard.finish(&FeedOutcome::Pending),
+                1 | 4 => {
+                    // conservative panic/unwind path
+                    drop(guard);
+                    false
+                }
+                5 => guard.finish(&FeedOutcome::Defer),
+                6 => guard.finish(&FeedOutcome::Ready(FeedBody {
+                    datatype: FeedDatatype::Text,
+                    body: "sync".into(),
+                })),
+                _ => guard.finish(&FeedOutcome::Failed {
+                    message: "sync failure".into(),
+                }),
+            };
+            retire_dead(&mut w);
+            assert_eq!(
+                counts(&w).3,
+                usize::from(mode == 0 || mode == 1),
+                "mode={mode}"
+            );
+            c.acknowledge_retirement();
+            retire_dead(&mut w);
+            assert_eq!(counts(&w).3, 0);
+        }
+    }
+
+    #[test]
+    fn retirement_callback_reservation_remains_charged_during_reentry() {
+        struct Host(Key);
+        impl LiquidHost for Host {
+            fn retire_feed_observation(&mut self, w: &mut World, _: &LiquidFeedContext) {
+                assert!(
+                    observation(w, self.0, "third", false).is_none(),
+                    "notification must remain counted while executing"
+                );
+            }
+        }
+        let (mut w, _, key, _) = setup();
+        w.insert_resource(crate::LiquidLimits {
+            scopes: 2,
+            ..crate::LiquidLimits::default()
+        });
+        observation(&mut w, key, "feed", false).unwrap();
+        observation(&mut w, key, "feed", true).unwrap();
+        w.insert_resource(crate::view::HostSlot(Some(Box::new(Host(key)))));
+        drain_notifications(&mut w);
+        assert_eq!(counts(&w), (0, 1, 0, 0));
+        assert!(observation(&mut w, key, "third", false).is_some());
+    }
+
+    #[test]
     fn retirement_budget_progresses_in_exact_finite_pumps() {
         let (mut w, view, key, _) = setup();
         w.insert_resource(crate::LiquidLimits {
@@ -804,13 +975,10 @@ mod retirement_tests {
                 acknowledged: Arc::new(AtomicBool::new(false)),
                 ..base.clone()
             };
-            observations.active.insert(
-                (key, request.to_string()),
-                Observation {
-                    context,
-                    pending: true,
-                },
-            );
+            observations.active.insert((key, request.to_string()), {
+                context.settle(&FeedOutcome::Pending);
+                Observation { context }
+            });
         }
         w.insert_resource(observations);
         w.despawn_entity(view);
@@ -871,7 +1039,11 @@ mod retirement_tests {
         let (mut w, view, key, _) = setup();
         let old = observation(&mut w, key, "feed", false).unwrap();
         let r = w.resource_mut::<Observations>().unwrap();
-        r.active.get_mut(&(key, "feed".into())).unwrap().pending = true;
+        r.active
+            .get(&(key, "feed".into()))
+            .unwrap()
+            .context
+            .settle(&FeedOutcome::Pending);
         r.next = u64::MAX;
         assert!(observation(&mut w, key, "feed", true).is_none());
         assert!(!old.is_retired());

@@ -998,3 +998,220 @@ Medousa adapter readiness or native/visual/accessibility certification is
 claimed. Native metadata/seals were not edited: the sender must obtain a fresh
 seal of the exact eventual candidate before any approval; reopening old
 d2edd1ad evidence for admission does not seal or accept this correction.
+### L.5 Follow-up: exact-request Pending settlement through reentrant retirement
+
+This follow-up addresses only the inherited P1 independently reproduced against
+clean `5b2feb8a743bc9dbef5749caadddedb40ba3e587`. The admitted HEAD and clean
+status were checked before edits; `main` remained
+`f2919a1692d0bb7e0fba2e26976a1631cf4c637f`. Earlier §L results remain historical,
+not acceptance of this follow-up.
+
+#### L.5.1 Defect and settlement/publication separation
+
+A fresh observation previously began with `pending = false`. A host loader
+could retire/remove/replace its source and then return `Pending`; the correct
+post-callback stale-publication refusal returned **before** updating that flag.
+The retirement drain consequently forgot escaped, unacknowledged async work.
+The public review probe admitted six distinct retired Pending contexts with
+`scopes = 2`; the ordinary Pending retirement control stopped at two. The
+available review logs were inspected, including
+`/tmp/f1-review5-final-hostile_review5.log` (5 pass / 1 fail) and the parent
+failure/control logs `/tmp/f1-review5-before-pending-{retirement,control}.log`.
+These are corroborating historical observations, **not substitutes for reruns**.
+
+The focused implementation in `src/feed.rs` separates two obligations:
+
+- **Settlement is exact-request owned.** `LiquidFeedContext` shares a small
+  settlement cell across its clones and all active/retiring/unacknowledged
+  containers. No post-callback accounting lookup uses just `(Key, instance)`;
+  settling an old request cannot charge or clear its replacement in that slot.
+- **Actual host execution is reserved.** A World-free `LoadSettlement` guard
+  marks an actual loader invocation in flight. Its normal return settles
+  Pending/Ready/Failed/Defer before all publication checks. Its unwind retains
+  potentially escaped work conservatively until acknowledgment, unless a newer
+  contextual result has already settled it. The existing `HostSlot` borrow
+  serializes actual loader invocations; no settlement lock crosses host code.
+- **Retired retention tests obligation, not presentation.** A retained request
+  stays charged while its loader executes, even after an early retirement
+  acknowledgment; after return it remains charged only for unacknowledged
+  Pending work. Synchronous settlement and acknowledged work are reaped on the
+  ordinary admission/drain paths. No backend cancellation or worker completion
+  is inferred from UI disposal.
+- **Borrowed-host Pending is a retry presentation, not escaped async work.**
+  Reentrant refresh still gets its existing Pending/watch retry behavior, but
+  no actual loader invocation means no new asynchronous settlement obligation.
+- **Notification callbacks keep their reservation.** A retirement notification
+  remains in the charged queue while host code executes and reenters. It is
+  removed only after return/unwind, then retained if an obligation remains.
+  The borrowed host prevents recursive notification dispatch; callback budgets
+  and postorder/reverse-registration notification ordering are unchanged.
+- **Publication remains separately guarded.** Existing liveness, exact active
+  context, root lease, location, revision and exhaustion guards still refuse
+  obsolete state/events. Accepted contextual results replace a held identity
+  token. The enclosing loader cannot overwrite that newer settlement **or
+  publish its own outcome**, even if the newer result is identical and
+  `store_snapshot` leaves the numeric component revision unchanged. Holding
+  the original token also avoids identity-reuse/ABA and counter-exhaustion
+  issues. No historical token cache is retained.
+
+The unchanged envelope permit still drops on every stale return, capacity
+refusal and unwind. The result path settles the exact context after its
+callback-free state commit and before interaction delivery, so delivery
+reentry cannot redirect accounting to a superseding request.
+
+#### L.5.2 Permanent regressions and genuinely rebuilt comparison
+
+`tests/review_regressions.rs` remains **byte-for-byte unchanged**, including all
+15 earlier regressions (SHA-256
+`adc54520c18321602abb77cacf121a7c41c9b3b78d34bbfe0183269f10c12320`). New,
+formatted, permanent public tests live separately in `tests/pending_settlement.rs`:
+
+1. Reentrant newly-started Pending retirement remains bounded; acknowledgment
+   and normal drain restore admission.
+2. The normal Pending retirement control also proves acknowledgment/recovery.
+3. Reentrant Ready, Defer, Failed, early acknowledgment and borrowed-host refresh
+   controls admit six successive cycles without phantom async charges.
+4. An actual loader panic after retiring its source cannot escape accounting;
+   acknowledgment restores admission, the host is restored, and an
+   `envelopes = 1` permit is reusable after unwind.
+5. A newer contextual Ready settles the request even when its enclosing loader
+   later returns Pending and retires the owner.
+6. A contextual result that does **not** advance the component revision still
+   supersedes the enclosing loader's obsolete publication.
+
+Three private tests additionally cover exact identity across active → retiring
+→ drained/unacknowledged state and same-slot replacement; in-flight early ack,
+Pending/Ready/Failed/Defer/unwind/newer-result settlement; and notification
+reservation refusal during reentrant admission followed by successful admission
+when the synchronous notification finishes.
+
+The final public file's SHA-256 is
+`080c5f1a77b25ed87283af842ad65000a033303aa090d5723532f148b9b48798`.
+For the baseline, `git archive 5b2feb8a` was extracted to
+`/tmp/f1-pending-before.UDyllP`; **every tracked file** was compared bytewise
+against the Git tree (zero differences). Only the new public test file was
+added. That file is identical to the candidate's, not an adjusted oracle.
+
+The baseline and corrected disposable builds reuse dependency artifacts via
+`CARGO_TARGET_DIR`, but **each source switch explicitly runs
+`cargo clean -p rndr_liquid_ui` before testing**. Clean receipts and compilation
+logs are retained. Archive timestamps/shared caches previously caused false
+baseline passes during review; an old package path or short build time alone
+is not evidence of recompilation. The comparison below relies on forced
+package rebuilds, not those historical cache assumptions.
+
+| Command/comparison | Observed result | Workshop-local log |
+| --- | --- | --- |
+| Final six public tests on forced-rebuilt admitted baseline | **3 passed, 3 failed, 0 ignored/filtered; exit 101** | `/tmp/f1-pending-final-before.log` |
+| Same final six public tests on corrected disposable source | **6 passed, 0 failed/ignored/filtered; exit 0** | `/tmp/f1-pending-review-pending_settlement.log` |
+| Unchanged independent review 13 on corrected disposable source | **13 passed, 0 failed/ignored/filtered; exit 0** | `/tmp/f1-pending-review-adversarial_review.log` |
+| Unchanged hostile review 6 on corrected disposable source | **6 passed, 0 failed/ignored/filtered; exit 0** | `/tmp/f1-pending-review-hostile_review5.log` |
+| Unchanged earlier permanent 15 on corrected disposable source | **15 passed, 0 failed/ignored/filtered; exit 0** | `/tmp/f1-pending-review-review_regressions.log` |
+
+Commands use `cargo test --locked --offline -p rndr_liquid_ui --test NAME --
+--nocapture`, where NAME is respectively `pending_settlement`,
+`adversarial_review`, `hostile_review5`, or `review_regressions`. The corrected
+disposable fixture is `/tmp/f1-pending-review.LCWBlV`, with only the corrected
+feed source, permanent new test, and the two unchanged external probe files
+added to the admitted archive. The 13/6 external files retain SHA-256
+`8e77e826c99ea903be683eb361c2cb8eb683a685887b2b3f290cf548c027a6f2` /
+`f13a5f02b0907d4ada79acd81f5e8e7d3144263e5cee41933396cbb73d4319fa`.
+External probes remain disposable, not new tracked unrelated tests. Their
+pre-existing unused-constant warning is not a warning suppression in production
+or permanent tests.
+
+The three baseline failures are the reported six-context Pending escape, the
+same accounting escape on loader unwind, and same-revision enclosing-result
+publication. The normal backpressure, synchronous/no-phantom and newer-Ready
+controls pass the baseline. The corrected original hostile probe observes
+**one** retained unacknowledged context at `scopes = 2`, not six; the other slot
+is occupied by the current active observation, so a fresh manual replacement
+correctly refuses. The normal control still observes two. Recovery is asserted,
+not merely inferred from those counts.
+
+Intermediate failures are retained honestly: `/tmp/f1-pending-after.log` used
+an overstrict added assertion that exactly two retired contexts must accumulate
+(the actual one plus an active lane correctly fills capacity); that assertion
+was corrected to the original nonempty bounded contract. The first deliberate
+unwind harness left its panic arm set after a refused refresh, causing an
+unrelated later frame to panic; `/tmp/f1-pending-controls{,2}.log` and
+`/tmp/f1-pending-unwind-debug.log` retain that harness failure. The final harness
+clears an unconsumed arm and checks real unwind accounting/admission recovery.
+The same-revision test initially failed the intermediate settlement-only fix
+(`/tmp/f1-pending-same-revision-before.log`); exact result-token publication
+refusal resolves it (`/tmp/f1-pending-token-after.log`). An intermediate private
+control needed a match-statement semicolon after `finish` began returning
+publication eligibility; compiler/lint exit-101 evidence is retained at
+`/tmp/f1-pending-token-{unit,clippy}-compile-error.log`, not counted as a green
+gate. Earlier §I–§L failures and qualifications are not deleted.
+
+#### L.5.3 Final unfiltered qualification, resources and handback boundary
+
+Environment: `PATH="$HOME/.cargo/bin:$PATH"`, `CARGO_BUILD_JOBS=2`,
+`CARGO_INCREMENTAL=0`. After fixture builds, the admitted package was explicitly
+cleaned and rebuilt before full qualification; no fixture artifact is used as
+candidate evidence.
+
+| Exact command | Final result | Workshop-local log |
+| --- | --- | --- |
+| `cargo test --locked --offline -p rndr_liquid -p rndr_liquid_ui -- --nocapture` | **94 passed, 2 pre-existing opt-in probes ignored, 0 failed/filtered; exit 0**, including docs | `/tmp/f1-pending-final-liquid.log` |
+| `cargo test --locked --offline -p rndr_core --lib --test runtime --test feed --test markdown` | **179 passed, 1 pre-existing ignored, 0 failed/filtered; exit 0** | `/tmp/f1-pending-final-core.log` |
+| `cargo clippy --locked --offline -p rndr_liquid_ui --lib --tests -- -D warnings` | **exit 0** | `/tmp/f1-pending-final-clippy.log` |
+| `cargo fmt --all -- --check` | **exit 0** | `/tmp/f1-pending-final-fmt.log` |
+| `git diff --check` | **exit 0** after final documentation | `/tmp/f1-pending-final-diff.log` |
+
+The Liquid total increases from 85 by **six new public tests and three private
+controls**, not by filtering any earlier failure or adding ignored tests. The
+UI unit suite took **89.34 s**. All 300 same-World cycles ran in order: 100 each
+for seeds **1, 7, 42**. Every teardown passed the unchanged full 19-counter
+baseline check, weak-capture/drop and retired-context publication checks, with
+no new test-side cleanup. The actual Layout and tagged projection high-water
+remain **206 / 91**, respectively; both return to zero. Caller-owned shell
+removal still occurs only after renderer drain and never cascades hidden
+renderer residue. The separate host-registration oracle completed 100 cycles
+per seed with **retained = 0, high_water = 0**. Existing host unwind/drop,
+callback order, append/title and legacy compatibility tests remain green.
+
+For all three seeds, in the existing §J/§L counter order:
+
+```text
+baseline   = [0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0]
+high_water = [6,1,6,8,5,1,0,8,1,1,1,1,1,0,1,1,0,91,206]
+seed 1 elapsed  = 29.267170625 s
+seed 7 elapsed  = 30.089586917 s
+seed 42 elapsed = 29.982754417 s
+```
+
+The final documentation briefly had a trailing blank line; its exit-2 diff
+receipt is preserved in `/tmp/f1-pending-doc-whitespace-before.log` and is
+superseded by the final clean diff/staged/committed-range checks. Package clean
+receipts are `/tmp/f1-pending-final-before-clean.log`,
+`/tmp/f1-pending-review-clean.log`, and
+`/tmp/f1-pending-final-restore-clean.log`. The final source/private-test bytes
+were also recopied to the disposable fixture, its public suites rebuilt and
+rerun, then the admitted source rebuilt again for the permanent public suite;
+that restoration does not replace the full unfiltered qualification above.
+
+Limits and policy remain unchanged: **4096 scopes, 32 feed lanes/block,
+256 listeners/owner, 1024 envelopes/World, 256 shared callbacks/pump, 512
+diagnostics**. Async work escaped by a panicking loader is conservatively
+retained until the host acknowledges retirement; an unacknowledging host
+continues to exert bounded backpressure, not silent cancellation or unlimited
+admission. No in-flight settlement state is dropped just because publication
+became ineligible. Synchronously settled work and acknowledged/drained work
+restore capacity without a phantom Pending obligation.
+
+This adds request-local settlement bookkeeping, not a performance claim.
+Parking still scans ownership metadata, and whole-stream append staging remains
+**O(S_i) per update**, potentially quadratic in aggregate. Generic caller
+subtree despawn still intentionally deletes attached descendants; there is no
+resurrection or generic cascade change. Liquid's own cleanup preserves
+unrelated/reparented-out application nodes. F2, parser, SDK/Cargo and Medousa
+remain untouched; no Medousa build, adapter or readiness claim is made.
+
+**Ready only for fresh independent review.** No implementation acceptance,
+approval, integration, push, publication, deployment, durable/backend
+cancellation or metadata edit was performed. The stale native `d2edd1ad` seal
+was not repaired or edited. The sender retains review/integration and must
+obtain a **fresh exact corrected candidate seal before any approval**; reopening
+old evidence for admission did not seal or accept this correction.
