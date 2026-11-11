@@ -205,3 +205,76 @@ Inspect resolved features/dependency changes with Cargo metadata/feature checks 
 3. F3/F4 optional ownership implementation and F5 host-authoritative freeze/native-close adapters with affected writer tests; no claim those hooks are present today.
 4. Separate Medousa authority to implement the missing retained-tab/document/Liquid/approval adapters and obtain exact locked/offline build evidence. Four proofs are blocked on these prerequisites, not on a missing reference checkout.
 5. Host-authoritative cancellation/approval semantics remain native; a stricter exact-turn cancel API would require its own backend scope, not an invented client capability. Native keyboard/IME/accessibility/DPI/multiwindow and rich Live/canvas/artifact tracks stay open. No migration/full replacement readiness from F0 alone.
+
+## H. F1 baseline investigation — incomplete, scope review required
+
+This is a **new baseline receipt**, not a change to the historical F0 results
+above and not an F1 implementation/acceptance claim. F0 is accepted/integrated
+at the assigned baseline `f2919a1692d0bb7e0fba2e26976a1631cf4c637f`.
+Investigation date: 2026-11-11 UTC; isolated undertaking
+`work-95d0c986e14b6e17fb82f4b5950968b7`. No production source was changed.
+
+Three permanent desired-behavior regressions in `tests/state.rs` fail against
+that production baseline:
+
+- `terminal_owner_rejects_writes_before_the_next_pump`: actual accordion
+  activation, then raw owner despawn; the immediate positional put incorrectly
+  succeeds before any pump.
+- `unmatched_same_source_content_does_not_inherit_old_record`: changed parsed
+  accordion content at the same projected source position incorrectly inherits
+  the old open state. This tests F1's provisional parsed-equality retirement,
+  **not** F2 keyed/final duplicate identity.
+- `terminal_core_host_registration_releases_capture_at_cleanup_pump`: a focused
+  host-registration sentinel, **not the full section C resource vector**.
+  Each Sim seed `1, 7, 42` uses one World for 100 cycles, alternates empty and
+  nonempty teardown, crosses cascade/raw/LiquidView/MarkdownView removal, and
+  pumps four times per cycle. Each seed retains **100 captures**, with measured
+  high-water **100**, instead of baseline zero. All captures release on World
+  drop. The focused state suite took **31.30 s** with output enabled; this is a
+  measurement, not a performance qualification or proof of cooperative task
+  retirement. The sentinel replaces the per-view hook solely to observe core
+  table retention; it does not claim Liquid's current stateless hook has a
+  capture or that application-global listeners should be removed.
+
+**Required scope review:** `rndr_core/src/markdown/host.rs::MarkdownSlotHosts`
+contains a private per-view host map. `set_markdown_slot_host` only
+inserts/replaces; `notify` temporarily removes a callback and reinserts it.
+There is no scoped removal API or terminal-view sweep. Liquid installs one
+entry per surface, so Liquid-only code cannot remove its terminal entries
+without also discarding unrelated application hosts. The worker reported this
+source evidence and failing sentinel to the sender **before any core edit**.
+A narrow candidate is an additive removal method on the already-exported
+`MarkdownSlotHosts`, returning the removed host so it can be dropped outside a
+World borrow. Its callback-time semantics require review; the public
+`MarkdownSlotHost` trait, schedules and core despawn behavior need not change.
+No scope expansion or core implementation is claimed by this receipt.
+
+Commands used `export PATH=$HOME/.cargo/bin:$PATH`; final verification used
+`CARGO_BUILD_JOBS=2 CARGO_INCREMENTAL=0`:
+
+- `cargo test -p rndr_liquid_ui --test state --locked --offline -- --nocapture`:
+  **2 passed, 3 failed**, exit 101, measurements above.
+- `cargo test --locked --offline -p rndr_liquid_ui`: exit 101 on those same
+  three desired-behavior failures. Cargo stops after that integration suite.
+- To separately establish all unchanged existing coverage,
+  `cargo test -p rndr_liquid_ui --locked --offline -- --skip terminal_owner_rejects_writes_before_the_next_pump --skip unmatched_same_source_content_does_not_inherit_old_record --skip terminal_core_host_registration_releases_capture_at_cleanup_pump`:
+  **29 passed** including doc tests; **2 existing opt-in probes ignored**;
+  exactly the three new regressions filtered. This is a baseline-only result,
+  not a green F1 suite.
+- `cargo test --locked --offline -p rndr_core --test runtime --test feed`:
+  **26 passed**.
+- `cargo test --locked --offline -p rndr_core --lib close::tests`:
+  **3 passed**, 134 unrelated unit tests filtered.
+
+All F1 production work, the complete resource-vector oracle, listener and feed
+retirement races/capacity/compatibility acceptance remain **incomplete**.
+F2 remains deferred; this branch is not ready for integration.
+
+**Owner-supplied reference evidence (not this worker's repository inspection):**
+Medousa reference HEAD `effb18c2836df4ce2e5e88cd46876c685b0bb318` was refreshed
+clean on November 11. The preview has no Liquid/flow dependency or adapter.
+Its retained core thread feed is not a Liquid feed. Follower abort/reconnect
+and stream Drop retire observation only; explicit `Command::Cancel` separately
+calls session-targeted `cancel_active_turn`, not exact-turn CAS. Closing UI
+must not call that endpoint or resolve pending permission/secret/budget requests.
+No Medousa checkout was accessed, changed, built or tested in this investigation.
