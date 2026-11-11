@@ -1,14 +1,14 @@
 # Epic: optional rndr-flow ownership and guarded transitions
 
-**Status: proposed, not owner-accepted or implemented. Documentation/analysis only.** The package name `rndr-flow` is negotiable. This epic does not authorize its stories, create a crate, migrate Medousa, change application policy or certify a platform.
+**Status: F0 decided design, subject to sender review; not integrated or implemented.** The [F0 decision record](rndr-flow-f0-contract.md) settles the optional companion (`rndr-flow` / `rndr_flow`), ownership, guard and Liquid identity contracts. The [F1/F2 bounded slices](rndr-flow-f1-f2-slices.md) are the implementation handoff. No story implementation is authorized by these documents; no crate, migration or platform certification is delivered.
 
-Companion: [architecture/readiness analysis](rndr-flow-analysis.md). Baseline: rndr **`82707632302c67a88bd84220b9ca262f63a25197`** (0.5.0), reviewed 2026-11-11 UTC. All source references below are pinned by that baseline, not by this document's eventual commit. Rake inspiration is pinned to **`e03e0c09bfcf5ad3b271b8185280284a22823e05`**; see the analysis for exact reference links, evidence classification, tests and limits.
+Companion: [architecture/readiness analysis](rndr-flow-analysis.md). F0 refresh baseline: **`3f50a7fc292f19ece91e010c786132ea487e6bfa`**, isolated work `work-38959376005b7c3936f78d83bcc3ff1d`, 2026-11-11 UTC. Original analysis/source/test baseline: **`82707632302c67a88bd84220b9ca262f63a25197`** (0.5.0); the intervening baseline commit integrated only the two design documents. Original evidence remains historical, not rerun. Current source and exact clean Medousa reference `effb18c2836df4ce2e5e88cd46876c685b0bb318` are mapped in F0 §9. No latest-remote claim is added. Rake inspiration is pinned to **`e03e0c09bfcf5ad3b271b8185280284a22823e05`**; see the analysis for exact reference links, evidence classification, tests and limits.
 
 ## Read / continue here
 
 1. Review the responsibility boundary and invariants (§1–3).
-2. Accept or revise F0 decisions before authorizing implementation (§5).
-3. Prioritize F1/F2 existing-owner correctness over public framework breadth.
+2. Sender independently reviews [settled F0](rndr-flow-f0-contract.md), then uses native integration; the worker's documentation commit is neither acceptance nor integration.
+3. After F0 lands and separate authorization, implement [F1 then F2](rndr-flow-f1-f2-slices.md) serially in the existing Liquid owner before public framework breadth.
 4. Use F3–F5 for minimal ownership/transition infrastructure, F6 for the real existing application proof.
 5. Keep migration-start and full-replacement gates separate (§8).
 
@@ -16,7 +16,7 @@ This follows the repository's `docs/design/` proposal/story/gate convention. Sou
 
 ## 1. Outcome and scope
 
-Applications can opt into a small coordination layer to own UI work, retain hidden state intentionally, reject obsolete completions, and asynchronously guard disposal. The first usable result is **four lifecycle proofs in the existing `apps/rndr-home` workflow**, not widget coverage or an independently impressive framework demo. That application is in Medousa, not this repository, and its checkout was not available in this admitted worktree.
+Applications can opt into a small coordination layer to own UI work, retain hidden state intentionally, reject obsolete completions, and asynchronously guard disposal. The first usable result is **four lifecycle proofs in the existing `apps/rndr-home` workflow**, not widget coverage or an independently impressive framework demo. That application is in Medousa, not this repository. F0 now has authorized read-only reference access and maps the actual single-chat preview, SDK and missing adapters; no Medousa code/build was changed or exercised.
 
 ### Goals
 
@@ -49,7 +49,7 @@ application + host adapters
         └── rndr_core (headless World/App/events/runtime/feed/Sim)
 ```
 
-A UI-aware adapter may depend on the necessary UI crate, but core must never depend on flow. Begin with an internal pure transition module and existing concrete handle types; split additional crates only after demonstrated reuse. Default-feature-off builds must not pull in renderer/browser/native window services or an executor dependency. Consider extending `rndr_app` instead if F0 cannot justify an independently reusable ownership surface.
+A UI-aware adapter may depend on the necessary UI crate, but core must never depend on flow. Begin with an internal pure transition module and existing concrete handle types; split additional crates only after demonstrated reuse. Default-feature-off builds must not pull in renderer/browser/native window services or an executor dependency. F0 settles a companion rather than `rndr_app`: no default/optional features initially, only `rndr_core` as a direct runtime dependency, no facade expansion or mandatory executor. Adapters live with their consumer; see F0 §1.
 
 | Owner | Must do | Must not do |
 | --- | --- | --- |
@@ -59,13 +59,13 @@ A UI-aware adapter may depend on the necessary UI crate, but core must never dep
 
 Use existing `World` resources/components and UI-thread locals, `Plugin`, `Schedule::Update`, `TaskHandle`, `Feed::advance`/captured `Epoch`, `CloseGuard`, public `UiId`-based components and editing admission. See the analysis §2 for exact paths/symbols. Private `rndr_ui::lifecycle` helpers are not extension APIs.
 
-### Lifetime model to ratify in F0
+### Lifetime model settled in F0 (implementation pending)
 
 - An application coordinator roots UI lifetimes; a window registration maps to its actual rndr World. Do not assume different windows share a World. Cross-window coordination is explicit host wiring.
 - Each tab owns retained route entries and bounded typed history. A route value may occur in multiple entries with distinct identities.
-- A document model may be shared by several presentations. Choose one document-lifetime owner (application/document manager), with borrowed entry references. Closing one presentation releases its lease, not every presentation or the backend document. Do not give several parents permission to dispose the same object.
+- A document model may be shared by several presentations. Choose one document-lifetime owner (application/document manager), with explicit presentation leases. Closing one presentation releases its lease, not every presentation or the backend document. Do not give several parents permission to dispose the same object.
 - `Visible` and `Hidden` are presentation/activity policy; both retain a live scope. `Suspended` pauses selected activity explicitly, invalidates that activity's request generation, and defines buffering/resume behavior. It is not a synonym for hidden or dead.
-- `Closing` retains state while guards run; a cancelled/failed close returns to an intact live state. Terminal disposal has a no-return logical invalidation point before effects are emitted.
+- `Closing` retains state while guards run; cancel returns to an intact writable live state; failure retains intact protected/frozen state while retry/discard/cancel remains pending. Terminal disposal has a no-return logical invalidation point before effects are emitted.
 - A Liquid surface owns semantic blocks; viewport mount/unmount is underneath that lifetime. Removing a block, replacing its semantic identity and recycling it have distinct renderer policies.
 - No detached/reparented work in version one. Independently owned backend work must be classified at creation. Future ownership transfer would require its own atomic contract, not a magic `detach` escape hatch.
 
@@ -75,17 +75,17 @@ Use existing `World` resources/components and UI-thread locals, `Plugin`, `Sched
 
 A request captures exact scope incarnation, request generation and domain target at submission. Before applying its result on the UI thread, validate all three, then invoke the existing model's revision/admission boundary. This check occurs even if the runtime has already checked handle cancellation. Feed producers capture an epoch when work begins and call `send_at(epoch, ...)`; reading the latest epoch just before sending would incorrectly bless old work.
 
-Required orderings include: cancellation before first poll; cancel while future completes; queue then cancel before inbox drain; publish event then close before consumption; close/reopen same logical chat; replace request without disposing scope; duplicate completion. Cancellation cannot roll back an already committed event or IO side effect. Generation/ID exhaustion fails admission rather than silently reusing an incarnation (policy to ratify; rndr entity generations alone wrap).
+Required orderings include: cancellation before first poll; cancel while future completes; queue then cancel before inbox drain; publish event then close before consumption; close/reopen same logical chat; replace request without disposing scope; duplicate completion. Cancellation cannot roll back an already committed event or IO side effect. Generation/ID exhaustion fails admission rather than silently reusing an incarnation (settled by F0; rndr entity generations alone wrap).
 
 No task may capture a mutable World across await. Non-Send local futures stay UI-thread-local; transferable handles and immutable owned completion data cross worker boundaries. Async application work never gets an unchecked model pointer through flow.
 
 ### 3.2 Disposal and subscriptions
 
-Recommended disposal sequence:
+Settled disposal sequence (F0 §5 governs ordering/drain details):
 
 1. Commit logical disposal: reject new work and invalidate owner/request tokens.
 2. Remove owned registrations from the registry before invoking any external cleanup code. Snapshot child order and owned cancellation handles without holding registry borrows across callbacks.
-3. Dispose owned child scopes in a documented deterministic order (recommend child-first cleanup); signal/drop runtime handles and feeds; consume unsubscribe/cleanup registrations once.
+3. Dispose owned child scopes in deterministic child-first order, siblings in creation order and registrations in reverse order per scope; signal/drop runtime handles and feeds; consume unsubscribe/cleanup registrations once.
 4. Record cleanup errors and continue remaining independent cleanup. Enqueue any nested dispose request rather than recursively borrowing the coordinator. No resurrection of a disposed incarnation.
 5. Publish a bounded disposal outcome. Reclaim tombstones only after stale-token rejection remains guaranteed. Track cooperative task drain separately from logical disposal.
 
@@ -114,7 +114,7 @@ Any pre-commit phase -> Cancelled (retains state)
 
 A clean document may proceed directly after validation. Dirty state offers choices supplied by the host. The save handler must acknowledge actual host-defined durability before clearing the current dirty revision. Failure leaves state intact and offers retry/cancel/informed discard. Direct discard is an explicit informed choice, not fabricated save success; the native gate's existing `discard` method specifically addresses a current failed protection request, so do not alter that meaning.
 
-Each choice is bound to operation, target incarnation, allowed choices and dirty revision. Editing while already dirty invalidates old decisions. Save started at revision N cannot authorize closing revision N+1. Choose either mutation freeze across all input/IME/programmatic writers or complete revision invalidation at their authoritative boundaries. Revalidate all affected targets together before any is disposed. Completed saves are external effects and are not rolled back on cancel.
+Each choice is bound to operation, target incarnation, allowed choices and dirty revision. Editing while already dirty invalidates old decisions. Save started at revision N cannot authorize closing revision N+1. F0 §6 selects host-authoritative mutation freeze across all input/IME/programmatic writers through native Ready consumption, with final revision/participant validation and invalidation/restart for unavoidable external change. This is a future adapter requirement, not a currently installed freeze hook. Revalidate all affected targets together before any is disposed. Completed saves are external effects and are not rolled back on cancel.
 
 Repeated close requests for the same target coalesce. Conflicting operations serialize per target; unrelated tabs progress. Awaiting a guard must not hold the scheduling lane needed by that guard's save command. Nested navigation/close from callbacks is queued and revalidated; a save job must not await the very quit operation that is waiting for it. Cancellation wins before the commit point; after commit it returns an explicit too-late outcome. A dropped observer/timeout is not a choice and does not cancel implicitly.
 
@@ -132,7 +132,7 @@ Expose snapshots/counters and an optional bounded event ring: live scopes by kin
 
 ## 4. Minimal API sketches — explicitly proposed, not compiling contracts
 
-The following is **illustrative Rust-like pseudocode**. None of these names exist by virtue of this document. F0/F3 must resolve ownership, borrowing, local/Send bounds, error types and feature placement before publication. Prefer fewer public types than the sketches if existing rndr APIs express the contract.
+The following is **illustrative Rust-like pseudocode**. None of these names exist by virtue of this document. F0's decision record now governs ownership/identity/feature placement and supersedes conflicting alternatives in these sketches. F3 still verifies concrete borrowing, local/Send bounds and error types before public API publication. Prefer fewer public types than the sketches if existing rndr APIs express the contract.
 
 ```rust,ignore
 // Proposed metadata, not a parallel domain state store.
@@ -201,10 +201,10 @@ Do not add a `Route::mount` trait that constructs a rival component tree, encode
 Stories are bounded follow-on undertakings or review units, not an authorization to implement them now. Estimates are deliberately omitted until the owning contributor validates scope. Each implementation change needs focused before/after tests, a final diff and owner review. Existing unrelated work remains preserved.
 
 ```text
-F0 accepted boundary + contracts
- ├─ F1 Liquid terminal cleanup + removable subscriptions
- ├─ F2 Liquid identity/replacement policy (coordinate with F1)
- └─ F3 headless scopes + consumable cleanup
+F0 decided design -> sender review/native integration (still pending)
+ ├─ separate grant -> F1 Liquid terminal cleanup + removable subscriptions
+ │                    └─ F2 exact semantic identity on accepted F1 seams
+ └─ separate grant -> F3 headless scopes + consumable cleanup
        └─ F4 owned async work + stale completion adapter
              └─ F5 typed retained history + guarded transitions
 F1 + F2 + F3 + F4 + F5
@@ -212,21 +212,29 @@ F1 + F2 + F3 + F4 + F5
        └─ F7 rollout/compatibility/diagnostic acceptance
 ```
 
-F1/F2 correctness evidence is a release gate for the Liquid proof, not an excuse to wait for broad route macros. F3 design can proceed after F0, but do not release a framework that masks F1/F2. F1/F2 touch shared state/view semantics: implement serially or agree exact interfaces before concurrent edits. No parallel work is dispatched by this epic.
+F1/F2 correctness evidence is a combined release gate for the Liquid proof, not an excuse to wait for broad route macros. **Implement F1 -> F2 serially** using the exact private serial/retirement/reconcile-plan seams in the slice document; F1's provisional parsed-equality resolver is not final duplicate identity. F3 implementation also requires landed/accepted F0 and separate authorization; no framework can mask failed Liquid tests. No parallel work is dispatched here.
+
+| Story/gate | Current status |
+| --- | --- |
+| F0 design | Decided in docs, subject to independent sender review; no native integration claimed |
+| F1/F2 | Specified in exact separate slices; not started/implemented; wait for F0 to land and separate grants |
+| F3–F5 | Proposed implementation of settled contract; not started; host freeze/cross-world wiring still requirements |
+| F6 four real proofs | Unrun; source available read-only, but retained tabs/document/Liquid/approval adapters and reproducible app build are prerequisites |
+| F7/G1–G4 | Pending implementation, compatibility and application/native evidence; no migration readiness certification |
 
 ### F0 — contract and placement decision (P0)
 
-**Owner:** rndr maintainer with application integration reviewer. **Input:** this epic and baseline refresh. **Output:** accepted decision record and exact implementation slices.
+**Owner:** rndr maintainer with application integration reviewer. **Status:** design settled by this documentation phase, **sender acceptance/native integration pending**.
 
-- Decide companion versus `rndr_app`, package name, feature surface and dependency direction. Confirm no core-to-flow edge or mandatory executor.
-- Ratify scope topology/shared-document leases, IDs/exhaustion, request lanes, hidden/suspend policy, cleanup order/drain semantics, error/panic handling and capacity limits.
-- Map actual current Medousa chat/session/cancellation/approval/SDK contracts read-only in a separately admitted application checkout. Record exact app commit, dirty state and `rndr-home` source paths. Lack of checkout is a blocker, not an inferred interface.
-- Select mutation-freeze or revision invalidation for all guard-relevant writers and map native `CloseGuard` integration across worlds.
-- **Acceptance:** reviewer can trace every state mutation, cleanup and policy to exactly one owner; four proofs have test oracles; source baseline differences are recorded; no implementation begins under documentation-only authority.
+- [F0 decision](rndr-flow-f0-contract.md): optional companion/core-only dependency, single-owner scope topology/shared-document leases, nonwrapping serials/request lanes, hidden vs explicit suspension, logical death then child-first bounded drain, error/panic/capacity policies, authoritative mutation freeze and native CloseGuard composition.
+- Liquid settlement: additive host stable-key sidecar plus conservative unkeyed equality fallback; exact duplicate/reorder/prefix/kind/offscreen/remove-reinsert/append/reset table; compatible child-state rules; removable listeners without dropping legacy subscriptions; current-position compatibility versus new stale-safe handles.
+- Read-only Medousa source map records exact commit/branch/clean state, actual SDK cancellation/approval/request writers and missing integration hooks. Reference access is not blocked; preview/application builds and workflow execution remain unverified.
+- [F1/F2 slices](rndr-flow-f1-f2-slices.md): separate paths/interfaces, migration, deterministic pump, 100-cycle vector oracle, race/reentrancy tests and four actual workflow oracles with prerequisites.
+- **Remaining acceptance:** sender independently reviews evidence/contract, requests revisions if needed, and performs native integration. Worker commit is not acceptance, integration, implementation or permission to begin Liquid fixes.
 
 ### F1 — terminal Liquid resource ownership (P0; existing renderer owner)
 
-**Depends:** F0. **Likely paths:** `rndr_liquid_ui/src/state.rs`, `view.rs`, core `markdown/host.rs` only if a narrow lifecycle-reason seam is needed, focused tests. Refresh callers before editing.
+**Depends:** F0 sender acceptance/native integration + separate implementation grant. **Exact boundary:** [slice A](rndr-flow-f1-f2-slices.md), existing Liquid state/view/timer/feed/host/chart/render/lib and focused tests, no flow dependency. A demonstrated core host-slot seam need returns for scope review; no core change is preauthorized.
 
 - Promote P1 to a permanent failing desired-behavior regression: actual accordion interaction, replace/remove, cascade-despawn, repeated owner creation/destruction.
 - Define terminal view/block cleanup distinct from offscreen recycling. Records, saved state, timer/feed resources and nested surfaces follow explicit semantic ownership. Ensure direct supported destruction paths cannot bypass cleanup; do not require every caller to remember an undocumented special destructor.
@@ -236,9 +244,9 @@ F1/F2 correctness evidence is a release gate for the Liquid proof, not an excuse
 
 ### F2 — Liquid identity and replacement contract (P0; existing renderer owner)
 
-**Depends:** F0 and agreed F1 interfaces. **Likely paths:** Liquid parser identity representation if needed, `state.rs`, `view.rs`, focused reconciliation tests.
+**Depends:** landed F0 + accepted F1 serial/retirement/reconcile-plan interfaces + separate implementation grant. **Exact boundary:** [slice B](rndr-flow-f1-f2-slices.md), Liquid-only key-sidecar resolver and handle APIs/tests; no parser grammar extension/new crate/Medousa work.
 
-- Decide host-stable IDs versus parser-derived identity plus explicit reset, and compatibility for existing source-key APIs. Define semantic replacement when the new block remains at the old source byte.
+- Implement F0 §7–8: host stable-key sidecar, unique whole-parsed-value unkeyed fallback, explicit reset/new incarnations, conservative child-schema compatibility. Same-byte changed unkeyed block resets; source lookup cannot revive retired state. Keep legacy positional APIs with documented async limitations; new handles enforce retired-incarnation refusal.
 - Use P2 as characterization, not an automatic mandate to reset all edits. Specify and test preserve/reset outcomes for same-ID edits, changed-ID replacements, duplicates, reorder, prefix insertion, kind changes, offscreen edits, remove/reinsert, streaming append and explicit reset.
 - Reconcile resource records, mounted state and carried/saved state with the **same** semantic identity policy; source-position lookup must not silently override a different policy.
 - Revision checks must reject updates for retired/replaced block incarnations. Avoid state transfer across duplicate unrelated blocks or reused view identities.
@@ -246,9 +254,9 @@ F1/F2 correctness evidence is a release gate for the Liquid proof, not an excuse
 
 ### F3 — minimal headless ownership core (P0)
 
-**Depends:** F0. **Output:** optional crate or accepted `rndr_app` module, no UI breadth.
+**Depends:** landed/accepted F0 and separate grant. **Output:** optional `rndr-flow` companion per F0 §1, not `rndr_app`, no UI breadth.
 
-- Implement scope metadata/resource, single-parent ownership, shared-document borrowed references, visible/hidden/suspended/disposed state and no resurrection.
+- Implement scope metadata/resource, single-parent ownership, host document-manager presentation leases, visible/hidden/suspended/disposed state and no resurrection.
 - Consumable cleanup registrations handle success, error, duplicate/reentrant dispose, registration-after-disposal and dropped owner. Existing World component destruction and explicit flow disposal have one supported reconciliation contract.
 - Record bounded counters and logical-versus-physical completion status. Host callbacks run outside registry borrows; avoid capture cycles and expose pending cleanup/drain state where needed.
 - **Acceptance:** deterministic headless tests cover parent/child disposal and shared presentation leases; 100 cycles return registry/cleanup counts to baseline; stale IDs/exhaustion refuse; hidden retains resources; suspended restarts get fresh request identity; no native renderer, network, browser or Tokio needed. Existing core/UI do not depend on this optional layer.
@@ -344,7 +352,7 @@ Do not silently refresh a consumer lockfile to turn a failing `--locked --offlin
 - Keep source editing fallback, current approval/security boundaries and Tauri available. An application feature switch can revert adapter use, but cannot resurrect already disposed UI or undo backend effects. Rollback stops new flow admission, drains/cancels observers explicitly and restores prior routing under application review.
 - Public APIs get release notes and compile/feature compatibility checks; no version/publish action is part of this epic.
 
-### Gate ledger (all are pending unless independently evidenced)
+### Gate ledger (F0 design is decided; acceptance and all implementation gates remain pending)
 
 | Gate | Evidence required | Does not require / does not establish |
 | --- | --- | --- |
@@ -356,11 +364,13 @@ Do not silently refresh a consumer lockfile to turn a failing `--locked --offlin
 
 Independent gaps retain explicit tracks: canvas caret/selection/IME and image import; full Live Markdown + embedded Liquid; restricted browser versus host artifact interaction/security; icons/effects/detail sheets; platform qualification. Flow readiness cannot close these cells by architecture alone.
 
-## 9. Risks and decisions still requiring an owner
+## 9. Implementation risks and remaining evidence gates
 
-| Risk / open decision | Mitigation or decision gate |
+F0 design alternatives are settled, subject to sender review; this is not a second unresolved-decision menu. The ledger below tracks enforcement/evidence risks.
+
+| Implementation risk | Enforcement/evidence gate |
 | --- | --- |
-| New crate duplicates rndr runtime or `rndr_app` | F0 placement review and dependency tests; favor concrete handle grouping and small pure coordinator. |
+| New crate duplicates rndr runtime or `rndr_app` | F0 settles companion/core-only dependency and existing concrete handles; F3 must prove dependency/feature constraints. |
 | Scope graph becomes a second domain state model | Store IDs/relations/operation metadata only; host retains document/chat/selection/edit authority. |
 | ECS generation versus request/document identity confused | Distinct types/incarnations, exact mutation-boundary checks and exhaustion policy. |
 | Shared document closed by one presentation | Single document owner + leases; explicit final-owner disposal guard. |
@@ -373,7 +383,7 @@ Independent gaps retain explicit tracks: canvas caret/selection/IME and image im
 | Pending operations/diagnostics retain everything | Admission/retention limits and clear overflow outcomes; pending pressure refuses new work, never auto-approves or silently drops guards. |
 | New multi-window coordinator conflicts with per-World close gates | Narrow host adapter, dynamic participant validation, existing runner semantics retained. |
 | Source-key identity migration loses interactive state | F2 preserve/reset matrix and compatibility adapter; do not promise implicit remapping of arbitrary edits. |
-| Application checkout/build evidence unavailable | Concrete F0/F6/G2 blocker; obtain admitted source and exact dependency/lock evidence, not invented integration paths or re-used historical test counts. |
+| Application implementation/build evidence incomplete | F0 reference source is now accessible, exact clean baseline mapped. F6/G2 still need separately authorized missing adapters, locked/offline build and actual proofs; source access is not the blocker. |
 
 ## 10. Review handback checklist
 
@@ -385,4 +395,4 @@ Independent gaps retain explicit tracks: canvas caret/selection/IME and image im
 - [ ] Baseline, actual commands/results and unverified native/application evidence are recorded.
 - [ ] No implementation/migration/publish/integration is implied by accepting these documents.
 
-**Current handback:** two review documents only. See the analysis for verified gaps and exact validation. The sender retains review and native integration; future implementation requires its own scoped authorization.
+**Current handback:** original analysis/epic updated plus F0 decision and exact F1/F2 slice specification, all documentation only. Source/probe history is separated from new inspection/document checks. F0 is decided design subject to sender review, not integrated/implemented. The sender retains independent review/native integration; Liquid fixes wait for this phase to land and a new scoped assignment.

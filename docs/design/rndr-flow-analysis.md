@@ -1,6 +1,6 @@
 # rndr-flow: architecture and migration-readiness analysis
 
-**Status: review proposal, documentation only.** No crate, API, renderer fix, Medousa migration or native qualification is implemented or authorized by this document. Read the [implementation epic](rndr-flow-epic.md) for bounded follow-on work and gates. `rndr-flow` is a provisional package name; Rust would normally import `rndr_flow`.
+**Status: analysis with F0 settled-design addendum, subject to sender review; documentation only.** No crate, API, renderer fix, Medousa migration or native qualification is implemented or authorized. The [F0 decision](rndr-flow-f0-contract.md) supersedes open alternatives below; the [F1/F2 slices](rndr-flow-f1-f2-slices.md) and updated [epic](rndr-flow-epic.md) define follow-on gates. Provisional package/import: `rndr-flow` / `rndr_flow`. Sender acceptance/native integration remain pending.
 
 ## Decision in brief
 
@@ -8,9 +8,11 @@ Recommend an **optional companion crate for ownership and transitions**, after t
 
 The useful missing layer is coordination: who owns a task/subscription across route changes, whether a hidden document remains alive, which exact incarnation can accept a result, and when a guarded transition may irrevocably dispose resources. Liquid cleanup/identity must be fixed in Liquid itself. A flow crate cannot fix its reconciliation, canvas text editing/IME, or an HTML artifact security contract.
 
-**Readiness recommendation:** proceed with a scoped foundation-hardening undertaking, then prove the existing application-side `apps/rndr-home` workflow. This review does **not** newly establish readiness to start chat/shell migration: Medousa source and its reproducible preview were unavailable within the admitted worktree. Full Tauri replacement has additional independent gates.
+**Readiness recommendation:** land the F0 contract phase through sender review/native integration, then separately authorize serial Liquid F1 -> F2 fixes before broader ownership implementation and real application proofs. This does **not** newly establish migration readiness. The initial review lacked Medousa reference access; F0 now read the exact clean reference checkout at `effb18c2836df4ce2e5e88cd46876c685b0bb318` on `medousa/runtime-ui-fixes`, but did not build or run it. Its single-chat preview is not yet the retained-tab/document/Liquid/approval adapter required by the proofs. Full Tauri replacement retains independent gates.
 
-## 1. Baseline, freshness and evidence vocabulary
+## 1. Original analysis baseline, freshness and evidence vocabulary
+
+Historical scope note: §1–7 retain the original source/probe receipts and their limits. The new F0 documentation baseline is `3f50a7fc292f19ece91e010c786132ea487e6bfa` (the original analysis/epic integration, no intervening production changes). Current source was inspected again; F0 inspection/docs-only evidence and exact reference state are recorded in the new linked documents. Prior tests/probes below were **not rerun** in this contract phase.
 
 Reviewed on **2026-11-11 UTC** in Forge work `work-1d8e0e0accafa2c514b5becd2384e121`, isolated branch `worktree/rndr-flow-lifecycle-analysis-and-implementation-epic`.
 
@@ -42,7 +44,7 @@ Labels used throughout:
 | Semantic component reconciliation | `crates/rndr_ui/src/lifecycle.rs`: private keyed-child lookup/admission; collection/data `mount`/`unmount`; `CONTRIBUTING.md` lifecycle rules | Reuse public component APIs. Private shared lookup is not a new universal lifecycle API: family admission, focus, borrowed children and popup cleanup still belong to each component. |
 | Native asynchronous safe close | `close.rs`: `CloseGuard`, `CloseRequest`, `CloseState`; `docs/safe-close.md`; runner implementation in `crates/rndr_render/src` | Already opt-in, coalesces repeated requests, rejects stale completions, retains state on failure, supports retry/cancel/informed discard. Do not introduce a competing native-close gate. Flow adds document/tab coordination and feeds this gate. |
 | OS app lifecycle | `lifecycle.rs`: `UrlOpened`, `Reopened`; `examples/lifecycle` | These are OS delivery hooks, not a general mounted/disposed scope model. Host validates external links. |
-| Starter application layer | `crates/rndr_app/src/lib.rs`; `examples/desktop` | Existing small form/navigation/preferences helpers are not a typed retained route/history engine. Compare placement here before accepting a new public crate. |
+| Starter application layer | `crates/rndr_app/src/lib.rs`; `examples/desktop` | Existing small form/navigation/preferences helpers are not a typed retained route/history engine. F0 now settles companion placement rather than adding this coordination to `rndr_app`. |
 | Markdown host-slot identity | `markdown/host.rs`: `MarkdownSlotId`, `MarkdownSlot`, `mount_markdown_slot`, `MarkdownSlotHost` | IDs are caller-selected, scoped to a view and never reused; stale/replaced handles refuse. Anchored source ranges follow insertions above and streaming append. This existing identity is distinct from Liquid's resource-record key; preserve it rather than claiming all embedded UI lacks stable handles. |
 | Authoritative editing | `editing.rs`: `SourceSession`; `source_projection.rs`; structured editing modules; `CONTRIBUTING.md` | Existing revision/incarnation/admission checks remain authoritative. Flow may coordinate a transition but never bypass them or own a rival undo history. |
 
@@ -79,7 +81,7 @@ Categories describe each finding, not blanket application readiness. **Fixed** r
 | Restricted browser versus interactive HTML artifacts | **Partially addressed; artifact parity unverified** | `crates/rndr_browser/README.md`: optional/off by default, host-owned sessions/intents, guest cannot call app commands; script/find unsupported; native matrix unverified. Real navigation/show/hide/bounds/download/file-intent machinery exists. Medousa artifact contract not inspected here. | Host security/artifact track. Flow owns a UI lifetime, not script authority or a privileged bridge. |
 | Icons, slide effects, card detail sheet | **Verified open** | `crates/rndr_liquid_ui/README.md` Current limits explicitly retains all three. `render.rs::plain` strips icon shortcodes; render path shows card detail on face and slide layers/navigation, not a detail sheet/effect engine. A recent visual-fidelity merge does not erase these documented limits. | Liquid visual work, lower priority than cleanup and identity. No screenshot/native visual certification here. |
 | Native keyboard/IME/accessibility/DPI qualification | **Unverified** | Core input, editor/IME, accessibility and scale machinery exists. `docs/desktop-readiness.md`, `docs/design/native-document-editing-epic.md` and browser matrix separate automated evidence from native qualification. This pass ran only headless tests, not platform keyboard, IME, screen reader, clipboard or multi-scale sessions. | Native acceptance matrix with actual OS/device/input-method evidence. Do not label absent features based on absent certification. |
-| Medousa preview dependency/lock/offline reproducibility | **Unverified** | Medousa checkout and `apps/rndr-home` unavailable in admitted worktree. Prior isolated refreshed-lock result was not rerun; current lock drift is not asserted as newly proven. rndr's own targeted `--locked --offline` tests succeeded, which does not prove a Medousa build. | Application owner obtains exact app commit, lock digest, dependency source/revision and reproducible offline preview evidence before migration. |
+| Medousa preview dependency/lock/offline reproducibility | **Unverified build; source now mapped** | Original pass lacked checkout. F0 authorized read-only reference access, recorded exact clean commit/branch and mapped actual SDK/UI writers; no build or lock update performed. Historical preview refreshed-lock result was not rerun and current lock drift is not asserted. Historical rndr tests do not prove a Medousa build. | Application owner still obtains exact lock/dependency/offline evidence and implements missing real-workflow adapters under separate authority. |
 
 ### Replacement identity: what is and is not proved
 
@@ -122,7 +124,9 @@ application (e.g. Medousa/rndr-home)
 
 Keep any renderer-aware wiring in an opt-in adapter/module that depends upward on the necessary UI crate, or initially in the application. No `rndr_core -> rndr-flow` dependency. Core logic must work with `App`/`Sim` without a native window, renderer, browser, Tokio or network. Prefer concrete existing `TaskHandle`/feed ownership over a generic executor facade with no demonstrated need. A pure state-machine internal module can remain independent of runtime polling without requiring another published crate.
 
-### Alternatives and decision conditions
+### Original alternatives; now resolved by F0
+
+This table explains the original tradeoff, not another open menu. [F0 §1](rndr-flow-f0-contract.md) chooses the companion, no default/optional features initially, only `rndr_core` runtime dependency; host adapters stay local. The rejected alternatives below are historical comparison, not pending principal decisions.
 
 | Alternative | Benefit | Cost/decision |
 | --- | --- | --- |
@@ -132,7 +136,7 @@ Keep any renderer-aware wiring in an opt-in adapter/module that depends upward o
 | Optional companion | Isolates adoption and testing; reuses headless foundation | Preferred if the four proofs establish a reusable contract. Cost is a new public compatibility surface; keep API narrow and name provisional. |
 | Replace with Rake / wrap its full runtime | Existing broader framework | Wrong scope and dependency direction; GPUI/service/policy coupling, second runtime/tree and a migration instead of strengthening rndr. No such evaluation was executed. |
 
-## 6. Required semantics and unresolved design choices
+## 6. Required semantics (settled in F0, not implemented)
 
 **Recommendations, not existing API:**
 
@@ -145,7 +149,7 @@ Keep any renderer-aware wiring in an opt-in adapter/module that depends upward o
 - Errors and panics do not authorize disposal or turn dirty state clean. Cleanup errors are recorded while remaining registrations are attempted. Panic recovery applies only where unwind is supported; abort/crash/forced termination cannot promise exactly-once cleanup or save durability.
 - Leak diagnostics compare warmed steady-state counts for live scopes, registrations, Liquid records, owned handles and retained outcomes after known disposal/drain points. Counts returning to baseline are meaningful; instantaneous RSS or a task's cancellation flag alone is not proof of quiescence.
 
-Open decisions for review: scope/ID representation and exhaustion; shared document ownership; suspended buffering; history budgets/refusal rather than silent eviction; deterministic cleanup ordering; close mutation-freeze versus revision invalidation; cross-window plugin coordination; source-key compatibility and reset rules; how runtime panic/terminal status becomes observable without breaking public APIs. See the epic for acceptance gates and a concrete implementation order.
+These former open design choices are now settled by [F0](rndr-flow-f0-contract.md): nonwrapping typed serials/per-lane generations, one document owner with presentation leases, explicit suspension/resume without flow buffering, bounded admission/refusal, logical invalidation then child-first cleanup/drain, authoritative writer freeze through native Ready, explicit cross-World registration, stable host keys with conservative unkeyed fallback, positional legacy compatibility versus new stale-safe handles and explicit panic/unknown outcomes. This is decided design subject to sender review, not integrated/implemented API. [Exact F1/F2 slices](rndr-flow-f1-f2-slices.md) specify interfaces, 100-cycle measurement, races and four proof prerequisites. No broader implementation or Medousa migration is authorized by accepting design.
 
 ## 7. Validation performed and reproducible probes
 
