@@ -7,7 +7,7 @@ use crate::{LiquidEvent, LiquidImage};
 use rndr_core::*;
 use rndr_liquid::*;
 use rndr_ui::controls::{Button, ButtonProps, ButtonVariant, HostIntent, ModeSelector};
-use rndr_ui::{text, Callout, Card, Feedback, Surface, Typography, UiId};
+use rndr_ui::{Callout, Card, Feedback, Surface, Typography, UiId};
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
@@ -190,9 +190,7 @@ pub(crate) fn rebuild(world: &mut World, root: Entity) {
     }
     crate::lifecycle::park_under(world, root);
     crate::view::reset_nested_cursor(world, root);
-    for child in children_of(world, root) {
-        despawn(world, child);
-    }
+    crate::lifecycle::clear_presentation(world, root);
     let mut state = world.remove::<BlockState>(root).unwrap_or_default();
     state.init(&block);
     if let Some(layout) = world.get_mut::<Layout>(root) {
@@ -213,7 +211,6 @@ pub(crate) fn rebuild(world: &mut World, root: Entity) {
     }
     world.insert(root, actions);
     world.insert(root, state);
-    crate::lifecycle::track_tree(world, root);
 }
 
 /// Marker on the stand-in for an unclosed Liquid fence.
@@ -350,7 +347,10 @@ impl Cx<'_> {
     fn surface(&mut self, parent: Entity) -> Entity {
         let id = self.id();
         match Surface::Raised.mount(self.world, parent, id) {
-            Ok(h) => h.content,
+            Ok(h) => {
+                crate::lifecycle::own_created(self.world, parent, h.root);
+                h.content
+            }
             Err(_) => self.column(parent),
         }
     }
@@ -359,7 +359,10 @@ impl Cx<'_> {
         let id = self.id();
         let title = plain(title);
         match Card::mount(self.world, parent, id, &title) {
-            Ok(h) => h.content,
+            Ok(h) => {
+                crate::lifecycle::own_created(self.world, parent, h.root);
+                h.content
+            }
             Err(_) => {
                 let c = self.surface(parent);
                 self.text(c, &title, Typography::Heading);
@@ -383,7 +386,10 @@ impl Cx<'_> {
             title
         };
         match Callout::mount(self.world, parent, id, meaning, &title) {
-            Ok(h) => h.content,
+            Ok(h) => {
+                crate::lifecycle::own_created(self.world, parent, h.root);
+                h.content
+            }
             Err(_) => self.surface(parent),
         }
     }
@@ -397,6 +403,7 @@ impl Cx<'_> {
         let mut props = ButtonProps::new(label, HostIntent::Command(id.0));
         props.variant = variant;
         if let Ok(h) = Button::mount(self.world, parent, id, props) {
+            crate::lifecycle::own_created(self.world, parent, h.root);
             self.actions.0.insert(h.root, act);
         }
     }
@@ -1044,6 +1051,7 @@ impl Cx<'_> {
         ) else {
             return;
         };
+        crate::lifecycle::own_created(self.world, parent, handle.root);
         for (panel, tab) in handle.panels.iter().zip(&p.panels) {
             self.markdown(*panel, &tab.body);
         }
@@ -1186,4 +1194,21 @@ fn tree_lines(nodes: &[TreeNode], depth: usize, out: &mut Vec<String>) {
             tree_lines(children, depth + 1, out);
         }
     }
+}
+
+// These wrappers are used only at renderer construction sites, never around
+// host callbacks. Their ownership proof is creation, not arbitrary ancestry.
+pub(crate) fn text(
+    world: &mut World,
+    parent: Entity,
+    value: &str,
+    role: Typography,
+) -> Result<Entity, rndr_ui::UiError> {
+    let entity = rndr_ui::text(world, parent, value, role)?;
+    crate::lifecycle::own_created(world, parent, entity);
+    Ok(entity)
+}
+fn set_parent(world: &mut World, child: Entity, parent: Entity) {
+    rndr_core::set_parent(world, child, parent);
+    crate::lifecycle::own_created(world, parent, child);
 }

@@ -93,11 +93,18 @@ struct Surface {
     projections: HashSet<Entity>,
     parked: Option<LiquidView>,
 }
+#[derive(Clone, Copy)]
+enum Diagnostic {
+    StaleOwner,
+    Capacity,
+    Exhausted,
+    Panicked,
+}
 #[derive(Default)]
 pub(crate) struct Owners {
     surfaces: HashMap<u64, Surface>,
     views: HashMap<Entity, u64>,
-    refusals: std::collections::VecDeque<LiquidUpdateError>,
+    refusals: std::collections::VecDeque<Diagnostic>,
     dropped_diagnostics: u64,
 }
 #[derive(Clone)]
@@ -122,7 +129,7 @@ pub(crate) fn live(world: &World, id: u64) -> bool {
     let Some(surface) = world.resource::<Owners>().and_then(|r| r.surfaces.get(&id)) else {
         return false;
     };
-    if surface.transaction.load(Ordering::Acquire) == 2 {
+    if surface.transaction.load(Ordering::Acquire) >= 2 {
         return false;
     }
     if let Some(parent) = surface.parent {
@@ -151,7 +158,7 @@ pub(crate) fn key(world: &World, view: Entity, source: usize) -> Option<Key> {
     let id = liquid_surface_handle(world, view).ok()?.0;
     let s = world.resource::<Owners>()?.surfaces.get(&id)?;
     let index = s.sources.get(&source)?;
-    Some((id, s.blocks.get(&index)?.0))
+    Some((id, s.blocks.get(index)?.0))
 }
 pub(crate) fn key_at(world: &World, view: Entity, index: usize) -> Option<Key> {
     let id = world.resource::<Owners>()?.views.get(&view)?;
@@ -249,21 +256,29 @@ pub(crate) struct Transaction {
 }
 impl Transaction {
     pub(crate) fn commit(mut self) {
-        self.flag.store(0, Ordering::Release);
+        // A callback may poison the owner while publication is extracted.
+        // Committing that frame must never revive terminal authority.
+        let _ = self
+            .flag
+            .compare_exchange(1, 0, Ordering::AcqRel, Ordering::Acquire);
         self.committed = true;
     }
 }
 impl Drop for Transaction {
     fn drop(&mut self) {
         if !self.committed {
-            self.flag.store(2, Ordering::Release);
+            let _ = self
+                .flag
+                .compare_exchange(1, 3, Ordering::AcqRel, Ordering::Acquire);
         }
     }
 }
 pub(crate) fn transaction(world: &World, view: Entity) -> Option<Transaction> {
     let r = world.resource::<Owners>()?;
     let s = r.surfaces.get(r.views.get(&view)?)?;
-    s.transaction.store(1, Ordering::Release);
+    s.transaction
+        .compare_exchange(0, 1, Ordering::AcqRel, Ordering::Acquire)
+        .ok()?;
     Some(Transaction {
         flag: s.transaction.clone(),
         committed: false,
@@ -423,14 +438,18 @@ fn retire_surface(world: &mut World, id: u64) {
             .and_then(|h| h.remove(view));
         drop(host);
         world.remove::<LiquidView>(view);
+        // Both are surface authority. Leaving MarkdownView on component-loss
+        // would allow its next sync to recreate retired native projections.
+        world.remove::<MarkdownView>(view);
         world.remove::<Lease>(view);
+        remove_projections(
+            world,
+            rndr_core::MarkdownSlotHosts::native_projections(world, view),
+        );
     }
     // Only entities actually constructed by Liquid are reclaimed. In particular
     // raw owner despawn must not cascade through unrelated application children.
-    for entity in s.projections {
-        crate::chart::release(world, entity);
-        world.despawn_entity(entity);
-    }
+    remove_projections(world, s.projections.into_iter().collect());
     drop(s.parked);
 }
 pub(crate) fn drain(world: &mut World) {
@@ -446,10 +465,30 @@ pub(crate) fn drain(world: &mut World) {
         .unwrap_or_default();
     dead.sort_unstable();
     for id in &dead {
+        if world
+            .resource::<Owners>()
+            .and_then(|r| r.surfaces.get(id))
+            .is_some_and(|s| s.transaction.load(Ordering::Acquire) == 3)
+        {
+            panicked(world);
+        }
         mark_tree_dead(world, *id);
     }
     for id in dead {
         retire_surface(world, id);
+    }
+    // Rebuild/recycle may remove physical nodes many times within one logical
+    // lifetime. Retain only live exact tags, never an Entity-id history.
+    let live_projections: HashSet<_> = world
+        .entities_with::<OwnedProjection>()
+        .into_iter()
+        .collect();
+    if let Some(owners) = world.resource_mut::<Owners>() {
+        for surface in owners.surfaces.values_mut() {
+            surface
+                .projections
+                .retain(|entity| live_projections.contains(entity));
+        }
     }
     crate::state::retain_live(world);
     crate::timer::retain_live(world);
@@ -550,31 +589,93 @@ pub(crate) fn reattach(
     world.insert(view, Lease(id));
     Some(liquid)
 }
-pub(crate) fn track_tree(world: &mut World, root: Entity) {
-    let Some(view) = world.get::<rndr_core::Parent>(root).map(|p| p.entity) else {
+/// Tag only a just-constructed, callback-free renderer/UI tree. Never call on
+/// an existing subtree: application attachments are not renderer ownership.
+pub(crate) fn own_created(world: &mut World, parent: Entity, root: Entity) {
+    let Some((view, _, _)) = ancestor_key(world, parent).and_then(|k| location(world, k)) else {
         return;
     };
-    fn walk(world: &World, root: Entity, out: &mut Vec<Entity>) {
-        out.push(root);
-        for child in rndr_core::children_of(world, root) {
-            walk(world, child, out);
-        }
-    }
-    let mut nodes = Vec::new();
-    walk(world, root, &mut nodes);
-    for node in nodes {
-        own_projection(world, view, node);
+    let mut pending = vec![root];
+    while let Some(entity) = pending.pop() {
+        pending.extend(rndr_core::children_of(world, entity));
+        own_projection(world, view, entity);
     }
 }
+/// Raw-remove an exact admitted ownership set. Surviving application children
+/// become roots; neither ancestry nor a reparented application's nodes confer
+/// ownership. Keep hierarchy links tidy without invoking cascade semantics.
+fn remove_projections(world: &mut World, entities: Vec<Entity>) {
+    let dying: HashSet<_> = entities.iter().copied().collect();
+    for &entity in &entities {
+        for child in rndr_core::children_of(world, entity) {
+            if !dying.contains(&child) {
+                world.remove::<rndr_core::Parent>(child);
+            }
+        }
+        if let Some(parent) = world.get::<rndr_core::Parent>(entity).map(|p| p.entity) {
+            if let Some(children) = world.get_mut::<rndr_core::Children>(parent) {
+                children.list.retain(|e| *e != entity);
+            }
+        }
+        crate::chart::release(world, entity);
+        world.despawn_entity(entity);
+    }
+}
+/// Release the known renderer nodes under a physical block, preserving all
+/// application attachments. Nested logical owners must already be parked.
+pub(crate) fn clear_presentation(world: &mut World, root: Entity) {
+    let mut pending = rndr_core::children_of(world, root);
+    let mut nodes = Vec::new();
+    let mut native = HashSet::new();
+    while let Some(entity) = pending.pop() {
+        pending.extend(rndr_core::children_of(world, entity));
+        if world.has::<OwnedProjection>(entity) && world.has::<MarkdownView>(entity) {
+            native.extend(rndr_core::MarkdownSlotHosts::native_projections(
+                world, entity,
+            ));
+        }
+        nodes.push(entity);
+    }
+    let owned = nodes
+        .into_iter()
+        .filter(|e| world.has::<OwnedProjection>(*e) || native.contains(e))
+        .collect();
+    remove_projections(world, owned);
+    for child in rndr_core::children_of(world, root) {
+        world.remove::<rndr_core::Parent>(child);
+    }
+    world.remove::<rndr_core::Children>(root);
+}
 
+#[cfg(test)]
+pub(crate) fn diagnostic_counts(world: &World) -> (usize, u64) {
+    world
+        .resource::<Owners>()
+        .map_or((0, 0), |r| (r.refusals.len(), r.dropped_diagnostics))
+}
 pub(crate) fn refused(world: &mut World, reason: LiquidUpdateError) {
+    diagnostic(
+        world,
+        match reason {
+            LiquidUpdateError::StaleOwner => Diagnostic::StaleOwner,
+            LiquidUpdateError::Capacity => Diagnostic::Capacity,
+            LiquidUpdateError::Exhausted => Diagnostic::Exhausted,
+        },
+    );
+}
+pub(crate) fn panicked(world: &mut World) {
+    diagnostic(world, Diagnostic::Panicked);
+}
+fn diagnostic(world: &mut World, event: Diagnostic) {
     let capacity = limits(world).diagnostics;
     if let Some(r) = world.resource_mut::<Owners>() {
         if r.refusals.len() == capacity {
             r.refusals.pop_front();
             r.dropped_diagnostics = r.dropped_diagnostics.saturating_add(1);
         }
-        r.refusals.push_back(reason);
+        if capacity > 0 {
+            r.refusals.push_back(event);
+        }
     }
 }
 // LiquidStream emits a token as its own paragraph. Source metadata is published
@@ -594,19 +695,21 @@ pub(crate) fn bind_markdown(world: &mut World, view: Entity, markdown: &str) {
     bind_sources(world, view, sources);
 }
 
-pub(crate) fn depth(world: &World, mut id: u64) -> usize {
-    let mut depth = 0;
+// Lexicographic creation paths support deterministic tree postorder. A longer
+// prefix sorts before its parent; siblings retain their creation order.
+pub(crate) fn retirement_path(world: &World, mut id: u64) -> Vec<u64> {
+    let mut path = vec![id];
     while let Some(parent) = world
         .resource::<Owners>()
         .and_then(|r| r.surfaces.get(&id))
         .and_then(|s| s.parent)
     {
-        depth += 1;
         id = parent.0;
+        path.push(id);
     }
-    depth
+    path.reverse();
+    path
 }
-
 pub(crate) fn transaction_active(world: &World) -> bool {
     world.resource::<Owners>().is_some_and(|r| {
         r.surfaces
@@ -962,11 +1065,6 @@ mod tests {
                 m.contexts.clear();
                 m.weak.clear();
                 m.retire_order.clear();
-                // Component-removal paths leave the caller's Markdown shell;
-                // it is not Liquid-owned and is explicitly removed by the test.
-                if sim.app.world().is_alive(view) {
-                    despawn(sim.world(), view);
-                }
             }
             eprintln!(
                 "F1 attempted-prefix seed={seed} baseline={baseline:?} high_water={high:?} elapsed={:?}",
@@ -981,6 +1079,42 @@ mod tests {
             "full F1 oracle incomplete: {failures:?}"
         );
     }
+    #[test]
+    fn transaction_reentry_poison_unwind_and_source_refusal_are_atomic() {
+        let mut world = World::new();
+        let view = liquid_view(&mut world, ACC);
+        let handle = liquid_surface_handle(&world, view).unwrap();
+        let blocks = world.get::<LiquidView>(view).unwrap().blocks().to_vec();
+        let tx = transaction(&world, view).unwrap();
+        assert!(transaction(&world, view).is_none());
+        set_liquid_source(&mut world, view, "replacement");
+        push_liquid_str(&mut world, view, "appended");
+        assert_eq!(
+            world.get::<LiquidView>(view).unwrap().blocks(),
+            blocks.as_slice()
+        );
+        mark_tree_dead(&world, handle.0);
+        tx.commit();
+        assert!(!live(&world, handle.0), "commit revived poisoned owner");
+        drain(&mut world);
+        assert!(liquid_surface_handle(&world, view).is_err());
+        let view = liquid_view(&mut world, ACC);
+        let handle = liquid_surface_handle(&world, view).unwrap();
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _tx = transaction(&world, view).unwrap();
+            panic!("unwind extracted publication");
+        }));
+        assert!(result.is_err());
+        assert!(!live(&world, handle.0));
+        drain(&mut world);
+        assert!(world.get::<LiquidView>(view).is_none());
+        assert_eq!(
+            diagnostic_counts(&world).0,
+            1,
+            "aborted publication was not observable"
+        );
+    }
+
     #[test]
     fn checked_serial_allocator_never_aliases_on_exhaustion() {
         let counter = AtomicU64::new(u64::MAX - 1);

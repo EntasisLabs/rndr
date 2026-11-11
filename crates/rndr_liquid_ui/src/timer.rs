@@ -383,3 +383,33 @@ pub(crate) fn count(world: &World) -> usize {
         .resource::<TimerStore>()
         .map_or(0, |r| r.records.len())
 }
+
+#[cfg(test)]
+mod exhaustion_tests {
+    use super::*;
+    #[test]
+    fn exhausted_timer_refuses_without_state_events_or_deadline_wrap() {
+        let mut world = World::new();
+        let view = crate::liquid_view(
+            &mut world,
+            "```recipe\ntitle: Soup\n\n---\nlabel: Simmer\nbody: Stir\nduration: 5s\n```\n",
+        );
+        let key = lifecycle::key_at(&world, view, 0).unwrap();
+        let source = lifecycle::location(&world, key).unwrap().1;
+        let record = LiquidTimerRecord {
+            revision: u64::MAX,
+            ..fresh(source, 0, 1000)
+        };
+        let mut store = TimerStore::default();
+        store.records.insert((key, 0), record.clone());
+        world.insert_resource(store);
+        let source = lifecycle::location(&world, key).unwrap().1;
+        let result = apply(&mut world, view, source, 0, 1000, LiquidTimerAction::Start);
+        assert_eq!(result, record);
+        assert_eq!(
+            world.resource::<TimerStore>().unwrap().records[&(key, 0)],
+            record
+        );
+        assert_eq!(state::counts(&world).3, 0);
+    }
+}

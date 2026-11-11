@@ -74,13 +74,13 @@ pub fn liquid_view(world: &mut World, source: &str) -> Entity {
     if let Some(markdown) = world.get_mut::<MarkdownView>(view) {
         markdown.set_recycle_host_slots(true);
     }
-    set_markdown_slot_host(world, view, LiquidHooks);
     if let Err(reason) =
         lifecycle::register(world, view, &blocks, stream.markdown(), None, String::new())
     {
         lifecycle::refused(world, reason);
         return view;
     }
+    set_markdown_slot_host(world, view, LiquidHooks);
     lifecycle::bind_markdown(world, view, stream.markdown());
     world.insert(view, LiquidView::streaming(stream, blocks));
     view
@@ -158,6 +158,7 @@ pub fn set_liquid_source(world: &mut World, view: Entity, source: &str) {
     // the validated logical plan, including unchanged blocks that moved.
     for mounted in std::mem::take(&mut liquid.mounted) {
         lifecycle::park_under(world, mounted.slot.root);
+        lifecycle::clear_presentation(world, mounted.slot.root);
         let _ = mounted.slot.detach(world);
     }
     liquid.blocks = Arc::new(stream.blocks().to_vec());
@@ -350,9 +351,9 @@ impl MarkdownSlotHost for LiquidHooks {
             },
         );
         let selected = restored.selected;
+        lifecycle::own_projection(world, slot.view, slot.root);
         world.insert(slot.root, restored);
         render::rebuild(world, slot.root);
-        lifecycle::track_tree(world, slot.root);
         restore_tab(world, slot.root, selected);
         liquid.mounted.push(Mounted {
             slot,
@@ -389,6 +390,8 @@ impl MarkdownSlotHost for LiquidHooks {
             }
             liquid.saved.insert(source, Saved { block, state });
         }
+        lifecycle::park_under(world, slot.root);
+        lifecycle::clear_presentation(world, slot.root);
         liquid.mounted.retain(|mounted| mounted.slot.id != slot.id);
         world.insert(slot.view, liquid);
         tx.commit();
@@ -422,6 +425,7 @@ pub(crate) fn nested(
     });
     world.insert(view, liquid);
     set_parent(world, view, parent);
+    lifecycle::own_created(world, parent, view);
     view
 }
 
@@ -491,12 +495,14 @@ pub(crate) fn reconcile(world: &mut World) {
             if !mounted.slot.is_mounted(world) {
                 if world.is_alive(mounted.slot.root) {
                     lifecycle::park_under(world, mounted.slot.root);
+                    lifecycle::clear_presentation(world, mounted.slot.root);
                     let _ = mounted.slot.detach(world);
                 }
                 continue;
             }
             if mounted.block >= liquid.blocks.len() {
                 lifecycle::park_under(world, mounted.slot.root);
+                lifecycle::clear_presentation(world, mounted.slot.root);
                 let _ = mounted.slot.detach(world);
                 continue;
             }
@@ -527,7 +533,6 @@ pub(crate) fn reconcile(world: &mut World) {
                         },
                     );
                     render::rebuild(world, mounted.slot.root);
-                    lifecycle::track_tree(world, mounted.slot.root);
                 }
                 mounted.arc = ptr;
             }
@@ -579,7 +584,6 @@ pub(crate) fn reconcile(world: &mut World) {
                 world.insert(slot.root, state);
             }
             render::rebuild(world, slot.root);
-            lifecycle::track_tree(world, slot.root);
             restore_tab(
                 world,
                 slot.root,
@@ -894,4 +898,84 @@ pub(crate) fn retention_counts(world: &World) -> (usize, usize, usize) {
                 out.2 + v.mounted.len(),
             )
         })
+}
+
+#[cfg(test)]
+mod admission_tests {
+    use super::*;
+    use crate::{LiquidLimits, LiquidUpdateError};
+    const ACC: &str = "```accordion\n---\nlabel: A\nbody: Body\n```\n";
+    #[test]
+    fn source_capacity_refusal_preserves_stream_membership_and_diagnostics_bound() {
+        let mut world = World::new();
+        world.insert_resource(LiquidLimits {
+            scopes: 2,
+            diagnostics: 2,
+            ..LiquidLimits::default()
+        });
+        let view = liquid_view(&mut world, ACC);
+        let original = world
+            .get::<LiquidView>(view)
+            .unwrap()
+            .stream
+            .clone()
+            .unwrap();
+        let blocks = world.get::<LiquidView>(view).unwrap().blocks.clone();
+        let key = lifecycle::key_at(&world, view, 0).unwrap();
+        let before = world
+            .get::<MarkdownView>(view)
+            .unwrap()
+            .source()
+            .to_string();
+        for _ in 0..5 {
+            push_liquid_str(&mut world, view, ACC);
+            set_liquid_source(&mut world, view, &format!("{ACC}\n{ACC}"));
+            assert_eq!(world.get::<MarkdownView>(view).unwrap().source(), before);
+            let liquid = world.get::<LiquidView>(view).unwrap();
+            assert_eq!(liquid.stream.as_ref().unwrap().source(), original.source());
+            assert!(Arc::ptr_eq(&liquid.blocks, &blocks));
+            assert_eq!(lifecycle::key_at(&world, view, 0), Some(key));
+        }
+        let (kept, dropped) = lifecycle::diagnostic_counts(&world);
+        assert_eq!((kept, dropped), (2, 8));
+        assert_eq!(lifecycle::replace(&mut world, view, &[], "", true), Ok(()));
+        // No global identity is reset to manufacture exhaustion.
+        let _ = LiquidUpdateError::Capacity;
+    }
+    #[test]
+    fn staged_clone_is_one_candidate_and_old_stream_is_untouched() {
+        let mut world = World::new();
+        let mut source = format!("{}\n{ACC}", "ordinary prose ".repeat(16384));
+        let view = liquid_view(&mut world, &source);
+        let mut copied_source_bytes = 0usize;
+        let mut max_pair_bytes = 0usize;
+        for _ in 0..32 {
+            let prior = world
+                .get::<LiquidView>(view)
+                .unwrap()
+                .stream
+                .as_ref()
+                .unwrap();
+            let mut candidate = prior.clone();
+            copied_source_bytes += prior.source().len();
+            candidate.push_str("\nnext paragraph\n");
+            assert_eq!(prior.source(), source);
+            max_pair_bytes = max_pair_bytes.max(prior.source().len() + candidate.source().len());
+            drop(candidate); // no candidate queue, snapshots or retained clones
+            push_liquid_str(&mut world, view, "\nnext paragraph\n");
+            source.push_str("\nnext paragraph\n");
+            let published = world
+                .get::<LiquidView>(view)
+                .unwrap()
+                .stream
+                .as_ref()
+                .unwrap();
+            assert_eq!(published.source(), source);
+            let reparsed = LiquidStream::new(&source);
+            assert_eq!(published.markdown(), reparsed.markdown());
+            assert_eq!(published.blocks(), reparsed.blocks());
+        }
+        eprintln!("F1 stream staging source_final={} chunks=32 copied_source_bytes={} max_old_plus_candidate_source_bytes={}", source.len(), copied_source_bytes, max_pair_bytes);
+        assert!(max_pair_bytes <= 2 * source.len());
+    }
 }

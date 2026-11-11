@@ -415,3 +415,226 @@ attachments**. Only focused behavior supported by the receipts above is claimed.
 No native interaction/visual qualification, performance probe, Medousa adapter,
 Medousa build/test, push, publication, deployment or merge occurred. Sender
 independent review and additional authorized work remain necessary.
+
+## J. Resumed F1 candidate after explicit native-ownership permission
+
+This section preserves and supersedes the **current failure measurements** in
+§I; it does not erase the failed drafts, certify them retrospectively, or imply
+sender acceptance. Work continues directly from
+`e9b0ddce07d98b082ad0e72b87cec9b9f626dcd8`. No history was rewritten. The sender
+had requested changes, not accepted the 2710-line draft. F2 remains excluded.
+The implementation below is committed for full independent review, **not
+self-accepted or integrated**. The literal caller-cascade attachment boundary
+under J.2 still requires sender interpretation; do not silently count a test of
+reparented-out survival as proof that attached descendants survive core cascade.
+
+### J.1 Changes and ownership proof
+
+- Added `MarkdownSlotHosts::native_projections(&World, Entity) -> Vec<Entity>`.
+  Core tags exact native text/rule/quote/list/checkbox implementation nodes at
+  callback-free construction, plus window spacers. The tag contains only the
+  generational owner entity. It survives loss of `MarkdownView` and raw owner
+  despawn, without retaining source, a dead-view table, or an `Arc` capture.
+  It excludes the view, host-slot roots, and application content. Reparenting a
+  native projection does not transfer its creation owner. Lookup is read-only,
+  unordered, and O(all live native projection tags in the World), including its
+  temporary enumeration allocation. Entity generations prevent ABA. Metadata is
+  released with the exact projection; no scheduler or generic despawn changes.
+- Terminal Liquid cleanup removes both Liquid and Markdown authority, including
+  component-loss paths: leaving Markdown authority alive was found to recreate
+  native nodes on the next sync. It enumerates and raw-removes only exact owned
+  projections; native ownership therefore remains discoverable even if the
+  owning component/entity is already gone. Caller-owned view shells remain
+  caller-owned. Per-view core host removal remains callback-safe.
+- Replaced the WIP's repeated arbitrary-subtree ownership inference. Pure
+  renderer/UI constructor sites claim their newly created trees immediately,
+  before host callbacks; later application attachments are not claimed. Nested
+  owners are parked before recycle/rebuild. Presentation cleanup and terminal
+  cleanup raw-remove the admitted exact set, detach surviving application
+  children, and tidy hierarchy links, rather than cascade through attachments.
+  Dead physical-reference IDs are pruned from live surface bookkeeping during
+  drain; rebuilds must not become an Entity-ID history.
+- The narrowly authorized `FAQ -> Questions` regression now asserts that the
+  old body entity died, old open state did not carry, and the replacement starts
+  closed. Existing append, carousel/slides/checklist/tabs assertions remain.
+  Correspondence remains the F1 whole-parsed-value provisional rule, not F2 keys.
+- Source publication now refuses nested extraction transactions before mutation.
+  Commit cannot revive a poisoned owner. An abandoned/unwound transaction fails
+  closed before the next pump; its next drain records a bounded payload-free
+  panic diagnostic. Listener and retirement callback panics are likewise
+  observable without suppressing later independent cleanup. Core host and
+  Liquid host extraction/restoration paths retain their unwind behavior.
+- Feed retirement paths preserve tree creation order (child before parent,
+  siblings by creation) and reverse request-registration order within one
+  surface. Depth-only sorting and ascending request order were insufficient.
+  Contexts are invalidated as a batch before callbacks; the shared per-pump
+  callback budget is not reset by reentrant drains. Unacknowledged local work is
+  bounded/tracked, never silently reported as released.
+- Corrected plugin construction to actually install the validated configured
+  `LiquidLimits`. Scope admission failure no longer installs a useless per-view
+  core host before discovering that it cannot register the Liquid owner.
+
+### J.2 Application attachment safety and the core cascade boundary
+
+New tests prove survival of application subtrees after raw view loss,
+`LiquidView` removal and `MarkdownView` removal, including attachments under
+native nodes of nested Liquid views, unrelated Markdown views attached beneath
+owned nodes, reparenting, and application nodes attached by a synchronous host
+load callback. The cleanup unparents surviving attachments; it does not destroy
+or relabel them. A separate test proves survival of an attachment reparented
+outside the requested cascade subtree and preservation of its new parent.
+The focused core test also checks native-tag ownership after authority loss and
+reparenting, exact release, unrelated-view isolation, and generational identity.
+
+**Non-negotiable limitation/source evidence:** `rndr_core/src/hierarchy.rs`,
+`despawn` (lines 56–77 at this revision), recursively despawns every still-listed
+`Children` descendant before returning. If an application itself requests that
+cascade while an application child remains attached, that child is already dead
+before Liquid's drain can run. The new cascade test explicitly observes that
+pre-drain deletion; it does not claim survival. `MarkdownSlot`'s existing public
+contract likewise says descendants still attached to its root die at detach.
+Liquid now detaches unrelated attachments before its own detach/recycle paths.
+This work does not rewrite that generic core/caller contract or resurrect dead
+entities. Such a literal all-attached-children-survive-caller-cascade requirement
+cannot be implemented by the authorized read-only ownership seam while also
+preserving the explicit prohibition on World/despawn/scheduler semantic changes.
+The sender was notified with exact source evidence; no further permission or
+clarification had arrived when this evidence was written. **Full F1 acceptance
+must resolve that interpretation, not weaken the gate by omission.**
+
+### J.3 Unfiltered physical oracle: all three complete 100-cycle runs
+
+The same World is warmed once per seed and reused for all 100 cycles. The
+existing 19-entry vector is unchanged, including **actual all-World `Layout`
+entities**, not merely tagged Liquid nodes. Vector order:
+
+1. component records; 2. timer records; 3. logical surfaces; 4. logical blocks;
+5. nested logical links; 6. saved block maps; 7. carry entries;
+8. mounted entries; 9. chart renderers; 10. feed watches; 11. feed observations;
+12. owned listeners; 13. legacy/global listeners; 14. queued deliveries;
+15. retirement notifications; 16. cooperative host-local captures/tasks;
+17. unacknowledged observations; 18. tagged Liquid physical projections;
+19. actual native/renderer `Layout` entities (including Markdown projections).
+
+All three warm baselines are:
+
+```text
+B = [0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0]
+```
+
+All three **sampled trace high-water** vectors are:
+
+```text
+H = [6,1,6,8,5,1,0,8,1,1,1,1,1,0,1,1,0,90,204]
+```
+
+These are maxima of the test's explicit snapshots, not allocator-instrumented
+peaks at every instruction. All completed cycles assert `A == B` after exactly
+four teardown pumps. The test alternates empty/nonempty teardown and exercises
+cascade/raw/component removal, append/prefix preservation, changed content,
+nested content, viewport recycle, controls/timer/feed/chart, stale operations,
+owned capture drops, local host retirement/ack and independent global lifetime.
+No test-side cascade is used to sweep residual renderer descendants away before
+counting. A caller-owned shell is raw-removed as the caller's explicit teardown;
+that operation cannot sweep away descendant residue. Global capture is tested
+through World drop separately. The console retains the historical
+`attempted-prefix` label so a failed future run cannot falsely advertise 100
+cycles; in this final run **all 100 iterations per seed completed and passed**.
+
+| Seed | Completed cycles | Observed elapsed |
+| --- | ---: | ---: |
+| 1 | 100 | 28.738449334 s |
+| 7 | 100 | 29.166971625 s |
+| 42 | 100 | 29.136367167 s |
+
+The 17-test UI unit suite containing the oracle completed in **87.04 s**. This
+is headless seeded behavior, not a native interaction, visual, DPI or throughput
+certification.
+
+### J.4 Additional qualification and stream-clone cost
+
+New/focused tests cover exact two-callback retirement budgeting (five
+notifications complete in three pumps; repeated same-pump drains make no
+progress), tree postorder/reverse-registration callbacks and idempotence,
+transaction reentry/poison/unwind/observable fail-closed cleanup, source capacity
+refusal preserving stream/block-Arc/source/key, diagnostic-ring overflow,
+component/timer revision exhaustion with unchanged records and no new events,
+and exhaustive v1 record/request/envelope construction plus a context-free
+legacy host implementation. Existing unit tests continue to cover subscription
+capacity/ID exhaustion/untouched-handler refusal, self/other token cancellation,
+registration during dispatch, FIFO/reentrant queue/callback budgeting, listener
+panic isolation, feed stale generation/revision/refusal and retirement panic
+isolation/unacknowledged legacy-host tracking. No global serial allocator is
+reset to fabricate an exhaustion test; isolated local counters are used where
+applicable. Full render/recycle/feed/timer/stream/grammar/golden behavior remains
+in the unfiltered test runs below.
+
+**Cloning is intentionally qualified, not called free.** Source update stages
+one cloned `LiquidStream` before membership admission so refusal cannot corrupt
+the published stream. If `S_i` denotes the owned source, Markdown and parsed
+block payload size at chunk `i`, this adds O(`S_i`) copying per candidate, in
+addition to tail parsing, source reconciliation and block-array publication.
+At most one source candidate per surface is extracted; reentrant source updates
+are refused. The candidate is synchronously committed or dropped, not queued or
+retained as history. Existing snapshots/carry/state and the old/new published
+block arrays are additional live storage; neither the test nor this analysis
+pretends that source bytes alone measure total heap use. Source/Markdown/block
+payloads are application document data, not bounded by the scope-count limit.
+There is no claim of a constant-byte or constant-time append, no source-size
+cap introduced, and for many small chunks total added copying can be quadratic
+in final source size. Chunk coalescing by the host can reduce that cost; it is
+not required for correctness or presented as a measured adapter optimization.
+
+The structural regression stages/drops one candidate per append for 32 appends
+to a large document, proves the old stream stays unchanged while staged, and
+compares each published Markdown/block result with a fresh parse. Recorded
+measurements: final source **246,314 bytes**, **7,873,600 cumulative source bytes
+copied**, maximum old-plus-candidate source bytes **492,612** (at most twice the
+final source bytes). These numbers exclude other strings, parsed props, maps,
+allocators and rendering. This supplies finite-document structural boundedness
+and semantic evidence; it is **not** a latency/RSS benchmark or a constant-cost
+performance promise. Optimizing this tradeoff further would require a separate
+parser/checkpoint design review rather than silently weakening atomic refusal.
+
+### J.5 Exact final commands/results and limitations
+
+Environment for all Cargo commands below:
+
+```sh
+export PATH="$HOME/.cargo/bin:$PATH"
+export CARGO_BUILD_JOBS=2 CARGO_INCREMENTAL=0
+```
+
+- `cargo test --locked --offline -p rndr_liquid -p rndr_liquid_ui -- --nocapture`
+  — **exit 0, 69 passed, 2 pre-existing opt-in performance probes ignored,
+  0 filtered** across unit/integration/doc suites. Includes all 300 oracle
+  cycles and the changed-title regression; no `--skip` flags.
+- `cargo test --locked --offline -p rndr_core --lib --test runtime --test feed --test markdown`
+  — **exit 0, 179 passed, 1 pre-existing ignored unit test**. Includes all core
+  unit tests (close and host unwind/drop cases included), runtime, feed and the
+  full applicable Markdown integration target.
+- `cargo test --locked --offline -p rndr_core --lib markdown::host`
+  — **exit 0, 4 passed**, 135 other core unit tests filtered by this focused
+  command; the full core command above supplies the unfiltered unit coverage.
+- `cargo clippy --locked --offline -p rndr_liquid_ui --lib --tests -- -D warnings`
+  — **exit 0**; relevant libraries and tests, no lint suppression added for the
+  new ownership/transaction logic.
+- `cargo fmt --all -- --check` and `git diff --check` — final whitespace and
+  formatting checks both **exit 0** after this section was written.
+
+Intermediate honest failures included fixture compilation/incorrect fixture
+source offsets, an initially attempted nonexistent `markdown_host` core
+target (exit 101; actual applicable integration target is `markdown`), two strict
+Clippy findings, and the new aborted-transaction regression exposing an
+incorrect `== 2` terminal test when the observable abort flag became `3`.
+These were fixed and the unfiltered final suite rerun; the old failures in §H/§I
+remain preserved. No failing test was deleted, ignored or filtered to manufacture
+a green final run.
+
+Remaining review limitation: sender independent full-diff review, acceptance and
+resolution of J.2's literal caller-cascade requirement remain outstanding. Do
+not infer Medousa readiness, native UI certification, or broad `rndr-flow`
+implementation from these receipts. No Medousa checkout/edit/build/test, adapter,
+durable work cancellation, approval resolution, backend task cancellation, F2
+implementation, new dependency, core scheduler/World/despawn change, push,
+publication, deployment or merge occurred.

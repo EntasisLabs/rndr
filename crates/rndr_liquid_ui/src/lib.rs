@@ -96,6 +96,7 @@ impl LiquidUiPlugin {
 impl Plugin for LiquidUiPlugin {
     fn build(self, app: &mut App) {
         app.add_plugin(rndr_ui::UiPlugin);
+        app.world_mut().insert_resource(self.limits);
         app.world_mut()
             .insert_resource(view::HostSlot(Some(self.host)));
         app.add_system(Schedule::Update, state::begin_pump);

@@ -505,10 +505,7 @@ fn dispatch_pending(world: &mut World) {
         return;
     }
     listeners(world).dispatching = true;
-    loop {
-        let Some(mut delivery) = listeners(world).queue.pop_front() else {
-            break;
-        };
+    while let Some(mut delivery) = listeners(world).queue.pop_front() {
         while delivery.cursor < delivery.ids.len() {
             if delivery
                 .key
@@ -553,6 +550,7 @@ fn dispatch_pending(world: &mut World) {
                 if let Some(l) = r.handlers.get(&id) {
                     l.cancelled.store(true, Ordering::Release);
                 }
+                lifecycle::panicked(world);
             } else if let Some(l) = listeners(world).handlers.get_mut(&id) {
                 l.handler = Some(handler);
             }
@@ -679,6 +677,27 @@ mod lifecycle_tests {
         subscribe_liquid_interactions_owned(world, LiquidListenerOwner::World, Handler(f))
             .unwrap_or_else(|_| panic!("subscribe"))
     }
+    #[test]
+    fn exhausted_component_revision_refuses_without_record_or_queue_changes() {
+        let mut w = World::new();
+        let view = liquid_view(&mut w, DOC);
+        let source = lifecycle::location(&w, lifecycle::key_at(&w, view, 0).unwrap())
+            .unwrap()
+            .1;
+        let state = LiquidComponentState::Accordion { open: vec![0] };
+        let mut record = store_snapshot(&mut w, view, source, 0, "accordion", state.clone());
+        record.revision = u64::MAX;
+        write(&mut w, view, record.clone());
+        let changed = LiquidComponentState::Accordion { open: vec![] };
+        assert_eq!(
+            store_snapshot(&mut w, view, source, 0, "accordion", changed.clone()),
+            record
+        );
+        assert!(put_liquid_component_state(&mut w, view, source, u64::MAX, changed).is_err());
+        assert_eq!(liquid_component_state(&w, view, source), Some(record));
+        assert_eq!(counts(&w).3, 0);
+    }
+
     #[test]
     fn id_snapshot_add_remove_self_remove_and_nested_fifo() {
         let mut w = World::new();

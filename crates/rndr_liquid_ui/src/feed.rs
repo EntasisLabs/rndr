@@ -18,7 +18,7 @@ use std::sync::{
 pub struct LiquidFeedContext {
     key: Key,
     request: u64,
-    depth: usize,
+    path: Vec<u64>,
     retired: Arc<AtomicBool>,
     acknowledged: Arc<AtomicBool>,
 }
@@ -92,14 +92,14 @@ fn observation(
     if let Some(old) = old {
         retire(world, old);
     }
-    let depth = lifecycle::depth(world, key.0);
+    let path = lifecycle::retirement_path(world, key.0);
     let r = world.resource_mut::<Observations>()?;
     let next = r.next + 1;
     r.next = next;
     let context = LiquidFeedContext {
         key,
         request: next,
-        depth,
+        path,
         retired: Arc::new(AtomicBool::new(false)),
         acknowledged: Arc::new(AtomicBool::new(false)),
     };
@@ -139,11 +139,14 @@ fn drain_notifications(world: &mut World) {
             .retiring
             .pop_front()
             .unwrap();
-        let _result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             view::with_host(world, |host, world| {
                 host.retire_feed_observation(world, &old.context)
             })
         }));
+        if result.is_err() {
+            lifecycle::panicked(world);
+        }
         if old.pending && !old.context.acknowledged.load(Ordering::Acquire) {
             if let Some(r) = world.resource_mut::<Observations>() {
                 r.unacknowledged.push(old.context);
@@ -214,6 +217,19 @@ pub fn put_liquid_feed_result(
     Ok(())
 }
 
+fn retirement_cmp(a: &LiquidFeedContext, b: &LiquidFeedContext) -> std::cmp::Ordering {
+    for (a, b) in a.path.iter().zip(&b.path) {
+        match a.cmp(b) {
+            std::cmp::Ordering::Equal => {}
+            order => return order,
+        }
+    }
+    b.path
+        .len()
+        .cmp(&a.path.len())
+        .then_with(|| b.request.cmp(&a.request))
+}
+
 pub(crate) fn retire_dead(world: &mut World) {
     let dead: Vec<_> = world
         .resource::<Observations>()
@@ -232,13 +248,7 @@ pub(crate) fn retire_dead(world: &mut World) {
     } else {
         Vec::new()
     };
-    removed.sort_by_key(|o| {
-        (
-            std::cmp::Reverse(o.context.depth),
-            o.context.key.0,
-            o.context.request,
-        )
-    });
+    removed.sort_by(|a, b| retirement_cmp(&a.context, &b.context));
     // Invalidate the entire batch before invoking any host callback.
     for old in &removed {
         old.context.retired.store(true, Ordering::Release);
@@ -690,6 +700,82 @@ mod retirement_tests {
             interval_ms: None,
         }
     }
+    #[test]
+    fn retirement_budget_progresses_in_exact_finite_pumps() {
+        let (mut w, view, key, _) = setup();
+        w.insert_resource(crate::LiquidLimits {
+            callbacks: 2,
+            ..crate::LiquidLimits::default()
+        });
+        for i in 0..5 {
+            observation(&mut w, key, &i.to_string(), false).unwrap();
+        }
+        state::begin_pump(&mut w);
+        w.despawn_entity(view);
+        retire_dead(&mut w);
+        assert_eq!(counts(&w), (0, 0, 3, 0));
+        // Repeated drains in one pump do not reset the shared budget.
+        retire_dead(&mut w);
+        assert_eq!(counts(&w), (0, 0, 3, 0));
+        state::begin_pump(&mut w);
+        retire_dead(&mut w);
+        assert_eq!(counts(&w), (0, 0, 1, 0));
+        state::begin_pump(&mut w);
+        retire_dead(&mut w);
+        assert_eq!(counts(&w), (0, 0, 0, 0));
+    }
+
+    #[test]
+    fn retirement_callbacks_are_tree_postorder_then_reverse_registration() {
+        struct Ordered(std::sync::Arc<std::sync::Mutex<Vec<u64>>>);
+        impl LiquidHost for Ordered {
+            fn retire_feed_observation(&mut self, _: &mut World, context: &LiquidFeedContext) {
+                self.0.lock().unwrap().push(context.request_id());
+                context.acknowledge_retirement();
+            }
+        }
+        let (mut w, view, key, _) = setup();
+        let base = observation(&mut w, key, "base", false).unwrap();
+        w.insert_resource(Observations::default());
+        let order = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        w.insert_resource(crate::view::HostSlot(Some(Box::new(Ordered(
+            order.clone(),
+        )))));
+        let mut observations = Observations::default();
+        // Explicit parent, A, A-child, B, B-child creation paths. Feed request
+        // ids in each scope must retire in reverse registration, not ascending.
+        for (request, path) in [
+            (1, vec![1]),
+            (2, vec![1, 2]),
+            (3, vec![1, 2, 3]),
+            (4, vec![1, 4]),
+            (5, vec![1, 4, 5]),
+            (6, vec![1, 2]),
+        ] {
+            let context = LiquidFeedContext {
+                request,
+                path,
+                retired: Arc::new(AtomicBool::new(false)),
+                acknowledged: Arc::new(AtomicBool::new(false)),
+                ..base.clone()
+            };
+            observations.active.insert(
+                (key, request.to_string()),
+                Observation {
+                    context,
+                    pending: true,
+                },
+            );
+        }
+        w.insert_resource(observations);
+        w.despawn_entity(view);
+        retire_dead(&mut w);
+        assert_eq!(*order.lock().unwrap(), vec![3, 6, 2, 5, 4, 1]);
+        assert_eq!(counts(&w), (0, 0, 0, 0));
+        retire_dead(&mut w);
+        assert_eq!(*order.lock().unwrap(), vec![3, 6, 2, 5, 4, 1]);
+    }
+
     #[test]
     fn publication_before_retirement_refresh_generation_and_foreign_world_reject() {
         let (mut w, view, key, source) = setup();

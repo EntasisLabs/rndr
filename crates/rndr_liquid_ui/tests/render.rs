@@ -321,10 +321,17 @@ fn reader_state_survives_appends_and_unchanged_blocks() {
     set_liquid_source(app.world_mut(), view, &rewritten);
     rndr_paint::frame(&mut app);
     rndr_paint::frame(&mut app);
+    // F1 provisional whole-parsed-value correspondence: a title edit retires
+    // the old accordion lifetime, unlike the unchanged appended prefix above.
     assert!(
-        has(&app, "Second body"),
-        "unchanged accordion lost its open item"
+        !app.world().is_alive(body),
+        "retired body projection survived"
     );
+    assert!(
+        !has(&app, "Second body"),
+        "changed accordion inherited open state"
+    );
+    assert!(has(&app, "+ Two"), "new lifetime did not start closed");
     assert!(has(&app, "Beta"));
     assert!(has(&app, "Deck two"));
     assert!(has(&app, "[x]"));

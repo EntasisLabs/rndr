@@ -335,3 +335,133 @@ fn tab_selected(world: &World, root: Entity) -> Option<u64> {
     }
     None
 }
+
+#[test]
+fn terminal_cleanup_preserves_application_attachments_and_unrelated_hosts() {
+    // Raw/component authority loss is handled by Liquid's exact cleanup, never
+    // by a test cascade. A caller-requested cascade is tested separately below.
+    for removal in 0..3 {
+        let (mut app, view) = boot("# Native\n\n```accordion\ntitle: Owned\n---\nlabel: Open\nbody: Nested native body\n```\n");
+        press(&mut app, view, "+ Open");
+        let native = MarkdownSlotHosts::native_projections(app.world(), view);
+        assert!(!native.is_empty());
+        let other = markdown_view(app.world_mut(), "Other independent markdown\n");
+        set_parent(app.world_mut(), other, native[0]);
+        rndr_paint::frame(&mut app);
+        let app_node = app
+            .world_mut()
+            .spawn((Layout::column(), Label::new("application")));
+        let app_child = app.world_mut().spawn(Layout::column());
+        set_parent(app.world_mut(), app_node, native[0]);
+        set_parent(app.world_mut(), app_child, app_node);
+        // Attach under an actual nested renderer-created view too.
+        let nested = app
+            .world()
+            .entities_with::<MarkdownView>()
+            .into_iter()
+            .find(|e| *e != view && *e != other)
+            .expect("nested view");
+        let nested_native = MarkdownSlotHosts::native_projections(app.world(), nested);
+        assert!(!nested_native.is_empty());
+        let nested_app = app.world_mut().spawn(Layout::column());
+        set_parent(app.world_mut(), nested_app, nested_native[0]);
+        let other_projections = MarkdownSlotHosts::native_projections(app.world(), other);
+        match removal {
+            0 => app.world_mut().despawn_entity(view),
+            1 => {
+                app.world_mut().remove::<LiquidView>(view);
+            }
+            _ => {
+                app.world_mut().remove::<MarkdownView>(view);
+            }
+        }
+        for _ in 0..4 {
+            rndr_paint::frame(&mut app);
+        }
+        for e in [app_node, app_child, nested_app, other] {
+            assert!(
+                app.world().is_alive(e),
+                "removal={removal}, unrelated entity={e:?}"
+            );
+        }
+        assert_eq!(children_of(app.world(), app_node), vec![app_child]);
+        assert!(app.world().get::<Parent>(app_node).is_none());
+        assert!(app.world().get::<Parent>(nested_app).is_none());
+        assert!(MarkdownSlotHosts::native_projections(app.world(), view).is_empty());
+        assert!(MarkdownSlotHosts::native_projections(app.world(), nested).is_empty());
+        assert_eq!(
+            MarkdownSlotHosts::native_projections(app.world(), other),
+            other_projections
+        );
+    }
+}
+
+#[test]
+fn caller_cascade_preserves_reparented_out_attachments_not_attached_descendants() {
+    let (mut app, view) = boot("# Native\n\n```accordion\n---\nlabel: Open\nbody: Body\n```\n");
+    let keeper = app.world_mut().spawn(Layout::column());
+    let attached = app.world_mut().spawn(Layout::column());
+    let moved = app.world_mut().spawn(Layout::column());
+    set_parent(app.world_mut(), attached, view);
+    set_parent(app.world_mut(), moved, view);
+    set_parent(app.world_mut(), moved, keeper);
+    despawn(app.world_mut(), view);
+    // Existing core cascade semantics, not Liquid drain, made this decision.
+    assert!(!app.world().is_alive(attached));
+    for _ in 0..4 {
+        rndr_paint::frame(&mut app);
+    }
+    assert!(app.world().is_alive(moved));
+    assert_eq!(children_of(app.world(), keeper), vec![moved]);
+    assert!(MarkdownSlotHosts::native_projections(app.world(), view).is_empty());
+}
+
+#[test]
+fn host_callback_attachments_are_never_claimed_by_render_tracking() {
+    use std::sync::{Arc, Mutex};
+    #[derive(Default)]
+    struct Model {
+        view: Option<Entity>,
+        attached: Option<Entity>,
+    }
+    struct Attaching(Arc<Mutex<Model>>);
+    impl LiquidHost for Attaching {
+        fn load_feed(&mut self, world: &mut World, _: &FeedRequest) -> FeedOutcome {
+            let mut model = self.0.lock().unwrap();
+            let view = model.view.unwrap();
+            let root = children_of(world, view)
+                .into_iter()
+                .find(|e| {
+                    world
+                        .get::<Layout>(*e)
+                        .is_some_and(|l| l.height == Size::Hug)
+                })
+                .expect("mounted host root");
+            let application =
+                world.spawn((Layout::column(), Label::new("host application attachment")));
+            set_parent(world, application, root);
+            model.attached = Some(application);
+            FeedOutcome::Ready(FeedBody {
+                datatype: FeedDatatype::Text,
+                body: "Feed body".into(),
+            })
+        }
+    }
+    let model = Arc::new(Mutex::new(Model::default()));
+    let mut app = App::new();
+    app.add_plugin(MarkdownPlugin);
+    app.add_plugin(LiquidUiPlugin::new(Attaching(model.clone())));
+    app.world_mut().insert_resource(Viewport::new(320.0, 240.0));
+    let view = liquid_view(app.world_mut(), "```feed\nid: f\ndatatype: text\n```\n");
+    model.lock().unwrap().view = Some(view);
+    for _ in 0..3 {
+        rndr_paint::frame(&mut app);
+    }
+    let attached = model.lock().unwrap().attached.expect("load callback");
+    app.world_mut().despawn_entity(view);
+    for _ in 0..4 {
+        rndr_paint::frame(&mut app);
+    }
+    assert!(app.world().is_alive(attached));
+    assert!(app.world().get::<Parent>(attached).is_none());
+}

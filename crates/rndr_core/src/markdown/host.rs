@@ -1,6 +1,11 @@
 //! Explicit, programmatic host content. Markdown never executes or requests UI.
 use super::*;
 
+// Entity generations are part of the owner identity. Metadata lives only on
+// live projections, so there is no dead-view table or retained document data.
+pub(super) struct NativeProjection(pub(super) Entity);
+impl Component for NativeProjection {}
+
 /// Caller-selected identity, scoped to one markdown view. Never reuse an ID
 /// within that view's lifetime, even after removal (prevents stale-handle ABA).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -240,6 +245,29 @@ pub struct MarkdownSlotHosts {
 }
 
 impl MarkdownSlotHosts {
+    /// Enumerate exact live native Markdown-created projections for `view`.
+    ///
+    /// Includes native text, rule/quote/list/checkbox implementation nodes and
+    /// window spacers; excludes the caller's view, host-slot roots and all
+    /// application content. Works after component removal or raw view despawn.
+    /// Ownership follows creation, not current ancestry: reparenting a native
+    /// projection does not transfer ownership. Entity generations prevent ABA.
+    /// No document or dead-owner registry is retained; despawning each returned
+    /// entity releases its metadata. This is read-only, O(live native projections
+    /// in World), and does not promise ordering. Callers must not cascade through
+    /// returned nodes if they need to preserve application-attached children.
+    pub fn native_projections(world: &World, view: Entity) -> Vec<Entity> {
+        world
+            .entities_with::<NativeProjection>()
+            .into_iter()
+            .filter(|e| {
+                world
+                    .get::<NativeProjection>(*e)
+                    .is_some_and(|p| p.0 == view)
+            })
+            .collect()
+    }
+
     /// Remove this view's registration, without touching any other view.
     ///
     /// Also invalidates callbacks temporarily extracted by dispatch. Such a
@@ -728,6 +756,64 @@ mod registration_tests {
             self.slot_mounted(world, slot, i, s);
         }
     }
+    #[test]
+    fn native_ownership_survives_authority_loss_without_claiming_attachments() {
+        for raw in [false, true] {
+            let mut app = crate::App::new();
+            app.add_plugin(crate::MarkdownPlugin);
+            app.world_mut()
+                .insert_resource(crate::Viewport::new(320.0, 180.0));
+            let view = crate::markdown_view(
+                app.world_mut(),
+                "# Heading\n\n> quote\n\n- [x] task\n- bullet\n\n---\n\ntext\n",
+            );
+            let other = crate::markdown_view(app.world_mut(), "Unrelated view\n");
+            app.update();
+            let owned = MarkdownSlotHosts::native_projections(app.world(), view);
+            let other_owned = MarkdownSlotHosts::native_projections(app.world(), other);
+            assert!(!owned.is_empty());
+            assert!(!other_owned.is_empty());
+            let child = app.world_mut().spawn(Layout::column());
+            set_parent(app.world_mut(), child, owned[0]);
+            // A reparented native node keeps its exact creation owner.
+            set_parent(app.world_mut(), owned[0], other);
+            assert_eq!(
+                MarkdownSlotHosts::native_projections(app.world(), view).len(),
+                owned.len()
+            );
+            if raw {
+                app.world_mut().despawn_entity(view);
+            } else {
+                app.world_mut().remove::<MarkdownView>(view);
+            }
+            assert_eq!(
+                MarkdownSlotHosts::native_projections(app.world(), view).len(),
+                owned.len()
+            );
+            let replacement = if raw {
+                let replacement = app.world_mut().spawn(Layout::column());
+                assert_eq!(replacement.index(), view.index());
+                assert_ne!(replacement.generation(), view.generation());
+                assert!(MarkdownSlotHosts::native_projections(app.world(), replacement).is_empty());
+                Some(replacement)
+            } else {
+                None
+            };
+            for entity in owned {
+                app.world_mut().despawn_entity(entity);
+            }
+            if let Some(replacement) = replacement {
+                assert!(app.world().is_alive(replacement));
+            }
+            assert!(app.world().is_alive(child));
+            assert!(MarkdownSlotHosts::native_projections(app.world(), view).is_empty());
+            assert_eq!(
+                MarkdownSlotHosts::native_projections(app.world(), other),
+                other_owned
+            );
+        }
+    }
+
     #[test]
     fn callback_removal_replacement_raw_loss_and_unwind_never_resurrect() {
         for action in 1..=6 {
