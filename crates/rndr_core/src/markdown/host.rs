@@ -230,6 +230,51 @@ pub trait MarkdownSlotHost: Send + Sync {
 #[derive(Default)]
 pub struct MarkdownSlotHosts {
     hosts: std::collections::HashMap<Entity, Box<dyn MarkdownSlotHost>>,
+    // Only active callback frames live here. A frame guard removes its flag even
+    // on unwind; no per-view tombstones or monotonically growing ID table.
+    dispatch: std::sync::Arc<
+        std::sync::Mutex<
+            std::collections::HashMap<Entity, Vec<std::sync::Arc<std::sync::atomic::AtomicBool>>>,
+        >,
+    >,
+}
+
+impl MarkdownSlotHosts {
+    /// Remove this view's registration, without touching any other view.
+    ///
+    /// Also invalidates callbacks temporarily extracted by dispatch. Such a
+    /// callback is dropped after it returns, never restored. Drop the returned
+    /// value outside the World resource borrow; captures may run destructors.
+    pub fn remove(&mut self, view: Entity) -> Option<Box<dyn MarkdownSlotHost>> {
+        if let Some(frames) = self.dispatch.lock().unwrap().get(&view) {
+            for frame in frames {
+                frame.store(false, std::sync::atomic::Ordering::Release);
+            }
+        }
+        self.hosts.remove(&view)
+    }
+}
+
+type DispatchFrames = std::sync::Arc<
+    std::sync::Mutex<
+        std::collections::HashMap<Entity, Vec<std::sync::Arc<std::sync::atomic::AtomicBool>>>,
+    >,
+>;
+struct DispatchFrame {
+    frames: DispatchFrames,
+    view: Entity,
+    live: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+impl Drop for DispatchFrame {
+    fn drop(&mut self) {
+        let mut frames = self.frames.lock().unwrap();
+        if let Some(stack) = frames.get_mut(&self.view) {
+            stack.retain(|flag| !std::sync::Arc::ptr_eq(flag, &self.live));
+            if stack.is_empty() {
+                frames.remove(&self.view);
+            }
+        }
+    }
 }
 
 /// Remove every host binding on `view`, including slots released offscreen.
@@ -255,11 +300,13 @@ pub fn set_markdown_slot_host(
     if world.resource_mut::<MarkdownSlotHosts>().is_none() {
         world.insert_resource(MarkdownSlotHosts::default());
     }
-    world
-        .resource_mut::<MarkdownSlotHosts>()
-        .unwrap()
-        .hosts
-        .insert(view, Box::new(host));
+    let old = {
+        let hosts = world.resource_mut::<MarkdownSlotHosts>().unwrap();
+        let old = hosts.remove(view);
+        hosts.hosts.insert(view, Box::new(host));
+        old
+    };
+    drop(old);
 }
 
 fn notify(
@@ -270,20 +317,50 @@ fn notify(
     source: usize,
     mount: bool,
 ) {
-    let Some(mut host) = world
-        .resource_mut::<MarkdownSlotHosts>()
-        .and_then(|hosts| hosts.hosts.remove(&view))
-    else {
+    let require_markdown = world.has::<MarkdownView>(view);
+    let Some((mut host, frame)) = world.resource_mut::<MarkdownSlotHosts>().and_then(|hosts| {
+        let host = hosts.hosts.remove(&view)?;
+        let live = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+        hosts
+            .dispatch
+            .lock()
+            .unwrap()
+            .entry(view)
+            .or_default()
+            .push(live.clone());
+        Some((
+            host,
+            DispatchFrame {
+                frames: hosts.dispatch.clone(),
+                view,
+                live,
+            },
+        ))
+    }) else {
         return;
     };
+    // Markdown sync legitimately extracts MarkdownView while invoking us. Do
+    // not mistake that transaction for component disposal. Explicit remove
+    // invalidates this frame; raw/cascade despawn is additionally checked here.
     if mount {
         host.slot_mounted(world, slot, index, source);
     } else {
         host.slot_unmounted(world, slot, index, source);
     }
-    if let Some(hosts) = world.resource_mut::<MarkdownSlotHosts>() {
-        hosts.hosts.insert(view, host);
+    if frame.live.load(std::sync::atomic::Ordering::Acquire)
+        && world.is_alive(view)
+        && (!require_markdown || world.has::<MarkdownView>(view))
+    {
+        if let Some(hosts) = world.resource_mut::<MarkdownSlotHosts>() {
+            // A replacement wins, including one installed by nested dispatch.
+            if let std::collections::hash_map::Entry::Vacant(entry) = hosts.hosts.entry(view) {
+                entry.insert(host);
+                return;
+            }
+        }
     }
+    // Fail closed on unwind: neither the host nor frame is restored.
+    drop(host);
 }
 fn anchored(doc: &MarkdownView, binding: &Binding) -> bool {
     binding.start != usize::MAX
@@ -594,5 +671,115 @@ mod shift_tests {
             (10, 0, 6)
         );
         assert_eq!(remap(0, 4, 10, 0, 6), Some((0, 4)));
+    }
+}
+
+#[cfg(test)]
+mod registration_tests {
+    use super::*;
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+    struct Probe {
+        drops: Arc<AtomicUsize>,
+        action: u8,
+    }
+    impl Drop for Probe {
+        fn drop(&mut self) {
+            self.drops.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+    impl MarkdownSlotHost for Probe {
+        fn slot_mounted(&mut self, world: &mut World, slot: MarkdownSlot, _: usize, _: usize) {
+            match self.action {
+                1 => {
+                    let old = world
+                        .resource_mut::<MarkdownSlotHosts>()
+                        .unwrap()
+                        .remove(slot.view);
+                    drop(old);
+                }
+                2 => {
+                    set_markdown_slot_host(
+                        world,
+                        slot.view,
+                        Probe {
+                            drops: self.drops.clone(),
+                            action: 0,
+                        },
+                    );
+                    notify(world, slot.view, slot, 0, 0, true);
+                }
+                3 => {
+                    world.despawn_entity(slot.view);
+                }
+                4 => panic!("callback failure"),
+                5 => {
+                    world.remove::<MarkdownView>(slot.view);
+                }
+                6 => {
+                    crate::despawn(world, slot.view);
+                }
+                _ => {}
+            }
+        }
+        fn slot_unmounted(&mut self, world: &mut World, slot: MarkdownSlot, i: usize, s: usize) {
+            self.slot_mounted(world, slot, i, s);
+        }
+    }
+    #[test]
+    fn callback_removal_replacement_raw_loss_and_unwind_never_resurrect() {
+        for action in 1..=6 {
+            let mut world = World::new();
+            let drops = Arc::new(AtomicUsize::new(0));
+            let other = world.spawn(Layout::column());
+            set_markdown_slot_host(
+                &mut world,
+                other,
+                Probe {
+                    drops: drops.clone(),
+                    action: 0,
+                },
+            );
+            for _ in 0..100 {
+                let view = crate::markdown_view(&mut world, "");
+                set_markdown_slot_host(
+                    &mut world,
+                    view,
+                    Probe {
+                        drops: drops.clone(),
+                        action,
+                    },
+                );
+                let slot = MarkdownSlot {
+                    view,
+                    root: view,
+                    id: MarkdownSlotId(1),
+                };
+                let before = drops.load(Ordering::SeqCst);
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    notify(&mut world, view, slot, 0, 0, true)
+                }));
+                assert_eq!(result.is_err(), action == 4);
+                let hosts = world.resource::<MarkdownSlotHosts>().unwrap();
+                assert!(hosts.dispatch.lock().unwrap().is_empty());
+                assert!(hosts.hosts.contains_key(&other));
+                assert_eq!(hosts.hosts.contains_key(&view), action == 2);
+                assert_eq!(drops.load(Ordering::SeqCst), before + 1);
+                let old = world
+                    .resource_mut::<MarkdownSlotHosts>()
+                    .unwrap()
+                    .remove(view);
+                drop(old);
+                if world.is_alive(view) {
+                    world.despawn_entity(view);
+                }
+            }
+            assert_eq!(
+                world.resource::<MarkdownSlotHosts>().unwrap().hosts.len(),
+                1
+            );
+        }
     }
 }

@@ -306,3 +306,10 @@ pub(crate) fn hover(world: &mut World) {
         world.insert(plot, DescribedBy(vec![tip]));
     }
 }
+
+#[cfg(test)]
+pub(crate) fn count(world: &World) -> usize {
+    world
+        .resource::<ChartSlots>()
+        .map_or(0, |r| r.by_root.len())
+}

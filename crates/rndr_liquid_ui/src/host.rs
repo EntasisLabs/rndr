@@ -146,6 +146,24 @@ pub struct FeedEntry {
 /// Every method has a default that does nothing, so a host implements only
 /// what it supports. Install one with [`crate::LiquidUiPlugin::new`].
 pub trait LiquidHost: Send + Sync {
+    /// Load a local observation with an exact renderer lifetime. The default
+    /// delegates to the legacy loader; it cannot prove external quiescence.
+    fn load_feed_for(
+        &mut self,
+        world: &mut World,
+        context: &crate::LiquidFeedContext,
+        request: &FeedRequest,
+    ) -> FeedOutcome {
+        let _ = context;
+        self.load_feed(world, request)
+    }
+    /// Release local followers/tasks only. Never cancel a durable backend job,
+    /// resolve approvals, or infer backend completion from UI disposal.
+    /// Cooperative hosts call `context.acknowledge_retirement()` after release.
+    fn retire_feed_observation(&mut self, world: &mut World, context: &crate::LiquidFeedContext) {
+        let _ = (world, context);
+    }
+
     /// The reader activated something that leaves the view.
     fn event(&mut self, world: &mut World, event: LiquidEvent) {
         let _ = (world, event);

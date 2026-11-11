@@ -278,3 +278,140 @@ and stream Drop retire observation only; explicit `Command::Cancel` separately
 calls session-targeted `cancel_active_turn`, not exact-turn CAS. Closing UI
 must not call that endpoint or resolve pending permission/secret/budget requests.
 No Medousa checkout was accessed, changed, built or tested in this investigation.
+
+## I. F1 implementation continuation — incomplete, blocked physical-ownership gate
+
+November 11 continuation after proof-only `6238aa0`. **This is a substantive
+implementation draft, not completed F1 and not ready for integration.** Section
+H remains the original failing-baseline evidence; none of its results have been
+rewritten as implementation acceptance. F2 keys/resolver remain deferred.
+
+### Implemented draft boundaries
+
+- Core changes remain exclusively in `crates/rndr_core/src/markdown/host.rs`:
+  additive `MarkdownSlotHosts::remove(view)` returns the detached host for drop
+  outside the resource borrow. Scoped active-dispatch flags suppress extracted
+  callback restoration after removal, preserve callback-installed replacements
+  (including nested dispatch), and remove bookkeeping on ordinary return and
+  unwind. No trait, scheduler, generic despawn, export, or other core file change.
+  Focused tests exercise 100 iterations per removal/replacement/raw/panic/
+  Markdown-component-loss/cascade path, checking drop-once, unrelated host
+  preservation and zero accumulated active-frame bookkeeping.
+- Liquid's new private `lifecycle` module supplies process-local checked serials,
+  logical surface/block occurrence membership, authority-component checks,
+  guarded internal component extraction, provisional parsed-equality retirement,
+  parked nested surfaces, and tagged physical projection bookkeeping. Component
+  records and timers use logical membership rather than `(Entity, byte)` as their
+  backing identity. Changed parsed content retires the old occurrence; unchanged
+  saved/mounted occurrences share a plan. No durable keys or F2 resolver claim.
+- Additive owned interaction subscriptions use removable atomic signal tokens,
+  surface/World owners, ID snapshots, FIFO queued envelopes, persistent dispatch
+  cursors, callback budgets, cancellation checks before each invocation, and
+  panic isolation. The legacy global subscription and exhaustive envelope/record
+  struct shapes remain unchanged. A retained dead token holds inert signal
+  metadata, not its listener capture.
+- Additive `LiquidFeedContext`, `load_feed_for`, retirement notification,
+  acknowledgment and context-bound result publication distinguish current
+  observations from retired requests. Deferred results recheck logical owner,
+  exact request, state revision and emission capacity before publication; they
+  rebuild the live projection. Notifications wait until an extracted host/source
+  transaction returns and share the callback budget. Legacy hosts retain the
+  old default loader behavior; unacknowledged Pending observations are counted
+  separately and are **not** declared quiescent. Retirement never issues a
+  durable backend cancel or resolves an application approval.
+- `LiquidLimits` configures positive renderer budgets (4096 logical leases,
+  32 observation lanes, 256 owned listeners per owner, 1024 envelopes, 256
+  callbacks per pump, 512 diagnostic entries by default). Source replacement
+  stages a cloned stream before publishing membership/source, so refusal does
+  not cancel the previous valid source. This introduces an unqualified append
+  cloning cost; no performance equivalence claim is made. Exhaustion/capacity
+  primitives and listener/feed refusal ordering have focused tests, not a claim
+  that the entire original F0/F1 capacity/exhaustion matrix is finished.
+
+### Concrete blocking evidence and requested scope decision
+
+The expanded oracle counts **actual live Layout entities**, in addition to
+Liquid registry tags. On **each seed 1, 7, 42**, the first raw-owner removal
+(zero-based **cycle 2**, even/empty-source strategy) leaves **109 Layout entities
+versus warm baseline zero**. All other currently instrumented vector entries
+return to baseline, including component/timer records, logical surfaces/blocks/
+nested leases, saved/carry/mounted entries, chart slots, watches/observations,
+owned listeners, queued delivery/retirement work, cooperative local handles,
+external pending acknowledgments and tagged owned projection entities. The one
+legacy global listener intentionally remains alive. Owned listener weak captures
+are checked dead before reporting this failure.
+
+This is **not a passing 100-cycle oracle**: each seed deliberately stops at its
+first counter-vector failure. The three prefixes took approximately **0.890 s,
+0.845 s, 0.839 s**; the failing test took **2.58 s**. The observed prefix
+high-water vector was `[6,1,6,8,5,1,0,8,1,1,1,1,1,0,1,1,0,90,204]`, in the order
+below. These are partial-prefix measurements, not throughput guarantees or a
+completed run. An earlier tag-only attempt was interrupted and is not acceptance
+evidence.
+
+Vector order: component records; timers; logical surfaces; block leases; nested
+leases; saved entries; carry entries; mounted roots; chart slots; feed watches;
+active observations; owned listeners; global listeners; queued envelopes;
+retirement notifications; cooperative local handles; pending external acks;
+tagged physical entities; **all actual Layout entities**. Parked snapshots are
+included in saved/carry accounting. The fixture removes any caller-owned shell
+entity **raw**, never with a test-side child cascade that could hide residue.
+
+Core `MarkdownView` exposes source/blocks/source-offset and editing/follow/
+selection operations, but its realized native text/spacer ownership (`slots`,
+`lead`, `trail_spacer`, private `Piece` implementation) is not publicly available.
+`World::despawn_entity` intentionally does not cascade. Liquid can remove its
+known block projections, but cannot safely distinguish those native Markdown
+projections from arbitrary application-attached children by sweeping the view's
+children. Such a sweep would violate the explicit unrelated-entity boundary.
+
+The sender was asked for a **narrow read-only native Markdown projection
+ownership accessor/helper**, implemented in `markdown/host.rs` on an existing
+exported type if appropriate, without scheduler/despawn/trait changes or a new
+export. That is beyond the exact registration-removal permission supplied for
+this continuation; it has **not** been implemented without a decision.
+
+Separately, the unmodified existing integration test
+`reader_state_survives_appends_and_unchanged_blocks` changes an accordion title
+from `FAQ` to `Questions` but expects its prior open state. That expectation
+conflicts with F1's changed-parsed-content retirement gate. A narrow permission
+request to adjust that assertion/comment in otherwise out-of-scope
+`tests/render.rs` is pending. A temporary diagnostic assertion edit was reverted;
+that file is **unchanged** in this draft. Unrelated carousel/slides/checklist/tabs
+retention expectations were not weakened.
+
+### Exact verification (locked/offline)
+
+Environment: `PATH=$HOME/.cargo/bin:$PATH`, `CARGO_BUILD_JOBS=2`,
+`CARGO_INCREMENTAL=0`.
+
+- `cargo test --locked --offline -p rndr_liquid_ui`: **exit 101**, **9 unit tests
+  passed, 1 full-vector oracle failed**; Cargo stops before integration suites.
+- `cargo test --locked --offline -p rndr_liquid_ui --lib full_same_world -- --nocapture`:
+  **exit 101**, the seeded prefix failures above. All three seeds were attempted;
+  no claim of 100 completed cycles per seed.
+- `cargo test --locked --offline -p rndr_liquid_ui -- --skip full_same_world_100_cycle_resource_oracle_seeds_1_7_42`:
+  **exit 101** on the unchanged title-edit retention assertion in `tests/render.rs`.
+- `cargo test --locked --offline -p rndr_liquid -p rndr_liquid_ui -- --skip full_same_world_100_cycle_resource_oracle_seeds_1_7_42 --skip reader_state_survives_appends_and_unchanged_blocks`:
+  **55 passed**, including doc tests, **2 existing opt-in probes ignored**,
+  exactly the two named tests filtered. This is explicitly filtered coverage,
+  **not green F1 acceptance**. This includes rndr's checked-in grammar/golden
+  fixtures; it does not build or test a Medousa checkout, worker or adapter.
+- `cargo test --locked --offline -p rndr_core --lib markdown::host`:
+  **3 passed**, 135 unrelated unit tests filtered.
+- `cargo test --locked --offline -p rndr_core --test runtime --test feed`:
+  **26 passed**.
+- `cargo test --locked --offline -p rndr_core --lib close::tests`:
+  **3 passed**, 135 unrelated unit tests filtered.
+- `cargo fmt --all -- --check` and `git diff --check`: passed at handback.
+
+Remaining work includes the ownership seam and full physical cleanup without
+unrelated-child collateral, completion of every 100-cycle trace/identity case
+and its finite pump/order assertions, exhaustive source/revision/timer capacity
+and exhaustion/refusal fixtures, complete callback-time disposal/transaction
+qualification and legacy exhaustive-construction fixtures. Current tagging and
+rebuild/despawn behavior is **not certified against arbitrary application
+attachments**. Only focused behavior supported by the receipts above is claimed.
+No native interaction/visual qualification, performance probe, Medousa adapter,
+Medousa build/test, push, publication, deployment or merge occurred. Sender
+independent review and additional authorized work remain necessary.

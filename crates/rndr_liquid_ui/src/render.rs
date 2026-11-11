@@ -173,6 +173,12 @@ impl BlockState {
 /// Clear `root` and render its block again from [`BlockRoot`] and
 /// [`BlockState`].
 pub(crate) fn rebuild(world: &mut World, root: Entity) {
+    let Some(logical_key) = crate::lifecycle::ancestor_key(world, root) else {
+        return;
+    };
+    if !crate::lifecycle::block_live(world, logical_key) {
+        return;
+    }
     let Some(BlockRoot { blocks, index, .. }) = world.get::<BlockRoot>(root).cloned() else {
         return;
     };
@@ -182,6 +188,8 @@ pub(crate) fn rebuild(world: &mut World, root: Entity) {
     if !matches!(block, LiquidBlock::Chart(_)) {
         chart::release(world, root);
     }
+    crate::lifecycle::park_under(world, root);
+    crate::view::reset_nested_cursor(world, root);
     for child in children_of(world, root) {
         despawn(world, child);
     }
@@ -200,8 +208,12 @@ pub(crate) fn rebuild(world: &mut World, root: Entity) {
     };
     cx.block(root, &block);
     let Cx { actions, state, .. } = cx;
+    if !world.is_alive(root) || !crate::lifecycle::block_live(world, logical_key) {
+        return;
+    }
     world.insert(root, actions);
     world.insert(root, state);
+    crate::lifecycle::track_tree(world, root);
 }
 
 /// Marker on the stand-in for an unclosed Liquid fence.
@@ -242,7 +254,11 @@ pub(crate) fn sync_pending(
                 PendingMark,
             ));
             set_parent(world, entity, view);
-            let _ = text(world, entity, &text_value, Typography::Secondary);
+            let label = text(world, entity, &text_value, Typography::Secondary);
+            crate::lifecycle::own_projection(world, view, entity);
+            if let Ok(label) = label {
+                crate::lifecycle::own_projection(world, view, label);
+            }
             *slot = Some(entity);
             entity
         }

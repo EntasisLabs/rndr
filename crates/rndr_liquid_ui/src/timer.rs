@@ -4,6 +4,7 @@
 //! block does not reset it. Deadlines are absolute instants on [`rndr_core::Time`].
 //! Pausing freezes the remaining time. Reaching the deadline publishes
 //! [`LiquidInteraction::TimerComplete`] once.
+use crate::lifecycle::{self, Key};
 use crate::render;
 use crate::state::{self, LiquidDisposition, LiquidInteraction, LiquidInteractionEnvelope};
 use crate::view::{restore_tab, BlockRoot};
@@ -59,7 +60,7 @@ pub struct LiquidTimerRecord {
 
 #[derive(Default)]
 struct TimerStore {
-    records: HashMap<(Entity, usize, usize), LiquidTimerRecord>,
+    records: HashMap<(Key, usize), LiquidTimerRecord>,
 }
 
 const MIN_MS: u64 = 1_000;
@@ -77,8 +78,15 @@ pub fn liquid_timers(world: &World, view: Entity) -> Vec<LiquidTimerRecord> {
             store
                 .records
                 .iter()
-                .filter(|((owner, _, _), _)| *owner == view)
-                .map(|(_, record)| record.clone())
+                .filter_map(|((key, _), record)| {
+                    let (owner, source, _) = lifecycle::location(world, *key)?;
+                    if owner != view {
+                        return None;
+                    }
+                    let mut record = record.clone();
+                    record.source = source;
+                    Some(reconcile_record(record, now_ms(world)))
+                })
                 .collect()
         })
         .unwrap_or_default();
@@ -93,10 +101,14 @@ pub fn liquid_timer(
     source: usize,
     step: usize,
 ) -> Option<LiquidTimerRecord> {
+    let key = lifecycle::key(world, view, source)?;
     world
         .resource::<TimerStore>()
-        .and_then(|store| store.records.get(&(view, source, step)).cloned())
-        .map(|record| reconcile_record(record, now_ms(world)))
+        .and_then(|store| store.records.get(&(key, step)).cloned())
+        .map(|mut record| {
+            record.source = source;
+            reconcile_record(record, now_ms(world))
+        })
 }
 
 pub(crate) fn fresh(source: usize, step: usize, duration_ms: u64) -> LiquidTimerRecord {
@@ -124,6 +136,12 @@ pub(crate) fn apply(
     let now = now_ms(world);
     let prior =
         liquid_timer(world, view, source, step).unwrap_or_else(|| fresh(source, step, duration_ms));
+    if lifecycle::key(world, view, source).is_none()
+        || !state::can_emit(world)
+        || prior.revision == u64::MAX
+    {
+        return prior;
+    }
     let mut next = transition(&prior, action, now);
     next.revision = prior.revision + 1;
     write(world, view, next.clone());
@@ -135,27 +153,36 @@ pub(crate) fn apply(
 /// Finish timers whose deadline has passed and publish one completion each.
 pub(crate) fn reconcile(world: &mut World) {
     let now = now_ms(world);
-    let due: Vec<(Entity, LiquidTimerRecord)> = world
+    let due: Vec<(Key, LiquidTimerRecord)> = world
         .resource::<TimerStore>()
         .map(|store| {
             store
                 .records
                 .iter()
-                .filter_map(|((view, _, _), record)| {
+                .filter_map(|((key, _), record)| {
                     let next = reconcile_record(record.clone(), now);
-                    (next.status == LiquidTimerStatus::Complete
+                    (lifecycle::block_live(world, *key)
+                        && record.revision < u64::MAX
+                        && next.status == LiquidTimerStatus::Complete
                         && record.status == LiquidTimerStatus::Running)
-                        .then_some((*view, next))
+                        .then_some((*key, next))
                 })
                 .collect()
         })
         .unwrap_or_default();
-    for (view, mut record) in due {
+    for (key, mut record) in due {
+        if !state::can_emit(world) {
+            break;
+        }
         record.revision += 1;
-        let source = record.source;
-        write(world, view, record.clone());
-        publish(world, view, &record, LiquidTimerAction::Complete);
-        rebuild_recipe(world, view, source);
+        if let Some((view, source, _)) = lifecycle::location(world, key) {
+            record.source = source;
+            write(world, view, record.clone());
+            publish(world, view, &record, LiquidTimerAction::Complete);
+            rebuild_recipe(world, view, source);
+        } else if let Some(store) = world.resource_mut::<TimerStore>() {
+            store.records.insert((key, record.step), record);
+        }
     }
 }
 
@@ -260,6 +287,9 @@ fn publish(world: &mut World, view: Entity, record: &LiquidTimerRecord, action: 
 }
 
 fn write(world: &mut World, view: Entity, record: LiquidTimerRecord) {
+    let Some(key) = lifecycle::key(world, view, record.source) else {
+        return;
+    };
     if world.resource_mut::<TimerStore>().is_none() {
         world.insert_resource(TimerStore::default());
     }
@@ -267,7 +297,7 @@ fn write(world: &mut World, view: Entity, record: LiquidTimerRecord) {
         .resource_mut::<TimerStore>()
         .unwrap()
         .records
-        .insert((view, record.source, record.step), record);
+        .insert((key, record.step), record);
 }
 
 fn rebuild_recipe(world: &mut World, view: Entity, source: usize) {
@@ -327,4 +357,29 @@ mod tests {
         assert_eq!(reset.status, LiquidTimerStatus::Idle);
         assert_eq!(reset.remaining_ms, 10_000);
     }
+}
+
+pub(crate) fn retain_live(world: &mut World) {
+    let dead: Vec<_> = world
+        .resource::<TimerStore>()
+        .map(|r| {
+            r.records
+                .keys()
+                .copied()
+                .filter(|(key, _)| !lifecycle::block_live(world, *key))
+                .collect()
+        })
+        .unwrap_or_default();
+    if let Some(r) = world.resource_mut::<TimerStore>() {
+        for key in dead {
+            r.records.remove(&key);
+        }
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn count(world: &World) -> usize {
+    world
+        .resource::<TimerStore>()
+        .map_or(0, |r| r.records.len())
 }
