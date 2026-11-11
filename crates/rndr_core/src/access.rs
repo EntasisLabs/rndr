@@ -74,6 +74,14 @@ pub enum AccessRole {
     Option,
     /// Interactive canonical viewport scroll track.
     ScrollBar,
+    /// Source code. The value is the code text. The name is the language or
+    /// title when one was set.
+    Code,
+    /// A tooltip that describes another node. Pair it with [`DescribedBy`]
+    /// on the node it describes.
+    Tooltip,
+    /// A positioned image. The name is the label or the source.
+    Image,
 }
 /// Supplemental selection projection; input still uses canonical Button admission.
 #[derive(Clone, Debug)]
@@ -116,6 +124,25 @@ pub struct CollectionAccess {
     pub parent: Option<Entity>,
 }
 impl crate::Component for CollectionAccess {}
+
+/// Pins an [`AccessRole`] onto an entity that would otherwise be a plain
+/// label, a nameless box, or skipped.
+///
+/// Specific widgets still win: a button, field, list, table, disclosure or
+/// scrollbar keeps its own role. This is checked immediately before the
+/// plain [`crate::Label`] role.
+#[derive(Clone, Copy, Debug)]
+pub struct AccessMark(pub AccessRole);
+impl crate::Component for AccessMark {}
+
+/// Entities whose content describes this one.
+///
+/// The desktop bridge maps these through AccessKit `described_by`, the same
+/// way [`DataAccess::headers`] describes a cell. Targets that are hidden or
+/// no longer alive are omitted.
+#[derive(Clone, Debug)]
+pub struct DescribedBy(pub Vec<Entity>);
+impl crate::Component for DescribedBy {}
 
 /// One node in [`AccessTree`].
 #[derive(Clone, Debug, PartialEq)]
@@ -402,6 +429,9 @@ fn collect(
             | AccessRole::ListItem
             | AccessRole::TreeItem
             | AccessRole::Label
+            | AccessRole::Code
+            | AccessRole::Tooltip
+            | AccessRole::Image
     ) {
         for child in children_of(world, entity) {
             children.extend(collect(world, child, focus, out));
@@ -425,6 +455,10 @@ fn collect(
         });
     let value = match role {
         AccessRole::TextInput => text_value(world, entity),
+        AccessRole::Code => world
+            .get::<Label>(entity)
+            .map(|label| label.text.clone())
+            .unwrap_or_default(),
         _ => String::new(),
     };
     let node = AccessNode {
@@ -526,6 +560,9 @@ fn role_of(world: &World, entity: Entity) -> Option<AccessRole> {
     }
     if world.has::<Disclosure>(entity) {
         return Some(AccessRole::Disclosure);
+    }
+    if let Some(mark) = world.get::<AccessMark>(entity) {
+        return Some(mark.0);
     }
     if world.has::<Label>(entity) {
         return Some(AccessRole::Label);

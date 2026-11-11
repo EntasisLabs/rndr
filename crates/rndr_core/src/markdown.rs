@@ -101,7 +101,7 @@ use crate::keys::{platform_of, standard_action, EditAction, Key};
 use crate::layout::{hit_test, Axis, Layout, Rect, Scroll, Size, SCROLL_DRAG_SLOP};
 use crate::style::{Color, Label, TextOverflow, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
 use crate::text::{
-    style_of, text_engine, FontStyle, TextStyle, FONT_WEIGHT_BOLD, FONT_WEIGHT_REGULAR,
+    style_for, style_of, text_engine, FontStyle, TextStyle, FONT_WEIGHT_BOLD, FONT_WEIGHT_REGULAR,
 };
 use crate::theme::{theme_of, Radius, Theme};
 use crate::world::{Component, World};
@@ -657,7 +657,9 @@ pub(crate) fn sync_widths(world: &mut World) -> bool {
 
 fn sync_one(world: &mut World, entity: Entity) {
     let theme = theme_for(world);
-    let base = style_of(world);
+    // A `TextStyle` on the view is the base for its labels. Styled Liquid
+    // prose sets one; every other view keeps the world style.
+    let base = style_for(world, entity);
     let width = inner_width(world, entity);
     let Some(mut view) = world.remove::<MarkdownView>(entity) else {
         return;
@@ -3680,7 +3682,21 @@ fn code_spans(text: &str, theme: &MarkdownTheme) -> Vec<TextSpan> {
     }
 }
 
-#[cfg(feature = "highlight")]
+/// Token colors for source code, using [`MarkdownTheme::default`].
+///
+/// Keywords, strings, numbers and line or block comments. Fenced markdown
+/// still applies these colors only when the `highlight` feature is on.
+/// A Liquid code block calls this directly so the colors are always there.
+///
+/// ```
+/// use rndr_core::code_token_spans;
+/// let spans = code_token_spans("fn x() {}");
+/// assert!(spans.iter().any(|span| &"fn x() {}"[span.start..span.end] == "fn"));
+/// ```
+pub fn code_token_spans(text: &str) -> Vec<TextSpan> {
+    highlight_code(text, &MarkdownTheme::default())
+}
+
 fn highlight_code(text: &str, theme: &MarkdownTheme) -> Vec<TextSpan> {
     let mut spans = Vec::new();
     let bytes = text.as_bytes();
@@ -3762,7 +3778,6 @@ fn highlight_code(text: &str, theme: &MarkdownTheme) -> Vec<TextSpan> {
     spans
 }
 
-#[cfg(feature = "highlight")]
 fn push_token(spans: &mut Vec<TextSpan>, start: usize, end: usize, color: Color) {
     if end <= start {
         return;
@@ -3781,7 +3796,6 @@ fn push_token(spans: &mut Vec<TextSpan>, start: usize, end: usize, color: Color)
     spans.push(TextSpan::new(start, end, color));
 }
 
-#[cfg(feature = "highlight")]
 fn is_keyword(word: &str) -> bool {
     const KEYWORDS: &[&str] = &[
         "as", "async", "await", "break", "class", "const", "continue", "def", "else", "enum",

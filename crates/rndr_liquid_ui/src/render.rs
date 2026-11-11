@@ -11,6 +11,11 @@ use rndr_ui::{text, Callout, Card, Feedback, Surface, Typography, UiId};
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
+/// Slide stage the image layers are positioned in, in logical points.
+/// Layer `x`, `y`, `w` and `h` are fractions of this box.
+const SLIDE_W: f32 = 640.0;
+const SLIDE_H: f32 = 360.0;
+
 /// What activating one control inside a block does.
 #[derive(Clone, Debug)]
 pub(crate) enum Act {
@@ -381,8 +386,14 @@ impl Cx<'_> {
     }
 
     fn markdown(&mut self, parent: Entity, body: &str) {
-        if !body.trim().is_empty() {
-            nested(self.world, parent, &self.blocks, body);
+        let _ = self.markdown_view(parent, body);
+    }
+
+    fn markdown_view(&mut self, parent: Entity, body: &str) -> Option<Entity> {
+        if body.trim().is_empty() {
+            None
+        } else {
+            Some(nested(self.world, parent, &self.blocks, body))
         }
     }
 
@@ -466,6 +477,53 @@ impl Cx<'_> {
         true
     }
 
+    /// Slide frame the image layers are positioned in. Fractions in the
+    /// document are 0..1 of this box.
+    fn slide_stage(&mut self, parent: Entity) -> Entity {
+        let e = self.world.spawn((Layout {
+            width: Size::Px(SLIDE_W),
+            height: Size::Px(SLIDE_H),
+            ..Layout::column()
+        },));
+        set_parent(self.world, e, parent);
+        e
+    }
+
+    fn place_layer(&mut self, stage: Entity, layer: &SlideLayer) {
+        let w = (layer.w as f32).clamp(0.0, 1.0);
+        let h = layer.h.map(|h| (h as f32).clamp(0.0, 1.0)).unwrap_or(w);
+        if w <= f32::EPSILON || h <= f32::EPSILON {
+            return;
+        }
+        let width = w * SLIDE_W;
+        let height = h * SLIDE_H;
+        let name = if layer.id.trim().is_empty() {
+            layer.src.clone()
+        } else {
+            layer.id.clone()
+        };
+        let e = self.world.spawn((
+            Layout {
+                width: Size::Px(width),
+                height: Size::Px(height),
+                ..Layout::column()
+            },
+            Absolute {
+                left: Some((layer.x as f32).clamp(0.0, 1.0) * SLIDE_W),
+                top: Some((layer.y as f32).clamp(0.0, 1.0) * SLIDE_H),
+                ..Absolute::default()
+            },
+            AccessMark(AccessRole::Image),
+            Semantics {
+                name: Some(name),
+                description: layer.src.clone(),
+                readonly: true,
+            },
+        ));
+        set_parent(self.world, e, stage);
+        let _ = self.image(e, &layer.src, Some(&layer.src), height);
+    }
+
     fn list(&mut self, parent: Entity, items: &[String], marker: &str) {
         for item in items {
             self.text(parent, &format!("{marker} {item}"), Typography::Reading);
@@ -508,7 +566,11 @@ impl Cx<'_> {
                     self.markdown(parent, body);
                 }
             }
-            LiquidBlock::Block(p) => self.markdown(parent, &p.body),
+            LiquidBlock::Block(p) => {
+                if let Some(view) = self.markdown_view(parent, &p.body) {
+                    self.world.insert(view, prose_style(p));
+                }
+            }
             LiquidBlock::Chips(p) => {
                 let row = self.row(parent);
                 for chip in &p.chips {
@@ -640,9 +702,19 @@ impl Cx<'_> {
                 self.opt(parent, &p.title, Typography::Label);
                 let at = self.state.selected.min(p.slides.len().saturating_sub(1));
                 if let Some(slide) = p.slides.get(at) {
-                    let s = self.surface(parent);
-                    self.text(s, &slide.label, Typography::Title);
-                    self.markdown(s, &slide.body);
+                    let layers = slide.layers.as_deref().unwrap_or(&[]);
+                    if layers.is_empty() {
+                        let s = self.surface(parent);
+                        self.text(s, &slide.label, Typography::Title);
+                        self.markdown(s, &slide.body);
+                    } else {
+                        let stage = self.slide_stage(parent);
+                        for layer in layers {
+                            self.place_layer(stage, layer);
+                        }
+                        self.text(stage, &slide.label, Typography::Title);
+                        self.markdown(stage, &slide.body);
+                    }
                     self.opt(parent, &slide.notes, Typography::Secondary);
                 }
                 self.pager(parent, at, p.slides.len());
@@ -691,7 +763,23 @@ impl Cx<'_> {
                     self.button(row, "Copy", ButtonVariant::Quiet, act);
                 }
                 let s = self.surface(parent);
-                let _ = text(self.world, s, &p.source, Typography::Code);
+                if let Ok(code) = text(self.world, s, &p.source, Typography::Code) {
+                    self.world.insert(
+                        code,
+                        Spans {
+                            runs: code_token_spans(&p.source),
+                        },
+                    );
+                    self.world.insert(code, AccessMark(AccessRole::Code));
+                    self.world.insert(
+                        code,
+                        Semantics {
+                            name: Some(title),
+                            description: String::new(),
+                            readonly: true,
+                        },
+                    );
+                }
             }
             LiquidBlock::Tree(p) => {
                 self.heading(parent, &p.title, &p.subtitle);
@@ -1041,6 +1129,34 @@ impl Cx<'_> {
             self.actions(parent, actions);
         }
     }
+}
+
+fn prose_style(props: &StyledBlockProps) -> TextStyle {
+    let mut style = TextStyle::default();
+    if let Some(font) = props.font.as_deref().and_then(BlockFont::parse) {
+        style.family = match font {
+            BlockFont::Sans => "sans-serif".into(),
+            BlockFont::Serif => "serif".into(),
+            BlockFont::Mono => "monospace".into(),
+        };
+    }
+    if let Some(size) = props
+        .size
+        .as_deref()
+        .and_then(|size| block_font_size(size, TextStyle::default().size))
+    {
+        style.size = size;
+    }
+    style.align = match props.align.as_deref() {
+        Some("center") => TextAlign::Center,
+        Some("right") => TextAlign::End,
+        // The text engine aligns start, center and end. `justify` starts.
+        _ => TextAlign::Start,
+    };
+    if let Some(spacing) = props.spacing.as_deref().and_then(block_line_height) {
+        style.line_height = Some(spacing);
+    }
+    style
 }
 
 fn tree_lines(nodes: &[TreeNode], depth: usize, out: &mut Vec<String>) {

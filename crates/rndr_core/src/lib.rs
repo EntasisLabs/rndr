@@ -173,8 +173,8 @@ mod world;
 mod wrap;
 
 pub use access::{
-    access_id, access_tree, apply_access, entity_from_access_id, AccessCommand, AccessNode,
-    AccessRole, AccessTree, CollectionAccess, DataAccess, ACCESS_ROOT,
+    access_id, access_tree, apply_access, entity_from_access_id, AccessCommand, AccessMark,
+    AccessNode, AccessRole, AccessTree, CollectionAccess, DataAccess, DescribedBy, ACCESS_ROOT,
 };
 pub use access_text::{access_text, AccessTextSnapshot, AccessTextState};
 pub use action::{apply_actions, Actions, Binding, Chord, Fired, COPY, CUT, PASTE};
@@ -265,9 +265,9 @@ pub use list::{
     LIST_END, LIST_HOME, LIST_PAGE_DOWN, LIST_PAGE_UP, LIST_UP,
 };
 pub use markdown::{
-    clear_markdown_slots, markdown_realized_blocks, markdown_view, mount_markdown_slot,
-    parse_markdown, set_markdown_slot_host, LinkActivated, MarkdownBlock, MarkdownKind,
-    MarkdownLink, MarkdownPlugin, MarkdownSlot, MarkdownSlotError, MarkdownSlotHost,
+    clear_markdown_slots, code_token_spans, markdown_realized_blocks, markdown_view,
+    mount_markdown_slot, parse_markdown, set_markdown_slot_host, LinkActivated, MarkdownBlock,
+    MarkdownKind, MarkdownLink, MarkdownPlugin, MarkdownSlot, MarkdownSlotError, MarkdownSlotHost,
     MarkdownSlotHosts, MarkdownSlotId, MarkdownTheme, MarkdownView,
 };
 pub use memory_fs::{MemoryFs, MemoryFsPlugin};

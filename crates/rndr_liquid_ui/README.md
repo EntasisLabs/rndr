@@ -38,7 +38,7 @@ a `LiquidHost`, and every method defaults to doing nothing:
 | `event(LiquidEvent::StartTimer)` | recipe steps with a duration |
 | `event(LiquidEvent::RefreshFeed)` | the refresh button of `feed` blocks |
 | `load_feed(request)` | async `feed` and dashboard-tile loads; `Pending` until ready or failed |
-| `image(src)` | `media`, `card` and `plan` images; `None` shows alt text |
+| `image(src)` | `media`, `card`, `plan` and slide-layer images; `None` shows alt text |
 | `feed(id, datatype)` | sync `feed` rows when `load_feed` defers |
 | `tile(feed, field)` | sync values for feed-bound `dashboard` tiles when `load_feed` defers |
 
@@ -82,13 +82,30 @@ Pushing the fence into the markdown view directly, instead of through
 `push_liquid_str`, still leaves it as code: the markdown view does not know
 about Liquid.
 
+## Visual text and overlays
+
+A styled `block` sets the nested prose's font (`sans-serif`, `serif` or
+`monospace`), size, alignment and line spacing. `justify` uses the start
+edge; the text engine aligns start, center and end.
+
+A `code` block colors keywords, strings, numbers and comments, and exposes
+the source as a code role named by its language or title. Fenced markdown
+outside Liquid still colors only when `rndr_core`'s `highlight` feature is on.
+
+A chart tooltip floats over the plot and describes it. It stays hidden until
+the pointer hits a point, so it does not reserve a row under the plot.
+
+Slide image layers are pinned in a 640×360 point stage. `x`, `y`, `w` and
+`h` are fractions of that stage from 0 to 1, and each layer is an image
+named by its id.
+
 ## Current limits
 
 - Icons (`{{icon:id}}`) and emoji fields are dropped; there are no icon glyphs yet.
-- Slide layers, backgrounds and motion are not drawn; slides show their
-  label, body and notes with previous/next.
-- Styled `block` fonts, sizes and alignment are not applied yet.
-- Chart tooltips are shown as a text row under the plot.
+- Slide washes, scrims and motion are not drawn. A slide with no layers still
+  shows its label, body and notes with previous/next.
+- Card detail (summary, points, chips and meta) stays on the face. A detail
+  sheet is not opened.
 
 ## Example
 
