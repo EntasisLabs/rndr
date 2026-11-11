@@ -1215,3 +1215,92 @@ cancellation or metadata edit was performed. The stale native `d2edd1ad` seal
 was not repaired or edited. The sender retains review/integration and must
 obtain a **fresh exact corrected candidate seal before any approval**; reopening
 old evidence for admission did not seal or accept this correction.
+
+## M. F2 initial proof-only qualification — public error-contract conflict
+
+**F2 is not implemented or qualified by this record.** This is a blocked,
+proof-only handback from the isolated F2 undertaking. Historical F1 receipts
+above are unchanged and are not fresh F2 test evidence.
+
+### M.1 Verified starting point and bounded failing tests
+
+Before edits, branch
+`worktree/liquid-f2-semantic-identity-and-stale-handle-correctness` and HEAD
+were checked: HEAD and local `main` both equaled accepted F1
+`d18c55414d30c4c563148b30fd7e096f0bfd863d`, with no tracked or untracked changes.
+Initial filesystem availability was about 10 GiB. Builds use only the isolated
+worktree's `target/f2`, initially absent; after the focused build it occupied
+about 427 MiB, with about 11 GiB filesystem availability. No shared target,
+network download, dependency/Cargo/lockfile edit or production edit was made.
+
+Permanent `crates/rndr_liquid_ui/tests/identity.rs` was added before production
+changes. It reproduces ambiguous equal-block record inheritance after a
+nonappend prefix insertion independently when mounted and when offscreen.
+The offscreen fixture checks that no Liquid blocks are physically mounted
+before the replacement. A control proves no-op/true-append preservation for
+duplicates. A separate exhaustive-match fixture proves the existing public
+error shape compiles unchanged.
+
+All focused Cargo commands use:
+
+```sh
+export PATH="$HOME/.cargo/bin:$PATH"
+export CARGO_BUILD_JOBS=2 CARGO_INCREMENTAL=0
+export CARGO_TARGET_DIR="$PWD/target/f2"
+cargo test --locked --offline -p rndr_liquid_ui --test identity -- --nocapture
+```
+
+The final baseline is **2 passed, 2 failed, 0 ignored/filtered; exit 101**,
+recorded at `target/f2/baseline-identity-final.log` (worktree-local, not a
+published artifact). Both failures are the desired-behavior ambiguous-group
+assertion: an old record survives when it must reset. The no-op/append and
+legacy exhaustive-match controls pass. There is **no after-implementation
+result**. An initial harness incorrectly assumed projected source position
+zero and failed both tests during setup; that run at
+`target/f2/baseline-identity.log` is not defect evidence. Correcting setup to
+activate a real control produced the initial one-pass/one-fail reproduction
+at `target/f2/baseline-identity-corrected.log`, before separating mounted and
+truly offscreen cases into the final four-test file.
+
+### M.2 Decision required before implementing the public F2 API
+
+Accepted F1 `src/lifecycle.rs:24–33` already defines and publicly exposes the
+exhaustive `LiquidUpdateError` enum with exactly `StaleOwner`, `Capacity` and
+`Exhausted`; `src/lib.rs:48` re-exports it. The additive API paragraph in §A
+requires the **same named return type** to distinguish eight conditions,
+adding `StaleBlock`, `StaleRequest`, `Revision`, `Kind` and `InvalidKeys`.
+The F2 assignment also explicitly prohibits exhaustive-breaking changes to
+legacy public enums. These requirements cannot both be met literally:
+adding variants or retroactively adding `#[non_exhaustive]` breaks the
+permanent downstream exhaustive-match fixture. Associated-constant aliases
+would preserve compilation but would not distinguish the required errors.
+
+The sender was asked to settle one bounded correction, with no decision
+inferred from worker initiative:
+
+1. Preferably keep F1's enum unchanged and authorize a separately named,
+   detailed F2 error type for the new APIs, updating their design signatures;
+   or
+2. Explicitly exempt `LiquidUpdateError` from exhaustive-match compatibility,
+   authorizing the additional variants and documenting the break.
+
+No production implementation, error-shape change or reinterpretation of the
+acceptance requirements was made pending that decision. This is not a reason
+to weaken the resolver, full identity table or remaining acceptance gates.
+
+### M.3 Remaining work and handback boundary
+
+All F2 implementation and combined qualification remain outstanding, including
+keyed/handle/reset APIs, recursive semantic correspondence, child/resource
+compatibility, actual-mutation stale admission, complete table tests,
+F1 regression/settlement and all 300 interleaved resource-oracle cycles,
+facade/feature-off compatibility and final full tests/core/Clippy evidence.
+Those suites were not rerun for this proof-only result. The focused failing
+tests must remain meaningful; they are not ignored or changed to expect the
+baseline defect.
+
+This record is **not** an implementation candidate for acceptance or
+integration. No seal, approval, integration, push, publication, deployment or
+Medousa migration was performed. The sender retains contract decisions,
+review, continuation and eventual native integration. The existing
+whole-stream staging performance caveat remains unchanged.
