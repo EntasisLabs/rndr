@@ -575,3 +575,400 @@ fn retained_logical_child_parks_when_its_parent_occurrence_moves() {
         .into_iter()
         .all(|e| liquid_surface_handle(app.world(), e).ok() != Some(handle)));
 }
+
+#[test]
+fn mixed_physical_semantic_child_relocation_does_not_duplicate() {
+    let mut app = boot(NoHost, LiquidLimits::default());
+    let a = open(&mut app, ACC);
+    activate(app.world_mut(), a, "+ One");
+    pump(&mut app);
+    let child = app
+        .world()
+        .entities_with::<LiquidView>()
+        .into_iter()
+        .find(|e| *e != a && find(app.world(), *e, "First body").is_some())
+        .unwrap();
+    let handle = liquid_surface_handle(app.world(), child).unwrap();
+    let b = open(&mut app, "Independent B\n");
+    let attachment = find(app.world(), a, "− One").unwrap();
+    set_parent(app.world_mut(), b, attachment);
+    set_parent(app.world_mut(), child, b);
+    activate(app.world_mut(), a, "− One");
+    pump(&mut app);
+    activate(app.world_mut(), a, "+ One");
+    for _ in 0..4 {
+        pump(&mut app);
+    }
+    let children: Vec<_> = app
+        .world()
+        .entities_with::<LiquidView>()
+        .into_iter()
+        .filter(|e| *e != a && *e != b && find(app.world(), *e, "First body").is_some())
+        .collect();
+    assert_eq!(
+        children.len(),
+        1,
+        "owned child must not duplicate behind independent boundary: {children:?}"
+    );
+    assert_eq!(
+        liquid_surface_handle(app.world(), children[0]).unwrap(),
+        handle
+    );
+}
+
+#[test]
+fn public_feed_reservation_releases_after_loader_panic_and_stale_owner() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    struct FaultHost {
+        mode: usize,
+        calls: Arc<AtomicUsize>,
+        victim: Arc<Mutex<Option<Entity>>>,
+    }
+    impl LiquidHost for FaultHost {
+        fn load_feed(&mut self, w: &mut World, _: &FeedRequest) -> FeedOutcome {
+            let n = self.calls.fetch_add(1, Ordering::SeqCst);
+            if n == 0 {
+                if self.mode == 0 {
+                    panic!("deliberate public loader unwind");
+                }
+                w.remove::<LiquidView>(self.victim.lock().unwrap().unwrap());
+            }
+            FeedOutcome::Ready(FeedBody {
+                datatype: FeedDatatype::Text,
+                body: "capacity released".into(),
+            })
+        }
+    }
+    for mode in 0..2 {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let victim = Arc::new(Mutex::new(None));
+        let mut app = boot(
+            FaultHost {
+                mode,
+                calls: calls.clone(),
+                victim: victim.clone(),
+            },
+            LiquidLimits {
+                envelopes: 1,
+                callbacks: 1,
+                ..LiquidLimits::default()
+            },
+        );
+        let a = liquid_view(
+            app.world_mut(),
+            "```feed\nid: victim\ndatatype: text\n```\n",
+        );
+        *victim.lock().unwrap() = Some(a);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            pump(&mut app);
+        }));
+        assert_eq!(result.is_err(), mode == 0);
+        for _ in 0..4 {
+            pump(&mut app);
+        }
+        let b = open(&mut app, "```feed\nid: next\ndatatype: text\n```\n");
+        for _ in 0..4 {
+            pump(&mut app);
+        }
+        assert!(
+            calls.load(Ordering::SeqCst) >= 2,
+            "reservation leaked mode={mode}"
+        );
+        assert!(liquid_component_states(app.world(), b).iter().any(|r| matches!(&r.state, LiquidComponentState::Feeds { slots } if slots.iter().any(|s| s.body.as_deref()==Some("capacity released")))), "later feed could not publish mode={mode}");
+    }
+}
+
+#[test]
+fn mixed_ownership_terminal_controls_keep_independent_and_retire_owned_child() {
+    for mode in 0..3 {
+        let mut app = boot(NoHost, LiquidLimits::default());
+        let a = open(&mut app, ACC);
+        activate(app.world_mut(), a, "+ One");
+        pump(&mut app);
+        let c = app
+            .world()
+            .entities_with::<LiquidView>()
+            .into_iter()
+            .find(|e| *e != a && find(app.world(), *e, "First body").is_some())
+            .unwrap();
+        let ch = liquid_surface_handle(app.world(), c).unwrap();
+        let b = open(&mut app, "Independent B\n");
+        let bh = liquid_surface_handle(app.world(), b).unwrap();
+        let anchor = find(app.world(), a, "− One").unwrap();
+        set_parent(app.world_mut(), b, anchor);
+        set_parent(app.world_mut(), c, b);
+        match mode {
+            0 => {
+                app.world_mut().despawn_entity(a);
+            }
+            1 => {
+                app.world_mut().remove::<LiquidView>(a);
+            }
+            _ => {
+                set_liquid_source(app.world_mut(), a, "Removed\n");
+            }
+        }
+        for _ in 0..4 {
+            pump(&mut app);
+        }
+        assert_eq!(
+            liquid_surface_handle(app.world(), b).unwrap(),
+            bh,
+            "independent B mode={mode}"
+        );
+        assert!(
+            app.world()
+                .entities_with::<LiquidView>()
+                .into_iter()
+                .all(|e| liquid_surface_handle(app.world(), e).ok() != Some(ch)),
+            "owned C retained mode={mode}"
+        );
+        assert!(find(app.world(), b, "Independent B").is_some());
+    }
+}
+
+#[test]
+fn loader_reentrant_prepend_cannot_publish_feed_state_into_new_callout() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    const FEED: &str = "```feed\nid: news\ndatatype: text\n```\n";
+    struct MoveHost {
+        view: Arc<Mutex<Option<Entity>>>,
+        calls: Arc<AtomicUsize>,
+    }
+    impl LiquidHost for MoveHost {
+        fn load_feed_for(
+            &mut self,
+            w: &mut World,
+            _: &LiquidFeedContext,
+            _: &FeedRequest,
+        ) -> FeedOutcome {
+            let call = self.calls.fetch_add(1, Ordering::SeqCst);
+            if call == 0 {
+                return FeedOutcome::Pending;
+            }
+            if call == 1 {
+                let a = self.view.lock().unwrap().unwrap();
+                set_liquid_source(
+                    w,
+                    a,
+                    &format!("```callout\ntitle: Prefix\nbody: Added\n```\n\n{FEED}"),
+                );
+            }
+            FeedOutcome::Ready(FeedBody {
+                datatype: FeedDatatype::Text,
+                body: "right feed outcome".into(),
+            })
+        }
+    }
+    let owner = Arc::new(Mutex::new(None));
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut app = boot(
+        MoveHost {
+            view: owner.clone(),
+            calls: calls.clone(),
+        },
+        LiquidLimits::default(),
+    );
+    let log = Arc::new(Mutex::new(Vec::new()));
+    subscribe_liquid_interactions(app.world_mut(), Log(log.clone()));
+    let a = liquid_view(app.world_mut(), FEED);
+    *owner.lock().unwrap() = Some(a);
+    for _ in 0..5 {
+        pump(&mut app);
+    }
+    assert!(calls.load(Ordering::SeqCst) >= 2);
+    let records = liquid_component_states(app.world(), a);
+    assert_eq!(records.len(), 1, "retained feed eventually publishes");
+    let r = &records[0];
+    assert!(
+        matches!(&r.state, LiquidComponentState::Feeds { slots } if slots.iter().any(|s| s.body.as_deref() == Some("right feed outcome")))
+    );
+    assert_eq!(
+        r.revision, 2,
+        "obsolete attempt must not consume a revision"
+    );
+    let log = log.lock().unwrap();
+    assert_eq!(log.len(), 2, "only Pending and current Ready publish");
+    assert_eq!(log[1].source, r.source);
+    assert_eq!(log[1].revision, r.revision);
+    for r in records {
+        assert!(
+            matches!(
+                app.world()
+                    .get::<LiquidView>(a)
+                    .unwrap()
+                    .blocks()
+                    .get(r.block),
+                Some(rndr_liquid::LiquidBlock::Feed(_))
+            ),
+            "feed state published to non-feed block after host prepend: {r:?}"
+        );
+    }
+}
+
+#[test]
+fn semantic_child_reuse_ignores_nested_foreign_and_outside_physical_placement() {
+    for outside in [false, true] {
+        let mut app = boot(NoHost, LiquidLimits::default());
+        let a = open(&mut app, ACC);
+        activate(app.world_mut(), a, "+ One");
+        pump(&mut app);
+        let c = app
+            .world()
+            .entities_with::<LiquidView>()
+            .into_iter()
+            .find(|e| *e != a)
+            .unwrap();
+        let ch = liquid_surface_handle(app.world(), c).unwrap();
+        let b = open(
+            &mut app,
+            &ACC.replace("First body", "Independent nested body"),
+        );
+        activate(app.world_mut(), b, "+ One");
+        pump(&mut app);
+        let d = app
+            .world()
+            .entities_with::<LiquidView>()
+            .into_iter()
+            .find(|e| *e != a && *e != b && *e != c)
+            .unwrap();
+        let bh = liquid_surface_handle(app.world(), b).unwrap();
+        let dh = liquid_surface_handle(app.world(), d).unwrap();
+        let records = liquid_component_states(app.world(), b);
+        if !outside {
+            let anchor = find(app.world(), a, "− One").unwrap();
+            set_parent(app.world_mut(), b, anchor);
+        }
+        set_parent(app.world_mut(), c, d);
+        for _ in 0..3 {
+            activate(app.world_mut(), a, "− One");
+            pump(&mut app);
+            assert_eq!(liquid_surface_handle(app.world(), b).unwrap(), bh);
+            assert_eq!(liquid_surface_handle(app.world(), d).unwrap(), dh);
+            assert!(find(app.world(), d, "Independent nested body").is_some());
+            assert_eq!(liquid_component_states(app.world(), b), records);
+            activate(app.world_mut(), a, "+ One");
+            for _ in 0..4 {
+                pump(&mut app);
+            }
+            let children: Vec<_> = app
+                .world()
+                .entities_with::<LiquidView>()
+                .into_iter()
+                .filter(|e| liquid_surface_handle(app.world(), *e).ok() == Some(ch))
+                .collect();
+            assert_eq!(children.len(), 1, "reuse outside={outside}");
+            assert!(find(app.world(), children[0], "First body").is_some());
+            assert_eq!(app.world().entities_with::<LiquidView>().len(), 4);
+            set_parent(app.world_mut(), children[0], d);
+        }
+    }
+}
+
+#[test]
+fn reentrant_feed_removal_replacement_and_newer_result_refuse_obsolete_outcome() {
+    const FEED: &str = "```feed\nid: news\ndatatype: text\n```\n";
+    struct ReentrantHost {
+        mode: usize,
+        calls: usize,
+        owner: Arc<Mutex<Option<Entity>>>,
+        old: Arc<Mutex<Option<LiquidFeedContext>>>,
+    }
+    impl LiquidHost for ReentrantHost {
+        fn load_feed_for(
+            &mut self,
+            w: &mut World,
+            c: &LiquidFeedContext,
+            _: &FeedRequest,
+        ) -> FeedOutcome {
+            self.calls += 1;
+            if self.calls == 1 {
+                *self.old.lock().unwrap() = Some(c.clone());
+                return FeedOutcome::Pending;
+            }
+            if self.calls == 2 {
+                let a = self.owner.lock().unwrap().unwrap();
+                match self.mode {
+                    0 => set_liquid_source(w, a, "Removed\n"),
+                    1 => set_liquid_source(w, a, &FEED.replace("news", "replacement")),
+                    2 => {
+                        let r = liquid_component_states(w, a).remove(0);
+                        put_liquid_feed_result(
+                            w,
+                            c,
+                            r.revision,
+                            FeedOutcome::Ready(FeedBody {
+                                datatype: FeedDatatype::Text,
+                                body: "newer result".into(),
+                            }),
+                        )
+                        .unwrap();
+                    }
+                    _ => activate(w, a, "Refresh"),
+                }
+                return FeedOutcome::Ready(FeedBody {
+                    datatype: FeedDatatype::Text,
+                    body: "obsolete outcome".into(),
+                });
+            }
+            FeedOutcome::Ready(FeedBody {
+                datatype: FeedDatatype::Text,
+                body: "current outcome".into(),
+            })
+        }
+        fn retire_feed_observation(&mut self, _: &mut World, c: &LiquidFeedContext) {
+            c.acknowledge_retirement();
+        }
+    }
+    for mode in 0..4 {
+        let owner = Arc::new(Mutex::new(None));
+        let old = Arc::new(Mutex::new(None));
+        let log = Arc::new(Mutex::new(Vec::new()));
+        let mut app = boot(
+            ReentrantHost {
+                mode,
+                calls: 0,
+                owner: owner.clone(),
+                old: old.clone(),
+            },
+            LiquidLimits::default(),
+        );
+        subscribe_liquid_interactions(app.world_mut(), Log(log.clone()));
+        let a = liquid_view(app.world_mut(), FEED);
+        *owner.lock().unwrap() = Some(a);
+        for _ in 0..8 {
+            pump(&mut app);
+        }
+        let records = liquid_component_states(app.world(), a);
+        if mode == 0 {
+            assert!(records.is_empty());
+        } else {
+            assert_eq!(records.len(), 1);
+            let LiquidComponentState::Feeds { slots } = &records[0].state else {
+                panic!("wrong type")
+            };
+            assert_eq!(
+                slots[0].body.as_deref(),
+                Some(if mode == 2 {
+                    "newer result"
+                } else {
+                    "current outcome"
+                })
+            );
+            assert_eq!(records[0].revision, if mode == 1 { 1 } else { 2 });
+            assert!(log.lock().unwrap().iter().any(|e| e.view == a
+                && e.source == records[0].source
+                && e.revision == records[0].revision));
+        }
+        let context = old.lock().unwrap().clone().unwrap();
+        let before = records.clone();
+        let events = log.lock().unwrap().len();
+        assert_eq!(
+            put_liquid_feed_result(app.world_mut(), &context, 1, FeedOutcome::Pending),
+            Err(LiquidUpdateError::StaleOwner)
+        );
+        assert_eq!(liquid_component_states(app.world(), a), before);
+        assert_eq!(log.lock().unwrap().len(), events);
+        assert_eq!(context.is_retired(), mode != 2);
+    }
+}

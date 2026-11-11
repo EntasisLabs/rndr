@@ -814,3 +814,187 @@ per update and potentially quadratic in aggregate over many small appends; this
 work neither fixes nor qualifies that performance characteristic. No Medousa
 adapter readiness, native interaction/visual certification, backend cancellation,
 approval resolution, push, publication, deployment or merge is claimed.
+
+## L. P1 correction after independent review of b4dfe507
+
+This is the **same F1 undertaking**, continuing from clean admitted
+`b4dfe507d432df29477fd1e51e7faaa48fbf6d93`. `main` was verified at
+`f2919a1692d0bb7e0fba2e26976a1631cf4c637f` and is not changed. The sender
+accepted the **review deliverable only**, requested changes, and retains
+implementation review and native integration. Green §K gates were not
+implementation acceptance: independent review found two additional P1 defects.
+Sections H–K, including their failed and intermediate receipts, remain history.
+
+### L.1 Reproduction and correction boundaries
+
+The external file was accessible and read directly:
+`/tmp/f1-independent-fixture.TlASfN/crates/rndr_liquid_ui/tests/adversarial_review.rs`.
+Its unchanged 13 public tests were copied into the admitted checkout's regression
+target **before implementation edits**. With b4dfe507 implementation they gave
+**11 passed, 2 failed, exit 101**, no ignored/filtered tests:
+
+- `mixed_physical_semantic_child_relocation_does_not_duplicate`: A's registered
+  body child C was physically moved under independent B, itself attached under
+  A's accordion label. Collapse/reopen produced **two** live body views instead
+  of one reused handle. Physical traversal stopped at B and never parked C.
+- `loader_reentrant_prepend_cannot_publish_feed_state_into_new_callout`: the
+  loader prepended a callout while retaining the news feed. The old poll then
+  published a Feeds record with the captured **block 0**, now a Callout, and used
+  the old source address for its refresh envelope.
+
+`lifecycle::park_under` now selects descendants using **registered semantic
+parent keys**, across the live view registry, not physical ancestry. It parks
+in deepest-first, reverse-registration tie order and reclaims each parked
+surface's exact renderer-created/native projection sets. This works for children
+behind foreign surfaces or moved outside the owner presentation tree. B and
+B's own semantic descendants are neither parked nor retired by A's rebuild;
+application attachments are detached from dying projections, not cascaded.
+Reattachment reuses the original registered child lifetime. No title-key policy,
+F2 identity scheme, generic World/despawn change or new public API is introduced.
+
+`feed::poll` captures the request context and revision, then validates after
+host return: live key, non-retired **exact active observation**, current logical
+location, still-matching root location, and unchanged revision. A relocated or
+superseded attempt is **refused without state, revision, mark or envelope
+publication**; the current mounted watch can retry a retained live request.
+Thus no stale positional address is used as publication authority. Reentrant
+refresh while the host is borrowed stays Pending/retryable, rather than being
+misclassified as a synchronous feed by the unavailable-host default Defer.
+
+The public context-result path also reserves an envelope permit before commit,
+emits the matching FeedRefresh/revision, and selects rebuild roots by the exact
+logical lease after event callbacks (which can themselves mutate the source).
+This prevents a newer reentrant result from changing state without its admitted
+event, and the suspended old poll cannot overwrite that newer revision. The
+existing World-free permit Drop releases capacity on refusal and panic. Shared
+callback/envelope budgets and retirement behavior are retained, not bypassed.
+
+### L.2 Permanent public regression evidence
+
+The original nine §K tests are unchanged. Four external probes are now permanent:
+
+- both failures above (the feed probe additionally asserts eventual Ready body,
+  exactly Pending/current-Ready publication, revision 2 and current source);
+- `public_feed_reservation_releases_after_loader_panic_and_stale_owner`, both
+  modes with **envelopes=1, callbacks=1**, proving a later feed can publish;
+- `mixed_ownership_terminal_controls_keep_independent_and_retire_owned_child`,
+  all three raw-owner-despawn/component-removal/source-removal modes, preserving
+  B's handle/content while retiring A-owned C.
+
+Two more permanent tests exercise nested independent B/child placement and
+outside-owner placement over three collapse/reopen cycles, and loader reentry
+through source removal, feed replacement, a newer context result, and refresh
+observation supersession. They check handles, live-view counts, independent
+state/content, eventual correct body/revision/event, and rejection of stale
+context puts with unchanged records/events. No hidden test cleanup was added.
+
+Exact final permanent test command:
+
+```sh
+cargo test --locked --offline -p rndr_liquid_ui --test review_regressions -- --nocapture
+```
+
+| Implementation under byte-identical final 15 tests | Result | Exit |
+| --- | --- | ---: |
+| archived b4dfe507 | **11 passed, 4 failed**, 0 ignored/filtered | 101 |
+| corrected candidate | **15 passed, 0 failed**, 0 ignored/filtered | 0 |
+
+The two additional baseline failures are the nested/outside-placement test
+(5 live views instead of 4) and the reentrant newer-result test (obsolete loader
+outcome overwrote the newer result). The original nine and both pertinent
+external passing controls remain green. The unchanged external 13 also passed
+13/13 after the initial implementation correction, before the additional
+qualification assertions were added.
+
+The final comparison uses `git archive b4dfe507` at
+`/tmp/f1-p1-baseline.IqzrMZ`, with only `tests/review_regressions.rs` replaced.
+NUL-safe tracked-file byte comparison against b4dfe507 confirmed that this was
+the **only changed archive path**; the source checkout was not reset or
+modified for the baseline run. Final test bytes match between archive and
+candidate (SHA-256
+`adc54520c18321602abb77cacf121a7c41c9b3b78d34bbfe0183269f10c12320`).
+`CARGO_TARGET_DIR` pointed at the admitted target directory for dependency reuse;
+logs identify the archive's package source paths, not the corrected source.
+
+Intermediate evidence is retained: `/tmp/f1-p1-expanded.log` had **14 passed,
+1 failed, exit 101** because reentrant refresh left a body-less sync-marked
+watch. Keeping borrowed-host refresh Pending fixed that retry failure; expanded
+15 tests then passed before the final exact-lease rebuild guard was added.
+Caught deliberate panic diagnostics are expected in the public unwind control,
+not ignored/failed tests.
+
+### L.3 Final exact gates, logs and resource bounds
+
+All Cargo invocations use:
+
+```sh
+export PATH="$HOME/.cargo/bin:$PATH"
+export CARGO_BUILD_JOBS=2 CARGO_INCREMENTAL=0
+```
+
+| Exact command | Final result | Full workshop log |
+| --- | --- | --- |
+| `cargo test --locked --offline -p rndr_liquid -p rndr_liquid_ui -- --nocapture` | **85 passed, 0 failed, 2 ignored, 0 filtered; exit 0**, including docs | `/tmp/f1-p1-final-liquid.log` |
+| `cargo test --locked --offline -p rndr_core --lib --test runtime --test feed --test markdown` | **179 passed, 0 failed, 1 ignored, 0 filtered; exit 0** | `/tmp/f1-p1-final-core.log` |
+| `cargo clippy --locked --offline -p rndr_liquid_ui --lib --tests -- -D warnings` | **exit 0**, no lint suppression | `/tmp/f1-p1-final-clippy.log` |
+| `cargo fmt --all -- --check` | **exit 0** | `/tmp/f1-p1-final-fmt.log` |
+| `git diff --check` | **exit 0**, repeated after this record | `/tmp/f1-p1-final-diff.log` |
+
+The Liquid ignored probes remain `liquid_stream_cost` and `liquid_density_cost`;
+the core ignored probe remains `typing::storage_tests::snapshot_storage_accounting`.
+Core totals remain 138 unit + 11 feed + 15 Markdown + 15 runtime. The UI unit
+target has **18 passed**, including the unchanged full oracle, in **90.61 s**.
+
+The unfiltered command completed **100 same-World cycles each for seeds 1, 7,
+42**, all **19 counters at baseline after every teardown**, without extra
+cleanup. §J.3 defines the unchanged vector order and host-local capture/drop
+checks. All three baseline vectors are:
+
+```text
+B = [0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0]
+H = [6,1,6,8,5,1,0,8,1,1,1,1,1,0,1,1,0,91,206]
+```
+
+`H` is each seed's sampled high-water, not an instruction-level allocator peak.
+The 91 tagged projections and 206 actual Layout entities return to zero at
+teardown. The retained baseline 1 is the intentional World-owned listener,
+whose capture releases on World drop. Cooperative host captures release and
+retirement acknowledgement is checked. Seed elapsed times are **30.43613325 s**,
+**30.1699005 s**, **30.0039725 s**, respectively. The legacy `attempted-prefix`
+console label is retained honestly; all 100 iterations of each run passed.
+
+Additional full logs (workshop-local `/tmp`, not durable published artifacts):
+
+- `/tmp/f1-p1-before.log`: unchanged external 13 on b4dfe507, 11/2, exit 101;
+- `/tmp/f1-p1-after-initial.log`: external 13 after initial fixes, 13/0, exit 0;
+- `/tmp/f1-p1-expanded.log` and `/tmp/f1-p1-expanded2.log`: intermediate retry
+  failure and correction;
+- `/tmp/f1-p1-final-regressions-before.log` and
+  `/tmp/f1-p1-final-regressions-after.log`: byte-identical final 15 before/after.
+
+Admission limits are unchanged: defaults **4096 scopes**, **32 feed lanes per
+block**, **256 listeners per owner**, **1024 envelopes per World**, **256 shared
+listener/retirement callbacks per pump**, **512 diagnostic entries**. These bound
+local logical work, not allocator/RSS or uncontrolled external legacy workers.
+Parking now scans the live registry and semantic ancestor paths and sorts the
+selected views; native reclamation scans live native ownership metadata. This
+is not a constant-cost or throughput claim, and introduces no historical
+identity cache. Whole-stream append staging remains **O(S_i) per update**, with
+**potential aggregate quadratic cost** over many small appends, as in §J.4.
+
+### L.4 Review, cascade and seal boundary
+
+**Ready for fresh independent review, not implementation acceptance or native
+integration.** The explicit caller subtree-despawn contract is unchanged: it
+intentionally deletes still-attached descendants. Liquid does not resurrect
+those nodes. Unrelated and reparented-out application nodes survive Liquid's
+own exact cleanup. This distinction is not silently weakened into a survival
+promise against caller-requested generic cascade.
+
+F2, a flow crate, Medousa, parser/Cargo/SDK and generic core cascade code remain
+untouched. No backend/durable-work cancellation, approval resolution,
+self-approval, push, publication, deployment or merge occurred. No performance,
+Medousa adapter readiness or native/visual/accessibility certification is
+claimed. Native metadata/seals were not edited: the sender must obtain a fresh
+seal of the exact eventual candidate before any approval; reopening old
+d2edd1ad evidence for admission does not seal or accept this correction.

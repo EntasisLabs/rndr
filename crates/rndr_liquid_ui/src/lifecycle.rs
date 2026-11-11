@@ -553,21 +553,22 @@ pub(crate) fn park_under(world: &mut World, root: Entity) {
     let Some(owner) = ancestor_key(world, root) else {
         return;
     };
-    fn walk(world: &World, at: Entity, owner: Key, out: &mut Vec<Entity>) {
-        // An independent surface is a traversal boundary, including all of its
-        // renderer-owned descendants. Its physical placement grants no lease.
-        if world.has::<LiquidView>(at) && !belongs_under(world, at, owner) {
-            return;
-        }
-        for child in rndr_core::children_of(world, at) {
-            walk(world, child, owner, out);
-        }
-        if world.has::<LiquidView>(at) {
-            out.push(at);
-        }
-    }
-    let mut views = Vec::new();
-    walk(world, root, owner, &mut views);
+    // Select by registered semantic ancestry, never by physical traversal.
+    // A child can have been moved behind an independent surface or entirely
+    // outside this presentation tree. Park deepest first so each saved view
+    // observes its own mounted state before exact projection reclamation.
+    let mut views: Vec<_> = world
+        .resource::<Owners>()
+        .map(|r| r.views.keys().copied().collect())
+        .unwrap_or_default();
+    views.retain(|view| belongs_under(world, *view, owner));
+    views.sort_by_key(|view| {
+        let id = world.resource::<Owners>().unwrap().views[view];
+        (
+            std::cmp::Reverse(retirement_path(world, id).len()),
+            std::cmp::Reverse(id),
+        )
+    });
     for view in views {
         let id = world
             .resource::<Owners>()
@@ -592,6 +593,18 @@ pub(crate) fn park_under(world: &mut World, root: Entity) {
                 s.transaction.store(0, Ordering::Release);
             }
         }
+        // Reclaim only this logical surface's exact presentation set, even
+        // when relocated. Do not traverse or dispose independent attachments.
+        world.remove::<MarkdownView>(view);
+        let mut projections = rndr_core::MarkdownSlotHosts::native_projections(world, view);
+        if let Some(surface) = world
+            .resource_mut::<Owners>()
+            .and_then(|r| r.surfaces.get_mut(&id))
+        {
+            projections.extend(surface.projections.drain());
+        }
+        projections.push(view);
+        remove_projections(world, projections);
         world.remove::<Lease>(view);
     }
 }

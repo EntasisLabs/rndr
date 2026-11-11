@@ -184,9 +184,7 @@ pub fn put_liquid_feed_result(
     if record.revision != expected_revision {
         return Err(crate::LiquidUpdateError::StaleOwner);
     }
-    if !state::can_emit(world) {
-        return Err(crate::LiquidUpdateError::Capacity);
-    }
+    let permit = state::reserve_emission(world).ok_or(crate::LiquidUpdateError::Capacity)?;
     let Some(slot) = stored(world, view, source, &instance) else {
         return Err(crate::LiquidUpdateError::StaleOwner);
     };
@@ -198,17 +196,36 @@ pub fn put_liquid_feed_result(
         autoload: true,
         interval_ms: None,
     };
-    commit_outcome(world, view, source, block, &spec, &outcome);
+    let record = commit_outcome(world, view, source, block, &spec, &outcome);
     if let Some(r) = world.resource_mut::<Observations>() {
         if let Some(o) = r.active.get_mut(&(context.key, spec.instance.clone())) {
             o.pending = matches!(outcome, FeedOutcome::Pending);
         }
     }
+    state::emit_reserved(
+        world,
+        permit,
+        LiquidInteractionEnvelope {
+            version: 1,
+            view,
+            source,
+            node_id: "feed".into(),
+            instance_id: spec.instance.clone(),
+            event: LiquidInteraction::FeedRefresh,
+            disposition: LiquidDisposition::LocalState,
+            revision: record.revision,
+        },
+    );
+    // Emission can itself reenter source mutation. Rebuild only projections
+    // still leased to this logical request, never the old positional address.
     let roots: Vec<_> = world
         .entities_with::<BlockRoot>()
         .into_iter()
         .filter(|root| {
-            place(world, *root).is_some_and(|(owner, at, _)| owner == view && at == source)
+            lifecycle::block_live(world, context.key)
+                && world
+                    .get::<BlockRoot>(*root)
+                    .is_some_and(|r| r.lease == Some(context.key))
         })
         .collect();
     for root in roots {
@@ -450,10 +467,33 @@ fn poll(world: &mut World, root: Entity, spec: &Spec, manual: bool) -> FeedOutco
     let Some(context) = observation(world, key, &spec.instance, fresh) else {
         return FeedOutcome::Pending;
     };
-    let outcome = view::with_host(world, |host, world| {
-        host.load_feed_for(world, &context, &request)
-    });
+    let revision = state::liquid_component_state(world, view, source).map(|r| r.revision);
+    // A reentrant refresh can supersede a request while its host is borrowed.
+    // That is deferred async work, not a declaration that the feed is sync.
+    let outcome = if view::host_available(world) {
+        view::with_host(world, |host, world| {
+            host.load_feed_for(world, &context, &request)
+        })
+    } else {
+        FeedOutcome::Pending
+    };
     if !lifecycle::block_live(world, key) || context.is_retired() {
+        return FeedOutcome::Defer;
+    }
+    // Host code may replace/reorder the source, publish a newer result, or
+    // supersede the observation. Captured presentation coordinates are not
+    // authority after that callback. Refuse this attempt if they changed;
+    // the current mounted watch can retry the still-live request next pump.
+    let current = lifecycle::location(world, key);
+    let active = world
+        .resource::<Observations>()
+        .and_then(|r| r.active.get(&(key, spec.instance.clone())))
+        .is_some_and(|o| o.context == context);
+    if current != Some((view, source, block))
+        || place(world, root) != current
+        || !active
+        || state::liquid_component_state(world, view, source).map(|r| r.revision) != revision
+    {
         return FeedOutcome::Defer;
     }
     if state::liquid_component_state(world, view, source).is_some_and(|r| r.revision == u64::MAX) {
