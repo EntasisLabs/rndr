@@ -407,21 +407,21 @@ pub(crate) fn reconcile(world: &mut World) {
                 watch
                     .slots
                     .iter()
-                    .filter(|slot| slot.async_feed)
-                    .map(|slot| (slot.spec.clone(), slot.async_feed, slot.last_poll_ms))
+                    .filter(|slot| slot.async_feed || (!slot.probed && slot.spec.autoload))
+                    .map(|slot| (slot.spec.clone(), !slot.probed, slot.last_poll_ms))
                     .collect()
             })
             .unwrap_or_default();
         let Some((view, source, _)) = place(world, root) else {
             continue;
         };
-        for (spec, _, last) in specs {
+        for (spec, unprobed, last) in specs {
             let slot = stored(world, view, source, &spec.instance);
             let inflight = slot.as_ref().is_some_and(|slot| slot.inflight);
             let due = spec.interval_ms.is_some_and(|interval| {
                 !inflight && now.saturating_sub(last) >= interval && slot.is_some()
             });
-            if inflight || due {
+            if unprobed || inflight || due {
                 poll(world, root, &spec, false);
                 render::rebuild(world, root);
             }
@@ -439,9 +439,9 @@ fn poll(world: &mut World, root: Entity, spec: &Spec, manual: bool) -> FeedOutco
         field: spec.field.clone(),
         instance: spec.instance.clone(),
     };
-    if !state::can_emit(world) {
+    let Some(permit) = state::reserve_emission(world) else {
         return FeedOutcome::Pending;
-    }
+    };
     let Some(key) = lifecycle::key(world, view, source) else {
         return FeedOutcome::Defer;
     };
@@ -456,6 +456,10 @@ fn poll(world: &mut World, root: Entity, spec: &Spec, manual: bool) -> FeedOutco
     if !lifecycle::block_live(world, key) || context.is_retired() {
         return FeedOutcome::Defer;
     }
+    if state::liquid_component_state(world, view, source).is_some_and(|r| r.revision == u64::MAX) {
+        lifecycle::refused(world, crate::LiquidUpdateError::Exhausted);
+        return FeedOutcome::Pending;
+    }
     if let Some(r) = world.resource_mut::<Observations>() {
         if let Some(o) = r.active.get_mut(&(key, spec.instance.clone())) {
             o.pending = matches!(outcome, FeedOutcome::Pending);
@@ -467,16 +471,9 @@ fn poll(world: &mut World, root: Entity, spec: &Spec, manual: bool) -> FeedOutco
     }
     mark(world, root, spec, true);
     let record = commit_outcome(world, view, source, block, spec, &outcome);
-    if manual {
-        view::emit(
-            world,
-            LiquidEvent::RefreshFeed {
-                feed_id: spec.feed_id.clone(),
-            },
-        );
-    }
-    state::emit(
+    state::emit_reserved(
         world,
+        permit,
         LiquidInteractionEnvelope {
             version: 1,
             view,
@@ -488,6 +485,14 @@ fn poll(world: &mut World, root: Entity, spec: &Spec, manual: bool) -> FeedOutco
             revision: record.revision,
         },
     );
+    if manual {
+        view::emit(
+            world,
+            LiquidEvent::RefreshFeed {
+                feed_id: spec.feed_id.clone(),
+            },
+        );
+    }
     outcome
 }
 

@@ -48,6 +48,9 @@ pub(crate) struct BlockRoot {
     pub index: usize,
     /// Source byte of the markdown reference this root replaced.
     pub source: usize,
+    // The existing F1 lease that created this projection. Source membership
+    // may move before the old physical root is recycled.
+    pub lease: Option<lifecycle::Key>,
 }
 
 impl Component for BlockRoot {}
@@ -348,6 +351,7 @@ impl MarkdownSlotHost for LiquidHooks {
                 blocks: Arc::clone(&liquid.blocks),
                 index: saved.block,
                 source,
+                lease: lifecycle::key_at(world, slot.view, saved.block),
             },
         );
         let selected = restored.selected;
@@ -372,9 +376,13 @@ impl MarkdownSlotHost for LiquidHooks {
         source: usize,
     ) {
         let block = world.get::<BlockRoot>(slot.root).map(|root| root.index);
-        let mut state = world.remove::<BlockState>(slot.root).unwrap_or_default();
-        if let Some(selected) = tab_selection(world, slot.root) {
-            state.selected = selected;
+        let state = world.remove::<BlockState>(slot.root).unwrap_or_default();
+        // Recycling supersedes any not-yet-admitted native selection. Refuse
+        // it rather than laundering presentation state into a silent commit.
+        let refused_tab =
+            tab_selection(world, slot.root).is_some_and(|selected| selected != state.selected);
+        if refused_tab {
+            lifecycle::refused(world, crate::LiquidUpdateError::Capacity);
         }
         let Some(tx) = lifecycle::transaction(world, slot.view) else {
             return;
@@ -383,9 +391,11 @@ impl MarkdownSlotHost for LiquidHooks {
             return;
         };
         if let Some(block) = block {
-            if let Some(parsed) = liquid.blocks.get(block).cloned() {
-                if let Some((kind, snap)) = state.snapshot(&parsed) {
-                    state::store_snapshot(world, slot.view, source, block, kind, snap);
+            if !refused_tab {
+                if let Some(parsed) = liquid.blocks.get(block).cloned() {
+                    if let Some((kind, snap)) = state.snapshot(&parsed) {
+                        state::store_snapshot(world, slot.view, source, block, kind, snap);
+                    }
                 }
             }
             liquid.saved.insert(source, Saved { block, state });
@@ -430,6 +440,10 @@ pub(crate) fn nested(
 }
 
 fn tab_selection(world: &World, root: Entity) -> Option<usize> {
+    let info = world.get::<BlockRoot>(root)?;
+    if !matches!(info.blocks.get(info.index)?, LiquidBlock::Tabs(_)) {
+        return None;
+    }
     find_tabs(world, root)
         .and_then(|tabs| world.get::<Tabs>(tabs).map(|tabs| tabs.selected as usize))
 }
@@ -449,7 +463,9 @@ fn find_tabs(world: &World, root: Entity) -> Option<Entity> {
         if world.has::<Tabs>(entity) {
             return Some(entity);
         }
-        stack.extend(children_of(world, entity));
+        if entity == root || !world.has::<MarkdownView>(entity) {
+            stack.extend(children_of(world, entity));
+        }
     }
     None
 }
@@ -526,6 +542,7 @@ pub(crate) fn reconcile(world: &mut World) {
                         BlockRoot {
                             blocks: Arc::clone(&liquid.blocks),
                             index: mounted.block,
+                            lease: lifecycle::key_at(world, view, mounted.block),
                             source: world
                                 .get::<BlockRoot>(mounted.slot.root)
                                 .map(|root| root.source)
@@ -571,6 +588,7 @@ pub(crate) fn reconcile(world: &mut World) {
                     blocks: Arc::clone(&liquid.blocks),
                     index: target,
                     source,
+                    lease: lifecycle::key_at(world, view, target),
                 },
             );
             if let Some(record) = state::liquid_component_state(world, view, source) {
@@ -718,6 +736,20 @@ fn sync_tabs(world: &mut World, view: Entity) {
             continue;
         };
         if reader.selected == selected {
+            continue;
+        }
+        // Native Tabs has already changed its presentation selection. Keep
+        // that latest intent deferred there until admission succeeds; never
+        // publish state/revision without space for its authoritative envelope.
+        if !state::can_emit(world) {
+            continue;
+        }
+        if world.get::<BlockRoot>(root).is_some_and(|info| {
+            state::liquid_component_state(world, view, info.source)
+                .is_some_and(|r| r.revision == u64::MAX)
+        }) {
+            restore_tab(world, root, reader.selected);
+            lifecycle::refused(world, crate::LiquidUpdateError::Exhausted);
             continue;
         }
         reader.select(selected);

@@ -638,3 +638,179 @@ implementation from these receipts. No Medousa checkout/edit/build/test, adapter
 durable work cancellation, approval resolution, backend task cancellation, F2
 implementation, new dependency, core scheduler/World/despawn change, push,
 publication, deployment or merge occurred.
+
+## K. Corrections after independent review of d2edd1ad
+
+This section supersedes **candidate qualification**, not the historical receipts
+in §I/§J and not the F0/F1 acceptance contract. The sender accepted the independent
+**review deliverable only** and requested project changes on the sealed
+`d2edd1ad1a4ac353bc5a1cbb30346905eb0e3946` evidence. That implementation was not
+accepted. Before editing, `git status --short` was empty, HEAD was exactly that
+candidate, and local `main` was
+`f2919a1692d0bb7e0fba2e26976a1631cf4c637f`. No main/shared-reference movement, native
+approval, integration, push or publication is part of this correction.
+
+### K.1 Independently reproduced defects and scoped implementation
+
+1. **Independent surface authority lost on parent collapse (P1).** Physical
+   nesting did not establish logical parentage, but `park_under` removed every
+   physically nested `LiquidView`. Parking now follows registered parent keys
+   back to the block being recycled. An unrelated live surface is a traversal
+   boundary, including its entire renderer subtree; `clear_presentation` uses
+   the same boundary. This preserves independent handles, state, native
+   projections, owned listeners and feed observations while genuinely owned
+   logical descendants still park/release normally. Permanent controls include
+   collapse/reopen, source replacement, raw parent despawn, parent `LiquidView`
+   removal, and parent viewport recycling, with unrelated wrapper/nested Liquid
+   attachments. Physical block roots also retain the existing F1 lease that
+   created them: membership indices can move before old projection cleanup.
+   This is a cache of an already-issued lease, not a new F2 identity policy.
+   The existing 300-cycle ownership oracle remains unfiltered.
+2. **Native tab commits without envelope admission (P1).** `sync_tabs` now checks
+   queue admission and revision exhaustion **before** mutating `BlockState` or
+   its authoritative revision. A mounted native selection can remain an
+   unadmitted presentation intent until capacity frees; a newer native selection
+   or source replacement supersedes it. Recycling explicitly refuses an
+   unadmitted selection, records bounded Capacity diagnostics, and does not
+   copy it into saved authoritative state or advance its revision. An admitted
+   envelope keeps its persistent recipient snapshot/cursor. Native tab lookup
+   no longer mistakes a nested Markdown surface's controls for the owning block.
+   During callback reentry the in-flight envelope still occupies capacity until
+   its last recipient, preventing a partial delivery from exceeding the bound.
+3. **Retirement starved by recursive listener traffic (P2).** The pump alternates
+   first claim on the **same** listener/retirement callback budget. Retirement
+   invalidation remains immediate; host notification/acknowledgment is bounded
+   and FIFO within its existing retirement ordering. With callbacks=1, each
+   continuously runnable class gets a first claim within two pumps; a finite
+   retirement backlog of N entries progresses within at most 2N pumps while
+   listeners also progress. No callback-budget reset/inflation, unbounded drain,
+   durable-work cancellation or backend operation was introduced.
+
+The analogous-path audit followed dispatch, timer action/completion, feed loading
+and native-slot snapshots. Dispatch and timers already preflight capacity without
+application code between mutation and envelope enqueue. Feed loading **does**
+invoke application code in that gap. It now holds a synchronous RAII envelope
+reservation across the host loader; reentrant interaction cannot steal that
+slot. The reservation drops on refusal, supersession and unwinding without World
+access. Initial unprobed autoloads refused capacity retry through existing
+`FeedWatch` reconciliation. Manual refresh notification follows authoritative
+enqueue, not vice versa. Reservation/in-flight occupancy is included in the
+existing queued-envelope oracle counter (still a 19-counter vector), so it
+cannot be hidden from teardown accounting. A unit test proves bounded admission
+and lease release on both ordinary drop and unwind.
+
+Only four existing Liquid implementation modules, one new public integration
+test target and this append-only qualification record change from d2edd1ad. The
+already-authorized core host/Markdown ownership dependency is unchanged; there
+is no further core, World/cascade, Cargo, parser, SDK, F2 or flow-crate expansion.
+
+The current requested scope explicitly resolves the earlier §J.2 ambiguity:
+caller-requested subtree despawn intentionally deletes still-attached descendants
+before Liquid drain. These fixes neither resurrect those descendants nor alter
+generic core cascade semantics. Liquid's own detach/recycle/rebuild is different
+and must preserve unrelated application ownership, as the regressions prove.
+
+### K.2 Committed regression-before/after evidence
+
+`crates/rndr_liquid_ui/tests/review_regressions.rs` uses public construction,
+`set_parent`, real `try_activate`/action dispatch, frame pumps, state/handle
+queries and host callbacks. No private fixtures or test-side cleanup mask the
+behaviors under assertion. All nine final tests were run unchanged against the exact
+original candidate's four implementation files, extracted with
+`git show d2edd1ad1a4ac353bc5a1cbb30346905eb0e3946:<path>`. A `try/finally` restored all four
+fixed source byte strings, with equality verified, before final qualification.
+No additional worktree, branch or shared reference was changed.
+
+With the environment in §K.3, the command was:
+
+```sh
+cargo test --locked --offline -p rndr_liquid_ui --test review_regressions -- --nocapture
+```
+
+Original implementation: **exit 101, 1 passed, 8 failed, 0 ignored, 0 filtered**.
+Corrected implementation: **exit 0, 9 passed, 0 failed, 0 ignored, 0 filtered**.
+The eight defect regressions fail the original candidate; the ninth is a
+compatibility control, `retained_logical_child_parks_when_its_parent_occurrence_moves`,
+which passes both original and corrected candidates. It catches duplication or
+loss of genuinely owned child surfaces when a new block is prepended. The final
+unfiltered command below runs all nine again.
+
+| Permanent public regression | Original-candidate failure |
+|---|---|
+| `independent_surface_survives_parent_collapse_rebuild_and_cleanup` | Independent B loses `LiquidView` on collapse (cleanup=0) |
+| `native_tabs_defer_atomically_until_envelope_capacity_is_available` | Full queue nevertheless commits a tab revision |
+| `native_tab_activation_inside_partial_delivery_is_admitted_once` | Reentrant native activation commits before admission |
+| `deferred_native_tab_intent_can_be_superseded_without_a_phantom_commit` | Phantom tab event survives supersession |
+| `recycling_refuses_unadmitted_native_tab_without_changing_revision` | Unmount snapshots an unadmitted tab revision |
+| `retirement_and_listeners_both_progress_under_sustained_reentrant_load` | Retirement calls remain 0 instead of 1 |
+| `retirement_backlog_cannot_starve_reentrant_listener_traffic` | No retirement progress within two pumps |
+| `feed_reserves_envelope_capacity_across_reentrant_loader` | Reentrant host interaction steals feed admission |
+
+The primary retirement test continues recursive native accordion activation for
+12 pumps, proves exactly-once retirement within four pumps, host capture drop,
+cooperative acknowledgment and stale-result rejection. The reciprocal-load test
+keeps eight retirements queued with callbacks=1, requires both classes to
+progress within two pumps, completes all eight within sixteen pumps, and checks
+that listener plus retirement invocations never exceed one per pump. Further
+pumps prove no duplicate retirement. None of this cancels a durable/backend job.
+
+Intermediate failures are retained honestly: the first test fixture incorrectly
+expected a return value from the legacy unit-returning append function and used
+ASCII `-` rather than the actual `−` label; both were corrected before baseline
+reproduction. A diagnostic post-host capacity recheck showed that an initial
+feed load needed real reservation/retry, not just dropping an outcome. An
+expanded independent-surface fixture initially counted legitimate Pending feed
+poll envelopes as accordion clicks (15 versus 1), causing one intermediate
+unfiltered run to exit 101 after its oracle passed. That assertion now counts
+specifically the independent accordion Collapse event. No production failure was
+hidden by a skip, ignore, deleted test or weakened acceptance text. The final
+unfiltered rerun below uses the corrected fixtures and final sources. A further
+compatibility control found an intermediate ownership-fix regression: deriving
+an old projection's parent from a newly reassigned block index duplicated a
+retained logical body (2 versus 1). Caching the existing F1 projection lease
+fixed it; the permanent ninth control passes the original and final candidates.
+The entire unfiltered suite/oracle was rerun after that final source change.
+
+### K.3 Exact final commands, counts and readiness
+
+All Cargo invocations use:
+
+```sh
+export PATH="$HOME/.cargo/bin:$PATH"
+export CARGO_BUILD_JOBS=2 CARGO_INCREMENTAL=0
+```
+
+- `cargo test --locked --offline -p rndr_liquid -p rndr_liquid_ui -- --nocapture`
+  — **exit 0, 79 passed, 0 failed, 2 pre-existing opt-in performance probes
+  ignored, 0 filtered**, including all unit/integration/doc targets. The Liquid
+  UI unit target has **18 passed** and took **88.10 s**. Deliberate caught-panic
+  diagnostics in unwind tests are not failed tests.
+- The same unfiltered command executes
+  `full_same_world_100_cycle_resource_oracle_seeds_1_7_42`: **100 completed cycles
+  per seed 1, 7, 42**, same World within each seeded run, all **19 counters** at
+  baseline after every teardown. No extra test-side subtree sweep/cleanup was
+  added. Seed timings: **28.921796208 s**, **29.431631666 s**, **29.743815875 s**.
+  Each seed's baseline is
+  `[0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0]`; the retained 1 is the intentional
+  World-owned listener. Each seed's sampled high-water vector is
+  `[6,1,6,8,5,1,0,8,1,1,1,1,1,0,1,1,0,91,206]` in §J.3 order. Actual Layout
+  entities and tagged projections return to zero; this is not allocator/RSS
+  certification or a throughput claim.
+- `cargo test --locked --offline -p rndr_core --lib --test runtime --test feed --test markdown`
+  — **exit 0, 179 passed, 0 failed, 1 pre-existing ignored, 0 filtered**:
+  138 core unit tests, 11 feed, 15 Markdown and 15 runtime tests. Includes host
+  unwind/drop, close and Markdown ownership controls without filtering.
+- `cargo clippy --locked --offline -p rndr_liquid_ui --lib --tests -- -D warnings`
+  — **exit 0**, no new lint suppression.
+- `cargo fmt --all -- --check` and `git diff --check` — **exit 0** after this
+  record was appended.
+
+**Recommendation: ready for fresh independent review of this corrected F1
+candidate, not implementation acceptance or integration.** Sender review,
+native acceptance and integration remain the sender's responsibility. §I/§J
+receipts remain history, not evidence that the reviewed d2edd1ad was accepted.
+F2 and Medousa remain untouched. Whole-stream append staging remains **O(S_i)**
+per update and potentially quadratic in aggregate over many small appends; this
+work neither fixes nor qualifies that performance characteristic. No Medousa
+adapter readiness, native interaction/visual certification, backend cancellation,
+approval resolution, push, publication, deployment or merge is claimed.

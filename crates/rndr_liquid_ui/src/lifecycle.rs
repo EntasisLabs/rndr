@@ -522,26 +522,52 @@ pub(crate) fn ancestor_key(world: &World, mut entity: Entity) -> Option<Key> {
     let mut seen = HashSet::new();
     while seen.insert(entity) {
         if let Some(root) = world.get::<crate::view::BlockRoot>(entity) {
-            let view = world.get::<rndr_core::Parent>(entity)?.entity;
-            return key_at(world, view, root.index);
+            return root.lease;
         }
         entity = world.get::<rndr_core::Parent>(entity)?.entity;
     }
     None
 }
 
+// Physical ancestry is presentation only. Follow registered parent keys to
+// decide whether a surface belongs to the block being recycled.
+fn belongs_under(world: &World, view: Entity, owner: Key) -> bool {
+    let Some(r) = world.resource::<Owners>() else {
+        return false;
+    };
+    let mut id = r.views.get(&view).copied();
+    while let Some(surface) = id.and_then(|id| r.surfaces.get(&id)) {
+        let Some(parent) = surface.parent else {
+            return false;
+        };
+        if parent == owner {
+            return true;
+        }
+        id = Some(parent.0);
+    }
+    false
+}
+
 /// Park logical descendants before their presentation subtree is destroyed.
 pub(crate) fn park_under(world: &mut World, root: Entity) {
-    fn walk(world: &World, at: Entity, out: &mut Vec<Entity>) {
+    let Some(owner) = ancestor_key(world, root) else {
+        return;
+    };
+    fn walk(world: &World, at: Entity, owner: Key, out: &mut Vec<Entity>) {
+        // An independent surface is a traversal boundary, including all of its
+        // renderer-owned descendants. Its physical placement grants no lease.
+        if world.has::<LiquidView>(at) && !belongs_under(world, at, owner) {
+            return;
+        }
         for child in rndr_core::children_of(world, at) {
-            walk(world, child, out);
+            walk(world, child, owner, out);
         }
         if world.has::<LiquidView>(at) {
             out.push(at);
         }
     }
     let mut views = Vec::new();
-    walk(world, root, &mut views);
+    walk(world, root, owner, &mut views);
     for view in views {
         let id = world
             .resource::<Owners>()
@@ -624,10 +650,16 @@ fn remove_projections(world: &mut World, entities: Vec<Entity>) {
 /// Release the known renderer nodes under a physical block, preserving all
 /// application attachments. Nested logical owners must already be parked.
 pub(crate) fn clear_presentation(world: &mut World, root: Entity) {
+    let owner = ancestor_key(world, root);
     let mut pending = rndr_core::children_of(world, root);
     let mut nodes = Vec::new();
     let mut native = HashSet::new();
     while let Some(entity) = pending.pop() {
+        if world.has::<LiquidView>(entity)
+            && owner.is_none_or(|key| !belongs_under(world, entity, key))
+        {
+            continue;
+        }
         pending.extend(rndr_core::children_of(world, entity));
         if world.has::<OwnedProjection>(entity) && world.has::<MarkdownView>(entity) {
             native.extend(rndr_core::MarkdownSlotHosts::native_projections(

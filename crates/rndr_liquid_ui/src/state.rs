@@ -9,7 +9,7 @@ use crate::lifecycle::{self, Key, LiquidSurfaceHandle};
 use rndr_core::{Entity, World};
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
+    atomic::{AtomicBool, AtomicUsize, Ordering},
     Arc,
 };
 
@@ -242,6 +242,9 @@ struct Listeners {
     queue: VecDeque<Delivery>,
     dispatching: bool,
     remaining: usize,
+    retirement_first: bool,
+    in_flight: bool,
+    reservations: Arc<AtomicUsize>,
     panicked: u64,
 }
 impl Default for Listeners {
@@ -252,6 +255,9 @@ impl Default for Listeners {
             queue: VecDeque::new(),
             dispatching: false,
             remaining: 256,
+            retirement_first: false,
+            in_flight: false,
+            reservations: Arc::new(AtomicUsize::new(0)),
             panicked: 0,
         }
     }
@@ -359,12 +365,47 @@ pub(crate) fn drain_listeners(world: &mut World) {
 pub(crate) fn begin_pump(world: &mut World) {
     listeners(world).remaining = lifecycle::limits(world).callbacks;
     drain_listeners(world);
+    // Alternate first claim on the SAME budget, including callbacks=1. A
+    // continuously replenished listener queue cannot starve retirement, and a
+    // continuously replenished retirement queue cannot starve listeners.
+    let first = !listeners(world).retirement_first;
+    listeners(world).retirement_first = first;
+    if first {
+        lifecycle::drain(world);
+    }
     dispatch_pending(world);
 }
 pub(crate) fn can_emit(world: &World) -> bool {
-    world
-        .resource::<Listeners>()
-        .is_none_or(|r| r.queue.len() < lifecycle::limits(world).envelopes)
+    world.resource::<Listeners>().is_none_or(|r| {
+        r.queue.len() + usize::from(r.in_flight) + r.reservations.load(Ordering::Acquire)
+            < lifecycle::limits(world).envelopes
+    })
+}
+
+// A synchronous admission lease held across application host code. Drop is
+// World-free so refusal, supersession and unwinding cannot strand capacity.
+pub(crate) struct EmissionPermit(Arc<AtomicUsize>);
+impl Drop for EmissionPermit {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+pub(crate) fn reserve_emission(world: &mut World) -> Option<EmissionPermit> {
+    if !can_emit(world) {
+        return None;
+    }
+    let count = listeners(world).reservations.clone();
+    count.fetch_add(1, Ordering::AcqRel);
+    Some(EmissionPermit(count))
+}
+pub(crate) fn emit_reserved(
+    world: &mut World,
+    permit: EmissionPermit,
+    envelope: LiquidInteractionEnvelope,
+) {
+    drop(permit);
+    // No application code runs between releasing this lease and enqueueing.
+    emit(world, envelope);
 }
 
 /// Every component record stored for `view`, in source order.
@@ -541,6 +582,9 @@ fn dispatch_pending(world: &mut World) {
                 continue;
             };
             listeners(world).remaining -= 1;
+            // Reserve the partially delivered envelope across reentrant code.
+            // On its final recipient the slot may admit the next envelope.
+            listeners(world).in_flight = delivery.cursor < delivery.ids.len();
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 handler.on_interaction(world, &delivery.envelope)
             }));
@@ -557,6 +601,7 @@ fn dispatch_pending(world: &mut World) {
             // A detached handler is destroyed only after releasing the resource borrow.
             drain_listeners(world);
         }
+        listeners(world).in_flight = false;
         if delivery.cursor < delivery.ids.len()
             && delivery
                 .key
@@ -636,7 +681,9 @@ pub(crate) fn counts(world: &World) -> (usize, usize, usize, usize) {
                 .filter(|l| matches!(l.owner, LiquidListenerOwner::World))
                 .count()
         }),
-        world.resource::<Listeners>().map_or(0, |r| r.queue.len()),
+        world.resource::<Listeners>().map_or(0, |r| {
+            r.queue.len() + usize::from(r.in_flight) + r.reservations.load(Ordering::Acquire)
+        }),
     )
 }
 
@@ -677,6 +724,28 @@ mod lifecycle_tests {
         subscribe_liquid_interactions_owned(world, LiquidListenerOwner::World, Handler(f))
             .unwrap_or_else(|_| panic!("subscribe"))
     }
+    #[test]
+    fn reserved_capacity_is_bounded_and_released_on_drop_and_unwind() {
+        let mut w = World::new();
+        w.insert_resource(LiquidLimits {
+            envelopes: 1,
+            ..LiquidLimits::default()
+        });
+        let permit = reserve_emission(&mut w).unwrap();
+        assert!(!can_emit(&w));
+        assert_eq!(counts(&w).3, 1);
+        assert!(reserve_emission(&mut w).is_none());
+        drop(permit);
+        assert!(can_emit(&w));
+        let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _permit = reserve_emission(&mut w).unwrap();
+            panic!("host unwind");
+        }));
+        assert!(panic.is_err());
+        assert!(can_emit(&w));
+        assert_eq!(counts(&w).3, 0);
+    }
+
     #[test]
     fn exhausted_component_revision_refuses_without_record_or_queue_changes() {
         let mut w = World::new();
