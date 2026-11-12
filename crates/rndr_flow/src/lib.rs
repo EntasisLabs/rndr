@@ -40,7 +40,7 @@ static AUTHORITIES: AtomicU64 = AtomicU64::new(0);
 
 fn allocate_authority(counter: &AtomicU64) -> Result<u64, Error> {
     counter
-        .fetch_update(Ordering::AcqRel, Ordering::Acquire, |old| {
+        .try_update(Ordering::AcqRel, Ordering::Acquire, |old| {
             old.checked_add(1)
         })
         .map(|old| old + 1)

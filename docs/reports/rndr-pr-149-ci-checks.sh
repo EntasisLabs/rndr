@@ -36,7 +36,7 @@ run() {
     # Keep exploring subsequent configurations, but fail the overall driver.
     if [ "$code" -ne 0 ]; then failed=1; fi
 }
-run environment sh -c 'git diff --exit-code HEAD -- crates Cargo.toml Cargo.lock; git rev-parse HEAD; rustc -Vv; cargo -V; env | grep -E "CARGO_(INCREMENTAL|BUILD_JOBS|PROFILE|TARGET_DIR)"; df -k .'
+run environment sh -ec 'git diff --exit-code HEAD -- crates Cargo.toml Cargo.lock; git rev-parse HEAD; rustc -Vv; cargo -V; env | grep -E "CARGO_(INCREMENTAL|BUILD_JOBS|PROFILE|TARGET_DIR)"; df -k .'
 run fmt cargo fmt --check
 run clippy-workspace cargo clippy --offline --locked --workspace --all-targets -- -D warnings
 run clippy-no-default cargo clippy --offline --locked -p rndr_render -p rndr -p rndr_ui --no-default-features --all-targets -- -D warnings

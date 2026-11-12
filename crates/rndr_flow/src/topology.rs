@@ -29,7 +29,7 @@ impl Coordinator {
         let owner = self.liveness(id)?;
         let counter = self.live_scope(id)?.topology_freeze.clone();
         counter
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| n.checked_add(1))
+            .try_update(Ordering::AcqRel, Ordering::Acquire, |n| n.checked_add(1))
             .map_err(|_| Error::Exhausted)?;
         Ok(TopologyFreeze {
             counter,

@@ -1,4 +1,7 @@
-"""Audit PR149 repair receipts; frozen F0-F5 artifacts are historical, never rebased."""
+"""Read-only audit of original PR149 receipts at SOURCE, not later corrections.
+
+Frozen F0-F5 artifacts and the original repair manifest are never rebased.
+"""
 import ast
 import collections
 import csv
@@ -23,7 +26,6 @@ def git(*args):
 def sha(data):
     return hashlib.sha256(data).hexdigest()
 
-assert not git('diff', SOURCE, '--', 'crates', 'Cargo.toml', 'Cargo.lock')
 assert set(git('diff', '--name-only', BASE, SOURCE, '--', 'crates', 'Cargo.toml', 'Cargo.lock').decode().splitlines()) == ALLOWED
 assert not git('ls-files', '--others', '--exclude-standard', '--', 'crates')
 old = git('ls-tree', '-r', '--name-only', BASE, '--', 'docs/reports').decode().splitlines()
@@ -37,22 +39,28 @@ for line in manifest.read_text().splitlines():
     assert path not in paths
     paths.add(path)
     assert sha(git('show', f'{BASE}:{path}')) == digest, path
-    data = pathlib.Path(path).read_bytes()
-    assert data == git('show', f'{SOURCE}:{path}'), path
+    data = git('show', f'{SOURCE}:{path}')
     if sha(data) != digest:
         changed.add(path)
     current.append(f'{sha(data)}  {path}')
 assert len(paths) == 589 and changed == ALLOWED
 expected = {p.decode() for p in git('ls-files', 'crates', 'Cargo.toml', 'Cargo.lock').splitlines() if p.endswith((b'.rs', b'.toml')) or p == b'Cargo.lock'}
 assert paths == expected
-(OUT / 'source-digests.txt').write_text('\n'.join(current) + '\n')
+assert (OUT / 'source-digests.txt').read_text() == '\n'.join(current) + '\n', 'recorded manifest mismatch'
 print('HISTORY PASS: all 589 frozen fingerprints match original baseline; all old reports byte-unchanged.')
-print('CURRENT SOURCE PASS: 589 exact-source fingerprints; 586 unchanged, exactly three changed:')
+print('ORIGINAL REPAIR SOURCE PASS (not current HEAD): 589 fingerprints; 586 unchanged, exactly three changed:')
 for path in sorted(changed):
     print(path)
 rows = list(csv.DictReader((Q / 'summary.tsv').open(), delimiter='\t'))
 assert len(rows) == 16 and len({r['gate'] for r in rows}) == 16
 assert all(r['exit'] == '0' and min(int(r['free_kib_before']), int(r['free_kib_after'])) >= 3145728 for r in rows)
+for directory in (Q, REPEAT):
+    for row in csv.DictReader((directory / 'summary.tsv').open(), delimiter='\t'):
+        text = (directory / (row['gate'] + '.txt')).read_text()
+        assert text.endswith('\nexit=' + row['exit'] + '\n'), row['gate']
+        if row['gate'].startswith('clippy-'):
+            assert row['exit'] == '0' and '-D warnings' in text.splitlines()[0]
+            assert 'Finished `dev` profile' in text and not re.search(r'^error:', text, re.M)
 for name, counts in {'core': (838, 7), 'flow': (144, 0), 'consumer': (115, 2), 'renderer-close': (60, 0), 'renderer-api': (1, 0), 'reviewer-probes': (8, 0), 'preserved-probes': (26, 0), 'independent-seam': (14, 0)}.items():
     directory = REPEAT if name == 'independent-seam' else Q
     text = (directory / (name + '.txt')).read_text()

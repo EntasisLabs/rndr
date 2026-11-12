@@ -11,7 +11,7 @@ use std::sync::{
 static SERIAL: AtomicU64 = AtomicU64::new(1);
 fn allocate(counter: &AtomicU64) -> Option<u64> {
     counter
-        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
+        .try_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
         .ok()
 }
 fn serial() -> Option<u64> {
@@ -466,7 +466,7 @@ fn reserve_serials(count: u64) -> Option<u64> {
 }
 fn reserve_from(counter: &AtomicU64, count: u64) -> Option<u64> {
     counter
-        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| {
+        .try_update(Ordering::Relaxed, Ordering::Relaxed, |n| {
             n.checked_add(count)
         })
         .ok()
