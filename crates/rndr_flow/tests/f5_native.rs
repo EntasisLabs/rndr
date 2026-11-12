@@ -53,9 +53,10 @@ fn multiworld_shared_hidden_leases_ready_is_not_disposal_cancel_preserves_everyt
     ]));
     sync(&mut f, &mut b, bid);
     let aw = f.world;
-    choose(&mut f, &mut b, bid, aw, Choice::Discard);
+    choose(&mut f, &mut b, bid, bid, Choice::Discard);
     sync(&mut f, &mut b, bid);
-    assert!(matches!(guard(f.app.world()), CloseState::Ready(_)));
+    assert!(matches!(guard(b.world()), CloseState::Ready(_)));
+    assert!(matches!(guard(f.app.world()), CloseState::Pending(_)));
     assert!(!drain.step([
         (f.app.world_mut(), &mut ca, true),
         (b.world_mut(), &mut cb, false)
@@ -67,7 +68,7 @@ fn multiworld_shared_hidden_leases_ready_is_not_disposal_cancel_preserves_everyt
         f.flow.lease(presentation.id(), f.target.document).err(),
         Some(Error::Pending)
     );
-    choose(&mut f, &mut b, bid, bid, Choice::Cancel);
+    choose(&mut f, &mut b, bid, aw, Choice::Cancel);
     assert!(!drain.step([
         (f.app.world_mut(), &mut ca, true),
         (b.world_mut(), &mut cb, false)
@@ -207,6 +208,7 @@ fn missing_world_unregistered_document_and_lost_shared_lease_never_bless_ready()
     sync(&mut f, &mut b, bid);
     let aw = f.world;
     choose(&mut f, &mut b, bid, aw, Choice::Discard);
+    choose(&mut f, &mut b, bid, bid, Choice::Discard);
     sync(&mut f, &mut b, bid);
     assert!(matches!(guard(f.app.world()), CloseState::Ready(_)));
     drop(lease);
@@ -214,4 +216,105 @@ fn missing_world_unregistered_document_and_lost_shared_lease_never_bless_ready()
     assert!(matches!(guard(f.app.world()), CloseState::Failed(_, _)));
     assert!(f.source().is_readonly());
     assert_ne!(f.flow.state(a), State::Disposed);
+}
+
+#[test]
+fn secondary_native_manager_cannot_destroy_a_shared_document_before_joint_preparation() {
+    fn sync3(f: &mut Fixture, b: &mut App, bid: WorldId, c: &mut App, cid: WorldId) {
+        let mut worlds = [
+            HostWorld::new(f.world, f.app.world_mut()).unwrap(),
+            HostWorld::new(bid, b.world_mut()).unwrap(),
+            HostWorld::new(cid, c.world_mut()).unwrap(),
+        ];
+        f.host.sync_native(&f.flow, &mut worlds).unwrap();
+    }
+    fn choose3(
+        f: &mut Fixture,
+        b: &mut App,
+        bid: WorldId,
+        c: &mut App,
+        cid: WorldId,
+        world: WorldId,
+    ) {
+        let d = f.host.native_decision(world).unwrap();
+        let mut worlds = [
+            HostWorld::new(f.world, f.app.world_mut()).unwrap(),
+            HostWorld::new(bid, b.world_mut()).unwrap(),
+            HostWorld::new(cid, c.world_mut()).unwrap(),
+        ];
+        f.host
+            .choose_native(&f.flow, &mut worlds, d, Choice::Discard)
+            .unwrap();
+    }
+    let mut f = Fixture::new();
+    let a = f.push(1);
+    let owner = f.flow.register_world().unwrap();
+    let bid = owner.id();
+    let parent = owner.scope();
+    let mut b = App::new();
+    owner.bind(b.world_mut()).unwrap();
+    b.world_mut().insert_resource(CloseGuard::default());
+    let p = f.flow.create_scope(parent).unwrap();
+    let _lease = f.flow.lease(p.id(), f.target.document).unwrap();
+    let owner = f.flow.register_world().unwrap();
+    let cid = owner.id();
+    let mut c = App::new();
+    owner.bind(c.world_mut()).unwrap();
+    c.world_mut().insert_resource(CloseGuard::default());
+    let mut drain = runner::CloseDrain::default();
+    let mut ca = runner::CloseSlot {
+        requested: true,
+        ..Default::default()
+    };
+    let mut cb = runner::CloseSlot::default();
+    let mut cc = runner::CloseSlot::default();
+    assert!(!drain.step([
+        (c.world_mut(), &mut cc, true),
+        (f.app.world_mut(), &mut ca, false),
+        (b.world_mut(), &mut cb, false)
+    ]));
+    sync3(&mut f, &mut b, bid, &mut c, cid);
+    let aw = f.world;
+    choose3(&mut f, &mut b, bid, &mut c, cid, aw);
+    sync3(&mut f, &mut b, bid, &mut c, cid);
+    assert!(matches!(guard(f.app.world()), CloseState::Pending(_)));
+    assert!(matches!(guard(b.world()), CloseState::Idle));
+    assert_eq!(f.source().text(), "unsaved α\nexact bytes");
+    assert!(f.source().is_readonly());
+    assert_ne!(f.flow.state(a), State::Disposed);
+    assert!(!drain.step([
+        (c.world_mut(), &mut cc, true),
+        (f.app.world_mut(), &mut ca, false),
+        (b.world_mut(), &mut cb, false)
+    ]));
+    assert!(!ca.closed && !cb.closed && !cc.closed);
+    cb.requested = true;
+    assert!(!drain.step([
+        (c.world_mut(), &mut cc, true),
+        (f.app.world_mut(), &mut ca, false),
+        (b.world_mut(), &mut cb, false)
+    ]));
+    sync3(&mut f, &mut b, bid, &mut c, cid);
+    choose3(&mut f, &mut b, bid, &mut c, cid, bid);
+    sync3(&mut f, &mut b, bid, &mut c, cid);
+    assert!(matches!(guard(f.app.world()), CloseState::Ready(_)));
+    assert!(matches!(guard(b.world()), CloseState::Ready(_)));
+    assert!(!drain.step([
+        (c.world_mut(), &mut cc, true),
+        (f.app.world_mut(), &mut ca, false),
+        (b.world_mut(), &mut cb, false)
+    ]));
+    assert!(ca.closed && cb.closed && !cc.closed);
+    assert!(f.flow.world_is_live(cid));
+    assert_eq!(f.source().text(), "unsaved α\nexact bytes");
+    drop(f.app);
+    drop(b);
+    f.host.reconcile_world_loss(&f.flow);
+    f.history.reconcile_world_loss(&f.flow);
+    f.flow.pump();
+    assert_eq!(f.flow.counts().active_leases, 0);
+    assert!(f.flow.document_is_live(f.target.document));
+    f.flow.close_document(f.target.document).unwrap();
+    f.host.unregister(&f.flow, f.target).unwrap();
+    assert!(f.flow.world_is_live(cid));
 }

@@ -2,7 +2,7 @@
 # F5 exact-candidate qualification: one target tree, serial low-debug builds.
 set -eu
 export CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0
-out=${1:-docs/reports/rndr-flow-f5-evidence/qualified}
+out=${1:-docs/reports/rndr-flow-f5-evidence/qualified-final}
 mkdir -p "$out"
 test ! -e "$out/summary.tsv" || { echo 'Refusing to overwrite evidence'; exit 73; }
 printf 'gate\texit\tfree_kib_before\tfree_kib_after\n' > "$out/summary.tsv"
@@ -48,7 +48,7 @@ run compatibility-liquid cargo test --offline --locked -p rndr --no-default-feat
 run flow-dependencies cargo tree --offline --locked -p rndr-flow --no-default-features -e normal,build
 run reverse-dependencies cargo tree --offline --locked -i rndr-flow -e normal,build
 run source-clean git diff --exit-code -- crates Cargo.toml Cargo.lock
-run source-fingerprints sh -c 'git ls-files crates Cargo.toml Cargo.lock | grep -E "\.(rs|toml)$|^Cargo.lock$" | LC_ALL=C sort | xargs shasum -a 256' 
+run source-fingerprints sh -c 'git ls-files crates Cargo.toml Cargo.lock | grep -E "\.(rs|toml)$|^Cargo.lock$" | LC_ALL=C sort | xargs shasum -a 256'
 # A standalone receipt, not just the shell command's redirected log.
 sed '1d;$d;/^$/d' "$out/source-fingerprints.txt" > "$out/source-digests.txt"
 run audit python3 docs/reports/rndr-flow-f5-audit.py "$out"

@@ -394,6 +394,15 @@ impl<R, D: Clone + Eq, G> Retained<R, D, G> {
                     .find(|(i, _)| *i == id)
                     .map(|(_, p)| *p)
             })
+            .or_else(|| {
+                self.sender
+                    .0
+                    .queue
+                    .borrow()
+                    .iter()
+                    .find(|(i, _)| *i == id)
+                    .map(|_| Phase::Queued)
+            })
     }
     pub fn decision(&self, id: OperationId) -> Option<DecisionId> {
         self.pending

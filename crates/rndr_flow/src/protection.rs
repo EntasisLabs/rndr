@@ -529,9 +529,45 @@ impl ProtectionHost {
                     }
                 }
             }
+        }
+        // First validate every owned attempt, then publish native readiness.
+        // Destroying a manager World destroys its actual native document store:
+        // another retained presentation (or application lease) must not outlive it.
+        // Ready phases form the bounded jointly-prepared teardown cohort; no
+        // second document store or implicit ownership transfer is introduced.
+        let prepared: Vec<_> = attempts
+            .iter()
+            .filter(|n| n.phase == Phase::Ready)
+            .map(|n| n.world)
+            .collect();
+        for n in &mut attempts {
+            let manager_in_use = n
+                .guard
+                .docs
+                .iter()
+                .filter(|d| d.target.manager == n.world)
+                .any(|d| {
+                    flow.leases.values().any(|l| {
+                        l.document == d.target.document
+                            && flow.held(l)
+                            && !scope_in_world(flow, l.scope, n.world)
+                            && !prepared
+                                .iter()
+                                .any(|world| scope_in_world(flow, l.scope, *world))
+                    })
+                });
             let g = get_world_mut(worlds, n.world)?
                 .resource_mut::<CloseGuard>()
                 .ok_or(Error::Invalid)?;
+            if n.phase == Phase::Ready && manager_in_use {
+                // Cancellation/withdrawal of a participant revokes a previous
+                // Ready before the runner can consume it. Keep the freeze; the
+                // fresh request is reconciled at the next pass.
+                if matches!(g.state(), CloseState::Ready(_)) {
+                    g.invalidate();
+                }
+                continue;
+            }
             match n.phase {
                 Phase::Ready => {
                     if matches!(g.state(),CloseState::Failed(r,_)if *r==n.request) {

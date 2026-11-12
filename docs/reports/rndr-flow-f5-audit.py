@@ -73,7 +73,7 @@ for name in ('flow','host-adapter','core','liquid','consumer','compatibility-off
     print(name,'passed=',passed,'ignored=',ignored)
     for test in re.findall(r'^test (\S+) \.\.\. ignored(.*)$',text,re.M):print('IGNORED',name,*test)
     if name in ('flow','host-adapter','liquid','consumer','core'):
-        assert (passed,ignored)=={'flow':(107,0),'host-adapter':(13,0),'liquid':(16,0),'consumer':(115,2),'core':(834,7)}[name]
+        assert (passed,ignored)=={'flow':(108,0),'host-adapter':(14,0),'liquid':(16,0),'consumer':(115,2),'core':(834,7)}[name]
 summary=list(csv.DictReader((root/'summary.tsv').open(),delimiter='\t'))
 assert len(summary)>=21 and len({r['gate'] for r in summary})==len(summary)
 assert all(r['exit']=='0' and min(int(r['free_kib_before']),int(r['free_kib_after']))>=4456448 for r in summary)

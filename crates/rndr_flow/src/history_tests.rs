@@ -47,13 +47,14 @@ fn counter_max_capacity_and_total_pending_refuse_atomically() {
     };
     let id = entry.id();
     let sender = h.sender();
-    sender
+    let queued = sender
         .submit(Navigation::Push {
             tab,
             after: None,
             entry,
         })
         .unwrap();
+    assert_eq!(h.phase(queued), Some(Phase::Queued));
     h.tick(&mut Host);
     let before = h.counts();
     sender.0.serial.set(u64::MAX);

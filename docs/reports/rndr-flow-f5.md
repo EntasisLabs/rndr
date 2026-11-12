@@ -4,7 +4,9 @@
 
 Worker candidate for sender assessment and independent review, **not project acceptance or integration**. Based on accepted F4 `bf56c67fd5b67ddf993ec5c02e5af4ef7ef507d5`. No approval, merge, push or deployment is performed by this worker. F6 and Medousa migration remain unimplemented.
 
-The production/test/tooling commit precedes an evidence-only child to avoid self-referential test receipts. Exact tested commit, toolchain and final gate outcomes are recorded in `rndr-flow-f5-evidence/qualified/environment.txt`, `summary.tsv` and `audit.txt`. This source-candidate report is intentionally written before those gates; the evidence child completes the exact results section without changing qualified source.
+The production/test/tooling commit precedes an evidence-only child to avoid self-referential test receipts. Exact tested commit, toolchain and final gate outcomes are recorded in `rndr-flow-f5-evidence/qualified-final/environment.txt`, `summary.tsv` and `audit.txt`. This source-candidate report is intentionally written before those gates; the evidence child completes the exact results section without changing qualified source.
+
+The original source candidate `ccbe77929b651080864fe1a346ade65471d29979` passed all 22 gates; its receipts remain in `qualified/`, but are **not final-candidate evidence**. Manual follow-up identified native manager ownership across secondary windows. The correction adds joint-preparation before manager teardown and immediate queued-phase observation. Corrected source is qualified separately in `qualified-final/`; no original receipts are overwritten.
 
 ## Delivered
 
@@ -12,7 +14,7 @@ The production/test/tooling commit precedes an evidence-only child to avoid self
 - Bounded callback inbox plus owned operation/decision rounds and terminal outcome ring. Equal outstanding close sets coalesce; conflicting tab/native operations queue while unrelated tabs proceed. Checked authority/serial/round exhaustion and capacity refusal preserve current ownership/state. Observers never choose.
 - Owned save/discard/cancel policy; all-target native revision and lease/participant validation before atomic retained commit. Technical failure/panic/lost actual save jobs/results retain protection. Fresh retry decisions reject old/foreign/duplicate decisions and acknowledgments. Actual owned save work uses existing executors/threads, not a new runtime.
 - Concrete source/structured authoritative writer freeze, exact source file write+sync helper and immutable native structured persistence seam. Programmatic edits, undo/redo, source reload and editor/IME mutation cannot bypass freeze through readonly setters. Active/pending composition blocks admission without clearing preedit, including hidden/shared non-manager Worlds. Missing participants stay pending/queued rather than being assumed quiescent.
-- Exact existing `CloseGuard` request mapping and unchanged native `CloseDrain` policy. All registered manager documents (including unleased native documents), shared/hidden leases and Worlds are covered. Freeze survives Failed and native Ready; one World's Ready disposes nothing. New World/lease admission refuses under protection. Unavoidable native document additions invalidate Ready and require explicit cancel/restart. Actual terminal World loss, not Ready, permits retained tab and native protection reconciliation.
+- Exact existing `CloseGuard` request mapping and unchanged native `CloseDrain` policy. All registered manager documents (including unleased native documents), shared/hidden leases and Worlds are covered. Freeze survives Failed and native Ready; one World's Ready disposes nothing. New World/lease admission refuses under protection. A manager World cannot publish Ready while its native document store still has a lease outside the jointly prepared teardown cohort. This preserves the actual shared native authority, not merely metadata; application leases outside Worlds must end explicitly. The new three-World secondary-manager test proves this barrier while an unrelated primary remains live. Unavoidable native document additions invalidate Ready and require explicit cancel/restart. Actual terminal World loss, not Ready, permits retained tab and native protection reconciliation.
 
 See [host contract and F6 handoff](../design/rndr-flow-f5-host-contract.md) for exact ownership, limits, hook ordering, persistence semantics and caller obligations.
 
@@ -56,7 +58,7 @@ No sleep-based race oracle is used; actual threaded save cases use channel/join 
 ## Exact candidate evidence
 
 Qualification runner: `sh docs/reports/rndr-flow-f5-gates.sh`.
-Auditor: `python3 docs/reports/rndr-flow-f5-audit.py docs/reports/rndr-flow-f5-evidence/qualified`.
+Auditor: `python3 docs/reports/rndr-flow-f5-audit.py docs/reports/rndr-flow-f5-evidence/qualified-final`.
 
 The runner records every exact command/result, toolchain/commit, ignored tests and disk readings. It uses one local target tree, `CARGO_BUILD_JOBS=1`, incremental disabled, debug info disabled and a monitored 4.25 GiB safety floor. No unrelated caches/worktrees/source/history are deleted. Historical F1–F4 receipts and sources remain unchanged; fresh qualification reads only the new qualified directory. Development failures and corrections are preserved separately and are not counted as final evidence.
 
