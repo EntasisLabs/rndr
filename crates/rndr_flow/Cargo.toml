@@ -3,8 +3,14 @@ name = "rndr-flow"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
 rust-version.workspace = true
 description = "Optional headless scope ownership for rndr"
+documentation = "https://docs.rs/rndr-flow"
+readme = "README.md"
+keywords = ["gui", "ownership", "lifecycle"]
+categories = ["gui"]
 
 [lib]
 name = "rndr_flow"

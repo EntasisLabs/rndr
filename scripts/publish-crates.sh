@@ -10,9 +10,11 @@
 # argument. Do not run the script under `bash -x`.
 #
 # Uploaded, in order:
-#   rndr_core, rndr_paint, rndr_std, rndr_term, rndr_ui, rndr_app,
+#   rndr_core, rndr-flow, rndr_paint, rndr_std, rndr_term, rndr_ui, rndr_app,
 #   rndr_liquid, rndr_chart, rndr_liquid_ui, rndr_canvas, rndr_canvas_ui,
 #   rndr_render, rndr_media, rndr_browser, rndr.
+# rndr-flow depends on feature-off rndr_core only. rndr_liquid_ui has a
+# versioned dev-dependency on rndr-flow, so flow is published before liquid_ui.
 # rndr_term and rndr_ui depend on rndr_core, and each has a versioned
 # dev-dependency on rndr_paint. Cargo writes a lockfile for the packaged crate
 # and resolves that dev-dependency from crates.io, so rndr_paint is published
@@ -81,14 +83,14 @@ if [[ "$dry_run" -eq 0 && -z "${CARGO_REGISTRY_TOKEN:-}" ]]; then
     exit 1
 fi
 
-CRATES=(rndr_core rndr_paint rndr_std rndr_term rndr_ui rndr_app rndr_liquid rndr_chart rndr_liquid_ui rndr_canvas rndr_canvas_ui rndr_render rndr_media rndr_browser rndr)
+CRATES=(rndr_core rndr-flow rndr_paint rndr_std rndr_term rndr_ui rndr_app rndr_liquid rndr_chart rndr_liquid_ui rndr_canvas rndr_canvas_ui rndr_render rndr_media rndr_browser rndr)
 
 declare -A VERSIONS=()
 while IFS=$'\t' read -r name version; do
     VERSIONS["$name"]="$version"
 done < <(cargo metadata --format-version 1 --no-deps | python3 -c '
-import json, sys
-wanted = {"rndr_core", "rndr_paint", "rndr_std", "rndr_term", "rndr_ui", "rndr_app", "rndr_liquid", "rndr_chart", "rndr_liquid_ui", "rndr_canvas", "rndr_canvas_ui", "rndr_render", "rndr_media", "rndr_browser", "rndr"}
+    import json, sys
+wanted = {"rndr_core", "rndr-flow", "rndr_paint", "rndr_std", "rndr_term", "rndr_ui", "rndr_app", "rndr_liquid", "rndr_chart", "rndr_liquid_ui", "rndr_canvas", "rndr_canvas_ui", "rndr_render", "rndr_media", "rndr_browser", "rndr"}
 meta = json.load(sys.stdin)
 for package in meta["packages"]:
     if package["name"] in wanted:

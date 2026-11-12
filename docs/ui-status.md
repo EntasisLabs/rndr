@@ -79,20 +79,21 @@ Workspace version **0.5.0**. `scripts/publish-crates.sh` uploads these crates
 in this order:
 
 1. `rndr_core` — no workspace dependencies.
-2. `rndr_paint` — depends on `rndr_core`.
-3. `rndr_std` — depends on `rndr_core`.
-4. `rndr_term` — depends on `rndr_core`. Its dev-dependency on `rndr_paint` is resolved when the package is verified, so paint is already published.
-5. `rndr_ui` — depends on `rndr_core`. Its dev-dependency on `rndr_paint` is resolved the same way.
-6. `rndr_app` — depends on `rndr_core`. It does not depend on `rndr_ui`.
-7. `rndr_liquid` — no workspace dependencies.
-8. `rndr_chart` — depends on `rndr_core` and `rndr_paint`. Optional `liquid` depends on `rndr_liquid`.
-9. `rndr_liquid_ui` — depends on `rndr_core`, `rndr_paint`, `rndr_ui`, `rndr_liquid`, and `rndr_chart`.
-10. `rndr_canvas` — no workspace dependencies.
-11. `rndr_canvas_ui` — depends on `rndr_canvas`, `rndr_core`, `rndr_paint`, and `rndr_ui`.
-12. `rndr_render` — depends on `rndr_core` and `rndr_paint`.
-13. `rndr_media` — depends on `rndr_core`. Its dev-dependency on `rndr_render` is resolved when the package is verified, so render is already published. Optional on the facade, including when `media` is off.
-14. `rndr_browser` — no workspace dependencies. Optional on the facade, including when `browser` is off.
-15. `rndr` — depends on `rndr_core`, `rndr_paint`, `rndr_std`, and `rndr_render`. Optional `term` depends on `rndr_term`. Optional `ui` depends on `rndr_ui`. Optional `browser` depends on `rndr_browser`. Optional `media` depends on `rndr_media`. Optional `chart`, `liquid`, and `canvas` depend on `rndr_chart`, `rndr_liquid` with `rndr_liquid_ui`, and `rndr_canvas` with `rndr_canvas_ui`. The dev-dependency on `rndr_ui` is also resolved from the registry.
+2. `rndr-flow` — depends on feature-off `rndr_core`. Optional headless ownership crate; not a facade feature.
+3. `rndr_paint` — depends on `rndr_core`.
+4. `rndr_std` — depends on `rndr_core`.
+5. `rndr_term` — depends on `rndr_core`. Its dev-dependency on `rndr_paint` is resolved when the package is verified, so paint is already published.
+6. `rndr_ui` — depends on `rndr_core`. Its dev-dependency on `rndr_paint` is resolved the same way.
+7. `rndr_app` — depends on `rndr_core`. It does not depend on `rndr_ui`.
+8. `rndr_liquid` — no workspace dependencies.
+9. `rndr_chart` — depends on `rndr_core` and `rndr_paint`. Optional `liquid` depends on `rndr_liquid`.
+10. `rndr_liquid_ui` — depends on `rndr_core`, `rndr_paint`, `rndr_ui`, `rndr_liquid`, and `rndr_chart`. Its dev-dependency on `rndr-flow` is resolved when the package is verified, so flow is already published.
+11. `rndr_canvas` — no workspace dependencies.
+12. `rndr_canvas_ui` — depends on `rndr_canvas`, `rndr_core`, `rndr_paint`, and `rndr_ui`.
+13. `rndr_render` — depends on `rndr_core` and `rndr_paint`.
+14. `rndr_media` — depends on `rndr_core`. Its dev-dependency on `rndr_render` is resolved when the package is verified, so render is already published. Optional on the facade, including when `media` is off.
+15. `rndr_browser` — no workspace dependencies. Optional on the facade, including when `browser` is off.
+16. `rndr` — depends on `rndr_core`, `rndr_paint`, `rndr_std`, and `rndr_render`. Optional `term` depends on `rndr_term`. Optional `ui` depends on `rndr_ui`. Optional `browser` depends on `rndr_browser`. Optional `media` depends on `rndr_media`. Optional `chart`, `liquid`, and `canvas` depend on `rndr_chart`, `rndr_liquid` with `rndr_liquid_ui`, and `rndr_canvas` with `rndr_canvas_ui`. The dev-dependency on `rndr_ui` is also resolved from the registry.
 
 Examples stay `publish = false`, including `desktop`, `source-session`, `titlebar`, and `lifecycle`. Optional versioned dependencies are still resolved when their features are off, so omitting `rndr_browser` or `rndr_media` from `cargo package --workspace` makes the default facade look for those crates on crates.io and fail. A later `cargo publish -p rndr` still waits until they are on the index; the workspace package command is what resolves them locally.
 
