@@ -1,0 +1,4 @@
+$ cargo check --offline --locked -p rndr-flow --no-default-features --lib
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.11s
+
+exit=0
