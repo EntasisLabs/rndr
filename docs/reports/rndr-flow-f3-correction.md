@@ -4,14 +4,114 @@ Date: 2026-11-12 UTC. Work `work-901f2ce85e86e30b96529a611e423516`.
 Status: **corrected candidate, locally qualified; fresh independent review and
 sender acceptance still required. Not approved or integrated.**
 
-Parent candidate: `fa5a03b76975068e015cc5f373baadaff1b703fe`.
+Current correction parent: `b3bf25bb1095ada20694dbc28816934479b4f8a2`.
+Original F3 candidate: `fa5a03b76975068e015cc5f373baadaff1b703fe`.
 Accepted `main`: `9f36c97271a3d2e7ead3049afdec89753ef990c3`, unchanged.
 The correction is the commit introducing this report; resolve its full identity
 with `git log -1 --format=%H -- docs/reports/rndr-flow-f3-correction.md`.
 The worker's terminal handback supplies exact HEAD and cleanliness verification.
 No push, deploy, native approval, merge or integration was performed.
 
-## Finding and scoped correction
+## Follow-up: atomic lease refusal (R1) and internal ancestry caveat (R2)
+
+The independent review of exact `b3bf25bb` requested changes for R1 (P2).
+Its review deliverable was accepted by the sender, **not the project**.
+The native seal still pointing at superseded `fa5a03b` is not evidence of this
+correction or of `b3bf25bb`; no seal/approval/integration action was taken here.
+
+R1 reproduced: an inactive lease occupied the only slot; with lease serial MAX,
+`lease()` reclaimed that slot before returning Exhausted, changing exact leases
+from 1 to 0. F0 §3 prohibits partial mutation before exhaustion refusal. This
+was an inherited defect, not a newly introduced failure in incremental pumping.
+
+The narrow fix preserves stale/foreign/invalid validation first, then preflights
+`lease_serial.checked_add(1)` without changing the counter. Exhaustion refuses
+before any capacity reclamation. Capacity refusal likewise consumes no serial.
+Only successful checks permit inactive-slot removal, counter commitment and
+insertion. No public API/type, pump algorithm, F4/core/UI/Liquid/Medousa behavior,
+dependency, runtime or facade adoption changed.
+
+Five permanent private-seam tests in `src/lease_admission_tests.rs` cover:
+
+1. Exhausted admission with a retained inactive slot (exact 1/0 leases/active).
+2. Exhausted admission with a retained active slot; token remains held and
+   document close still refuses InUse.
+3. Exhausted mixed inactive/active storage (exact 2/1), retaining both entries
+   and the active presentation's validity.
+4. Nonexhausted Capacity refusal does not consume the final serial; after lease
+   drop the replacement succeeds with serial MAX, replacing just one slot.
+5. Exhaustion retains stale/foreign scope/document and invalid document-as-owner
+   validation precedence.
+
+Every refusal checks exact Counts, all three identity counters, retained lease
+keys/scope/document/token identity, diagnostics/dropped telemetry, FIFO commands,
+dirty flag, traversal and lease cursors, plus absence of callback invocation.
+The original 15 tests, nine budget proofs and three retained reviewer probes
+remain unchanged.
+
+The isolated appended reviewer regression is retained unchanged in
+[`f3-refusal-evidence/reviewer-regression.rs`](f3-refusal-evidence/reviewer-regression.rs).
+[`f3-refusal-probe.sh`](f3-refusal-probe.sh) builds isolated source copies, never
+modifying candidate source. The original prefix is exactly `git show b3bf25bb`
+plus that appended test; **before exits 101** with leases 0 versus expected 1.
+The fixed prefix plus the same test **exits 0**. See `private-before.log`,
+`private-after.log` and the exact compiler/runner commands in `private-command.log`.
+These are injected-counter tests, not fabricated public IDs or a near-MAX stress
+claim. The expected historical failure is not counted as a passing gate.
+
+R2 (P3 advisory) is documented in README and Liveness rustdoc, not redesigned:
+external tokens/retained owners hold crate-owned strong-parent `Life` Arc ancestry
+after registry Counts reach zero. Last-token release can recursively destroy
+O(depth) internal nodes, including from a cleanup callback capture, even with no
+custom user Drop. External retained metadata is outside Counts. This is distinct
+from ordinary child-first registry removal, which retains the parent's registry
+reference. The review demonstrated neither stack overflow nor a hidden
+callback-free full scan. No stack-safe or hard-real-time token-drop promise is
+made. Metered coordinator work and synchronous observation/admission exclusions
+remain exactly as qualified below. Stronger token reclamation needs separate work.
+The review's allocator probe/logs were inspected; they were not rerun for this
+documentation-only clarification and are not claimed as fresh qualification.
+
+### Fresh qualification of this follow-up
+
+[`f3-refusal-gates.sh`](f3-refusal-gates.sh) reuses the earlier scoped runner with
+a separate output directory, preserving previous evidence. All **19** entries in
+[`f3-refusal-evidence/gates.tsv`](f3-refusal-evidence/gates.tsv) return zero:
+
+| Fresh rerun | Result |
+| --- | --- |
+| Focused feature-off flow suite | **29 unit tests + 3 retained reviewer probes**, 0 doctests. |
+| Targeted work-accounting tests | **9/9**; unchanged wide/deep 4,096-scope proofs each 24,577 units, full 4,096-lease table 8,192 units. |
+| Retained reviewer probes separately | **3/3**. |
+| Lifecycle proof | **100 exact seven-count baseline vectors**, cumulative callbacks exactly 3 per cycle, **300 total**; final root reclamation asserted. |
+| Focused strict all-target Clippy / workspace fmt | Passed (`-D warnings`, `--all-targets`; `fmt --all --check`). |
+| Headless build/graphs | Feature-off flow build; no UI/Liquid/render/Tokio dependency or reverse adopter. |
+| Targeted compatibility | Core/UI/paint no-default check; facade editing no-default **2/2**, UI **3/3**, Liquid **2/2**. |
+| Documentation / whitespace | Strict flow no-deps docs; complete staged diff whitespace check. |
+| Preservation | Original `docs/reports/f3-evidence` unchanged from fa5a03b; prior correction evidence and F4 preparation unchanged from b3bf25bb. |
+
+`environment.log` records pre-commit parent HEAD and six SHA-256 source/test
+hashes; those hashes bind the tested content, not the parent OID. Qualification
+uses `CARGO_INCREMENTAL=0` and existing artifacts, with approximately **12 GiB**
+free before/after. No clean/full rebuild or competing coder grant was used.
+
+The broad original qualification remains **inherited, not rerun**: broad
+Liquid/UI/core/render/source-session suites, workspace check, broad Clippy,
+multi-package docs and additional facade lib/doctest configurations. Targeted
+facade tests do not establish comprehensive compatibility. The historical
+incremental correction narrative and gate results below describe `b3bf25bb`,
+not additional fresh gates of this follow-up.
+
+F4 preparation/caveats are preserved without F4 implementation. F1 staging cost,
+F2 raw-push split-CRLF, platform/GUI/performance/concurrency/IO acknowledgement
+and arbitrary-destructor/double-panic limitations remain. Registry settlement is
+not producer/backend quiescence. Sender retains fresh independent review,
+acceptance and exact native integration responsibility; this is only a corrected
+candidate, not approval, acceptance or integration. Nothing pushed or deployed.
+
+## Historical incremental correction (b3bf25bb)
+
+### Finding and scoped correction
 
 The earlier review established lifecycle correctness but qualified the scan
 cost. That qualification did **not** satisfy F0 §5 incremental retirement:

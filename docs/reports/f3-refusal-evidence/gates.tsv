@@ -1,0 +1,19 @@
+environment	0	sh -c date -u; git rev-parse HEAD; git rev-parse main; df -h .; rustc --version; cargo --version; printf "CARGO_INCREMENTAL=%s\n" "$CARGO_INCREMENTAL"; shasum -a 256 crates/rndr_flow/src/*.rs crates/rndr_flow/tests/*.rs
+flow-test	0	cargo test --locked -p rndr-flow --no-default-features
+budget-proof	0	cargo test --locked -p rndr-flow --no-default-features budget_tests -- --nocapture
+reviewer-probes	0	cargo test --locked -p rndr-flow --no-default-features --test reviewer_probes -- --nocapture
+cycles	0	cargo test --locked -p rndr-flow --no-default-features one_hundred_lifecycle_cycles -- --nocapture
+headless	0	cargo build --locked -p rndr-flow --no-default-features
+dependency-tree	0	cargo tree --locked -p rndr-flow --no-default-features -e normal,build
+dependency-inverse	0	cargo tree --locked -i rndr-flow
+fmt	0	cargo fmt --all --check
+flow-clippy	0	cargo clippy --locked -p rndr-flow --no-default-features --all-targets -- -D warnings
+feature-off	0	cargo check --locked -p rndr_core -p rndr_ui -p rndr_paint --no-default-features
+editing-off	0	cargo test --locked -p rndr --no-default-features --test editing_compatibility
+editing-ui	0	cargo test --locked -p rndr --no-default-features --features ui --test editing_compatibility
+editing-liquid	0	cargo test --locked -p rndr --no-default-features --features liquid --test editing_compatibility
+flow-docs	0	env RUSTDOCFLAGS=-Dwarnings cargo doc --locked -p rndr-flow --no-default-features --no-deps
+cycle-audit	0	python3 -c import pathlib,re; text=pathlib.Path("docs/reports/f3-refusal-evidence/cycles.log").read_text(); rows=re.findall(r"F3 cycle=(\d+) scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=(\d+)", text); assert rows==[(str(n),str(3*n)) for n in range(1,101)], rows; print("100/100 exact baseline vectors; callbacks=300; cycle test also asserts final root reclamation to Counts::default()")
+graph-audit	0	python3 -c import pathlib; p=pathlib.Path("docs/reports/f3-refusal-evidence"); tree=(p/"dependency-tree.log").read_text(); inverse=(p/"dependency-inverse.log").read_text(); assert all(x not in tree for x in ["rndr_ui ","rndr_liquid", "rndr_render ", "tokio "]); assert len(inverse.strip().splitlines())==1; print("Headless normal/build graph: feature-off core, no UI/render/Tokio, no reverse adopter")
+original-evidence	0	git diff --exit-code fa5a03b76975068e015cc5f373baadaff1b703fe -- docs/reports/f3-evidence
+diff-check	0	git diff --check

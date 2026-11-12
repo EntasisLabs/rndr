@@ -1,0 +1,16 @@
+
+running 1 test
+
+thread 'extra_review_tests::exhausted_lease_admission_at_capacity_preserves_registry' (3592802) panicked at target/f3-refusal/private/lib.rs:942:3:
+assertion `left == right` failed: F0 §3 exhaustion before partial mutation
+  left: Counts { scopes: 2, cleanups: 0, leases: 0, active_leases: 0, pending_scopes: 0, pending_cleanups: 0, queued_commands: 0 }
+ right: Counts { scopes: 2, cleanups: 0, leases: 1, active_leases: 0, pending_scopes: 0, pending_cleanups: 0, queued_commands: 0 }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test extra_review_tests::exhausted_lease_admission_at_capacity_preserves_registry ... FAILED
+
+failures:
+
+failures:
+    extra_review_tests::exhausted_lease_admission_at_capacity_preserves_registry
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 24 filtered out; finished in 0.00s

@@ -161,6 +161,10 @@ impl Life {
 }
 
 /// Cloneable read-only atomic admission flag; includes ancestor terminal loss.
+/// Retains crate-owned strong-parent `Life` ancestry even after registry counts
+/// reach zero. Final token release can recursively destroy O(depth) internal
+/// nodes, also when a callback releases a captured token. Token drops are not
+/// promised stack-safe or real-time bounded by retirement work units.
 #[derive(Clone)]
 pub struct Liveness(Arc<Life>);
 impl Liveness {
@@ -530,6 +534,10 @@ impl Coordinator {
         if self.live_scope(scope)?.role == Role::Document {
             return Err(Error::Invalid);
         }
+        // Refuse exhaustion before reclaiming storage, but do not consume an
+        // identity until capacity checks succeed. Validation above keeps its
+        // stale/invalid precedence even when the serial is exhausted.
+        let serial = self.lease_serial.checked_add(1).ok_or(Error::Exhausted)?;
         if self.leases.len() >= self.limits.leases {
             let inactive = self
                 .leases
@@ -543,7 +551,7 @@ impl Coordinator {
                 None => return Err(Error::Capacity),
             }
         }
-        let serial = next(&mut self.lease_serial)?;
+        self.lease_serial = serial;
         let held = Arc::new(AtomicBool::new(true));
         self.leases.insert(
             serial,
@@ -924,5 +932,7 @@ impl Drop for Coordinator {
 
 #[cfg(test)]
 mod budget_tests;
+#[cfg(test)]
+mod lease_admission_tests;
 #[cfg(test)]
 mod tests;

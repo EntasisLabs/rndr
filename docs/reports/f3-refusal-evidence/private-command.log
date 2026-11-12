@@ -1,0 +1,4 @@
+parent=b3bf25bb1095ada20694dbc28816934479b4f8a2
+rustc --edition=2021 --test target/f3-refusal/private/lib.rs --extern rndr_core=target/debug/deps/librndr_core-c9a981245f5db806.rlib -L dependency=target/debug/deps -o target/f3-refusal/private_probe
+target/f3-refusal/private_probe extra_review_tests --nocapture
+before expected=101; after expected=0

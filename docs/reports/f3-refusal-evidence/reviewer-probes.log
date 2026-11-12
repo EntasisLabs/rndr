@@ -1,0 +1,16 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running tests/reviewer_probes.rs (target/debug/deps/reviewer_probes-77d31a3aa52bd646)
+
+running 3 tests
+
+thread 'queued_fifo_survives_callback_unwind_and_full_queue' (3593202) panicked at crates/rndr_flow/tests/reviewer_probes.rs:30:9:
+queued unwind
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FIFO/unwind: foreign requests rejected in submitted order; queue empty; counts zero
+test queued_fifo_survives_callback_unwind_and_full_queue ... ok
+owner-drop reentry: trace [2,1,3], descendants stale immediately, root baseline
+test dropping_ancestor_inside_suspended_cleanup_reorders_pending_children ... ok
+suspension: 3 attempted errors, resume pending until final activity consumed, lifetime retained
+test bounded_suspend_drain_requires_all_activity_attempts_and_retains_lifetime ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s

@@ -91,6 +91,17 @@ These are deterministic work bounds, **not real-time latency guarantees**.
 Callback/destructor duration, allocator/deallocator and platform costs are not
 bounded by the work-unit count.
 
+In particular, external `Liveness` tokens (and retained owners) keep crate-owned
+`Life` metadata alive through strong-parent `Arc` ancestry even after registry
+`Counts` reach zero. Releasing the final token can recursively destroy O(depth)
+internal nodes, including when a cleanup callback releases a captured token;
+this is not merely time spent in custom user destructors. External retained
+ancestry is not included in `Counts`. Ordinary callback-free child-first registry
+removal keeps the parent registry reference alive and does not imply such a
+last-token cascade or a hidden pump full scan. No stack overflow was demonstrated;
+token release is not promised stack-safe or hard-real-time. Stronger bounded
+or stack-safe token destruction would require separate reclamation work.
+
 Exact logical counts cannot be maintained by synchronous counters alone because
 owner/lease drops only signal external flags. `counts()` remains an explicit
 synchronous observation: O((scopes + leases) * depth + cleanups), plus table
@@ -105,7 +116,10 @@ observation**; hosts needing bounded retirement should call `pump_work` and
 choose when to observe separately. Exact document-close refusal also scans
 leases synchronously. Lease admission at capacity observes until it finds one
 inactive slot to reclaim (O(leases * depth)); it never calls callbacks or runs
-a global retirement sweep. Otherwise inactive physical slots remain charged
+a global retirement sweep. After stale/invalid validation, admission preflights
+serial exhaustion without mutation; only successful capacity checks permit
+reclamation and serial commitment. Neither Exhausted nor Capacity refusal
+consumes a serial or changes retained storage. Otherwise inactive physical slots remain charged
 until incremental sweeping. Single-scope admission/liveness APIs still walk
 ancestors synchronously. None of these observation/admission APIs claims a
 retirement-budget or real-time bound.
