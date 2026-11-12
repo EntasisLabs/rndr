@@ -1794,3 +1794,121 @@ remain unrun, and the whole-stream staging/comparison performance caveat remains
 The sender retains assessment and fresh independent re-review before any native
 approval or integration. No seal, approval, merge/integration, push,
 publication or deployment was performed.
+
+## P. F2 explicit-reset remount correction after independent re-review
+
+### P.1 Before/after public reproduction and narrow ownership repair
+
+Continue candidate `ca8672f8581f60096b3b2acc869148ffccbd5c69`, with accepted
+F1/main unchanged at `d18c55414d30c4c563148b30fd7e096f0bfd863d`.
+The independent re-review deliverable was accepted as evidence only; F2 was
+not accepted. Its complete `target/f2/independent-rereview-p2/REPORT.md`, exact
+probe source and isolated failure log were read before editing. The newly
+shown reset defect is in code unchanged from original F2 `c289747`; it is not
+attributed to the canonical setter correction in O. Original F0 section 7 and
+slices B/C/D/F/N/O remain the contract. All fresh evidence is separate under
+`target/f2/reset-remount-correction/`; prior evidence is not overwritten.
+
+Permanent public tests in `tests/reset_remount.rs` cover eight independently
+runnable cases: block/surface reset x keyed/unkeyed x mounted/released-offscreen.
+They boot real UI/Markdown/Liquid plugins, open both accordions, verify actual
+mounted controls, then (in offscreen cases) scroll and assert actual release.
+They use the current snapshot CAS, reset, return onscreen and pump 12 frames.
+Assertions cover both actual mounted occurrences and rendered open/closed
+labels/defaults, retired-handle query/write rejection, new authority writing
+the rendered control, untouched block handle/state/record revision, fresh
+surface revision, and application Layout/independent Liquid surface component,
+handle and state survival. Control counting excludes separately owned Liquid
+surfaces rather than counting their attached descendants as parent controls.
+Wrong state CAS refuses in all cases; wrong source CAS refuses in keyed cases;
+source bytes, records, mounted set and source revision remain unchanged.
+
+Before any production change:
+
+- `before.log`: 3 pass/5 fail. Four are real offscreen remount failures; the
+  extra mounted-unkeyed failure is a fixture counter including an independently
+  attached surface's rendered control. It is not product-defect evidence.
+- After correcting only that ancestry counter, `before-corrected-fixture.log`:
+  **4 pass/4 fail**, exit 101. Each offscreen block/surface x keyed/unkeyed case
+  fails because mounted is `[1]` or `[]` instead of `[0,1]` after 12 frames.
+- Unchanged exact reviewer source copied temporarily into its original test
+  target: `reviewer-before.log` **4 pass/4 fail**, exit 101, reproducing all
+  four isolated reviewer failures without production edits.
+
+The production correction is limited to `view.rs::discard_presentation`.
+After successful logical reset planning, selected saved entries detach their
+**exact released MarkdownSlot** before being dropped. Unselected entries and
+bindings remain. Offscreen release already parks semantic children and clears
+owned projections; no second traversal or broad native-host sweep is added.
+Existing mounted detach/parking, carry invalidation and parked logical reset
+handling remain unchanged. Core detach validates the exact view/id/root binding
+and supports released slots; no core production change is needed. Refusals
+occur before this presentation phase. Separately app-owned surfaces/entities
+remain outside logical child retirement and projection reclamation.
+
+After that correction, `after.log` reports **8 pass/0 fail**, exit 0.
+`reviewer-after.log` reports **8 pass/0 fail**, exit 0, including all four
+remount cases, six mixed-key permutations/18 malformed-map refusals, exact
+normalized repair, independent attachment repair, and **2,008 canonical cursor
+push comparisons**. The exact unchanged probe source is preserved locally as
+`reviewer-probes.rs`; its disposable test file was removed before full gates.
+Exact command files accompany the full logs. Both focused commands used:
+
+```sh
+export PATH="$HOME/.cargo/bin:$PATH"
+export CARGO_BUILD_JOBS=2 CARGO_INCREMENTAL=0
+export CARGO_TARGET_DIR="$PWD/target/f2"
+cargo test --locked --offline -p rndr_liquid_ui --test reset_remount -- --nocapture
+cargo test --locked --offline -p rndr_liquid_ui --test independent_rereview_p2 -- --nocapture
+```
+
+No parser/core production, facade production, Cargo/lock/dependency, SDK/Medousa
+or new-crate changes. Original three-variant `LiquidUpdateError`, additive
+`LiquidF2Error`, legacy signatures/layouts and canonical setter/cursor code
+are unchanged. The original proof and historical design prefix are retained.
+
+### P.2 Full fresh qualification and handback boundary
+
+The final permanent source/test tree was qualified serially, locked/offline,
+with the environment above. `run-gates.sh`, `results`, each exact `*.command`
+and complete `*.log` are in `target/f2/reset-remount-correction/`. All eight
+commands exited 0:
+
+| Exact command | Fresh result |
+| --- | --- |
+| `cargo test --locked --offline -p rndr_liquid -p rndr_liquid_ui -- --nocapture` | **129 passed**, 0 failed: parser 11 + 5 doctests, UI 112 + 1 doctest; two existing opt-in performance probes ignored; no test-name filters |
+| `cargo test --locked --offline -p rndr_core --lib --test runtime --test feed --test markdown` | **179 passed**, 0 failed, 1 pre-existing ignored |
+| `cargo check --locked --offline -p rndr --no-default-features --features liquid` | Passed |
+| `cargo test --locked --offline -p rndr --no-default-features --features liquid --test editing_compatibility` | **2 passed** |
+| `cargo test --locked --offline -p rndr --no-default-features --test editing_compatibility` | **2 passed**, Liquid/UI disabled |
+| `cargo clippy --locked --offline -p rndr_liquid_ui --lib --tests -- -D warnings` | Passed |
+| `cargo fmt --all -- --check` | Passed |
+| `git diff --check` | Passed; staged and committed ranges also checked at handback |
+
+`verify-vectors.py` audits the fresh `liquid.log`, not historical summaries.
+`vector-verification.log` confirms **exactly 300 teardowns**, cycles 0–99 for
+each seed **1/7/42**; **all 19 counters equal the per-World baseline and
+external_ack_pending=0 after EVERY teardown**. All existing F1 tests and F2
+identity interleaving remain active. The full suite also re-runs all **556**
+canonical source-normalization boundary cases. The exact reviewer's **2,008**
+cursor comparisons passed in the separate after-probe run. Logical resource
+settlement does not alone prove remount rendering; the eight new permanent
+physical tests supply that separate evidence.
+
+`prior-evidence.sha256` inventories prior author/independent evidence before
+correction. The final audit verifies all listed hashes unchanged, the complete
+prior design ledger remains an exact prefix, and saved reviewer probe source
+is byte-identical to the independent source. Only `view.rs`, the new permanent
+`tests/reset_remount.rs`, and this append-only ledger change in this correction.
+The exact commit, scoped diff and clean status are returned in terminal
+handback; main remains accepted F1 unchanged. No seal, approval, integration,
+push, publication or deployment occurs.
+
+These are author-run correction receipts, **not project acceptance or fresh
+independent review**. Sender retains assessment, mandatory fresh independent
+re-review, revisions and native integration. Inherited raw-push split-CRLF
+behavior remains until canonical complete-source repair; this is not a parser
+streaming fix. `liquid_stream_cost` and `liquid_density_cost` release probes
+remain unrun. Whole-stream staging/projection comparison and worst-case
+full-value correspondence costs remain; no broad readiness/performance or
+uncontrolled-producer physical-quiescence claim is made.

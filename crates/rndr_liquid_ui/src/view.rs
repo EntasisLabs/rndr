@@ -418,9 +418,16 @@ pub(crate) fn discard_presentation(world: &mut World, view: Entity, index: Optio
     let Some(mut liquid) = world.remove::<LiquidView>(view) else {
         return;
     };
-    liquid
-        .saved
-        .retain(|_, saved| index.is_some_and(|i| saved.block != i));
+    liquid.saved.retain(|_, saved| {
+        if index.is_some_and(|i| saved.block != i) {
+            return true;
+        }
+        // Release already parked logical children and cleared this projection.
+        // Retire its exact native binding as well, or core can remount an empty
+        // slot after the saved state is gone and block fresh reset rendering.
+        let _ = saved.slot.detach(world);
+        false
+    });
     for (i, carry) in liquid.carry.iter_mut().enumerate() {
         if index.is_none_or(|n| n == i) {
             *carry = None;
