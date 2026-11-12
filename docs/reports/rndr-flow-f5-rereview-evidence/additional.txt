@@ -1,0 +1,12 @@
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_flow)
+    Finished `test` profile [unoptimized] target(s) in 1.81s
+     Running tests/f5_independent_rereview.rs (target/debug/deps/f5_independent_rereview-54e4a218828596e1)
+
+running 4 tests
+test decoy_matching_lease_cannot_bless_wrong_owned_allocation ... ok
+test late_incoming_native_identity_loss_is_atomic_across_save_and_discard ... ok
+test omitted_owned_result_is_technical_loss_not_cancel ... ok
+test queued_select_lost_destination_keeps_current_selection ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

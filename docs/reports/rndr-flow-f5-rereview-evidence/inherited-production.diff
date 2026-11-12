@@ -1,0 +1,349 @@
+diff --git a/crates/rndr_core/src/editing.rs b/crates/rndr_core/src/editing.rs
+index af4e62a..f60eae3 100644
+--- a/crates/rndr_core/src/editing.rs
++++ b/crates/rndr_core/src/editing.rs
+@@ -234,6 +234,7 @@ pub struct SourceSession {
+     edits: Vec<(u64, Vec<SourceChange>)>,
+     active_view: Option<Entity>,
+     readonly: bool,
++    freeze: crate::freeze::FreezeState,
+     pub(crate) policy_epoch: u64,
+     composition: Option<SourceSelection>,
+     events: VecDeque<ChangeEvent>,
+@@ -453,7 +454,15 @@ impl SourceSession {
+     }
+     /// True when document-owned admission is readonly.
+     pub fn is_readonly(&self) -> bool {
+-        self.readonly
++        self.readonly || self.freeze.active()
++    }
++    /// Freeze content/history at the writer without cancelling live IME.
++    /// Resolve composition through its editor owner before retrying.
++    pub fn freeze(&self) -> Result<crate::DocumentFreeze, EditError> {
++        if self.is_composing() {
++            return Err(EditError::Composing);
++        }
++        self.freeze.acquire().ok_or(EditError::RevisionExhausted)
+     }
+     /// True while a native preedit owns a captured selection.
+     pub fn is_composing(&self) -> bool {
+@@ -505,7 +514,7 @@ impl SourceSession {
+         self.events.drain(..)
+     }
+     fn admit(&self) -> Result<(), EditError> {
+-        if self.readonly {
++        if self.is_readonly() {
+             return Err(EditError::Readonly);
+         }
+         if self.composition.is_some() {
+@@ -850,7 +859,7 @@ impl SourceSession {
+         }
+         let action = crate::keys::standard_action(platform, event);
+         // Navigation/copy is allowed in readonly, but never clipboard cut/paste.
+-        if (self.readonly || view_readonly) && !crate::interaction::readonly_field_key(event) {
++        if (self.is_readonly() || view_readonly) && !crate::interaction::readonly_field_key(event) {
+             return Ok(StepResult::default());
+         }
+         if self.composition.is_some() {
+@@ -889,7 +898,7 @@ impl SourceSession {
+             }
+         }
+         let mut event = event.clone();
+-        if self.readonly || view_readonly || passive {
++        if self.is_readonly() || view_readonly || passive {
+             event.text = None;
+         }
+         if self.selections.ranges().len() > 1 && origin != EditOrigin::Ime {
+@@ -1223,6 +1232,10 @@ pub struct SourceDocuments {
+     documents: HashMap<DocumentId, SourceSession>,
+ }
+ impl SourceDocuments {
++    /// Exact retained native identities for host protection coverage checks.
++    pub fn ids(&self) -> impl Iterator<Item = DocumentId> + '_ {
++        self.documents.keys().copied()
++    }
+     /// Open exact source bytes with revision zero and empty history.
+     pub fn open(&mut self, text: impl Into<String>) -> DocumentId {
+         static NEXT: AtomicU64 = AtomicU64::new(1);
+@@ -1252,6 +1265,7 @@ impl SourceDocuments {
+                 edits: Vec::new(),
+                 active_view: None,
+                 readonly: false,
++                freeze: Default::default(),
+                 policy_epoch: 0,
+                 composition: None,
+                 events: VecDeque::new(),
+@@ -1482,7 +1496,7 @@ pub fn project_source(world: &mut World, entity: Entity) {
+     });
+     let text = (!unchanged).then(|| doc.share_text());
+     let revision = doc.revision;
+-    let readonly = doc.readonly;
++    let readonly = doc.is_readonly();
+     let generation = doc.generation();
+     let mapped_anchor = world
+         .get::<SourceProjection>(entity)
+@@ -1702,7 +1716,7 @@ pub fn prepare_source_input(world: &mut World) {
+                 && owner.is_none()
+                 && focused == Some(entity)
+                 && preedit
+-                && !doc.readonly
++                && !doc.is_readonly()
+                 && doc.composition.is_none()
+             {
+                 // Native composition has exactly one captured range. Collapse
+diff --git a/crates/rndr_core/src/freeze.rs b/crates/rndr_core/src/freeze.rs
+new file mode 100644
+index 0000000..c8a7eaa
+--- /dev/null
++++ b/crates/rndr_core/src/freeze.rs
+@@ -0,0 +1,31 @@
++//! Host close protection at native document writers, independent of readonly UI policy.
++use std::sync::{
++    atomic::{AtomicUsize, Ordering},
++    Arc,
++};
++
++#[derive(Debug, Default)]
++pub(crate) struct FreezeState(Arc<AtomicUsize>);
++impl FreezeState {
++    pub(crate) fn active(&self) -> bool {
++        self.0.load(Ordering::Acquire) != 0
++    }
++    pub(crate) fn acquire(&self) -> Option<DocumentFreeze> {
++        self.0
++            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| n.checked_add(1))
++            .ok()?;
++        Some(DocumentFreeze(self.0.clone()))
++    }
++}
++/// Owned content/history admission freeze. Reads and selection remain available.
++/// Dropping the final lease reopens writers without changing bytes/revisions/history.
++/// Keep this with the host's protection attempt through failure and native Ready.
++/// Not a durability receipt; cannot be forged, cloned or disabled by set_readonly.
++#[derive(Debug)]
++#[must_use = "retain through protection, including Failed and native Ready"]
++pub struct DocumentFreeze(Arc<AtomicUsize>);
++impl Drop for DocumentFreeze {
++    fn drop(&mut self) {
++        self.0.fetch_sub(1, Ordering::AcqRel);
++    }
++}
+diff --git a/crates/rndr_core/src/lib.rs b/crates/rndr_core/src/lib.rs
+index bb25502..3641e5b 100644
+--- a/crates/rndr_core/src/lib.rs
++++ b/crates/rndr_core/src/lib.rs
+@@ -82,6 +82,8 @@ mod chrome;
+ mod clipboard;
+ pub mod clock;
+ mod close;
++mod freeze;
++pub use freeze::DocumentFreeze;
+ mod compose;
+ mod cursor;
+ mod decor;
+diff --git a/crates/rndr_core/src/structured.rs b/crates/rndr_core/src/structured.rs
+index 674ff51..54f989f 100644
+--- a/crates/rndr_core/src/structured.rs
++++ b/crates/rndr_core/src/structured.rs
+@@ -507,6 +507,7 @@ pub struct StructuredDocument {
+     state: State,
+     next_block: u64,
+     readonly: bool,
++    freeze: crate::freeze::FreezeState,
+     policy_epoch: u64,
+     atomic_lifetimes: std::collections::HashMap<BlockId, u64>,
+     next_atomic_lifetime: u64,
+@@ -552,6 +553,7 @@ impl StructuredDocument {
+                 selection: StructuredSelection::Text(TextSelection { anchor: p, head: p }),
+             },
+             readonly: false,
++            freeze: Default::default(),
+             policy_epoch: 0,
+             atomic_lifetimes: Default::default(),
+             next_atomic_lifetime: 1,
+@@ -639,7 +641,18 @@ impl StructuredDocument {
+     }
+     /// Whether all content/history mutations are refused.
+     pub fn is_readonly(&self) -> bool {
+-        self.readonly
++        self.readonly || self.freeze.active()
++    }
++    /// Whether an owned host protection currently freezes this authority.
++    pub fn is_frozen(&self) -> bool {
++        self.freeze.active()
++    }
++    /// Freeze all native content/history admission; live composition must end first.
++    pub fn freeze(&self) -> Result<crate::DocumentFreeze, StructuredError> {
++        if self.is_composing() {
++            return Err(StructuredError::CompositionActive);
++        }
++        self.freeze.acquire().ok_or(StructuredError::Readonly)
+     }
+     /// Set readonly; enabling it also cancels any transient composition capture.
+     pub fn set_readonly(&mut self, value: bool) {
+@@ -710,7 +723,7 @@ impl StructuredDocument {
+         if tx.base != self.revision {
+             return Err(StructuredError::StaleRevision);
+         }
+-        if self.readonly {
++        if self.is_readonly() {
+             return Err(StructuredError::Readonly);
+         }
+         if self.is_composing() {
+@@ -868,7 +881,7 @@ impl StructuredDocument {
+                 return self.command(vec![], origin);
+             }
+             if self.state.blocks[i - 1].is_atomic() {
+-                if self.readonly {
++                if self.is_readonly() {
+                     return Err(StructuredError::Readonly);
+                 }
+                 self.set_selection(StructuredSelection::Node(self.state.blocks[i - 1].id))?;
+@@ -917,7 +930,7 @@ impl StructuredDocument {
+                 return self.command(vec![], origin);
+             }
+             if self.state.blocks[i + 1].is_atomic() {
+-                if self.readonly {
++                if self.is_readonly() {
+                     return Err(StructuredError::Readonly);
+                 }
+                 self.set_selection(StructuredSelection::Node(self.state.blocks[i + 1].id))?;
+@@ -968,7 +981,7 @@ impl StructuredDocument {
+                 if self.blocks().iter().any(|b| b.id == block && b.is_atomic()) =>
+             {
+                 // Whole HR replacement removes the node, then inserts into repaired caret.
+-                if self.readonly {
++                if self.is_readonly() {
+                     return Err(StructuredError::Readonly);
+                 }
+                 if self.is_composing() {
+@@ -1158,7 +1171,7 @@ impl StructuredDocument {
+         self.history(true)
+     }
+     fn history(&mut self, redo: bool) -> Result<bool, StructuredError> {
+-        if self.readonly {
++        if self.is_readonly() {
+             return Err(StructuredError::Readonly);
+         }
+         if self.is_composing() {
+@@ -1185,7 +1198,7 @@ impl StructuredDocument {
+     }
+     /// Capture typed range; preedit text belongs to the view, never this tree.
+     pub fn begin_composition(&mut self) -> Result<(), StructuredError> {
+-        if self.readonly {
++        if self.is_readonly() {
+             return Err(StructuredError::Readonly);
+         }
+         if self.is_composing() {
+diff --git a/crates/rndr_core/src/structured_native.rs b/crates/rndr_core/src/structured_native.rs
+index 5e02ef2..6fddaa8 100644
+--- a/crates/rndr_core/src/structured_native.rs
++++ b/crates/rndr_core/src/structured_native.rs
+@@ -24,6 +24,10 @@ pub struct StructuredDocuments {
+     views: HashMap<StructuredHandle, Entity>,
+ }
+ impl StructuredDocuments {
++    /// Exact retained handles for host close-protection coverage checks.
++    pub fn handles(&self) -> impl Iterator<Item = StructuredHandle> + '_ {
++        self.documents.keys().copied()
++    }
+     /// Retain an already validated tree without converting it to source text.
+     pub fn insert(&mut self, document: StructuredDocument) -> StructuredHandle {
+         static NEXT: AtomicU64 = AtomicU64::new(1);
+@@ -42,7 +46,9 @@ impl StructuredDocuments {
+     }
+     /// Close only an unattached document. Detach its view first.
+     pub fn remove(&mut self, handle: StructuredHandle) -> Option<StructuredDocument> {
+-        if self.views.contains_key(&handle) {
++        if self.views.contains_key(&handle)
++            || self.documents.get(&handle).is_some_and(|d| d.is_frozen())
++        {
+             return None;
+         }
+         self.documents.remove(&handle)
+diff --git a/crates/rndr_flow/src/lib.rs b/crates/rndr_flow/src/lib.rs
+index a23b9e3..b7720ae 100644
+--- a/crates/rndr_flow/src/lib.rs
++++ b/crates/rndr_flow/src/lib.rs
+@@ -17,7 +17,13 @@
+ 
+ #[cfg(test)]
+ mod f4_tests;
++mod history;
++mod protection;
+ mod request;
++mod topology;
++pub use history::*;
++pub use protection::*;
++pub use topology::*;
+ mod transition;
+ mod work;
+ pub use request::*;
+@@ -328,6 +334,7 @@ struct Scope {
+     children: BTreeSet<ScopeId>,
+     lanes: BTreeMap<LaneKey, request::Lane>,
+     work: BTreeSet<u64>,
++    topology_freeze: Arc<AtomicU64>,
+ }
+ 
+ #[derive(Clone, Copy)]
+@@ -438,6 +445,7 @@ impl Coordinator {
+                 children: BTreeSet::new(),
+                 lanes: BTreeMap::new(),
+                 work: BTreeSet::new(),
++                topology_freeze: Arc::new(AtomicU64::new(0)),
+             },
+         );
+         Ok((
+@@ -512,6 +520,7 @@ impl Coordinator {
+                 children: BTreeSet::new(),
+                 lanes: BTreeMap::new(),
+                 work: BTreeSet::new(),
++                topology_freeze: Arc::new(AtomicU64::new(0)),
+             },
+         );
+         self.scopes.get_mut(&parent).unwrap().children.insert(id);
+@@ -526,6 +535,13 @@ impl Coordinator {
+         self.create(parent, Role::Scope)
+     }
+     pub fn register_world(&mut self) -> Result<WorldOwner, Error> {
++        if self.scopes[&self.root]
++            .topology_freeze
++            .load(Ordering::Acquire)
++            != 0
++        {
++            return Err(Error::Pending);
++        }
+         self.create(self.root, Role::World).map(WorldOwner)
+     }
+     pub fn create_document(&mut self) -> Result<DocumentId, Error> {
+@@ -547,7 +563,14 @@ impl Coordinator {
+         document: DocumentId,
+     ) -> Result<PresentationLease, Error> {
+         self.live_scope(scope)?;
+-        self.live_scope(document.0)?;
++        if self
++            .live_scope(document.0)?
++            .topology_freeze
++            .load(Ordering::Acquire)
++            != 0
++        {
++            return Err(Error::Pending);
++        }
+         if self.live_scope(scope)?.role == Role::Document {
+             return Err(Error::Invalid);
+         }
+@@ -590,6 +613,13 @@ impl Coordinator {
+         {
+             return Err(Error::InUse);
+         }
++        if self
++            .scopes
++            .get(&document.0)
++            .is_some_and(|s| s.topology_freeze.load(Ordering::Acquire) != 0)
++        {
++            return Err(Error::Pending);
++        }
+         self.dispose_internal(document.0)
+     }
+     pub fn set_visibility(&mut self, id: ScopeId, next: State) -> Result<(), Error> {

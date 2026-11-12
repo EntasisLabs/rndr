@@ -1,0 +1,33 @@
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_flow)
+    Finished `test` profile [unoptimized] target(s) in 1.86s
+     Running tests/f5_independent_seam_boundaries.rs (target/debug/deps/f5_independent_seam_boundaries-b6ad4e6324cab05c)
+
+running 9 tests
+test fabricated_guard_request_is_not_actual_runner_participation ... SEAM participation A_closed=true B_active=false B_closed=false
+
+thread 'fabricated_guard_request_is_not_actual_runner_participation' (4051084) panicked at crates/rndr_flow/tests/f5_independent_seam_boundaries.rs:32:5:
+manager A must survive non-closing B's held A presentation; Session seam must supply actual participation
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test runner::tests::failure_never_exits_or_destroys_in_memory_text_retry_drains ... ok
+test runner::tests::mutation_after_completion_invalidates_ready_before_destruction ... ok
+test runner::tests::ordinary_apps_keep_primary_secondary_and_quit_behavior ... ok
+test runner::tests::pending_cancel_quit_is_consumed_and_stale_success_rejected ... ok
+test runner::tests::process_exit_waits_for_secondary_and_cancel_resets_all ... ok
+test runner::tests::secondary_failure_explicit_discard_closes_only_that_window ... ok
+test runner::tests::unguarded_primary_cannot_destroy_guarded_secondary_or_new_window ... ok
+test secondary_tentative_close_must_be_withdrawable_after_callback ... SEAM post-callback closed=true guard=Pending(CloseRequest(19))
+
+thread 'secondary_tentative_close_must_be_withdrawable_after_callback' (4051092) panicked at crates/rndr_flow/tests/f5_independent_seam_boundaries.rs:47:5:
+a later guard recheck alone does not clear the sticky secondary destruction flag
+FAILED
+
+failures:
+
+failures:
+    fabricated_guard_request_is_not_actual_runner_participation
+    secondary_tentative_close_must_be_withdrawable_after_callback
+
+test result: FAILED. 7 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p rndr-flow --test f5_independent_seam_boundaries`

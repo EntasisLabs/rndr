@@ -1,0 +1,396 @@
+/// [`Session::new`] is the window `run` opens. [`Session::window`] adds another
+/// app, with its own world and surface. [`rndr_core::Desktop::open`] can add more after
+/// the loop has started. Closing the first window exits. Closing a later
+/// window removes only that window. [`Input::quit`] on any window exits.
+/// An opt-in [`rndr_core::CloseGuard`] delays either path until protection is
+/// ready. Process exit drains every window, including hidden/secondary windows.
+///
+/// # Panics
+///
+/// Panics if the process cannot create the event loop or a window, or if the
+/// loop returns an error. A redraw after a window exists also panics if that
+/// surface was not created.
+pub struct Session {
+    apps: Vec<App>,
+}
+
+impl Session {
+    /// A session whose first window is `app`.
+    pub fn new(app: App) -> Self {
+        Self { apps: vec![app] }
+    }
+
+    /// Queue `app` as another window, created when [`Session::run`] starts.
+    pub fn window(mut self, app: App) -> Self {
+        self.apps.push(app);
+        self
+    }
+
+    /// Block on the desktop event loop until the session exits.
+    pub fn run(self) {
+        run_apps(self.apps);
+    }
+}
+
+/// Block on the desktop event loop. Core stays headless; this is the only winit caller.
+///
+/// Returns when the window is closed, [`rndr_core::Input::quit`] is set, or a
+/// tray item built to quit the process fires. Hide leaves the process running.
+/// This is [`Session::new`]`(app).`[`Session::run`]`()`.
+///
+/// # Panics
+    fn reconcile_close(&mut self, event_loop: &dyn ActiveEventLoop) {
+        // Updates (including hidden frames) and build closures may queue opens.
+        // Admit one batch before checking guards. Recursive opens stay queued
+        // and prevent commitment; their wake schedules another bounded pass.
+        self.spawn_windows(event_loop);
+        let exit = self.close.step(
+            self.slots
+                .iter_mut()
+                .map(|slot| (slot.app.world_mut(), &mut slot.close, slot.primary)),
+        );
+        if exit {
+            // No application code may run between guard validation and the
+            // atomic queue/admission commitment. An open racing this check
+            // either joins the drain or occurs after shutdown was committed.
+            if self.hub.try_commit_exit() {
+                event_loop.exit();
+            } else {
+                self.wake.wake();
+            }
+            return;
+        }
+        for slot in &mut self.slots {
+            if std::mem::take(&mut slot.close.needs_frame) {
+                if rndr_core::window::is_visible(slot.app.world()) {
+                    slot.request_redraw();
+                } else {
+                    // A newly requested hidden gate still needs a system pass,
+                    // even with no queued task or redraw to wake it.
+                    slot.run_hidden_frame(event_loop);
+                }
+            }
+        }
+        self.slots.retain(|slot| !slot.close.closed);
+        if self.slots.is_empty() && self.hub.try_commit_exit() {
+            event_loop.exit();
+        }
+    }
+
+    fn spawn_windows(&mut self, event_loop: &dyn ActiveEventLoop) {
+        self.pen.install();
+        for open in self.hub.take_opens() {
+            let mut app = App::new();
+            app.world_mut().insert_resource(open.config.clone());
+            let desktop = self.hub.attach();
+            let desktop_id = desktop.id();
+            app.world_mut().insert_resource(desktop);
+            app.set_wake(Arc::clone(&self.wake));
+            app.set_live_wake(Arc::new(LiveProxyWake {
+                bus: self.bus.clone(),
+            }));
+            app.set_executor(Arc::clone(&self.executor));
+            install_text_engine(&mut app);
+            (open.build)(&mut app);
+            let config = WindowConfig::get(app.world());
+            self.slots.push(Handler::new(
+                app,
+                config,
+                false,
+                desktop_id,
+                self.pen.clone(),
+                self.bus.clone(),
+            ));
+        }
+        for incoming in std::mem::take(&mut self.lifecycle) {
+            self.deliver(incoming);
+        }
+        #[cfg(target_os = "macos")]
+        lifecycle::install_reopen();
+        #[cfg(target_os = "macos")]
+        native_quit::configure(
+            self.slots
+    fn about_to_wait(&mut self, event_loop: &dyn ActiveEventLoop) {
+        // winit can finish dispatching a batch after exit() is called. Once
+        // committed, no later callback may update a Ready world or build opens.
+        if event_loop.exiting() {
+            return;
+        }
+        self.spawn_windows(event_loop);
+        for slot in &mut self.slots {
+            slot.install_gpu_if_ready();
+            slot.pump_shell(event_loop);
+            let hidden = !rndr_core::window::is_visible(slot.app.world());
+            let tray_pending = slot.primary
+                && (rndr_core::tray::pending(slot.app.world())
+                    || rndr_core::app_menu_pending(slot.app.world()));
+            if hidden && (slot.app.wants_frame() || tray_pending) {
+                slot.run_hidden_frame(event_loop);
+            }
+        }
+        self.reconcile_close(event_loop);
+        self.sync_flow(event_loop);
+    }
+
+    fn window_event(
+        &mut self,
+        event_loop: &dyn ActiveEventLoop,
+        window_id: WindowId,
+        event: WindowEvent,
+    ) {
+        if event_loop.exiting() {
+            return;
+        }
+        if let Some(slot) = self
+            .slots
+            .iter_mut()
+            .find(|slot| slot.winit_id == Some(window_id))
+        {
+            slot.window_event(event_loop, window_id, event);
+        }
+        self.reconcile_close(event_loop);
+    }
+}
+//! Runner close coordination, kept independent of native/GPU objects for tests.
+use rndr_core::{CloseGuard, CloseState, Input, World};
+
+#[derive(Default)]
+pub(crate) struct CloseSlot {
+    pub requested: bool,
+    pub active: bool,
+    pub closed: bool,
+    pub needs_frame: bool,
+}
+
+#[derive(Default)]
+pub(crate) struct CloseDrain {
+    exiting: bool,
+}
+
+impl CloseDrain {
+    /// Primary window close and quit from any window drain *all* windows.
+    /// No world is destroyed until every participating guard is Ready.
+    pub fn step<'a>(
+        &mut self,
+        slots: impl IntoIterator<Item = (&'a mut World, &'a mut CloseSlot, bool)>,
+    ) -> bool {
+        let mut slots: Vec<_> = slots.into_iter().collect();
+        for (world, close, primary) in &mut slots {
+            let quit = world.resource_mut::<Input>().is_some_and(|input| {
+                let quit = input.quit;
+                input.quit = false; // consume the edge; Cancel must not immediately re-arm
+                quit
+            });
+            self.exiting |= quit || (*primary && close.requested);
+        }
+        for (world, close, _) in &mut slots {
+            if (self.exiting || close.requested) && !close.active {
+                close.active = true;
+                close.needs_frame = true;
+                if let Some(guard) = world.resource_mut::<CloseGuard>() {
+                    guard.request();
+                }
+            }
+            close.requested = false;
+        }
+        let cancelled = slots.iter().any(|(world, close, _)| {
+            close.active
+                && world
+                    .resource::<CloseGuard>()
+                    .is_some_and(|g| matches!(g.state(), CloseState::Idle))
+        });
+        if self.exiting && cancelled {
+            // A cancel in any window cancels the whole process-exit transaction.
+            self.exiting = false;
+            for (world, close, _) in &mut slots {
+                close.active = false;
+                close.needs_frame = true;
+                if let Some(guard) = world.resource_mut::<CloseGuard>() {
+                    guard.cancel();
+                }
+            }
+            return false;
+        }
+        let ready = |world: &World| {
+            world
+                .resource::<CloseGuard>()
+                .is_none_or(|g| matches!(g.state(), CloseState::Ready(_)))
+        };
+        if self.exiting {
+            return slots.iter().all(|(world, _, _)| ready(world));
+        }
+        for (world, close, _) in &mut slots {
+            if close.active {
+                if world
+                    .resource::<CloseGuard>()
+                    .is_some_and(|g| matches!(g.state(), CloseState::Idle))
+                {
+                    close.active = false;
+                } else if ready(world) {
+                    close.closed = true;
+                }
+            }
+        }
+        false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rndr_core::{App, CloseRequest};
+
+263:pub fn configured_hotkey<I, S>(args: I) -> String
+273:pub fn select_hotkey<I, S>(args: I, env: Option<&str>) -> String
+306:pub fn register(
+319:pub fn toggle_window(
+342:pub struct Session {
+348:    pub fn new(app: App) -> Self {
+353:    pub fn window(mut self, app: App) -> Self {
+359:    pub fn run(self) {
+375:pub fn run(app: App) {
+2700:    fn reconcile_close(&mut self, event_loop: &dyn ActiveEventLoop) {
+2929:        self.reconcile_close(event_loop);
+2949:        self.reconcile_close(event_loop);
+2692-                rndr_core::window::focus(world);
+2693-                rndr_core::push_reopened(world);
+2694-            }
+2695-        }
+2696-        slot.full_pending = true;
+2697-        slot.request_redraw();
+2698-    }
+2699-
+2700:    fn reconcile_close(&mut self, event_loop: &dyn ActiveEventLoop) {
+2701-        // Updates (including hidden frames) and build closures may queue opens.
+2702-        // Admit one batch before checking guards. Recursive opens stay queued
+2703-        // and prevent commitment; their wake schedules another bounded pass.
+2704-        self.spawn_windows(event_loop);
+2705-        let exit = self.close.step(
+2706-            self.slots
+2707-                .iter_mut()
+2708-                .map(|slot| (slot.app.world_mut(), &mut slot.close, slot.primary)),
+2709-        );
+2710-        if exit {
+2711-            // No application code may run between guard validation and the
+2712-            // atomic queue/admission commitment. An open racing this check
+2713-            // either joins the drain or occurs after shutdown was committed.
+2714-            if self.hub.try_commit_exit() {
+2715-                event_loop.exit();
+2716-            } else {
+2717-                self.wake.wake();
+2718-            }
+--
+2921-            let hidden = !rndr_core::window::is_visible(slot.app.world());
+2922-            let tray_pending = slot.primary
+2923-                && (rndr_core::tray::pending(slot.app.world())
+2924-                    || rndr_core::app_menu_pending(slot.app.world()));
+2925-            if hidden && (slot.app.wants_frame() || tray_pending) {
+2926-                slot.run_hidden_frame(event_loop);
+2927-            }
+2928-        }
+2929:        self.reconcile_close(event_loop);
+2930-        self.sync_flow(event_loop);
+2931-    }
+2932-
+2933-    fn window_event(
+2934-        &mut self,
+2935-        event_loop: &dyn ActiveEventLoop,
+2936-        window_id: WindowId,
+2937-        event: WindowEvent,
+2938-    ) {
+2939-        if event_loop.exiting() {
+2940-            return;
+2941-        }
+2942-        if let Some(slot) = self
+2943-            .slots
+2944-            .iter_mut()
+2945-            .find(|slot| slot.winit_id == Some(window_id))
+2946-        {
+2947-            slot.window_event(event_loop, window_id, event);
+2948-        }
+2949:        self.reconcile_close(event_loop);
+2950-    }
+2951-}
+2952-
+2953-#[cfg(test)]
+2954-mod tests {
+2955-    #[test]
+2956-    fn browser_platform_follows_the_host_os() {
+2957-        use super::browser_platform;
+2958-        use rndr_core::Platform;
+2959-        let mac = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/131.0 Safari/537.36";
+2960-        let iphone = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15";
+2961-        let windows = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0";
+2962-        let linux = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0";
+2963-        assert_eq!(browser_platform(mac), Platform::Mac);
+2964-        assert_eq!(browser_platform(iphone), Platform::Mac);
+2965-        assert_eq!(browser_platform(windows), Platform::Windows);
+2966-        assert_eq!(browser_platform(linux), Platform::X11);
+2967-        assert_eq!(browser_platform(""), Platform::X11);
+            for slot in &mut self.slots {
+                slot.install_gpu_if_ready();
+                let drew = slot.pump_shell(event_loop);
+                // A live wake names no window; only those with work redraw.
+                let idle = live && !drew && !slot.app.wants_frame();
+                if slot.has_layer() {
+                    if rndr_core::window::is_visible(slot.app.world()) {
+                        if !drew && !idle {
+                            slot.on_redraw(event_loop);
+                        }
+                    } else if slot.primary || slot.app.wants_frame() {
+                        slot.run_hidden_frame(event_loop);
+                    }
+                    continue;
+                }
+                if rndr_core::window::is_visible(slot.app.world()) {
+                    if !idle {
+                        slot.request_redraw();
+                    }
+                } else if slot.primary || slot.app.wants_frame() {
+                    slot.run_hidden_frame(event_loop);
+                }
+            }
+        }
+    }
+
+    fn about_to_wait(&mut self, event_loop: &dyn ActiveEventLoop) {
+        // winit can finish dispatching a batch after exit() is called. Once
+        // committed, no later callback may update a Ready world or build opens.
+        if event_loop.exiting() {
+            return;
+        }
+        self.spawn_windows(event_loop);
+        for slot in &mut self.slots {
+            slot.install_gpu_if_ready();
+            slot.pump_shell(event_loop);
+            let hidden = !rndr_core::window::is_visible(slot.app.world());
+            let tray_pending = slot.primary
+                && (rndr_core::tray::pending(slot.app.world())
+                    || rndr_core::app_menu_pending(slot.app.world()));
+            if hidden && (slot.app.wants_frame() || tray_pending) {
+                slot.run_hidden_frame(event_loop);
+            }
+        }
+        self.reconcile_close(event_loop);
+        self.sync_flow(event_loop);
+    }
+
+    fn window_event(
+        &mut self,
+        event_loop: &dyn ActiveEventLoop,
+        window_id: WindowId,
+        event: WindowEvent,
+    ) {
+        if event_loop.exiting() {
+            return;
+        }
+        if let Some(slot) = self
+            .slots
+            .iter_mut()
+            .find(|slot| slot.winit_id == Some(window_id))
+        {
+            slot.window_event(event_loop, window_id, event);
+        }
+        self.reconcile_close(event_loop);
+    }
+}
