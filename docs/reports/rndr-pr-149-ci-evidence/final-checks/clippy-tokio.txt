@@ -1,0 +1,4 @@
+$ cargo clippy --offline --locked -p rndr_core --features tokio --all-targets -- -D warnings
+    Finished `dev` profile [unoptimized] target(s) in 0.10s
+
+exit=0

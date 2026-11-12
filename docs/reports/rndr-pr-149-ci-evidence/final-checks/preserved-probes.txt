@@ -1,0 +1,65 @@
+$ sh docs/reports/rndr-flow-f5-seam-evidence/run-preserved-probes.sh 6698b63cdf11ab7054f431be5bdebe9b6028edc9
+PRESERVED_PROBE=docs/reports/rndr-flow-f5-independent-evidence/adversarial.rs SOURCE=6698b63cdf11ab7054f431be5bdebe9b6028edc9
+998eaf8c25ee4daaba7afd1d962ce402a9ea0239248314dc44748b44274eabf4  docs/reports/rndr-flow-f5-independent-evidence/adversarial.rs
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-pr-149-ci-repair/crates/rndr_flow)
+    Finished `test` profile [unoptimized] target(s) in 0.39s
+     Running tests/f5_seam_preserved_probe.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/f5_seam_preserved_probe-1c624b7d52bd1033)
+
+running 13 tests
+test manager_cohort_must_be_transitively_consumable ... cohort guards A=Pending(CloseRequest(1)) B=Pending(CloseRequest(2))
+cohort runner closed A=false B=false unrelated_primary=false
+ok
+test omitted_world_on_native_save_choice_must_retain_freeze ... omitted-world result=Err(Pending) freeze=true decision=Some(DecisionId { operation: OperationId { authority: 6, serial: 1 }, round: 1 }) native=Pending(CloseRequest(3))
+ok
+test omitted_world_sync_positive_control ... ok
+test replacement_owner_loss_must_refuse_before_commit ... replacement-loss phase=Some(Failed) selected=Ok(Some(ScopeId { authority: 10, serial: 5 })) new_state=Disposed old_state=Visible
+ok
+test route_destructor_submission_is_outside_inbox_borrow_and_revalidates ... ok
+test runner::tests::failure_never_exits_or_destroys_in_memory_text_retry_drains ... ok
+test runner::tests::mutation_after_completion_invalidates_ready_before_destruction ... ok
+test runner::tests::ordinary_apps_keep_primary_secondary_and_quit_behavior ... ok
+test runner::tests::pending_cancel_quit_is_consumed_and_stale_success_rejected ... ok
+test runner::tests::process_exit_waits_for_secondary_and_cancel_resets_all ... ok
+test runner::tests::secondary_failure_explicit_discard_closes_only_that_window ... ok
+test runner::tests::unguarded_primary_cannot_destroy_guarded_secondary_or_new_window ... ok
+test same_document_replacement_loss_positive_control ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+PRESERVED_PROBE=docs/reports/rndr-flow-f5-rereview-evidence/additional.rs SOURCE=6698b63cdf11ab7054f431be5bdebe9b6028edc9
+7c5e55d73924f07def9b8d88e73dcdc79c24162f7d142b27a34b2bdc53eef041  docs/reports/rndr-flow-f5-rereview-evidence/additional.rs
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-pr-149-ci-repair/crates/rndr_flow)
+    Finished `test` profile [unoptimized] target(s) in 0.29s
+     Running tests/f5_seam_preserved_probe.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/f5_seam_preserved_probe-1c624b7d52bd1033)
+
+running 4 tests
+test decoy_matching_lease_cannot_bless_wrong_owned_allocation ... ok
+test late_incoming_native_identity_loss_is_atomic_across_save_and_discard ... ok
+test omitted_owned_result_is_technical_loss_not_cancel ... ok
+test queued_select_lost_destination_keeps_current_selection ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+PRESERVED_PROBE=docs/reports/rndr-flow-f5-rereview-evidence/seam-boundaries.rs SOURCE=6698b63cdf11ab7054f431be5bdebe9b6028edc9
+256aa8034637952ed10d202e62ddf1b2545955b9aa7f2200b78762a79bfaa9f4  docs/reports/rndr-flow-f5-rereview-evidence/seam-boundaries.rs
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-pr-149-ci-repair/crates/rndr_flow)
+    Finished `test` profile [unoptimized] target(s) in 0.32s
+     Running tests/f5_seam_preserved_probe.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/f5_seam_preserved_probe-1c624b7d52bd1033)
+
+running 9 tests
+test fabricated_guard_request_is_not_actual_runner_participation ... SEAM participation A_closed=false B_active=false B_closed=false
+ok
+test runner::tests::failure_never_exits_or_destroys_in_memory_text_retry_drains ... ok
+test runner::tests::mutation_after_completion_invalidates_ready_before_destruction ... ok
+test runner::tests::ordinary_apps_keep_primary_secondary_and_quit_behavior ... ok
+test runner::tests::pending_cancel_quit_is_consumed_and_stale_success_rejected ... ok
+test runner::tests::process_exit_waits_for_secondary_and_cancel_resets_all ... ok
+test runner::tests::secondary_failure_explicit_discard_closes_only_that_window ... ok
+test runner::tests::unguarded_primary_cannot_destroy_guarded_secondary_or_new_window ... ok
+test secondary_tentative_close_must_be_withdrawable_after_callback ... SEAM post-callback closed=false guard=Pending(CloseRequest(19))
+ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+exit=0

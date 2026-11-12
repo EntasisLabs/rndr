@@ -1,0 +1,36 @@
+$ cargo clippy --offline --locked -p rndr_render -p rndr --features dialog --all-targets -- -D warnings
+    Checking objc2-core-foundation v0.3.2
+    Checking objc2-foundation v0.3.2
+    Checking objc2-core-graphics v0.3.2
+   Compiling rustix v1.1.5
+    Checking objc2-app-kit v0.3.2
+    Checking objc2-metal v0.3.2
+    Checking objc2-quartz-core v0.3.2
+    Checking raw-window-metal v1.1.0
+    Checking wgpu-hal v30.0.1
+    Checking objc2-core-text v0.3.2
+    Checking dispatch2 v0.3.1
+    Checking fontique v0.12.0
+    Checking winit-common v0.31.0-beta.4
+    Checking wgpu-core-deps-apple v30.0.1
+    Checking objc2-core-video v0.3.2
+   Compiling rfd v0.15.4
+    Checking parley_engine v0.12.0
+    Checking winit-appkit v0.31.0-beta.4
+    Checking muda v0.21.2
+    Checking wgpu-core v30.0.1
+    Checking gethostname v1.1.0
+   Compiling rndr_render v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-pr-149-ci-repair/crates/rndr_render)
+    Checking x11rb v0.13.2
+    Checking zbus v5.19.0
+    Checking arboard v3.7.0
+    Checking wgpu v30.0.1
+    Checking tray-icon v0.26.1
+    Checking winit v0.31.0-beta.4
+    Checking parley v0.12.0
+    Checking rndr v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-pr-149-ci-repair/crates/rndr)
+    Checking tempfile v3.27.0
+    Checking insta v1.49.0
+    Finished `dev` profile [unoptimized] target(s) in 17.26s
+
+exit=0

@@ -1,0 +1,12 @@
+$ cargo test --offline --locked -p rndr_render --no-default-features --test close_validator_api
+   Compiling rndr_render v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-pr-149-ci-repair/crates/rndr_render)
+    Finished `test` profile [unoptimized] target(s) in 1.94s
+     Running tests/close_validator_api.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/close_validator_api-8653ad78d90d22c7)
+
+running 1 test
+test external_consumer_can_configure_opt_in_hook_without_native_objects ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+exit=0

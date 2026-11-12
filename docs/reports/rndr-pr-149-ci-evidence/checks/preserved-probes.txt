@@ -1,0 +1,139 @@
+$ sh docs/reports/rndr-flow-f5-seam-evidence/run-preserved-probes.sh 43a0e83394ac80a9ac35bcffde479bef4d71cfd1
+diff --git a/crates/rndr_core/src/freeze.rs b/crates/rndr_core/src/freeze.rs
+index c8a7eaa..cf83a93 100644
+--- a/crates/rndr_core/src/freeze.rs
++++ b/crates/rndr_core/src/freeze.rs
+@@ -12,7 +12,7 @@ impl FreezeState {
+     }
+     pub(crate) fn acquire(&self) -> Option<DocumentFreeze> {
+         self.0
+-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| n.checked_add(1))
++            .try_update(Ordering::AcqRel, Ordering::Acquire, |n| n.checked_add(1))
+             .ok()?;
+         Some(DocumentFreeze(self.0.clone()))
+     }
+@@ -29,3 +29,52 @@ impl Drop for DocumentFreeze {
+         self.0.fetch_sub(1, Ordering::AcqRel);
+     }
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn nested_leases_reopen_only_after_final_drop() {
++        let state = FreezeState::default();
++        assert!(!state.active());
++        let first = state.acquire().unwrap();
++        let second = state.acquire().unwrap();
++        assert_eq!(state.0.load(Ordering::Acquire), 2);
++        drop(first);
++        assert!(state.active());
++        drop(second);
++        assert!(!state.active());
++    }
++
++    #[test]
++    fn exhausted_count_refuses_without_wrapping() {
++        let state = FreezeState(Arc::new(AtomicUsize::new(usize::MAX - 1)));
++        let final_lease = state.acquire().unwrap();
++        assert!(state.acquire().is_none());
++        assert_eq!(state.0.load(Ordering::Acquire), usize::MAX);
++        assert!(state.active());
++        drop(final_lease);
++        assert_eq!(state.0.load(Ordering::Acquire), usize::MAX - 1);
++    }
++
++    #[test]
++    fn concurrent_leases_preserve_count() {
++        let state = FreezeState::default();
++        let barrier = std::sync::Barrier::new(8);
++        std::thread::scope(|scope| {
++            for _ in 0..8 {
++                let state = &state;
++                let barrier = &barrier;
++                scope.spawn(move || {
++                    let lease = state.acquire().unwrap();
++                    barrier.wait();
++                    assert_eq!(state.0.load(Ordering::Acquire), 8);
++                    barrier.wait();
++                    drop(lease);
++                });
++            }
++        });
++        assert!(!state.active());
++    }
++}
+diff --git a/crates/rndr_core/src/structured/text_ops.rs b/crates/rndr_core/src/structured/text_ops.rs
+index 7be690d..8223c7d 100644
+--- a/crates/rndr_core/src/structured/text_ops.rs
++++ b/crates/rndr_core/src/structured/text_ops.rs
+@@ -9,8 +9,13 @@ pub(super) fn set_range_marks(
+ ) -> Result<(), StructuredError> {
+     valid_marks(&marks)?;
+     let (first, last) = ordered(state, range)?;
+-    for block_index in first.0..=last.0 {
+-        let block = &state.blocks[block_index];
++    for (block_index, block) in state
++        .blocks
++        .iter_mut()
++        .enumerate()
++        .take(last.0 + 1)
++        .skip(first.0)
++    {
+         let start = if block_index == first.0 { first.1 } else { 0 };
+         let end = if block_index == last.0 {
+             last.1
+@@ -24,7 +29,7 @@ pub(super) fn set_range_marks(
+         }
+         runs.extend(middle);
+         runs.extend(slice(block, end, block.len()));
+-        state.blocks[block_index].runs = runs;
++        block.runs = runs;
+     }
+     Ok(())
+ }
+diff --git a/crates/rndr_core/tests/structured_composer.rs b/crates/rndr_core/tests/structured_composer.rs
+index 7db7774..2a0f36d 100644
+--- a/crates/rndr_core/tests/structured_composer.rs
++++ b/crates/rndr_core/tests/structured_composer.rs
+@@ -58,6 +58,36 @@ fn toggle_marks_keep_other_marks_per_run() {
+     assert!(first.marks.code && first.marks.underline && first.marks.strong);
+ }
+ 
++#[test]
++fn marks_preserve_multiblock_endpoints_and_history() {
++    for (anchor, head) in [(6, 14), (14, 6), (6, 7)] {
++        let mut doc = StructuredDocument::new("keep\nabc\ndef\nghi\ntail");
++        let before = doc.blocks().to_vec();
++        select(&mut doc, anchor, head);
++        let selection = doc.selection();
++        let (start, end) = (anchor.min(head), anchor.max(head));
++        doc.toggle_mark(MarkKind::Strong, API).unwrap();
++        assert_eq!(doc.plain_text(), "keep\nabc\ndef\nghi\ntail");
++        assert_eq!(doc.selection(), selection);
++        let after = doc.blocks().to_vec();
++        let mut offset = 0;
++        for (original, block) in before.iter().zip(&after) {
++            assert_eq!(block.id, original.id);
++            for run in &block.runs {
++                for _ in run.text.bytes() {
++                    assert_eq!(run.marks.strong, (start..end).contains(&offset));
++                    offset += 1;
++                }
++            }
++            offset += 1; // Plain-text newline between blocks.
++        }
++        doc.undo().unwrap();
++        assert_eq!(doc.blocks(), before);
++        doc.redo().unwrap();
++        assert_eq!(doc.blocks(), after);
++    }
++}
++
+ #[test]
+ fn pills_are_atomic_for_positions_and_typing() {
+     let mut doc = StructuredDocument::new("hi  there");
+
+exit=1

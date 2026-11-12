@@ -1,0 +1,19 @@
+$ sh -c git rev-parse HEAD; rustc -Vv; cargo -V; env | grep -E "CARGO_(INCREMENTAL|BUILD_JOBS|PROFILE|TARGET_DIR)"; df -k .
+43a0e83394ac80a9ac35bcffde479bef4d71cfd1
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+binary: rustc
+commit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea
+commit-date: 2026-08-18
+host: aarch64-apple-darwin
+release: 1.98.0
+LLVM version: 22.1.8
+cargo 1.98.0 (797e8a9bc 2026-08-05)
+CARGO_BUILD_JOBS=1
+CARGO_PROFILE_TEST_DEBUG=0
+CARGO_PROFILE_DEV_DEBUG=0
+CARGO_TARGET_DIR=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target
+CARGO_INCREMENTAL=0
+Filesystem   1024-blocks      Used Available Capacity iused    ifree %iused  Mounted on
+/dev/disk3s5   239362496 204546164   5032180    98% 1937972 50321800    4%   /System/Volumes/Data
+
+exit=0

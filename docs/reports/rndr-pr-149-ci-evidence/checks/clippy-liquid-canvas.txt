@@ -1,0 +1,13 @@
+$ cargo clippy --offline --locked -p rndr --no-default-features --features liquid,canvas --all-targets -- -D warnings
+    Checking cpufeatures v0.2.17
+    Checking serde_json v1.0.154
+    Checking sha2 v0.10.9
+    Checking rndr_liquid v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-pr-149-ci-repair/crates/rndr_liquid)
+    Checking rndr_chart v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-pr-149-ci-repair/crates/rndr_chart)
+    Checking rndr_canvas v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-pr-149-ci-repair/crates/rndr_canvas)
+    Checking rndr_canvas_ui v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-pr-149-ci-repair/crates/rndr_canvas_ui)
+    Checking rndr_liquid_ui v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-pr-149-ci-repair/crates/rndr_liquid_ui)
+    Checking rndr v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-pr-149-ci-repair/crates/rndr)
+    Finished `dev` profile [unoptimized] target(s) in 3.22s
+
+exit=0

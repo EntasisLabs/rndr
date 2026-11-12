@@ -1,0 +1,10 @@
+$ cargo clippy --offline --locked -p rndr_render -p rndr -p rndr_ui --no-default-features --all-targets -- -D warnings
+    Checking rndr_core v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-pr-149-ci-repair/crates/rndr_core)
+    Checking rndr_paint v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-pr-149-ci-repair/crates/rndr_paint)
+    Checking rndr_ui v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-pr-149-ci-repair/crates/rndr_ui)
+   Compiling rndr_render v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-pr-149-ci-repair/crates/rndr_render)
+    Checking rndr_std v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-pr-149-ci-repair/crates/rndr_std)
+    Checking rndr v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-pr-149-ci-repair/crates/rndr)
+    Finished `dev` profile [unoptimized] target(s) in 9.48s
+
+exit=0

@@ -1,0 +1,878 @@
+$ cargo test --offline --locked -p rndr_liquid_ui -- --nocapture
+   Compiling rndr_liquid v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-pr-149-ci-repair/crates/rndr_liquid)
+   Compiling rndr_paint v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-pr-149-ci-repair/crates/rndr_paint)
+   Compiling rndr_chart v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-pr-149-ci-repair/crates/rndr_chart)
+   Compiling rndr_ui v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-pr-149-ci-repair/crates/rndr_ui)
+   Compiling rndr_liquid_ui v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-pr-149-ci-repair/crates/rndr_liquid_ui)
+    Finished `test` profile [unoptimized] target(s) in 12.46s
+     Running unittests src/lib.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/rndr_liquid_ui-df723a6eb09ef14c)
+
+running 25 tests
+test lifecycle::tests::checked_serial_allocator_never_aliases_on_exhaustion ... ok
+test lifecycle::tests::complete_serial_range_reservation_cannot_consume_a_partial_prefix ... ok
+test feed::retirement_tests::in_flight_settlement_follows_exact_request_through_drain_and_replacement ... ok
+
+thread 'feed::retirement_tests::reentrant_retirement_and_panicking_host_do_not_lose_later_notifications' (4233538) panicked at crates/rndr_liquid_ui/src/feed.rs:1258:21:
+retirement panic
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test feed::retirement_tests::exhausted_replacement_preserves_current_lane_and_legacy_pending_is_not_quiescent ... ok
+test feed::retirement_tests::retirement_callback_reservation_remains_charged_during_reentry ... ok
+test feed::retirement_tests::retirement_callbacks_are_tree_postorder_then_reverse_registration ... ok
+test feed::retirement_tests::retirement_budget_progresses_in_exact_finite_pumps ... ok
+test state::lifecycle_tests::listener_capacity_and_id_exhaustion_return_untouched_handler ... ok
+test feed::retirement_tests::publication_before_retirement_refresh_generation_and_foreign_world_reject ... ok
+
+thread 'state::lifecycle_tests::reserved_capacity_is_bounded_and_released_on_drop_and_unwind' (4233551) panicked at crates/rndr_liquid_ui/src/state.rs:937:13:
+host unwind
+test state::lifecycle_tests::exhausted_component_revision_refuses_without_record_or_queue_changes ... ok
+
+thread 'lifecycle::tests::transaction_reentry_poison_unwind_and_source_refusal_are_atomic' (4233546) panicked at crates/rndr_liquid_ui/src/lifecycle.rs:1507:13:
+unwind extracted publication
+
+thread 'state::lifecycle_tests::surface_filter_foreign_handle_disposal_and_panics_fail_closed' (4233552) panicked at crates/rndr_liquid_ui/src/state.rs:1032:57:
+intentional listener failure
+test state::lifecycle_tests::reserved_capacity_is_bounded_and_released_on_drop_and_unwind ... ok
+thread 'lifecycle::tests::keyed_source_refusals_and_exhaustion_leave_all_membership_untouched' (4233545) panicked at crates/rndr_liquid_ui/src/lifecycle.rs:1616:13:
+poison F2 owner
+
+test feed::retirement_tests::reentrant_retirement_and_panicking_host_do_not_lose_later_notifications ... ok
+test lifecycle::tests::transaction_reentry_poison_unwind_and_source_refusal_are_atomic ... ok
+test state::lifecycle_tests::id_snapshot_add_remove_self_remove_and_nested_fifo ... ok
+test lifecycle::tests::keyed_source_refusals_and_exhaustion_leave_all_membership_untouched ... ok
+test timer::tests::start_pause_resume_and_deadline ... ok
+test feed::retirement_tests::callback_settlement_controls_ack_unwind_and_newer_results ... ok
+test state::lifecycle_tests::queue_capacity_and_persistent_budget_have_exact_pump_counts ... ok
+test state::lifecycle_tests::surface_filter_foreign_handle_disposal_and_panics_fail_closed ... ok
+test view::admission_tests::source_capacity_refusal_preserves_stream_membership_and_diagnostics_bound ... ok
+test timer::exhaustion_tests::exhausted_timer_refuses_without_state_events_or_deadline_wrap ... ok
+test timer::exhaustion_tests::checked_absolute_deadline_exhaustion_has_no_record_or_envelope_effect ... ok
+test timer::exhaustion_tests::reentrant_schema_reset_invalidates_the_rest_of_a_captured_due_batch ... ok
+oracle seed=1 cycle=0
+F1 stream staging source_final=246314 chunks=32 copied_source_bytes=7873600 max_old_plus_candidate_source_bytes=492612
+test view::admission_tests::staged_clone_is_one_candidate_and_old_stream_is_untouched ... ok
+F1/F2 teardown seed=1 cycle=0 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=1
+F1/F2 teardown seed=1 cycle=1 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=2
+F1/F2 teardown seed=1 cycle=2 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=3
+F1/F2 teardown seed=1 cycle=3 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=4
+F1/F2 teardown seed=1 cycle=4 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=5
+F1/F2 teardown seed=1 cycle=5 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=6
+F1/F2 teardown seed=1 cycle=6 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=7
+F1/F2 teardown seed=1 cycle=7 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=8
+F1/F2 teardown seed=1 cycle=8 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=9
+F1/F2 teardown seed=1 cycle=9 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=10
+F1/F2 teardown seed=1 cycle=10 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=11
+F1/F2 teardown seed=1 cycle=11 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=12
+F1/F2 teardown seed=1 cycle=12 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=13
+F1/F2 teardown seed=1 cycle=13 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=14
+F1/F2 teardown seed=1 cycle=14 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=15
+F1/F2 teardown seed=1 cycle=15 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=16
+F1/F2 teardown seed=1 cycle=16 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=17
+F1/F2 teardown seed=1 cycle=17 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=18
+F1/F2 teardown seed=1 cycle=18 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=19
+F1/F2 teardown seed=1 cycle=19 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=20
+F1/F2 teardown seed=1 cycle=20 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=21
+F1/F2 teardown seed=1 cycle=21 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=22
+F1/F2 teardown seed=1 cycle=22 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=23
+F1/F2 teardown seed=1 cycle=23 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=24
+F1/F2 teardown seed=1 cycle=24 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=25
+F1/F2 teardown seed=1 cycle=25 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=26
+F1/F2 teardown seed=1 cycle=26 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=27
+F1/F2 teardown seed=1 cycle=27 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=28
+F1/F2 teardown seed=1 cycle=28 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=29
+F1/F2 teardown seed=1 cycle=29 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=30
+F1/F2 teardown seed=1 cycle=30 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=31
+F1/F2 teardown seed=1 cycle=31 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=32
+F1/F2 teardown seed=1 cycle=32 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=33
+F1/F2 teardown seed=1 cycle=33 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=34
+F1/F2 teardown seed=1 cycle=34 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=35
+F1/F2 teardown seed=1 cycle=35 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=36
+F1/F2 teardown seed=1 cycle=36 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=37
+F1/F2 teardown seed=1 cycle=37 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=38
+F1/F2 teardown seed=1 cycle=38 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=39
+F1/F2 teardown seed=1 cycle=39 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=40
+F1/F2 teardown seed=1 cycle=40 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=41
+F1/F2 teardown seed=1 cycle=41 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=42
+F1/F2 teardown seed=1 cycle=42 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=43
+F1/F2 teardown seed=1 cycle=43 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=44
+F1/F2 teardown seed=1 cycle=44 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=45
+F1/F2 teardown seed=1 cycle=45 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=46
+F1/F2 teardown seed=1 cycle=46 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=47
+F1/F2 teardown seed=1 cycle=47 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=48
+F1/F2 teardown seed=1 cycle=48 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=49
+F1/F2 teardown seed=1 cycle=49 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=50
+F1/F2 teardown seed=1 cycle=50 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=51
+F1/F2 teardown seed=1 cycle=51 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=52
+F1/F2 teardown seed=1 cycle=52 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=53
+F1/F2 teardown seed=1 cycle=53 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=54
+F1/F2 teardown seed=1 cycle=54 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=55
+F1/F2 teardown seed=1 cycle=55 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=56
+F1/F2 teardown seed=1 cycle=56 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=57
+F1/F2 teardown seed=1 cycle=57 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=58
+F1/F2 teardown seed=1 cycle=58 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=59
+F1/F2 teardown seed=1 cycle=59 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=60
+F1/F2 teardown seed=1 cycle=60 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=61
+F1/F2 teardown seed=1 cycle=61 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=62
+F1/F2 teardown seed=1 cycle=62 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=63
+F1/F2 teardown seed=1 cycle=63 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=64
+F1/F2 teardown seed=1 cycle=64 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=65
+F1/F2 teardown seed=1 cycle=65 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=66
+F1/F2 teardown seed=1 cycle=66 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=67
+F1/F2 teardown seed=1 cycle=67 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=68
+F1/F2 teardown seed=1 cycle=68 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=69
+F1/F2 teardown seed=1 cycle=69 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=70
+F1/F2 teardown seed=1 cycle=70 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=71
+F1/F2 teardown seed=1 cycle=71 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=72
+F1/F2 teardown seed=1 cycle=72 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=73
+F1/F2 teardown seed=1 cycle=73 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=74
+F1/F2 teardown seed=1 cycle=74 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=75
+F1/F2 teardown seed=1 cycle=75 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=76
+F1/F2 teardown seed=1 cycle=76 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=77
+F1/F2 teardown seed=1 cycle=77 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=78
+F1/F2 teardown seed=1 cycle=78 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=79
+F1/F2 teardown seed=1 cycle=79 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=80
+F1/F2 teardown seed=1 cycle=80 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=81
+F1/F2 teardown seed=1 cycle=81 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=82
+F1/F2 teardown seed=1 cycle=82 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=83
+F1/F2 teardown seed=1 cycle=83 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=84
+F1/F2 teardown seed=1 cycle=84 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=85
+F1/F2 teardown seed=1 cycle=85 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=86
+F1/F2 teardown seed=1 cycle=86 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=87
+F1/F2 teardown seed=1 cycle=87 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=88
+F1/F2 teardown seed=1 cycle=88 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=89
+F1/F2 teardown seed=1 cycle=89 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=90
+F1/F2 teardown seed=1 cycle=90 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=91
+F1/F2 teardown seed=1 cycle=91 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=92
+F1/F2 teardown seed=1 cycle=92 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=93
+F1/F2 teardown seed=1 cycle=93 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=94
+F1/F2 teardown seed=1 cycle=94 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=95
+F1/F2 teardown seed=1 cycle=95 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=96
+F1/F2 teardown seed=1 cycle=96 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=97
+F1/F2 teardown seed=1 cycle=97 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=98
+F1/F2 teardown seed=1 cycle=98 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=1 cycle=99
+F1/F2 teardown seed=1 cycle=99 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+F1 attempted-prefix seed=1 baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] high_water=[1, 0, 4, 8, 3, 0, 0, 8, 1, 1, 1, 1, 1, 0, 1, 1, 0, 81, 193] elapsed=29.629202958s
+oracle seed=7 cycle=0
+F1/F2 teardown seed=7 cycle=0 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=1
+F1/F2 teardown seed=7 cycle=1 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=2
+F1/F2 teardown seed=7 cycle=2 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=3
+F1/F2 teardown seed=7 cycle=3 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=4
+F1/F2 teardown seed=7 cycle=4 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=5
+F1/F2 teardown seed=7 cycle=5 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=6
+F1/F2 teardown seed=7 cycle=6 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=7
+F1/F2 teardown seed=7 cycle=7 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=8
+F1/F2 teardown seed=7 cycle=8 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=9
+F1/F2 teardown seed=7 cycle=9 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=10
+F1/F2 teardown seed=7 cycle=10 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=11
+F1/F2 teardown seed=7 cycle=11 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=12
+F1/F2 teardown seed=7 cycle=12 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=13
+F1/F2 teardown seed=7 cycle=13 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=14
+F1/F2 teardown seed=7 cycle=14 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=15
+F1/F2 teardown seed=7 cycle=15 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=16
+F1/F2 teardown seed=7 cycle=16 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=17
+F1/F2 teardown seed=7 cycle=17 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=18
+F1/F2 teardown seed=7 cycle=18 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=19
+F1/F2 teardown seed=7 cycle=19 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=20
+F1/F2 teardown seed=7 cycle=20 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=21
+F1/F2 teardown seed=7 cycle=21 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=22
+F1/F2 teardown seed=7 cycle=22 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=23
+F1/F2 teardown seed=7 cycle=23 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=24
+F1/F2 teardown seed=7 cycle=24 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=25
+F1/F2 teardown seed=7 cycle=25 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=26
+F1/F2 teardown seed=7 cycle=26 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=27
+F1/F2 teardown seed=7 cycle=27 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=28
+F1/F2 teardown seed=7 cycle=28 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=29
+F1/F2 teardown seed=7 cycle=29 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=30
+F1/F2 teardown seed=7 cycle=30 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=31
+F1/F2 teardown seed=7 cycle=31 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=32
+F1/F2 teardown seed=7 cycle=32 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=33
+F1/F2 teardown seed=7 cycle=33 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=34
+F1/F2 teardown seed=7 cycle=34 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=35
+F1/F2 teardown seed=7 cycle=35 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=36
+F1/F2 teardown seed=7 cycle=36 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=37
+F1/F2 teardown seed=7 cycle=37 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=38
+F1/F2 teardown seed=7 cycle=38 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=39
+F1/F2 teardown seed=7 cycle=39 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=40
+F1/F2 teardown seed=7 cycle=40 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=41
+F1/F2 teardown seed=7 cycle=41 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=42
+F1/F2 teardown seed=7 cycle=42 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=43
+F1/F2 teardown seed=7 cycle=43 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=44
+F1/F2 teardown seed=7 cycle=44 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=45
+F1/F2 teardown seed=7 cycle=45 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=46
+F1/F2 teardown seed=7 cycle=46 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=47
+F1/F2 teardown seed=7 cycle=47 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=48
+F1/F2 teardown seed=7 cycle=48 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=49
+F1/F2 teardown seed=7 cycle=49 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=50
+F1/F2 teardown seed=7 cycle=50 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=51
+F1/F2 teardown seed=7 cycle=51 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=52
+F1/F2 teardown seed=7 cycle=52 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=53
+F1/F2 teardown seed=7 cycle=53 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=54
+F1/F2 teardown seed=7 cycle=54 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=55
+F1/F2 teardown seed=7 cycle=55 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=56
+F1/F2 teardown seed=7 cycle=56 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=57
+F1/F2 teardown seed=7 cycle=57 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=58
+F1/F2 teardown seed=7 cycle=58 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=59
+F1/F2 teardown seed=7 cycle=59 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=60
+F1/F2 teardown seed=7 cycle=60 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=61
+F1/F2 teardown seed=7 cycle=61 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=62
+F1/F2 teardown seed=7 cycle=62 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=63
+F1/F2 teardown seed=7 cycle=63 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=64
+F1/F2 teardown seed=7 cycle=64 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=65
+F1/F2 teardown seed=7 cycle=65 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=66
+F1/F2 teardown seed=7 cycle=66 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=67
+F1/F2 teardown seed=7 cycle=67 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=68
+F1/F2 teardown seed=7 cycle=68 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=69
+F1/F2 teardown seed=7 cycle=69 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=70
+F1/F2 teardown seed=7 cycle=70 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=71
+F1/F2 teardown seed=7 cycle=71 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=72
+F1/F2 teardown seed=7 cycle=72 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=73
+F1/F2 teardown seed=7 cycle=73 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=74
+F1/F2 teardown seed=7 cycle=74 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=75
+F1/F2 teardown seed=7 cycle=75 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=76
+F1/F2 teardown seed=7 cycle=76 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=77
+F1/F2 teardown seed=7 cycle=77 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=78
+F1/F2 teardown seed=7 cycle=78 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=79
+F1/F2 teardown seed=7 cycle=79 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=80
+F1/F2 teardown seed=7 cycle=80 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=81
+F1/F2 teardown seed=7 cycle=81 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=82
+F1/F2 teardown seed=7 cycle=82 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=83
+F1/F2 teardown seed=7 cycle=83 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=84
+F1/F2 teardown seed=7 cycle=84 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=85
+F1/F2 teardown seed=7 cycle=85 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=86
+F1/F2 teardown seed=7 cycle=86 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=87
+F1/F2 teardown seed=7 cycle=87 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=88
+F1/F2 teardown seed=7 cycle=88 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=89
+F1/F2 teardown seed=7 cycle=89 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=90
+F1/F2 teardown seed=7 cycle=90 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=91
+F1/F2 teardown seed=7 cycle=91 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=92
+F1/F2 teardown seed=7 cycle=92 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=93
+F1/F2 teardown seed=7 cycle=93 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=94
+F1/F2 teardown seed=7 cycle=94 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=95
+F1/F2 teardown seed=7 cycle=95 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=96
+F1/F2 teardown seed=7 cycle=96 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=97
+F1/F2 teardown seed=7 cycle=97 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=98
+F1/F2 teardown seed=7 cycle=98 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=7 cycle=99
+F1/F2 teardown seed=7 cycle=99 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+F1 attempted-prefix seed=7 baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] high_water=[1, 0, 4, 8, 3, 0, 0, 8, 1, 1, 1, 1, 1, 0, 1, 1, 0, 81, 193] elapsed=29.436235542s
+oracle seed=42 cycle=0
+F1/F2 teardown seed=42 cycle=0 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=1
+F1/F2 teardown seed=42 cycle=1 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=2
+F1/F2 teardown seed=42 cycle=2 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=3
+test lifecycle::tests::full_same_world_100_cycle_resource_oracle_seeds_1_7_42 has been running for over 60 seconds
+F1/F2 teardown seed=42 cycle=3 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=4
+F1/F2 teardown seed=42 cycle=4 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=5
+F1/F2 teardown seed=42 cycle=5 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=6
+F1/F2 teardown seed=42 cycle=6 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=7
+F1/F2 teardown seed=42 cycle=7 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=8
+F1/F2 teardown seed=42 cycle=8 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=9
+F1/F2 teardown seed=42 cycle=9 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=10
+F1/F2 teardown seed=42 cycle=10 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=11
+F1/F2 teardown seed=42 cycle=11 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=12
+F1/F2 teardown seed=42 cycle=12 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=13
+F1/F2 teardown seed=42 cycle=13 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=14
+F1/F2 teardown seed=42 cycle=14 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=15
+F1/F2 teardown seed=42 cycle=15 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=16
+F1/F2 teardown seed=42 cycle=16 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=17
+F1/F2 teardown seed=42 cycle=17 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=18
+F1/F2 teardown seed=42 cycle=18 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=19
+F1/F2 teardown seed=42 cycle=19 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=20
+F1/F2 teardown seed=42 cycle=20 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=21
+F1/F2 teardown seed=42 cycle=21 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=22
+F1/F2 teardown seed=42 cycle=22 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=23
+F1/F2 teardown seed=42 cycle=23 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=24
+F1/F2 teardown seed=42 cycle=24 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=25
+F1/F2 teardown seed=42 cycle=25 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=26
+F1/F2 teardown seed=42 cycle=26 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=27
+F1/F2 teardown seed=42 cycle=27 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=28
+F1/F2 teardown seed=42 cycle=28 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=29
+F1/F2 teardown seed=42 cycle=29 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=30
+F1/F2 teardown seed=42 cycle=30 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=31
+F1/F2 teardown seed=42 cycle=31 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=32
+F1/F2 teardown seed=42 cycle=32 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=33
+F1/F2 teardown seed=42 cycle=33 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=34
+F1/F2 teardown seed=42 cycle=34 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=35
+F1/F2 teardown seed=42 cycle=35 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=36
+F1/F2 teardown seed=42 cycle=36 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=37
+F1/F2 teardown seed=42 cycle=37 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=38
+F1/F2 teardown seed=42 cycle=38 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=39
+F1/F2 teardown seed=42 cycle=39 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=40
+F1/F2 teardown seed=42 cycle=40 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=41
+F1/F2 teardown seed=42 cycle=41 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=42
+F1/F2 teardown seed=42 cycle=42 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=43
+F1/F2 teardown seed=42 cycle=43 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=44
+F1/F2 teardown seed=42 cycle=44 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=45
+F1/F2 teardown seed=42 cycle=45 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=46
+F1/F2 teardown seed=42 cycle=46 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=47
+F1/F2 teardown seed=42 cycle=47 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=48
+F1/F2 teardown seed=42 cycle=48 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=49
+F1/F2 teardown seed=42 cycle=49 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=50
+F1/F2 teardown seed=42 cycle=50 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=51
+F1/F2 teardown seed=42 cycle=51 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=52
+F1/F2 teardown seed=42 cycle=52 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=53
+F1/F2 teardown seed=42 cycle=53 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=54
+F1/F2 teardown seed=42 cycle=54 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=55
+F1/F2 teardown seed=42 cycle=55 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=56
+F1/F2 teardown seed=42 cycle=56 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=57
+F1/F2 teardown seed=42 cycle=57 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=58
+F1/F2 teardown seed=42 cycle=58 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=59
+F1/F2 teardown seed=42 cycle=59 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=60
+F1/F2 teardown seed=42 cycle=60 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=61
+F1/F2 teardown seed=42 cycle=61 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=62
+F1/F2 teardown seed=42 cycle=62 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=63
+F1/F2 teardown seed=42 cycle=63 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=64
+F1/F2 teardown seed=42 cycle=64 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=65
+F1/F2 teardown seed=42 cycle=65 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=66
+F1/F2 teardown seed=42 cycle=66 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=67
+F1/F2 teardown seed=42 cycle=67 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=68
+F1/F2 teardown seed=42 cycle=68 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=69
+F1/F2 teardown seed=42 cycle=69 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=70
+F1/F2 teardown seed=42 cycle=70 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=71
+F1/F2 teardown seed=42 cycle=71 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=72
+F1/F2 teardown seed=42 cycle=72 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=73
+F1/F2 teardown seed=42 cycle=73 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=74
+F1/F2 teardown seed=42 cycle=74 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=75
+F1/F2 teardown seed=42 cycle=75 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=76
+F1/F2 teardown seed=42 cycle=76 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=77
+F1/F2 teardown seed=42 cycle=77 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=78
+F1/F2 teardown seed=42 cycle=78 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=79
+F1/F2 teardown seed=42 cycle=79 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=80
+F1/F2 teardown seed=42 cycle=80 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=81
+F1/F2 teardown seed=42 cycle=81 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=82
+F1/F2 teardown seed=42 cycle=82 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=83
+F1/F2 teardown seed=42 cycle=83 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=84
+F1/F2 teardown seed=42 cycle=84 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=85
+F1/F2 teardown seed=42 cycle=85 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=86
+F1/F2 teardown seed=42 cycle=86 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=87
+F1/F2 teardown seed=42 cycle=87 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=88
+F1/F2 teardown seed=42 cycle=88 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=89
+F1/F2 teardown seed=42 cycle=89 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=90
+F1/F2 teardown seed=42 cycle=90 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=91
+F1/F2 teardown seed=42 cycle=91 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=92
+F1/F2 teardown seed=42 cycle=92 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=93
+F1/F2 teardown seed=42 cycle=93 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=94
+F1/F2 teardown seed=42 cycle=94 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=95
+F1/F2 teardown seed=42 cycle=95 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=96
+F1/F2 teardown seed=42 cycle=96 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=97
+F1/F2 teardown seed=42 cycle=97 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=98
+F1/F2 teardown seed=42 cycle=98 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+oracle seed=42 cycle=99
+F1/F2 teardown seed=42 cycle=99 vector=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] external_ack_pending=0
+F1 attempted-prefix seed=42 baseline=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] high_water=[1, 0, 4, 8, 3, 0, 0, 8, 1, 1, 1, 1, 1, 0, 1, 1, 0, 81, 193] elapsed=29.373272084s
+test lifecycle::tests::full_same_world_100_cycle_resource_oracle_seeds_1_7_42 ... ok
+
+test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 88.44s
+
+     Running tests/feeds.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/feeds-ccb56c40de93b50e)
+
+running 5 tests
+test a_stale_feed_revision_is_rejected ... ok
+test feed_load_moves_through_loading_ready_error_and_stale ... ok
+test manual_and_interval_refresh_publish_envelopes ... ok
+test each_feed_datatype_renders_its_body ... ok
+test feed_last_good_survives_recycling ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/flow_owned.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/flow_owned-92129ad629dd564c)
+
+running 2 tests
+test consumer_explicit_unsubscribe_is_world_local_and_precedes_custom_cleanup ... ok
+test consumer_native_f2_gate_refuses_retired_revision_and_cross_world_without_changes ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/identity.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/identity-cb6c3049307ba5fd)
+
+running 6 tests
+test legacy_update_error_remains_exhaustively_matchable ... ok
+test ambiguous_group_preserves_on_exact_noop_and_true_append ... ok
+test ambiguous_equal_group_resets_when_mounted ... ok
+test ambiguous_equal_group_resets_when_offscreen ... ok
+test f0_explicit_operations_table_mounted_and_offscreen ... ok
+test f0_identity_table_mounted_and_offscreen ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s
+
+     Running tests/identity_resources.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/identity_resources-a0716da64ac2eb29)
+
+running 8 tests
+test missing_zero_revision_is_fenced_by_keyed_schema_reset ... ok
+test feed_binding_retains_cosmetic_context_and_retires_old_lane_with_zero_stale_effects ... ok
+test parked_nested_handles_query_write_and_reset_without_a_physical_view ... ok
+test keyed_recipe_cosmetic_reorder_preserves_deadline_schema_edit_clears_it ... ok
+test one_changed_dashboard_binding_does_not_retire_an_unrelated_tile_lane ... ok
+test colliding_generated_child_ids_never_alias_independent_request_bindings ... ok
+test parked_nested_feed_accepts_current_context_and_preserves_captured_envelope_handles ... ok
+test nested_parse_index_shift_is_not_semantic_edit_but_same_index_new_child_is ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/keyed_identity.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/keyed_identity-9f3ca5f6b70ebf90)
+
+running 5 tests
+test kinds_and_index_domains_are_checked_without_writes ... ok
+test keyed_child_edit_resets_but_title_edit_preserves_state_and_serial ... ok
+test reset_remove_reinsert_and_foreign_world_never_resurrect_handles ... ok
+test complete_reading_order_keys_and_invalid_transactions_are_atomic ... ok
+test split_crlf_stream_then_normalized_noop_preserves_completed_occurrences ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/legacy_compatibility.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/legacy_compatibility-4f203eac7d73c9ca)
+
+running 2 tests
+test limits_are_validated_and_installed_at_plugin_construction ... ok
+test legacy_v1_literals_and_context_free_host_still_compile ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/pending_settlement.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/pending_settlement-73cf5c1d2cea58f1)
+
+running 6 tests
+
+thread 'loader_unwind_retains_escaped_work_and_releases_emission_reservation' (4234933) panicked at crates/rndr_liquid_ui/tests/pending_settlement.rs:323:13:
+escaped worker then loader unwind
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test same_revision_context_result_refuses_enclosing_loader_publication ... ok
+test newer_context_result_settles_even_when_enclosing_loader_returns_pending ... ok
+NORMAL_UNACKNOWLEDGED=2 scopes=2
+REENTRANT_UNACKNOWLEDGED=1 scopes=2
+test normal_pending_retirement_backpressure_control ... ok
+
+thread 'loader_unwind_retains_escaped_work_and_releases_emission_reservation' (4234933) panicked at crates/rndr_liquid_ui/tests/pending_settlement.rs:323:13:
+escaped worker then loader unwind
+test loader_unwind_retains_escaped_work_and_releases_emission_reservation ... ok
+test retired_pending_started_during_reentrant_loader_stays_charged_until_ack ... ok
+test reentrant_settlement_controls_do_not_leave_phantom_charges ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+     Running tests/recycle.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/recycle-c4a7193f645d77e2)
+
+running 4 tests
+test a_markdown_host_without_the_policy_stays_mounted_offscreen ... ok
+test streaming_appends_keep_state_through_a_release ... ok
+test released_block_keeps_its_height_and_restores_reader_state ... ok
+test mounted_entities_stay_bounded_as_blocks_grow ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+     Running tests/render.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/render-af635cf7807ea08c)
+
+running 10 tests
+test an_unclosed_fence_is_pending_until_it_closes ... ok
+test nested_markdown_bodies_render_inside_the_block ... ok
+test blocks_mount_in_place_of_their_references ... ok
+test feeds_and_tiles_come_from_the_host ... ok
+test source_replacement_remounts_and_foreign_intents_are_ignored ... ok
+test host_events_carry_the_document_intent ... ok
+test accordion_and_carousel_state_is_local_and_survives_rebuild ... ok
+test chart_paint_slots_are_not_leaked_across_rebuilds ... ok
+test reader_state_survives_appends_and_unchanged_blocks ... ok
+test charts_paint_through_a_surface_slot_and_report_hover ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+     Running tests/reset_remount.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/reset_remount-58ffc5c011690267)
+
+running 8 tests
+test mounted_surface_reset_keyed ... ok
+test offscreen_surface_reset_unkeyed ... ok
+test mounted_surface_reset_unkeyed ... ok
+test mounted_block_reset_unkeyed ... ok
+test mounted_block_reset_keyed ... ok
+test offscreen_block_reset_unkeyed ... ok
+test offscreen_surface_reset_keyed ... ok
+test offscreen_block_reset_keyed ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running tests/review_regressions.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/review_regressions-66f9380b491b3c92)
+
+running 15 tests
+
+thread 'public_feed_reservation_releases_after_loader_panic_and_stale_owner' (4235025) panicked at crates/rndr_liquid_ui/tests/review_regressions.rs:632:21:
+deliberate public loader unwind
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test loader_reentrant_prepend_cannot_publish_feed_state_into_new_callout ... ok
+test mixed_physical_semantic_child_relocation_does_not_duplicate ... ok
+test mixed_ownership_terminal_controls_keep_independent_and_retire_owned_child ... ok
+test feed_reserves_envelope_capacity_across_reentrant_loader ... ok
+test retained_logical_child_parks_when_its_parent_occurrence_moves ... ok
+test public_feed_reservation_releases_after_loader_panic_and_stale_owner ... ok
+test native_tabs_defer_atomically_until_envelope_capacity_is_available ... ok
+test native_tab_activation_inside_partial_delivery_is_admitted_once ... ok
+test reentrant_feed_removal_replacement_and_newer_result_refuse_obsolete_outcome ... ok
+test recycling_refuses_unadmitted_native_tab_without_changing_revision ... ok
+test deferred_native_tab_intent_can_be_superseded_without_a_phantom_commit ... ok
+test retirement_and_listeners_both_progress_under_sustained_reentrant_load ... ok
+test retirement_backlog_cannot_starve_reentrant_listener_traffic ... ok
+test semantic_child_reuse_ignores_nested_foreign_and_outside_physical_placement ... ok
+test independent_surface_survives_parent_collapse_rebuild_and_cleanup ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s
+
+     Running tests/source_normalization.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/source_normalization-dd2b7980f58e18ce)
+
+running 4 tests
+test normalized_prefix_setter_repairs_opening_crlf_split ... ok
+test normalized_setter_repairs_opening_crlf_split ... ok
+test canonical_repair_keeps_mounted_and_saved_duplicate_state ... ok
+canonical setter boundary cases=556: all byte splits, keyed/unkeyed, equal/prefix, settled/pending
+test canonical_setters_cover_every_crlf_boundary_and_pending_fences ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s
+
+     Running tests/state.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/state-f9244a5d8c05b783)
+
+running 8 tests
+test caller_cascade_preserves_reparented_out_attachments_not_attached_descendants ... ok
+test terminal_owner_rejects_writes_before_the_next_pump ... ok
+test host_callback_attachments_are_never_claimed_by_render_tracking ... ok
+test unmatched_same_source_content_does_not_inherit_old_record ... ok
+test terminal_cleanup_preserves_application_attachments_and_unrelated_hosts ... ok
+test accordion_state_is_recorded_and_survives_release_and_append ... ok
+test tabs_and_checklists_round_trip_through_the_record ... ok
+host registration seed=1: cycles=100 retained=0 high_water=0
+host registration seed=7: cycles=100 retained=0 high_water=0
+host registration seed=42: cycles=100 retained=0 high_water=0
+test terminal_core_host_registration_releases_capture_at_cleanup_pump ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.50s
+
+     Running tests/stream_cost.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/stream_cost-2edf4f5e676a57fa)
+
+running 1 test
+test liquid_stream_cost ... ignored, release characterization of liquid streaming; no timing threshold
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/timer.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/timer-2b6594f2965ab9ea)
+
+running 1 test
+test a_recipe_timer_pauses_resumes_and_survives_recycling ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests/virtual_cost.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/virtual_cost-f7c2a0458a3309cd)
+
+running 1 test
+test liquid_density_cost ... ignored, opt-in release probe; no timing threshold assertions
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/visual.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/visual-6949fad70ecc43dc)
+
+running 5 tests
+test styled_block_sets_family_size_alignment_and_line_height ... ok
+test styled_block_justify_uses_the_start_edge ... ok
+test slide_image_layer_is_pinned_in_the_stage_and_named ... ok
+test code_block_colors_tokens_and_exposes_a_code_role ... ok
+test chart_tooltip_overlays_the_plot_and_describes_it ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+   Doc-tests rndr_liquid_ui
+
+running 1 test
+test crates/rndr_liquid_ui/src/lib.rs - (line 12) ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.89s
+
+
+exit=0

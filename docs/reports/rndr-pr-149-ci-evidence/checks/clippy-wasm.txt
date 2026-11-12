@@ -1,0 +1,7 @@
+$ cargo clippy --offline --locked -p rndr_render -p rndr -p web-hello --target wasm32-unknown-unknown -- -D warnings
+error: failed to download `js-sys v0.3.105`
+
+Caused by:
+  attempting to make an HTTP request, but --offline was specified
+
+exit=101

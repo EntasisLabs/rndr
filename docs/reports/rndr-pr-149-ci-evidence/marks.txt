@@ -1,0 +1,17 @@
+   Compiling rndr_core v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-pr-149-ci-repair/crates/rndr_core)
+    Finished `test` profile [unoptimized] target(s) in 4.77s
+     Running tests/structured_composer.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/structured_composer-f5d6dda1d7edfe13)
+
+running 9 tests
+test pills_are_atomic_for_positions_and_typing ... ok
+test html_paste_drops_unsafe_links_and_scripts ... ok
+test adjacent_equal_pills_stay_separate ... ok
+test html_round_trip_keeps_marks_and_pills_in_one_undo_step ... ok
+test toggle_marks_keep_other_marks_per_run ... ok
+test invalid_pill_ids_and_labels_are_refused ... ok
+test backspace_and_delete_remove_a_whole_pill ... ok
+test marks_preserve_multiblock_endpoints_and_history ... ok
+test html_paste_builds_headings_lists_and_quotes ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
