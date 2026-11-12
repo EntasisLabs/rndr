@@ -9,8 +9,13 @@ pub(super) fn set_range_marks(
 ) -> Result<(), StructuredError> {
     valid_marks(&marks)?;
     let (first, last) = ordered(state, range)?;
-    for block_index in first.0..=last.0 {
-        let block = &state.blocks[block_index];
+    for (block_index, block) in state
+        .blocks
+        .iter_mut()
+        .enumerate()
+        .take(last.0 + 1)
+        .skip(first.0)
+    {
         let start = if block_index == first.0 { first.1 } else { 0 };
         let end = if block_index == last.0 {
             last.1
@@ -24,7 +29,7 @@ pub(super) fn set_range_marks(
         }
         runs.extend(middle);
         runs.extend(slice(block, end, block.len()));
-        state.blocks[block_index].runs = runs;
+        block.runs = runs;
     }
     Ok(())
 }

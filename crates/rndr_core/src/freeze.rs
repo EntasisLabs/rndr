@@ -12,7 +12,7 @@ impl FreezeState {
     }
     pub(crate) fn acquire(&self) -> Option<DocumentFreeze> {
         self.0
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| n.checked_add(1))
+            .try_update(Ordering::AcqRel, Ordering::Acquire, |n| n.checked_add(1))
             .ok()?;
         Some(DocumentFreeze(self.0.clone()))
     }
@@ -27,5 +27,54 @@ pub struct DocumentFreeze(Arc<AtomicUsize>);
 impl Drop for DocumentFreeze {
     fn drop(&mut self) {
         self.0.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn nested_leases_reopen_only_after_final_drop() {
+        let state = FreezeState::default();
+        assert!(!state.active());
+        let first = state.acquire().unwrap();
+        let second = state.acquire().unwrap();
+        assert_eq!(state.0.load(Ordering::Acquire), 2);
+        drop(first);
+        assert!(state.active());
+        drop(second);
+        assert!(!state.active());
+    }
+
+    #[test]
+    fn exhausted_count_refuses_without_wrapping() {
+        let state = FreezeState(Arc::new(AtomicUsize::new(usize::MAX - 1)));
+        let final_lease = state.acquire().unwrap();
+        assert!(state.acquire().is_none());
+        assert_eq!(state.0.load(Ordering::Acquire), usize::MAX);
+        assert!(state.active());
+        drop(final_lease);
+        assert_eq!(state.0.load(Ordering::Acquire), usize::MAX - 1);
+    }
+
+    #[test]
+    fn concurrent_leases_preserve_count() {
+        let state = FreezeState::default();
+        let barrier = std::sync::Barrier::new(8);
+        std::thread::scope(|scope| {
+            for _ in 0..8 {
+                let state = &state;
+                let barrier = &barrier;
+                scope.spawn(move || {
+                    let lease = state.acquire().unwrap();
+                    barrier.wait();
+                    assert_eq!(state.0.load(Ordering::Acquire), 8);
+                    barrier.wait();
+                    drop(lease);
+                });
+            }
+        });
+        assert!(!state.active());
     }
 }
