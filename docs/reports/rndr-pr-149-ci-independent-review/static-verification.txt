@@ -1,0 +1,51 @@
+PASS: candidate/source production equality, historical reports unchanged, 589 historical fingerprints valid; 586 current unchanged, exactly 3 changed.
+final-checks : per-log statuses agree with summary; all seven local Clippy logs successful; nonzero gates= []
+qualification : per-log statuses agree with summary; all seven local Clippy logs successful; nonzero gates= ['preserved-probes']
+Installed integer-atomic source: /Users/theelevators/.rustup/toolchains/stable-aarch64-apple-darwin/share/doc/rust/html/src/core/sync/atomic.rs.html
+3318            /// An alias for
+3319            #[doc = concat!("[`", stringify!($atomic_type), "::try_update`]")]
+3320            /// .
+3321            #[inline]
+3322            #[stable(feature = "no_more_cas", since = "1.45.0")]
+3323            #[$cfg_cas]
+3324            #[cfg_attr(miri, track_caller)] // even without panics, this helps for Miri backtraces
+3325            #[rustc_should_not_be_called_on_const_items]
+3326            #[deprecated(
+3327                since = "1.99.0",
+3328                note = "renamed to `try_update` for consistency",
+3329                suggestion = "try_update"
+3330            )]
+3331            pub fn fetch_update<F>(&self,
+3332                                   set_order: Ordering,
+3333                                   fetch_order: Ordering,
+3334                                   f: F) -> Result<$int_type, $int_type>
+3335            where F: FnMut($int_type) -> Option<$int_type> {
+3336                self.try_update(set_order, fetch_order, f)
+3337            }
+3338
+3386            #[inline]
+3387            #[stable(feature = "atomic_try_update", since = "1.95.0")]
+3388            #[$cfg_cas]
+3389            #[cfg_attr(miri, track_caller)] // even without panics, this helps for Miri backtraces
+3390            #[rustc_should_not_be_called_on_const_items]
+3391            pub fn try_update(
+3392                &self,
+3393                set_order: Ordering,
+3394                fetch_order: Ordering,
+3395                mut f: impl FnMut($int_type) -> Option<$int_type>,
+3396            ) -> Result<$int_type, $int_type> {
+3397                let mut prev = self.load(fetch_order);
+3398                while let Some(next) = f(prev) {
+3399                    match self.compare_exchange_weak(prev, next, set_order, fetch_order) {
+3400                        x @ Ok(_) => return x,
+3401                        Err(next_prev) => prev = next_prev
+3402                    }
+3403                }
+3404                Err(prev)
+3405            }
+BLOCKER: remaining deprecated integer-atomic call sites in workspace members:
+crates/rndr_flow/src/lib.rs:43: .fetch_update(Ordering::AcqRel, Ordering::Acquire, |old| {
+crates/rndr_flow/src/topology.rs:32: .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| n.checked_add(1))
+crates/rndr_liquid_ui/src/lifecycle.rs:14: .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
+crates/rndr_liquid_ui/src/lifecycle.rs:469: .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| {
+Static Rust 1.100 CI failure prediction, NOT a locally executed Rust 1.100 build.

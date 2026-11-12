@@ -1,0 +1,10 @@
+    Finished `test` profile [unoptimized] target(s) in 0.24s
+     Running unittests src/lib.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/rndr_core-6ee1ebda0b1c170c)
+
+running 3 tests
+test freeze::tests::exhausted_count_refuses_without_wrapping ... ok
+test freeze::tests::nested_leases_reopen_only_after_final_drop ... ok
+test freeze::tests::concurrent_leases_preserve_count ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 139 filtered out; finished in 0.00s
+
