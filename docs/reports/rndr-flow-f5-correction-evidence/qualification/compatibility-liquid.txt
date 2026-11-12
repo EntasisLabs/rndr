@@ -1,0 +1,12 @@
+$ cargo test --offline --locked -p rndr --no-default-features --features liquid --test editing_compatibility
+    Finished `test` profile [unoptimized] target(s) in 0.11s
+     Running tests/editing_compatibility.rs (target/debug/deps/editing_compatibility-f74fada56edea374)
+
+running 2 tests
+test additive_document_namespaces_resolve_without_ui_feature ... ok
+test legacy_root_types_and_function_signature_are_unchanged ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+exit=0

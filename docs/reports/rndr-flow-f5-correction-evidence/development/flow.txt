@@ -1,0 +1,293 @@
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_flow)
+    Finished `test` profile [unoptimized] target(s) in 8.35s
+     Running unittests src/lib.rs (target/debug/deps/rndr_flow-c9ab6caabe37bdb2)
+
+running 41 tests
+test budget_tests::newly_suspended_child_between_pumps_precedes_waiting_parent_cleanup ... ok
+test budget_tests::unrelated_live_registrations_cannot_starve_an_inflight_dead_subtree ... ok
+test budget_tests::newly_dead_ancestor_restarts_before_parent_and_keeps_reverse_order ... ok
+test budget_tests::queued_unwind_commands_are_charged_fifo_before_next_callback ... ok
+test f4_tests::lane_generation_max_refuses_atomically_with_old_valid_request ... ok
+test f4_tests::effect_capacity_refusal_returns_untouched_capture_and_pending_is_not_acknowledged ... ok
+test f4_tests::default_lane_capacity_exact_native_identity_and_terminal_sequence_refusals_are_untouched ... ok
+test f4_tests::unrecoverable_refusal_does_not_advance_activity_or_cancel_work ... ok
+test history::bounds_tests::counter_max_capacity_and_total_pending_refuse_atomically ... ok
+test history::bounds_tests::decision_round_max_preserves_owned_guard_and_current_choice ... ok
+test f4_tests::work_serial_max_refuses_without_replacing_or_cancelling_valid_last_slot ... ok
+test lease_admission_tests::capacity_refusal_does_not_consume_final_serial ... ok
+test lease_admission_tests::exhausted_active_slot_remains_valid ... ok
+test lease_admission_tests::exhausted_inactive_slot_is_not_reclaimed ... ok
+test f4_tests::destructor_panic_is_observed_after_ack_and_independent_cleanup_continues ... ok
+test lease_admission_tests::exhausted_lease_admission_preserves_stale_invalid_precedence ... ok
+test lease_admission_tests::exhausted_mixed_storage_preserves_inactive_and_active_leases ... ok
+test tests::capacity_diagnostics_and_foreign_stale_identity_are_bounded ... ok
+test tests::coordinator_drop_signals_but_never_runs_arbitrary_callbacks ... ok
+test budget_tests::saturated_metadata_callbacks_commands_and_leases_all_make_progress ... ok
+test tests::cleanup_rejection_returns_untouched_ownership_and_never_calls_in_admission ... ok
+test tests::all_identity_counters_refuse_exhaustion_before_replacing_valid_work ... ok
+test tests::lease_capacity_does_not_evict_admitted_presentations ... ok
+test tests::cleanup_captures_release_once_on_success_error_unwind_and_rejection_drop ... ok
+test budget_tests::lease_ancestry_is_resumable_and_counts_remain_exact_without_pumping ... ok
+test tests::reentrant_ancestor_disposal_revisits_previously_live_children_before_parent ... ok
+test tests::removed_components_and_refused_bindings_retain_single_ownership ... ok
+test budget_tests::full_default_lease_table_sweeps_with_tiny_budgets_and_no_callbacks ... ok
+test tests::hidden_retains_and_suspension_restarts_only_recoverable_activity ... ok
+test work::tests::aggregate_terminal_evidence_never_downgrades_in_any_order ... ok
+test work::tests::epoch_max_refuses_without_advancing ... ok
+test work::tests::tracked_pending_drop_preserves_known_failure_without_early_ack ... ok
+test tests::world_component_removal_explicit_dispose_and_world_drop_share_one_contract ... ok
+test budget_tests::callback_entry_scans_and_revalidation_are_charged_not_bulk ... ok
+test tests::subtree_logical_death_precedes_child_first_reverse_cleanup ... ok
+test tests::sim_host_keeps_logical_death_separate_from_explicit_cleanup_pump ... ok
+test tests::shared_documents_survive_presentation_and_world_loss ... ok
+test tests::duplicate_reentrant_error_panic_cleanup_is_consumed_once_with_bounded_queue ... ok
+test f4_tests::one_unit_default_capacity_slots_lanes_and_full_commands_progress_without_scans ... ok
+test budget_tests::capacity_wide_and_deep_callback_free_retirement_is_incremental ... ok
+test tests::one_hundred_lifecycle_cycles_return_every_storage_count_to_baseline ... ok
+
+test result: ok. 41 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.86s
+
+     Running tests/f4.rs (target/debug/deps/f4-44828ea92b5b4f78)
+
+running 16 tests
+test hidden_and_recoverable_suspend_restart_activity_not_stream_buffering ... ok
+test ordered_native_session_turn_and_revision_identity_never_substitutes_target ... ok
+test cancelled_custom_job_is_charged_until_job_future_actually_drops ... ok
+test captured_epoch_rejects_old_sender_before_mutation ... ok
+test lane_and_slot_capacity_refusal_returns_untouched_future_and_old_request ... ok
+test cooperative_and_blocked_feed_stay_charged_independently_of_eligibility ... ok
+test owner_drops_during_future_completion_and_world_loss_are_not_successful_ui_delivery ... ok
+test owning_world_effect_runs_before_custom_cleanup_child_first ... ok
+test already_published_event_rejected_even_in_input_after_drop ... ok
+test same_logical_key_reopen_foreign_coordinator_world_and_lag_reject ... ok
+test producer_panic_and_error_normalize_and_world_effect_panic_does_not_skip_cleanup ... ok
+test controlled_old_finishes_last_custom_executor_and_inbox_cancel_orderings ... ok
+test same_owner_replacement_independent_lanes_and_duplicate_zero_writes ... ok
+test timer_manual_deadline_replacement_and_published_disposal ... ok
+test local_rc_panic_failure_cancel_before_poll_and_future_drop_are_distinct ... ok
+test one_hundred_twenty_cycles_return_every_registry_and_ack_to_baseline ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/f4_corrections.rs (target/debug/deps/f4_corrections-2a272454d03ab728)
+
+running 3 tests
+test world_abandonment_must_not_ack_before_capture_destruction_or_hide_panic ... ok
+test producer_success_must_not_erase_payload_cleanup_panic ... ok
+test timer_payload_destructor_must_be_normalized_before_exit_ack ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/f4_discarded_output.rs (target/debug/deps/f4_discarded_output-acbeffb4974675ef)
+
+running 3 tests
+test timer_native_identity_destruction_also_stays_under_owned_catch ... ok
+test tracked_discarded_nonpanicking_output_control ... ok
+test tracked_discarded_output_single_unwind_is_normalized ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/f4_native_task.rs (target/debug/deps/f4_native_task-f8da994b7274cecb)
+
+running 1 test
+test actual_owned_task_transposes_into_exact_native_commit_without_losing_receipt_or_failure ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/f4_output_branches.rs (target/debug/deps/f4_output_branches-d902a6d4889a7743)
+
+running 2 tests
+test tracked_nonunit_ready_error_poll_panic_and_pending_drop_branches ... ok
+test local_background_and_custom_tasks_keep_nonunit_drop_panics_and_receipts_owned ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/f4_producers.rs (target/debug/deps/f4_producers-93b21847b0597dc2)
+
+running 1 test
+test actual_cooperative_and_blocked_producers_ack_only_after_their_owned_closure_exits ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/f4_receipts.rs (target/debug/deps/f4_receipts-ee6c66c8867dcdc6)
+
+running 2 tests
+test application_scope_before_target_world_is_revisited_after_world_retirement ... ok
+test acknowledged_future_cannot_evade_capacity_through_queued_or_published_payloads ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/f4_source.rs (target/debug/deps/f4_source-7e670041e5199cc4)
+
+running 2 tests
+test ordered_source_chunks_advance_only_owned_native_receipts_without_replacement_or_rebase ... ok
+test native_source_zero_mutation_revision_readonly_composition_operation_and_target_refusals ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/f4_start_panic.rs (target/debug/deps/f4_start_panic-4c1237488e44a379)
+
+running 1 test
+test retained_job_after_executor_start_panic_stays_charged_without_fabricated_cancel_or_success ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/f4_terminal_order.rs (target/debug/deps/f4_terminal_order-64dbd406caa9bf24)
+
+running 1 test
+test real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/f4_timer_drop.rs (target/debug/deps/f4_timer_drop-706a09e5c460a03b)
+
+running 1 test
+test timer_cancel_publish_world_drop_and_retained_clone_orders_contain_single_panic ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/f4_timer_entity.rs (target/debug/deps/f4_timer_entity-90b52bae17cdaa05)
+
+running 3 tests
+test recycled_entity_never_substitutes_recreated_semantic_scope ... ok
+test extracted_world_effect_allows_bounded_callback_reentry_without_losing_new_effect ... ok
+test native_every_repeated_and_already_published_ticks_are_gated_without_new_timer_wheel ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/f5.rs (target/debug/deps/f5-1ee118b3b926448a)
+
+running 9 tests
+test reentrant_submission_conflict_queue_and_unrelated_selection_progress ... ok
+test multi_entry_validation_is_atomic_on_unavoidable_participant_loss ... ok
+test pending_ime_blocks_snapshot_without_discarding_preedit ... ok
+test source_programmatic_undo_redo_reload_and_input_policy_cannot_bypass_save_freeze ... ok
+test cancel_preserves_exact_bytes_revision_history_selection_and_resources ... ok
+test retained_back_forward_replace_and_forward_truncation_guard_exact_incarnations ... ok
+test failure_panic_and_lost_save_retain_freeze_until_explicit_cancel_or_discard ... ok
+test confirmed_disposal_once_stale_duplicate_foreign_decisions_and_saves_refuse ... ok
+test actual_source_save_lane_is_live_while_close_waits ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/f5_admission.rs (target/debug/deps/f5_admission-3eeae4e14b50dd8c)
+
+running 2 tests
+test retained_disposal_conflicts_with_native_ready_and_resumes_after_cancel ... ok
+test unavoidable_new_document_while_ready_invalidates_and_requires_explicit_restart ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/f5_correction_matrix.rs (target/debug/deps/f5_correction_matrix-3a26cc52969d18ec)
+
+running 11 tests
+test runner::tests::secondary_failure_explicit_discard_closes_only_that_window ... ok
+test runner::tests::mutation_after_completion_invalidates_ready_before_destruction ... ok
+test runner::tests::process_exit_waits_for_secondary_and_cancel_resets_all ... ok
+test runner::tests::pending_cancel_quit_is_consumed_and_stale_success_rejected ... ok
+test runner::tests::ordinary_apps_keep_primary_secondary_and_quit_behavior ... ok
+test native_refusals_and_technical_failure_keep_owned_protection ... ok
+test runner::tests::unguarded_primary_cannot_destroy_guarded_secondary_or_new_window ... ok
+test incoming_exact_lease_document_and_native_authority_are_required ... ok
+test incoming_push_replace_loss_during_decision_and_save_is_atomic ... ok
+test runner::tests::failure_never_exits_or_destroys_in_memory_text_retry_drains ... ok
+test manager_fixed_point_chain_cycle_order_and_withdrawal ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/f5_correction_pending.rs (target/debug/deps/f5_correction_pending-3fe6f7ab345c3846)
+
+running 3 tests
+test queued_incoming_loss_and_dead_selection_do_not_mutate_history ... ok
+test incoming_manager_loss_after_decision_preserves_original ... ok
+test native_request_change_and_save_panic_never_cancel_freeze ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/f5_corrections.rs (target/debug/deps/f5_corrections-fa4e3d6d844a098b)
+
+running 13 tests
+test runner::tests::mutation_after_completion_invalidates_ready_before_destruction ... ok
+test runner::tests::pending_cancel_quit_is_consumed_and_stale_success_rejected ... ok
+test runner::tests::process_exit_waits_for_secondary_and_cancel_resets_all ... ok
+test runner::tests::ordinary_apps_keep_primary_secondary_and_quit_behavior ... ok
+test omitted_world_on_native_save_choice_must_retain_freeze ... ok
+test omitted_world_sync_positive_control ... ok
+test replacement_owner_loss_must_refuse_before_commit ... ok
+test runner::tests::failure_never_exits_or_destroys_in_memory_text_retry_drains ... ok
+test runner::tests::secondary_failure_explicit_discard_closes_only_that_window ... ok
+test route_destructor_submission_is_outside_inbox_borrow_and_revalidates ... ok
+test manager_cohort_must_be_transitively_consumable ... ok
+test runner::tests::unguarded_primary_cannot_destroy_guarded_secondary_or_new_window ... ok
+test same_document_replacement_loss_positive_control ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/f5_cycles.rs (target/debug/deps/f5_cycles-65a6414c0c8cab0b)
+
+running 1 test
+test retained_guard_cycles_return_to_exact_bounded_resource_baseline ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.77s
+
+     Running tests/f5_native.rs (target/debug/deps/f5_native-65751f3611c4e045)
+
+running 11 tests
+test runner::tests::pending_cancel_quit_is_consumed_and_stale_success_rejected ... ok
+test runner::tests::secondary_failure_explicit_discard_closes_only_that_window ... ok
+test runner::tests::ordinary_apps_keep_primary_secondary_and_quit_behavior ... ok
+test runner::tests::process_exit_waits_for_secondary_and_cancel_resets_all ... ok
+test runner::tests::mutation_after_completion_invalidates_ready_before_destruction ... ok
+test runner::tests::unguarded_primary_cannot_destroy_guarded_secondary_or_new_window ... ok
+test multiworld_shared_hidden_leases_ready_is_not_disposal_cancel_preserves_everything ... ok
+test missing_world_unregistered_document_and_lost_shared_lease_never_bless_ready ... ok
+test runner::tests::failure_never_exits_or_destroys_in_memory_text_retry_drains ... ok
+test quit_save_lane_failure_retry_stale_request_and_late_window_admission ... ok
+test secondary_native_manager_cannot_destroy_a_shared_document_before_joint_preparation ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/f5_quit_save.rs (target/debug/deps/f5_quit_save-515db6d5c863cec3)
+
+running 1 test
+test actual_owned_durable_save_progresses_while_native_quit_waits ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/f5_saves.rs (target/debug/deps/f5_saves-17e72930fd636bd8)
+
+running 2 tests
+test owned_save_panic_is_failed_not_discard_and_result_after_cancel_is_foreign ... ok
+test actual_save_job_or_result_loss_fails_closed_and_late_retry_cannot_replace_it ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/f5_shared_ime.rs (target/debug/deps/f5_shared_ime-359f07a803d6534d)
+
+running 1 test
+test shared_hidden_participant_pending_ime_is_never_silently_discarded_or_omitted ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/f5_windows.rs (target/debug/deps/f5_windows-0c6d8c73bab76d09)
+
+running 1 test
+test terminal_window_loss_reclaims_tabs_without_closing_shared_document ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+
+     Running tests/reviewer_probes.rs (target/debug/deps/reviewer_probes-aa68a214e41ad02d)
+
+running 3 tests
+test queued_fifo_survives_callback_unwind_and_full_queue ... ok
+test dropping_ancestor_inside_suspended_cleanup_reorders_pending_children ... ok
+test bounded_suspend_drain_requires_all_activity_attempts_and_retains_lifetime ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+   Doc-tests rndr_flow
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

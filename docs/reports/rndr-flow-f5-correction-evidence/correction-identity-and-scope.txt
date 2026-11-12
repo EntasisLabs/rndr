@@ -1,0 +1,28 @@
+eed1878119f11ee66e73cdb0a6fe24a1027205eb
+45c8b0cd7f4707446bab5a68fdaa3fab7e9621f9
+bf56c67fd5b67ddf993ec5c02e5af4ef7ef507d5
+ crates/rndr_flow/src/history.rs                  |  49 +++-
+ crates/rndr_flow/src/history_tests.rs            |   8 +
+ crates/rndr_flow/src/protection.rs               | 192 +++++++++-----
+ crates/rndr_flow/tests/f5_correction_matrix.rs   | 315 +++++++++++++++++++++++
+ crates/rndr_flow/tests/f5_correction_pending.rs  | 144 +++++++++++
+ crates/rndr_flow/tests/f5_corrections.rs         | 279 ++++++++++++++++++++
+ docs/design/rndr-flow-f5-host-contract.md        |   8 +-
+ docs/design/rndr-flow-f5-session-seam-blocker.md |  33 +++
+ docs/reports/rndr-flow-f5-corrections-audit.py   |  99 +++++++
+ docs/reports/rndr-flow-f5-corrections-gates.sh   |  55 ++++
+ 10 files changed, 1109 insertions(+), 73 deletions(-)
+47	2	crates/rndr_flow/src/history.rs
+8	0	crates/rndr_flow/src/history_tests.rs
+124	68	crates/rndr_flow/src/protection.rs
+315	0	crates/rndr_flow/tests/f5_correction_matrix.rs
+144	0	crates/rndr_flow/tests/f5_correction_pending.rs
+279	0	crates/rndr_flow/tests/f5_corrections.rs
+5	3	docs/design/rndr-flow-f5-host-contract.md
+33	0	docs/design/rndr-flow-f5-session-seam-blocker.md
+99	0	docs/reports/rndr-flow-f5-corrections-audit.py
+55	0	docs/reports/rndr-flow-f5-corrections-gates.sh
+998eaf8c25ee4daaba7afd1d962ce402a9ea0239248314dc44748b44274eabf4  docs/reports/rndr-flow-f5-independent-evidence/adversarial.rs
+998eaf8c25ee4daaba7afd1d962ce402a9ea0239248314dc44748b44274eabf4  crates/rndr_flow/tests/f5_corrections.rs
+Filesystem   1024-blocks      Used Available Capacity iused    ifree %iused  Mounted on
+/dev/disk3s5   239362496 204171868   5405672    98% 1933536 54056720    3%   /System/Volumes/Data

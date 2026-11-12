@@ -1,0 +1,4 @@
+$ cargo check --offline --locked -p rndr --no-default-features --lib
+    Finished `dev` profile [unoptimized] target(s) in 0.24s
+
+exit=0
