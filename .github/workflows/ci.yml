@@ -185,7 +185,9 @@ jobs:
           render_crate=(target/package/rndr_render-*.crate)
           ui_crate=(target/package/rndr_ui-*.crate)
           app_crate=(target/package/rndr_app-*.crate)
-          facade_crate=(target/package/rndr-*.crate)
+          # Digit after the hyphen keeps rndr-flow out of the facade glob.
+          facade_crate=(target/package/rndr-[0-9]*.crate)
+          flow_crate=(target/package/rndr-flow-*.crate)
           browser_crate=(target/package/rndr_browser-*.crate)
           media_crate=(target/package/rndr_media-*.crate)
           test "${#paint_crate[@]}" -eq 1
@@ -193,6 +195,7 @@ jobs:
           test "${#ui_crate[@]}" -eq 1
           test "${#app_crate[@]}" -eq 1
           test "${#facade_crate[@]}" -eq 1
+          test "${#flow_crate[@]}" -eq 1
           test "${#browser_crate[@]}" -eq 1
           test "${#media_crate[@]}" -eq 1
           paint_files="$(tar -tzf "${paint_crate[0]}")"
