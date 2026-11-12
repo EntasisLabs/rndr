@@ -1,0 +1,61 @@
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_flow)
+    Finished `test` profile [unoptimized] target(s) in 6.16s
+     Running unittests src/lib.rs (target/debug/deps/rndr_flow-4fa491294f8a6453)
+
+running 41 tests
+test budget_tests::newly_suspended_child_between_pumps_precedes_waiting_parent_cleanup ... ok
+test budget_tests::newly_dead_ancestor_restarts_before_parent_and_keeps_reverse_order ... ok
+test budget_tests::unrelated_live_registrations_cannot_starve_an_inflight_dead_subtree ... ok
+test budget_tests::queued_unwind_commands_are_charged_fifo_before_next_callback ... ok
+test f4_tests::lane_generation_max_refuses_atomically_with_old_valid_request ... ok
+test f4_tests::effect_capacity_refusal_returns_untouched_capture_and_pending_is_not_acknowledged ... ok
+test f4_tests::default_lane_capacity_exact_native_identity_and_terminal_sequence_refusals_are_untouched ... ok
+test history::bounds_tests::counter_max_capacity_and_total_pending_refuse_atomically ... ok
+test history::bounds_tests::decision_round_max_preserves_owned_guard_and_current_choice ... ok
+test f4_tests::unrecoverable_refusal_does_not_advance_activity_or_cancel_work ... ok
+test f4_tests::work_serial_max_refuses_without_replacing_or_cancelling_valid_last_slot ... ok
+test lease_admission_tests::exhausted_active_slot_remains_valid ... ok
+test lease_admission_tests::capacity_refusal_does_not_consume_final_serial ... ok
+test lease_admission_tests::exhausted_inactive_slot_is_not_reclaimed ... ok
+test f4_tests::destructor_panic_is_observed_after_ack_and_independent_cleanup_continues ... ok
+test lease_admission_tests::exhausted_mixed_storage_preserves_inactive_and_active_leases ... ok
+test lease_admission_tests::exhausted_lease_admission_preserves_stale_invalid_precedence ... ok
+test tests::cleanup_rejection_returns_untouched_ownership_and_never_calls_in_admission ... ok
+test tests::coordinator_drop_signals_but_never_runs_arbitrary_callbacks ... ok
+test tests::capacity_diagnostics_and_foreign_stale_identity_are_bounded ... ok
+test tests::all_identity_counters_refuse_exhaustion_before_replacing_valid_work ... ok
+test budget_tests::saturated_metadata_callbacks_commands_and_leases_all_make_progress ... ok
+test tests::lease_capacity_does_not_evict_admitted_presentations ... ok
+test tests::reentrant_ancestor_disposal_revisits_previously_live_children_before_parent ... ok
+test tests::cleanup_captures_release_once_on_success_error_unwind_and_rejection_drop ... ok
+test budget_tests::lease_ancestry_is_resumable_and_counts_remain_exact_without_pumping ... ok
+test tests::removed_components_and_refused_bindings_retain_single_ownership ... ok
+test tests::subtree_logical_death_precedes_child_first_reverse_cleanup ... ok
+test tests::hidden_retains_and_suspension_restarts_only_recoverable_activity ... ok
+test work::tests::aggregate_terminal_evidence_never_downgrades_in_any_order ... ok
+test work::tests::epoch_max_refuses_without_advancing ... ok
+test work::tests::tracked_pending_drop_preserves_known_failure_without_early_ack ... ok
+test tests::world_component_removal_explicit_dispose_and_world_drop_share_one_contract ... ok
+test budget_tests::callback_entry_scans_and_revalidation_are_charged_not_bulk ... ok
+test budget_tests::full_default_lease_table_sweeps_with_tiny_budgets_and_no_callbacks ... ok
+test tests::sim_host_keeps_logical_death_separate_from_explicit_cleanup_pump ... ok
+test tests::shared_documents_survive_presentation_and_world_loss ... FAILED
+test tests::duplicate_reentrant_error_panic_cleanup_is_consumed_once_with_bounded_queue ... ok
+test f4_tests::one_unit_default_capacity_slots_lanes_and_full_commands_progress_without_scans ... ok
+test budget_tests::capacity_wide_and_deep_callback_free_retirement_is_incremental ... ok
+test tests::one_hundred_lifecycle_cycles_return_every_storage_count_to_baseline ... ok
+
+failures:
+
+---- tests::shared_documents_survive_presentation_and_world_loss stdout ----
+
+thread 'tests::shared_documents_survive_presentation_and_world_loss' (3896249) panicked at crates/rndr_flow/src/tests.rs:90:35:
+called `Result::unwrap()` on an `Err` value: Stale
+
+
+failures:
+    tests::shared_documents_survive_presentation_and_world_loss
+
+test result: FAILED. 40 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.85s
+
+error: test failed, to rerun pass `-p rndr-flow --lib`

@@ -17,7 +17,13 @@
 
 #[cfg(test)]
 mod f4_tests;
+mod history;
+mod protection;
 mod request;
+mod topology;
+pub use history::*;
+pub use protection::*;
+pub use topology::*;
 mod transition;
 mod work;
 pub use request::*;
@@ -328,6 +334,7 @@ struct Scope {
     children: BTreeSet<ScopeId>,
     lanes: BTreeMap<LaneKey, request::Lane>,
     work: BTreeSet<u64>,
+    topology_freeze: Arc<AtomicU64>,
 }
 
 #[derive(Clone, Copy)]
@@ -438,6 +445,7 @@ impl Coordinator {
                 children: BTreeSet::new(),
                 lanes: BTreeMap::new(),
                 work: BTreeSet::new(),
+                topology_freeze: Arc::new(AtomicU64::new(0)),
             },
         );
         Ok((
@@ -512,6 +520,7 @@ impl Coordinator {
                 children: BTreeSet::new(),
                 lanes: BTreeMap::new(),
                 work: BTreeSet::new(),
+                topology_freeze: Arc::new(AtomicU64::new(0)),
             },
         );
         self.scopes.get_mut(&parent).unwrap().children.insert(id);
@@ -526,6 +535,13 @@ impl Coordinator {
         self.create(parent, Role::Scope)
     }
     pub fn register_world(&mut self) -> Result<WorldOwner, Error> {
+        if self.scopes[&self.root]
+            .topology_freeze
+            .load(Ordering::Acquire)
+            != 0
+        {
+            return Err(Error::Pending);
+        }
         self.create(self.root, Role::World).map(WorldOwner)
     }
     pub fn create_document(&mut self) -> Result<DocumentId, Error> {
@@ -547,7 +563,14 @@ impl Coordinator {
         document: DocumentId,
     ) -> Result<PresentationLease, Error> {
         self.live_scope(scope)?;
-        self.live_scope(document.0)?;
+        if self
+            .live_scope(document.0)?
+            .topology_freeze
+            .load(Ordering::Acquire)
+            != 0
+        {
+            return Err(Error::Pending);
+        }
         if self.live_scope(scope)?.role == Role::Document {
             return Err(Error::Invalid);
         }
@@ -589,6 +612,13 @@ impl Coordinator {
             .any(|l| l.document == document && self.held(l))
         {
             return Err(Error::InUse);
+        }
+        if self
+            .scopes
+            .get(&document.0)
+            .is_some_and(|s| s.topology_freeze.load(Ordering::Acquire) != 0)
+        {
+            return Err(Error::Pending);
         }
         self.dispose_internal(document.0)
     }

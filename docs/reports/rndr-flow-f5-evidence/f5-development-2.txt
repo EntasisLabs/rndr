@@ -1,0 +1,27 @@
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_flow)
+error[E0599]: no method named `remove_local` found for mutable reference `&mut World` in the current scope
+   --> crates/rndr_flow/tests/f5_native.rs:34:30
+    |
+ 34 |     let wa=f.app.world_mut().remove_local::<WorldOwner>();let wb=b.worl...
+    |                              ^^^^^^^^^^^^
+    |
+help: there is a method `remove` with a similar name, but with different arguments
+   --> crates/rndr_core/src/world.rs:200:5
+    |
+200 |     pub fn remove<T: Component>(&mut self, entity: Entity) -> Option<T> {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: no method named `remove_local` found for mutable reference `&mut World` in the current scope
+   --> crates/rndr_flow/tests/f5_native.rs:34:80
+    |
+ 34 | ...ner>();let wb=b.world_mut().remove_local::<WorldOwner>();drop(wa);dr...
+    |                                ^^^^^^^^^^^^
+    |
+help: there is a method `remove` with a similar name, but with different arguments
+   --> crates/rndr_core/src/world.rs:200:5
+    |
+200 |     pub fn remove<T: Component>(&mut self, entity: Entity) -> Option<T> {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `rndr-flow` (test "f5_native") due to 2 previous errors
