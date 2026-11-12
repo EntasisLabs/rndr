@@ -1,0 +1,8 @@
+$ sh -c git rev-parse HEAD; rustc --version; cargo --version; df -h .
+9e09c575f222384d5e3c843511552f64d0cbbf4d
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+cargo 1.98.0 (797e8a9bc 2026-08-05)
+Filesystem      Size    Used   Avail Capacity iused ifree %iused  Mounted on
+/dev/disk3s5   228Gi   191Gi   9.1Gi    96%    1.9M   95M    2%   /System/Volumes/Data
+
+exit=0

@@ -1,0 +1,4 @@
+$ cargo check --offline --locked -p rndr --no-default-features --features liquid --test editing_compatibility
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.10s
+
+exit=0

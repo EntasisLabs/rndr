@@ -1,0 +1,10 @@
+$ python3 docs/reports/rndr-flow-f4-independent-evidence/audit.py
+F4 PASS: 360/360 cycles; full Counts/WorkCounts assertions; 720 exit acknowledgments
+F4 receipt capacity and full pending-delivery equality are asserted in compiled tests, not inferred from quiet handles
+F1/F2 PASS: 300/300 teardowns; all 19 counters equal per-World baseline; external_ack_pending=0 each time
+flow: 66 passed; 0 ignored across unit/integration/doctest summaries
+core: 831 passed; 7 ignored across unit/integration/doctest summaries
+liquid: 16 passed; 0 ignored across unit/integration/doctest summaries
+consumer: 115 passed; 2 ignored across unit/integration/doctest summaries
+
+exit=0
