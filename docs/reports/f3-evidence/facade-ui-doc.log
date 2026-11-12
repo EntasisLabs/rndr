@@ -1,0 +1,8 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+   Doc-tests rndr
+
+running 2 tests
+test crates/rndr/src/lib.rs - (line 33) - compile ... ok
+test crates/rndr/src/lib.rs - ui (line 142) ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.45s

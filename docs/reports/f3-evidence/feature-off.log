@@ -1,0 +1,11 @@
+    Checking num-traits v0.2.19
+    Checking rndr_core v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_core)
+    Checking euclid v0.22.14
+    Checking lyon_geom v1.0.20
+    Checking lyon_path v1.0.19
+    Checking lyon_algorithms v1.0.22
+    Checking lyon_tessellation v1.0.23
+    Checking lyon v1.0.19
+    Checking rndr_ui v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_ui)
+    Checking rndr_paint v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_paint)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.15s

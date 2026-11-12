@@ -3811,6 +3811,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "rndr-flow"
+version = "0.5.0"
+dependencies = [
+ "rndr_core",
+]
+
+[[package]]
 name = "rndr_app"
 version = "0.5.0"
 dependencies = [

@@ -1,0 +1,19 @@
+   Compiling typenum v1.20.1
+   Compiling cpufeatures v0.2.17
+   Compiling generic-array v0.14.7
+   Compiling block-buffer v0.10.4
+   Compiling crypto-common v0.1.7
+   Compiling digest v0.10.7
+   Compiling sha2 v0.10.9
+   Compiling rndr_canvas v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_canvas)
+   Compiling rndr_canvas_ui v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_canvas_ui)
+   Compiling rndr v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.91s
+     Running unittests src/lib.rs (target/debug/deps/rndr-2f8b57b9dee2c261)
+
+running 3 tests
+test tests::reexports_cover_the_desktop_stack ... ok
+test tests::canvas_namespace_covers_model_and_editor ... ok
+test tests::liquid_namespace_parses_and_renders ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s

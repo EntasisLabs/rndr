@@ -1,0 +1,2501 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.68s
+     Running unittests src/lib.rs (target/debug/deps/rndr_core-423f4847c3db9c8a)
+
+running 139 tests
+test compose::tests::scale_keeps_the_pivot_fixed ... ok
+test compose::tests::rotation_is_clockwise_and_invertible ... ok
+test compose::tests::identity_and_default_matrix_is_identity ... ok
+test compose::tests::collapsed_and_non_finite_values ... ok
+test close::tests::cancel_invalidate_and_foreign_tokens ... ok
+test close::tests::discard_requires_current_failure ... ok
+test close::tests::failure_duplicate_retry_and_stale_completions ... ok
+test editing::multi_selection_tests::native_paste_copy_cut_restore_every_selection_one_step ... ok
+test editing::multi_selection_tests::host_batch_and_native_history_interleave_without_losing_sets ... ok
+test editing::multi_selection_tests::native_typing_and_grapheme_delete_are_batches ... ok
+test editing::scroll_anchor_tests::exact_anchors_compose_without_projection_or_event_journal ... ok
+test editor::geometry::tests::incremental_reuse_is_content_and_local_span_fenced ... ok
+test editing::multi_selection_tests::views_keep_independent_sets_and_map_without_focus_transfer ... ok
+test editing::scroll_anchor_tests::repeated_newlines_map_canonical_anchor_at_actual_native_insertion ... ok
+test editing::scroll_anchor_tests::repeated_clipboard_and_word_delete_operations_keep_exact_ranges ... ok
+test editing::scroll_anchor_tests::anchors_follow_native_reload_and_retire_with_views ... ok
+test editor::tests::buffer_snapshots_reuse_until_bytes_change_and_clones_detach ... ok
+test editor::tests::plain_row_query_matches_a_full_scan_and_spatial_rows_keep_the_scan ... ok
+test editor::tests::binary_document_row_matches_public_line_col_at_all_bytes ... ok
+test flex::tests::distribute_matches_css ... ok
+test flex::tests::lines_break_greedily ... ok
+test editing::multi_selection_tests::overlap_readonly_stale_composition_and_backpressure_are_atomic ... ok
+test editor::tests::height_index_matches_paragraph_layout_for_wraps_and_folds ... ok
+test font::tests::left_edge_alias_of_the_next_line_stays_on_this_line ... ok
+test editor::tests::document_rows_cache_geometry_and_invalidate_for_text_width_style_and_engine ... ok
+test font::tests::rtl_selection_follows_visual_edges ... ok
+test grid::tests::fractions_share_what_fixed_and_auto_leave ... ok
+test editor::geometry::tests::huge_paragraph_cache_eviction_does_not_drop_rows ... ok
+test markdown::host::shift_tests::append_does_not_move_an_earlier_range ... ok
+test markdown::host::shift_tests::insert_above_is_a_prefix_insertion ... ok
+test editor::tests::sub_row_remainder_survives_a_width_change_and_the_next_wheel_crosses ... ok
+test edit::floor_grapheme_tests::floor_grapheme_matches_full_scan_generated_contexts ... ok
+test editor::geometry::tests::paragraph_rows_match_whole_builtin_layout ... ok
+test markdown::tests::copied_selection_keeps_markdown_structure ... ok
+test markdown::tests::adjacent_lists_keep_the_blank_line_and_a_past_end_start_does_not ... ok
+test markdown::tests::parses_headings_emphasis_code_links_lists_quotes_and_rules ... ok
+test markdown::tests::partial_fence_and_emphasis_leave_the_paragraph_above_them ... ok
+test markdown::tests::partial_inline_constructs_do_not_show_raw_markers ... ok
+test markdown::tests::copied_inline_markers_and_nested_numbers_round_trip ... ok
+test motion::color::tests::round_trips_srgb ... ok
+test motion::track::tests::delay_holds_then_moves ... ok
+test markdown::tests::partial_task_markers_draw_as_checkboxes ... ok
+test motion::track::tests::easing_endpoints_and_monotonic ... ok
+test motion::track::tests::release_velocity_seeds_the_spring ... ok
+test motion::track::tests::retarget_keeps_value_and_velocity ... ok
+test motion::track::tests::settles_to_the_target_within_the_bound ... ok
+test panel_place::tests::center_anchors_nothing_so_the_compositor_centers_it ... ok
+test panel_place::tests::explicit_origin_is_a_top_left_margin ... ok
+test panel_place::tests::platform_position_anchors_only_the_top ... ok
+test panel_place::tests::windows_show_does_not_activate_and_focus_does ... ok
+test source_search::tests::empty_overlap_and_readonly_are_explicit ... ok
+test source_search::tests::replace_all_is_one_undo_and_stale_refuses ... ok
+test source_selection::tests::adjacent_wrapped_rows_and_rtl_direction_are_preserved ... ok
+test source_selection::tests::normalize_overlaps_direction_primary_and_unicode ... ok
+test source_selection::tests::rectangles_use_visual_tabs_wrap_and_refuse_mixed_bidi ... ok
+test structured::e6_tests::structured_e6_atomic_invalid_structure_and_monotonic_identity ... ok
+test markdown::host::registration_tests::native_ownership_survives_authority_loss_without_claiming_attachments ... ok
+test structured::e6_tests::structured_e6_attributes_style_schema_and_noop_revision ... ok
+test structured::e6_tests::structured_e6_enter_split_task_paste_and_empty_exit ... ok
+test structured::e6_tests::structured_e6_horizontal_rule_adjacent_delete_selects_then_removes ... ok
+test structured::e6_tests::structured_e6_cross_container_unicode_replacement_and_undo ... ok
+test structured::e6_tests::structured_e6_horizontal_rule_is_nontext_and_repairs_final_leaf ... ok
+test editor::tests::plain_editor_wheel_snaps_to_the_same_row_as_a_linear_scan ... ok
+test structured::e6_tests::structured_e6_indent_moves_subtree_and_promotes_after_parent_subtree ... ok
+test structured::e6_tests::structured_e6_nested_task_identity_toggle_and_inverse ... ok
+test structured::e6_tests::structured_e6_quote_middle_exit_splits_without_reordering ... ok
+test structured::e6_tests::structured_e6_middle_outdent_preserves_order_and_ordered_continuation ... ok
+test structured::e6_tests::structured_e6_readonly_and_composition_refuse_structural_commands ... ok
+test structured::e6_tests::structured_e6_quote_nesting_and_exit_preserve_stable_positions ... ok
+test structured::html::tests::parse_blocks_lists_quotes_and_styles ... ok
+test structured::html::tests::parse_keeps_marks_links_and_pills ... ok
+test structured::html::tests::parse_strips_unsafe_content_and_decodes_entities ... ok
+test structured::e6_tests::structured_e6_split_item_keeps_nested_children_on_right_sibling ... ok
+test structured::operation_tests::structured_operation_marks_validate_before_positions_and_roll_back_prior_allocations ... ok
+test structured::operation_tests::structured_operation_last_axis_removal_repairs_selection_and_refusal_is_atomic ... ok
+test structured::operation_tests::structured_operation_replace_cells_normalizes_text_preserves_headers_and_history ... ok
+test structured::table_atom_tests::structured_atomic_bad_payload_stale_nested_callback_and_adjacent_atoms ... ok
+test structured::table_atom_tests::structured_atomic_payload_history_fallback_and_fences ... ok
+test structured::table_atom_tests::structured_table_creation_schema_and_navigation ... ok
+test structured::table_atom_tests::structured_table_fragment_atom_and_bad_fragment_are_atomic ... ok
+test structured::table_atom_tests::structured_table_invalid_schema_readonly_composition_and_transaction_rollback ... ok
+test structured::table_atom_tests::structured_table_last_axis_removal_and_nonreused_id ... ok
+test structured::table_atom_tests::structured_table_all_row_column_edits_inverse_and_repair ... ok
+test structured::table_atom_tests::structured_table_rectangle_typing_clear_and_inverse ... ok
+test structured::table_atom_tests::structured_table_text_boundaries_and_last_leaf_deletion ... ok
+test structured::tests::structured_atomic_refusals_preserve_everything ... ok
+test structured::tests::structured_composition_capture_mark_boundary_and_readonly ... ok
+test structured::tests::structured_crossblock_delete_identity_and_inverse ... ok
+test structured::tests::structured_explicit_grouping_and_selection_barriers ... ok
+test structured::tests::structured_invalid_position_after_valid_op_rolls_back ... ok
+test structured::tests::structured_kind_changes_identity_and_no_reuse_after_undo ... ok
+test structured::operation_tests::structured_operation_table_axes_keep_ids_headers_selection_and_inverses ... ok
+test structured::tests::structured_link_schema_rejects_invalid_attributes_atomically ... ok
+test structured::table_atom_tests::structured_table_rich_rectangle_copy_paste_and_history ... ok
+test structured::tests::structured_node_delete_empty_and_undo_identity ... ok
+test structured::tests::structured_node_replacement_becomes_text_caret ... ok
+test structured::tests::structured_normalization_preserves_typed_selection ... ok
+test structured::tests::structured_paste_newline_and_deleted_endpoint_mapping ... ok
+test structured::tests::structured_utf8_positions_and_direction ... ok
+test structured::tests::structured_split_join_and_marks_are_inverse ... ok
+test structured_native::tests::dispatch_atomic_copy_and_cut_share_fallback_and_one_tree_history ... ok
+test structured::text_ops::replacement_mapping_matches_original_endpoint_rules ... ok
+test structured_native::tests::dispatch_atomic_noop_is_consumed_but_readonly_navigation_is_allowed ... ok
+test structured_native::tests::dispatch_history_precedes_atomic_selection_and_ignores_event_text ... ok
+test structured_native::tests::dispatch_ignored_events_do_not_reach_history_or_typing ... ok
+test structured_native::tests::native_structured_access_state_refuses_edit_undo_aba ... ok
+test structured_native::tests::native_structured_accessible_block_navigation_maps_to_typed_node ... ok
+test structured_native::tests::native_structured_canceled_model_composition_cannot_retarget_late_commit ... ok
+test markdown::tests::streamed_prefixes_match_a_full_parse ... ok
+test structured_native::tests::native_structured_composition_survives_toolbar_focus_until_native_cancel ... ok
+test structured_native::tests::native_structured_caret_steps_over_pills_and_backspace_removes_them ... ok
+test structured_native::tests::native_structured_copy_and_paste_carry_html_marks ... ok
+test structured_native::tests::native_structured_interactive_grapheme_snap_and_raw_buffer_guard ... ok
+test structured_native::tests::native_structured_horizontal_rule_selection_delete_copy_and_undo ... ok
+test structured_native::tests::native_structured_geometry_and_block_mapping_share_exact_projection ... ok
+test structured_native::tests::native_structured_marked_ime_is_transient_and_commits_once ... ok
+test structured_native::tests::native_structured_orphan_cleanup_releases_history_for_remount ... ok
+test structured_native::tests::native_structured_node_delete_and_undo_restore_node_identity ... ok
+test structured_native::tests::native_structured_list_keys_are_tree_commands_not_prefix_edits ... ok
+test structured_native::tests::native_structured_paste_across_mark_boundary_and_one_undo ... ok
+test structured_native::tests::native_structured_paste_key_uses_rich_html ... ok
+test structured_native::tests::native_structured_plain_crlf_clipboard_normalizes_before_offset_mapping ... ok
+test structured_native::tests::native_structured_primary_b_i_u_toggle_marks_on_selection ... ok
+test structured_native::tests::native_structured_readonly_preserves_copy_and_navigation_all_origins ... ok
+test structured_native::tests::native_structured_stale_clipboard_html_is_ignored ... ok
+test structured_native::tests::native_structured_structural_keyboard_respects_readonly_and_composition ... ok
+test structured_native::tests::native_structured_view_readonly_is_not_overwritten_by_projection ... ok
+test typing::storage_tests::restore_transfers_owned_allocations_and_directed_selection ... ok
+test structured_native::tests::native_structured_whole_document_replacement_is_not_identity_aba ... ok
+test typing::storage_tests::snapshot_storage_accounting ... ignored, opt-in retained history capacity accounting, not RSS or allocator overhead
+test typing::storage_tests::source_metadata_evicts_with_snapshots_and_redo_invalidation ... ok
+test structured_native::tests::native_structured_typing_split_join_and_document_undo ... ok
+test markdown::host::registration_tests::callback_removal_replacement_raw_loss_and_unwind_never_resurrect ... ok
+test structured::tests::structured_many_unicode_splices_roundtrip_inverse ... ok
+test structured::e6_tests::structured_e6_all_unicode_cross_container_replacements_are_atomic_inverses ... ok
+test motion::track::tests::closed_form_matches_integration_in_every_regime ... ok
+test edit::floor_grapheme_tests::floor_grapheme_matches_full_scan_adversarial_corpus ... ok
+test font::tests::fallback_wrap_huge_paragraph_has_linear_advance_cost ... ok
+test font::tests::fallback_wrap_matches_historical_ranges ... ok
+
+test result: ok. 138 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running tests/a1_cancellation_edges.rs (target/debug/deps/a1_cancellation_edges-e480659ec3f92936)
+
+running 3 tests
+test scroll_capture_wins_over_an_armed_button ... ok
+test semantic_tab_requires_live_panel_and_relations_survive_no_stale_generation ... ok
+test matching_pointer_is_not_enough_a_release_must_match_primary_button ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/a1_hotkey_ownership.rs (target/debug/deps/a1_hotkey_ownership-16aac08581f4d7cb)
+
+running 11 tests
+test nonmatching_registration_survives_traversal_and_focus_cancellation ... ok
+test nonmatching_registration_does_not_validate_synthetic_or_repeated_releases ... ok
+test nonmatching_registration_preserves_legacy_enter_and_editor_space ... ok
+test active_guard_owns_release_before_clear_then_allows_fresh_gesture ... ok
+test nonmatching_space_same_frame ... ok
+test nonmatching_enter_split_frame ... ok
+test matching_chords_and_matching_release_cancel_stale_arm ... ok
+test nonmatching_enter_same_frame ... ok
+test nonmatching_space_split_frame ... ok
+test no_registration_space_controls ... ok
+test no_registration_enter_controls ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/a1_interaction.rs (target/debug/deps/a1_interaction-e1a2a4af2c469050)
+
+running 7 tests
+test generic_tab_focus_no_shell_side_effects_editor_keeps_keys ... ok
+test allowed_matrix_names_readonly_hidden_unsupported_and_safe_setvalue ... ok
+test cardinality_order_overflow_revalidation_and_generation ... ok
+test real_panel_relations_manual_focus_and_inactive_exclusion ... ok
+test mixed_press_and_release_and_at_share_canonical_route ... ok
+test space_release_enter_down_repeat_synthetic_and_focus_loss ... ok
+test pointer_cancel_outside_escape_blur_capture_disable_and_destroy ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/a1_lifecycle.rs (target/debug/deps/a1_lifecycle-84735b0813fcec56)
+
+running 4 tests
+test unarmed_escape_still_reaches_legacy_overlay ... ok
+test generic_install_preserves_focused_legacy_list_rows ... ok
+test destroyed_semantic_tab_cannot_leave_an_exposed_orphan_panel ... ok
+test readonly_preserves_field_and_editor_text_ime_and_history ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/a1_logical_only.rs (target/debug/deps/a1_logical_only-d9fc9bb9b1061ef0)
+
+running 3 tests
+test physical_binding_and_registration_drop_do_not_own_logical_release ... ok
+test true_logical_focus_roundtrip_repeat_and_modified_up_cancel ... ok
+test true_logical_only_nonmatching_registration_matrix_80 ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/a1_relation_lifecycle.rs (target/debug/deps/a1_relation_lifecycle-538c66f7b23feb31)
+
+running 1 test
+test invalidated_tab_structure_rejects_actions_and_hides_panel ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/a1_reproductions.rs (target/debug/deps/a1_reproductions-92034a542a105c46)
+
+running 3 tests
+test at_set_value_must_not_bypass_editor_history ... ok
+test advertised_tab_activation_selects_panel ... ok
+test folded_button_child_label_is_name ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/a1_review_corrections.rs (target/debug/deps/a1_review_corrections-c2e69cd5ac05026b)
+
+running 14 tests
+test repeated_enter_and_at_are_distinct_before_drain ... ok
+test modern_edges_do_not_leak_to_legacy_and_repeat_is_not_new_activation ... ok
+test legacy_to_modern_traversal_preserves_space_pair ... ok
+test modified_release_resolves_arm_without_later_activation ... ok
+test subsequent_unmatched_release_cannot_commit_stale_traversal_arm ... ok
+test pointer_focus_then_keyboard_and_pointer_release_are_distinct ... ok
+test traversal_then_legacy_enter ... ok
+test rejected_requests_and_drain_validation_preserve_survivor_order ... ok
+test registered_hotkey_cancels_arm_in_order_and_never_leaks_to_legacy ... ok
+test traversal_space_pair_then_unmatched_release ... ok
+test same_target_capacity_is_64_requests_not_targets ... ok
+test traversal_into_field_keeps_remaining_edit_order_and_no_dual_shim ... ok
+test traversal_into_editor_keeps_remaining_edit_order ... ok
+test space_cancel_focus_blur_synthetic_escape_and_modifiers ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/a1_wrapped_hug.rs (target/debug/deps/a1_wrapped_hug-d96e43767ba7ca19)
+
+running 2 tests
+test row_fill_widths_determine_hug_cross_height_before_clipping ... ok
+test nested_wrapped_hug_heights_are_correct_on_first_frame_resize_and_scale ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/a2_core_contracts.rs (target/debug/deps/a2_core_contracts-88187c810f391c34)
+
+running 3 tests
+test selected_state_is_independent_and_not_implicitly_mutated ... ok
+test modern_tab_descendant_pointer_release_is_canonical ... ok
+test manual_orientation_roving_entry_exclusion_and_activation ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/a2_nested_focus.rs (target/debug/deps/a2_nested_focus-4d67fcd447a5823d)
+
+running 1 test
+test nested_scroll_reveals_focused_target_through_each_ancestor ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/access_text.rs (target/debug/deps/access_text-d967eff4beee46ca)
+
+running 8 tests
+test modal_and_inherited_availability_reject_selection ... ok
+test unavailable_or_composing_target_never_moves_or_steals_focus ... ok
+test scalar_validation_grapheme_snap_and_unchanged_history ... ok
+test stale_revision_source_reattach_and_cross_view_tokens_refuse ... ok
+test geometry_tracks_shaped_wrap_width_and_row_snapped_scroll ... ok
+test host_selection_requires_projection_before_announcing_ranges ... ok
+test accessible_selection_replacement_uses_the_existing_undo_owner ... ok
+test full_source_not_paint_window_and_directed_readonly_selection ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/actions.rs (target/debug/deps/actions-2261f554e7864a8a)
+
+running 4 tests
+test non_consuming_binding_leaves_the_key ... ok
+test focused_binding_beats_global ... ok
+test unbound_key_still_reaches_the_caret ... ok
+test consumed_chord_does_not_move_the_caret ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/app_menu.rs (target/debug/deps/app_menu-7a776e4c749bbb25)
+
+running 2 tests
+test ids_round_trip_and_stay_apart_from_tray_ids ... ok
+test the_runner_sees_each_change_once_and_picks_become_events ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/blur_motion.rs (target/debug/deps/blur_motion-ac0284f4bd33942c)
+
+running 5 tests
+test reduced_motion_jumps_blur_to_its_target ... ok
+test an_app_set_blur_survives_other_motion_on_the_entity ... ok
+test blur_tweens_from_the_component_value_and_settles ... ok
+test live_blur_writes_the_latest_value ... ok
+test backdrop_blur_animates_and_never_goes_negative ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/body.rs (target/debug/deps/body-158193eb0ee0d354)
+
+running 8 tests
+test tab_moves_the_caret_to_the_body ... ok
+test typing_in_the_body_writes_back ... ok
+test enter_in_the_body_inserts_a_newline ... ok
+test escape_leaves_the_body_caret ... ok
+test click_body_starts_edit_click_tree_does_not ... ok
+test enter_on_alpha_starts_on_the_title ... ok
+test down_then_type_starts_the_next_line ... ok
+test click_second_line_places_the_caret_there ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/buffer_storage.rs (target/debug/deps/buffer_storage-b0c1553c050db37d)
+
+running 1 test
+test gap_moves_and_line_index_match_raw_byte_model ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+
+     Running tests/button.rs (target/debug/deps/button-987d774b08c07fe5)
+
+running 5 tests
+test enter_fires_the_focused_button ... ok
+test click_outside_does_not_fire ... ok
+test click_fires_once ... ok
+test a_press_and_release_in_one_frame_fires ... ok
+test disabled_button_does_not_fire ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/caret.rs (target/debug/deps/caret-41391a7bb22a6c0e)
+
+running 11 tests
+test selection_spans_cover_each_line ... ok
+test left_while_editing_does_not_open_alpha ... ok
+test shift_click_extends_the_selection ... ok
+test backspace_deletes_the_selection ... ok
+test enter_on_alpha_starts_edit ... ok
+test click_fills_the_pane_without_a_caret ... ok
+test click_places_the_caret_on_that_cell ... ok
+test escape_leaves_the_caret_and_keeps_selection ... ok
+test shift_left_then_type_replaces_the_selection ... ok
+test typing_writes_back_to_the_tree ... ok
+test left_then_type_inserts_in_the_middle ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/click_caret.rs (target/debug/deps/click_caret-149efaa4ca740a15)
+
+running 4 tests
+test click_tree_header_clears_the_caret ... ok
+test click_title_near_first_glyph_places_caret_at_zero ... ok
+test click_between_title_glyphs_places_caret ... ok
+test click_second_wrapped_body_line ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/clipboard.rs (target/debug/deps/clipboard-bf20122e0be280ea)
+
+running 1 test
+test copy_cut_and_paste_the_selection ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/complex_script_ime.rs (target/debug/deps/complex_script_ime-559ce6cf76505c8d)
+
+running 4 tests
+test resolver_drops_caret_keys_during_cjk_and_arabic_preedit ... ok
+test structured_editor_cancels_without_a_revision_and_commits_once ... ok
+test source_session_keeps_preedit_out_of_the_document ... ok
+test field_prompt_and_editor_commit_cjk_and_arabic_once_and_cancel_cleanly ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/compose.rs (target/debug/deps/compose-6a6d39ccc651cca0)
+
+running 5 tests
+test rotation_turns_the_hit_area ... ok
+test a_group_outside_its_parent_clip_is_not_hit ... ok
+test a_collapsed_transform_is_not_hit_and_opacity_is_ignored ... ok
+test scale_grows_the_hit_area_about_the_center ... ok
+test translate_moves_the_hit_area ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/decorations.rs (target/debug/deps/decorations-82694c8a55519fd1)
+
+running 2 tests
+test visible_line_50_is_marked ... ok
+test offscreen_match_has_no_mark ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/desktop_exit.rs (target/debug/deps/desktop_exit-130d9f34f7493e41)
+
+running 2 tests
+test pending_and_recursive_build_opens_block_commitment ... ok
+test concurrent_open_is_either_admitted_or_after_commit_never_stranded ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/ecs.rs (target/debug/deps/ecs-6021805ed19554f6)
+
+running 3 tests
+test stale_handle_after_recycle ... ok
+test spawn_query_and_generation_reuse ... ok
+test headless_app_runs_startup_once_then_update ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/edit.rs (target/debug/deps/edit-8c8576a788404989)
+
+running 5 tests
+test backspace_inside_a_scalar_removes_the_whole_scalar ... ok
+test ascii_caret_still_moves_one_byte ... ok
+test arrows_and_backspace_step_by_scalar ... ok
+test backspace_deletes_a_combining_grapheme ... ok
+test backspace_and_arrows_treat_a_flag_as_one_grapheme ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/editing_compatibility.rs (target/debug/deps/editing_compatibility-08f1ca13e7611aa9)
+
+running 4 tests
+test source_and_tree_ownership_refuse_in_both_attachment_orders_without_side_effects ... ok
+test legacy_raw_mutation_remains_history_free ... ok
+test explicit_fork_retains_legacy_history_bytes_and_directed_selection ... ok
+test one_layout_consumer_observes_native_and_host_commits_without_double_delivery ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/editor.rs (target/debug/deps/editor-d948f11b30cda493)
+
+running 6 tests
+test insert_and_delete_in_the_middle ... ok
+test gutter_follows_the_scrolled_window ... ok
+test click_maps_to_a_buffer_offset ... ok
+test backspace_removes_one_precomposed_scalar ... ok
+test backspace_and_left_treat_a_flag_as_one_grapheme ... ok
+test visible_window_does_not_place_every_line ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running tests/editor_drag.rs (target/debug/deps/editor_drag-9e275b1789e5dad6)
+
+running 14 tests
+test rejected_press_does_not_reveal_an_unrelated_offscreen_caret ... ok
+test press_at_keeps_start_anchor_when_motion_and_release_are_coalesced ... ok
+test pointer_placement_preserves_snapped_caret_column_for_subsequent_vertical_navigation ... ok
+test capture_tracks_off_editor_and_ignores_presses_that_started_elsewhere ... ok
+test empty_document_and_nonfinite_motion_are_safe_and_cancel_capture ... ok
+test capture_does_not_transfer_to_another_editor_and_coalesced_press_focus_uses_origin ... ok
+test held_motion_reverses_across_stable_anchor_and_release_applies_final_position ... ok
+test scrolled_soft_wrap_drag_maps_document_graphemes_not_label_bytes ... ok
+test secondary_press_and_hover_do_not_select ... ok
+test shift_press_preserves_old_anchor_and_new_unshifted_press_resets_it ... ok
+test capture_cancels_on_focus_loss_contact_change_button_change_or_missing_down ... ok
+test stationary_drag_timer_cancels_on_release_blur_focus_loss_and_destruction ... ok
+test stationary_drag_rate_is_independent_of_frame_count_and_caps_stalls ... ok
+test autoscroll_uses_elapsed_time_clamps_at_edges_and_stops_on_release ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/editor_incremental.rs (target/debug/deps/editor_incremental-53ee3b1c2bc5e191)
+
+running 6 tests
+test idle_source_projection_repairs_raw_buffer_mutation_and_document_rebinding ... ok
+test repeated_newlines_keep_peer_source_anchor_through_native_enter_and_undo ... ok
+test one_paragraph_edit_reuses_others_and_preserves_scrolled_content ... ok
+test width_and_style_reflow_retain_byte_anchor_and_invalidate_geometry ... ok
+test exact_batch_anchors_compose_across_revisions_and_undo_in_two_views ... ok
+test idle_scroll_does_not_reassemble_or_shape_document_and_window_is_bounded ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/editor_navigation.rs (target/debug/deps/editor_navigation-15524bae41146974)
+
+running 20 tests
+test queued_release_synthetic_and_alt_arrows_do_not_navigate ... ok
+test legacy_typing_at_a_split_utf8_index_repairs_bounds_without_corrupting_text ... ok
+test blooey_b002_typing_reveals_caret ... ok
+test composition_owns_vertical_keys_until_commit ... ok
+test blooey_b001_legacy_up ... ok
+test blooey_b001_queued_up ... ok
+test queued_native_events_preserve_order_shift_repeat_and_single_consumption ... ok
+test a_scalar_wrap_inside_a_grapheme_never_publishes_an_out_of_window_caret ... ok
+test idle_scroll_is_not_overridden_and_top_navigation_reveals_again ... ok
+test soft_wrapped_rows_navigate_and_reveal_without_newlines ... ok
+test resizing_and_entity_line_height_keep_mapping_and_reveal_consistent ... ok
+test queued_typing_and_ime_commit_reveal_eof ... ok
+test right_edge_alias_does_not_trap_up_on_the_same_visual_row ... ok
+test shift_extends_selection_and_unshifted_arrows_collapse_directionally ... ok
+test unrelated_release_and_synthetic_input_do_not_cancel_explicit_scrolling ... ok
+test scrolled_wrapped_pointer_maps_to_document_bytes_and_decorations ... ok
+test up_at_hard_wrap_start_must_reach_the_previous_visual_row ... ok
+test vertical_goal_survives_short_lines_but_horizontal_motion_resets_it ... ok
+test empty_blank_trailing_newline_and_document_edges_are_stable ... ok
+test unicode_indices_are_clamped_and_never_split_graphemes_during_navigation ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/editor_page.rs (target/debug/deps/editor_page-f7aa791bccb0455e)
+
+running 4 tests
+test page_navigation_readonly_unicode_and_composition_admission ... ok
+test page_release_synthetic_and_modified_keys_do_not_move_or_edit ... ok
+test page_motion_uses_viewport_preserves_x_and_extends_directed_selection ... ok
+test page_motion_uses_soft_rows_and_recomputes_after_resize ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/editor_scale_cost.rs (target/debug/deps/editor_scale_cost-d6014a9da86835b6)
+
+running 1 test
+test editor_scale_costs ... ignored, opt-in release scale characterization; no timing threshold assertions
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/editor_scale_unique.rs (target/debug/deps/editor_scale_unique-d0bd1a8b59ec3b39)
+
+running 2 tests
+test scroll_and_fold_stability ... ignored, opt-in release scale characterization; no timing threshold assertions
+test unique_line_editor_costs ... ignored, opt-in release scale characterization; no timing threshold assertions
+
+test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/feed.rs (target/debug/deps/feed-f734b726c81b98eb)
+
+running 11 tests
+test a_worker_burst_stays_in_order ... ok
+test latest_keeps_the_newest_value ... ok
+test drop_oldest_discards_the_front ... ok
+test stale_epoch_is_dropped_and_does_not_wake ... ok
+test spawn_thread_stops_when_the_feed_is_dropped ... ok
+test reject_does_not_grow_or_wake ... ok
+test cancelled_future_completes_after_drop ... ok
+test a_burst_wakes_once_and_keeps_order ... ok
+test spawn_task_delivers_on_the_ui_thread ... ok
+test drop_cancels_and_unblocks_a_sender ... ok
+test wait_blocks_until_the_frame_drains ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+
+     Running tests/field.rs (target/debug/deps/field-4beefb97f7ea103f)
+
+running 5 tests
+test text_changed_is_visible_to_update_on_the_same_frame ... ok
+test click_places_the_index ... ok
+test enter_submits_without_inserting_a_newline ... ok
+test type_and_backspace_edit_the_label ... ok
+test keyboard_selection_sets_the_primary ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/field_form_chronology.rs (target/debug/deps/field_form_chronology-44d74fdadd08e4e6)
+
+running 4 tests
+test readonly_legacy_text_is_discarded_not_redirected_by_tab ... ok
+test legacy_text_is_applied_and_published_before_tab_blur ... ok
+test legacy_text_before_tab_participates_in_existing_undo_redo_history ... ok
+test composition_tab_stays_on_its_field_for_legacy_and_rich_input ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/file_drop.rs (target/debug/deps/file_drop-ae31b3946ba141a6)
+
+running 5 tests
+test the_binding_matrix_is_separate_from_the_native_ledger ... ok
+test admission_keeps_a_finite_point_and_leaves_every_other_report_empty ... ok
+test cancel_clears_every_hovered_path ... ok
+test the_hover_set_rejects_a_non_finite_literal_and_updates_a_repeated_path ... ok
+test queued_events_keep_the_admitted_position ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/flex_layout.rs (target/debug/deps/flex_layout-149bbe2ad77ba556)
+
+running 14 tests
+test items_align_across_and_align_self_overrides ... ok
+test max_size_caps_fill_and_min_wins ... ok
+test absolute_child_scrolls_with_content ... ok
+test aspect_ratio_derives_the_free_axis ... ok
+test justify_ignored_when_fill_takes_leftover ... ok
+test absolute_children_leave_flow_and_pin_to_edges ... ok
+test capped_fill_leaves_space_for_justify ... ok
+test absolute_child_hit_tests_above_later_siblings ... ok
+test per_side_padding_insets_content_and_hug ... ok
+test stretch_fills_cross_axis_unless_fixed ... ok
+test wrap_justifies_and_aligns_per_line ... ok
+test max_size_wraps_row_and_hug_parent_grows ... ok
+test justify_distributes_leftover_space ... ok
+test hug_labels_keep_max_size_and_aspect_ratio ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/focus.rs (target/debug/deps/focus-caa8e0a3b54700e0)
+
+running 6 tests
+test click_sets_focus_without_opening ... ok
+test tab_walks_without_opening ... ok
+test focus_below_port_adjusts_scroll ... ok
+test enter_does_not_toggle_the_tree ... ok
+test down_then_right_opens_alpha ... ok
+test tree_walk_and_escape ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/font.rs (target/debug/deps/font-20e3b67bb635dad7)
+
+running 8 tests
+test measure_matches_layout_width_and_line_count ... ok
+test proportional_face_wraps_on_advances ... ok
+test wrap_inside_a_span_keeps_every_glyph ... ok
+test text_face_is_what_layout_measures ... ok
+test bitmap_places_glyphs_on_the_cell_grid ... ok
+test wrap_keeps_every_line_inside_the_label ... ok
+test ellipsis_stays_on_one_line_inside_the_label ... ok
+test an_ellipsis_label_hugs_a_single_line ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/frame_surface.rs (target/debug/deps/frame_surface-0165b7ac5f528813)
+
+running 6 tests
+test odd_nv12_sizes_round_chroma_up ... ok
+test malformed_frames_are_refused_and_keep_the_old_frame ... ok
+test placement_contains_covers_and_stretches ... ok
+test renderers_count_shown_frames ... ok
+test hidden_windows_are_not_woken ... ok
+test pushes_wake_a_drawing_window_once_per_frame ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/fs.rs (target/debug/deps/fs-352f9fb6e263a2aa)
+
+running 16 tests
+test binary_file_does_not_save ... ok
+test delete_nonempty_dir_is_noop ... ok
+test enter_file_loads_body ... ok
+test delete_clean_file ... ok
+test expand_lists_dir_and_skips_hidden ... ok
+test delete_fs_root_is_noop ... ok
+test nodespec_tree_ignores_save ... ok
+test nodespec_tree_ignores_new_and_delete ... ok
+test delete_saves_dirty_then_unlinks ... ok
+test new_creates_untitled_file ... ok
+test shift_new_creates_untitled_dir ... ok
+test edit_marks_the_tree_row_until_save ... ok
+test collapse_flushes_dirty_child ... ok
+test save_writes_disk_and_clears_dirty ... ok
+test collapse_and_reopen_reads_saved_text ... ok
+test save_renames_the_file ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/grid_sticky.rs (target/debug/deps/grid_sticky-82cba197d976761d)
+
+running 6 tests
+test grid_places_cells_row_by_row_with_spans ... ok
+test grid_auto_columns_hug_and_items_align_in_rows ... ok
+test sticky_bottom_and_no_vertical_port_are_respected ... ok
+test equal_grid_scrolls_and_stretches_rows ... ok
+test horizontal_strip_scrolls_on_x_and_hands_vertical_to_page ... ok
+test sticky_header_pins_then_is_pushed_by_its_section ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/hotkey.rs (target/debug/deps/hotkey-5d6627cc25453ef3)
+
+running 28 tests
+test a_dropped_id_does_not_deliver ... ok
+test a_press_is_an_event_on_the_waking_frame ... ok
+test alt_space_encodes_every_platform ... ok
+test backend_errors_map_and_do_not_stick ... ok
+test a_letter_hotkey_suppresses_that_letter_until_release ... ok
+test a_stale_synthetic_space_up_does_not_type_on_show ... ok
+test a_key_up_queued_with_the_hotkey_releases_the_guard ... ok
+test a_registered_hotkey_and_its_repeats_do_not_type ... ok
+test a_held_hotkey_repeat_stays_suppressed ... ok
+test f21_is_invalid_on_macos_only ... ok
+test invalid_text_is_rejected_before_a_backend ... ok
+test letter_chord_uses_physical_codes ... ok
+test a_backend_release_clears_the_guard_without_a_window_key_up ... ok
+test esc_hide_after_a_hotkey_show_lets_the_tray_show_insert_space ... ok
+test primary_follows_the_platform ... ok
+test note_unregistered_keeps_the_error_for_the_app ... ok
+test a_fired_hotkey_suppresses_its_own_key_and_repeats ... ok
+test register_without_a_backend_is_unsupported ... ok
+test primary_is_not_the_same_grab_on_macos ... ok
+test an_older_queued_key_up_does_not_release_when_the_clock_has_moved_on ... ok
+test a_real_space_after_the_guard_releases_is_inserted ... ok
+test the_same_key_parses_from_text_and_a_keystroke ... ok
+test registry_is_idempotent_and_releases_on_the_last_drop ... ok
+test press_then_release_on_the_fire_frame_types_nothing ... ok
+test toggle_window_hides_then_shows_and_focuses ... ok
+test hotkey_show_inserts_a_later_space_without_a_window_key_up ... ok
+test release_then_press_in_one_frame_types_after_the_hotkey_was_armed ... ok
+test hotkey_toggle_off_drops_the_guard_before_the_next_show ... ok
+
+test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/ime.rs (target/debug/deps/ime-90fd346ebffdd876)
+
+running 4 tests
+test preedit_cursor_places_the_ime_caret ... ok
+test preedit_does_not_change_a_field_until_commit ... ok
+test preedit_does_not_change_a_buffer_until_commit ... ok
+test preedit_owns_range_navigation_in_resolver_and_widget_snapshot ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/input_platform.rs (target/debug/deps/input_platform-d40575e74f1a8ee1)
+
+running 10 tests
+test pointer_button_other_codes_fit_in_sixteen_bits ... ok
+test text_frame_drops_composition_keys_and_a_duplicate_commit ... ok
+test resolve_ime_strips_the_keys_that_built_a_commit ... ok
+test rotate_zero_is_identity_and_a_quarter_turn_swaps_extents ... ok
+test file_dialog_request_is_replaced_until_taken ... ok
+test access_tree_names_a_button_and_activation_fires_it ... ok
+test a_direct_message_reaches_the_named_window ... ok
+test windows_exchange_a_saved_message ... ok
+test a_field_inserts_a_commit_once ... ok
+test a_list_without_a_context_moves_from_the_keyboard ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/keyboard.rs (target/debug/deps/keyboard-a07b7d45b79b0975)
+
+running 17 tests
+test primary_chord_is_not_copy_on_the_other_platform ... ok
+test copy_matches_the_physical_c_key_on_a_cyrillic_layout ... ok
+test shift_selects_without_changing_a_motion ... ok
+test keymap_prefers_the_deepest_context_then_the_later_binding ... ok
+test multi_stroke_waits_and_times_out ... ok
+test reverse_lookup_returns_the_winning_strokes ... ok
+test standard_actions_resolve_on_mac_and_windows ... ok
+test shortcut_text_uses_symbols_on_mac_and_words_elsewhere ... ok
+test shim_keeps_only_the_first_key ... ok
+test keymap_context_comes_from_the_focused_stack ... ok
+test unbound_ctrl_and_alt_chords_do_not_insert_the_key_character ... ok
+test editor_deletes_the_previous_word_on_windows ... ok
+test shortcut_modifier_does_not_insert_text ... ok
+test field_uses_platform_line_start_and_undo ... ok
+test unicode_text_is_inserted ... ok
+test two_backspaces_in_one_frame_delete_two_chars ... ok
+test modifier_chords_insert_only_platform_text ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/layout.rs (target/debug/deps/layout-ef1cb7e011c90697)
+
+running 16 tests
+test overflowed_child_clip_is_intersection_with_port ... ok
+test column_with_padding_and_nested_row ... ok
+test fill_respects_min_height ... ok
+test insets_place_the_root_inside_the_safe_rect ... ok
+test hit_test_prefers_the_deepest_rect ... ok
+test hit_test_ignores_rect_outside_clip ... ok
+test later_sibling_wins_hit_test ... ok
+test cascade_despawn_closes_the_gap ... ok
+test expand_then_collapse_rewrites_layout ... ok
+test scale_does_not_change_point_layout ... ok
+test scale_snaps_edges_to_physical_pixels ... ok
+test hug_label_uses_the_face_line_height ... ok
+test scrollport_offsets_hug_children_and_records_content ... ok
+test pointer_drag_scrolls_after_slop_and_stops_on_release ... ok
+test pointer_drag_selects_the_pressed_row ... ok
+test wheel_clamps_and_collapse_resets_offset ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/lifecycle.rs (target/debug/deps/lifecycle-27800b100728be9c)
+
+running 3 tests
+test links_are_scheme_urls_and_nothing_else ... ok
+test launch_links_keep_their_order_and_skip_other_arguments ... ok
+test links_and_reopens_arrive_in_order_after_the_frame_flip ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/list.rs (target/debug/deps/list-96dda1847e4a6e06)
+
+running 13 tests
+test offset_maps_to_the_first_index ... ok
+test rows_exist_on_the_first_frame ... ok
+test click_reports_the_item_index ... ok
+test hover_selects_the_row_under_the_pointer ... ok
+test selection_scrolls_into_view ... ok
+test pool_tracks_the_visible_window ... ok
+test a_fractional_offset_shifts_the_first_row_up ... ok
+test wheel_scrolls_without_moving_the_selection ... ok
+test row_builder_supplies_text_and_rows_follow_width ... ok
+test shrinking_the_count_clamps_selection_and_resets_scroll ... ok
+test enter_and_double_click_activate_the_row ... ok
+test arrows_page_home_and_end_move_the_selection ... ok
+test selection_stays_fully_visible_past_a_partial_row ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/live.rs (target/debug/deps/live-0a8456803757792f)
+
+running 8 tests
+test producer_threads_leave_the_latest_value ... ok
+test an_occluded_window_is_not_woken_and_catches_up_when_shown ... ok
+test bindings_write_opacity_offset_scale_and_fill ... ok
+test one_handle_wakes_every_window_that_draws_it ... ok
+test a_set_wakes_once_until_the_next_frame_and_equal_values_do_not_wake ... ok
+test hidden_windows_are_not_woken ... ok
+test live_only_frames_skip_update_and_layout ... ok
+test a_spring_binding_follows_and_keeps_frames_coming_until_it_settles ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/live_text.rs (target/debug/deps/live_text-4ebc221d816fc05a)
+
+running 5 tests
+test colour_bindings_without_their_component_do_nothing ... ok
+test a_live_label_without_a_label_gets_one ... ok
+test colour_bindings_write_text_border_shadow_and_gradient_ends ... ok
+test equal_text_does_not_wake_and_a_change_wakes_once ... ok
+test live_text_reshapes_only_its_label_in_a_live_only_frame ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/markdown.rs (target/debug/deps/markdown-0fbf0e6d4397c15b)
+
+running 15 tests
+test append_keeps_the_prefix_entity_and_parses_the_tail ... ok
+test drag_past_the_end_of_a_line_does_not_copy_a_leading_blank_line ... ok
+test block_height_tracks_the_width_in_the_same_update ... ok
+test link_click_sends_the_destination ... ok
+test select_all_and_copy_write_the_clipboard ... ok
+test press_in_the_left_padding_anchors_the_first_line ... ok
+test list_markers_share_a_column_and_checks_read_apart ... ok
+test wrapped_paragraph_press_still_anchors_the_line_under_the_pointer ... ok
+test a_mounted_host_stays_alive_when_scrolled_offscreen ... ok
+test gutter_press_selects_the_nearest_line_and_does_not_scroll ... ok
+test select_all_copies_markdown_structure ... ok
+test wrapped_list_and_quote_press_anchors_the_line_under_the_pointer ... ok
+test recycling_releases_an_offscreen_host_and_restores_the_same_slot ... ok
+test stream_stays_pinned_until_the_wheel_leaves_the_bottom ... ok
+test a_long_markdown_document_keeps_only_the_window_alive ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/markdown_virtual_cost.rs (target/debug/deps/markdown_virtual_cost-51592fa670cc3279)
+
+running 1 test
+test markdown_virtual_cost ... ignored, opt-in release characterization of markdown virtualization; no timing threshold
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/mono.rs (target/debug/deps/mono-9b4c439bc2f59cde)
+
+running 1 test
+test unchanged_rows_are_not_reshaped ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/motion.rs (target/debug/deps/motion-787c5e8887a50df4)
+
+running 8 tests
+test hit_testing_follows_the_animated_transform ... ok
+test release_velocity_and_set_for_gestures ... ok
+test a_spring_moves_writes_components_and_settles_once ... ok
+test animated_effect_slots_keep_frames_coming_while_shown ... ok
+test retargeting_mid_flight_does_not_jump ... ok
+test reduced_motion_and_time_scale ... ok
+test enter_exit_and_revive ... ok
+test layout_motion_glides_siblings_into_place ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/motion_depth.rs (target/debug/deps/motion_depth-030c920b45c0e50b)
+
+running 11 tests
+test press_scale_is_off_under_reduced_motion ... ok
+test missing_fill_fades_in_from_transparent ... ok
+test keyframes_play_steps_in_order_at_fixed_times ... ok
+test reduced_motion_ends_tracks_and_holds_loops ... ok
+test colours_blend_in_oklab_and_settle_exactly ... ok
+test spring_steps_hand_velocity_to_the_next_step ... ok
+test colour_retargets_without_a_jump_on_border_and_text ... ok
+test reduced_motion_snaps_size ... ok
+test repeats_alternate_and_endless_loops ... ok
+test size_changes_animate_without_feeding_back_into_layout ... ok
+test press_scale_follows_the_held_press ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/os_basics.rs (target/debug/deps/os_basics-41266754f3a00455)
+
+running 4 tests
+test only_web_and_mail_links_are_queued ... ok
+test requests_queue_in_order_and_refusals_queue_nothing ... ok
+test publishing_appearance_sends_only_changes ... ok
+test system_reduced_motion_lands_motion_immediately ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/overlay.rs (target/debug/deps/overlay-90678694f430bf5c)
+
+running 3 tests
+test escape_removes_only_the_top_layer ... ok
+test modal_swallows_the_click ... ok
+test popover_click_does_not_focus_the_row ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/pane.rs (target/debug/deps/pane-72abfdbf616ed109)
+
+running 4 tests
+test click_selects_without_opening_and_fills_the_pane ... ok
+test enter_on_alpha_fills_the_pane ... ok
+test escape_clears_selection_and_keeps_tree_focus ... ok
+test enter_on_beta_replaces_the_pane_body ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/pointers.rs (target/debug/deps/pointers-31f9a937b2a13111)
+
+running 10 tests
+test a_press_mirrors_into_the_primary_pointer ... ok
+test lifting_a_finger_ends_and_a_cancel_cancels ... ok
+test a_press_and_release_in_one_frame_keeps_both_edges ... ok
+test platform_pinch_and_rotation_convert_units ... ok
+test set_primary_prefers_the_pen_when_it_exists ... ok
+test mouse_hover_is_not_down_and_samples_accumulate ... ok
+test rotation_is_counterclockwise_positive ... ok
+test two_touches_pinch_and_pan ... ok
+test touch_ids_do_not_collide_and_end_frame_drops_them ... ok
+test two_touches_translate_without_scaling ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/popup_placement.rs (target/debug/deps/popup_placement-f43cd23f0886bcd6)
+
+running 3 tests
+test point_popups_open_at_their_own_width_and_stay_inside_the_window ... ok
+test opening_a_sibling_submenu_closes_the_other_but_keeps_the_parent ... ok
+test submenus_open_beside_their_row_and_close_level_by_level ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/projection_contract.rs (target/debug/deps/projection_contract-16e84394858335e6)
+
+running 6 tests
+test projection_errors_integrate_with_standard_error_reporting ... ok
+test checked_live_copy_and_capture_reject_forged_stale_and_nonliteral_targets ... ok
+test captured_target_lifecycle_is_checked_and_noop_does_not_consume_redo ... ok
+test inverse_maps_every_source_scalar_exactly_or_explicitly_reveals_an_atom ... ok
+test target_apply_obeys_current_readonly_and_event_backpressure_without_losing_draft ... ok
+test exhaustive_endpoint_matrix_splices_exactly_or_refuses_without_side_effects ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+
+     Running tests/projection_custody.rs (target/debug/deps/projection_custody-6d8774d5e4f5f416)
+
+running 2 tests
+test task_toggle_and_reverse_selection_do_not_normalize_untouched_bytes ... ok
+test changed_literal_preserves_bom_crlf_delimiters_and_unknown_block_with_exact_undo ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/prompt.rs (target/debug/deps/prompt-a5533c5da2bd98ff)
+
+running 17 tests
+test enter_inserts_a_newline_when_submit_is_off ... ok
+test placeholder_is_drawn_and_is_not_part_of_the_buffer ... ok
+test ctrl_shift_z_redoes_and_does_not_insert ... ok
+test enter_submits_and_shift_enter_inserts_a_newline ... ok
+test a_pause_starts_a_new_undo_step ... ok
+test ime_preedit_stays_out_of_the_label_until_commit ... ok
+test press_at_the_left_edge_of_a_line_anchors_that_line ... ok
+test mouse_selection_sets_the_primary_and_middle_click_pastes_it ... ok
+test repeated_enter_does_not_submit_again_and_a_chord_is_ignored ... ok
+test up_inside_a_line_does_not_recall ... ok
+test keyboard_selection_sets_the_primary ... ok
+test shift_and_drag_select ... ok
+test undo_redo_and_clipboard_round_trip ... ok
+test history_recalls_submissions_and_editing_abandons_the_browse ... ok
+test the_row_grows_then_scrolls_and_soft_wraps ... ok
+test typed_runs_share_one_undo_step ... ok
+test word_line_and_document_motion_follows_the_platform ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/runtime.rs (target/debug/deps/runtime-5c662d9d2bcba2fa)
+
+running 16 tests
+test query_result_arrives_as_event ... ok
+test seeded_ready_order_is_deterministic ... ok
+test detach_still_delivers ... ok
+test debounce_coalesces_rapid_keystrokes ... ok
+test kept_handle_delivers_after_sleep ... ok
+test cancel_drops_result_before_poll ... ok
+test system_sends_are_visible_next_frame ... ok
+test repeating_timer_stops_when_cancelled ... ok
+test repeating_timer_stops_when_dropped ... ok
+test idle_sim_has_no_deadline_until_a_timer_is_armed ... ok
+test foreground_task_holds_non_send_state_across_await ... ok
+test dropping_handle_drops_stale_result ... ok
+test task_handle_lives_in_a_resource ... ok
+test timer_fires_at_fake_time ... ok
+test update_system_observes_query_event ... ok
+test thread_pool_result_arrives_as_event ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/scroll_motion.rs (target/debug/deps/scroll_motion-def83f689afca75c)
+
+running 10 tests
+test reduced_motion_fly_fades_in_place ... ok
+test reduced_motion_jumps_to_the_target ... ok
+test fly_starts_where_from_is_drawn_and_lands_on_its_own_layout ... ok
+test scroll_to_glides_and_settles_on_the_clamped_target ... ok
+test a_wheel_stops_a_glide ... ok
+test a_release_flings_into_the_end_and_bounces_back ... ok
+test a_press_catches_a_fling ... ok
+test scroll_to_after_a_fling_glides ... ok
+test dragging_past_an_edge_rubber_bands_and_springs_back ... ok
+test without_physics_a_drag_stops_at_release_and_the_edge ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/scrollbar.rs (target/debug/deps/scrollbar-317521afa663263c)
+
+running 11 tests
+test horizontal_scroll_uses_x_and_short_content_has_full_thumb ... ok
+test geometry_and_programmatic_value_follow_canonical_offset_and_clamp ... ok
+test unrelated_keys_survive_scrollbar_navigation_in_same_queue ... ok
+test thumb_capture_tracks_outside_and_release_ends_it ... ok
+test window_blur_cancels_capture_even_with_stale_held_state ... ok
+test capture_uses_press_origin_and_cancels_after_retarget ... ok
+test track_pages_and_does_not_begin_parent_drag_or_propagate_wheel ... ok
+test hidden_disabled_clipped_stale_targets_and_focus_changes_cancel_capture ... ok
+test keyboard_and_accessibility_set_value_share_bounds ... ok
+test editor_wheel_without_track_consumes_vertical_then_chains_bounded_remainder ... ok
+test readonly_editor_scrolls_without_editing_selection_or_history ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/scrollbar_ownership.rs (target/debug/deps/scrollbar_ownership-d392972f6b5320af)
+
+running 4 tests
+test synthetic_scrollbar_navigation_does_not_mutate_viewport ... ok
+test coalesced_press_uses_origin_not_hover_and_applies_current_motion ... ok
+test coalesced_thumb_drag_release_applies_endpoint_without_sticky_capture ... ok
+test chrome_only_installs_canonical_scrollbar_keys ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/secondary.rs (target/debug/deps/secondary-cdeee24d9553ad4f)
+
+running 3 tests
+test right_click_reports_the_nearest_target_without_activating_it ... ok
+test control_click_is_secondary_only_on_mac ... ok
+test menu_key_and_shift_f10_open_for_the_focused_target ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/selectable.rs (target/debug/deps/selectable-23a2d5cdbde42a1e)
+
+running 12 tests
+test hovering_selectable_text_shows_the_text_cursor ... ok
+test right_press_on_selectable_text_still_focuses_its_row ... ok
+test selecting_leaves_layout_unchanged ... ok
+test selections_follow_label_text_changes ... ok
+test select_all_and_copy_write_the_clipboard ... ok
+test drag_selects_and_release_publishes_primary ... ok
+test press_elsewhere_clears_and_disengages ... ok
+test shift_press_extends_the_selection ... ok
+test word_drag_extends_by_whole_words ... ok
+test slow_or_distant_presses_start_over ... ok
+test selectable_text_keeps_the_press_from_its_button ... ok
+test double_and_triple_press_select_word_and_paragraph ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/shape_labels.rs (target/debug/deps/shape_labels-c0ad967b76f26f50)
+
+running 3 tests
+test markdown_idle_shape_cost ... ignored, opt-in release characterization of markdown idle shaping; no timing threshold
+test markdown_idle_and_scroll_do_not_reshape_distinct_blocks ... ok
+test structured_idle_does_not_reshape_and_ime_width_and_epoch_still_do ... ok
+
+test result: ok. 2 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/source_edit.rs (target/debug/deps/source_edit-0951c5008ecd337f)
+
+running 8 tests
+test selection_mapping_insertion_deletion_and_grapheme_join ... ok
+test composition_refuses_edit_without_consuming_commit_or_clipboard ... ok
+test source_range_edit_shares_keyboard_undo ... ok
+test unicode_bytes_and_reversed_selection_round_trip_exactly ... ok
+test rejected_and_identical_edits_preserve_selection_and_redo ... ok
+test edits_to_other_note_do_not_steal_focus_or_consume_input ... ok
+test source_operations_break_typing_runs_and_invalidate_redo ... ok
+test ime_commit_replaces_selection_and_is_a_separate_step_with_or_without_keys ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/source_extensions.rs (target/debug/deps/source_extensions-fb3277c809906e55)
+
+running 15 tests
+test foreign_controller_ticket_and_manual_cancel_are_refused ... ok
+test explicit_cancellation_also_retires_same_frame_detach_rebind ... ok
+test navigation_changes_only_invoking_selection_without_history_or_focus ... ok
+test ancestor_policy_and_reparent_aba_cancel_but_other_view_detach_does_not ... ok
+test attachment_epoch_is_unique_but_idempotent_attach_is_stable ... ok
+test readonly_focus_ime_detach_and_identity_guards ... ok
+test strict_utf16_crlf_non_bmp_and_final_empty_line ... ok
+test delayed_out_of_order_superseded_cancelled_and_changed_revision ... ok
+test completion_one_atomic_history_step_and_overlap_refusal ... ok
+test priority_ownership_and_provider_teardown_are_deterministic ... ok
+test same_frame_lifecycle_aba_never_resurrects_tickets ... ok
+test chronological_down_then_tab_accepts_selected_completion_once ... ok
+test completion_yields_entire_coalesced_control_queue_to_ime ... ok
+test earlier_text_invalidates_later_enter_and_escape_does_not_fire_keymap ... ok
+test delayed_ticket_survives_idle_updates_and_unrelated_policy_mutation ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/source_folding.rs (target/debug/deps/source_folding-2d20437b3f2be14e)
+
+running 8 tests
+test representative_hooks_exclude_brackets_inside_strings_comments_and_preserve_utf8_spans ... ok
+test hidden_rows_keep_exact_source_but_project_paint_hit_testing_and_accessibility ... ok
+test detach_reattach_same_document_does_not_resurrect_folds ... ok
+test insert_above_keeps_the_fold_and_undo_restores_its_bytes ... ok
+test malformed_publications_are_atomic_and_clear_restores_geometry ... ok
+test gutter_uses_source_line_numbers_and_edits_map_whole_line_folds ... ok
+test an_edit_that_splits_the_folded_line_drops_that_fold ... ok
+test cross_fold_copy_includes_hidden_bytes_and_selection_into_fold_expands ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/source_lifecycle.rs (target/debug/deps/source_lifecycle-a68b382c93d832cc)
+
+running 7 tests
+test blur_cancels_composition_and_releases_host_edit_admission ... ok
+test typing_and_undo_resume_after_orphan_commit_without_stale_input ... ok
+test dead_owner_cannot_retarget_commit_even_if_document_is_reattached ... ok
+test readonly_focus_filter_cannot_turn_preedit_into_native_cancellation ... ok
+test owner_destroyed_during_host_update_cannot_deliver_commit_to_new_focus ... ok
+test source_tab_and_popup_dismissal_tab_traverse_in_both_directions ... ok
+test candidate_tab_escape_and_page_keys_never_traverse_or_mutate_the_source ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/source_multiselection.rs (target/debug/deps/source_multiselection-d2ab243206ea46f4)
+
+running 4 tests
+test rectangular_visual_rows_drive_native_replacement ... ok
+test native_ime_preedit_explicitly_collapses_secondary_carets ... ok
+test shaped_rectangle_command_uses_actual_window_geometry ... ok
+test chrome_native_queue_types_and_undo_restores_all_carets ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/source_multiview.rs (target/debug/deps/source_multiview-d3a2a03dccf87dd8)
+
+running 12 tests
+test host_batch_maps_all_views_and_stale_view_selection_refuses_atomically ... ok
+test accessible_snapshots_and_selection_actions_are_per_view_and_revision_fenced ... ok
+test native_transactions_map_peer_directed_selections_in_same_frame_in_both_orders ... ok
+test composition_is_document_exclusive_and_never_transfers_between_same_doc_panes ... ok
+test destroyed_or_malformed_views_retire_without_losing_document_or_peer_state ... ok
+test grouped_native_history_and_disjoint_batches_keep_independent_exact_maps ... ok
+test detach_reopen_preserves_document_history_other_selection_and_scroll ... ok
+test undo_and_redo_restore_invoking_pane_only_and_break_cross_pane_typing_run ... ok
+test disjoint_batch_undo_redo_preserves_interior_peer_selections_and_maps ... ok
+test repeated_selection_replacement_keeps_original_range_across_grouped_typing_history ... ok
+test repeated_native_insertions_use_actual_range_and_grouped_history_from_either_pane ... ok
+test repeated_native_deletions_preserve_actual_grapheme_and_selection_ranges ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/source_presentation.rs (target/debug/deps/source_presentation-977cb4baf0270aeb)
+
+running 7 tests
+test cancellation_ime_and_detach_are_checked_without_cached_update_pass ... ok
+test secondary_marks_refuse_stale_revision_without_an_update_pass ... ok
+test secondary_hidden_geometry_is_not_reattached_to_seam ... ok
+test additive_colors_priority_and_gutter_labels_survive_without_host_mutation ... ok
+test secondary_marks_are_live_additive_and_refuse_unprojected_or_ime_state ... ok
+test hidden_annotations_do_not_reattach_to_fold_seam ... ok
+test secondary_offscreen_fragments_do_not_attach_to_window_end ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/source_projection.rs (target/debug/deps/source_projection-c414200523cdc648)
+
+running 13 tests
+test hidden_delimiter_boundaries_have_two_affinities_and_reversed_mapping ... ok
+test opaque_atoms_require_source_reveal_and_reversed_cross_atom_copy_is_explicit ... ok
+test forged_snapshot_and_reload_do_not_reuse_a_matching_display ... ok
+test build_preview_selection_copy_do_not_dirty_and_partition_exact_source ... ok
+test composition_external_change_stale_and_readonly_refuse ... ok
+test conservative_grammar_fences_unknown_and_empty_document ... ok
+test noop_preserves_redo_and_ambiguous_collapsed_syntax_selection_refuses ... ok
+test inserts_and_deletes_inside_emphasis_leave_delimiters_untouched ... ok
+test composition_is_local_cancelable_and_commit_is_one_source_history_entry ... ok
+test exact_changed_literal_and_task_preserve_all_other_bytes_with_shared_undo ... ok
+test stale_external_undo_and_wrong_identity_refuse_even_when_display_matches ... ok
+test task_atomic_interior_and_bom_only_insertion_are_explicit ... ok
+test unsupported_crossings_syntax_empty_emphasis_and_newline_edits_reveal_without_mutation ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/source_session.rs (target/debug/deps/source_session-41fddf9bc5b3238e)
+
+running 16 tests
+test maps_inverse_and_directed_selection ... ok
+test adjacent_deletions_produce_replayable_inverse ... ok
+test atomic_validation_noop_and_identity_preserve_redo_and_selection ... ok
+test net_noop_batch_and_identical_reload_preserve_redo ... ok
+test event_backpressure_refuses_without_losing_content_or_history ... ok
+test repeated_tail_edits_keep_undo_history_to_the_splices ... ok
+test explicit_host_selection_survives_projection_without_content_revision ... ok
+test legacy_chars_also_join_document_history ... ok
+test document_survives_detach_projection_is_not_authority_and_multiple_views ... ok
+test readonly_policy_tracks_session_changes_and_never_displays_preedit ... ok
+test composition_does_not_transfer_to_another_focused_document ... ok
+test readonly_all_origins_and_reload_admission ... ok
+test standalone_and_queued_ime_capture_selection_and_commit_once ... ok
+test native_typing_host_paste_and_undo_use_one_document_history ... ok
+test navigation_and_copy_remain_available_at_event_backpressure ... ok
+test deterministic_random_batches_match_string_and_restore_exact_bytes ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/source_session_cost.rs (target/debug/deps/source_session_cost-935170a019a5d886)
+
+running 1 test
+test model_costs ... ignored, opt-in release characterization; no machine-dependent timing assertions
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/split.rs (target/debug/deps/split-e6097007ffe38758)
+
+running 7 tests
+test drag_grows_leading_and_shrinks_trailing ... ok
+test insets_shrink_the_drag_clamp ... ok
+test column_splitter_changes_leading_height ... ok
+test seam_drag_inside_a_scrollport_does_not_scroll ... ok
+test drag_clamps_to_min_leading_and_trailing ... ok
+test release_stops_the_drag ... ok
+test press_on_seam_does_not_focus_or_toggle ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/structured_composer.rs (target/debug/deps/structured_composer-c98573fc127175d8)
+
+running 8 tests
+test invalid_pill_ids_and_labels_are_refused ... ok
+test toggle_marks_keep_other_marks_per_run ... ok
+test backspace_and_delete_remove_a_whole_pill ... ok
+test html_paste_drops_unsafe_links_and_scripts ... ok
+test adjacent_equal_pills_stay_separate ... ok
+test pills_are_atomic_for_positions_and_typing ... ok
+test html_round_trip_keeps_marks_and_pills_in_one_undo_step ... ok
+test html_paste_builds_headings_lists_and_quotes ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/structured_table_geometry.rs (target/debug/deps/structured_table_geometry-dd8c0d8c9a271889)
+
+running 5 tests
+test atomic_cards_reserve_real_height_and_have_inert_outline ... ok
+test palette_follows_surface_and_local_overrides_win_without_history ... ok
+test table_cells_share_row_origin_wrap_locally_and_advance_by_tallest_cell ... ok
+test quiet_headers_keep_thin_boundaries_and_semantic_weight ... ok
+test column_insertion_invalidates_shape_without_requiring_text_changes ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/tabs.rs (target/debug/deps/tabs-eba67bbdf5e1ba64)
+
+running 2 tests
+test hidden_panel_is_not_the_hit_target ... ok
+test click_switches_the_visible_panel ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/text_engine.rs (target/debug/deps/text_engine-fd99b4782550a895)
+
+running 13 tests
+test an_idle_line_is_evicted_while_a_touched_line_stays ... ok
+test fallback_list_tries_the_next_face ... ok
+test alignment_shifts_a_finite_line_and_leaves_an_unwrapped_line ... ok
+test line_height_multiplier_sets_the_line_box ... ok
+test letter_spacing_moves_only_later_clusters ... ok
+test layout_cache_reuses_a_line_and_drops_it_after_two_idle_frames ... ok
+test paragraph_spacing_follows_a_newline_and_skips_soft_wraps ... ok
+test touch_cached_keeps_a_line_across_idle_frames_without_shaping ... ok
+test kerning_moves_the_caret_and_the_hit_test ... ok
+test caret_hit_test_uses_advances ... ok
+test styled_run_sets_weight_and_a_highlight ... ok
+test label_layout_keeps_weak_engine_identity_without_retaining_the_engine ... ok
+test a_field_click_hit_tests_through_the_engine ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/tray.rs (target/debug/deps/tray-46c665f94c050398)
+
+running 6 tests
+test platform_support_matches_the_documented_table ... ok
+test icon_bytes_are_checked ... ok
+test menu_ids_updates_and_nested_submenus ... ok
+test tray_only_stays_running_until_quit ... ok
+test left_click_toggles_the_hidden_window ... ok
+test fake_backend_maps_clicks_and_drops_hover ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/unified_viewport.rs (target/debug/deps/unified_viewport-175b5a859fb2614a)
+
+running 3 tests
+test viewport_hooks_are_bounded_and_topology_mutation_is_observed_before_placement ... ok
+test focus_delegation_admits_original_revalidates_return_and_preserves_rejected_arms ... ok
+test explicit_editor_hook_falls_through_space_enter_and_transactional_ownership_runs_first ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/window.rs (target/debug/deps/window-35097ff435a50d79)
+
+running 27 tests
+test a_zero_physical_size_keeps_the_logical_size ... ok
+test defaults_match_the_hard_coded_window ... ok
+test blur_before_the_first_focus_is_ignored ... ok
+test focus_and_blur_stay_in_order_without_hiding ... ok
+test escape_is_left_alone_unless_dismiss_is_set ... ok
+test a_focus_return_in_the_same_batch_does_not_hide ... ok
+test dismiss_runs_before_other_input_systems ... ok
+test dismiss_close_sets_quit ... ok
+test dismiss_hide_consumes_escape_before_systems ... ok
+test a_task_can_hide_after_await ... ok
+test focus_returning_before_the_settle_cancels_the_hide ... ok
+test focus_while_hidden_does_nothing ... ok
+test a_system_can_hide_and_the_blur_follows ... ok
+test another_thread_can_toggle ... ok
+test blur_during_the_show_grace_waits_until_the_grace_ends ... ok
+test hide_on_blur_records_the_blur_without_hiding_immediately ... ok
+test logical_size_constructor ... ok
+test modified_escape_does_not_dismiss ... ok
+test platform_support_matches_the_documented_table ... ok
+test platform_focus_is_readable_in_input ... ok
+test hide_on_blur_reaches_app_code_as_one_blur ... ok
+test publishing_the_same_size_is_quiet ... ok
+test show_and_focus_are_idempotent ... ok
+test toggle_hides_then_shows_and_focuses ... ok
+test queued_focus_blur_focus_arrive_in_one_queue ... ok
+test scale_is_readable_in_input ... ok
+test scale_and_resize_are_visible_to_layout ... ok
+
+test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/window_chrome.rs (target/debug/deps/window_chrome-4bb25eb8ef529da6)
+
+running 7 tests
+test edge_hit_testing_prefers_corners_near_the_ends ... ok
+test macos_keeps_its_native_frame_and_controls ... ok
+test right_click_on_a_drag_region_opens_the_window_menu ... ok
+test caption_buttons_queue_their_action_and_report_hover ... ok
+test drag_region_moves_the_window_but_buttons_inside_keep_their_presses ... ok
+test double_click_on_a_drag_region_maximizes_and_a_slow_one_drags_again ... ok
+test frameless_edges_resize_with_matching_cursors_and_take_the_press ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/wrap.rs (target/debug/deps/wrap-103b18c1d9ee7d40)
+
+running 6 tests
+test space_break_keeps_the_word ... ok
+test newline_stays_two_lines_on_a_wide_field ... ok
+test hard_break_splits_a_long_word ... ok
+test narrow_body_wraps_without_inserting_newlines ... ok
+test narrower_viewport_rewraps_on_that_frame ... ok
+test down_then_up_walks_visual_lines ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running unittests src/lib.rs (target/debug/deps/rndr_paint-c4579278ea0db39f)
+
+running 27 tests
+test path::tests::ellipse_bounds_cover_the_radii ... ok
+test affine::tests::translate_then_rotate_matches_the_point ... ok
+test path::tests::polygon_rejects_a_degenerate_input ... ok
+test path::tests::hairline_width_shrinks_as_the_scale_grows ... ok
+test affine::tests::uniform_scale_is_the_geometric_mean ... ok
+test display::tests::extra_pop_does_not_unwind_the_root ... ok
+test affine::tests::size_buckets_stop_at_the_outline_threshold ... ok
+test affine::tests::buckets_are_stable_inside_an_octave ... ok
+test affine::tests::inverse_round_trips ... ok
+test display::tests::clipped_finish_wraps_the_camera ... ok
+test snapshot::tests::geometry_rounds_to_the_nearest_half_point ... ok
+test zoom::tests::a_drag_drops_the_zoom_anchor ... ok
+test zoom::tests::a_fast_drag_keeps_the_press_delta ... ok
+test zoom::tests::a_press_move_and_release_before_the_next_frame_pans_fully ... ok
+test zoom::tests::a_release_applies_a_move_that_arrived_with_it ... ok
+test zoom::tests::a_slow_drag_follows_each_sample_and_the_release ... ok
+test zoom::tests::one_notch_keeps_the_point_under_the_cursor ... ok
+test zoom::tests::ten_notches_each_way_restore_pan_and_scale ... ok
+test tess::tests::a_chevron_tip_meets_without_a_notch ... ok
+test tess::tests::hairline_mesh_thins_when_the_bucket_jumps ... ok
+test tess::tests::square_fill_covers_the_center_and_not_the_outside ... ok
+test tess::tests::dashed_stroke_breaks_into_separated_runs ... ok
+test tess::tests::even_odd_punches_a_hole_nonzero_does_not ... ok
+test tess::tests::a_following_move_to_does_not_fill_dash_gaps ... ok
+test tess::tests::a_dashed_shaft_keeps_its_arrowhead_solid ... ok
+test tess::tests::a_chevron_marker_is_solid_unless_asked_to_dash ... ok
+test tess::tests::cache_reuses_a_bucket_and_rebuilds_across_it ... ok
+
+test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/a2_resolved_color.rs (target/debug/deps/a2_resolved_color-da6837941d9abaf0)
+
+running 1 test
+test resolved_color_preserves_focus_pair_and_legacy_still_brightens ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/blur.rs (target/debug/deps/blur-5bb9e331c8c50679)
+
+running 3 tests
+test blur_groups_the_subtree_and_clips_to_the_parent ... ok
+test backdrop_sits_before_the_entity_fill_with_its_largest_corner ... ok
+test zero_or_bad_blur_paints_without_a_layer ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/compose.rs (target/debug/deps/compose-1e430b4e19da1b65)
+
+running 5 tests
+test opacity_groups_the_subtree_in_one_layer_at_its_paint_position ... ok
+test zero_opacity_paints_nothing_for_the_subtree ... ok
+test nested_groups_nest_layers ... ok
+test transform_composites_inside_the_parent_clip ... ok
+test plain_and_identity_values_stay_on_the_quad_path ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/decor.rs (target/debug/deps/decor-eab1207e6163901b)
+
+running 3 tests
+test undecorated_quads_keep_the_plain_shape ... ok
+test clip_rounded_masks_the_subtree_and_inner_masks_win ... ok
+test decorations_paint_shadow_fill_gradient_inset_then_ring ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/editor.rs (target/debug/deps/editor-4a945d860826c6e5)
+
+running 4 tests
+test stale_row_hint_is_ignored_and_ime_cursor_wins_over_affinity ... ok
+test up_at_wrap_endpoint_paints_the_exact_upper_row_end ... ok
+test eof_typing_emits_a_caret_quad_inside_the_editor_content_clip ... ok
+test scrolled_document_spans_rebase_glyph_colors_highlights_and_underlines ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/effect_slot.rs (target/debug/deps/effect_slot-71734fa41479a43c)
+
+running 2 tests
+test effect_slot_inside_a_faded_group_lands_in_the_layer ... ok
+test effect_slot_records_its_rect_before_its_children ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/interactive_scrollbar.rs (target/debug/deps/interactive_scrollbar-899d67b94ee91661)
+
+running 2 tests
+test interactive_thumb_paint_uses_canonical_clipped_geometry_without_mutating_range ... ok
+test pointer_thumb_highlight_clears_on_release_without_stealing_focus ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/list.rs (target/debug/deps/list-815217911420811d)
+
+running 2 tests
+test styled_row_dims_the_shortcut_and_highlights_matches ... ok
+test selected_row_paints_the_builder_text ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests/live_cost.rs (target/debug/deps/live_cost-a491c140b7ef9e17)
+
+running 1 test
+test live_only_frame_cost ... ignored, opt-in release characterization; no timing threshold assertions
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/live_frame.rs (target/debug/deps/live_frame-b509158a8e7060fc)
+
+running 1 test
+test a_live_frame_paints_the_latest_fill_and_opacity ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/markdown.rs (target/debug/deps/markdown-fb17952ceeab30dd)
+
+running 2 tests
+test selected_link_text_uses_the_label_color ... ok
+test markdown_document_paints_heading_list_quote_rule_and_code ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/paint.rs (target/debug/deps/paint-51c4bf08d7f5653c)
+
+running 13 tests
+test latin_i_is_narrower_than_m ... ok
+test glyphs_outside_the_clip_are_dropped ... ok
+test prompt_scroll_shifts_the_caret ... ok
+test prompt_text_is_clipped_to_the_content_band ... ok
+test caret_sits_on_the_glyph_column ... ok
+test frame_runs_startup_once_then_paints ... ok
+test an_image_view_records_a_command_and_does_not_add_a_fill ... ok
+test radius_is_on_the_solid_and_not_the_glyphs ... ok
+test an_image_view_is_centered_and_keeps_its_radius ... ok
+test an_image_past_the_parent_is_clipped ... ok
+test two_spans_paint_two_colors ... ok
+test find_on_line_50_paints_only_when_visible ... ok
+test labeled_rect_paints_a_solid_quad_then_glyphs ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/pattern.rs (target/debug/deps/pattern-2338a2ef5175ad1c)
+
+running 1 test
+test click_fires_and_paints_the_button ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/scroll_indicator_review.rs (target/debug/deps/scroll_indicator_review-4730fd9f09be2627)
+
+running 2 tests
+test near_empty_cross_axis_clip_does_not_emit_outside_indicator_geometry ... ok
+test clipped_thumb_intervals_are_correct_on_both_axes_and_do_not_change_hits ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/slot.rs (target/debug/deps/slot-17a60b9a4a5a0806)
+
+running 3 tests
+test slot_follows_scroll ... ok
+test slot_paints_absolute_children_in_hit_order ... ok
+test slot_follows_split ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/source_presentation.rs (target/debug/deps/source_presentation-a05cac42650bc628)
+
+running 2 tests
+test secondary_backgrounds_precede_glyphs_and_collapsed_carets_reach_paint ... ok
+test generic_provider_color_reaches_standard_paint_and_retirement_removes_it ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/structured_chrome.rs (target/debug/deps/structured_chrome-dc6c57ffcd2d6b4b)
+
+running 6 tests
+test reservation_is_required_and_quotes_have_real_bars ... ok
+test ordered_markers_are_typed_numbered_and_painted_before_indented_text ... ok
+test wrapped_rows_and_empty_selection_keep_their_structural_origin ... ok
+test horizontal_rule_uses_atomic_node_metadata_and_editable_width ... ok
+test nested_list_indentation_and_bullet_geometry_follow_containers ... ok
+test stale_buffer_revision_label_layout_and_detach_suppress_markers ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/structured_defaults.rs (target/debug/deps/structured_defaults-2dfd78e6ccb08d56)
+
+running 1 test
+test rounded_card_layers_precede_caption_and_node_selection_has_no_scalar_caret ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/subtree.rs (target/debug/deps/subtree-eaece51a6635ea54)
+
+running 1 test
+test a_sibling_is_not_painted_with_the_subtree ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/text_marks.rs (target/debug/deps/text_marks-faab916d63d8f228)
+
+running 2 tests
+test strike_crosses_the_range_above_the_baseline ... ok
+test selectable_selection_paints_the_theme_highlight ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/text_snapshot.rs (target/debug/deps/text_snapshot-e1e247deeb159419)
+
+running 3 tests
+test latin_caret_tracks_the_pen_not_the_cell_grid ... ok
+test latin_memory_uses_real_advances_and_rn_kerning ... ok
+test styled_label_snapshot_has_two_colors_and_a_highlight ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/uncolored_text.rs (target/debug/deps/uncolored_text-1f9604a29d53c59a)
+
+running 7 tests
+test fallback_label_without_background_emits_real_glyph_geometry ... ok
+test frame_lays_out_and_paints_an_uncolored_label ... ok
+test hidden_and_clipped_uncolored_labels_stay_hidden ... ok
+test label_color_and_theme_work_without_background ... ok
+test uncolored_containers_do_not_fill_or_block_children ... ok
+test text_marks_keep_their_geometry_and_order_without_a_background ... ok
+test explicit_background_alpha_does_not_control_glyph_alpha ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/lib.rs (target/debug/deps/rndr_render-24612f3f514ac9a3)
+
+running 97 tests
+test a11y::tests::synthetic_ids_and_future_entity_ids_share_one_non_recycled_namespace ... ok
+test a11y::tests::code_value_and_tooltip_described_by_reach_accesskit ... ok
+test a11y::tests::actions_descriptions_and_real_panel_relations_match_dispatch ... ok
+test a11y::tests::selection_checked_expanded_multiselect_and_option_states_reach_accesskit ... ok
+test a11y::tests::table_roles_values_header_description_and_no_cell_focus_reach_accesskit ... ok
+test a11y::tests::manual_orientation_selected_and_disabled_matrix_reaches_accesskit ... ok
+test a11y::tests::composed_tree_roles_hierarchy_level_selection_and_focus_reach_native_adapter ... ok
+test a11y_text::tests::published_focus_preserves_upstream_wrap_row_affinity ... ok
+test a11y_text::tests::source_switch_invalidates_even_identical_text_and_never_reinterprets_old_runs ... ok
+test a11y_text::tests::rejects_wrong_tree_owner_out_of_range_and_unpublished_endpoints ... ok
+test access_winit::tests::inner_origin_is_outer_plus_the_window_relative_surface_offset ... ok
+test a11y_text::tests::edited_then_undone_source_still_rejects_published_revision ... ok
+test a11y_text::tests::readonly_selection_and_focus_composition_availability ... ok
+test a11y_text::tests::empty_and_only_hard_break_documents_keep_addressable_endpoints ... ok
+test a11y_text::tests::unicode_bytes_directed_selection_and_hard_breaks_roundtrip ... ok
+test close::tests::pending_cancel_quit_is_consumed_and_stale_success_rejected ... ok
+test close::tests::process_exit_waits_for_secondary_and_cancel_resets_all ... ok
+test close::tests::ordinary_apps_keep_primary_secondary_and_quit_behavior ... ok
+test close::tests::secondary_failure_explicit_discard_closes_only_that_window ... ok
+test color::tests::srgb_transfer_decodes_known_channels ... ok
+test decode::tests::downsample_averages_a_two_by_two ... ok
+test close::tests::mutation_after_completion_invalidates_ready_before_destruction ... ok
+test close::tests::unguarded_primary_cannot_destroy_guarded_secondary_or_new_window ... ok
+test color::tests::theme_canvas_matches_on_srgb_and_unorm_surfaces ... ok
+test export::tests::rejects_an_oversized_export ... ok
+test a11y_text::tests::overlong_grapheme_fails_closed_and_bidi_does_not_invent_arrays ... ok
+test a11y::scrollbar_tests::native_scrollbar_range_actions_and_retarget_fence ... ok
+test a11y_text::tests::scroll_updates_geometry_with_stable_ids_resize_rebuilds_logical_partition ... ok
+test file_drop::tests::appkit_flipped_content_is_logical_and_is_not_scaled_again ... ok
+test file_drop::tests::a_late_path_list_cannot_replace_or_resurrect_a_drag ... ok
+test file_drop::tests::each_event_keeps_the_point_from_its_own_callback ... ok
+test file_drop::tests::client_physical_pixels_divide_by_the_window_scale ... ok
+test file_drop::tests::a_drag_correlates_one_point_with_every_path_and_cancel_clears_them ... ok
+test file_drop::tests::win32_screen_point_and_xdnd_root_point_share_the_client_scale ... ok
+test file_drop::tests::winit_path_events_carry_no_position_at_any_scale ... ok
+test hotkey::repeat::tests::a_different_key_still_fires_while_another_is_held ... ok
+test close::tests::failure_never_exits_or_destroys_in_memory_text_retry_drains ... ok
+test hotkey::repeat::tests::a_release_and_press_with_the_same_timestamp_is_a_repeat ... ok
+test gpu::tests::upload_encodes_fill_border_and_glyph_tint_for_both_formats ... ok
+test hotkey::repeat::tests::only_the_first_press_while_held_is_delivered ... ok
+test lifecycle::tests::an_icon_must_be_an_image ... ok
+test lifecycle::tests::ids_become_safe_names ... ok
+test notify::tests::feature_off_returns_unsupported ... ok
+test scene::tests::a_zoomed_shadow_stays_on_a_fine_grid_and_keeps_its_tail ... ok
+test scene::tests::an_integer_pan_slides_the_shadow_texture_without_resizing_it ... ok
+test scene::tests::rotated_glyphs_use_outlines_and_a_linear_fallback ... ok
+test scene::tests::a_rotated_child_runs_before_the_camera ... ok
+test startup::tests::a_hidden_window_does_not_plan_ui_thread_device_init ... ok
+test startup::tests::the_first_present_is_recorded_once ... ok
+test lifecycle::tests::messages_round_trip_and_strangers_are_refused ... ok
+test tablet::tests::a_pen_move_keeps_pressure_tilt_twist_and_logical_position ... ok
+test decode::tests::webp_round_trips_rgba ... ok
+test tests::a_path_response_must_match_the_outstanding_transfer ... ok
+test tests::blur_cancels_native_held_pointer_and_pending_press ... ok
+test tests::browser_platform_follows_the_host_os ... ok
+test tablet::tests::a_missing_force_does_not_invent_pressure ... ok
+test tablet::tests::eraser_contact_press_and_release_are_start_and_end ... ok
+test tests::idle_flow_waits_until_a_future_deadline ... ok
+test file_drop::tests::file_uris_become_paths_and_other_uris_are_skipped ... ok
+test file_drop::tests::file_uris_keep_windows_unc_and_unix_absolute_paths ... ok
+test decode::tests::garbage_is_unknown_and_a_bad_jpeg_is_invalid ... ok
+test tests::reported_text_survives_ctrl_and_alt_but_not_super ... ok
+test tests::hotkey_argument_beats_the_environment ... ok
+test tests::native_startup_preserves_text_face_before_first_update ... ok
+test system::tests::kde_factor_reads_the_animation_speed ... ok
+test decode::tests::png_round_trips_a_red_pixel ... ok
+test decode::tests::svg_rasterizes_at_twice_size_or_a_requested_fit ... ok
+test text::tests::engine_in_the_world_is_the_one_paint_uses ... ok
+test text::tests::emoji_flag_is_one_color_cluster ... ok
+test text::tests::hard_break_left_edge_stays_on_that_line ... ok
+test text::tests::cjk_breaks_inside_a_narrow_measure ... ok
+test text::tests::arabic_runs_right_to_left ... ok
+test text::tests::bold_italic_ink_is_heavier_than_italic ... ok
+test text::tests::features_and_axes_are_part_of_the_layout_cache_key ... ok
+test text::tests::latin_kerning_pulls_av_together ... ok
+test text::tests::idle_frames_keep_packed_glyphs ... ok
+test text::tests::scale_change_reshapes ... ok
+test text::tests::span_features_apply_to_their_range_only ... ok
+test text::tests::overlapping_span_features_follow_the_first_span ... ok
+test text::tests::unused_glyphs_are_evicted_when_the_shelf_is_full ... ok
+test tray::tests::host_edge_matches_the_backend ... ok
+test tray::tests::left_press_is_one_click_and_right_click_is_not ... ok
+test text::tests::line_height_multiplier_spaces_the_lines ... ok
+test text::tests::tabular_figures_equalize_digit_advances ... ok
+test tray::tests::menu_rows_show_the_hotkey_on_linux_and_keep_other_accelerators ... ok
+test tray::tests::png_bytes_become_rgba ... ok
+test web_input::tests::paste_chords ... ok
+test text::tests::uploads_are_dirty_rects_until_the_atlas_grows ... ok
+test web_input::tests::ime_keys_stay_in_the_text_area ... ok
+test web_input::tests::paste_fills_text_and_html ... ok
+test web_input::tests::preedit_caret_sits_at_the_end ... ok
+test a11y_text::tests::bundled_shaped_unicode_runs_preserve_source_and_refresh_geometry ... ok
+test text::tests::wrapped_line_start_stays_on_that_line ... ok
+test text::tests::scrolling_a_virtual_list_reshapes_only_new_rows ... ok
+test text::tests::bundled_hello_and_resume_snapshots ... ok
+test tests::native_startup_preserves_application_owned_text ... ok
+test tests::native_startup_after_headless_update_selects_the_platform_default ... ok
+
+test result: ok. 97 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s
+
+     Running tests/blur_pixels.rs (target/debug/deps/blur_pixels-4dfe1477558c2bae)
+
+running 5 tests
+test backdrop_blur_inside_a_layer_blurs_what_the_layer_drew ... ok
+test the_parent_clip_cuts_the_blur ... ok
+test backdrop_blur_frosts_what_is_behind_the_panel ... ok
+test a_moved_panel_blurs_where_it_is_drawn_and_fades_with_it ... ok
+test blur_spreads_the_subtree_past_its_edges ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+
+     Running tests/compose_pixels.rs (target/debug/deps/compose_pixels-7f73180e2ce70e8c)
+
+running 1 test
+test ui_groups_composite_opacity_and_transforms ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s
+
+     Running tests/decor_pixels.rs (target/debug/deps/decor_pixels-71c4ad418589d76a)
+
+running 3 tests
+test decorations_paint_gradients_shadows_rings_and_corners ... ok
+test clip_rounded_masks_children_with_hard_and_feathered_edges ... ok
+test svg_icons_display_through_an_image_view ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+
+     Running tests/editor_scale_cost.rs (target/debug/deps/editor_scale_cost-0326c79ec0c46ffe)
+
+running 2 tests
+test scale::editor_scale_costs ... ignored, opt-in release scale characterization; no timing threshold assertions
+test shaped_editor_scale_costs ... ignored, opt-in release shaped scale characterization
+
+test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/effect_pixels.rs (target/debug/deps/effect_pixels-a18ea4453300b433)
+
+running 3 tests
+test effects_inside_faded_groups_take_the_group_opacity ... ok
+test effects_draw_in_paint_order_under_later_siblings ... ok
+test backdrop_effects_read_what_was_drawn_before_them ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+
+     Running tests/export_scene.rs (target/debug/deps/export_scene-7280bea80d32df65)
+
+running 6 tests
+test export_rejects_sizes_past_the_cap_without_a_device ... ok
+test a_zoomed_drop_shadow_falls_off_without_flat_steps ... ok
+test a_rotated_child_stays_with_a_scaled_camera ... ok
+test a_rounded_image_masks_its_corner_and_its_clip ... ok
+test a_rounded_image_keeps_its_edge_color_and_a_device_pixel_radius ... ok
+test offscreen_scene_matches_regions_and_the_golden ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.43s
+
+     Running tests/hands_on_polish_pixels.rs (target/debug/deps/hands_on_polish_pixels-e54a9c89f13f7f9d)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/live_pixels.rs (target/debug/deps/live_pixels-836f2f1d33923466)
+
+running 3 tests
+test live_border_shadow_and_gradient_repaint ... ok
+test live_text_colour_recolours_the_glyphs ... ok
+test live_text_redraws_in_a_live_only_frame ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+
+     Running tests/motion_pixels.rs (target/debug/deps/motion_pixels-fb747b49747653fd)
+
+running 4 tests
+test scroll_to_paints_the_content_mid_glide ... ok
+test fill_blends_through_oklab_not_grey ... ok
+test a_flight_paints_between_the_two_layouts ... ok
+test growing_panel_reveals_children_through_its_clip ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+
+     Running tests/polish_review_privacy.rs (target/debug/deps/polish_review_privacy-887637d574689d08)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/source_edit.rs (target/debug/deps/source_edit-7b92d726d85aed88)
+
+running 2 tests
+test managed_session_unicode_source_edit_undo_resize_and_hit_testing_use_shaped_rows ... ok
+test styled_unicode_source_edit_undo_resize_and_hit_testing_use_shaped_rows ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+     Running tests/surface_pixels.rs (target/debug/deps/surface_pixels-e25927312340b654)
+
+running 6 tests
+test group_opacity_fades_the_frame ... ok
+test rounded_corners_cut_the_frame ... ok
+test contain_leaves_bars_and_mirror_flips ... ok
+test a_new_frame_replaces_the_drawn_one_and_clear_hides_it ... ok
+test rgba_and_bgra_frames_draw_their_colours ... ok
+test nv12_follows_matrix_and_range ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.57s
+
+     Running unittests src/lib.rs (target/debug/deps/rndr_ui-e67dccfccc2aa5ba)
+
+running 12 tests
+test collections::virtual_list::geometry_tests::only_explicit_resize_focus_reveals_a_row ... ok
+test collections::virtual_list::variable_geometry::tests::equal_stride_page_matches_floor_division ... ok
+test collections::virtual_list::variable_geometry::tests::large_milli_position_projects_with_a_bounded_f32_error ... ok
+test collections::virtual_list::variable_geometry::tests::repair_follows_id_then_next_then_previous_then_empty ... ok
+test collections::virtual_list::variable_geometry::tests::locate_and_visible_range_include_partial_edges ... ok
+test collections::virtual_list::variable_geometry::tests::height_conversion_refuses_non_positive_and_non_finite ... ok
+test collections::virtual_list::variable_geometry::tests::caller_owned_anchor_is_not_clamped_until_paint_input ... ok
+test collections::virtual_list::variable_geometry::tests::shrink_keeps_the_id_and_input_follows_paint ... ok
+test diff::tests::removal_repairs_to_the_next_hunk_then_the_previous_then_none ... ok
+test collections::virtual_list::geometry_tests::geometry_matches_original_clamp_reveal_and_window_matrix ... ok
+test collections::selection_membership::tests::range_skips_disabled_and_shift_keeps_the_anchor ... ok
+test collections::selection_membership::tests::removed_anchor_repairs_to_the_next_enabled_then_previous ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/a2_adoption_boundary.rs (target/debug/deps/a2_adoption_boundary-fc7be21db9e20650)
+
+running 1 test
+test passive_adoption_rejects_all_operating_ownership_and_plain_transfer_still_works ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/a2_malformed_controls.rs (target/debug/deps/a2_malformed_controls-b189c187bf1bd8c6)
+
+running 2 tests
+test toolbar_measurement_tolerates_malformed_borrowed_control_and_checks_own_layout ... ok
+test removed_root_group_or_panel_layout_is_stale_not_a_partial_update ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/a2_nested_paint.rs (target/debug/deps/a2_nested_paint-315ebb6fa0356737)
+
+running 1 test
+test nested_source_focus_real_glyph_clip_and_hit_geometry_agree ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/a2_operating.rs (target/debug/deps/a2_operating-b5ec17e773eac5aa)
+
+running 11 tests
+test malformed_owned_slots_fail_before_update_or_destroy ... ok
+test lifecycle_keys_stale_generations_and_borrowed_state_survive ... ok
+test host_validation_rejects_queued_payload_replacement_and_stale_generation ... ok
+test toolbar_wide_row_narrow_stack_and_destroy_never_hides_actions ... ok
+test cancellation_disabled_readonly_and_action_update_do_not_commit_stale_gestures ... ok
+test controls_share_canonical_pointer_keyboard_at_and_fifo_without_fanout ... ok
+test manual_modes_have_roving_entry_real_relations_and_full_inactive_exclusion ... ok
+test nested_scroll_paints_real_clip_and_focus_reveal_without_rebuilding ... ok
+test source_is_visible_named_keyboard_reachable_and_host_validates_locator ... ok
+test mode_and_theme_updates_preserve_editor_content_focus_selection_history_and_scroll ... ok
+test actual_gallery_matrix_has_real_glyphs_wrap_targets_and_narrow_reflow ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.68s
+
+     Running tests/a2_states.rs (target/debug/deps/a2_states-ce00cf553d62d195)
+
+running 2 tests
+test style_override_detach_and_theme_changes_do_not_reconstruct_controls ... ok
+test actual_resolved_control_states_contrast_focus_geometry_and_glyph_scale ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running tests/a2_toolbar_allocation.rs (target/debug/deps/a2_toolbar_allocation-45efad52988a3ca4)
+
+running 5 tests
+test unequal_toolbar_labels_must_fit_each_row_share ... ok
+test empty_single_hidden_unknown_policy_and_toolbar_padding ... ok
+test mixed_icon_and_source_actions_use_their_actual_label_styles ... ok
+test same_update_width_scale_and_label_changes_preserve_identity_and_actions ... ok
+test equal_share_boundary_both_densities_and_type_scales ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/a2_toolbar_content_fit.rs (target/debug/deps/a2_toolbar_content_fit-c6209b62e5db7755)
+
+running 4 tests
+test hidden_ancestor_malformed_and_scroll_rejected_measurement_are_safe ... ok
+test integer_inner_text_reproduction_and_exact_pixel_boundaries ... ok
+test same_update_label_type_width_both_ways_uses_final_line_geometry ... ok
+test fractional_content_boundaries_with_nested_origin_and_updates ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.16s
+
+     Running tests/a2_toolbar_type_update.rs (target/debug/deps/a2_toolbar_type_update-860bbf380d80a97b)
+
+running 1 test
+test toolbar_reflows_using_current_resolved_type_in_the_same_update ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/capture_identity.rs (target/debug/deps/capture_identity-500a58c233a74ab2)
+
+running 1 test
+test surfaces_controls_internal_nodes_scopes_remount_and_dead_generations ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/collection_chronology.rs (target/debug/deps/collection_chronology-0d12b87dd13c6313)
+
+running 12 tests
+test focused_disclosure_becoming_leaf_normalizes_to_surviving_row ... ok
+test disclosure_rejects_repeat_synthetic_readonly_disabled_and_hidden ... ok
+test collapse_preserves_unrelated_host_space_release ... ok
+test at_disclosure_activate_then_tab_does_not_steal_focus_back ... ok
+test disclosure_admission_preserves_capacity_and_unrelated_fifo ... ok
+test disclosure_enter_then_right_in_one_batch_respects_chronology ... ok
+test collapse_cancels_hidden_owned_space_even_after_reopen ... ok
+test pointer_disclosure_release_then_tab_does_not_steal_focus_back ... ok
+test programmatic_expansion_does_not_cancel_unrelated_armed_host_button ... ok
+test disclosure_enter_then_right_in_separate_frames_is_control ... ok
+test disclosure_space_release_is_chronological_and_escape_cancels ... ok
+test unrelated_branch_changes_preserve_surviving_armed_disclosure ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/collections.rs (target/debug/deps/collections-2ab2f2faaf12ce81)
+
+running 17 tests
+test malformed_or_oversize_inputs_reject_atomically_and_lifetimes_are_generation_checked ... ok
+test disabled_tree_ancestry_reconciles_selection_and_focus_without_hidden_targets ... ok
+test filtering_or_removing_an_armed_id_cannot_select_a_replacement ... ok
+test chronological_tab_navigation_and_enter_share_one_dispatcher ... ok
+test pointer_disclosure_and_accessibility_use_the_same_canonical_targets ... ok
+test scoped_collection_drain_leaves_unrelated_host_requests_in_order ... ok
+test keyboard_focus_space_selection_and_enter_activation_are_distinct ... ok
+test nested_tree_navigation_collapse_and_removal_have_safe_focus ... ok
+test pointer_release_selects_and_drag_escape_blur_cancel ... ok
+test surviving_branch_becoming_leaf_retires_disclosure_and_indent_selects_row ... ok
+test stable_identity_and_composed_subtrees_survive_reorder_updates_and_reconciliation ... ok
+test core_scroll_drag_cancels_pointer_selection_and_nested_hierarchy_is_projected ... ok
+test gallery_public_components_render_mutate_filter_resize_and_show_empty_states ... ok
+test painted_theme_density_clips_and_independent_states_are_real_component_output ... ok
+test scroll_reveal_clipping_empty_disabled_and_none_selection_are_integrated ... ok
+test gallery_large_dataset_pages_bound_mounted_rows_and_keep_data_app_owned ... ok
+test retained_budget_is_measured_honestly_not_virtualized ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.74s
+
+     Running tests/complete_gallery.rs (target/debug/deps/complete_gallery-502e195f603779a9)
+
+running 1 test
+test full_gallery_has_no_unintentional_nested_hug_clipping_in_any_a0_state ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.36s
+
+     Running tests/data_editors.rs (target/debug/deps/data_editors-96e91da1fd909794)
+
+running 20 tests
+test bounded_components_reject_oversized_or_duplicate_input_before_mutating ... ok
+test custom_editor_uses_explicit_typed_draft_without_reflection ... ok
+test grouping_reparent_custom_draft_validator_and_stale_handles_are_safe ... ok
+test inspector_same_identity_draft_retained_then_reconciled_disabled_readonly_removed_unmount ... ok
+test inspector_invalid_number_range_nonfinite_validation_and_cancel ... ok
+test inspector_precise_multiple_commit_boundaries_and_no_hidden_model_mutation ... ok
+test custom_descendant_focus_retains_within_property_then_blur_or_departure_cancels ... ok
+test multiple_outstanding_acknowledgements_preserve_invalid_later_draft_and_contract_change_cancels ... ok
+test table_invalid_atomic_identity_conflict_disabled_and_unmount ... ok
+test reviewer_boolean_window_blur_cancels_draft ... ok
+test inspector_object_switch_cancels_old_identity_and_clears_history ... ok
+test inspector_tab_cancels_at_boundary_before_other_field_changes_and_commit_action_keeps_draft ... ok
+test reviewer_commit_control_window_blur_cancels_draft ... ok
+test acknowledged_submit_retains_later_draft_caret_history_and_external_replacement_resets ... ok
+test table_preserves_cells_selection_focus_across_row_column_reorder_and_resize ... ok
+test table_keyboard_sort_request_never_sorts_host_data_and_semantics_are_table_rows_cells ... ok
+test reviewer_leave_and_return_in_one_batch_must_cancel_before_commit ... ok
+test inspector_boolean_choice_keyboard_explicit_commit_and_invalid_mount_atomic ... ok
+test window_blur_cancels_draft_and_access_setvalue_remains_honestly_unsupported ... ok
+test choice_window_blur_and_queued_departure_cancel_without_commit ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running tests/data_editors_gallery.rs (target/debug/deps/data_editors_gallery-bf1e18d63b55468a)
+
+running 6 tests
+test independent_reading_scale_enlarges_builtin_editor_line_boxes ... ok
+test reviewer_host_ack_preserves_text_queued_after_submit ... ok
+test joint_gallery_nonzero_visible_cell_geometry_and_column_header_associations ... ok
+test narrow_and_scaled_layout_remain_scroll_reachable_not_compressed_to_zero ... ok
+test joint_gallery_commits_model_repaints_cells_and_switches_objects_without_draft_leak ... ok
+test every_synthetic_preset_reconciles_without_disabled_selection_mutation_or_panic ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+
+     Running tests/data_reconciliation_contract.rs (target/debug/deps/data_reconciliation_contract-e4a5b94722b7bfaa)
+
+running 3 tests
+test table_callbacks_follow_supplied_order_and_see_retained_previous_publication ... ok
+test refusal_order_is_props_then_parent_then_identity_then_retained_validation ... ok
+test inspector_custom_callbacks_use_identity_order_after_cancellation_before_publication ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/desktop_foundations.rs (target/debug/deps/desktop_foundations-db0ff04da8edc34e)
+
+running 4 tests
+test semantic_type_and_editor_recipe_resolve_readably_in_every_palette ... ok
+test hover_is_neutral_focus_is_reserved_and_selection_remains_distinct ... ok
+test content_width_releases_owned_width_on_marker_or_parent_detach ... ok
+test content_sized_actions_survive_reflow_scale_density_focus_and_activation ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+     Running tests/diff_presentation.rs (target/debug/deps/diff_presentation-9896380cfc0940a3)
+
+running 4 tests
+test invalid_rows_refuse_before_mutation_and_motion_follows_hunks ... ok
+test removing_the_focused_hunk_repairs_forward_then_backward ... ok
+test empty_diff_and_a_very_long_line_have_defined_motion ... ok
+test mixed_heights_keep_the_anchor_until_the_anchored_row_shrinks ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/editing.rs (target/debug/deps/editing-4abe0b59e86e66ba)
+
+running 6 tests
+test destroy_remount_keeps_document_history_and_borrowed_children ... ok
+test existing_editor_blocks_other_component_kinds_and_external_detach_is_stale ... ok
+test changed_document_blank_name_conflicting_component_and_malformed_handle_reject ... ok
+test direct_host_policy_changes_refresh_semantics_and_input_without_remount ... ok
+test retained_update_preserves_identity_buffer_viewport_and_history ... ok
+test readonly_is_session_authoritative_across_retained_views ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/editor_scrollbar.rs (target/debug/deps/editor_scrollbar-cdab7350a0ade301)
+
+running 8 tests
+test retained_track_press_does_not_start_editor_selection ... ok
+test scrollbar_toggle_preserves_view_and_borrowed_children_but_teardown_owns_bar ... ok
+test retained_scrollbar_is_canonical_readonly_and_does_not_edit_selection_or_history ... ok
+test wheel_over_line_numbers_scrolls_editor_even_without_scrollbar ... ok
+test scrollbar_press_cannot_discard_managed_preedit_or_same_frame_commit ... ok
+test scrollbar_input_precedes_parent_scroll_in_both_shell_plugin_orders ... ok
+test wheel_over_editor_and_track_needs_no_focus_and_preserves_source ... ok
+test tiny_trackpad_deltas_accumulate_and_direction_reverses_at_bounds ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+
+     Running tests/field_transactions.rs (target/debug/deps/field_transactions-f9f505f3f156ce53)
+
+running 10 tests
+test released_synthetic_and_repeat_cancel_never_transact ... ok
+test readonly_allows_select_copy_but_not_paste_delete_or_submit ... ok
+test text_on_each_side_of_tab_goes_only_to_its_chronological_target ... ok
+test capture_field_can_reach_canonical_escape_hook ... ok
+test enter_snapshot_precedes_later_typing_in_same_native_batch ... ok
+test reviewer_ime_enabled_commit_strips_different_key_text ... ok
+test two_enter_boundaries_keep_distinct_snapshots ... ok
+test repeated_enter_is_not_a_second_commit_request ... ok
+test reset_discards_local_undo_history_and_rejects_other_entities ... ok
+test ime_preedit_and_commit_do_not_submit_or_duplicate_text ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/foundations.rs (target/debug/deps/foundations-ea3e646e21b7c6ae)
+
+running 8 tests
+test resolved_documented_pairs_have_required_contrast ... ok
+test density_does_not_shrink_type_scaling_and_invalid_preferences_are_bounded ... ok
+test owned_teardown_cleans_only_owned_focus_capture_queue_and_access_nodes ... ok
+test stable_lifecycle_borrowed_and_adopted_ownership_stale_handles ... ok
+test install_and_unopted_legacy_appearance_are_unchanged ... ok
+test existing_primitives_win_and_property_reattach_is_fresh ... ok
+test theme_override_ownership_transparency_takeover_and_detach ... ok
+test headless_gallery_emits_real_glyphs_fills_wrapped_layout_at_200_percent ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.49s
+
+     Running tests/gallery_polish.rs (target/debug/deps/gallery_polish-a3b139653ef89c46)
+
+running 2 tests
+test responsive_modes_keep_keyboard_direction_and_lower_content_reachable ... ok
+test workspace_reflows_without_rebuilding_or_horizontal_control_overflow ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+
+     Running tests/hands_on_polish.rs (target/debug/deps/hands_on_polish-77b14598d5bffdf9)
+
+running 11 tests
+test outside_or_clipped_content_never_targets_an_unrelated_scrollport ... ok
+test leading_clip_thumb_position_describes_visible_content_not_hidden_prefix ... ok
+test fractional_wheel_residuals_and_overlapping_roots_preserve_hit_ownership ... ok
+test revealing_an_oversized_already_visible_target_does_not_jump_to_trailing_edge ... ok
+test non_scrollable_inner_axis_chains_without_remapping ... ok
+test nested_wheel_consumes_only_available_distance_and_chains_each_axis ... ok
+test scroll_affordances_dock_inside_partially_clipped_inner_viewports ... ok
+test collection_focus_never_becomes_a_filled_viewport_and_disabled_rows_stay_quiet ... ok
+test checkbox_indicator_uses_face_geometry_and_keeps_disabled_checked_semantics ... ok
+test focus_ring_layers_are_concentric_in_light_dark_and_high_contrast ... ok
+test table_column_boundaries_share_one_grid_in_both_densities_and_after_scroll ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/lifecycle_contract.rs (target/debug/deps/lifecycle_contract-dcd838836561689b)
+
+running 3 tests
+test parent_and_props_precede_identity_without_allocating_or_stealing_focus ... ok
+test retained_keys_are_parent_scoped_and_dead_generations_never_rebind ... ok
+test selector_reorders_by_id_and_invalid_update_preserves_open_popup_and_focus ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/malformed_lifecycle.rs (target/debug/deps/malformed_lifecycle-3d2985325a8c4a59)
+
+running 1 test
+test malformed_title_is_rejected_before_any_recipe_update ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/markdown_adversarial.rs (target/debug/deps/markdown_adversarial-8474ca7629be34dd)
+
+running 7 tests
+test reparented_descendant_is_no_longer_owned_by_slot_subtree ... ok
+test source_range_stays_with_the_original_block ... ok
+test fabricated_public_handle_fields_cannot_mutate_another_binding ... ok
+test text_click_in_another_view_reclaims_copy_from_old_host_focus ... ok
+test clicking_fallback_after_embedded_focus_restores_markdown_copy ... ok
+test text_press_notifies_focus_boundary_once_and_cancels_armed_space ... ok
+test embedded_editor_drag_does_not_scroll_markdown_parent ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/markdown_gallery.rs (target/debug/deps/markdown_gallery-247f12b5dd16c6aa)
+
+running 3 tests
+test theme_bridge_reaches_core_editor_default_labels_and_explicit_overrides ... ok
+test retained_core_pane_updates_owned_fills_without_rebuilding_or_clobbering_overrides ... ok
+test gallery_streams_while_keyboard_operates_retained_controls_and_theme ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+
+     Running tests/markdown_slots.rs (target/debug/deps/markdown_slots-5ee09f78db65c28d)
+
+running 13 tests
+test duplicate_pending_source_stale_expected_and_invalid_height_are_atomic ... ok
+test externally_deleted_roots_restore_fallback_and_copy_never_reads_live_values ... ok
+test measured_height_follows_the_mounted_child_after_resize ... ok
+test deleting_the_anchored_range_retires_the_slot ... ok
+test detach_restores_markdown_and_old_identity_cannot_be_reused ... ok
+test insert_above_keeps_the_slot_on_the_same_source_block ... ok
+test prior_shape_replacement_keeps_later_host_and_reading_order ... ok
+test streaming_append_keeps_an_earlier_slot ... ok
+test host_height_resize_and_scroll_clip_are_live_not_snapshots ... ok
+test real_button_keyboard_focus_activation_pointer_and_cleanup ... ok
+test bridge_is_explicit_complete_and_updates_retained_markdown_and_control ... ok
+test source_replacement_and_removal_cascade_and_reject_stale_handles ... ok
+test streamed_append_and_full_reparse_preserve_root_state_and_order ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/menu.rs (target/debug/deps/menu-e9c97eb84cca4d58)
+
+running 6 tests
+test opening_a_menu_replaces_the_open_one_and_rejects_bad_entries ... ok
+test a_button_click_opens_a_menu_below_it ... ok
+test escape_and_outside_clicks_dismiss_without_clicking_through ... ok
+test keyboard_walks_enabled_items_and_picks_one ... ok
+test submenus_open_with_right_close_with_left_and_pick_for_the_top_menu ... ok
+test clicking_and_hovering_rows ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/paint_evidence.rs (target/debug/deps/paint_evidence-aeb6386f75234dd8)
+
+running 4 tests
+test passive_title_toggle_separator_and_adjustable_measure ... ok
+test actual_glyph_geometry_scales_and_device_scale_keeps_logical_layout ... ok
+test nested_scroll_uses_real_paint_scissors_and_owned_updates_preserve_scroll ... ok
+test deterministic_actual_display_list_matches_saved_headless_artifacts ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running tests/polish_review_editor.rs (target/debug/deps/polish_review_editor-c3ad7237c9f8e0b8)
+
+running 1 test
+test wheel_over_focused_editor_accumulates_locally_and_preserves_selection ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/reading_measure.rs (target/debug/deps/reading_measure-c6aa72d3046fdfcd)
+
+running 1 test
+test the_column_is_half_an_em_times_the_character_count ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/reconciliation_equivalence.rs (target/debug/deps/reconciliation_equivalence-0cf6d3b85113d4f3)
+
+running 1 test
+test retained_gallery_paint_and_access_matrix ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.46s
+
+     Running tests/refinement.rs (target/debug/deps/refinement-f42edb2a670e2b00)
+
+running 6 tests
+test workspace_is_content_width_and_text_scale_driven_without_mutating_on_error ... ok
+test label_box_never_changes_editor_selection_or_legacy_metrics ... ok
+test navigation_metadata_is_secondary_visible_named_and_owned ... ok
+test display_metrics_measure_shape_paint_and_release_together ... ok
+test quiet_host_plane_uses_same_update_palette_and_honors_explicit_color_takeover ... ok
+test adaptive_modes_preserve_selection_focus_targets_and_release_authored_widths ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/refinement_release.rs (target/debug/deps/refinement_release-d58ae292608954de)
+
+running 4 tests
+test content_metrics_do_not_shrink_editor_or_field_geometry ... ok
+test fitting_preserves_takeover_before_first_layout ... ok
+test fitting_release_handles_pending_resize_and_preserves_marker_and_takeover ... ok
+test adaptive_reflow_routes_key_events_without_selecting_panels ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/scroll_installation.rs (target/debug/deps/scroll_installation-faee225a9161f015)
+
+running 7 tests
+test wheel_is_applied_before_later_input_systems ... ok
+test minimal_and_legacy_hosts_scroll_wheel_once ... ok
+test minimal_and_legacy_hosts_apply_drag_once_and_release ... ok
+test wheel_then_keyboard_reveal_uses_post_wheel_rects ... ok
+test wheel_then_pointer_press_and_release_use_scrolled_geometry ... ok
+test drag_cancels_release_activation_after_scrolling ... ok
+test focused_row_does_not_snap_back_after_wheel_or_drag ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running tests/selection.rs (target/debug/deps/selection-2644dc879caeca30)
+
+running 13 tests
+test duplicate_and_oversize_options_fail_atomically_and_key_conflicts_rejected ... ok
+test checkbox_requests_do_not_mutate_acknowledged_state_and_space_requires_release ... ok
+test empty_all_disabled_and_semantics_are_truthful ... ok
+test reorder_remove_reconcile_retains_ids_and_moves_stale_highlight ... ok
+test multi_toggles_stay_open_and_escape_closes_without_rollback ... ok
+test repeated_synthetic_modified_and_ime_edges_do_not_act ... ok
+test tab_closes_and_walks_from_trigger_not_into_other_popup_rows ... ok
+test single_queued_open_navigate_choose_keeps_highlight_separate_from_selection ... ok
+test outside_press_release_never_clicks_through_and_at_background_is_blocked ... ok
+test pointer_option_release_selects_and_does_not_toggle_on_press ... ok
+test ancestor_disabled_readonly_hidden_and_window_blur_close_scopes ... ok
+test inspector_multi_popup_focus_boundary_draft_validation_commit_and_delayed_ack ... ok
+test placement_many_rows_constrained_scroll_and_dead_anchor_cleanup ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s
+
+     Running tests/selection_corrections.rs (target/debug/deps/selection_corrections-670fa9d0cc6ee9ea)
+
+running 6 tests
+test ack_matching_current_reordered_draft_clears_dirty_without_rewriting_host ... ok
+test delayed_reordered_ack_preserves_later_draft_and_drains_pending ... ok
+test reordered_same_set_is_clean_for_cancel_reconcile_and_unmount ... ok
+test reordered_host_reconcile_preserves_dirty_draft_without_ack ... ok
+test disabled_readonly_and_validator_rejected_summary_stays_truthful ... ok
+test summary_tracks_empty_draft_invalid_and_open_closed ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/selection_gallery.rs (target/debug/deps/selection_gallery-d509d4ba00201257)
+
+running 3 tests
+test gallery_invalid_multi_selection_shows_empty_draft_and_rejects_commit ... ok
+test gallery_host_applies_standalone_but_keeps_inspector_drafts_until_commit ... ok
+test gallery_matrix_keeps_focus_popup_clipping_and_readable_named_roles ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.94s
+
+     Running tests/selection_independent_review.rs (target/debug/deps/selection_independent_review-dd42c64a92b7112b)
+
+running 9 tests
+test checkbox_ime_space_release_never_emits ... ok
+test noncanonical_host_multi_value_does_not_request_spurious_commit ... ok
+test multi_inspector_accessible_name_includes_current_value ... ok
+test removed_armed_option_cannot_retarget_its_space_release ... ok
+test keyboard_roundtrip_same_set_does_not_request_spurious_commit ... ok
+test inspector_popup_blur_cancels_dirty_draft ... ok
+test readonly_invalidation_swallows_matching_outside_release ... ok
+test initial_selected_last_row_is_visible_after_open_and_settle ... ok
+test end_navigation_reveals_last_row ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running tests/selection_modes.rs (target/debug/deps/selection_modes-5006cbb3e3311611)
+
+running 4 tests
+test table_uses_the_same_modes_inside_its_budget_and_diff_stays_unselected ... ok
+test single_and_none_do_not_toggle_or_emit_a_set_change ... ok
+test range_extends_without_moving_the_anchor_and_repairs_when_it_disappears ... ok
+test uniform_and_variable_lists_toggle_and_keep_identity_through_recycling ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests/selection_scope.rs (target/debug/deps/selection_scope-2c2bf6dc7faafe76)
+
+running 3 tests
+test offscreen_anchor_placement_stays_in_viewport_on_both_sides ... ok
+test higher_modal_takes_focus_scope_and_unmount_retires_detached_popup ... ok
+test invalid_escape_tab_edges_never_close_or_transact_and_real_escape_does_not_dismiss_background_layer ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/source_tools.rs (target/debug/deps/source_tools-7b55c541641b408f)
+
+running 2 tests
+test completion_popup_retains_editor_focus_and_retires_on_detach ... ok
+test find_bar_replace_all_and_navigation_use_document_history ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/structured.rs (target/debug/deps/structured-99add81df4ce7eab)
+
+running 20 tests
+test structured_gutter_is_owned_and_never_clipboard_text ... ok
+test structured_invalid_link_and_empty_selection_refuse_without_history ... ok
+test structured_external_typed_selection_and_block_navigation_contract ... ok
+test structured_generic_tree_snapshot_is_not_markdown_codec ... ok
+test structured_nested_commands_keep_tree_identity_and_shared_history ... ok
+test structured_first_frame_spans_match_resolved_foreground_and_theme_changes ... ok
+test structured_formatting_and_keyboard_share_exactly_one_history ... ok
+test structured_second_view_refusal_does_not_rebind_existing_history ... ok
+test structured_styles_metadata_and_readonly_are_atomic ... ok
+test structured_readonly_toolbar_and_native_advertising_agree ... ok
+test structured_retained_identity_teardown_and_document_history_survive ... ok
+test structured_checkbox_pointer_preserves_selection_and_has_one_history_step ... ok
+test structured_toolbar_keeps_directed_saved_selection_and_additive_marks ... ok
+test structured_rule_pointer_selects_node_and_readonly_does_not_delete ... ok
+test structured_nested_text_pointer_uses_the_painted_indent ... ok
+test structured_toolbar_refuses_active_and_new_native_preedit ... ok
+test structured_quoted_task_pointer_targets_nearest_item ... ok
+test structured_task_pointer_refuses_stale_projection_and_native_preedit ... ok
+test structured_tab_routes_through_full_frame_without_focusing_toolbar ... ok
+test structured_checkbox_preserves_scrolled_viewport_with_distant_caret ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running tests/structured_defaults.rs (target/debug/deps/structured_defaults-e62f839605513e72)
+
+running 1 test
+test document_and_retained_child_defaults_follow_light_dark_and_high_contrast ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/structured_extensions.rs (target/debug/deps/structured_extensions-694320b6c82f547f)
+
+running 11 tests
+test embedded_foreign_intent_has_no_side_effect_and_child_escape_cannot_leak_text ... ok
+test foreign_child_cannot_commit_parent_even_through_async_token ... ok
+test table_pointer_uses_column_whitespace_and_border_shift_rectangle ... ok
+test child_deletion_revokes_requests_closes_detached_popup_and_repairs_focus ... ok
+test embedded_ime_readonly_and_deleted_atom_teardown ... ok
+test nested_child_wheel_and_drag_never_move_parent_selection_or_viewport ... ok
+test table_column_edits_and_wrapped_arrow_navigation_share_geometry ... ok
+test embedded_panel_is_retained_and_commits_once_into_parent_history ... ok
+test table_rectangle_rich_copy_paste_clear_undo_and_readonly ... ok
+test table_tab_visits_cells_before_focus_and_escapes_at_model_edges ... ok
+test embedded_requests_reject_blur_policy_rebind_and_delete_undo_resurrection ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/variable_list.rs (target/debug/deps/variable_list-44760694a289098a)
+
+running 7 tests
+test shrink_clamps_remainder_and_invalid_heights_do_not_mutate ... ok
+test page_down_uses_supplied_heights ... ok
+test uniform_mount_is_unchanged_and_conflicts_with_variable ... ok
+test wheel_rebinds_the_anchor_and_a_later_height_edit_keeps_it ... ok
+test anchor_survives_insert_resize_reorder_and_repairs_removal ... ok
+test recycling_keeps_item_state_and_parks_focused_nested_control ... ok
+test ten_thousand_mixed_heights_keep_identity_and_record_paint_error ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/virtual_gallery.rs (target/debug/deps/virtual_gallery-42030d3fcbf06069)
+
+running 1 test
+test actual_gallery_large_model_controls_and_theme_matrix_remain_bounded ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.45s
+
+     Running tests/virtual_list.rs (target/debug/deps/virtual_list-fa78e9f949e504f6)
+
+running 16 tests
+test immediate_canonical_focus_removal_falls_forward_from_actual_row ... ok
+test explicit_external_field_forwarding_preserves_focus_and_ime_and_selection_contract ... ok
+test invalid_input_is_atomic_and_keys_conflict_with_retained_family ... ok
+test external_focus_owner_is_synchronous_and_never_inherited_by_nested_controls ... ok
+test armed_row_is_cancelled_before_pool_slot_is_rebound ... ok
+test keys_survive_filter_reorder_replace_and_recycling ... ok
+test recycled_and_replaced_renderers_do_not_inherit_content_components ... ok
+test removed_disabled_and_empty_metadata_reconcile_without_stale_activation ... ok
+test width_only_reflow_remeasures_second_reconciliation_before_hit_geometry ... ok
+test scroll_then_click_uses_new_geometry_and_not_recycled_item ... ok
+test keyboard_reveal_does_not_undo_later_deliberate_scroll ... ok
+test selection_and_activation_remain_independent ... ok
+test nested_focus_survives_same_key_replacement_and_disabled_ancestry_blocks_it ... ok
+test palette_policy_is_opt_in_and_nested_controls_are_excluded ... ok
+test nested_button_checkbox_pointer_keyboard_and_recycle_do_not_bubble ... ok
+test hundred_thousand_rows_have_bounded_entities_callbacks_and_no_steady_entity_allocations ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+
+     Running tests/virtual_reconciliation_contract.rs (target/debug/deps/virtual_reconciliation_contract-104816e5843e041b)
+
+running 1 test
+test callbacks_observe_published_metadata_and_rows_before_style_resolution ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/window_controls.rs (target/debug/deps/window_controls-cc6c61f044a41d10)
+
+running 2 tests
+test macos_hides_the_drawn_controls ... ok
+test controls_sit_at_the_trailing_edge_and_hover_turns_close_red ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+   Doc-tests rndr_core
+
+running 17 tests
+test crates/rndr_core/src/lib.rs - editing_recipes (line 134) ... ok
+test crates/rndr_core/src/lib.rs - editing_recipes (line 156) ... ok
+test crates/rndr_core/src/lib.rs - editing_recipes (line 106) ... ok
+test crates/rndr_core/src/feed.rs - feed (line 40) ... ok
+test crates/rndr_core/src/lib.rs - editing_recipes (line 188) ... ok
+test crates/rndr_core/src/lib.rs - source_projection (line 150) ... ok
+test crates/rndr_core/src/feed.rs - feed (line 67) ... ok
+test crates/rndr_core/src/lib.rs - (line 26) ... ok
+test crates/rndr_core/src/feed.rs - feed::spawn_task (line 761) ... ok
+test crates/rndr_core/src/editor.rs - editor::edit_buffer (line 327) ... ok
+test crates/rndr_core/src/markdown.rs - markdown::code_token_spans (line 3717) ... ok
+test crates/rndr_core/src/motion/keyframes.rs - motion::keyframes::Keyframes (line 34) ... ok
+test crates/rndr_core/src/markdown.rs - markdown::parse_markdown (line 575) ... ok
+test crates/rndr_core/src/markdown.rs - markdown::markdown_view (line 540) ... ok
+test crates/rndr_core/src/motion/mod.rs - motion (line 34) ... ok
+test crates/rndr_core/src/sim.rs - sim (line 8) ... ok
+test crates/rndr_core/src/prompt.rs - prompt::Prompt (line 51) ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.13s
+
+   Doc-tests rndr_paint
+
+running 1 test
+test crates/rndr_paint/src/lib.rs - (line 23) ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s
+
+   Doc-tests rndr_render
+
+running 1 test
+test crates/rndr_render/src/lib.rs - (line 23) - compile ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+   Doc-tests rndr_ui
+
+running 4 tests
+test crates/rndr_ui/src/data.rs - data (line 14) ... ok
+test crates/rndr_ui/src/data.rs - data (line 71) ... ok
+test crates/rndr_ui/src/editing_recipes.rs - editing_recipes (line 45) ... ok
+test crates/rndr_ui/src/editing_recipes.rs - editing_recipes (line 10) ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.50s

@@ -1,0 +1,10 @@
+   Compiling rndr v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.57s
+     Running tests/editing_compatibility.rs (target/debug/deps/editing_compatibility-c363f53a9c57838d)
+
+running 3 tests
+test opt_in_ui_does_not_shadow_legacy_root_names ... ok
+test legacy_root_types_and_function_signature_are_unchanged ... ok
+test additive_document_namespaces_resolve_without_ui_feature ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

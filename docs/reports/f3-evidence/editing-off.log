@@ -1,0 +1,51 @@
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling thiserror v2.0.20
+   Compiling hashbrown v0.17.1
+   Compiling objc2-core-foundation v0.3.2
+   Compiling log v0.4.34
+   Compiling once_cell v1.21.4
+   Compiling tracing-core v0.1.36
+   Compiling rndr_render v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_render)
+   Compiling objc2-app-kit v0.2.2
+   Compiling rndr_std v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_std)
+   Compiling tracing v0.1.44
+   Compiling indexmap v2.14.2
+   Compiling syn v3.0.6
+   Compiling syn v2.0.119
+   Compiling objc2-foundation v0.3.2
+   Compiling objc2-core-graphics v0.3.2
+   Compiling objc2-core-video v0.3.2
+   Compiling bytemuck_derive v1.12.1
+   Compiling thiserror-impl v2.0.20
+   Compiling bytemuck v1.25.2
+   Compiling zerocopy-derive v0.8.57
+   Compiling naga-types v30.0.1
+   Compiling wgpu-types v30.0.1
+   Compiling objc2-metal v0.3.2
+   Compiling objc2-app-kit v0.3.2
+   Compiling winit-common v0.31.0-beta.4
+   Compiling zerocopy v0.8.57
+   Compiling objc2-quartz-core v0.3.2
+   Compiling raw-window-metal v1.1.0
+   Compiling winit-appkit v0.31.0-beta.4
+   Compiling half v2.7.1
+   Compiling naga v30.0.1
+   Compiling tiff v0.11.3
+   Compiling winit v0.31.0-beta.4
+   Compiling image v0.25.10
+   Compiling arboard v3.7.0
+   Compiling wgpu-naga-bridge v30.0.1
+   Compiling wgpu-hal v30.0.1
+   Compiling wgpu-core-deps-apple v30.0.1
+   Compiling wgpu-core v30.0.1
+   Compiling wgpu v30.0.1
+   Compiling rndr v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.48s
+     Running tests/editing_compatibility.rs (target/debug/deps/editing_compatibility-aa0234c8175457d7)
+
+running 2 tests
+test additive_document_namespaces_resolve_without_ui_feature ... ok
+test legacy_root_types_and_function_signature_are_unchanged ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

@@ -1,0 +1,16 @@
+[package]
+name = "rndr-flow"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Optional headless scope ownership for rndr"
+
+[lib]
+name = "rndr_flow"
+
+[features]
+default = []
+
+[dependencies]
+rndr_core = { workspace = true, default-features = false }
