@@ -56,6 +56,15 @@ pub(crate) struct BlockRoot {
 impl Component for BlockRoot {}
 
 impl LiquidView {
+    pub(crate) fn forget(&mut self, index: Option<usize>) {
+        self.saved
+            .retain(|_, saved| index.is_some_and(|i| saved.block != i));
+        for (i, carry) in self.carry.iter_mut().enumerate() {
+            if index.is_none_or(|n| n == i) {
+                *carry = None;
+            }
+        }
+    }
     /// Parsed blocks the view's markdown references.
     pub fn blocks(&self) -> &[LiquidBlock] {
         &self.blocks
@@ -95,35 +104,93 @@ pub fn liquid_view(world: &mut World, source: &str) -> Entity {
 /// mounted and keep their state. Any other replacement keeps a mounted block
 /// when its parsed source is unchanged and rebuilds the rest.
 pub fn set_liquid_source(world: &mut World, view: Entity, source: &str) {
-    if lifecycle::liquid_surface_handle(world, view).is_err() {
-        return;
+    if let Err(reason) = set_source(world, view, source, None) {
+        match reason {
+            crate::LiquidF2Error::Capacity => {
+                lifecycle::refused(world, crate::LiquidUpdateError::Capacity)
+            }
+            crate::LiquidF2Error::Exhausted => {
+                lifecycle::refused(world, crate::LiquidUpdateError::Exhausted)
+            }
+            _ => {} // Dead/reentrant legacy writes remain silent, effect-free refusals.
+        }
     }
-    let Some(tx) = lifecycle::transaction(world, view) else {
-        return;
-    };
-    let Some(mut liquid) = world.remove::<LiquidView>(view) else {
-        return;
-    };
+}
+pub(crate) fn set_keyed(
+    world: &mut World,
+    surface: crate::LiquidSurfaceHandle,
+    expected: crate::LiquidSourceRevision,
+    source: &str,
+    keys: &crate::LiquidKeyMap,
+) -> Result<crate::LiquidSourceRevision, crate::LiquidF2Error> {
+    let actual = lifecycle::source_revision(world, surface)?;
+    if actual != expected {
+        return Err(crate::LiquidF2Error::Revision {
+            expected: expected.0,
+            actual: actual.0,
+        });
+    }
+    let view = lifecycle::view_for(world, surface)?;
+    set_source(world, view, source, Some(keys))?;
+    lifecycle::source_revision(world, surface)
+}
+fn set_source(
+    world: &mut World,
+    view: Entity,
+    source: &str,
+    keys: Option<&crate::LiquidKeyMap>,
+) -> Result<(), crate::LiquidF2Error> {
+    lifecycle::liquid_surface_handle(world, view)?;
+    if !lifecycle::mutation_idle(world, view) {
+        return Err(crate::LiquidF2Error::StaleOwner);
+    }
     let normalized = source.replace("\r\n", "\n");
+    let stream = LiquidStream::new(&normalized);
+    if let Some(keys) = keys {
+        crate::identity::validate(keys, crate::identity::indices(stream.markdown()).len())?;
+    }
+    let prior_source = world
+        .get::<LiquidView>(view)
+        .and_then(|l| l.stream.as_ref())
+        .map(|s| s.source().replace("\r\n", "\n"));
+    let source_changed = prior_source.as_deref() != Some(normalized.as_str());
+    if !source_changed && lifecycle::same_keys(world, view, keys) {
+        return Ok(());
+    }
+    let tx = lifecycle::transaction(world, view).ok_or(crate::LiquidF2Error::StaleOwner)?;
+    let Some(mut liquid) = world.remove::<LiquidView>(view) else {
+        tx.commit();
+        return Err(crate::LiquidF2Error::StaleOwner);
+    };
     if let Some(prior) = liquid.stream.as_ref() {
-        if let Some(rest) = normalized.strip_prefix(prior.source()) {
-            let mut stream = prior.clone();
-            let write = stream.push_str(rest);
-            if let Err(reason) =
-                lifecycle::replace(world, view, stream.blocks(), stream.markdown(), true)
+        if keys.is_none() {
+            if let Some(rest) = prior_source
+                .as_deref()
+                .and_then(|source| normalized.strip_prefix(source))
             {
-                lifecycle::refused(world, reason);
+                let mut stream = prior.clone();
+                let write = stream.push_str(rest);
+                if let Err(reason) = lifecycle::replace_detailed(
+                    world,
+                    view,
+                    stream.blocks(),
+                    stream.markdown(),
+                    true,
+                    keys,
+                    source_changed,
+                ) {
+                    world.insert(view, liquid);
+                    tx.commit();
+                    return Err(reason);
+                }
+                lifecycle::bind_markdown(world, view, stream.markdown());
+                liquid.stream = Some(stream);
+                adopt_blocks(&mut liquid);
                 world.insert(view, liquid);
                 tx.commit();
-                return;
+                apply_markdown(world, view, write);
+                return Ok(());
             }
-            lifecycle::bind_markdown(world, view, stream.markdown());
-            liquid.stream = Some(stream);
-            adopt_blocks(&mut liquid);
-            world.insert(view, liquid);
-            tx.commit();
-            apply_markdown(world, view, write);
-            return;
         }
     }
     let old_blocks = Arc::clone(&liquid.blocks);
@@ -146,16 +213,30 @@ pub fn set_liquid_source(world: &mut World, view: Entity, source: &str) {
             states[mounted.block] = Some(state);
         }
     }
-    let stream = LiquidStream::new(&normalized);
-    if let Err(reason) = lifecycle::replace(world, view, stream.blocks(), stream.markdown(), false)
-    {
-        lifecycle::refused(world, reason);
-        world.insert(view, liquid);
-        tx.commit();
-        return;
-    }
+    let append = prior_source
+        .as_deref()
+        .is_some_and(|s| normalized.starts_with(s));
+    let mapping = match lifecycle::replace_detailed(
+        world,
+        view,
+        stream.blocks(),
+        stream.markdown(),
+        append,
+        keys,
+        source_changed,
+    ) {
+        Ok(mapping) => mapping,
+        Err(reason) => {
+            world.insert(view, liquid);
+            tx.commit();
+            return Err(reason);
+        }
+    };
     lifecycle::bind_markdown(world, view, stream.markdown());
-    liquid.carry = match_states(&old_blocks, &states, stream.blocks());
+    liquid.carry = mapping
+        .iter()
+        .map(|i| i.and_then(|i| states.get(i).cloned().flatten()))
+        .collect();
     liquid.saved.clear();
     // Physical slots cannot choose semantic correspondence. Recreate them from
     // the validated logical plan, including unchanged blocks that moved.
@@ -170,6 +251,7 @@ pub fn set_liquid_source(world: &mut World, view: Entity, source: &str) {
     world.insert(view, liquid);
     tx.commit();
     apply_markdown(world, view, MarkdownWrite::Replace(markdown));
+    Ok(())
 }
 
 /// Append `chunk` to a Liquid view.
@@ -297,25 +379,32 @@ fn apply_markdown(world: &mut World, view: Entity, write: MarkdownWrite) {
     }
 }
 
-fn match_states(
-    old: &[LiquidBlock],
-    states: &[Option<BlockState>],
-    new: &[LiquidBlock],
-) -> Vec<Option<BlockState>> {
-    let mut used = vec![false; old.len()];
-    let mut carry = vec![None; new.len()];
-    for (index, block) in new.iter().enumerate() {
-        let Some(found) = old
-            .iter()
-            .enumerate()
-            .position(|(old_index, old_block)| !used[old_index] && old_block == block)
-        else {
-            continue;
-        };
-        used[found] = true;
-        carry[index] = states.get(found).cloned().flatten();
+// Reset presentation only after the logical incarnation plan is committed.
+// Ownership parking never disposes separately application-owned attachments.
+pub(crate) fn discard_presentation(world: &mut World, view: Entity, index: Option<usize>) {
+    let Some(mut liquid) = world.remove::<LiquidView>(view) else {
+        return;
+    };
+    liquid
+        .saved
+        .retain(|_, saved| index.is_some_and(|i| saved.block != i));
+    for (i, carry) in liquid.carry.iter_mut().enumerate() {
+        if index.is_none_or(|n| n == i) {
+            *carry = None;
+        }
     }
-    carry
+    let mut keep = Vec::new();
+    for mounted in std::mem::take(&mut liquid.mounted) {
+        if index.is_some_and(|i| mounted.block != i) {
+            keep.push(mounted);
+            continue;
+        }
+        lifecycle::park_under(world, mounted.slot.root);
+        lifecycle::clear_presentation(world, mounted.slot.root);
+        let _ = mounted.slot.detach(world);
+    }
+    liquid.mounted = keep;
+    world.insert(view, liquid);
 }
 
 struct LiquidHooks;
@@ -427,13 +516,54 @@ pub(crate) fn nested(
         md.set_follow(false);
     }
     let parent_key = lifecycle::ancestor_key(world, parent);
-    let path = nested_path(world, parent, markdown);
+    let path = nested_path(world, parent, markdown, blocks);
     let restored = parent_key.and_then(|key| lifecycle::reattach(world, view, key, &path));
-    let liquid = restored.unwrap_or_else(|| {
+    // A reattached owner is physically extracted until insertion below. Keep
+    // its transaction lease live while membership retention examines it.
+    let rebound_tx = restored
+        .as_ref()
+        .and_then(|_| lifecycle::transaction(world, view));
+    let liquid = if let Some(mut liquid) = restored {
+        // The enclosing semantic path survived, but the global parse table may
+        // have renumbered every nested token. Rebind every logical store and
+        // physical carry with the same semantic correspondence.
+        match lifecycle::replace_detailed(world, view, blocks, markdown, true, None, false) {
+            Ok(mapping) => {
+                let mut states = vec![None; liquid.blocks.len()];
+                for saved in liquid.saved.values() {
+                    if saved.block < states.len() {
+                        states[saved.block] = Some(saved.state.clone());
+                    }
+                }
+                for (i, carry) in liquid.carry.iter().enumerate() {
+                    if i < states.len() && carry.is_some() {
+                        states[i] = carry.clone();
+                    }
+                }
+                liquid.carry = mapping
+                    .iter()
+                    .map(|i| i.and_then(|n| states.get(n).cloned().flatten()))
+                    .collect();
+                liquid.saved.clear();
+                liquid.blocks = Arc::clone(blocks);
+                lifecycle::bind_markdown(world, view, markdown);
+            }
+            Err(_) => {
+                // Fail closed; never expose the old parse indices.
+                lifecycle::dispose_view(world, view);
+                let _ = lifecycle::register(world, view, blocks, markdown, parent_key, path);
+                liquid = LiquidView::new(Arc::clone(blocks));
+            }
+        }
+        liquid
+    } else {
         let _ = lifecycle::register(world, view, blocks, markdown, parent_key, path);
         LiquidView::new(Arc::clone(blocks))
-    });
+    };
     world.insert(view, liquid);
+    if let Some(tx) = rebound_tx {
+        tx.commit();
+    }
     set_parent(world, view, parent);
     lifecycle::own_created(world, parent, view);
     view
@@ -667,7 +797,20 @@ fn drive_timer(
     }
 }
 
+fn root_live(world: &World, root: Entity) -> bool {
+    world.get::<BlockRoot>(root).is_some_and(|b| {
+        b.lease.is_some_and(|key| {
+            lifecycle::block_live(world, key)
+                && world
+                    .get::<Parent>(root)
+                    .is_some_and(|p| lifecycle::key(world, p.entity, b.source) == Some(key))
+        })
+    })
+}
 fn commit_state(world: &mut World, root: Entity, interaction: Option<(LiquidInteraction, String)>) {
+    if !root_live(world, root) {
+        return;
+    }
     let Some(info) = world.get::<BlockRoot>(root).cloned() else {
         return;
     };
@@ -729,6 +872,9 @@ fn sync_tabs(world: &mut World, view: Entity) {
         })
         .collect();
     for root in roots {
+        if !root_live(world, root) {
+            continue;
+        }
         let Some(selected) = tab_selection(world, root) else {
             continue;
         };
@@ -816,14 +962,7 @@ pub fn dispatch(world: &mut World, request: &ActionIntent) -> bool {
     let Some((root, act)) = found else {
         return false;
     };
-    let live = world
-        .get::<Parent>(root)
-        .and_then(|p| {
-            world
-                .get::<BlockRoot>(root)
-                .and_then(|b| lifecycle::key(world, p.entity, b.source))
-        })
-        .is_some();
+    let live = root_live(world, root);
     if !live || !state::can_emit(world) {
         return true;
     }
@@ -893,7 +1032,14 @@ impl Component for NestedCursor {}
 pub(crate) fn reset_nested_cursor(world: &mut World, root: Entity) {
     world.insert(root, NestedCursor::default());
 }
-fn nested_path(world: &mut World, mut parent: Entity, markdown: &str) -> String {
+fn nested_path(
+    world: &mut World,
+    mut parent: Entity,
+    markdown: &str,
+    blocks: &[LiquidBlock],
+) -> String {
+    let semantic = crate::identity::markdown_path(markdown, blocks);
+    let markdown = semantic.as_str();
     loop {
         if world.has::<BlockRoot>(parent) {
             break;

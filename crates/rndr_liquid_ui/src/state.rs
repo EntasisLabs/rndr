@@ -185,6 +185,15 @@ pub struct LiquidRevisionError {
 pub trait LiquidInteractionHandler: Send + Sync {
     /// One interaction was committed.
     fn on_interaction(&mut self, world: &mut World, envelope: &LiquidInteractionEnvelope);
+    /// Additive context-bearing dispatch; existing handlers retain their method
+    /// and unchanged legacy payload. The default forwards to that method.
+    fn on_interaction_for(
+        &mut self,
+        world: &mut World,
+        envelope: &crate::identity::LiquidInteractionEnvelopeFor,
+    ) {
+        self.on_interaction(world, &envelope.envelope);
+    }
 }
 
 #[derive(Default)]
@@ -408,6 +417,15 @@ pub(crate) fn emit_reserved(
     emit(world, envelope);
 }
 
+pub(crate) fn emit_reserved_for(
+    world: &mut World,
+    permit: EmissionPermit,
+    envelope: LiquidInteractionEnvelope,
+    key: Key,
+) {
+    drop(permit);
+    emit_for(world, envelope, Some(key));
+}
 /// Every component record stored for `view`, in source order.
 pub fn liquid_component_states(world: &World, view: Entity) -> Vec<LiquidComponentRecord> {
     let mut records: Vec<_> = world
@@ -462,7 +480,17 @@ pub fn put_liquid_component_state(
     expected: u64,
     state: LiquidComponentState,
 ) -> Result<LiquidComponentRecord, LiquidRevisionError> {
-    if lifecycle::key(world, view, source).is_none() || expected == u64::MAX {
+    // Legacy lookup remains positional, but cannot write a foreign variant or
+    // invalid child domain. Deferred callers must use an incarnation handle.
+    let compatible = lifecycle::key(world, view, source)
+        .and_then(|key| lifecycle::location(world, key))
+        .and_then(|(_, _, index)| {
+            world
+                .get::<crate::LiquidView>(view)
+                .and_then(|v| v.blocks().get(index))
+        })
+        .is_some_and(|b| crate::identity::valid_state(b, &state));
+    if !compatible || expected == u64::MAX {
         return Err(LiquidRevisionError {
             expected,
             actual: 0,
@@ -525,11 +553,11 @@ pub(crate) fn store_snapshot(
 }
 
 pub(crate) fn emit(world: &mut World, envelope: LiquidInteractionEnvelope) {
-    if !can_emit(world) {
-        return;
-    } // Callers reserve capacity before committing.
     let key = lifecycle::key(world, envelope.view, envelope.source);
-    if key.is_none() {
+    emit_for(world, envelope, key);
+}
+fn emit_for(world: &mut World, envelope: LiquidInteractionEnvelope, key: Option<Key>) {
+    if !can_emit(world) || !key.is_some_and(|k| lifecycle::block_live(world, k)) {
         return;
     }
     let ids = listeners(world).handlers.keys().copied().collect();
@@ -586,7 +614,18 @@ fn dispatch_pending(world: &mut World) {
             // On its final recipient the slot may admit the next envelope.
             listeners(world).in_flight = delivery.cursor < delivery.ids.len();
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                handler.on_interaction(world, &delivery.envelope)
+                if let Some(key) = delivery.key {
+                    handler.on_interaction_for(
+                        world,
+                        &crate::identity::LiquidInteractionEnvelopeFor {
+                            envelope: delivery.envelope.clone(),
+                            surface: LiquidSurfaceHandle(key.0),
+                            block: crate::LiquidBlockHandle(key),
+                        },
+                    );
+                } else {
+                    handler.on_interaction(world, &delivery.envelope);
+                }
             }));
             if result.is_err() {
                 let r = listeners(world);
@@ -618,6 +657,162 @@ fn write(world: &mut World, view: Entity, record: LiquidComponentRecord) {
     let Some(key) = lifecycle::key(world, view, record.source) else {
         return;
     };
+    if !world.has_resource::<ComponentStore>() {
+        world.insert_resource(ComponentStore::default());
+    }
+    world
+        .resource_mut::<ComponentStore>()
+        .unwrap()
+        .records
+        .insert(key, record);
+}
+pub(crate) fn snapshot_key(
+    world: &mut World,
+    key: Key,
+    component_type: &str,
+    state: LiquidComponentState,
+) -> Option<LiquidComponentRecord> {
+    let (_, source, block) = lifecycle::logical_location(world, key)?;
+    let previous = read_key(world, key);
+    if let Some(record) = &previous {
+        if record.state == state && record.component_type == component_type {
+            return previous;
+        }
+    }
+    let revision = previous.map_or(0, |r| r.revision).checked_add(1)?;
+    let record = LiquidComponentRecord {
+        schema_version: 1,
+        source,
+        block,
+        component_type: component_type.into(),
+        revision,
+        state,
+    };
+    if !world.has_resource::<ComponentStore>() {
+        world.insert_resource(ComponentStore::default());
+    }
+    world
+        .resource_mut::<ComponentStore>()
+        .unwrap()
+        .records
+        .insert(key, record.clone());
+    Some(record)
+}
+pub(crate) fn read_key(world: &World, key: Key) -> Option<LiquidComponentRecord> {
+    let (_, source, index) = lifecycle::logical_location(world, key)?;
+    let mut record = world
+        .resource::<ComponentStore>()?
+        .records
+        .get(&key)?
+        .clone();
+    record.source = source;
+    record.block = index;
+    Some(record)
+}
+pub(crate) fn put_key(
+    world: &mut World,
+    key: Key,
+    expected: u64,
+    state: LiquidComponentState,
+) -> Result<LiquidComponentRecord, crate::LiquidF2Error> {
+    use crate::LiquidF2Error as E;
+    if !lifecycle::key_mutation_idle(world, key) {
+        return Err(E::StaleOwner);
+    }
+    let parsed = lifecycle::parsed(world, key).ok_or(E::StaleBlock)?;
+    if !crate::identity::valid_state(parsed, &state) {
+        return Err(E::Kind);
+    }
+    let component_type = if matches!(&state, LiquidComponentState::Feeds { .. }) {
+        "feed"
+    } else {
+        parsed.kind()
+    }
+    .to_owned();
+    let actual = read_key(world, key).map_or(0, |r| r.revision);
+    if actual != expected {
+        return Err(E::Revision { expected, actual });
+    }
+    let revision = actual.checked_add(1).ok_or(E::Exhausted)?;
+    let (view, source, block) = lifecycle::logical_location(world, key).ok_or(E::StaleBlock)?;
+    let record = LiquidComponentRecord {
+        schema_version: 1,
+        source,
+        block,
+        component_type,
+        revision,
+        state,
+    };
+    if !world.has_resource::<ComponentStore>() {
+        world.insert_resource(ComponentStore::default());
+    }
+    world
+        .resource_mut::<ComponentStore>()
+        .unwrap()
+        .records
+        .insert(key, record.clone());
+    if let Some(view) = view {
+        crate::view::apply_stored_state(world, view, &record);
+    }
+    Ok(record)
+}
+pub(crate) fn preflight_reset(world: &World, key: Key) -> Result<(), crate::LiquidF2Error> {
+    if world
+        .resource::<ComponentStore>()
+        .and_then(|s| s.records.get(&key))
+        .is_some_and(|r| r.revision == u64::MAX)
+    {
+        return Err(crate::LiquidF2Error::Exhausted);
+    }
+    Ok(())
+}
+pub(crate) fn reset_feeds(world: &mut World, key: Key, slots: Vec<FeedSlot>) {
+    let prior = read_key(world, key);
+    let (_, source, block) = lifecycle::logical_location(world, key).unwrap_or((None, 0, 0));
+    let record = LiquidComponentRecord {
+        schema_version: 1,
+        source,
+        block,
+        component_type: "feed".into(),
+        revision: prior.map_or(0, |r| r.revision) + 1,
+        state: LiquidComponentState::Feeds { slots },
+    };
+    if !world.has_resource::<ComponentStore>() {
+        world.insert_resource(ComponentStore::default());
+    }
+    world
+        .resource_mut::<ComponentStore>()
+        .unwrap()
+        .records
+        .insert(key, record);
+}
+pub(crate) fn reset_record(world: &mut World, key: Key, block: &rndr_liquid::LiquidBlock) {
+    let prior = world
+        .resource::<ComponentStore>()
+        .and_then(|s| s.records.get(&key))
+        .cloned();
+    let mut state = crate::render::BlockState::default();
+    state.init(block);
+    let value = if let Some((_, value)) = state.snapshot(block) {
+        value
+    } else if matches!(
+        block,
+        rndr_liquid::LiquidBlock::Feed(_) | rndr_liquid::LiquidBlock::Dashboard(_)
+    ) {
+        LiquidComponentState::Feeds { slots: Vec::new() }
+    } else {
+        return;
+    };
+    let mut record = prior.unwrap_or_else(|| LiquidComponentRecord {
+        schema_version: 1,
+        source: 0,
+        block: 0,
+        component_type: block.kind().into(),
+        revision: 0,
+        state: value.clone(),
+    });
+    record.revision += 1; // Preflighted; fence even a pre-reset missing/zero record.
+    record.state = value;
     if !world.has_resource::<ComponentStore>() {
         world.insert_resource(ComponentStore::default());
     }

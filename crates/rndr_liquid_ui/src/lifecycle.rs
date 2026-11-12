@@ -84,11 +84,16 @@ pub(crate) fn limits(world: &World) -> LiquidLimits {
 
 pub(crate) type Key = (u64, u64);
 struct Surface {
+    last_view: Entity,
     view: Option<Entity>,
     parent: Option<Key>,
     path: String,
     blocks: std::collections::BTreeMap<usize, (u64, LiquidBlock)>,
     sources: HashMap<usize, usize>,
+    all_blocks: Vec<LiquidBlock>,
+    order: Vec<usize>,
+    keys: Vec<Option<String>>,
+    revision: u64,
     transaction: Arc<AtomicU8>,
     projections: HashSet<Entity>,
     parked: Option<LiquidView>,
@@ -173,14 +178,31 @@ pub(crate) fn key_at(world: &World, view: Entity, index: usize) -> Option<Key> {
             .0,
     ))
 }
-pub(crate) fn location(world: &World, key: Key) -> Option<(Entity, usize, usize)> {
+pub(crate) fn logical_location(world: &World, key: Key) -> Option<(Option<Entity>, usize, usize)> {
     if !block_live(world, key) {
         return None;
     }
     let s = world.resource::<Owners>()?.surfaces.get(&key.0)?;
     let index = *s.blocks.iter().find(|(_, (id, _))| *id == key.1)?.0;
     let source = *s.sources.iter().find(|(_, i)| **i == index)?.0;
-    Some((s.view?, source, index))
+    Some((s.view, source, index))
+}
+pub(crate) fn envelope_location(world: &World, key: Key) -> Option<(Entity, usize, usize)> {
+    let (_, source, index) = logical_location(world, key)?;
+    let s = world.resource::<Owners>()?.surfaces.get(&key.0)?;
+    Some((s.view.unwrap_or(s.last_view), source, index))
+}
+pub(crate) fn parsed(world: &World, key: Key) -> Option<&LiquidBlock> {
+    if !block_live(world, key) {
+        return None;
+    }
+    let s = world.resource::<Owners>()?.surfaces.get(&key.0)?;
+    let index = *s.blocks.iter().find(|(_, (id, _))| *id == key.1)?.0;
+    s.all_blocks.get(index)
+}
+pub(crate) fn location(world: &World, key: Key) -> Option<(Entity, usize, usize)> {
+    let (view, source, index) = logical_location(world, key)?;
+    Some((view?, source, index))
 }
 pub(crate) fn bind_sources(world: &mut World, view: Entity, sources: HashMap<usize, usize>) {
     if let Some(r) = world.resource_mut::<Owners>() {
@@ -217,28 +239,30 @@ pub(crate) fn register(
     {
         return Err(LiquidUpdateError::Capacity);
     }
-    let id = serial().ok_or(LiquidUpdateError::Exhausted)?;
-    let ids: Option<std::collections::BTreeMap<_, _>> = rndr_liquid::segments(markdown)
-        .into_iter()
-        .filter_map(|s| {
-            if let rndr_liquid::Segment::Block(index) = s {
-                Some(index)
-            } else {
-                None
-            }
-        })
-        .map(|i| Some((i, (serial()?, blocks.get(i)?.clone()))))
+    let order = crate::identity::indices(markdown);
+    crate::identity::validate_projection(markdown, blocks)
+        .map_err(|_| LiquidUpdateError::StaleOwner)?;
+    let id = reserve_serials(order.len() as u64 + 1).ok_or(LiquidUpdateError::Exhausted)?;
+    let blocks_input = blocks.to_vec();
+    let blocks = order
+        .iter()
+        .enumerate()
+        .map(|(offset, i)| (*i, (id + 1 + offset as u64, blocks[*i].clone())))
         .collect();
-    let blocks = ids.ok_or(LiquidUpdateError::Exhausted)?;
     let r = world.resource_mut::<Owners>().unwrap();
     r.surfaces.insert(
         id,
         Surface {
             view: Some(view),
+            last_view: view,
             parent,
             path,
             blocks,
             sources: HashMap::new(),
+            all_blocks: blocks_input,
+            keys: vec![None; order.len()],
+            order,
+            revision: 0,
             transaction: Arc::new(AtomicU8::new(0)),
             projections: HashSet::new(),
             parked: None,
@@ -275,7 +299,10 @@ impl Drop for Transaction {
 }
 pub(crate) fn transaction(world: &World, view: Entity) -> Option<Transaction> {
     let r = world.resource::<Owners>()?;
-    let s = r.surfaces.get(r.views.get(&view)?)?;
+    transaction_id(world, *r.views.get(&view)?)
+}
+fn transaction_id(world: &World, id: u64) -> Option<Transaction> {
+    let s = world.resource::<Owners>()?.surfaces.get(&id)?;
     s.transaction
         .compare_exchange(0, 1, Ordering::AcqRel, Ordering::Acquire)
         .ok()?;
@@ -293,6 +320,24 @@ pub(crate) fn replace(
     markdown: &str,
     append: bool,
 ) -> Result<(), LiquidUpdateError> {
+    replace_detailed(world, view, new, markdown, append, None, true)
+        .map(|_| ())
+        .map_err(|e| match e {
+            crate::LiquidF2Error::Capacity => LiquidUpdateError::Capacity,
+            crate::LiquidF2Error::Exhausted => LiquidUpdateError::Exhausted,
+            _ => LiquidUpdateError::StaleOwner,
+        })
+}
+pub(crate) fn replace_detailed(
+    world: &mut World,
+    view: Entity,
+    new: &[LiquidBlock],
+    markdown: &str,
+    append: bool,
+    keys: Option<&crate::LiquidKeyMap>,
+    source_changed: bool,
+) -> Result<Vec<Option<usize>>, crate::LiquidF2Error> {
+    use crate::LiquidF2Error as E;
     let count = world.resource::<Owners>().map_or(0, |r| {
         r.surfaces
             .values()
@@ -313,57 +358,287 @@ pub(crate) fn replace(
         )
         .is_none_or(|n| n > limits(world).scopes)
     {
-        return Err(LiquidUpdateError::Capacity);
+        return Err(E::Capacity);
     }
-    let r = world
-        .resource::<Owners>()
-        .ok_or(LiquidUpdateError::StaleOwner)?;
-    let id = *r.views.get(&view).ok_or(LiquidUpdateError::StaleOwner)?;
-    let old = &r.surfaces[&id].blocks;
-    let mut used = HashSet::new();
-    let mut plan = std::collections::BTreeMap::new();
-    for index in rndr_liquid::segments(markdown).into_iter().filter_map(|s| {
-        if let rndr_liquid::Segment::Block(i) = s {
-            Some(i)
-        } else {
-            None
+    let r = world.resource::<Owners>().ok_or(E::StaleOwner)?;
+    let id = *r.views.get(&view).ok_or(E::StaleOwner)?;
+    let surface = &r.surfaces[&id];
+    let old = &surface.blocks;
+    let order = crate::identity::indices(markdown);
+    let keys = keys.cloned().unwrap_or_else(|| {
+        let mut keys = vec![None; order.len()];
+        if append {
+            for (k, prior) in keys.iter_mut().zip(&surface.keys) {
+                *k = prior.clone();
+            }
         }
-    }) {
-        let block = new.get(index).ok_or(LiquidUpdateError::StaleOwner)?;
-        let found = if append {
-            old.get(&index).filter(|(_, b)| b == block).map(|_| index)
-        } else {
-            old.iter()
-                .find(|(i, (_, b))| !used.contains(*i) && b == block)
-                .map(|(i, _)| *i)
-        };
+        crate::LiquidKeyMap { keys }
+    });
+    crate::identity::validate(&keys, order.len())?;
+    crate::identity::validate_projection(markdown, new)?;
+    let changed = source_changed || keys.keys != surface.keys;
+    let revision = if changed {
+        surface.revision.checked_add(1).ok_or(E::Exhausted)?
+    } else {
+        surface.revision
+    };
+    let correspondence = crate::identity::correspondence(
+        &surface.all_blocks,
+        &surface.order,
+        &surface.keys,
+        new,
+        &order,
+        &keys.keys,
+        append,
+    );
+    let mut used = HashSet::new();
+    let mut resets = Vec::new();
+    for (index, found) in order.iter().zip(&correspondence) {
+        if let Some(prior) = found {
+            if !crate::identity::compatible(&surface.all_blocks, *prior, new, *index) {
+                let key = (id, old[prior].0);
+                crate::state::preflight_reset(world, key)?;
+                resets.push((key, *index, surface.all_blocks[*prior].clone()));
+            }
+        }
+    }
+    // Reserve the entire serial range in one checked atomic operation: a
+    // refusal cannot consume a prefix of the requested IDs.
+    let needed = correspondence.iter().filter(|i| i.is_none()).count() as u64;
+    let mut next = reserve_serials(needed).ok_or(E::Exhausted)?;
+    let mut plan = std::collections::BTreeMap::new();
+    let mut carry = vec![None; new.len()];
+    for ((index, found), _) in order.iter().zip(&correspondence).zip(&keys.keys) {
+        let block = new.get(*index).ok_or(E::InvalidKeys)?;
         let block_id = if let Some(i) = found {
-            used.insert(i);
-            old[&i].0
+            used.insert(*i);
+            if !resets.iter().any(|(_, n, _)| n == index) {
+                carry[*index] = Some(*i);
+            }
+            old[i].0
         } else {
-            serial().ok_or(LiquidUpdateError::Exhausted)?
+            let id = next;
+            next += 1;
+            id
         };
-        plan.insert(index, (block_id, block.clone()));
+        plan.insert(*index, (block_id, block.clone()));
     }
     let retired: Vec<Key> = old
         .iter()
         .filter(|(i, _)| !used.contains(*i))
         .map(|(_, (b, _))| (id, *b))
         .collect();
-    world
+    let surface = world
         .resource_mut::<Owners>()
         .unwrap()
         .surfaces
         .get_mut(&id)
-        .unwrap()
-        .blocks = plan;
+        .unwrap();
+    surface.blocks = plan;
+    surface.order = order;
+    surface.keys = keys.keys;
+    surface.all_blocks = new.to_vec();
+    surface.revision = revision;
+    for (key, index, prior) in resets {
+        retire_children(world, key);
+        if matches!(
+            &new[index],
+            LiquidBlock::Feed(_) | LiquidBlock::Dashboard(_)
+        ) {
+            crate::feed::rebind(world, key, &prior, &new[index]);
+        } else {
+            crate::state::reset_record(world, key, &new[index]);
+            crate::timer::reset_key(world, key);
+            crate::feed::reset_key(world, key);
+        }
+    }
     for key in retired {
         retire_children(world, key);
     }
     crate::state::retain_live(world);
     crate::timer::retain_live(world);
     crate::feed::retire_dead(world);
-    Ok(())
+    Ok(carry)
+}
+
+fn reserve_serials(count: u64) -> Option<u64> {
+    reserve_from(&SERIAL, count)
+}
+fn reserve_from(counter: &AtomicU64, count: u64) -> Option<u64> {
+    counter
+        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| {
+            n.checked_add(count)
+        })
+        .ok()
+}
+pub(crate) fn key_mutation_idle(world: &World, key: Key) -> bool {
+    let Some(r) = world.resource::<Owners>() else {
+        return false;
+    };
+    let mut id = key.0;
+    loop {
+        let Some(s) = r.surfaces.get(&id) else {
+            return false;
+        };
+        if s.transaction.load(Ordering::Acquire) != 0 {
+            return false;
+        }
+        if let Some(parent) = s.parent {
+            id = parent.0;
+        } else {
+            return true;
+        }
+    }
+}
+pub(crate) fn mutation_idle(world: &World, view: Entity) -> bool {
+    world
+        .resource::<Owners>()
+        .and_then(|r| r.views.get(&view))
+        .is_some_and(|id| key_mutation_idle(world, (*id, 0)))
+}
+pub(crate) fn same_keys(world: &World, view: Entity, keys: Option<&crate::LiquidKeyMap>) -> bool {
+    let Some(r) = world.resource::<Owners>() else {
+        return false;
+    };
+    let Some(s) = r.views.get(&view).and_then(|id| r.surfaces.get(id)) else {
+        return false;
+    };
+    keys.is_none_or(|k| k.keys == s.keys)
+}
+pub(crate) fn source_revision(
+    world: &World,
+    surface: LiquidSurfaceHandle,
+) -> Result<crate::LiquidSourceRevision, crate::LiquidF2Error> {
+    if !live(world, surface.0) {
+        return Err(crate::LiquidF2Error::StaleOwner);
+    }
+    Ok(crate::LiquidSourceRevision(
+        world.resource::<Owners>().unwrap().surfaces[&surface.0].revision,
+    ))
+}
+pub(crate) fn component_handle(
+    world: &World,
+    surface: LiquidSurfaceHandle,
+    occurrence: usize,
+) -> Result<crate::LiquidBlockHandle, crate::LiquidF2Error> {
+    source_revision(world, surface)?;
+    let s = &world.resource::<Owners>().unwrap().surfaces[&surface.0];
+    let index = s
+        .order
+        .get(occurrence)
+        .ok_or(crate::LiquidF2Error::StaleBlock)?;
+    Ok(crate::LiquidBlockHandle((surface.0, s.blocks[index].0)))
+}
+pub(crate) fn view_for(
+    world: &World,
+    surface: LiquidSurfaceHandle,
+) -> Result<Entity, crate::LiquidF2Error> {
+    source_revision(world, surface)?;
+    world.resource::<Owners>().unwrap().surfaces[&surface.0]
+        .view
+        .ok_or(crate::LiquidF2Error::StaleOwner)
+}
+pub(crate) fn reset_block(
+    world: &mut World,
+    block: crate::LiquidBlockHandle,
+    expected: u64,
+) -> Result<crate::LiquidBlockHandle, crate::LiquidF2Error> {
+    use crate::LiquidF2Error as E;
+    crate::identity::check(world, block)?;
+    if !key_mutation_idle(world, block.0) {
+        return Err(E::StaleOwner);
+    }
+    let (view, _, index) = logical_location(world, block.0).ok_or(E::StaleBlock)?;
+    let actual = crate::state::read_key(world, block.0).map_or(0, |r| r.revision);
+    if actual != expected {
+        return Err(E::Revision { expected, actual });
+    }
+    let rev = source_revision(world, LiquidSurfaceHandle(block.0 .0))?
+        .0
+        .checked_add(1)
+        .ok_or(E::Exhausted)?;
+    let tx = transaction_id(world, block.0 .0).ok_or(E::StaleOwner)?;
+    let Some(id) = serial() else {
+        tx.commit();
+        return Err(E::Exhausted);
+    };
+    let s = world
+        .resource_mut::<Owners>()
+        .unwrap()
+        .surfaces
+        .get_mut(&block.0 .0)
+        .unwrap();
+    s.blocks.get_mut(&index).unwrap().0 = id;
+    s.revision = rev;
+    if let Some(parked) = s.parked.as_mut() {
+        parked.forget(Some(index));
+    }
+    retire_children(world, block.0);
+    crate::state::retain_live(world);
+    crate::timer::retain_live(world);
+    crate::feed::retire_dead(world);
+    if let Some(view) = view {
+        crate::view::discard_presentation(world, view, Some(index));
+    }
+    tx.commit();
+    Ok(crate::LiquidBlockHandle((block.0 .0, id)))
+}
+pub(crate) fn reset_surface(
+    world: &mut World,
+    handle: LiquidSurfaceHandle,
+    expected: crate::LiquidSourceRevision,
+) -> Result<LiquidSurfaceHandle, crate::LiquidF2Error> {
+    use crate::LiquidF2Error as E;
+    let actual = source_revision(world, handle)?;
+    if !key_mutation_idle(world, (handle.0, 0)) {
+        return Err(E::StaleOwner);
+    }
+    if actual != expected {
+        return Err(E::Revision {
+            expected: expected.0,
+            actual: actual.0,
+        });
+    }
+    let view = world.resource::<Owners>().unwrap().surfaces[&handle.0].view;
+    let count = world.resource::<Owners>().unwrap().surfaces[&handle.0]
+        .blocks
+        .len() as u64;
+    let tx = transaction_id(world, handle.0).ok_or(E::StaleOwner)?;
+    let Some(id) = reserve_serials(count + 1) else {
+        tx.commit();
+        return Err(E::Exhausted);
+    };
+    let old_keys: Vec<_> = world.resource::<Owners>().unwrap().surfaces[&handle.0]
+        .blocks
+        .values()
+        .map(|(b, _)| (handle.0, *b))
+        .collect();
+    for key in old_keys {
+        retire_children(world, key);
+    }
+    let r = world.resource_mut::<Owners>().unwrap();
+    let mut s = r.surfaces.remove(&handle.0).unwrap();
+    for (offset, (b, _)) in s.blocks.values_mut().enumerate() {
+        *b = id + 1 + offset as u64;
+    }
+    s.revision = 0;
+    if let Some(parked) = s.parked.as_mut() {
+        parked.forget(None);
+    }
+    // Retain the active transaction fence across the incarnation swap.
+    r.surfaces.insert(id, s);
+    if let Some(view) = view {
+        r.views.insert(view, id);
+        world.insert(view, Lease(id));
+    }
+    crate::state::retain_live(world);
+    crate::timer::retain_live(world);
+    crate::feed::retire_dead(world);
+    if let Some(view) = view {
+        crate::view::discard_presentation(world, view, None);
+    }
+    tx.commit();
+    Ok(LiquidSurfaceHandle(id))
 }
 #[derive(Clone, Copy)]
 struct OwnedProjection;
@@ -413,6 +688,16 @@ fn mark_tree_dead(world: &World, id: u64) {
     children.sort_unstable();
     for child in children {
         mark_tree_dead(world, child);
+    }
+}
+pub(crate) fn dispose_view(world: &mut World, view: Entity) {
+    if let Some(id) = world
+        .resource::<Owners>()
+        .and_then(|r| r.views.get(&view))
+        .copied()
+    {
+        mark_tree_dead(world, id);
+        retire_surface(world, id);
     }
 }
 fn retire_surface(world: &mut World, id: u64) {
@@ -624,6 +909,7 @@ pub(crate) fn reattach(
     let s = r.surfaces.get_mut(&id)?;
     let liquid = s.parked.take()?;
     s.view = Some(view);
+    s.last_view = view;
     r.views.insert(view, id);
     world.insert(view, Lease(id));
     Some(liquid)
@@ -1022,8 +1308,8 @@ mod tests {
                 );
                 pump(&mut sim);
                 assert_eq!(key(sim.app.world(), view, record.source), Some(semantic));
-                // F1's deliberately provisional equality resolver: unique prefix
-                // remaps; changed same-byte content and remove/reinsert retire.
+                // F2's shared semantic resolver: unique prefix remaps; changed
+                // same-byte content and remove/reinsert retire.
                 let prefixed = format!("Prefix\n\n{source}");
                 set_liquid_source(sim.world(), view, &prefixed);
                 pump(&mut sim);
@@ -1032,6 +1318,76 @@ mod tests {
                     .find(|r| r.component_type == "accordion")
                     .unwrap();
                 assert_eq!(key(sim.app.world(), view, moved.source), Some(semantic));
+                // Interleave keyed identity/reset/refusal with the full F1
+                // resources in this SAME World on EVERY cycle, not a detached
+                // microbenchmark. Initial keyed rebind intentionally resets all
+                // unkeyed resources; contexts remain charged until host ack.
+                let occurrences = crate::inspect_liquid_occurrences(&prefixed).unwrap();
+                let keys = crate::LiquidKeyMap {
+                    keys: (0..occurrences.len())
+                        .map(|i| Some(format!("component-{i}")))
+                        .collect(),
+                };
+                let rev = crate::liquid_source_revision(sim.app.world(), handle).unwrap();
+                crate::set_liquid_source_keyed(sim.world(), handle, rev, &prefixed, &keys).unwrap();
+                assert!(!block_live(sim.app.world(), semantic));
+                assert!(context.is_retired());
+                let block = crate::liquid_component_handle(sim.app.world(), handle, 0).unwrap();
+                crate::put_liquid_component_state_for(
+                    sim.world(),
+                    block,
+                    0,
+                    LiquidComponentState::Accordion { open: vec![0] },
+                )
+                .unwrap();
+                let cosmetic = prefixed.replace("title: FAQ", "title: F2 title");
+                let rev = crate::liquid_source_revision(sim.app.world(), handle).unwrap();
+                crate::set_liquid_source_keyed(sim.world(), handle, rev, &cosmetic, &keys).unwrap();
+                assert_eq!(
+                    crate::liquid_component_handle(sim.app.world(), handle, 0).unwrap(),
+                    block
+                );
+                assert_eq!(
+                    crate::liquid_component_state_for(sim.app.world(), block)
+                        .unwrap()
+                        .unwrap()
+                        .revision,
+                    1
+                );
+                let edited = cosmetic.replace("First body", "F2 child schema");
+                let rev = crate::liquid_source_revision(sim.app.world(), handle).unwrap();
+                crate::set_liquid_source_keyed(sim.world(), handle, rev, &edited, &keys).unwrap();
+                let reset = crate::liquid_component_state_for(sim.app.world(), block)
+                    .unwrap()
+                    .unwrap();
+                assert_eq!(reset.revision, 2);
+                assert_eq!(
+                    reset.state,
+                    LiquidComponentState::Accordion { open: vec![] }
+                );
+                assert!(crate::put_liquid_component_state_for(
+                    sim.world(),
+                    block,
+                    1,
+                    LiquidComponentState::Accordion { open: vec![0] }
+                )
+                .is_err());
+                assert_eq!(
+                    crate::liquid_component_state_for(sim.app.world(), block).unwrap(),
+                    Some(reset)
+                );
+                let fresh = crate::reset_liquid_block(sim.world(), block, 2).unwrap();
+                assert_ne!(fresh, block);
+                assert!(crate::liquid_component_state_for(sim.app.world(), block).is_err());
+                if cycle % 3 == 0 {
+                    let rev = crate::liquid_source_revision(sim.app.world(), handle).unwrap();
+                    let new_surface =
+                        crate::reset_liquid_surface(sim.world(), handle, rev).unwrap();
+                    assert_ne!(new_surface, handle);
+                    assert!(crate::liquid_source_revision(sim.app.world(), handle).is_err());
+                    assert!(crate::liquid_component_state_for(sim.app.world(), fresh).is_err());
+                }
+                pump(&mut sim);
                 if cycle % 2 == 0 {
                     set_liquid_source(sim.world(), view, "");
                     assert!(!block_live(sim.app.world(), semantic));
@@ -1080,6 +1436,7 @@ mod tests {
                     sim.world().despawn_entity(view);
                 }
                 let after = snapshot(sim.app.world(), &model.lock().unwrap());
+                eprintln!("F1/F2 teardown seed={seed} cycle={cycle} vector={after:?} baseline={baseline:?} external_ack_pending={}", model.lock().unwrap().local.len());
                 if after != baseline {
                     assert!(weak.upgrade().is_none());
                     assert_eq!(drops.load(Ordering::SeqCst), cycle + 1);
@@ -1160,6 +1517,122 @@ mod tests {
         );
     }
 
+    #[test]
+    fn keyed_source_refusals_and_exhaustion_leave_all_membership_untouched() {
+        use crate::*;
+        let mut w = World::new();
+        let src = "```accordion\ntitle: FAQ\n---\nlabel: One\nbody: Body\n```\n";
+        let view = liquid_view(&mut w, src);
+        let s = liquid_surface_handle(&w, view).unwrap();
+        let keys = LiquidKeyMap {
+            keys: vec![Some("a".into())],
+        };
+        let rev =
+            set_liquid_source_keyed(&mut w, s, LiquidSourceRevision::ZERO, src, &keys).unwrap();
+        let h = liquid_component_handle(&w, s, 0).unwrap();
+        let record = put_liquid_component_state_for(
+            &mut w,
+            h,
+            0,
+            LiquidComponentState::Accordion { open: vec![0] },
+        )
+        .unwrap();
+        let tx = transaction(&w, view).unwrap();
+        assert_eq!(
+            set_liquid_source_keyed(&mut w, s, rev, src, &keys),
+            Err(LiquidF2Error::StaleOwner)
+        );
+        assert_eq!(
+            put_liquid_component_state_for(&mut w, h, 1, record.state.clone()),
+            Err(LiquidF2Error::StaleOwner)
+        );
+        assert_eq!(
+            reset_liquid_block(&mut w, h, 1),
+            Err(LiquidF2Error::StaleOwner)
+        );
+        assert_eq!(
+            reset_liquid_surface(&mut w, s, rev),
+            Err(LiquidF2Error::StaleOwner)
+        );
+        tx.commit();
+        assert_eq!(
+            liquid_component_state_for(&w, h).unwrap(),
+            Some(record.clone())
+        );
+        let invalid = format!("{}\n{src}", rndr_liquid::block_token(999));
+        let invalid_keys = LiquidKeyMap {
+            keys: vec![None, None],
+        };
+        assert_eq!(
+            set_liquid_source_keyed(&mut w, s, rev, &invalid, &invalid_keys),
+            Err(LiquidF2Error::InvalidKeys)
+        );
+        w.insert_resource(LiquidLimits {
+            scopes: 2,
+            ..Default::default()
+        });
+        let doubled = format!("{src}\n{src}");
+        assert_eq!(
+            set_liquid_source_keyed(
+                &mut w,
+                s,
+                rev,
+                &doubled,
+                &LiquidKeyMap {
+                    keys: vec![Some("a".into()), Some("b".into())]
+                }
+            ),
+            Err(LiquidF2Error::Capacity)
+        );
+        assert_eq!(liquid_source_revision(&w, s).unwrap(), rev);
+        assert_eq!(liquid_component_handle(&w, s, 0).unwrap(), h);
+        assert_eq!(
+            liquid_component_state_for(&w, h).unwrap(),
+            Some(record.clone())
+        );
+        w.resource_mut::<Owners>()
+            .unwrap()
+            .surfaces
+            .get_mut(&s.0)
+            .unwrap()
+            .revision = u64::MAX;
+        assert_eq!(
+            set_liquid_source_keyed(
+                &mut w,
+                s,
+                LiquidSourceRevision(u64::MAX),
+                &src.replace("FAQ", "Title"),
+                &keys
+            ),
+            Err(LiquidF2Error::Exhausted)
+        );
+        assert_eq!(
+            reset_liquid_block(&mut w, h, 1),
+            Err(LiquidF2Error::Exhausted)
+        );
+        assert_eq!(liquid_component_state_for(&w, h).unwrap(), Some(record));
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _tx = transaction(&w, view).unwrap();
+            panic!("poison F2 owner");
+        }));
+        assert_eq!(
+            liquid_component_state_for(&w, h),
+            Err(LiquidF2Error::StaleOwner)
+        );
+        assert_eq!(
+            set_liquid_source_keyed(&mut w, s, LiquidSourceRevision(u64::MAX), src, &keys),
+            Err(LiquidF2Error::StaleOwner)
+        );
+    }
+    #[test]
+    fn complete_serial_range_reservation_cannot_consume_a_partial_prefix() {
+        let counter = AtomicU64::new(u64::MAX - 2);
+        assert_eq!(reserve_from(&counter, 3), None);
+        assert_eq!(counter.load(Ordering::Relaxed), u64::MAX - 2);
+        assert_eq!(reserve_from(&counter, 2), Some(u64::MAX - 2));
+        assert_eq!(reserve_from(&counter, 1), None);
+        assert_eq!(counter.load(Ordering::Relaxed), u64::MAX);
+    }
     #[test]
     fn checked_serial_allocator_never_aliases_on_exhaustion() {
         let counter = AtomicU64::new(u64::MAX - 1);

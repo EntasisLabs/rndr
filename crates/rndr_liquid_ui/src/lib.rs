@@ -34,13 +34,21 @@
 mod chart;
 mod feed;
 mod host;
+mod identity;
 mod lifecycle;
+pub use identity::{
+    inspect_liquid_occurrences, liquid_component_handle, liquid_component_state_for,
+    liquid_source_revision, put_liquid_component_state_for, reset_liquid_block,
+    reset_liquid_surface, set_liquid_source_keyed, subscribe_liquid_interactions_owned_for,
+    LiquidBlockHandle, LiquidF2Error, LiquidInteractionEnvelopeFor, LiquidInteractionHandlerFor,
+    LiquidKeyMap, LiquidOccurrenceDescription, LiquidSourceRevision, LiquidSubscribeErrorFor,
+};
 mod render;
 mod state;
 mod timer;
 mod view;
 
-pub use feed::{put_liquid_feed_result, LiquidFeedContext};
+pub use feed::{put_liquid_feed_result, put_liquid_feed_result_for, LiquidFeedContext};
 pub use host::{
     FeedBody, FeedDatatype, FeedEntry, FeedOutcome, FeedRequest, LiquidEvent, LiquidHost,
     LiquidImage, NoHost,

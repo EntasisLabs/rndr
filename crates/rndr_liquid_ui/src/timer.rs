@@ -142,18 +142,47 @@ pub(crate) fn apply(
     {
         return prior;
     }
+    if action == LiquidTimerAction::Start
+        && matches!(
+            prior.status,
+            LiquidTimerStatus::Idle | LiquidTimerStatus::Paused
+        )
+        && now
+            .checked_add(if prior.status == LiquidTimerStatus::Idle {
+                prior.duration_ms
+            } else {
+                prior.remaining_ms
+            })
+            .is_none()
+    {
+        return prior;
+    }
     let mut next = transition(&prior, action, now);
     next.revision = prior.revision + 1;
+    let key = lifecycle::key(world, view, source);
     write(world, view, next.clone());
     publish(world, view, &next, action);
-    rebuild_recipe(world, view, source);
+    // A listener can reset/remove/reorder this recipe during publication.
+    if let Some((current_view, current_source, _)) = key.and_then(|k| lifecycle::location(world, k))
+    {
+        if liquid_timer(world, current_view, current_source, step)
+            .is_some_and(|r| r.revision == next.revision && r.deadline_ms == next.deadline_ms)
+        {
+            rebuild_recipe(world, current_view, current_source);
+        }
+    }
     next
 }
 
 /// Finish timers whose deadline has passed and publish one completion each.
+pub(crate) fn reset_key(world: &mut World, key: Key) {
+    if let Some(store) = world.resource_mut::<TimerStore>() {
+        store.records.retain(|(owner, _), _| *owner != key);
+    }
+}
 pub(crate) fn reconcile(world: &mut World) {
     let now = now_ms(world);
-    let due: Vec<(Key, LiquidTimerRecord)> = world
+    let due: Vec<(Key, LiquidTimerRecord, LiquidTimerRecord)> = world
         .resource::<TimerStore>()
         .map(|store| {
             store
@@ -165,23 +194,42 @@ pub(crate) fn reconcile(world: &mut World) {
                         && record.revision < u64::MAX
                         && next.status == LiquidTimerStatus::Complete
                         && record.status == LiquidTimerStatus::Running)
-                        .then_some((*key, next))
+                        .then_some((*key, record.clone(), next))
                 })
                 .collect()
         })
         .unwrap_or_default();
-    for (key, mut record) in due {
+    for (key, prior, mut record) in due {
+        // Recheck the actual store after every prior callback. A retained parent
+        // serial alone cannot validate a pre-schema-reset deadline snapshot.
+        if !lifecycle::key_mutation_idle(world, key)
+            || !lifecycle::block_live(world, key)
+            || world
+                .resource::<TimerStore>()
+                .and_then(|s| s.records.get(&(key, prior.step)))
+                != Some(&prior)
+        {
+            continue;
+        }
         if !state::can_emit(world) {
             break;
         }
         record.revision += 1;
-        if let Some((view, source, _)) = lifecycle::location(world, key) {
+        if let Some((_, source, _)) = lifecycle::envelope_location(world, key) {
             record.source = source;
-            write(world, view, record.clone());
-            publish(world, view, &record, LiquidTimerAction::Complete);
-            rebuild_recipe(world, view, source);
-        } else if let Some(store) = world.resource_mut::<TimerStore>() {
-            store.records.insert((key, record.step), record);
+            world
+                .resource_mut::<TimerStore>()
+                .unwrap()
+                .records
+                .insert((key, record.step), record.clone());
+            publish_key(world, key, &record, LiquidTimerAction::Complete);
+            if let Some((view, source, _)) = lifecycle::location(world, key) {
+                if liquid_timer(world, view, source, record.step).is_some_and(|r| {
+                    r.revision == record.revision && r.status == LiquidTimerStatus::Complete
+                }) {
+                    rebuild_recipe(world, view, source);
+                }
+            }
         }
     }
 }
@@ -265,24 +313,37 @@ pub(crate) fn remaining_ms(record: &LiquidTimerRecord, now: u64) -> u64 {
 }
 
 fn publish(world: &mut World, view: Entity, record: &LiquidTimerRecord, action: LiquidTimerAction) {
+    if let Some(key) = lifecycle::key(world, view, record.source) {
+        publish_key(world, key, record, action);
+    }
+}
+fn publish_key(world: &mut World, key: Key, record: &LiquidTimerRecord, action: LiquidTimerAction) {
+    let Some((view, source, _)) = lifecycle::envelope_location(world, key) else {
+        return;
+    };
+    let Some(permit) = state::reserve_emission(world) else {
+        return;
+    };
     let event = match action {
         LiquidTimerAction::Start => LiquidInteraction::TimerStart,
         LiquidTimerAction::Pause => LiquidInteraction::TimerPause,
         LiquidTimerAction::Reset => LiquidInteraction::TimerReset,
         LiquidTimerAction::Complete => LiquidInteraction::TimerComplete,
     };
-    state::emit(
+    state::emit_reserved_for(
         world,
+        permit,
         LiquidInteractionEnvelope {
             version: 1,
             view,
-            source: record.source,
+            source,
             node_id: "timer".into(),
             instance_id: record.step.to_string(),
             event,
             disposition: LiquidDisposition::LocalState,
             revision: record.revision,
         },
+        key,
     );
 }
 
@@ -387,6 +448,106 @@ pub(crate) fn count(world: &World) -> usize {
 #[cfg(test)]
 mod exhaustion_tests {
     use super::*;
+    #[test]
+    fn reentrant_schema_reset_invalidates_the_rest_of_a_captured_due_batch() {
+        use crate::*;
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
+        let mut world = World::new();
+        let src="```recipe\ntitle: Recipe\n---\nlabel: One\nbody: Old\nduration: 1s\n---\nlabel: Two\nbody: Old\nduration: 1s\n```\n";
+        let view = liquid_view(&mut world, src);
+        let surface = liquid_surface_handle(&world, view).unwrap();
+        let keys = LiquidKeyMap {
+            keys: vec![Some("recipe".into())],
+        };
+        set_liquid_source_keyed(&mut world, surface, LiquidSourceRevision::ZERO, src, &keys)
+            .unwrap();
+        let key = lifecycle::key_at(&world, view, 0).unwrap();
+        let source = lifecycle::location(&world, key).unwrap().1;
+        let mut store = TimerStore::default();
+        for step in 0..2 {
+            store.records.insert(
+                (key, step),
+                LiquidTimerRecord {
+                    revision: 1,
+                    status: LiquidTimerStatus::Running,
+                    deadline_ms: Some(1),
+                    ..fresh(source, step, 1000)
+                },
+            );
+        }
+        world.insert_resource(store);
+        let time = Time {
+            now: std::time::Duration::from_millis(2),
+            ..Default::default()
+        };
+        world.insert_resource(time);
+        struct Reset {
+            surface: LiquidSurfaceHandle,
+            source: String,
+            calls: Arc<AtomicUsize>,
+        }
+        impl LiquidInteractionHandler for Reset {
+            fn on_interaction(&mut self, w: &mut World, e: &LiquidInteractionEnvelope) {
+                if e.event != LiquidInteraction::TimerComplete {
+                    return;
+                }
+                self.calls.fetch_add(1, Ordering::SeqCst);
+                let revision = liquid_source_revision(w, self.surface).unwrap();
+                set_liquid_source_keyed(
+                    w,
+                    self.surface,
+                    revision,
+                    &self.source,
+                    &LiquidKeyMap {
+                        keys: vec![Some("recipe".into())],
+                    },
+                )
+                .unwrap();
+            }
+        }
+        let calls = Arc::new(AtomicUsize::new(0));
+        subscribe_liquid_interactions(
+            &mut world,
+            Reset {
+                surface,
+                source: src.replace("Old", "Changed"),
+                calls: calls.clone(),
+            },
+        );
+        reconcile(&mut world);
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert!(world.resource::<TimerStore>().unwrap().records.is_empty());
+    }
+    #[test]
+    fn checked_absolute_deadline_exhaustion_has_no_record_or_envelope_effect() {
+        let mut world = World::new();
+        let view = crate::liquid_view(
+            &mut world,
+            "```recipe\ntitle: Recipe\n---\nlabel: Step\nbody: Body\nduration: 1s\n```\n",
+        );
+        let key = lifecycle::key_at(&world, view, 0).unwrap();
+        let source = lifecycle::location(&world, key).unwrap().1;
+        let time = Time {
+            now: std::time::Duration::from_millis(u64::MAX),
+            ..Default::default()
+        };
+        world.insert_resource(time);
+        let prior = fresh(source, 0, 1000);
+        assert_eq!(
+            apply(&mut world, view, source, 0, 1000, LiquidTimerAction::Start),
+            prior
+        );
+        assert_eq!(
+            world
+                .resource::<TimerStore>()
+                .map_or(0, |s| s.records.len()),
+            0
+        );
+        assert_eq!(state::counts(&world).3, 0);
+    }
     #[test]
     fn exhausted_timer_refuses_without_state_events_or_deadline_wrap() {
         let mut world = World::new();

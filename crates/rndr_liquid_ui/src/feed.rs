@@ -34,6 +34,14 @@ impl LiquidFeedContext {
     pub(crate) fn request_id(&self) -> u64 {
         self.request
     }
+    /// Exact surface incarnation owning this observation, independent of mounting.
+    pub fn surface_handle(&self) -> crate::LiquidSurfaceHandle {
+        crate::LiquidSurfaceHandle(self.key.0)
+    }
+    /// Exact block incarnation owning this observation, never a positional byte.
+    pub fn block_handle(&self) -> crate::LiquidBlockHandle {
+        crate::LiquidBlockHandle(self.key)
+    }
     /// Whether this observation has been retired. A worker must stop UI delivery.
     pub fn is_retired(&self) -> bool {
         self.retired.load(Ordering::Acquire)
@@ -226,8 +234,33 @@ pub fn put_liquid_feed_result(
     expected_revision: u64,
     outcome: FeedOutcome,
 ) -> Result<(), crate::LiquidUpdateError> {
-    if context.is_retired() || !lifecycle::block_live(world, context.key) {
-        return Err(crate::LiquidUpdateError::StaleOwner);
+    put_liquid_feed_result_for(world, context, expected_revision, outcome).map_err(|e| match e {
+        crate::LiquidF2Error::Capacity => crate::LiquidUpdateError::Capacity,
+        crate::LiquidF2Error::Exhausted => crate::LiquidUpdateError::Exhausted,
+        _ => crate::LiquidUpdateError::StaleOwner,
+    })
+}
+/// Detailed context-bearing F2 publication. Checks exact surface, block, request
+/// lane and state revision at the final mutation owner. The legacy function's
+/// signature and three-way refusal type remain unchanged.
+pub fn put_liquid_feed_result_for(
+    world: &mut World,
+    context: &LiquidFeedContext,
+    expected_revision: u64,
+    outcome: FeedOutcome,
+) -> Result<(), crate::LiquidF2Error> {
+    use crate::LiquidF2Error as E;
+    if !lifecycle::live(world, context.key.0) {
+        return Err(E::StaleOwner);
+    }
+    if !lifecycle::block_live(world, context.key) {
+        return Err(E::StaleBlock);
+    }
+    if context.is_retired() {
+        return Err(E::StaleRequest);
+    }
+    if !lifecycle::key_mutation_idle(world, context.key) {
+        return Err(E::StaleOwner);
     }
     let instance = world
         .resource::<Observations>()
@@ -237,20 +270,25 @@ pub fn put_liquid_feed_result(
                 .find(|(_, o)| o.context == *context)
                 .map(|((_, i), _)| i.clone())
         })
-        .ok_or(crate::LiquidUpdateError::StaleOwner)?;
-    let (view, source, block) =
-        lifecycle::location(world, context.key).ok_or(crate::LiquidUpdateError::StaleOwner)?;
-    let record = state::liquid_component_state(world, view, source)
-        .ok_or(crate::LiquidUpdateError::StaleOwner)?;
-    if record.revision == u64::MAX {
-        return Err(crate::LiquidUpdateError::Exhausted);
-    }
+        .ok_or(E::StaleRequest)?;
+    let (view, source, _) =
+        lifecycle::envelope_location(world, context.key).ok_or(E::StaleBlock)?;
+    let record = state::read_key(world, context.key).ok_or(E::StaleRequest)?;
     if record.revision != expected_revision {
-        return Err(crate::LiquidUpdateError::StaleOwner);
+        return Err(E::Revision {
+            expected: expected_revision,
+            actual: record.revision,
+        });
     }
-    let permit = state::reserve_emission(world).ok_or(crate::LiquidUpdateError::Capacity)?;
-    let Some(slot) = stored(world, view, source, &instance) else {
-        return Err(crate::LiquidUpdateError::StaleOwner);
+    if record.revision == u64::MAX {
+        return Err(E::Exhausted);
+    }
+    let permit = state::reserve_emission(world).ok_or(E::Capacity)?;
+    let LiquidComponentState::Feeds { mut slots } = record.state else {
+        return Err(E::Kind);
+    };
+    let Some(slot) = slots.iter().find(|s| s.instance == instance) else {
+        return Err(E::StaleRequest);
     };
     let spec = Spec {
         instance,
@@ -260,9 +298,21 @@ pub fn put_liquid_feed_result(
         autoload: true,
         interval_ms: None,
     };
-    let record = commit_outcome(world, view, source, block, &spec, &outcome);
+    let previous = slots.iter().find(|s| s.instance == spec.instance).cloned();
+    let slot = outcome_slot(previous, &spec, &outcome);
+    *slots
+        .iter_mut()
+        .find(|s| s.instance == spec.instance)
+        .unwrap() = slot;
+    let record = state::snapshot_key(
+        world,
+        context.key,
+        "feed",
+        LiquidComponentState::Feeds { slots },
+    )
+    .ok_or(E::Exhausted)?;
     context.settle(&outcome);
-    state::emit_reserved(
+    state::emit_reserved_for(
         world,
         permit,
         LiquidInteractionEnvelope {
@@ -275,6 +325,7 @@ pub fn put_liquid_feed_result(
             disposition: LiquidDisposition::LocalState,
             revision: record.revision,
         },
+        context.key,
     );
     // Emission can itself reenter source mutation. Rebuild only projections
     // still leased to this logical request, never the old positional address.
@@ -307,6 +358,134 @@ fn retirement_cmp(a: &LiquidFeedContext, b: &LiquidFeedContext) -> std::cmp::Ord
         .then_with(|| b.request.cmp(&a.request))
 }
 
+// Parsed child IDs are schema values, not universally unique authority. The
+// parser can legitimately produce a suffix/stem collision (A, A, A-1).
+// Preserve ordinary instance names; disambiguate only collisions by current
+// occurrence, checking against ALL raw and already assigned names. This is a
+// private request lane, never a host block key or per-child state remapping.
+pub(crate) fn dashboard_instances(tiles: &[rndr_liquid::DashboardTile]) -> Vec<String> {
+    let mut counts = std::collections::HashMap::new();
+    let mut used: std::collections::HashSet<String> = tiles.iter().map(|t| t.id.clone()).collect();
+    for tile in tiles {
+        *counts.entry(tile.id.as_str()).or_insert(0usize) += 1;
+    }
+    tiles
+        .iter()
+        .enumerate()
+        .map(|(index, tile)| {
+            if counts[tile.id.as_str()] == 1 {
+                return tile.id.clone();
+            }
+            let mut instance = format!("{}@occurrence-{index}", tile.id);
+            while used.contains(&instance) {
+                instance.push('@');
+            }
+            used.insert(instance.clone());
+            instance
+        })
+        .collect()
+}
+pub(crate) fn bindings(
+    block: &rndr_liquid::LiquidBlock,
+) -> std::collections::BTreeMap<String, (String, FeedDatatype, Option<String>)> {
+    use rndr_liquid::LiquidBlock;
+    match block {
+        LiquidBlock::Feed(p) => [(
+            p.feed_id.clone(),
+            (
+                p.feed_id.clone(),
+                FeedDatatype::parse(&p.datatype).unwrap_or(FeedDatatype::Text),
+                None,
+            ),
+        )]
+        .into_iter()
+        .collect(),
+        LiquidBlock::Dashboard(p) => p
+            .tiles
+            .iter()
+            .zip(dashboard_instances(&p.tiles))
+            .filter_map(|(t, instance)| {
+                t.feed.as_ref().map(|feed| {
+                    (
+                        instance,
+                        (feed.clone(), FeedDatatype::Text, t.field.clone()),
+                    )
+                })
+            })
+            .collect(),
+        _ => Default::default(),
+    }
+}
+pub(crate) fn rebind(
+    world: &mut World,
+    key: Key,
+    old: &rndr_liquid::LiquidBlock,
+    new: &rndr_liquid::LiquidBlock,
+) {
+    let old = bindings(old);
+    let new = bindings(new);
+    let compatible =
+        |instance: &String| old.contains_key(instance) && old.get(instance) == new.get(instance);
+    let mut removed: Vec<_> = if let Some(r) = world.resource_mut::<Observations>() {
+        let remove: Vec<_> = r
+            .active
+            .keys()
+            .filter(|(k, i)| *k == key && !compatible(i))
+            .cloned()
+            .collect();
+        remove
+            .into_iter()
+            .filter_map(|k| r.active.remove(&k))
+            .collect()
+    } else {
+        Vec::new()
+    };
+    removed.sort_by(|a, b| retirement_cmp(&a.context, &b.context));
+    for observation in &removed {
+        observation.context.retired.store(true, Ordering::Release);
+    }
+    for observation in removed {
+        retire(world, observation);
+    }
+    let slots = match state::read_key(world, key).map(|r| r.state) {
+        Some(LiquidComponentState::Feeds { slots }) => slots
+            .into_iter()
+            .filter(|s| compatible(&s.instance))
+            .collect(),
+        _ => Vec::new(),
+    };
+    state::reset_feeds(world, key, slots);
+}
+pub(crate) fn reset_key(world: &mut World, key: Key) {
+    let mut removed: Vec<_> = if let Some(r) = world.resource_mut::<Observations>() {
+        let keys: Vec<_> = r
+            .active
+            .keys()
+            .filter(|(k, _)| *k == key)
+            .cloned()
+            .collect();
+        keys.into_iter()
+            .filter_map(|k| r.active.remove(&k))
+            .collect()
+    } else {
+        Vec::new()
+    };
+    removed.sort_by(|a, b| retirement_cmp(&a.context, &b.context));
+    for old in &removed {
+        old.context.retired.store(true, Ordering::Release);
+    }
+    for old in removed {
+        retire(world, old);
+    }
+    for root in world.entities_with::<FeedWatch>() {
+        if world
+            .get::<BlockRoot>(root)
+            .is_some_and(|r| r.lease == Some(key))
+        {
+            world.remove::<FeedWatch>(root);
+        }
+    }
+}
 pub(crate) fn retire_dead(world: &mut World) {
     let dead: Vec<_> = world
         .resource::<Observations>()
@@ -427,6 +606,12 @@ pub(crate) fn ensure(world: &mut World, root: Entity, spec: Spec) -> Shown {
         return Shown::Sync(sync_rows(world, &spec));
     }
     if let Some(slot) = stored(world, view, source, &spec.instance) {
+        // Projection recycling must not turn settled data into a fresh request.
+        // This model was already probed in the logical store, even when this
+        // newly constructed physical watch has never seen it before.
+        if !tracked.probed {
+            mark(world, root, &spec, true);
+        }
         if slot.inflight {
             poll(world, root, &spec, false);
         }
@@ -736,7 +921,11 @@ fn commit_outcome(
     outcome: &FeedOutcome,
 ) -> state::LiquidComponentRecord {
     let previous = stored(world, view, source, &spec.instance);
-    let mut slot = previous.clone().unwrap_or_else(|| empty_slot(spec));
+    let slot = outcome_slot(previous, spec, outcome);
+    upsert(world, view, source, block, slot)
+}
+fn outcome_slot(previous: Option<FeedSlot>, spec: &Spec, outcome: &FeedOutcome) -> FeedSlot {
+    let mut slot = previous.unwrap_or_else(|| empty_slot(spec));
     slot.datatype = spec.datatype.as_str().to_string();
     match outcome {
         FeedOutcome::Defer => {}
@@ -765,7 +954,7 @@ fn commit_outcome(
             };
         }
     }
-    upsert(world, view, source, block, slot)
+    slot
 }
 
 #[cfg(test)]

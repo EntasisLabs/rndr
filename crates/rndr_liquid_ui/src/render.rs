@@ -76,7 +76,7 @@ impl BlockState {
         }
     }
 
-    fn init(&mut self, block: &LiquidBlock) {
+    pub(crate) fn init(&mut self, block: &LiquidBlock) {
         if self.ready {
             return;
         }
@@ -950,14 +950,16 @@ impl Cx<'_> {
             .and_then(|c| c.trim().parse::<usize>().ok())
             .filter(|c| (1..=6).contains(c))
             .unwrap_or(3);
-        for chunk in p.tiles.chunks(columns) {
+        let instances = crate::feed::dashboard_instances(&p.tiles);
+        for (row_index, chunk) in p.tiles.chunks(columns).enumerate() {
             let row = self.row(parent);
-            for tile in chunk {
+            for (column_index, tile) in chunk.iter().enumerate() {
+                let instance = &instances[row_index * columns + column_index];
                 let s = self.surface(row);
                 self.text(s, &tile.label, Typography::Secondary);
                 let value = if let Some(feed) = tile.feed.as_deref() {
                     let spec = crate::feed::Spec {
-                        instance: tile.id.clone(),
+                        instance: instance.clone(),
                         feed_id: feed.to_string(),
                         datatype: FeedDatatype::Text,
                         field: tile.field.clone(),
@@ -988,7 +990,7 @@ impl Cx<'_> {
                                     &format!("Refresh {}", tile.label),
                                     ButtonVariant::Quiet,
                                     Act::FeedRefresh {
-                                        instance: tile.id.clone(),
+                                        instance: instance.clone(),
                                     },
                                 );
                             }

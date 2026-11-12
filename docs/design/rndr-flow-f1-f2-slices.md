@@ -1304,3 +1304,316 @@ integration. No seal, approval, integration, push, publication, deployment or
 Medousa migration was performed. The sender retains contract decisions,
 review, continuation and eventual native integration. The existing
 whole-stream staging performance caveat remains unchanged.
+
+## N. F2 continuation: additive error-contract correction and implementation
+
+### N.1 Explicit contract correction (supersedes the same-error-type sketch)
+
+The sender assessed proof-only `54f3a15cc3221980a344c7cd4c2dcf24a47fba61`
+as **changes requested**, not an acceptable F2 implementation. The compatibility
+conflict in M is resolved within the original additive scope: keep the public
+`LiquidUpdateError` **exactly** as its existing three exhaustive variants
+`StaleOwner`, `Capacity`, `Exhausted`. Do not add variants, mark it
+`non_exhaustive`, change existing signatures, or change legacy envelope,
+component-record, timer-record or feed-slot struct-literal layouts. Historical
+receipts and the original API sketch above are retained; their proposal that
+new detailed F2 failures use that *same* legacy error type is **superseded by
+this additive correction**. M remains accurate evidence about the earlier
+proof-only result, not a current blocker or an implementation qualification.
+
+New F2 APIs use the separately named public `LiquidF2Error`:
+
+- `StaleOwner`: foreign, dead, poisoned or otherwise inadmissible owner.
+- `StaleBlock`: retired/missing block incarnation in a still-live owner.
+- `StaleRequest`: superseded observation/request lane.
+- `Revision { expected, actual }`: source/state compare-and-set failure.
+- `Kind`: incompatible state variant or child-index domain.
+- `InvalidKeys`: incomplete/duplicate/empty/oversized/control-containing key
+  assignments or malformed, cyclic, unresolved internal references.
+- `Capacity`: bounded admission refusal.
+- `Exhausted`: checked nonwrapping counter/deadline admission refusal where the
+  particular API has a fallible return. Existing infallible timer actions
+  refuse without state/event/deadline mutation, retaining their signatures.
+
+The corrected additive public API is implemented in `identity.rs` and exported
+by `rndr_liquid_ui`, without parser, core, facade production or Cargo changes:
+
+```rust,ignore
+pub struct LiquidKeyMap { pub keys: Vec<Option<String>> }
+// Opaque, process-local; no host constructor, serialization or reuse contract.
+pub struct LiquidBlockHandle(/* private */);
+pub struct LiquidSourceRevision(/* private */); // includes public ZERO
+
+pub fn inspect_liquid_occurrences(source: &str)
+    -> Result<Vec<LiquidOccurrenceDescription>, LiquidF2Error>;
+pub fn liquid_source_revision(world: &World, surface: LiquidSurfaceHandle)
+    -> Result<LiquidSourceRevision, LiquidF2Error>;
+pub fn liquid_component_handle(world: &World, surface: LiquidSurfaceHandle,
+    occurrence: usize) -> Result<LiquidBlockHandle, LiquidF2Error>;
+pub fn liquid_component_state_for(world: &World, block: LiquidBlockHandle)
+    -> Result<Option<LiquidComponentRecord>, LiquidF2Error>;
+pub fn put_liquid_component_state_for(world: &mut World, block: LiquidBlockHandle,
+    expected_state_revision: u64, state: LiquidComponentState)
+    -> Result<LiquidComponentRecord, LiquidF2Error>;
+pub fn set_liquid_source_keyed(world: &mut World, surface: LiquidSurfaceHandle,
+    expected_source_revision: LiquidSourceRevision, source: &str,
+    keys: &LiquidKeyMap) -> Result<LiquidSourceRevision, LiquidF2Error>;
+pub fn reset_liquid_block(world: &mut World, block: LiquidBlockHandle,
+    expected_state_revision: u64) -> Result<LiquidBlockHandle, LiquidF2Error>;
+pub fn reset_liquid_surface(world: &mut World, surface: LiquidSurfaceHandle,
+    expected_source_revision: LiquidSourceRevision)
+    -> Result<LiquidSurfaceHandle, LiquidF2Error>;
+pub fn put_liquid_feed_result_for(world: &mut World, context: &LiquidFeedContext,
+    expected_state_revision: u64, outcome: FeedOutcome)
+    -> Result<(), LiquidF2Error>;
+```
+
+`LiquidOccurrenceDescription { ordinal, kind }` describes settled top-level
+reading order, **not** original-source byte offsets, global parse-table indices,
+keys inferred from props, or stable incarnation IDs. `LiquidKeyMap.keys` is the
+complete sidecar for exactly that sequence, including `None` entries. Key
+validation uses nonempty UTF-8 labels of at most 256 **bytes**, rejects Unicode
+controls and duplicate `Some` labels, never trims/normalizes labels, and never
+puts key/source/body text in refusal diagnostics. Nested parse entries and
+unfinished fences do not acquire a top-level key slot.
+
+`LiquidInteractionEnvelopeFor { envelope, surface, block }` wraps the unchanged
+legacy envelope. `LiquidInteractionHandlerFor` and
+`subscribe_liquid_interactions_owned_for` are additive owned observation APIs.
+Its `LiquidSubscribeErrorFor<H>` returns the untouched handler with a
+`LiquidF2Error` reason; the legacy `LiquidSubscribeError<H>` remains unchanged.
+Dispatch captures handles from the committed delivery key, not a fresh lookup of historical source metadata after
+another listener runs. `LiquidFeedContext::surface_handle()` and
+`block_handle()` expose immutable observation ownership. The existing
+`put_liquid_feed_result` retains its exact legacy signature/error type; its new
+`_for` counterpart exposes distinguishable F2 refusals. Feed bodies retain the
+existing self-describing datatype behavior; request identity is the actual
+instance/feed-id/requested-datatype/field binding, not a guess from a last-good
+body's display datatype.
+
+### N.2 Implementation semantics and scope
+
+- One correspondence plan drives logical block membership, component records,
+  timer/feed ownership and mounted/saved/carry presentation state. It uses live
+  host keys plus kind, or conservative uniqueness among unkeyed complete
+  semantic values. Nonappend replacements never greedily pair ambiguous equal
+  groups. Exact no-ops and true settled-prefix appends preserve duplicates.
+- A private typed visitor walks every current payload's strings/containers,
+  including chart values, replacing parse-local nested references with shared
+  full-value canonical children before typed equality. No payload hash is an
+  identity. Invalid reference graphs fail before publication. Parent/child
+  paths compare resolved semantics rather than transient token indices.
+- Legacy exact no-ops leave existing assignments alone; legacy true append keeps
+  settled-prefix assignments and gives new occurrences `None`; legacy
+  nonappend replacements supply unkeyed fallback. Explicit key mode changes
+  reset the affected occurrence instead of searching historical state.
+- Checked process-wide serials make surface/block incarnations independent of
+  reusable ECS indices and source bytes. Whole serial ranges are reserved with
+  one checked atomic operation, never a partially consumed prefix on refusal.
+  Source/identity revisions are separate from reader-state revisions. Source
+  movement/no-op does not bump reader revisions; a source/key change or block
+  reset advances the source revision. Surface reset creates a fresh handle at
+  `LiquidSourceRevision::ZERO` and retires all old descendant authority.
+- Complete ordered child values, including existing child IDs, fence indexed
+  state and recipe timers. Parent cosmetic edits retain compatible state and
+  absolute deadlines. A retained-parent schema reset advances its state fence
+  once, including a zero/missing pre-reset state barrier, so an old expected-zero
+  write cannot recreate pre-reset indexed state. A **fresh block incarnation**
+  after explicit reset/remove/reinsert still begins missing/revision zero.
+- Feed/dashboard rebinding retires only incompatible request lanes and clears
+  their last-good slots; independent compatible tiles retain their contexts and
+  data. Pending and in-flight settlement ownership remains in F1 accounting,
+  including cooperative external acknowledgments and finite callback pumps.
+  Remounting a settled feed does not manufacture a fresh unprobed request.
+- Parked nested surfaces keep logical state, handles, deadlines and observation
+  authority even without a physical view. Reattachment stages membership and
+  source-index remapping under a live transaction fence before presentation is
+  restored. Logical handle state writes/resets do not depend on an Entity being
+  mounted. Late feed results and timer completion use captured logical keys;
+  contextual envelopes retain those handles while legacy Entity/source fields
+  remain historical metadata, not mutation authority.
+- Actual interaction roots must still carry the current block lease. Timer due
+  batches recheck their actual stored deadline/revision after **each** prior
+  callback. Contextual results check live owner/block/request and state CAS at
+  final mutation. Reentrant source/state/reset attempts and poisoned owners
+  fail closed; no refusal falls back to a coincident source byte or record.
+- Only Liquid UI production/tests and this relevant design document change.
+  There is no new flow crate, parser/core production change, dependency/lock
+  edit, SDK/Medousa migration, durable-turn cancellation, push, publication,
+  deployment, seal, approval or integration. The sender retains independent
+  assessment/review/fixes and the native lifecycle.
+
+Verification receipts for the completed candidate are appended separately
+below. This contract clarification alone is not acceptance or a broad readiness
+claim. The existing whole-stream staging performance caveat remains; full-value
+correspondence and its worst-case repeated comparisons are not a new performance
+qualification, and existing opt-in performance probes remain separately named.
+
+### N.3 Permanent qualification and honest before/after chronology
+
+The continuation began with a **clean** reusable worktree at proof commit
+`54f3a15cc3221980a344c7cd4c2dcf24a47fba61`, not an integrated implementation.
+`main` remained accepted F1 `d18c55414d30c4c563148b30fd7e096f0bfd863d`.
+About 11 GiB was available initially. M's proof assertions and historical
+receipts remain intact.
+
+Initial desired-behavior assertions precede production changes:
+
+1. M's exact mounted/offscreen duplicate-group baseline was **2 passed,
+   2 failed**, exit 101, with genuine record transfer after nonappend prefix
+   insertion. The exhaustive three-variant legacy error fixture passed.
+   `target/f2/baseline-identity-final.log` is the retained baseline log.
+2. New `tests/keyed_identity.rs` contract assertions were added before production
+   implementation. `cargo test --locked --offline -p rndr_liquid_ui --test
+   keyed_identity` failed to compile with **47 missing-symbol errors**, exit
+   101 (`target/f2/baseline-keyed.log`). This is an absent-API compile baseline,
+   not an invented runtime failure count.
+3. Permanent expanded cases were added while following affected contracts and
+   callers. Only the explicitly recorded runs are baseline evidence; the whole
+   final matrix is not retroactively claimed to have executed against F1.
+   The initial invalid-vector harness used an empty vector with a zero-occurrence
+   plain source, which is valid; that fixture was corrected to the intended
+   two-occurrence source. Required payload fields, disabled scroll following for
+   offscreen setup, and distinct-context versus repeated-poll counting were
+   likewise fixture corrections, not production-defect proof.
+
+`tests/identity.rs` retains the proof and adds two data-driven tables:
+
+- **18 replacement rows × mounted/offscreen = 36 cases**: exact duplicate
+  no-op, true duplicate append, nonappend ambiguous prefix insertion,
+  contraction/expansion, unique reorder/prefix, semantic edit, mixed unique and
+  duplicate groups, keyed duplicate reorder, child-schema versus cosmetic title
+  edit, both key-mode switches, key replacement, keyed kind change, pending
+  fence append and CRLF-normalized no-op.
+- **6 explicit operations × keyed/unkeyed × mounted/offscreen = 24 cases**:
+  empty append, completion of a pending fence, block reset, surface reset,
+  remove/pump/reinsert and destruction/immediate recreation. These check exact
+  handle continuity or freshness, reader record/state/revision, source revision,
+  missing state on a new incarnation, stale-token rejection, remount and final
+  teardown. They do not substitute a shared saved-state heuristic for offscreen
+  rules.
+
+`tests/keyed_identity.rs` checks complete reading-order key vectors, duplicate,
+empty/control/257-byte labels, invalid count, atomic key and revision refusal,
+kind/domain refusal, schema/CAS reset, foreign worlds, remove/reinsert and
+surface/block resets. It also checks split CRLF chunks followed by an exact
+normalized full-source no-op for both keyed and duplicate-unkeyed occurrences.
+
+`tests/identity_resources.rs` exercises actual nested controls and resource
+owners: parse-index-only shifts versus same-index semantic child changes,
+cosmetic parent preservation, absolute recipe deadlines versus duration/schema
+reset, compatible feed data/context retention, per-tile partial rebinding,
+retained-parent expected-zero ABA fences, parked handle reads/writes/block and
+surface reset, late parked feed publication with captured contextual envelopes,
+and colliding generated tile IDs with independent async result publication.
+Private unit regressions cover whole-range allocation failure, source/state/
+request/deadline counter admission, capacity, reference validity, reentry,
+unwind poisoning and invalidation of a captured multi-timer due batch after the
+first callback resets its schema. Existing F1 queue/fairness/ownership/settlement
+regressions remain unweakened.
+
+Additional observed failures were fixed, not hidden by passing-only assertions:
+
+- Nested parse-index reattachment initially retained a handle but lost its
+  record while the physical view was extracted. Rebinding now holds its logical
+  transaction lease through insertion. Settled feed remount also initially
+  retired the old context by treating known data as unprobed; its logical probe
+  status now survives projection recycling.
+- `target/f2/qualified-crlf.log`: **4 passed, 1 failed**, exit 101. Splitting
+  `\r`/`\n` across stream writes then supplying the identical LF-normalized
+  source incorrectly advanced source revision **2 → 3** (and could reset an
+  ambiguous group). The UI setter now normalizes its saved stream comparison
+  and append-prefix admission, without changing parser production. The exact
+  same test is **5/5 passing**, exit 0, in `qualified-crlf-after.log`.
+- `target/f2/qualified-instance-before.log`: the new focused desired regression
+  **failed**, exit 101 (one failure, seven unrelated tests filtered only for
+  this reproduction). The unchanged parser can generate colliding child IDs for
+  labels `A`, `A`, `A-1`: three distinct request bindings had only **two**
+  observation contexts. A private collision-safe instance plan now preserves
+  ordinary unique names and disambiguates collisions against all raw/assigned
+  names using the current occurrence. Loading, refresh actions and binding
+  compatibility consume that same plan. These are **not host block keys or
+  per-child reader-state remapping**; parser IDs, payload schemas and parser
+  production remain unchanged. `qualified-instance-after.log` passes the same
+  focused test, including three independent results, selective retirement and
+  zero-effect stale result rejection.
+
+After these last two fixes, every final gate is rerun, including the **entire**
+300-cycle oracle rather than relying on an earlier passing suite. Its F2
+interleave runs in the original F1 resource World on **every** teardown cycle:
+key rebinding, cosmetic preservation, child-schema reset, stale CAS refusal,
+block reset and periodic whole-surface reset occur alongside F1 timers, nested
+controls, charts, observations, listener captures and external acknowledgments.
+Final per-command receipts and limitations follow below.
+
+### N.4 Final frozen-candidate receipts and handback limits
+
+All rows below were rerun **after** the CRLF comparison and collision-lane
+corrections. Each exited **0**. No new F2 regression is ignored; the final full
+Liquid and selected core commands have no test-name filters. Complete logs are
+worktree-local under `target/f2/`; `final-gates-post-fixes.txt` records every exit
+status. Build environment for all Cargo commands:
+
+```sh
+export PATH="$HOME/.cargo/bin:$PATH"
+export CARGO_BUILD_JOBS=2 CARGO_INCREMENTAL=0
+export CARGO_TARGET_DIR="$PWD/target/f2"
+```
+
+| Exact command | Observed final result | Log under `target/f2/` |
+| --- | --- | --- |
+| `cargo clippy --locked --offline -p rndr_liquid_ui --lib --tests -- -D warnings` | Passed, no warnings | `final-clippy.log` |
+| `cargo test --locked --offline -p rndr_liquid -p rndr_liquid_ui -- --nocapture` | Liquid UI **100 passed, 0 failed, 2 existing opt-in ignored**, plus **1 passing UI doctest**; parser **11 passed**, plus **5 passing parser doctests**; no filtering | `final-liquid.log` |
+| `cargo test --locked --offline -p rndr_core --lib --test runtime --test feed --test markdown` | **179 passed, 0 failed, 1 pre-existing ignored**, no filtering | `final-core.log` |
+| `cargo check --locked --offline -p rndr --no-default-features --features liquid` | Passed facade with Liquid enabled | `final-facade-liquid.log` |
+| `cargo test --locked --offline -p rndr --no-default-features --features liquid --test editing_compatibility` | **2 passed**, no failed/ignored/filtered | `final-facade-compat.log` |
+| `cargo test --locked --offline -p rndr --no-default-features --test editing_compatibility` | **2 passed**, no failed/ignored/filtered; facade without Liquid/UI feature | `final-feature-off.log` |
+| `cargo fmt --all -- --check` | Passed | `final-fmt.log` |
+| `git diff --check` | Passed; repeated against staged/committed range at handback | `final-diff.log` |
+
+A separate audit of the actual final oracle log asserted all of the following,
+not just its test-function pass count:
+
+- Exactly **100 unique teardown cycles, numbered 0–99, for each Sim seed
+  1, 7 and 42**: **all 300 cycles ran**.
+- Every printed 19-counter resource vector equals its per-World baseline after
+  **every** teardown. The exact retained baseline is
+  `[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]`;
+  it is not replaced with an incorrectly assumed all-zero target.
+- `external_ack_pending=0` on **all 300** teardown records. F1's active,
+  awaiting-host-ack and in-flight settlement accounting and physical ownership
+  assertions remain active, with F2 identity operations interleaved every cycle.
+
+Compatibility audits compared the legacy `LiquidUpdateError` and field
+layouts of `LiquidInteractionEnvelope`, `LiquidComponentRecord`, `FeedSlot`,
+`LiquidTimerRecord` **byte-for-byte** to accepted F1. They are unchanged. Every
+pre-existing public function signature in the changed production files remains
+present (whitespace-normalized comparison), and all original proof assertions
+and the entire historical document prefix from `54f3a15` are unchanged.
+
+The candidate's exact changed-file scope is:
+
+- `crates/rndr_liquid_ui/src/{identity,feed,lib,lifecycle,render,state,timer,view}.rs`
+- `crates/rndr_liquid_ui/tests/{identity,keyed_identity,identity_resources}.rs`
+- `docs/design/rndr-flow-f1-f2-slices.md`
+
+No parser/core production, facade production, Cargo/dependency/lockfile,
+SDK/Medousa or flow-crate changes are included. All Cargo runs used locked,
+offline builds and the worktree-local target, which occupied about **2.3 GiB**
+at final audit, with about **9.9 GiB** available on the volume. No downloads or
+shared build-target commands were used.
+
+**Limits:** this is author-run functional/resource/compatibility evidence, not
+independent acceptance or a new production-readiness/performance claim. The
+unchanged opt-in `liquid_stream_cost` and `liquid_density_cost` release
+characterizations were not run; the prior whole-stream staging caveat remains,
+and no new scaling claim is made for full-value correspondence or private
+collision disambiguation. The selected core suite retains its one existing
+ignored test. Logs are local build evidence, not newly published artifacts.
+
+The complete implementation is committed on the isolated undertaking branch,
+retaining proof commit `54f3a15` in its history; the exact candidate OID is in
+the terminal handback. `main` remains
+`d18c55414d30c4c563148b30fd7e096f0bfd863d`. A local candidate commit is not
+acceptance, approval, sealing, integration, push, publication or deployment.
+The sender retains independent assessment/review/fixes and the native lifecycle.
