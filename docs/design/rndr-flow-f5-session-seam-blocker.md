@@ -1,5 +1,12 @@
 # F5 correction: public Session integration blocker
 
+> Historical blocker assessment at `9721657`. The principal subsequently
+> authorized this narrow seam. Its implementation/contract is now documented in
+> `rndr-flow-f5-session-close-validation.md` and its exact-source evidence in
+> `../reports/rndr-flow-f5-session-seam.md`. The original reviewer report, probe
+> sources, failed logs and assertions remain unchanged; this text below records
+> the pre-authorization blocker, not the current implementation status.
+
 ## Disposition
 
 **BLOCKED, not demonstrated and not implemented.** The in-scope flow safety corrections can be qualified headlessly, but the existing public renderer API cannot supply the required all-World validation at every destructive close boundary. F5 must not be represented as fully integrated or ready for F6 merely because its private-runner unit tests pass. Sender retains independent re-review and scope assessment. No renderer/runtime/backend/SDK/security/policy changes were made by this correction.

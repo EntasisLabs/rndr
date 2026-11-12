@@ -1,5 +1,48 @@
 //! Runner close coordination, kept independent of native/GPU objects for tests.
+// Existing flow/reviewer tests include this entire module but use only `step`.
+#![cfg_attr(test, allow(dead_code))]
 use rndr_core::{CloseGuard, CloseState, Input, World};
+
+/// One live Session window at the final close boundary. Metadata is runner-owned.
+/// Worlds include hidden, unrelated, unguarded and dynamically admitted windows.
+/// The borrow cannot escape the validator. `closing()` is authoritative native
+/// participation; a manually requested CloseGuard does not establish it.
+pub struct CloseWorld<'a> {
+    id: rndr_core::WindowId,
+    primary: bool,
+    closing: bool,
+    world: &'a mut World,
+}
+
+impl CloseWorld<'_> {
+    /// Stable Desktop window identity for this Session window.
+    pub fn id(&self) -> rndr_core::WindowId {
+        self.id
+    }
+    /// Whether this is the Session's primary window.
+    pub fn primary(&self) -> bool {
+        self.primary
+    }
+    /// Whether this window actually participates in the pending native close.
+    pub fn closing(&self) -> bool {
+        self.closing
+    }
+    /// Inspect the live World.
+    pub fn world(&self) -> &World {
+        self.world
+    }
+    /// Validate/protect this live World using the application's existing owners.
+    pub fn world_mut(&mut self) -> &mut World {
+        self.world
+    }
+}
+
+/// Session-owned final validator. Errors and unwinding panics refuse the entire
+/// destructive pass. It must validate *all* supplied Worlds and actual closing
+/// participation, not just the windows whose guards happen to be requested.
+/// No user callback or World/topology mutation runs after success and before
+/// guard consumption/removal. This is not a persistence or native GUI guarantee.
+pub type CloseValidator = dyn for<'a> FnMut(&mut [CloseWorld<'a>]) -> Result<(), String>;
 
 #[derive(Default)]
 pub(crate) struct CloseSlot {
@@ -7,6 +50,18 @@ pub(crate) struct CloseSlot {
     pub active: bool,
     pub closed: bool,
     pub needs_frame: bool,
+}
+
+/// The native Handler and deterministic headless participants share this owner.
+pub(crate) trait CloseParticipant {
+    fn parts(&mut self) -> (&mut World, &mut CloseSlot, bool, rndr_core::WindowId);
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum CloseOutcome {
+    Continue,
+    Deferred,
+    Exit,
 }
 
 #[derive(Default)]
@@ -17,11 +72,58 @@ pub(crate) struct CloseDrain {
 impl CloseDrain {
     /// Primary window close and quit from any window drain *all* windows.
     /// No world is destroyed until every participating guard is Ready.
+    #[cfg(test)]
     pub fn step<'a>(
         &mut self,
         slots: impl IntoIterator<Item = (&'a mut World, &'a mut CloseSlot, bool)>,
     ) -> bool {
         let mut slots: Vec<_> = slots.into_iter().collect();
+        self.prepare(slots.iter_mut().map(|(w, c, p)| (&mut **w, &mut **c, *p)));
+        self.consume(slots)
+    }
+
+    /// The actual renderer close ordering, independent of GPU/event-loop objects.
+    /// Both event paths call this after their bounded build/update batch.
+    pub fn reconcile<T: CloseParticipant>(
+        &mut self,
+        slots: &mut [T],
+        mut frame: impl FnMut(&mut T),
+        validator: Option<&mut CloseValidator>,
+    ) -> CloseOutcome {
+        self.prepare(slots.iter_mut().map(|s| {
+            let (w, c, p, _) = s.parts();
+            (w, c, p)
+        }));
+        for slot in &mut *slots {
+            if std::mem::take(&mut slot.parts().1.needs_frame) {
+                frame(slot);
+            }
+        }
+        // Hidden callbacks may invalidate, cancel or quit. New intent requires
+        // another bounded frame pass, never a post-validation callback.
+        self.prepare(slots.iter_mut().map(|s| {
+            let (w, c, p, _) = s.parts();
+            (w, c, p)
+        }));
+        if slots.iter_mut().any(|s| s.parts().1.needs_frame) {
+            return CloseOutcome::Deferred;
+        }
+        if self.finish(slots.iter_mut().map(|s| s.parts()), validator) {
+            CloseOutcome::Exit
+        } else {
+            CloseOutcome::Continue
+        }
+    }
+
+    /// Request/settle intent only. Never publishes a destructive decision.
+    pub fn prepare<'a>(
+        &mut self,
+        slots: impl IntoIterator<Item = (&'a mut World, &'a mut CloseSlot, bool)>,
+    ) {
+        let mut slots: Vec<_> = slots.into_iter().collect();
+        for (_, close, _) in &mut slots {
+            close.closed = false;
+        }
         for (world, close, primary) in &mut slots {
             let quit = world.resource_mut::<Input>().is_some_and(|input| {
                 let quit = input.quit;
@@ -56,6 +158,103 @@ impl CloseDrain {
                     guard.cancel();
                 }
             }
+            return;
+        }
+        if !self.exiting {
+            for (world, close, _) in &mut slots {
+                if close.active
+                    && world
+                        .resource::<CloseGuard>()
+                        .is_some_and(|g| matches!(g.state(), CloseState::Idle))
+                {
+                    close.active = false;
+                }
+            }
+        }
+    }
+
+    /// Final callback-free validation and consumption, shared by both native
+    /// event paths and headless tests. Caller must destroy immediately afterwards
+    /// without updates, builds or changes to the admitted slot set.
+    pub fn finish<'a>(
+        &mut self,
+        slots: impl IntoIterator<Item = (&'a mut World, &'a mut CloseSlot, bool, rndr_core::WindowId)>,
+        validator: Option<&mut CloseValidator>,
+    ) -> bool {
+        let mut slots: Vec<_> = slots.into_iter().collect();
+        for (_, close, _, _) in &mut slots {
+            close.closed = false;
+        }
+        if let Some(validator) = validator {
+            // Fail closed even before invoking user code on fabricated requests.
+            if slots.iter().any(|(w, c, _, _)| {
+                !c.active
+                    && w.resource::<CloseGuard>()
+                        .is_some_and(|g| !matches!(g.state(), CloseState::Idle))
+            }) {
+                return false;
+            }
+            if slots.iter().any(|(_, c, _, _)| c.active) {
+                let mut worlds: Vec<_> = slots
+                    .iter_mut()
+                    .map(|(w, c, p, id)| CloseWorld {
+                        id: *id,
+                        primary: *p,
+                        closing: c.active,
+                        world: w,
+                    })
+                    .collect();
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    validator(&mut worlds)
+                }));
+                // Do not cancel guards, release freezes, or manufacture success.
+                match result {
+                    Ok(Ok(())) => {}
+                    Ok(Err(_)) => return false,
+                    Err(payload) => {
+                        // A panic_any payload can have a panicking destructor.
+                        // Drop it under a second fence, not while returning from
+                        // this one. Forget only a secondary panic payload to
+                        // avoid unbounded recursive panics during normalization.
+                        if let Err(secondary) =
+                            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| drop(payload)))
+                        {
+                            if secondary.is::<String>() || secondary.is::<&'static str>() {
+                                drop(secondary);
+                            } else {
+                                std::mem::forget(secondary);
+                            }
+                        }
+                        return false;
+                    }
+                }
+            }
+        }
+        self.consume(slots.into_iter().map(|(w, c, p, _)| (w, c, p)))
+    }
+
+    fn consume<'a>(
+        &mut self,
+        slots: impl IntoIterator<Item = (&'a mut World, &'a mut CloseSlot, bool)>,
+    ) -> bool {
+        let mut slots: Vec<_> = slots.into_iter().collect();
+        // Decisions are recomputed, never sticky across later invalidation.
+        for (_, close, _) in &mut slots {
+            close.closed = false;
+        }
+        // A requested guard is not authority to destroy its manager. Refuse the
+        // entire pass if participation changed or a callback requested new work.
+        if slots.iter().any(|(w, c, _)| {
+            c.requested
+                || w.resource::<Input>().is_some_and(|i| i.quit)
+                || w.resource::<CloseGuard>().is_some_and(|g| {
+                    if c.active {
+                        matches!(g.state(), CloseState::Idle)
+                    } else {
+                        !matches!(g.state(), CloseState::Idle)
+                    }
+                })
+        }) {
             return false;
         }
         let ready = |world: &World| {
