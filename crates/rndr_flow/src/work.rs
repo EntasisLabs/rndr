@@ -171,6 +171,11 @@ where
         });
         this.drop_inner();
         if this.status.observation().terminal == Terminal::Panicked {
+            // We own the suppressed output, including nontrivial Ok payloads.
+            // Future destruction has already returned/unwound under its own
+            // catch; discard separately so a sequential output-drop panic is
+            // normalized too, rather than escaping this poll via implicit drop.
+            let _ = catch_unwind(AssertUnwindSafe(|| drop(value)));
             Poll::Ready(Err(TaskFailure::Panicked))
         } else {
             Poll::Ready(value)

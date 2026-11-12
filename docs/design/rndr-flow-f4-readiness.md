@@ -18,6 +18,30 @@ them. See [correction report](../reports/rndr-flow-f4-correction.md),
 All old implementation and independent review evidence stays unchanged;
 new green qualification is worker evidence, not independent acceptance.
 
+**R3 follow-up:** independent re-review closed R1/R2 but rejected `218e06c…`
+for a nontrivial successful output discarded outside `Tracked::poll`'s owned
+catch when aggregate status was already Panicked. The correction explicitly
+destroys that suppressed output under a separate catch after future destruction
+has returned/unwound. These sequential caught unwinds are not the excluded
+panic-during-active-unwind case. Aggregate Panicked, actual-future exit timing
+and delivery receipt charging are unchanged; no leak or fabricated ack was
+shown by R3. See [scoped R3 report](../reports/rndr-flow-f4-r3.md),
+[runner](../reports/rndr-flow-f4-r3-gates.sh) and
+[new evidence](../reports/rndr-flow-f4-r3-evidence/qualified/summary.tsv).
+
+Permanent `f4_discarded_output` promotes the real channel-controlled panic and
+nonpanicking controls plus the native-identity timer destruction control.
+`f4_output_branches` adds 11 tracked future / 45 local, background and custom
+task coordinates: nontrivial success, explicit Failed/Panicked, poll panic,
+pending drop, future-drop panic and sequential discarded-output panic. Drops
+are exactly once, destructors assert no active unwind, actual future destruction
+observes ack=false, and reserved/published receipts remain charged until released.
+Both unchanged reviewer suites execute separately on the correction. Returned
+successful payloads remain caller-owned; `run`'s result versus aggregate status,
+R1's timer receipt order and R2's monotonic outcome matrix are not changed.
+This is implementing-worker evidence requiring fresh independent exact-head
+review, not acceptance.
+
 The old F3 handoff's “F4 not authorized/implemented” wording is superseded by the
 current authorization and implementation, not by reinterpretation of F0/F3.
 F0 ownership/mutation contracts, F1 retirement/ack accounting, F2 native identity
