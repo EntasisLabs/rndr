@@ -1,0 +1,47 @@
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_flow)
+    Finished `test` profile [unoptimized] target(s) in 2.19s
+     Running tests/f5_independent_review.rs (target/debug/deps/f5_independent_review-b56bed128eba9005)
+
+running 13 tests
+test manager_cohort_must_be_transitively_consumable ... cohort guards A=Ready(CloseRequest(1)) B=Pending(CloseRequest(2))
+cohort runner closed A=true B=false unrelated_primary=false
+
+thread 'manager_cohort_must_be_transitively_consumable' (3982447) panicked at crates/rndr_flow/tests/f5_independent_review.rs:60:5:
+A's native authority must survive while B's shared presentation cannot close
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test omitted_world_on_native_save_choice_must_retain_freeze ... omitted-world result=Err(Pending) freeze=false decision=None native=Pending(CloseRequest(3))
+
+thread 'omitted_world_on_native_save_choice_must_retain_freeze' (3982448) panicked at crates/rndr_flow/tests/f5_independent_review.rs:78:5:
+failed admission must not drop the existing attempt
+FAILED
+test omitted_world_sync_positive_control ... ok
+test replacement_owner_loss_must_refuse_before_commit ... replacement-loss phase=Some(Committed) selected=Ok(Some(ScopeId { authority: 10, serial: 7 })) new_state=Disposed old_state=Disposed
+
+thread 'replacement_owner_loss_must_refuse_before_commit' (3982450) panicked at crates/rndr_flow/tests/f5_independent_review.rs:24:5:
+assertion `left != right` failed: dead replacement cannot replace live original
+  left: Some(Committed)
+ right: Some(Committed)
+FAILED
+test route_destructor_submission_is_outside_inbox_borrow_and_revalidates ... ok
+test runner::tests::failure_never_exits_or_destroys_in_memory_text_retry_drains ... ok
+test runner::tests::mutation_after_completion_invalidates_ready_before_destruction ... ok
+test runner::tests::ordinary_apps_keep_primary_secondary_and_quit_behavior ... ok
+test runner::tests::pending_cancel_quit_is_consumed_and_stale_success_rejected ... ok
+test runner::tests::process_exit_waits_for_secondary_and_cancel_resets_all ... ok
+test runner::tests::secondary_failure_explicit_discard_closes_only_that_window ... ok
+test runner::tests::unguarded_primary_cannot_destroy_guarded_secondary_or_new_window ... ok
+test same_document_replacement_loss_positive_control ... ok
+
+failures:
+
+failures:
+    manager_cohort_must_be_transitively_consumable
+    omitted_world_on_native_save_choice_must_retain_freeze
+    replacement_owner_loss_must_refuse_before_commit
+
+test result: FAILED. 10 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p rndr-flow --test f5_independent_review`
+
+probe_exit=101
