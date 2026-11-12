@@ -1,0 +1,28 @@
+F1/F2 PASS: 300 fresh teardown cycles, all 19 counters equal per-World baselines; only global listener=1, all other counters=0; external pending=0
+F3/F4 PASS: all nine budget proofs; 360 lifecycle cycles/720 actual acknowledgments; compiled full Counts/WorkCounts equality preserved
+F4 panic matrices PASS: 20 producer + 12 timer + 11 tracked/45 task branch coordinates
+F5 PASS: 360 stable full Counts/WorkCounts/HistoryCounts rows after bounded warm-up; 360 terminal-window admission/reclamation cycles; compiled tests also assert final root/World teardown to zero
+Accepted F4 reviewer probes PASS: 3+3 plus six-case paused-destructor test twice, byte-unchanged saved sources
+flow passed= 144 ignored= 0
+host-adapter passed= 14 ignored= 0
+core passed= 834 ignored= 7
+IGNORED core typing::storage_tests::snapshot_storage_accounting , opt-in retained history capacity accounting, not RSS or allocator overhead
+IGNORED core editor_scale_costs , opt-in release scale characterization; no timing threshold assertions
+IGNORED core scroll_and_fold_stability , opt-in release scale characterization; no timing threshold assertions
+IGNORED core unique_line_editor_costs , opt-in release scale characterization; no timing threshold assertions
+IGNORED core markdown_virtual_cost , opt-in release characterization of markdown virtualization; no timing threshold
+IGNORED core markdown_idle_shape_cost , opt-in release characterization of markdown idle shaping; no timing threshold
+IGNORED core model_costs , opt-in release characterization; no machine-dependent timing assertions
+liquid passed= 16 ignored= 0
+consumer passed= 115 ignored= 2
+IGNORED consumer liquid_stream_cost , release characterization of liquid streaming; no timing threshold
+IGNORED consumer liquid_density_cost , opt-in release probe; no timing threshold assertions
+compatibility-off passed= 2 ignored= 0
+compatibility-liquid passed= 2 ignored= 0
+Preserved F5 reviewer probes PASS: original13, additional4, original seam9 including both formerly failing assertions
+Renderer seam PASS: actual shared helper/public Session builder; 90 dependency/order/withdrawal/primary/secondary/quit coordinates; hook errors/panics retain real freeze
+Both real event paths delegate to the qualified common helper; queue fence retained. Source trace plus headless helper evidence, NOT native event-loop execution.
+SOURCE PASS: 589 fingerprints equal bytes and exact HEAD blobs; F0/F1/F2/F3/F4 protected contracts, old evidence, manifests, runtime/SDK protected sources unchanged; renderer diff exactly the authorized allowlist
+HEAD da364e3acbf17192ab9a1041609453d0c8fc77f1
+9721657f352bac8e22796a6e608ba2d293bbe498
+Seam qualification PASS: 27 completed zero-exit gates (audit row is appended after this process returns); no native/GUI certification

@@ -1,0 +1,9 @@
+$ git rev-parse HEAD main; git status --short; df -k .; du -sk target
+da364e3acbf17192ab9a1041609453d0c8fc77f1
+bf56c67fd5b67ddf993ec5c02e5af4ef7ef507d5
+?? docs/reports/rndr-flow-f5-seam-evidence/complete-audit.txt
+?? docs/reports/rndr-flow-f5-seam-evidence/qualification/
+?? docs/reports/rndr-flow-f5-seam-evidence/resource-final.txt
+Filesystem   1024-blocks      Used Available Capacity iused    ifree %iused  Mounted on
+/dev/disk3s5   239362496 204691744   4885792    98% 1935813 48857920    4%   /System/Volumes/Data
+2923844	target

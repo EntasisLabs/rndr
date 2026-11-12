@@ -1,0 +1,6 @@
+$ cargo check --offline --locked -p rndr --no-default-features --lib
+    Checking rndr_render v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_render)
+    Checking rndr v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr)
+    Finished `dev` profile [unoptimized] target(s) in 0.81s
+
+exit=0
