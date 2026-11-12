@@ -1,0 +1,4 @@
+evidence/a2-r1-20261101/independent-review/exact/baseline/crates/rndr_core/src/close.rs:13:        NEXT.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
+
+Historical snapshot above is not a workspace compilation unit. Production/Rust-source search excluding docs/ and evidence/:
+git grep exit=1 (1 means no matches)

@@ -1,0 +1,5 @@
+PASS: dirty unstaged source stops actual environment gate before later commands; exit= 1
+PASS: dirty staged source stops actual environment gate before later commands; exit= 1
+PASS: clean fixture passes actual environment gate.
+PASS: original repair auditor rejects injected recorded-manifest corruption and never writes it.
+Recorded manifest SHA256: 936554311b6c816e0ccc01d38953bec427b4261a11f4908d8563de124efc297a

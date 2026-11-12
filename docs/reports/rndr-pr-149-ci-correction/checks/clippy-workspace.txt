@@ -1,0 +1,7 @@
+$ cargo clippy --offline --locked --workspace --all-targets -- -D warnings
+    Checking rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-pr-149-ci-repair/crates/rndr_flow)
+    Checking rndr_liquid_ui v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-pr-149-ci-repair/crates/rndr_liquid_ui)
+    Checking liquid-view v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-pr-149-ci-repair/examples/liquid-view)
+    Finished `dev` profile [unoptimized] target(s) in 5.12s
+
+exit=0

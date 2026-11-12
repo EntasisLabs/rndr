@@ -1,0 +1,30 @@
+$ python3 docs/reports/rndr-pr-149-ci-audit.py
+HISTORY PASS: all 589 frozen fingerprints match original baseline; all old reports byte-unchanged.
+ORIGINAL REPAIR SOURCE PASS (not current HEAD): 589 fingerprints; 586 unchanged, exactly three changed:
+crates/rndr_core/src/freeze.rs
+crates/rndr_core/src/structured/text_ops.rs
+crates/rndr_core/tests/structured_composer.rs
+core passed/ignored= (838, 7)
+IGNORED core typing::storage_tests::snapshot_storage_accounting , opt-in retained history capacity accounting, not RSS or allocator overhead
+IGNORED core editor_scale_costs , opt-in release scale characterization; no timing threshold assertions
+IGNORED core scroll_and_fold_stability , opt-in release scale characterization; no timing threshold assertions
+IGNORED core unique_line_editor_costs , opt-in release scale characterization; no timing threshold assertions
+IGNORED core markdown_virtual_cost , opt-in release characterization of markdown virtualization; no timing threshold
+IGNORED core markdown_idle_shape_cost , opt-in release characterization of markdown idle shaping; no timing threshold
+IGNORED core model_costs , opt-in release characterization; no machine-dependent timing assertions
+flow passed/ignored= (144, 0)
+consumer passed/ignored= (115, 2)
+IGNORED consumer liquid_stream_cost , release characterization of liquid streaming; no timing threshold
+IGNORED consumer liquid_density_cost , opt-in release probe; no timing threshold assertions
+renderer-close passed/ignored= (60, 0)
+renderer-api passed/ignored= (1, 0)
+reviewer-probes passed/ignored= (8, 0)
+preserved-probes passed/ignored= (26, 0)
+independent-seam passed/ignored= (14, 0)
+LIFECYCLE PASS: F1/F2 300 full 19-counter teardowns; F4 360 cycles/720 exit acknowledgments; F5 360 full-resource and 360 terminal-window cycles.
+SELECTED RECEIPTS PASS: 16 zero-exit exact-source gates plus 14 later independent seam tests; all seven CI Clippy configurations pass.
+REPEAT LIMIT: aggregate driver correctly exits 1 because unchanged preserved-probe harness refuses its inherited 4.25-GiB disk floor. Those exact probes already passed in final-checks and preserved-postcommit; no floor or assertion was weakened.
+Disk: all new-driver monitored gates retained 3 GiB; inherited higher refusal remains intact.
+SOURCE 6698b63cdf11ab7054f431be5bdebe9b6028edc9
+
+exit=0
