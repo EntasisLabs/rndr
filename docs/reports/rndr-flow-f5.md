@@ -4,7 +4,7 @@
 
 Worker candidate for sender assessment and independent review, **not project acceptance or integration**. Based on accepted F4 `bf56c67fd5b67ddf993ec5c02e5af4ef7ef507d5`. No approval, merge, push or deployment is performed by this worker. F6 and Medousa migration remain unimplemented.
 
-The production/test/tooling commit precedes an evidence-only child to avoid self-referential test receipts. Exact tested commit, toolchain and final gate outcomes are recorded in `rndr-flow-f5-evidence/qualified-final/environment.txt`, `summary.tsv` and `audit.txt`. This source-candidate report is intentionally written before those gates; the evidence child completes the exact results section without changing qualified source.
+**Exact qualified source:** `2f01d288b14c6e14caee538f9646ffe6aa018921`. All **22/22 qualification gates passed** on that commit. This report and its final receipts are an evidence-only child: no qualified code, tests, manifests or tooling are changed. This avoids self-referential test evidence. Exact commit/toolchain/commands/results are in `rndr-flow-f5-evidence/qualified-final/environment.txt`, `summary.tsv` and `audit.txt`; the returned Git HEAD identifies the evidence child.
 
 The original source candidate `ccbe77929b651080864fe1a346ade65471d29979` passed all 22 gates; its receipts remain in `qualified/`, but are **not final-candidate evidence**. Manual follow-up identified native manager ownership across secondary windows. The correction adds joint-preparation before manager teardown and immediate queued-phase observation. Corrected source is qualified separately in `qualified-final/`; no original receipts are overwritten.
 
@@ -62,7 +62,27 @@ Auditor: `python3 docs/reports/rndr-flow-f5-audit.py docs/reports/rndr-flow-f5-e
 
 The runner records every exact command/result, toolchain/commit, ignored tests and disk readings. It uses one local target tree, `CARGO_BUILD_JOBS=1`, incremental disabled, debug info disabled and a monitored 4.25 GiB safety floor. No unrelated caches/worktrees/source/history are deleted. Historical F1–F4 receipts and sources remain unchanged; fresh qualification reads only the new qualified directory. Development failures and corrections are preserved separately and are not counted as final evidence.
 
-Exact results will be completed in the evidence-only child after qualification. All source fingerprints are checked against both current bytes and exact Git HEAD blobs; the evidence child must not alter qualified code/tests/manifests. The audit also checks all 19 F1/F2 baseline components, F4 actual acknowledgments, F5 resource rows and protected historical sources, rather than relying on green scalar test counts alone.
+### Final exact-commit results
+
+Toolchain: **rustc 1.98.0** (`88d9e12ae178fab0fb5cc050a94da85685d449ea`, 2026-08-18), **cargo 1.98.0** (`797e8a9bc`, 2026-08-05), `aarch64-apple-darwin`, LLVM 22.1.8. Every gate returned exit 0.
+
+| Fresh execution | Passed | Ignored |
+| --- | ---: | ---: |
+| Full flow suite | 108 | 0 |
+| Explicit host-adapter rerun (subset of flow; not additive) | 14 | 0 |
+| Core, no-default-features | 834 | 7 |
+| Liquid parser | 16 | 0 |
+| UI consumer, including unchanged F1/F2 proof | 115 | 2 |
+| Editing compatibility, facade feature-off | 2 | 0 |
+| Editing compatibility, facade liquid | 2 | 0 |
+
+Both unchanged original F4 reviewer suites passed (3+3 tests); the accepted six-coordinate paused-destructor probe passed twice. Strict flow/core/consumer lint, formatting, whitespace, feature-off/facade checks, dependency direction and source-clean gates passed. The exact command for each is the first line of its named `.txt` receipt; all 22 results and before/after disk measurements are in `summary.tsv`.
+
+The auditor verifies fresh **300 F1/F2 teardowns × all 19 counters**, nine F3 budget proofs, **360 F4 cycles / 720 actual exit acknowledgments**, 20 producer and 12 timer panic orderings, 11 tracked/45 task branch coordinates, **360 stable F5 full-resource rows** after bounded warm-up, and **360 terminal-window cycles**. Full baseline equality and final zero teardown are asserted by the compiled tests, not inferred from quiet runtime or scalar success counts.
+
+All **583 source fingerprints** equal both working bytes and exact qualified Git blobs. The evidence child does not change qualified code/tests/manifests. Native `CloseDrain`, F4 request/work implementations, protected F0/F1–F4 contracts, old reports and all manifests/lockfile remain byte-unchanged against their governing baseline.
+
+Disk: one reused local low-debug target tree, about **2.3 GiB**. The final run's minimum recorded free space was **5,216,908 KiB (~4.98 GiB)**, above the monitored 4.25 GiB floor; about 5 GiB remains. No unrelated artifacts were deleted. The audit also checks all 19 F1/F2 baseline components, F4 actual acknowledgments, F5 resource rows and protected historical sources, rather than relying on green scalar test counts alone.
 
 ## Remaining limits / F6 handoff
 
@@ -70,7 +90,7 @@ Exact results will be completed in the evidence-only child after qualification. 
 - No OS event-loop/GUI/IME, clipboard/accessibility, release performance, atomic file replacement/directory durability, destination-security, external SDK termination, blocked-IO/backend quiescence, `panic=abort` or arbitrary double-panic certification. Successful host save acknowledgment asserts actual persistence policy, not backend authority invented by flow.
 - Completed external saves are not rolled back on later cancellation; an undelivered/dropped save result fails closed and may require retry. Technical failure alone never discards data or releases freeze. Unavoidable topology loss/additions reject the current protection rather than silently choosing new targets.
 - F1 whole-stream staging, F2 split-CRLF and F3 retained-token/depth-proportional destruction/unbudgeted observation caveats remain. Budget progress is not a total-latency or destructor bound. Application route payloads/native document memory remain their owners' responsibility.
-- Nine inherited ignored cost/diagnostic tests are expected to remain unrun; exact names/results belong to the final evidence. No ignored performance test is promoted to a claim here.
+- Nine inherited ignored cost/diagnostic tests remain unrun: core `typing::storage_tests::snapshot_storage_accounting`, `editor_scale_costs`, `scroll_and_fold_stability`, `unique_line_editor_costs`, `markdown_virtual_cost`, `markdown_idle_shape_cost`, `model_costs`; consumer `liquid_stream_cost`, `liquid_density_cost`. Their exact reasons are printed in `qualified-final/audit.txt`. No ignored performance test is promoted to a claim here.
 - F6 requires separate application authorization and its real typed routes, authoritative writers/dirty state, encoders/destinations, window hooks/decision UI and backend completion/exit evidence. Then run the four epic application proofs against an exact reproducible baseline with preserved SDK/session/approval/security semantics. No Medousa source edits or F6 proof claims are made by this undertaking.
 
 Sender retains independent assessment/review, corrections and native sealed approval/integration.
