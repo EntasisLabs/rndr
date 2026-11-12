@@ -416,16 +416,14 @@ impl Coordinator {
                     drop(task);
                 }
                 Some(Handle::Timer(timer)) => {
+                    slot.status.update(|s| s.cleanup_attempted = true);
                     timer.cancel();
                     drop(timer);
-                    slot.status.update(|s| {
-                        s.cleanup_attempted = true;
-                    });
                 }
                 Some(Handle::Feed(feed)) => {
+                    slot.status.update(|s| s.cleanup_attempted = true);
                     feed.close();
                     drop(feed);
-                    slot.status.update(|s| s.cleanup_attempted = true);
                 }
                 Some(Handle::Effect) | Some(Handle::Pending) | None => {}
             }));

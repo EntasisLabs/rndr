@@ -98,6 +98,7 @@ fn timer_cancel_publish_world_drop_and_retained_clone_orders_contain_single_pani
             }
             drop(scope);
             pump(&mut flow);
+            assert!(status.observation().cleanup_attempted);
             assert!(!status.observation().exit_acknowledged);
             // Cancellation alone does not destroy a future/published event.
             // Exercise both runtime buffer retirement and actual World loss.

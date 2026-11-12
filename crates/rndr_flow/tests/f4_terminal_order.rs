@@ -113,6 +113,7 @@ fn real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon() {
                 drop(owner.take());
                 pump(&mut flow);
                 assert_eq!(status.observation().terminal, Terminal::Panicked);
+                assert!(status.observation().cleanup_attempted);
                 assert!(!status.observation().exit_acknowledged);
                 assert_eq!(flow.work_counts().charged, 1);
                 // Quiet pumps never manufacture an acknowledgment for this
@@ -140,6 +141,7 @@ fn real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon() {
                 Terminal::Panicked,
                 "kind={kind} cleanup_first={cleanup_first}"
             );
+            assert!(status.observation().cleanup_attempted);
             // run returns the closure result; track also normalizes aggregate
             // panic at poll completion, as on local/background task paths.
             let expected_return = if kind % 5 == 4 {
