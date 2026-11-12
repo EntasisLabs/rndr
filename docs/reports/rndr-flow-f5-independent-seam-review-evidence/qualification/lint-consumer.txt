@@ -1,0 +1,9 @@
+$ cargo clippy --offline --locked -p rndr_liquid_ui --all-targets --no-deps -- -D warnings
+    Checking rndr_paint v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_paint)
+    Checking rndr_chart v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_chart)
+    Checking rndr_ui v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_ui)
+    Checking rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_flow)
+    Checking rndr_liquid_ui v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_liquid_ui)
+    Finished `dev` profile [unoptimized] target(s) in 2.52s
+
+exit=0

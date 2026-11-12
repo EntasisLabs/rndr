@@ -1,0 +1,525 @@
+crates/rndr_render/src/lib.rs
+285:                 return value.to_string();
+286:             }
+287:         }
+288:         if arg == "--hotkey" {
+289:             if let Some(value) = args.next() {
+290:                 let value = value.as_ref();
+291:                 if !value.is_empty() {
+292:                     return value.to_string();
+293:                 }
+294:             }
+295:         }
+296:     }
+297:     match env.map(str::trim).filter(|value| !value.is_empty()) {
+298:         Some(value) => value.to_string(),
+299:         None => DEFAULT_HOTKEY.to_string(),
+300:     }
+301: }
+302: 
+303: /// Grab `binding` for the life of the returned handle.
+304: ///
+305: /// Installs the operating-system backend on the first call when the `hotkey`
+420:     let bus = RunnerBus {
+421:         tx,
+422:         proxy: event_loop.create_proxy(),
+423:     };
+424:     install_tray_handlers(&bus);
+425:     #[cfg(all(not(target_os = "macos"), not(target_arch = "wasm32")))]
+426:     for url in rndr_core::launch_links(std::env::args().skip(1)) {
+427:         rndr_core::push_opened_url(apps[0].world_mut(), url);
+428:     }
+429:     #[cfg(target_os = "macos")]
+430:     lifecycle::install_open_url();
+431:     lifecycle::attach(&bus);
+432:     let wake: Arc<dyn Wake> = Arc::new(ProxyWake { bus: bus.clone() });
+433:     let hub = WindowHub::new();
+434:     hub.set_wake(Arc::clone(&wake));
+435:     // The browser runs background tasks between frames on the main thread.
+436:     #[cfg(target_arch = "wasm32")]
+437:     let pool: Arc<dyn rndr_core::Executor> = Arc::new(rndr_core::InlineExecutor::new(None));
+438:     #[cfg(not(target_arch = "wasm32"))]
+439:     let pool = rndr_core::thread_pool();
+440:     let pen = pen::PenFeed::new();
+441:     let mut slots = Vec::with_capacity(apps.len());
+442:     for (index, mut app) in apps.into_iter().enumerate() {
+443:         let desktop = hub.attach();
+444:         let desktop_id = desktop.id();
+445:         app.world_mut().insert_resource(desktop);
+446:         app.set_wake(Arc::clone(&wake));
+447:         app.set_live_wake(Arc::new(LiveProxyWake { bus: bus.clone() }));
+448:         app.set_executor(Arc::clone(&pool));
+449:         let config = WindowConfig::get(app.world());
+450:         slots.push(Handler::new(
+1738:         if self.app.wants_frame() {
+1739:             self.request_redraw();
+1740:         }
+1741:         let now = Instant::now();
+1742:         event_loop.set_control_flow(idle_control_flow(self.app.next_deadline(), now));
+1743:     }
+1744: 
+1745:     /// Step the world without presenting. Tray clicks and timers still run,
+1746:     /// and a quit item exits, while the window is hidden.
+1747:     fn run_hidden_frame(&mut self, _event_loop: &dyn ActiveEventLoop) {
+1748:         deliver(self.app.world_mut(), self.desktop_id);
+1749:         for _ in 0..8 {
+1750:             self.app.update();
+1751:             self.apply_effects();
+1752:             self.apply_tray();
+1753:             self.apply_app_menu();
+1754:             if !self.app.wants_frame()
+1755:                 && !(rndr_core::tray::pending(self.app.world())
+1756:                     || rndr_core::app_menu_pending(self.app.world()))
+1757:             {
+1758:                 break;
+1759:             }
+1760:         }
+1761:     }
+1762: 
+1763:     /// Install the app menu bar when it changed. Windows waits for the window.
+1764:     fn apply_app_menu(&mut self) {
+2427:         event_loop: &dyn ActiveEventLoop,
+2428:         _window_id: WindowId,
+2429:         event: WindowEvent,
+2430:     ) {
+2431:         #[cfg(feature = "accesskit")]
+2432:         self.process_access(&event);
+2433:         self.drain_web_input();
+2434:         if !matches!(event, WindowEvent::RedrawRequested) {
+2435:             self.full_pending = true;
+2436:         }
+2437:         if let WindowEvent::Occluded(occluded) = event {
+2438:             self.os_occluded = occluded;
+2439:         }
+2440:         if matches!(
+2441:             event,
+2442:             WindowEvent::Occluded(_) | WindowEvent::SurfaceResized(_) | WindowEvent::Focused(_)
+2443:         ) || rndr_core::live::occluded(self.app.world())
+2444:         {
+2445:             self.sync_occlusion();
+2446:         }
+2447:         match event {
+2448:             WindowEvent::CloseRequested => {
+2449:                 // Running coordinates this after native dispatch; never destroy
+2450:                 // an app here, including unguarded primaries with guarded siblings.
+2451:                 self.close.requested = true;
+2452:             }
+2453:             WindowEvent::Focused(focused) => {
+2454:                 if focused {
+2455:                     self.appearance_dirty = true;
+2456:                     rndr_core::window::platform_focused(self.app.world());
+2457:                 } else {
+2458:                     cancel_pointer_input(&mut self.pointer, &mut self.pointers);
+2739:         slot.full_pending = true;
+2740:         slot.request_redraw();
+2741:     }
+2742: 
+2743:     fn reconcile_close(&mut self, event_loop: &dyn ActiveEventLoop) {
+2744:         // Updates (including hidden frames) and build closures may queue opens.
+2745:         // Admit one batch before checking guards. Recursive opens stay queued
+2746:         // and prevent commitment; their wake schedules another bounded pass.
+2747:         self.spawn_windows(event_loop);
+2748:         let outcome = self.close.reconcile(
+2749:             &mut self.slots,
+2750:             |slot| {
+2751:                 if rndr_core::window::is_visible(slot.app.world()) {
+2752:                     slot.request_redraw();
+2753:                 } else {
+2754:                     slot.run_hidden_frame(event_loop);
+2755:                 }
+2756:             },
+2757:             self.close_validator.as_deref_mut(),
+2758:         );
+2759:         if outcome == close::CloseOutcome::Deferred {
+2760:             self.wake.wake();
+2761:             return;
+2762:         }
+2763:         if outcome == close::CloseOutcome::Exit {
+2764:             // Preserve the atomic queue/admission fence. A racing open either
+2765:             // joins a future all-World pass or is rejected after commitment.
+2766:             if self.hub.try_commit_exit() {
+2767:                 event_loop.exit();
+2768:             } else {
+2769:                 self.wake.wake();
+2770:             }
+2771:             return;
+2772:         }
+2773:         self.slots.retain(|slot| !slot.close.closed);
+2774:         if self.slots.is_empty() && self.hub.try_commit_exit() {
+2775:             event_loop.exit();
+2776:         }
+2777:     }
+2778: 
+2779:     fn spawn_windows(&mut self, event_loop: &dyn ActiveEventLoop) {
+2780:         self.pen.install();
+2781:         for open in self.hub.take_opens() {
+2782:             let mut app = App::new();
+2783:             app.world_mut().insert_resource(open.config.clone());
+2784:             let desktop = self.hub.attach();
+2785:             let desktop_id = desktop.id();
+2786:             app.world_mut().insert_resource(desktop);
+2787:             app.set_wake(Arc::clone(&self.wake));
+2788:             app.set_live_wake(Arc::new(LiveProxyWake {
+2789:                 bus: self.bus.clone(),
+2790:             }));
+2791:             app.set_executor(Arc::clone(&self.executor));
+2792:             install_text_engine(&mut app);
+2793:             (open.build)(&mut app);
+2794:             let config = WindowConfig::get(app.world());
+2795:             self.slots.push(Handler::new(
+2796:                 app,
+2797:                 config,
+2798:                 false,
+2799:                 desktop_id,
+2800:                 self.pen.clone(),
+2801:                 self.bus.clone(),
+2802:             ));
+2803:         }
+2865:     }
+2866: 
+2867:     fn resumed(&mut self, event_loop: &dyn ActiveEventLoop) {
+2868:         if event_loop.exiting() {
+2869:             return;
+2870:         }
+2871:         self.spawn_windows(event_loop);
+2872:     }
+2873: 
+2874:     fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
+2875:         self.resumed(event_loop);
+2876:     }
+2877: 
+2878:     fn proxy_wake_up(&mut self, event_loop: &dyn ActiveEventLoop) {
+2879:         if event_loop.exiting() {
+2880:             return;
+2881:         }
+2882:         let pending: Vec<RunnerEvent> = self.events.try_iter().collect();
+2883:         for event in pending {
+2884:             let live = matches!(event, RunnerEvent::LiveWake);
+2885:             // Anything but a live wake may carry work only a full update sees.
+2952:     fn about_to_wait(&mut self, event_loop: &dyn ActiveEventLoop) {
+2953:         // winit can finish dispatching a batch after exit() is called. Once
+2954:         // committed, no later callback may update a Ready world or build opens.
+2955:         if event_loop.exiting() {
+2956:             return;
+2957:         }
+2958:         self.spawn_windows(event_loop);
+2959:         for slot in &mut self.slots {
+2960:             slot.install_gpu_if_ready();
+2961:             slot.pump_shell(event_loop);
+2962:             let hidden = !rndr_core::window::is_visible(slot.app.world());
+2963:             let tray_pending = slot.primary
+2964:                 && (rndr_core::tray::pending(slot.app.world())
+2965:                     || rndr_core::app_menu_pending(slot.app.world()));
+2966:             if hidden && (slot.app.wants_frame() || tray_pending) {
+2967:                 slot.run_hidden_frame(event_loop);
+2968:             }
+2969:         }
+2970:         self.reconcile_close(event_loop);
+2971:         self.sync_flow(event_loop);
+2972:     }
+2973: 
+2974:     fn window_event(
+2975:         &mut self,
+2976:         event_loop: &dyn ActiveEventLoop,
+2977:         window_id: WindowId,
+2978:         event: WindowEvent,
+2979:     ) {
+2980:         if event_loop.exiting() {
+2981:             return;
+2982:         }
+2983:         if let Some(slot) = self
+2984:             .slots
+2985:             .iter_mut()
+2986:             .find(|slot| slot.winit_id == Some(window_id))
+2987:         {
+2988:             slot.window_event(event_loop, window_id, event);
+2989:         }
+2990:         self.reconcile_close(event_loop);
+2991:     }
+2992: }
+2993: 
+2994: #[cfg(test)]
+crates/rndr_render/src/close.rs
+1: //! Runner close coordination, kept independent of native/GPU objects for tests.
+2: // Existing flow/reviewer tests include this entire module but use only `step`.
+3: #![cfg_attr(test, allow(dead_code))]
+4: use rndr_core::{CloseGuard, CloseState, Input, World};
+5: 
+6: /// One live Session window at the final close boundary. Metadata is runner-owned.
+7: /// Worlds include hidden, unrelated, unguarded and dynamically admitted windows.
+8: /// The borrow cannot escape the validator. `closing()` is authoritative native
+9: /// participation; a manually requested CloseGuard does not establish it.
+10: pub struct CloseWorld<'a> {
+11:     id: rndr_core::WindowId,
+12:     primary: bool,
+13:     closing: bool,
+14:     world: &'a mut World,
+15: }
+16: 
+17: impl CloseWorld<'_> {
+18:     /// Stable Desktop window identity for this Session window.
+19:     pub fn id(&self) -> rndr_core::WindowId {
+20:         self.id
+21:     }
+22:     /// Whether this is the Session's primary window.
+23:     pub fn primary(&self) -> bool {
+24:         self.primary
+25:     }
+26:     /// Whether this window actually participates in the pending native close.
+27:     pub fn closing(&self) -> bool {
+28:         self.closing
+29:     }
+30:     /// Inspect the live World.
+31:     pub fn world(&self) -> &World {
+32:         self.world
+33:     }
+34:     /// Validate/protect this live World using the application's existing owners.
+35:     pub fn world_mut(&mut self) -> &mut World {
+36:         self.world
+37:     }
+38: }
+39: 
+40: /// Session-owned final validator. Errors and unwinding panics refuse the entire
+41: /// destructive pass. It must validate *all* supplied Worlds and actual closing
+42: /// participation, not just the windows whose guards happen to be requested.
+43: /// No user callback or World/topology mutation runs after success and before
+44: /// guard consumption/removal. This is not a persistence or native GUI guarantee.
+45: pub type CloseValidator = dyn for<'a> FnMut(&mut [CloseWorld<'a>]) -> Result<(), String>;
+46: 
+47: #[derive(Default)]
+48: pub(crate) struct CloseSlot {
+49:     pub requested: bool,
+50:     pub active: bool,
+51:     pub closed: bool,
+52:     pub needs_frame: bool,
+53: }
+54: 
+55: /// The native Handler and deterministic headless participants share this owner.
+56: pub(crate) trait CloseParticipant {
+57:     fn parts(&mut self) -> (&mut World, &mut CloseSlot, bool, rndr_core::WindowId);
+58: }
+59: 
+60: #[derive(Debug, PartialEq, Eq)]
+61: pub(crate) enum CloseOutcome {
+62:     Continue,
+63:     Deferred,
+64:     Exit,
+65: }
+66: 
+67: #[derive(Default)]
+68: pub(crate) struct CloseDrain {
+69:     exiting: bool,
+70: }
+71: 
+72: impl CloseDrain {
+73:     /// Primary window close and quit from any window drain *all* windows.
+74:     /// No world is destroyed until every participating guard is Ready.
+75:     #[cfg(test)]
+76:     pub fn step<'a>(
+77:         &mut self,
+78:         slots: impl IntoIterator<Item = (&'a mut World, &'a mut CloseSlot, bool)>,
+79:     ) -> bool {
+80:         let mut slots: Vec<_> = slots.into_iter().collect();
+81:         self.prepare(slots.iter_mut().map(|(w, c, p)| (&mut **w, &mut **c, *p)));
+82:         self.consume(slots)
+83:     }
+84: 
+85:     /// The actual renderer close ordering, independent of GPU/event-loop objects.
+86:     /// Both event paths call this after their bounded build/update batch.
+87:     pub fn reconcile<T: CloseParticipant>(
+88:         &mut self,
+89:         slots: &mut [T],
+90:         mut frame: impl FnMut(&mut T),
+91:         validator: Option<&mut CloseValidator>,
+92:     ) -> CloseOutcome {
+93:         self.prepare(slots.iter_mut().map(|s| {
+94:             let (w, c, p, _) = s.parts();
+95:             (w, c, p)
+96:         }));
+97:         for slot in &mut *slots {
+98:             if std::mem::take(&mut slot.parts().1.needs_frame) {
+99:                 frame(slot);
+100:             }
+101:         }
+102:         // Hidden callbacks may invalidate, cancel or quit. New intent requires
+103:         // another bounded frame pass, never a post-validation callback.
+104:         self.prepare(slots.iter_mut().map(|s| {
+105:             let (w, c, p, _) = s.parts();
+106:             (w, c, p)
+107:         }));
+108:         if slots.iter_mut().any(|s| s.parts().1.needs_frame) {
+109:             return CloseOutcome::Deferred;
+110:         }
+111:         if self.finish(slots.iter_mut().map(|s| s.parts()), validator) {
+112:             CloseOutcome::Exit
+113:         } else {
+114:             CloseOutcome::Continue
+115:         }
+116:     }
+117: 
+118:     /// Request/settle intent only. Never publishes a destructive decision.
+119:     pub fn prepare<'a>(
+120:         &mut self,
+121:         slots: impl IntoIterator<Item = (&'a mut World, &'a mut CloseSlot, bool)>,
+122:     ) {
+123:         let mut slots: Vec<_> = slots.into_iter().collect();
+124:         for (_, close, _) in &mut slots {
+125:             close.closed = false;
+126:         }
+127:         for (world, close, primary) in &mut slots {
+128:             let quit = world.resource_mut::<Input>().is_some_and(|input| {
+129:                 let quit = input.quit;
+130:                 input.quit = false; // consume the edge; Cancel must not immediately re-arm
+131:                 quit
+132:             });
+133:             self.exiting |= quit || (*primary && close.requested);
+134:         }
+135:         for (world, close, _) in &mut slots {
+136:             if (self.exiting || close.requested) && !close.active {
+137:                 close.active = true;
+138:                 close.needs_frame = true;
+139:                 if let Some(guard) = world.resource_mut::<CloseGuard>() {
+140:                     guard.request();
+141:                 }
+142:             }
+143:             close.requested = false;
+144:         }
+145:         let cancelled = slots.iter().any(|(world, close, _)| {
+146:             close.active
+147:                 && world
+148:                     .resource::<CloseGuard>()
+149:                     .is_some_and(|g| matches!(g.state(), CloseState::Idle))
+150:         });
+151:         if self.exiting && cancelled {
+152:             // A cancel in any window cancels the whole process-exit transaction.
+153:             self.exiting = false;
+154:             for (world, close, _) in &mut slots {
+155:                 close.active = false;
+156:                 close.needs_frame = true;
+157:                 if let Some(guard) = world.resource_mut::<CloseGuard>() {
+158:                     guard.cancel();
+159:                 }
+160:             }
+161:             return;
+162:         }
+163:         if !self.exiting {
+164:             for (world, close, _) in &mut slots {
+165:                 if close.active
+166:                     && world
+167:                         .resource::<CloseGuard>()
+168:                         .is_some_and(|g| matches!(g.state(), CloseState::Idle))
+169:                 {
+170:                     close.active = false;
+171:                 }
+172:             }
+173:         }
+174:     }
+175: 
+176:     /// Final callback-free validation and consumption, shared by both native
+177:     /// event paths and headless tests. Caller must destroy immediately afterwards
+178:     /// without updates, builds or changes to the admitted slot set.
+179:     pub fn finish<'a>(
+180:         &mut self,
+181:         slots: impl IntoIterator<Item = (&'a mut World, &'a mut CloseSlot, bool, rndr_core::WindowId)>,
+182:         validator: Option<&mut CloseValidator>,
+183:     ) -> bool {
+184:         let mut slots: Vec<_> = slots.into_iter().collect();
+185:         for (_, close, _, _) in &mut slots {
+186:             close.closed = false;
+187:         }
+188:         if let Some(validator) = validator {
+189:             // Fail closed even before invoking user code on fabricated requests.
+190:             if slots.iter().any(|(w, c, _, _)| {
+191:                 !c.active
+192:                     && w.resource::<CloseGuard>()
+193:                         .is_some_and(|g| !matches!(g.state(), CloseState::Idle))
+194:             }) {
+195:                 return false;
+196:             }
+197:             if slots.iter().any(|(_, c, _, _)| c.active) {
+198:                 let mut worlds: Vec<_> = slots
+199:                     .iter_mut()
+200:                     .map(|(w, c, p, id)| CloseWorld {
+201:                         id: *id,
+202:                         primary: *p,
+203:                         closing: c.active,
+204:                         world: w,
+205:                     })
+206:                     .collect();
+207:                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+208:                     validator(&mut worlds)
+209:                 }));
+210:                 // Do not cancel guards, release freezes, or manufacture success.
+211:                 match result {
+212:                     Ok(Ok(())) => {}
+213:                     Ok(Err(_)) => return false,
+214:                     Err(payload) => {
+215:                         // A panic_any payload can have a panicking destructor.
+216:                         // Drop it under a second fence, not while returning from
+217:                         // this one. Forget only a secondary panic payload to
+218:                         // avoid unbounded recursive panics during normalization.
+219:                         if let Err(secondary) =
+220:                             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| drop(payload)))
+221:                         {
+222:                             if secondary.is::<String>() || secondary.is::<&'static str>() {
+223:                                 drop(secondary);
+224:                             } else {
+225:                                 std::mem::forget(secondary);
+226:                             }
+227:                         }
+228:                         return false;
+229:                     }
+230:                 }
+231:             }
+232:         }
+233:         self.consume(slots.into_iter().map(|(w, c, p, _)| (w, c, p)))
+234:     }
+235: 
+236:     fn consume<'a>(
+237:         &mut self,
+238:         slots: impl IntoIterator<Item = (&'a mut World, &'a mut CloseSlot, bool)>,
+239:     ) -> bool {
+240:         let mut slots: Vec<_> = slots.into_iter().collect();
+241:         // Decisions are recomputed, never sticky across later invalidation.
+242:         for (_, close, _) in &mut slots {
+243:             close.closed = false;
+244:         }
+245:         // A requested guard is not authority to destroy its manager. Refuse the
+246:         // entire pass if participation changed or a callback requested new work.
+247:         if slots.iter().any(|(w, c, _)| {
+248:             c.requested
+249:                 || w.resource::<Input>().is_some_and(|i| i.quit)
+250:                 || w.resource::<CloseGuard>().is_some_and(|g| {
+251:                     if c.active {
+252:                         matches!(g.state(), CloseState::Idle)
+253:                     } else {
+254:                         !matches!(g.state(), CloseState::Idle)
+255:                     }
+256:                 })
+257:         }) {
+258:             return false;
+259:         }
+260:         let ready = |world: &World| {
+261:             world
+262:                 .resource::<CloseGuard>()
+263:                 .is_none_or(|g| matches!(g.state(), CloseState::Ready(_)))
+264:         };
+265:         if self.exiting {
+266:             return slots.iter().all(|(world, _, _)| ready(world));
+267:         }
+268:         for (world, close, _) in &mut slots {
+269:             if close.active {
+270:                 if world
+271:                     .resource::<CloseGuard>()
+272:                     .is_some_and(|g| matches!(g.state(), CloseState::Idle))
+273:                 {
+274:                     close.active = false;
+275:                 } else if ready(world) {
+276:                     close.closed = true;
+277:                 }
+278:             }
+279:         }
+280:         false
+281:     }
+282: }
+283: 

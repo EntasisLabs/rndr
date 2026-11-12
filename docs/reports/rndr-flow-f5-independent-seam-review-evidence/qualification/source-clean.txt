@@ -1,0 +1,3 @@
+$ git diff --exit-code -- crates Cargo.toml Cargo.lock
+
+exit=0

@@ -1,0 +1,15 @@
+free_kib_before=4863864
+4d5bfabed9aa16e8f115739418953273d8dbf8f2045535c45c41ac336276254e  docs/reports/rndr-flow-f5-independent-seam-review-evidence/adversarial.rs
+4d5bfabed9aa16e8f115739418953273d8dbf8f2045535c45c41ac336276254e  crates/rndr_flow/tests/f5_independent_seam_probe.rs
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_flow)
+error[E0432]: unresolved import `rndr_flow::NativeChoice`
+   --> crates/rndr_flow/tests/f5_independent_seam_probe.rs:188:32
+    |
+188 |     use rndr_flow::{HostWorld, NativeChoice, NativeDocument, WorldOwner};
+    |                                ^^^^^^^^^^^^ no `NativeChoice` in the root
+
+For more information about this error, try `rustc --explain E0432`.
+error: could not compile `rndr-flow` (test "f5_independent_seam_probe") due to 1 previous error
+exit=101
+Filesystem   1024-blocks      Used Available Capacity iused    ifree %iused  Mounted on
+/dev/disk3s5   239362496 204713752   4863780    98% 1936048 48637800    4%   /System/Volumes/Data

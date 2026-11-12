@@ -1,0 +1,4 @@
+$ cargo check --offline --locked -p rndr_render --lib
+    Finished `dev` profile [unoptimized] target(s) in 0.25s
+
+exit=0
