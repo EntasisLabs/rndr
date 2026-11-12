@@ -1,0 +1,3 @@
+$ sh -c git diff --exit-code f16e5572d35450d586dd4f10e00591fa36fb2b04 -- crates/rndr_core crates/rndr/src crates/rndr/Cargo.toml crates/rndr_liquid_ui/src; ! grep -E "tokio|rndr_ui|rndr_liquid|rndr_render|rndr_paint" docs/reports/rndr-flow-f4-evidence/flow-dependencies.txt; ! grep -E "rndr_ui|rndr_liquid|rndr_render|rndr_core" docs/reports/rndr-flow-f4-evidence/reverse-dependencies.txt
+
+exit=0

@@ -1,200 +1,233 @@
-# F3 implementation / F4 readiness handoff
+# rndr-flow F4 implementation and qualification
 
-This document describes the F3 candidate built from accepted F0/F1/F2 baseline
-`9f36c97271a3d2e7ead3049afdec89753ef990c3`. Historical status paragraphs in the
-F0/epic records do not undo those acceptances. Worker completion is not sender
-acceptance. Candidate identity and qualification are in
-[`../reports/rndr-flow-f3.md`](../reports/rndr-flow-f3.md).
+## Status and scope
 
-**Readiness:** the metadata/ownership substrate is implemented and headlessly
-tested. F3's incremental-retirement correction is awaiting fresh independent
-review and sender acceptance; F4 is only a plan for separately scoped work, not
-already delivered or authorized by this document.
-There are no task/feed adapters, replacement lanes, completion publication gate,
-close guards, retained navigation or application migration in this candidate.
-None of these tests establish platform, Medousa, backend cancellation or
-performance readiness. F1's whole-stream staging cost caveat and F2's inherited
-raw-push split-CRLF limitation remain unchanged.
+F3 is **accepted and integrated** at `f16e5572d35450d586dd4f10e00591fa36fb2b04`.
+This undertaking implements the five F4 slices authorized after that acceptance.
+This is a committed worker candidate for independent sender review, **not F4
+acceptance or integration**. See the [report](../reports/rndr-flow-f4.md),
+[reproducible gates](../reports/rndr-flow-f4-gates.sh) and
+[raw evidence](../reports/rndr-flow-f4-evidence/summary.tsv).
 
-## Implemented API and ownership boundaries
+The old F3 handoff's “F4 not authorized/implemented” wording is superseded by the
+current authorization and implementation, not by reinterpretation of F0/F3.
+F0 ownership/mutation contracts, F1 retirement/ack accounting, F2 native identity
+and detailed errors, and F3 incremental retirement remain the governing substrate.
+No core production source, runtime/executor, facade export, production UI
+integration, backend SDK, close/save guard or app migration was added.
 
-All names in this table actually exist in `crates/rndr_flow/src/lib.rs`.
-`src/transition.rs` is a private pure state/checked-generation transition core;
-`src/tests.rs`, `src/budget_tests.rs` and `tests/reviewer_probes.rs` contain the
-deterministic lifecycle, work-accounting and retained adversarial proofs. Package `rndr-flow` exports
-Rust library `rndr_flow`; only direct runtime dependency is feature-off
-`rndr_core`. No facade export, reverse core/UI dependency, mandatory executor,
-Tokio, native renderer, browser or network is introduced.
+## Actual APIs, in the authorized implementation order
 
-| Implemented API | Actual contract |
+### 1. Checked independent request replacement lanes
+
+`src/request.rs` adds:
+
+- `LaneKey(u16)`: typed application keys, not user prose or target lookups.
+  `WorkLimits::default()` admits **32 lane records per scope**. Distinct history,
+  mode, feed and other application operations use distinct keys.
+- `Identity<D> { target, operation, revision }`: `D` is the exact **native**
+  domain incarnation. Hosts include document/session/turn identities in `D` as
+  applicable; flow does not invent a parallel entity/domain identity scheme.
+- `DeliveryMode::{Once, Ordered { recoverable }}`, `Request<D>`, opaque
+  `RequestToken`, and `Completion<D,T>`. Tokens contain coordinator authority,
+  scope serial, scope activity, lane key/generation and exact World binding.
+- `replace_request`: metadata-only admission for already host-managed producers.
+  Owned starters below preflight **both** lane and work-slot capacity. Every
+  checked refusal happens before changing the old lane or cancelling old work.
+  Lane generation is advanced before old handles are signalled by the drain.
+  An existing key may replace at lane capacity; unrelated lanes remain valid.
+- `cancel_request`: exact lane cancellation without allocating a generation or
+  command entry; disposal/cancel can progress at maximum generation.
+- `request_is_current`: synchronous ownership/activity/lane/World observation,
+  not an executor join or a promise that a once result was not already consumed.
+- `suspend_requests -> Result<(), RequestSuspendError>` explicitly returns
+  `UnrecoverableStream` before activity invalidation or cancellation. The F3
+  `suspend` compatibility API also refuses, using existing `Error::Invalid`.
+  Hidden is retained, not suspended. Resume waits for activity cleanup and owned
+  handle cancellation/removal attempts, not a fabricated external backend join.
+
+A stream keeps **one lane generation**. Successful chunks require exact native
+identity and strictly increasing sequence; duplicate, decreasing, wrong-turn,
+wrong-operation/revision and wrapped-to-zero sequences cannot write. Sequence
+maximum is a valid final sequence; subsequent non-increasing delivery refuses.
+
+### 2. Bounded concrete handles and owning-World effects
+
+`src/work.rs` adds separate `WorkLimits` without changing existing F3 `Limits`
+literals: 32 lanes/scope, **4,096 charged work slots**, 256 effects/World. Configure
+positive limits with `configure_work` before any request/work has been admitted.
+
+- `replace_local`: existing `spawn_local`; non-Send futures and `Rc` captures are
+  supported. Its single-output task protocol requires `DeliveryMode::Once`.
+- `replace_background`: existing injected `spawn`/`Executor`, not a new executor.
+- Both take `Future<Output = Result<T, TaskFailure>>`; checked refusal returns
+  the untouched future in `Rejected<F>`. Status, charged slot and reserved output
+  receipt exist **before** core spawn/poll, so there is no exit-to-publication
+  accounting gap. No detach is used. `Completion::transpose` extracts a successful
+  task payload before the native gate while preserving identity, sequence and
+  the exact receipt; failure does not become a native write/save success.
+- `replace_feed`: existing bounded `Feed`/`Sender` with supplied `FeedConfig`.
+  Returns request, `CapturedSender`, `ProducerExit`, status. Capture epoch at
+  **request start**, never at last send. A replacement creates a fresh feed and
+  checked lane, not a generation per chunk. Core queue/latest loss semantics and
+  `FeedError` remain authoritative.
+- `ProducerExit::run` normalizes a producer closure on its **existing** thread or
+  executor; `track` wraps an async producer without adding Send/runtime bounds.
+  Keep the guard/wrapper with that exact producer, not with its UI observer.
+  Dropping an unstarted/abandoned guard reports `DroppedUnknown`, not success.
+- `advance_feed(&mut Feed)` guards maximum epoch **before** core `advance` can
+  clear queued values. Exclusive mutable feed ownership spans check/mutation.
+  The owned replacement path does not need to advance an old feed at all.
+- `replace_timer`: existing `after` and manual-clock semantics, with a concrete
+  `TimerHandle` and event-lifetime observation. `TimerCompletion::completion`
+  retains its delivery receipt. No second timer wheel. Repeated/late native
+  `every` ticks are separately qualified through the consumer gate and a bounded
+  owning-World cancellation effect; no invented interval scheduling API.
+- `own_world_effect` admits a `FnOnce(&mut World)` in the exact World's local
+  table. `drain_world_effects(world, budget)` extracts each callback before
+  invoking it, outside registry/local-table borrows. It is the consumer seam for
+  explicit unsubscribe, **not** a flow-to-UI dependency or captured mutable World.
+  A callback may register another bounded effect without losing it.
+
+The existing child-first traversal visits owned handles **before** custom F3
+cleanup. Task/feed/timer cancel/drop occurs there. World-specific removal waits
+for the owning World's effect attempt/abandonment before custom cleanup. A
+lagging World remains pending; another World cannot drain its table. World loss
+releases captures and reports unknown/attempt-not-run rather than claiming the
+unsubscribe callback executed.
+
+Slots remain charged independently of publication eligibility. Retirement alone,
+`is_cancelled`, a quiet runtime, and producer exit while an event remains queued
+or published are **not** capacity release. Owned completion receipts retain the
+charge until their final actual disposal, including retained event clones.
+Reclamation requires both wrapped future/producer/event exit acknowledgment and
+zero delivery receipts (including pre-reserved task outputs). Blocked producers/custom jobs remain charged and unknown.
+Raw metadata requests and arbitrary external handles are not retroactively
+joined; use the owned starter/wrapper protocol for bounded drain claims.
+
+### 3. Exact synchronous mutation boundary
+
+`commit_completion` calls an authoritative `CompletionTarget<D,T>` only after
+current ownership/activity/lane/World and captured native identity/sequence
+validation. `commit_world_completion` supplies the exact owning World to a
+consumer-owned `WorldCompletionTarget`. Implement these only beside the native
+writer: synchronous native admission/commit, **no await or reentrant callback**,
+and Err must leave domain/history/revision untouched. They are integration
+contracts, not permission for projection/selection helpers to become writers.
+
+`commit_source_completion` is a concrete `SourceDocuments` adapter:
+
+- exact native `DocumentId`, Host operation and native batch base revision;
+- source-native readonly/composition/revision/history checks;
+- conservatively rejects pending IME preedit/commit in earliest Input for that
+  exact attached source, before Chrome has observed composition. Focus is read
+  only for composition policy, **never** to choose the mutation target;
+- ordered chunks supply exact native bases. The lane's native progress advances
+  only from that operation's successful native `ChangeEvent::after`; no-op chunks
+  consume sequence without manufacturing a revision. Outside edits cannot be
+  blessed by supplying their newer base. **No implicit rebase or per-chunk lane
+  replacement**. Source and structured document authorities stay separate.
+
+`crates/rndr_liquid_ui/tests/flow_owned.rs` is the consumer-side concrete proof:
+existing F2 `put_liquid_component_state_for` checks block/surface incarnation and
+record revision in the same synchronous call; exact `LiquidF2Error` is preserved.
+Explicit `unsubscribe_liquid_interactions` runs only in its owning World before
+custom cleanup and physically drops the listener capture. The consumer adds only
+an UI-to-flow **dev dependency**; no production dependency/API/facade was changed.
+
+No plugin is silently installed. App publishes runtime/timer events **before
+Input**; a front-of-Update drain alone cannot establish safety. Every mutating
+consumer, including Input and already-published events, must use its boundary.
+No selected-tab/entity/source-byte/projection target substitution is supported.
+
+### 4. Honest terminal and incremental drain observations
+
+`WorkStatus::observation()` separates `retired`, `cancellation_signalled`,
+`cleanup_attempted`, `exit_acknowledged`, `pending_deliveries` (reserved task
+outputs as well as queued/published receipts), and
+`Terminal::{Running,Succeeded,Failed,Panicked,DroppedUnknown}`.
+
+Logical death is immediate through F3 `Liveness`/`state` and
+`request_is_current`; `retired` records the later physical drain attempt.
+`Succeeded` means the wrapped computation returned, **not** that native commit,
+save, IO or backend work succeeded. A custom executor that retains a Job then
+panics leaves a retired, charged `Panicked` observation without a fabricated
+cancellation signal or exit acknowledgment; later polling cannot erase that
+panic. Actual exit and final reserved/published receipt disposal release it. Timer/event disposal can be acknowledged with
+an unknown firing/result outcome. World-effect acknowledgment is its local
+callback/abandonment observation, not a producer/backend acknowledgment.
+
+`work_counts` synchronously reports charged slots, retained handles,
+retired-unacknowledged slots and pending deliveries. A retired slot awaiting
+**either** producer exit or final receipt disposal is retained. WorkStatus holds
+only bounded observation data, not an immortal result/tombstone log.
+
+`pump_work` charges handle visits inside metadata traversal and separately exposes
+`PumpWork::ack_visits`. Old F3 metadata/lease/command/restart accounting remains;
+when no F4 work exists the F3 path is unchanged. One dead lane is removed per
+metadata visit. Ack selection is resumable; no global scan or `Life::live` ancestry
+walk is hidden in a budget unit. World retirement schedules another charged pass
+when necessary for an earlier application scope targeting that World. Full
+command queues do not prevent admitted flags/handles/scopes from draining.
+
+**F3 caveats still apply:** exact `counts`, `work_counts`, activity/request
+observations, admission and document-close checks are explicit synchronous work,
+not covered by the retirement budget. `pump` includes unbudgeted `counts` after
+65,536 units. Externally retained F3 liveness tokens can retain ancestor metadata
+after registry counts reach zero; dropping the last token can cause
+**depth-proportional destruction**. Callback, payload/future destruction and
+executor duration are not bounded. Budget progress is **not a total-latency,
+constant-stack token-drop, performance or real-time guarantee**.
+
+### 5. Deterministic race / negative qualification
+
+All paths below have committed automated assertions. `f4.rs` means
+`crates/rndr_flow/tests/f4.rs`; other filenames share that tests directory unless
+qualified. Many cases run seeds **1, 7, 42**; explicit deterministic orderings,
+not random timing/sleeps, establish the others. Native refusal snapshots compare
+both targets' text/state, history retention/events and revisions, or equivalent
+host write/history/revision counters. Refusals do not merely assert Err.
+
+| Required ordering/negative | Concrete proof |
 | --- | --- |
-| `Coordinator::new(Limits) -> Result<(Coordinator, ScopeOwner), Error>` | Process-wide checked authority allocation; application root owner; all configured budgets positive. Coordinator stays in host outside participating Worlds. It can be stored in a UI-thread local by a host that arranges callback-safe extraction, but it must outlive its Worlds for orderly shutdown. |
-| `root`, `create_scope(parent)` | Checked never-reused scope serial, exactly one immutable parent. No transfer/reparent/detach. IDs are process-local metadata, not domain IDs or authorization. Recreated semantic keys get new scopes. Dead slots still occupy capacity until drained. |
-| `register_world() -> WorldOwner`, `WorldOwner::{id,scope,bind}` | Each World gets a distinct typed `WorldId` and root child scope; host moves the token into that exact World's local slot, once. Registry stores no World or Entity pointers and cannot mutate a different World. No cross-world resource lookup. |
-| `ScopeOwner::{id,liveness,bind}`, `Liveness::is_live` | Nonclone single owner; optional core Component binding. Drop signals atomic terminal loss only. Liveness includes all ancestors, so a lagging World sees logical death before local physical drain. Never capture an owner in its own cleanup; capture IDs/read-only liveness instead. External retention of read-only tokens is the client's responsibility. |
-| `state`, `set_visibility` | Visible/Hidden both retain resources and activity identity; visibility cannot leave Suspended/Disposed. Hidden does not promise offscreen interval polling. |
-| `activity`, `activity_is_current`, `suspend(Recovery::ReconcileFromDurableState)`, `resume` | **Scope activity incarnation only**, not an F4 per-request lane/gate. Host explicitly asserts recovery is possible; no unrecoverable-stream suspension API. Suspend checks generation exhaustion before mutation, invalidates current activity, schedules Activity cleanup. Resume refuses while Activity cleanup remains and exposes a fresh incarnation; Lifetime cleanup/resources remain. It does not replay deltas or start work by itself. |
-| `create_document`, `DocumentId::scope`, `document_is_live`, `lease`, `close_document` | Coordinator/application root is the sole document-lifetime manager. Host retains actual domain document ID/revision/state elsewhere. Presentation leases have no disposal-parent authority. Last release never closes the document; explicit document close refuses any live held lease. Direct `dispose(document.scope())` refuses. Root/application disposal affects the entire lease set. This is not F5 guarded save/close or a revision/participant snapshot protocol. |
-| `register_cleanup(scope, kind, callback) -> Result<CleanupId, Rejected<F>>` | Bounded admission returns the **untouched** callback on Stale/Suspended/Capacity/Exhausted. Caller must clean rejected captures. Callback is FnOnce, may be non-Send, receives only a bounded command sink, and is consumed before invocation. No callback runs in admission. |
-| `dispose`, `pump_work(budget) -> PumpWork`, `pump` | Disposal immediately closes subtree admission and invalidates active leases; physical slots remain charged until reclaimed. Terminal disposal is idempotent. `pump_work` resumes child-first, creation-ordered traversal/reverse cleanup-entry scanning and independent lease ancestry sweeping, charging every metadata/lease visit, restart and FIFO command. Callback count is separately capped. Newly dead ancestors or newly suspended children cause a charged restart before further callbacks. Live creation/registration schedule a later pass, not repeated preemption. Callback unwind/error continues. `pump` is a compatibility wrapper: 65,536 retirement units **plus unbudgeted exact `counts()` observation**, not a total-time bound. No core cascade changes. |
-| `Commands::dispose` | FIFO deferred request, revalidated after callback before further callbacks, one command per work unit. Tiny budgets can defer that revalidation to the next pump. Full queue returns Capacity. No recursive registry access, arbitrary World mutation or async callback. Authoritative owner drop/disposal never needs command queue capacity for logical or eventual physical progress. |
-| `counts`, `diagnostics`, `dropped_diagnostics` | Counts cover retained registry/cleanup/lease slots and active leases, pending dead scopes/callbacks and queued commands. Payload-free diagnostic ring evicts oldest event only, with saturating **telemetry** overflow count (not an identity). No immortal tombstones. Counts at zero mean registry cleanup attempted/reclaimed, **not** worker IO acknowledged or external backend stopped. |
+| Before-first-poll cancel/drop; during completion | `f4.rs::local_rc_panic_failure_cancel_before_poll_and_future_drop_are_distinct`; `owner_drops_during_future_completion_and_world_loss_are_not_successful_ui_delivery` |
+| Runtime inbox complete then dispose before drain | `controlled_old_finishes_last_custom_executor_and_inbox_cancel_orderings` uses real held core `Job`s/inbox |
+| Already-published Event, including Input | `already_published_event_rejected_even_in_input_after_drop`; timer/feed published cases; zero writer/history/revision changes |
+| Same logical close/reopen; recycled entity; foreign authority/World | `same_logical_key_reopen_foreign_coordinator_world_and_lag_reject`; `f4_timer_entity.rs::recycled_entity_never_substitutes_recreated_semantic_scope`; consumer wrong-World snapshots |
+| Same-owner old result finishes last; independent lanes | controlled held-executor race and `same_owner_replacement_independent_lanes_and_duplicate_zero_writes` |
+| Duplicate terminal/chunk; wrong domain/session/turn/op/revision; sequence max | `ordered_native_session_turn_and_revision_identity_never_substitutes_target`; private `f4_tests::default_lane_capacity_exact_native_identity_and_terminal_sequence_refusals_are_untouched` |
+| Owned runtime result to native writer | `f4_native_task.rs`: result transpose preserves the pre-poll reservation/identity; native commit once, duplicate rejection, failure without writes, final receipt drain |
+| Actual ordered native revision progress, no per-chunk replacement | `f4_source.rs::ordered_source_chunks_advance_only_owned_native_receipts_without_replacement_or_rebase` (two writes, native no-op, duplicates, outside revision and attempted rebase refusal) |
+| Feed epoch captured at start; N after N+1 | `captured_epoch_rejects_old_sender_before_mutation`; owned `CapturedSender` never queries a new epoch at send |
+| Epoch max before mutation | private production guard seam `work::tests::epoch_max_refuses_without_advancing`; no core counter mutation/2^64-loop claim |
+| Queued/merged feed then cancellation; blocked producer | `cooperative_and_blocked_feed_stay_charged_independently_of_eligibility` retains charge across 1,000 quiet pumps and across published receipt retention |
+| Producer exit while queued/published payload lives | `f4_receipts.rs::acknowledged_future_cannot_evade_capacity_through_queued_or_published_payloads`: capacity refusal preserves new valid lane; quiet runtime cannot release it |
+| Scope/lane/work counter max, capacity, untouched refusal | private lane/serial MAX tests plus unchanged F3 counter/lease-refusal suite; future returned untouched; default 32-lane and 4,096-slot limits exercised |
+| Full commands, one-unit progress, callback reentry | private 4,096-slot/1,024-command proof; `f4_timer_entity.rs::extracted_world_effect_allows_bounded_callback_reentry_without_losing_new_effect`; unchanged nine F3 budget proofs |
+| Hidden, recoverable suspend/resume; unrecoverable refusal | `hidden_and_recoverable_suspend_restart_activity_not_stream_buffering`; ordered-stream and private untouched suspension tests |
+| Cooperative versus blocked custom executor/producer | `f4_producers.rs`: actual external producer closures use channel handshakes (no sleeps), cooperative cancellation versus deliberately blocked work across seeds 1/7/42; held `Job` cancel test retains charge until actual future drop; no backend cancel inferred |
+| Background/local panic, explicit failure, cancel/drop; destructor panic | local/background normalization suite; producer/effect panic test; private future-destructor-panic test; `f4_start_panic.rs` retained-Job startup failure; independent cleanup continues |
+| Timer fired/disposed/replaced/repeated | `timer_manual_deadline_replacement_and_published_disposal`; `f4_timer_entity.rs::native_every_repeated_and_already_published_ticks_are_gated_without_new_timer_wheel` |
+| Non-Send Rc local future; injected executor | local Rc suite and actual core `Executor`/`Job` held-executor races (no Tokio/runtime) |
+| Native revision/readonly/composition; wrong operation/target | `f4_source.rs` snapshots including pending Input IME; `flow_owned.rs` preserves exact F2 revision/stale-block errors |
+| Cross-World lag; earlier app scope targets retiring World | world-local effect ordering plus `f4_receipts.rs::application_scope_before_target_world_is_revisited_after_world_retirement` |
+| 100+ cycles/full accounting baseline | **120 cycles × 3 seeds**, complete F3 `Counts` and F4 `WorkCounts` equality after every cycle; **720** task/producer exit acknowledgments. Unchanged F1/F2 300-cycle 19-counter proof rerun separately. |
 
-F3 defaults from F0: 4096 admitted scopes, 256 cleanups/scope, 1024 queued callback
-commands, 256 callback invocations/pump, 512 diagnostics. A separate 4096-lease
-budget bounds presentation metadata (one lease need not imply another scope).
-F4's 32 lanes/scope and later history/transition budgets are **not implemented**
-in F3 because those tables do not exist yet. Retirement metadata work is now
-incremental: each work unit has a constant number of ordered-table operations
-(O(log capacity)); a traversal pass is O(scopes + cleanup entries) units and a
-lease sweep O(leases * (depth + 1)). Death-triggered restarts can repeat prefixes,
-explicitly charged. Finite admitted work/ordering changes plus positive pumps and
-returning/unwinding callbacks guarantee eventual reclamation; no fixed completion
-bound is claimed under endless new ancestor deaths/suspensions. Lease progress alternates
-with traversal and is never reset by traversal restarts. Callback duration is
-unbounded. Exact counts, document-close checks and at-capacity lease admission
-are explicit synchronous observations outside bounded retirement; see the
-[README](../../crates/rndr_flow/README.md#incremental-retirement-versus-exact-observation)
-and [correction report](../reports/rndr-flow-f3-correction.md). There are no
-real-time latency/performance claims.
+The max-epoch case injects the adapter's actual scalar preflight; it is not a test
+that overwrites private core counters. Ordered application-native target writers
+other than the concrete source/UI proofs remain host integration obligations.
+The generic trait does not automatically intercept unrelated mutation paths.
 
-## Exactly one supported World reconciliation contract
+## Deliberate remaining boundaries
 
-1. Host retains coordinator outside participating Worlds; registers each World
-   once and stores `WorldOwner` in that World's local slot.
-2. A semantic entity lifetime may own a `ScopeOwner` Component. Component
-   replacement, entity destruction and World destruction drop stored tokens.
-   `World::remove` returns ownership: **drop the returned token immediately**.
-   Retaining/moving a removed token is not a supported detach/reparent mode.
-   Explicit flow disposal may precede destruction; it does not despawn UI nodes.
-3. Token drop only signals the already-admitted atomic owner flag. Descendant
-   admission is immediately dead without a pump, a new queue allocation, or
-   reliance on core hierarchy destruction order. Stale binding refuses.
-4. Host calls `pump_work` (or observation-bearing `pump`) before result consumers,
-   after callback batches and at
-   reconciliation end, until pending state is drained. The host must arrange the
-   proper per-World effect drains when F4 adds concrete handles. No plugin is
-   silently installed; F3 does not claim it intercepts every core producer.
-5. For orderly host shutdown: dispose/drop application owner, drain coordinator,
-   then drop coordinator. Coordinator Drop marks retained flags dead and releases
-   captures but **does not invoke arbitrary cleanup callbacks**. A host that
-   skips the drain cannot claim unsubscribe or save durability. `panic=abort`,
-   process loss and arbitrary destructor/double-panic recovery are not promised.
-
-Tests cover despawn then explicit dispose, removed-component drop, retained
-World loss, explicit terminal binding refusal, recycled entity IDs and duplicate
-cleanup. There is no rival entity polling/destruction hook or core generation
-identity scheme. F3 does not change ECS generation wrapping behavior.
-
-## Existing concrete mechanisms F4 must reuse
-
-These paths/symbols are inspected source at the accepted baseline, unchanged by
-F3. Items in the right column are future requirements, not implemented APIs.
-
-| Existing source / API | F4 adapter consequence |
-| --- | --- |
-| `crates/rndr_core/src/runtime.rs::TaskHandle::{cancel,is_cancelled,detach,Drop}`, `spawn`, `spawn_local`, `spawn_detached` | Retain concrete handles in bounded owned slots. Cancel/drop is local task cancellation, not a backend cancel command. Do not use detach in an ownership adapter. Rejecting registration returns the untouched handle for caller cancel/drop. Signal/drop task/feed slots before that scope's custom cleanup, still child-first. Do not represent handles as ordinary F3 custom callbacks if that would invert this ordering. |
-| Same file `Job::poll`, `poll_local`, `wrap_output`, `drain_inbox`, `run_until_parked` | Cancellation can suppress a queued inbox delivery; it cannot recall an Event already committed. Background poll panic marks handle cancelled; local poll panic drops future without necessarily setting cancellation. Neither is a uniform terminal-status/worker-join oracle. A quiet handle is not success or physical quiescence. |
-| `crates/rndr_core/src/feed.rs::{Feed,Sender,Epoch,FeedConfig}`, `Feed::{advance,epoch,cancel}`, `Sender::{epoch,send_at,try_send_at,cancelled,wait_until_cancelled}` | Capture epoch when request begins, not at final send. Use bounded queue/latest according to consumer loss semantics. Feed cancellation closes queues and wakes cooperative producers. Epoch uses saturating u64 today: do not inherit this as flow identity. Adapter must refuse refresh at max epoch before advancing/cancelling, or replace the feed under a fresh checked flow lane before work starts. Test near-max through a deterministic seam; do not weaken core semantics casually. |
-| Same file `spawn_thread`, `spawn_task`, feature-gated `spawn_tokio` | Thread producer is detached and not joined; blocking IO can outlive feed closure. Task adapter uses injected executor; optional Tokio path uses an already-running host runtime. No new mandatory runtime/feature is justified. Distinguish observation release, cooperative producer exit ack and unknown externally blocked work. |
-| `runtime.rs::TimerHandle::{cancel,Drop}`, `after`, `every`, `sleep` | Own existing handles; absolute/core manual clock semantics stay authoritative. Already-published timer events still need gate. `every` has bounded catchup; do not implement a competing timer wheel. |
-| `crates/rndr_liquid_ui/src/state.rs::{subscribe_liquid_interactions_owned,unsubscribe_liquid_interactions,LiquidInteractionSubscription}` | Token Drop signals; explicit unsubscribe takes `&mut World` and drains captures. Legacy `subscribe_liquid_interactions -> ()` stays World-owned. UI-specific adapter belongs to consumer, **not** a flow -> UI dependency. F3 cleanup callback lacks `&mut World`; concrete per-World effect storage/drain must be designed in F4, not smuggled through a captured mutable World. |
-| `crates/rndr_liquid_ui/src/{host.rs,feed.rs,state.rs,lifecycle.rs}` contextual feed ownership/retirement, handle APIs | Preserve F1 pending external-ack capacity accounting and F2 surface/block/resource identity and detailed error contract. Flow does not replace Liquid stores or bless legacy positional writes for delayed completion. Explicit observation retirement is distinct from backend work termination. |
-| `crates/rndr_core/src/app.rs::App::{set_executor,set_clock,add_system_front,update}`, `world.rs::{insert_local,insert_resource}`, `sim.rs::Sim::{with_seed,advance,update,run_until_parked}`, `clock.rs::ManualClock` | Keep executor injection and non-Send futures/local captures. App pumps runtime/timers **before Input/Update**. An Update-front flow drain cannot undo earlier event publication; admission must also run at every mutation consumer (including Input). The host controls schedule wiring and cross-World owned messages. No borrowed World survives await. |
-| `editing.rs::SourceSession::{admit,commit}`, `structured.rs::StructuredDocument`, `source_projection.rs` | Native document/revision, readonly/composition, admission/history remain authoritative. Gate then synchronous owner commit with no await/reentrant host callback between. A source projection is not an alternate mutation authority. Source and structured documents retain distinct authorities. |
-
-## Proposed F4 implementation slices (not shipped APIs)
-
-Each slice needs fresh authorization/review; symbols below describe behavior, not
-API declarations. Keep the F3 no-facade/no-runtime dependency direction.
-
-1. **Checked request replacement lanes (pure metadata + tests).** Bounded typed
-   application lane keys (32/scope by default), never user prose; token captures
-   coordinator authority + scope serial + scope activity incarnation + lane key
-   + checked lane generation. Separate history, mode, feed refresh and save
-   protection lanes. Validate/refuse exhaustion/capacity **before** cancelling
-   the old valid request; increment replacement generation before old cancel/drop.
-   Do not stale unrelated lanes. Stream lane maintains one generation for ordered
-   multi-result output plus native session/turn/increasing-sequence validation;
-   not a new generation per chunk. Refuse unrecoverable suspension.
-2. **Concrete owned handle slots and per-World effects.** Bound admitted and
-   retired/unacknowledged slots; retain the old work charge independently of
-   publication eligibility (the accepted F1 retirement fix is a precedent).
-   Cancel/drop tasks and feeds before custom cleanup; subscription removal runs
-   only in owning World's drain outside registry/World resource borrows. Dead
-   slots and drop flags must keep disposal progressing when command capacity is
-   full. Preserve F3's explicit work accounting: bounded handle/effect scanning
-   must not hide global scans, recursive traversal or exact observation inside a
-   nominally budgeted pump. Exercise one-unit budgets at admitted capacities.
-   No unbounded per-scope result buffer. Explicitly classify app-owned
-   jobs versus UI observation of backend work. No implicit SDK cancel.
-3. **Mutation-boundary completion envelope/adapters.** Carry captured exact
-   domain document/session/turn/operation IDs, native revision and request token.
-   Consumer validates current owner/activity/lane + native target/revision and
-   then performs the existing synchronous owner admission/commit. Never derive
-   target from selected tab, source byte position or recycled Entity. Prevent
-   duplicates using operation/stream sequence semantics. No await, callback or
-   schedule gap between validation and commit. Queue rejection/backpressure must
-   not silently lose an admitted cleanup/ack obligation.
-4. **Terminal outcomes / drain accounting.** Report logical dead, cleanup
-   attempted, local task cancellation signalled, future/producer exit acknowledged,
-   failed/panicked and unknown externally blocked work separately. F3 counts alone
-   are insufficient. Wrapping future polling and producer exit with pre-admitted
-   bounded status slots can normalize many outcomes without core API changes,
-   including non-Send local paths. Investigate destructor/panic paths carefully.
-   Never infer completion from `is_cancelled`, silence or `run_until_parked`.
-5. **Host/consumer seam and full race qualification.** Compose schedule/drains,
-   unchanged F1/F2 compatibility, feature-off/facade graph and repetition counts;
-   exact native/application adapters remain separate. No F5 guard/close policy
-   or Medousa migration in this slice.
-
-### Possible minimal core seam — unresolved, separately justify before editing
-
-No core source change was needed for F3. First attempt F4 normalization using
-owned adapter futures/producers and bounded shared terminal slots. Existing
-`TaskHandle` exposes cancellation only, not a common terminal reason or explicit
-future-dropped/worker-finished acknowledgement. If wrappers cannot distinguish
-runtime-discarded local/background panic/cancel paths without leaks, propose a
-small additive read-only terminal-status/ack seam owned by core runtime, tested
-for both `Job::poll` and `poll_local`; preserve current APIs and executor
-injection. Do **not** add a new runtime, executor, broad completion gate or
-flow dependency to core. Obtain separate justification/scope before modifying
-core. Likewise feed epoch exhaustion does not authorize an unreviewed change
-to `Feed::advance`; guard/replace in adapter first. A native external backend
-conditional-cancel API is an application/backend concern, not a core seam.
-
-## Deterministic F4 race / negative matrix
-
-Use actual `App`/`Sim::with_seed`, manual time, controllable futures/producers,
-pre-admitted status slots and host model write/revision/history counters; no
-network/sleeps/paid inference. Run several fixed seeds and explicit orderings,
-not only a happy-path async test. Every stale refusal asserts **zero domain
-writes, history/revision increments and cross-target delivery**, not just a
-returned error.
-
-| Ordering / negative case | Required proof |
-| --- | --- |
-| Cancel/drop before first poll; cancel during completion | Output never commits; handle/capture eventually drains or unknown is explicit. |
-| Complete into runtime inbox then dispose before inbox drain | Cancel suppresses what it can; consumer gate still rejects anything published. |
-| Publish Event, then dispose before consumer (including Input) | Zero writes even though cancellation cannot recall event. |
-| Close/reopen same logical chat/key; recycled entity index; foreign coordinator/World | Old scope/lane/domain combination cannot target replacement or another World. |
-| Replace same-live-owner request, old finishes last | Only new lane can write; independent lane still works. |
-| Duplicate terminal completion / duplicate ordered chunk / retired turn | No second write/history revision; stream accepts only exact native turn/increasing sequence. |
-| Feed starts with epoch N, advances to N+1, N result arrives | Captured N send is rejected; never read current epoch at send to bless old work. |
-| Feed emits before cancellation/retirement; result already merged | Consumer still rejects; retired unacknowledged work stays charged until exact ack. |
-| Handle/cleanup/lane/status-slot capacity full; callback reentry | Untouched refusal, no partial cancellation of old request; disposal continues from admitted flags. |
-| Scope/lane/epoch counter near max; new work rejected | Old valid token/result remains usable, no wrap/alias; explicit disposal still progresses. |
-| Hidden -> visible; recoverable suspended -> resume | Hidden retains resources; old suspended output rejects; fresh identity and host durable reconciliation. |
-| Unrecoverable stream suspension requested | Refusal before event loss/cancellation; no silent new buffering promise. |
-| Cooperative vs deliberately blocked producer | Closure signals both; only acknowledged exit is called drained. Blocking work remains charged/unknown. No backend cancel inferred. |
-| Background panic, local non-Send panic, explicit error, cancelled future Drop | Distinct terminal observation or conservatively Unknown; independent cleanup continues; no fabricated save success. |
-| Timer fires then owner disposes; timer replaced; repeated firing | Old event cannot mutate; use existing catchup/deadline semantics. |
-| Non-Send local future owns Rc; custom injected executor | Existing supported paths preserved, no Send bound creep or mandatory Tokio. |
-| Domain revision/readonly/composition changes after request starts | Existing owner boundary refuses; no gate-only permission and no projection edits. |
-| Cross-World logical death before local retirement message drains | Atomic liveness rejects immediately in lagging World; effect drain never reaches another World's resource by type. |
-| 100+ lifecycle/replacement/disposal cycles with limited pumps | All registry/handle/cleanup/retired-ack counts return to baseline; diagnostics stay bounded. |
-
-F5's dirty-document save/close revision snapshots, native `CloseGuard`
-composition and F6 real app workflow proofs remain separate work. In particular
-this F3 shared-lease refusal is not a promise of durable save, dynamic quit
-protection or platform certification.
+No required headless matrix row is left as a plan. Qualification is not a proof
+of every possible interleaving: fixed seeds plus controlled orderings are the
+committed evidence. No OS/native GUI/platform/IME event-loop certification,
+release performance measurement, external SDK/blocked-IO termination, arbitrary
+destructor double-panic or `panic=abort` recovery is claimed. F1 whole-stream
+staging cost, F2 raw-push split-CRLF caveat and F3 retained-token/depth caveat remain.
+Structured documents keep their separate native writer; this adds no generic
+source-to-structured projection mutation path. F5 close/save/quit protection,
+F6 real application workflows, Medousa migration and F7 rollout remain separate.
+Nothing is pushed, published or deployed. Sender retains independent review,
+corrections and sealed native integration ownership.

@@ -15,7 +15,13 @@
 //! Callbacks may capture non-Send values; commands are bounded and cannot borrow
 //! the coordinator. No backend cancellation or worker acknowledgement is implied.
 
+#[cfg(test)]
+mod f4_tests;
+mod request;
 mod transition;
+mod work;
+pub use request::*;
+pub use work::*;
 
 use rndr_core::{Entity, World};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
@@ -320,12 +326,15 @@ struct Scope {
     generation: u64,
     cleanups: BTreeMap<u64, Cleanup>,
     children: BTreeSet<ScopeId>,
+    lanes: BTreeMap<LaneKey, request::Lane>,
+    work: BTreeSet<u64>,
 }
 
 #[derive(Clone, Copy)]
 enum Traversal {
     Enter(ScopeId),
     Cleanup(ScopeId, Option<u64>),
+    Handles(ScopeId, u64),
     Exit(ScopeId),
 }
 
@@ -339,6 +348,8 @@ pub struct PumpWork {
     pub metadata_visits: usize,
     /// Lease selection/ancestry attempts, including end-of-table wrap.
     pub lease_visits: usize,
+    /// Work-slot terminal/ack selection attempts; separate from lease work.
+    pub ack_visits: usize,
     pub restarts: usize,
     pub commands: usize,
     /// Subset of metadata_visits; not additional work units. Duration is unbounded.
@@ -379,6 +390,7 @@ pub struct Coordinator {
     lease_after: u64,
     lease_check: Option<(u64, ScopeId)>,
     lease_turn: bool,
+    work: work::Registry,
 }
 
 impl Coordinator {
@@ -424,6 +436,8 @@ impl Coordinator {
                 generation: 0,
                 cleanups: BTreeMap::new(),
                 children: BTreeSet::new(),
+                lanes: BTreeMap::new(),
+                work: BTreeSet::new(),
             },
         );
         Ok((
@@ -445,6 +459,7 @@ impl Coordinator {
                 lease_after: 0,
                 lease_check: None,
                 lease_turn: false,
+                work: work::Registry::default(),
             },
             owner,
         ))
@@ -495,6 +510,8 @@ impl Coordinator {
                 generation: 0,
                 cleanups: BTreeMap::new(),
                 children: BTreeSet::new(),
+                lanes: BTreeMap::new(),
+                work: BTreeSet::new(),
             },
         );
         self.scopes.get_mut(&parent).unwrap().children.insert(id);
@@ -595,6 +612,11 @@ impl Coordinator {
     }
     pub fn suspend(&mut self, id: ScopeId, _: Recovery) -> Result<(), Error> {
         let scope = self.live_scope(id)?;
+        if scope.lanes.values().any(|lane| {
+            lane.active && matches!(lane.mode, DeliveryMode::Ordered { recoverable: false })
+        }) {
+            return Err(Error::Invalid);
+        }
         let generation = transition::suspend(scope.state, scope.generation)?;
         let scope = self.scopes.get_mut(&id).unwrap();
         scope.generation = generation;
@@ -609,10 +631,11 @@ impl Coordinator {
         if scope.state != State::Suspended {
             return Err(Error::Invalid);
         }
-        if scope
-            .cleanups
-            .values()
-            .any(|c| c.kind == CleanupKind::Activity)
+        if !scope.work.is_empty()
+            || scope
+                .cleanups
+                .values()
+                .any(|c| c.kind == CleanupKind::Activity)
         {
             return Err(Error::Pending);
         }
@@ -740,13 +763,20 @@ impl Coordinator {
                 if dead {
                     scope.state = State::Disposed;
                 }
-                self.traversal = Some(
-                    scope
-                        .children
-                        .first()
-                        .copied()
-                        .map_or(Traversal::Cleanup(id, None), Traversal::Enter),
-                );
+                self.traversal = Some(scope.children.first().copied().map_or(
+                    if scope.work.is_empty() {
+                        Traversal::Cleanup(id, None)
+                    } else {
+                        Traversal::Handles(id, 0)
+                    },
+                    Traversal::Enter,
+                ));
+            }
+            Traversal::Handles(id, after) => {
+                self.traversal = Some(match self.handle_step(id, after) {
+                    Some((key, _waiting)) => Traversal::Handles(id, key),
+                    None => Traversal::Cleanup(id, None),
+                });
             }
             Traversal::Cleanup(id, before) => {
                 let scope = &self.scopes[&id];
@@ -773,6 +803,10 @@ impl Coordinator {
                                 .unwrap(),
                         ));
                     }
+                } else if scope.state == State::Disposed && !scope.lanes.is_empty() {
+                    // One lane record retirement per charged metadata visit,
+                    // never drop a whole configured table in Exit.
+                    self.scopes.get_mut(&id).unwrap().lanes.pop_first();
                 } else {
                     self.traversal = Some(Traversal::Exit(id));
                 }
@@ -781,13 +815,26 @@ impl Coordinator {
                 let scope = &self.scopes[&id];
                 let parent = scope.parent;
                 let dead = scope.state == State::Disposed;
+                // App-owned observations can precede their target World in
+                // traversal order. Revisit them after a World is removed; no
+                // global handle scan or unbudgeted ancestry lookup is needed.
+                if dead && scope.role == Role::World && self.work.has_slots() {
+                    self.rescan = true;
+                }
                 self.traversal = parent.map(|p| {
                     self.scopes[&p]
                         .children
                         .range((Excluded(id), Unbounded))
                         .next()
                         .copied()
-                        .map_or(Traversal::Cleanup(p, None), Traversal::Enter)
+                        .map_or(
+                            if self.scopes[&p].work.is_empty() {
+                                Traversal::Cleanup(p, None)
+                            } else {
+                                Traversal::Handles(p, 0)
+                            },
+                            Traversal::Enter,
+                        )
                 });
                 if dead {
                     if let Some(p) = parent {
@@ -856,8 +903,14 @@ impl Coordinator {
             }
             self.lease_turn = !self.lease_turn;
             if self.lease_turn {
-                self.lease_step();
-                work.lease_visits += 1;
+                self.work.sweep_turn = !self.work.sweep_turn;
+                if self.work.has_slots() && self.work.sweep_turn {
+                    self.work.sweep();
+                    work.ack_visits += 1;
+                } else {
+                    self.lease_step();
+                    work.lease_visits += 1;
+                }
                 continue;
             }
             work.metadata_visits += 1;

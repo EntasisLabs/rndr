@@ -3897,6 +3897,7 @@ dependencies = [
 name = "rndr_liquid_ui"
 version = "0.5.0"
 dependencies = [
+ "rndr-flow",
  "rndr_chart",
  "rndr_core",
  "rndr_liquid",

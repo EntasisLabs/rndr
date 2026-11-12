@@ -36,7 +36,8 @@ Documents are application/manager-owned metadata, not document bytes or history.
 Presentation leases neither close the last document nor add another disposal
 parent. Explicit document close refuses active presentations. Hidden retains
 resources. Suspension requires an explicit durable-recovery assertion and only
-retires activity cleanup; resume waits until that cleanup was attempted.
+retires activity cleanup and F4 owned handles; resume waits until cleanup and
+handle cancellation/removal were attempted, not a fabricated external IO join.
 
 Disposal closes descendant admission immediately. Cleanup runs children first,
 siblings in creation order, reverse registration within a scope, with a callback
@@ -44,11 +45,69 @@ budget per pump. Callback errors/unwinds are recorded in a bounded diagnostic
 ring and independent cleanup continues. Coordinator Drop releases captures but
 never invokes host callbacks: explicitly drain before dropping it.
 
-Counts describe metadata and cleanup attempts, not acknowledged worker/IO drain.
-There are no task/feed adapters, request replacement lanes, completion gate,
-executor, backend cancellation, guarded save/close or UI adoption in F3.
-See [F4 readiness](../../docs/design/rndr-flow-f4-readiness.md) and the
-[correction report](../../docs/reports/rndr-flow-f3-correction.md).
+F3 `Counts` describes metadata and cleanup attempts, not worker/IO drain. F4
+adds bounded owned task/feed/timer adapters, request replacement lanes,
+mutation-boundary gates and separate terminal/receipt accounting. It adds **no**
+executor, runtime, backend SDK cancellation, guarded save/close, automatic UI
+adoption or facade export. See the [actual F4 APIs and qualification matrix](../../docs/design/rndr-flow-f4-readiness.md)
+and the [F3 correction report](../../docs/reports/rndr-flow-f3-correction.md).
+
+## Owned work and mutation-boundary admission (F4)
+
+Choose distinct typed `LaneKey`s for independent operations. Capture an
+`Identity<D>` with the exact native document/session/turn incarnation, operation
+and revision; never recover a delayed target from selection, a projected entity
+or source byte. `replace_local`, `replace_background`, `replace_feed` and
+`replace_timer` check lane/work capacity and exhaustion before invalidating old
+valid work. Defaults are **32 lanes/scope, 4,096 charged work slots, 256 owning-World
+effects**. Configure `WorkLimits` before admitting any work. Rejected future/value
+ownership is returned untouched. Local futures may be non-Send and own `Rc`.
+
+`DeliveryMode::Ordered` uses one lane generation for the stream and strictly
+increasing sequences, not per-chunk replacement. `suspend_requests` explicitly
+refuses an unrecoverable stream. `cancel_request` is exact-lane cancellation and
+can progress without allocating a new generation. Feeds capture epoch at request
+start; `advance_feed(&mut Feed)` refuses maximum before core refresh mutation.
+Producer wrappers run/track on the existing executor and acknowledge actual exit,
+not a cancellation signal. Task output receipts are reserved before polling, so
+exit cannot race a later publication charge. No new timer wheel or mandatory Tokio is introduced.
+
+**Every mutating consumer**, including already-published Input events, must call
+`commit_completion`, `commit_world_completion` or concrete
+`commit_source_completion`. Use `Completion::transpose` on normalized task results before the native gate;
+it preserves captured identity/sequence/receipt and exposes failure without a
+native write. Consumer-owned target traits must synchronously run
+exact native admission/commit with no await/reentrant callback; Err leaves
+native state/history/revision untouched. Generic traits do not intercept bypass
+writers. The concrete source adapter preserves readonly/composition/revision
+policy, checks pending Input IME, and advances ordered native progress only from
+this operation's successful receipts; it cannot bless an unrelated edit by
+rebasing. UI-specific native APIs/unsubscribe stay in the consumer.
+
+Shutdown/replacement protocol:
+
+1. Owner drop/disposal closes logical admission immediately; do not wait for
+   a selected World's next update to reject stale work.
+2. Repeatedly call `pump_work` with a positive budget. Owned handles cancel/drop
+   child-first **before** custom cleanup. `drain_world_effects` in each exact World
+   extracts unsubscribe/removal callbacks outside table borrows. Cross-World lag
+   stays pending; another World cannot drain its resources.
+3. Let the existing runtime and exact producer wrappers acknowledge future exit,
+   and let reserved/queued/published delivery receipts actually drop. A quiet/cancelled
+   handle is not completion. Even an exited future remains charged while its
+   payload is still queued/published or a receipt clone is retained.
+4. Observe `work_counts` separately from F3 `counts`. `WorkStatus::observation`
+   distinguishes retirement, cancellation signal, cleanup attempt, future/
+   producer/event exit acknowledgment, pending deliveries, failure/panic and
+   unknown dropped/blocked work. `Succeeded` is computation success, **not**
+   native commit/save/backend success. Unknown blocked work stays charged.
+
+The bounded pump now also charges owned handle/dead-lane visits and exposes
+`ack_visits` for its independent resumable terminal sweep. `work_counts` and
+request/liveness observations are explicit synchronous work outside this budget.
+An F4 traversal adds O(owned handles + retired lane records) units to the F3
+substrate below; ack sweeping and each World's effects are separately budgeted.
+All F3 retained-token/depth and total-latency limitations below still apply.
 
 ## Incremental retirement versus exact observation
 

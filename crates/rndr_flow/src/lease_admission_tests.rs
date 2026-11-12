@@ -49,6 +49,7 @@ fn refusal(
         Some(Traversal::Enter(id)) => Some((0, id, None)),
         Some(Traversal::Cleanup(id, after)) => Some((1, id, after)),
         Some(Traversal::Exit(id)) => Some((2, id, None)),
+        Some(Traversal::Handles(id, after)) => Some((3, id, Some(after))),
     };
     let before_traversal = traversal(flow.traversal);
     assert_eq!(calls.get(), 0);

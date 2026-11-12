@@ -18,3 +18,7 @@ rndr_paint = { workspace = true }
 rndr_ui = { workspace = true }
 rndr_liquid = { workspace = true }
 rndr_chart = { workspace = true, features = ["liquid"] }
+
+# Consumer-side F4 contract proof only; no production UI/flow dependency.
+[dev-dependencies]
+rndr-flow = { path = "../rndr_flow", default-features = false }
