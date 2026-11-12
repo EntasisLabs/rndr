@@ -1,0 +1,24 @@
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_flow)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.44s
+     Running unittests src/lib.rs (target/debug/deps/rndr_flow-a463ef8c260aca93)
+
+running 1 test
+test budget_tests::newly_suspended_child_between_pumps_precedes_waiting_parent_cleanup ... FAILED
+
+failures:
+
+---- budget_tests::newly_suspended_child_between_pumps_precedes_waiting_parent_cleanup stdout ----
+
+thread 'budget_tests::newly_suspended_child_between_pumps_precedes_waiting_parent_cleanup' (3571112) panicked at crates/rndr_flow/src/budget_tests.rs:22:5:
+assertion `left == right` failed
+  left: [2, 1]
+ right: [1, 2]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    budget_tests::newly_suspended_child_between_pumps_precedes_waiting_parent_cleanup
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 23 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p rndr-flow --lib`

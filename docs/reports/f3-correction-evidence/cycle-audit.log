@@ -1,0 +1,1 @@
+100/100 exact baseline vectors; callbacks=300; cycle test also asserts final root reclamation to Counts::default()

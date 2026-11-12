@@ -18,7 +18,8 @@
 mod transition;
 
 use rndr_core::{Entity, World};
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::ops::Bound::{Excluded, Unbounded};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -144,6 +145,7 @@ impl Default for Limits {
 struct Life {
     dead: AtomicBool,
     parent: Option<Arc<Life>>,
+    dirty: Arc<AtomicBool>,
 }
 impl Life {
     fn live(&self) -> bool {
@@ -202,7 +204,9 @@ impl ScopeOwner {
 impl rndr_core::Component for ScopeOwner {}
 impl Drop for ScopeOwner {
     fn drop(&mut self) {
-        self.life.dead.store(true, Ordering::Release);
+        if !self.life.dead.swap(true, Ordering::AcqRel) {
+            self.life.dirty.store(true, Ordering::Release);
+        }
     }
 }
 
@@ -310,7 +314,31 @@ struct Scope {
     life: Arc<Life>,
     state: State,
     generation: u64,
-    cleanups: Vec<Cleanup>,
+    cleanups: BTreeMap<u64, Cleanup>,
+    children: BTreeSet<ScopeId>,
+}
+
+#[derive(Clone, Copy)]
+enum Traversal {
+    Enter(ScopeId),
+    Cleanup(ScopeId, Option<u64>),
+    Exit(ScopeId),
+}
+
+/// Deterministic retirement work, excluding explicit exact observation.
+/// Each unit performs at most a constant number of ordered-table operations;
+/// a table operation is O(log capacity), not a real-time duration guarantee.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PumpWork {
+    pub units: usize,
+    /// Traversal/cleanup-entry attempts, including empty cursors and callback-cap retries.
+    pub metadata_visits: usize,
+    /// Lease selection/ancestry attempts, including end-of-table wrap.
+    pub lease_visits: usize,
+    pub restarts: usize,
+    pub commands: usize,
+    /// Subset of metadata_visits; not additional work units. Duration is unbounded.
+    pub callbacks: usize,
 }
 
 /// Bounded current storage counts, not claims of cooperative/backend quiescence.
@@ -341,6 +369,12 @@ pub struct Coordinator {
     commands: VecDeque<ScopeId>,
     diagnostics: VecDeque<Diagnostic>,
     dropped_diagnostics: u64,
+    dirty: Arc<AtomicBool>,
+    traversal: Option<Traversal>,
+    rescan: bool,
+    lease_after: u64,
+    lease_check: Option<(u64, ScopeId)>,
+    lease_turn: bool,
 }
 
 impl Coordinator {
@@ -365,9 +399,11 @@ impl Coordinator {
             authority,
             serial: 1,
         };
+        let dirty = Arc::new(AtomicBool::new(true));
         let life = Arc::new(Life {
             dead: AtomicBool::new(false),
             parent: None,
+            dirty: dirty.clone(),
         });
         let owner = ScopeOwner {
             id: root,
@@ -382,7 +418,8 @@ impl Coordinator {
                 life,
                 state: State::Visible,
                 generation: 0,
-                cleanups: Vec::new(),
+                cleanups: BTreeMap::new(),
+                children: BTreeSet::new(),
             },
         );
         Ok((
@@ -395,9 +432,15 @@ impl Coordinator {
                 limits,
                 scopes,
                 leases: BTreeMap::new(),
-                commands: VecDeque::new(),
-                diagnostics: VecDeque::new(),
+                commands: VecDeque::with_capacity(limits.commands),
+                diagnostics: VecDeque::with_capacity(limits.diagnostics),
                 dropped_diagnostics: 0,
+                dirty,
+                traversal: None,
+                rescan: false,
+                lease_after: 0,
+                lease_check: None,
+                lease_turn: false,
             },
             owner,
         ))
@@ -432,6 +475,7 @@ impl Coordinator {
         let life = Arc::new(Life {
             dead: AtomicBool::new(false),
             parent: Some(p.life.clone()),
+            dirty: self.dirty.clone(),
         });
         let id = ScopeId {
             authority: self.authority,
@@ -445,9 +489,12 @@ impl Coordinator {
                 life: life.clone(),
                 state: State::Visible,
                 generation: 0,
-                cleanups: Vec::new(),
+                cleanups: BTreeMap::new(),
+                children: BTreeSet::new(),
             },
         );
+        self.scopes.get_mut(&parent).unwrap().children.insert(id);
+        self.rescan = true;
         Ok((id, life))
     }
     fn create(&mut self, parent: ScopeId, role: Role) -> Result<ScopeOwner, Error> {
@@ -470,17 +517,9 @@ impl Coordinator {
     fn held(&self, lease: &Lease) -> bool {
         lease.held.load(Ordering::Acquire) && self.live_scope(lease.scope).is_ok()
     }
-    fn sweep_leases(&mut self) {
-        let retired: Vec<_> = self
-            .leases
-            .iter()
-            .filter(|(_, l)| !self.held(l))
-            .map(|(id, _)| *id)
-            .collect();
-        for id in retired {
-            self.leases.remove(&id);
-        }
-    }
+    /// Admission is synchronous, not retirement-budgeted. At capacity an exact
+    /// O(leases * depth) search can reclaim ONE inactive slot so a dropped lease
+    /// does not cause a spurious Capacity refusal. No global sweep/allocation.
     pub fn lease(
         &mut self,
         scope: ScopeId,
@@ -491,9 +530,18 @@ impl Coordinator {
         if self.live_scope(scope)?.role == Role::Document {
             return Err(Error::Invalid);
         }
-        self.sweep_leases();
         if self.leases.len() >= self.limits.leases {
-            return Err(Error::Capacity);
+            let inactive = self
+                .leases
+                .iter()
+                .find(|(_, lease)| !self.held(lease))
+                .map(|(key, _)| *key);
+            match inactive {
+                Some(key) => {
+                    self.leases.remove(&key);
+                }
+                None => return Err(Error::Capacity),
+            }
         }
         let serial = next(&mut self.lease_serial)?;
         let held = Arc::new(AtomicBool::new(true));
@@ -507,6 +555,8 @@ impl Coordinator {
         );
         Ok(PresentationLease(held))
     }
+    /// Exact synchronous active-lease observation, O(leases * depth), outside
+    /// bounded retirement work. Last lease release alone never closes a document.
     pub fn close_document(&mut self, document: DocumentId) -> Result<(), Error> {
         if self
             .leases
@@ -541,6 +591,8 @@ impl Coordinator {
         let scope = self.scopes.get_mut(&id).unwrap();
         scope.generation = generation;
         scope.state = State::Suspended;
+        // A newly pending child must precede an already waiting parent.
+        self.dirty.store(true, Ordering::Release);
         Ok(())
     }
     /// Resume only after activity cleanup was attempted. Lifetime resources stay.
@@ -551,7 +603,7 @@ impl Coordinator {
         }
         if scope
             .cleanups
-            .iter()
+            .values()
             .any(|c| c.kind == CleanupKind::Activity)
         {
             return Err(Error::Pending);
@@ -600,11 +652,15 @@ impl Coordinator {
             authority: self.authority,
             serial,
         };
-        self.scopes.get_mut(&id).unwrap().cleanups.push(Cleanup {
-            id: cleanup,
-            kind,
-            callback: Box::new(callback),
-        });
+        self.scopes.get_mut(&id).unwrap().cleanups.insert(
+            serial,
+            Cleanup {
+                id: cleanup,
+                kind,
+                callback: Box::new(callback),
+            },
+        );
+        self.rescan = true;
         Ok(cleanup)
     }
     /// Idempotent logical disposal; old/expired terminal IDs are still dead.
@@ -624,75 +680,111 @@ impl Coordinator {
             return Err(Error::Stale);
         }
         if let Some(scope) = self.scopes.get(&id) {
-            scope.life.dead.store(true, Ordering::Release);
+            if !scope.life.dead.swap(true, Ordering::AcqRel) {
+                self.dirty.store(true, Ordering::Release);
+            }
         }
-        // Descendant liveness closes synchronously through the ancestor flag.
-        self.reconcile_dead();
+        // Descendant admission closes through Life, without registry scanning.
         Ok(())
     }
-    fn reconcile_dead(&mut self) {
-        for scope in self.scopes.values_mut() {
-            if !scope.life.live() {
-                scope.state = State::Disposed;
-            }
-        }
-        self.sweep_leases();
-    }
-    fn order(&self) -> Vec<ScopeId> {
-        let mut result = Vec::new();
-        let mut stack = vec![(self.root, false)];
-        while let Some((id, visited)) = stack.pop() {
-            if visited {
-                result.push(id);
-                continue;
-            }
-            if !self.scopes.contains_key(&id) {
-                continue;
-            }
-            stack.push((id, true));
-            for (child, _) in self
+
+    // One lease-table selection or one ancestry edge per unit. Missing scopes
+    // are dead; physical scope reclamation therefore never needs a lease scan.
+    fn lease_step(&mut self) {
+        if let Some((key, id)) = self.lease_check {
+            let dead = self
                 .scopes
-                .iter()
-                .rev()
-                .filter(|(_, s)| s.parent == Some(id))
-            {
-                stack.push((*child, false));
+                .get(&id)
+                .is_none_or(|s| s.life.dead.load(Ordering::Acquire));
+            if dead {
+                self.leases.remove(&key);
+                self.lease_check = None;
+            } else if let Some(parent) = self.scopes[&id].parent {
+                self.lease_check = Some((key, parent));
+            } else {
+                self.lease_check = None;
             }
+        } else if let Some((&key, lease)) = self
+            .leases
+            .range((Excluded(self.lease_after), Unbounded))
+            .next()
+        {
+            self.lease_after = key;
+            if !lease.held.load(Ordering::Acquire) {
+                self.leases.remove(&key);
+            } else {
+                self.lease_check = Some((key, lease.scope));
+            }
+        } else {
+            self.lease_after = 0;
         }
-        result
     }
-    fn record(&mut self, event: Diagnostic) {
-        if self.diagnostics.len() == self.limits.diagnostics {
-            self.diagnostics.pop_front();
-            self.dropped_diagnostics = self.dropped_diagnostics.saturating_add(1);
-        }
-        self.diagnostics.push_back(event);
-    }
-    /// Invoke at most the configured callback budget. Registrations are removed
-    /// before invocation, no registry borrow survives a callback, and unwinding
-    /// callbacks are recorded and independent cleanup continues. `panic=abort`
-    /// and arbitrary destructor/double panics are not recoverable.
-    pub fn pump(&mut self) -> Counts {
-        self.reconcile_dead();
-        let mut remaining = self.limits.cleanups_per_pump;
-        loop {
-            let mut selected = None;
-            // Recompute after each callback: reentrant requests may have killed
-            // an ancestor whose previously-live children were already visited.
-            for id in self.order() {
+
+    fn traversal_step(&mut self, can_call: bool) -> Option<(ScopeId, Cleanup)> {
+        match self.traversal? {
+            Traversal::Enter(id) => {
+                let scope = &self.scopes[&id];
+                let dead = scope.life.dead.load(Ordering::Acquire)
+                    || scope
+                        .parent
+                        .is_some_and(|p| self.scopes[&p].state == State::Disposed);
                 let scope = self.scopes.get_mut(&id).unwrap();
-                let index = scope.cleanups.iter().rposition(|c| {
-                    scope.state == State::Disposed
-                        || (scope.state == State::Suspended && c.kind == CleanupKind::Activity)
-                });
-                if let Some(index) = index {
-                    if remaining == 0 {
-                        return self.counts();
-                    }
-                    selected = Some((id, scope.cleanups.remove(index)));
-                    break;
+                if dead {
+                    scope.state = State::Disposed;
                 }
-                if scope.state == State::Disposed {
+                self.traversal = Some(
+                    scope
+                        .children
+                        .first()
+                        .copied()
+                        .map_or(Traversal::Cleanup(id, None), Traversal::Enter),
+                );
+            }
+            Traversal::Cleanup(id, before) => {
+                let scope = &self.scopes[&id];
+                let candidate = match before {
+                    Some(key) => scope.cleanups.range(..key).next_back(),
+                    None => scope.cleanups.last_key_value(),
+                };
+                if let Some((&key, cleanup)) = candidate {
+                    let eligible = scope.state == State::Disposed
+                        || (scope.state == State::Suspended
+                            && cleanup.kind == CleanupKind::Activity);
+                    if eligible && !can_call {
+                        return None;
+                    }
+                    self.traversal = Some(Traversal::Cleanup(id, Some(key)));
+                    if eligible {
+                        return Some((
+                            id,
+                            self.scopes
+                                .get_mut(&id)
+                                .unwrap()
+                                .cleanups
+                                .remove(&key)
+                                .unwrap(),
+                        ));
+                    }
+                } else {
+                    self.traversal = Some(Traversal::Exit(id));
+                }
+            }
+            Traversal::Exit(id) => {
+                let scope = &self.scopes[&id];
+                let parent = scope.parent;
+                let dead = scope.state == State::Disposed;
+                self.traversal = parent.map(|p| {
+                    self.scopes[&p]
+                        .children
+                        .range((Excluded(id), Unbounded))
+                        .next()
+                        .copied()
+                        .map_or(Traversal::Cleanup(p, None), Traversal::Enter)
+                });
+                if dead {
+                    if let Some(p) = parent {
+                        self.scopes.get_mut(&p).unwrap().children.remove(&id);
+                    }
                     self.scopes.remove(&id);
                     self.record(Diagnostic {
                         scope: id,
@@ -701,24 +793,36 @@ impl Coordinator {
                     });
                 }
             }
-            let Some((id, cleanup)) = selected else { break };
-            remaining -= 1;
-            let outcome = match catch_unwind(AssertUnwindSafe(|| {
-                (cleanup.callback)(&mut Commands {
-                    queue: &mut self.commands,
-                    limit: self.limits.commands,
-                })
-            })) {
-                Ok(Ok(())) => Outcome::Ok,
-                Ok(Err(_)) => Outcome::Error,
-                Err(_) => Outcome::Panicked,
-            };
-            self.record(Diagnostic {
-                scope: id,
-                cleanup: Some(cleanup.id),
-                outcome,
-            });
-            while let Some(target) = self.commands.pop_front() {
+        }
+        None
+    }
+    fn record(&mut self, event: Diagnostic) {
+        if self.diagnostics.len() == self.limits.diagnostics {
+            self.diagnostics.pop_front();
+            self.dropped_diagnostics = self.dropped_diagnostics.saturating_add(1);
+        }
+        self.diagnostics.push_back(event);
+    }
+    /// Compatibility convenience: 65536 retirement units followed by an exact
+    /// synchronous observation via `counts`. The observation is NOT budgeted.
+    /// Use `pump_work` when only bounded retirement work is wanted.
+    pub fn pump(&mut self) -> Counts {
+        self.pump_work(65536);
+        self.counts()
+    }
+
+    /// Perform at most `budget` work units and `cleanups_per_pump` callbacks.
+    /// No exact Counts scan, ancestor walk, child scan or cleanup-list scan is
+    /// hidden here. Commands, restarts, traversal edges/cleanup entries and lease
+    /// selection/ancestry edges each charge one unit. Zero is a strict no-op.
+    /// Callbacks are consumed outside registry borrows; unwind/error continues.
+    /// Their duration and arbitrary destructor/double panics cannot be bounded.
+    pub fn pump_work(&mut self, budget: usize) -> PumpWork {
+        let mut work = PumpWork::default();
+        while work.units < budget {
+            work.units += 1;
+            if let Some(target) = self.commands.pop_front() {
+                work.commands += 1;
                 if self.dispose(target).is_err() {
                     self.record(Diagnostic {
                         scope: target,
@@ -726,11 +830,56 @@ impl Coordinator {
                         outcome: Outcome::Error,
                     });
                 }
+                continue;
             }
-            self.reconcile_dead();
+            // Dirty is a coalescing flag, not a wrapping/saturating identity.
+            // Restart BEFORE further callbacks to revisit newly dead ancestors'
+            // earlier children. Suspension also revalidates child-first order.
+            // Live admission alone only requests a later pass, not preemption.
+            if self.dirty.swap(false, Ordering::AcqRel) || (self.traversal.is_none() && self.rescan)
+            {
+                self.traversal = self
+                    .scopes
+                    .contains_key(&self.root)
+                    .then_some(Traversal::Enter(self.root));
+                self.rescan = false;
+                work.restarts += 1;
+                continue;
+            }
+            self.lease_turn = !self.lease_turn;
+            if self.lease_turn {
+                self.lease_step();
+                work.lease_visits += 1;
+                continue;
+            }
+            work.metadata_visits += 1;
+            if let Some((id, cleanup)) =
+                self.traversal_step(work.callbacks < self.limits.cleanups_per_pump)
+            {
+                work.callbacks += 1;
+                let outcome = match catch_unwind(AssertUnwindSafe(|| {
+                    (cleanup.callback)(&mut Commands {
+                        queue: &mut self.commands,
+                        limit: self.limits.commands,
+                    })
+                })) {
+                    Ok(Ok(())) => Outcome::Ok,
+                    Ok(Err(_)) => Outcome::Error,
+                    Err(_) => Outcome::Panicked,
+                };
+                self.record(Diagnostic {
+                    scope: id,
+                    cleanup: Some(cleanup.id),
+                    outcome,
+                });
+            }
         }
-        self.counts()
+        work
     }
+
+    /// Exact synchronous observation, separate from bounded retirement work.
+    /// O((scopes + leases) * depth + cleanups), plus ordered-table lookups.
+    /// Owner/lease drops are reflected immediately, even before any pump.
     pub fn counts(&self) -> Counts {
         Counts {
             scopes: self.scopes.len(),
@@ -742,13 +891,16 @@ impl Coordinator {
                 .scopes
                 .values()
                 .map(|s| {
-                    s.cleanups
-                        .iter()
-                        .filter(|c| {
-                            !s.life.live()
-                                || (s.state == State::Suspended && c.kind == CleanupKind::Activity)
-                        })
-                        .count()
+                    if !s.life.live() {
+                        s.cleanups.len()
+                    } else if s.state == State::Suspended {
+                        s.cleanups
+                            .values()
+                            .filter(|c| c.kind == CleanupKind::Activity)
+                            .count()
+                    } else {
+                        0
+                    }
                 })
                 .sum(),
             queued_commands: self.commands.len(),
@@ -770,5 +922,7 @@ impl Drop for Coordinator {
     }
 }
 
+#[cfg(test)]
+mod budget_tests;
 #[cfg(test)]
 mod tests;

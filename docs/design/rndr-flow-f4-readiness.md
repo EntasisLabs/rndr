@@ -7,7 +7,9 @@ acceptance. Candidate identity and qualification are in
 [`../reports/rndr-flow-f3.md`](../reports/rndr-flow-f3.md).
 
 **Readiness:** the metadata/ownership substrate is implemented and headlessly
-tested. F4 is ready for a separately scoped implementation, not already delivered.
+tested. F3's incremental-retirement correction is awaiting fresh independent
+review and sender acceptance; F4 is only a plan for separately scoped work, not
+already delivered or authorized by this document.
 There are no task/feed adapters, replacement lanes, completion publication gate,
 close guards, retained navigation or application migration in this candidate.
 None of these tests establish platform, Medousa, backend cancellation or
@@ -18,7 +20,8 @@ raw-push split-CRLF limitation remain unchanged.
 
 All names in this table actually exist in `crates/rndr_flow/src/lib.rs`.
 `src/transition.rs` is a private pure state/checked-generation transition core;
-`src/tests.rs` contains the deterministic proofs. Package `rndr-flow` exports
+`src/tests.rs`, `src/budget_tests.rs` and `tests/reviewer_probes.rs` contain the
+deterministic lifecycle, work-accounting and retained adversarial proofs. Package `rndr-flow` exports
 Rust library `rndr_flow`; only direct runtime dependency is feature-off
 `rndr_core`. No facade export, reverse core/UI dependency, mandatory executor,
 Tokio, native renderer, browser or network is introduced.
@@ -33,17 +36,27 @@ Tokio, native renderer, browser or network is introduced.
 | `activity`, `activity_is_current`, `suspend(Recovery::ReconcileFromDurableState)`, `resume` | **Scope activity incarnation only**, not an F4 per-request lane/gate. Host explicitly asserts recovery is possible; no unrecoverable-stream suspension API. Suspend checks generation exhaustion before mutation, invalidates current activity, schedules Activity cleanup. Resume refuses while Activity cleanup remains and exposes a fresh incarnation; Lifetime cleanup/resources remain. It does not replay deltas or start work by itself. |
 | `create_document`, `DocumentId::scope`, `document_is_live`, `lease`, `close_document` | Coordinator/application root is the sole document-lifetime manager. Host retains actual domain document ID/revision/state elsewhere. Presentation leases have no disposal-parent authority. Last release never closes the document; explicit document close refuses any live held lease. Direct `dispose(document.scope())` refuses. Root/application disposal affects the entire lease set. This is not F5 guarded save/close or a revision/participant snapshot protocol. |
 | `register_cleanup(scope, kind, callback) -> Result<CleanupId, Rejected<F>>` | Bounded admission returns the **untouched** callback on Stale/Suspended/Capacity/Exhausted. Caller must clean rejected captures. Callback is FnOnce, may be non-Send, receives only a bounded command sink, and is consumed before invocation. No callback runs in admission. |
-| `dispose`, `pump` | Disposal immediately closes subtree admission and releases its leases; repeated terminal disposal is `Ok(())`, with no resurrection even after diagnostics expire. Pump invokes at most `cleanups_per_pump` callbacks, postorder children first/siblings in creation order/reverse registration per scope. Recomputes order after each callback batch, including newly queued ancestor disposal. It catches explicit callback unwind, records Error/Panicked, continues other cleanup. No core cascade changes. |
-| `Commands::dispose` | FIFO deferred request, revalidated after callback; full queue returns Capacity. No recursive registry access, arbitrary World mutation or async callback. Authoritative owner drop/disposal never needs command queue capacity to make logical progress. |
+| `dispose`, `pump_work(budget) -> PumpWork`, `pump` | Disposal immediately closes subtree admission and invalidates active leases; physical slots remain charged until reclaimed. Terminal disposal is idempotent. `pump_work` resumes child-first, creation-ordered traversal/reverse cleanup-entry scanning and independent lease ancestry sweeping, charging every metadata/lease visit, restart and FIFO command. Callback count is separately capped. Newly dead ancestors or newly suspended children cause a charged restart before further callbacks. Live creation/registration schedule a later pass, not repeated preemption. Callback unwind/error continues. `pump` is a compatibility wrapper: 65,536 retirement units **plus unbudgeted exact `counts()` observation**, not a total-time bound. No core cascade changes. |
+| `Commands::dispose` | FIFO deferred request, revalidated after callback before further callbacks, one command per work unit. Tiny budgets can defer that revalidation to the next pump. Full queue returns Capacity. No recursive registry access, arbitrary World mutation or async callback. Authoritative owner drop/disposal never needs command queue capacity for logical or eventual physical progress. |
 | `counts`, `diagnostics`, `dropped_diagnostics` | Counts cover retained registry/cleanup/lease slots and active leases, pending dead scopes/callbacks and queued commands. Payload-free diagnostic ring evicts oldest event only, with saturating **telemetry** overflow count (not an identity). No immortal tombstones. Counts at zero mean registry cleanup attempted/reclaimed, **not** worker IO acknowledged or external backend stopped. |
 
 F3 defaults from F0: 4096 admitted scopes, 256 cleanups/scope, 1024 queued callback
 commands, 256 callback invocations/pump, 512 diagnostics. A separate 4096-lease
 budget bounds presentation metadata (one lease need not imply another scope).
 F4's 32 lanes/scope and later history/transition budgets are **not implemented**
-in F3 because those tables do not exist yet. Metadata scans are bounded by
-admitted storage but not time-sliced; callbacks are count-bounded, not
-wall-clock-bounded. There are no latency/performance claims.
+in F3 because those tables do not exist yet. Retirement metadata work is now
+incremental: each work unit has a constant number of ordered-table operations
+(O(log capacity)); a traversal pass is O(scopes + cleanup entries) units and a
+lease sweep O(leases * (depth + 1)). Death-triggered restarts can repeat prefixes,
+explicitly charged. Finite admitted work/ordering changes plus positive pumps and
+returning/unwinding callbacks guarantee eventual reclamation; no fixed completion
+bound is claimed under endless new ancestor deaths/suspensions. Lease progress alternates
+with traversal and is never reset by traversal restarts. Callback duration is
+unbounded. Exact counts, document-close checks and at-capacity lease admission
+are explicit synchronous observations outside bounded retirement; see the
+[README](../../crates/rndr_flow/README.md#incremental-retirement-versus-exact-observation)
+and [correction report](../reports/rndr-flow-f3-correction.md). There are no
+real-time latency/performance claims.
 
 ## Exactly one supported World reconciliation contract
 
@@ -57,7 +70,8 @@ wall-clock-bounded. There are no latency/performance claims.
 3. Token drop only signals the already-admitted atomic owner flag. Descendant
    admission is immediately dead without a pump, a new queue allocation, or
    reliance on core hierarchy destruction order. Stale binding refuses.
-4. Host calls `pump` before its result consumers, after callback batches and at
+4. Host calls `pump_work` (or observation-bearing `pump`) before result consumers,
+   after callback batches and at
    reconciliation end, until pending state is drained. The host must arrange the
    proper per-World effect drains when F4 adds concrete handles. No plugin is
    silently installed; F3 does not claim it intercepts every core producer.
@@ -109,7 +123,10 @@ API declarations. Keep the F3 no-facade/no-runtime dependency direction.
    Cancel/drop tasks and feeds before custom cleanup; subscription removal runs
    only in owning World's drain outside registry/World resource borrows. Dead
    slots and drop flags must keep disposal progressing when command capacity is
-   full. No unbounded per-scope result buffer. Explicitly classify app-owned
+   full. Preserve F3's explicit work accounting: bounded handle/effect scanning
+   must not hide global scans, recursive traversal or exact observation inside a
+   nominally budgeted pump. Exercise one-unit budgets at admitted capacities.
+   No unbounded per-scope result buffer. Explicitly classify app-owned
    jobs versus UI observation of backend work. No implicit SDK cancel.
 3. **Mutation-boundary completion envelope/adapters.** Carry captured exact
    domain document/session/turn/operation IDs, native revision and request token.

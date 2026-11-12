@@ -1,5 +1,24 @@
 # rndr-flow F3 implementation and qualification
 
+## Correction status — incremental metadata retirement
+
+The original candidate `fa5a03b76975068e015cc5f373baadaff1b703fe` passed lifecycle
+review but **did not satisfy F0 §5 incremental metadata scanning**. Sender
+requested changes, not integration. The scoped correction replaces whole-tree
+order construction, eager death reconciliation and repeated global lease sweeps
+with resumable budgeted retirement. Exact counts remain a separate explicit
+synchronous observation. See [the correction report](rndr-flow-f3-correction.md)
+for changed APIs/invariants, deterministic work proofs and **new rerun evidence**.
+The correction still requires fresh independent review and sender acceptance.
+
+The original implementation report below is retained as historical evidence.
+Its 24-gate results and non-incremental-scan caveat describe the old candidate,
+not a claim that those broad gates were rerun on this correction. The exact
+original text and evidence remain available in `fa5a03b`; original evidence files
+have not been overwritten.
+
+## Original candidate report (superseded scan contract)
+
 Date: 2026-11-12 UTC. Status: implemented and locally qualified candidate;
 **not sender-accepted or integrated**. Work `work-901f2ce85e86e30b96529a611e423516`,
 isolated branch `worktree/rndr-flow-f3-headless-ownership-core-and-f4-readiness`.
