@@ -1,0 +1,13 @@
+$ sh -ec git diff --exit-code HEAD -- crates Cargo.toml Cargo.lock; git rev-parse HEAD; rustc -Vv; df -k .
+2b38dd72cbce034d15fcf5600d37761e38fb2e97
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+binary: rustc
+commit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea
+commit-date: 2026-08-18
+host: aarch64-apple-darwin
+release: 1.98.0
+LLVM version: 22.1.8
+Filesystem   1024-blocks      Used Available Capacity iused    ifree %iused  Mounted on
+/dev/disk3s5   239362496 205048812   4529532    98% 1947398 45295320    4%   /System/Volumes/Data
+
+exit=0

@@ -1,0 +1,236 @@
+$ cargo test --offline --locked -p rndr_liquid_ui
+    Finished `test` profile [unoptimized] target(s) in 0.11s
+     Running unittests src/lib.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/rndr_liquid_ui-df723a6eb09ef14c)
+
+running 25 tests
+test lifecycle::tests::complete_serial_range_reservation_cannot_consume_a_partial_prefix ... ok
+test lifecycle::tests::checked_serial_allocator_never_aliases_on_exhaustion ... ok
+test feed::retirement_tests::exhausted_replacement_preserves_current_lane_and_legacy_pending_is_not_quiescent ... ok
+test feed::retirement_tests::retirement_callback_reservation_remains_charged_during_reentry ... ok
+test feed::retirement_tests::in_flight_settlement_follows_exact_request_through_drain_and_replacement ... ok
+test feed::retirement_tests::retirement_callbacks_are_tree_postorder_then_reverse_registration ... ok
+test feed::retirement_tests::retirement_budget_progresses_in_exact_finite_pumps ... ok
+test state::lifecycle_tests::listener_capacity_and_id_exhaustion_return_untouched_handler ... ok
+test feed::retirement_tests::publication_before_retirement_refresh_generation_and_foreign_world_reject ... ok
+test feed::retirement_tests::callback_settlement_controls_ack_unwind_and_newer_results ... ok
+test state::lifecycle_tests::exhausted_component_revision_refuses_without_record_or_queue_changes ... ok
+test state::lifecycle_tests::id_snapshot_add_remove_self_remove_and_nested_fifo ... ok
+test state::lifecycle_tests::queue_capacity_and_persistent_budget_have_exact_pump_counts ... ok
+test timer::tests::start_pause_resume_and_deadline ... ok
+test state::lifecycle_tests::reserved_capacity_is_bounded_and_released_on_drop_and_unwind ... ok
+test lifecycle::tests::keyed_source_refusals_and_exhaustion_leave_all_membership_untouched ... ok
+test lifecycle::tests::transaction_reentry_poison_unwind_and_source_refusal_are_atomic ... ok
+test feed::retirement_tests::reentrant_retirement_and_panicking_host_do_not_lose_later_notifications ... ok
+test state::lifecycle_tests::surface_filter_foreign_handle_disposal_and_panics_fail_closed ... ok
+test view::admission_tests::source_capacity_refusal_preserves_stream_membership_and_diagnostics_bound ... ok
+test timer::exhaustion_tests::checked_absolute_deadline_exhaustion_has_no_record_or_envelope_effect ... ok
+test timer::exhaustion_tests::exhausted_timer_refuses_without_state_events_or_deadline_wrap ... ok
+test timer::exhaustion_tests::reentrant_schema_reset_invalidates_the_rest_of_a_captured_due_batch ... ok
+test view::admission_tests::staged_clone_is_one_candidate_and_old_stream_is_untouched ... ok
+test lifecycle::tests::full_same_world_100_cycle_resource_oracle_seeds_1_7_42 has been running for over 60 seconds
+test lifecycle::tests::full_same_world_100_cycle_resource_oracle_seeds_1_7_42 ... ok
+
+test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 87.91s
+
+     Running tests/feeds.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/feeds-ccb56c40de93b50e)
+
+running 5 tests
+test a_stale_feed_revision_is_rejected ... ok
+test feed_load_moves_through_loading_ready_error_and_stale ... ok
+test manual_and_interval_refresh_publish_envelopes ... ok
+test feed_last_good_survives_recycling ... ok
+test each_feed_datatype_renders_its_body ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/flow_owned.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/flow_owned-92129ad629dd564c)
+
+running 2 tests
+test consumer_explicit_unsubscribe_is_world_local_and_precedes_custom_cleanup ... ok
+test consumer_native_f2_gate_refuses_retired_revision_and_cross_world_without_changes ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/identity.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/identity-cb6c3049307ba5fd)
+
+running 6 tests
+test legacy_update_error_remains_exhaustively_matchable ... ok
+test ambiguous_group_preserves_on_exact_noop_and_true_append ... ok
+test ambiguous_equal_group_resets_when_mounted ... ok
+test ambiguous_equal_group_resets_when_offscreen ... ok
+test f0_explicit_operations_table_mounted_and_offscreen ... ok
+test f0_identity_table_mounted_and_offscreen ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s
+
+     Running tests/identity_resources.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/identity_resources-a0716da64ac2eb29)
+
+running 8 tests
+test missing_zero_revision_is_fenced_by_keyed_schema_reset ... ok
+test feed_binding_retains_cosmetic_context_and_retires_old_lane_with_zero_stale_effects ... ok
+test keyed_recipe_cosmetic_reorder_preserves_deadline_schema_edit_clears_it ... ok
+test colliding_generated_child_ids_never_alias_independent_request_bindings ... ok
+test one_changed_dashboard_binding_does_not_retire_an_unrelated_tile_lane ... ok
+test parked_nested_handles_query_write_and_reset_without_a_physical_view ... ok
+test parked_nested_feed_accepts_current_context_and_preserves_captured_envelope_handles ... ok
+test nested_parse_index_shift_is_not_semantic_edit_but_same_index_new_child_is ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/keyed_identity.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/keyed_identity-9f3ca5f6b70ebf90)
+
+running 5 tests
+test kinds_and_index_domains_are_checked_without_writes ... ok
+test keyed_child_edit_resets_but_title_edit_preserves_state_and_serial ... ok
+test reset_remove_reinsert_and_foreign_world_never_resurrect_handles ... ok
+test complete_reading_order_keys_and_invalid_transactions_are_atomic ... ok
+test split_crlf_stream_then_normalized_noop_preserves_completed_occurrences ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/legacy_compatibility.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/legacy_compatibility-4f203eac7d73c9ca)
+
+running 2 tests
+test limits_are_validated_and_installed_at_plugin_construction ... ok
+test legacy_v1_literals_and_context_free_host_still_compile ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/pending_settlement.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/pending_settlement-73cf5c1d2cea58f1)
+
+running 6 tests
+test same_revision_context_result_refuses_enclosing_loader_publication ... ok
+test newer_context_result_settles_even_when_enclosing_loader_returns_pending ... ok
+test normal_pending_retirement_backpressure_control ... ok
+test loader_unwind_retains_escaped_work_and_releases_emission_reservation ... ok
+test retired_pending_started_during_reentrant_loader_stays_charged_until_ack ... ok
+test reentrant_settlement_controls_do_not_leave_phantom_charges ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+     Running tests/recycle.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/recycle-c4a7193f645d77e2)
+
+running 4 tests
+test a_markdown_host_without_the_policy_stays_mounted_offscreen ... ok
+test streaming_appends_keep_state_through_a_release ... ok
+test released_block_keeps_its_height_and_restores_reader_state ... ok
+test mounted_entities_stay_bounded_as_blocks_grow ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+     Running tests/render.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/render-af635cf7807ea08c)
+
+running 10 tests
+test an_unclosed_fence_is_pending_until_it_closes ... ok
+test blocks_mount_in_place_of_their_references ... ok
+test nested_markdown_bodies_render_inside_the_block ... ok
+test feeds_and_tiles_come_from_the_host ... ok
+test source_replacement_remounts_and_foreign_intents_are_ignored ... ok
+test accordion_and_carousel_state_is_local_and_survives_rebuild ... ok
+test host_events_carry_the_document_intent ... ok
+test chart_paint_slots_are_not_leaked_across_rebuilds ... ok
+test reader_state_survives_appends_and_unchanged_blocks ... ok
+test charts_paint_through_a_surface_slot_and_report_hover ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+     Running tests/reset_remount.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/reset_remount-58ffc5c011690267)
+
+running 8 tests
+test mounted_surface_reset_keyed ... ok
+test mounted_block_reset_unkeyed ... ok
+test mounted_surface_reset_unkeyed ... ok
+test offscreen_block_reset_unkeyed ... ok
+test mounted_block_reset_keyed ... ok
+test offscreen_surface_reset_keyed ... ok
+test offscreen_block_reset_keyed ... ok
+test offscreen_surface_reset_unkeyed ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running tests/review_regressions.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/review_regressions-66f9380b491b3c92)
+
+running 15 tests
+test mixed_physical_semantic_child_relocation_does_not_duplicate ... ok
+test loader_reentrant_prepend_cannot_publish_feed_state_into_new_callout ... ok
+test feed_reserves_envelope_capacity_across_reentrant_loader ... ok
+test mixed_ownership_terminal_controls_keep_independent_and_retire_owned_child ... ok
+test public_feed_reservation_releases_after_loader_panic_and_stale_owner ... ok
+test retained_logical_child_parks_when_its_parent_occurrence_moves ... ok
+test native_tabs_defer_atomically_until_envelope_capacity_is_available ... ok
+test recycling_refuses_unadmitted_native_tab_without_changing_revision ... ok
+test native_tab_activation_inside_partial_delivery_is_admitted_once ... ok
+test reentrant_feed_removal_replacement_and_newer_result_refuse_obsolete_outcome ... ok
+test deferred_native_tab_intent_can_be_superseded_without_a_phantom_commit ... ok
+test retirement_and_listeners_both_progress_under_sustained_reentrant_load ... ok
+test retirement_backlog_cannot_starve_reentrant_listener_traffic ... ok
+test semantic_child_reuse_ignores_nested_foreign_and_outside_physical_placement ... ok
+test independent_surface_survives_parent_collapse_rebuild_and_cleanup ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+
+     Running tests/source_normalization.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/source_normalization-dd2b7980f58e18ce)
+
+running 4 tests
+test normalized_prefix_setter_repairs_opening_crlf_split ... ok
+test normalized_setter_repairs_opening_crlf_split ... ok
+test canonical_repair_keeps_mounted_and_saved_duplicate_state ... ok
+test canonical_setters_cover_every_crlf_boundary_and_pending_fences ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.57s
+
+     Running tests/state.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/state-f9244a5d8c05b783)
+
+running 8 tests
+test host_callback_attachments_are_never_claimed_by_render_tracking ... ok
+test caller_cascade_preserves_reparented_out_attachments_not_attached_descendants ... ok
+test terminal_owner_rejects_writes_before_the_next_pump ... ok
+test unmatched_same_source_content_does_not_inherit_old_record ... ok
+test terminal_cleanup_preserves_application_attachments_and_unrelated_hosts ... ok
+test accordion_state_is_recorded_and_survives_release_and_append ... ok
+test tabs_and_checklists_round_trip_through_the_record ... ok
+test terminal_core_host_registration_releases_capture_at_cleanup_pump ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.38s
+
+     Running tests/stream_cost.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/stream_cost-2edf4f5e676a57fa)
+
+running 1 test
+test liquid_stream_cost ... ignored, release characterization of liquid streaming; no timing threshold
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/timer.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/timer-2b6594f2965ab9ea)
+
+running 1 test
+test a_recipe_timer_pauses_resumes_and_survives_recycling ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/virtual_cost.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/virtual_cost-f7c2a0458a3309cd)
+
+running 1 test
+test liquid_density_cost ... ignored, opt-in release probe; no timing threshold assertions
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/visual.rs (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/visual-6949fad70ecc43dc)
+
+running 5 tests
+test styled_block_sets_family_size_alignment_and_line_height ... ok
+test styled_block_justify_uses_the_start_edge ... ok
+test slide_image_layer_is_pinned_in_the_stage_and_named ... ok
+test code_block_colors_tokens_and_exposes_a_code_role ... ok
+test chart_tooltip_overlays_the_plot_and_describes_it ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+   Doc-tests rndr_liquid_ui
+
+running 1 test
+test crates/rndr_liquid_ui/src/lib.rs - (line 12) ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.05s
+
+
+exit=0

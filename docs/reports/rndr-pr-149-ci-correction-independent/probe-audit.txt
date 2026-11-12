@@ -1,0 +1,3 @@
+PASS rejected digest in docs/reports/rndr-pr-149-ci-evidence/source-digests.txt with writes forbidden; unchanged SHA256 936554311b6c816e0ccc01d38953bec427b4261a11f4908d8563de124efc297a
+PASS rejected digest in docs/reports/rndr-pr-149-ci-correction/source-digests.txt with writes forbidden; unchanged SHA256 40c948a9b40c42921c777a63722a03da343fc862ae7f1658d13998bff5bad075
+PASS rejected compiler body in docs/reports/rndr-pr-149-ci-evidence/final-checks/clippy-workspace.txt with writes forbidden; unchanged SHA256 b71d982cfbfd614ec85372cfa4930b9b244b9b1454ac9044361a516804b6ea44
