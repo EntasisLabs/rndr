@@ -30,6 +30,22 @@ pub enum Terminal {
     Panicked,
     DroppedUnknown,
 }
+impl Terminal {
+    // Aggregate evidence is monotonic, independently of actual-exit timing.
+    // Unknown abandonment cannot erase a known outcome; failure beats success.
+    fn record(&mut self, outcome: Self) {
+        let rank = |t| match t {
+            Self::Running => 0,
+            Self::DroppedUnknown => 1,
+            Self::Succeeded => 2,
+            Self::Failed => 3,
+            Self::Panicked => 4,
+        };
+        if rank(outcome) > rank(*self) {
+            *self = outcome;
+        }
+    }
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Observation {
     pub retired: bool,
@@ -112,11 +128,11 @@ impl<F> Tracked<F> {
         if let Some(inner) = self.inner.take() {
             let panic = catch_unwind(AssertUnwindSafe(|| drop(inner))).is_err();
             self.status.update(|s| {
-                if panic {
-                    s.terminal = Terminal::Panicked;
-                } else if s.terminal == Terminal::Running {
-                    s.terminal = Terminal::DroppedUnknown;
-                }
+                s.terminal.record(if panic {
+                    Terminal::Panicked
+                } else {
+                    Terminal::DroppedUnknown
+                });
                 s.exit_acknowledged = true;
             });
         }
@@ -147,13 +163,11 @@ where
             Err(_) => Err(TaskFailure::Panicked),
         };
         this.status.update(|s| {
-            if s.terminal != Terminal::Panicked {
-                s.terminal = match &value {
-                    Ok(_) => Terminal::Succeeded,
-                    Err(TaskFailure::Failed) => Terminal::Failed,
-                    Err(TaskFailure::Panicked) => Terminal::Panicked,
-                };
-            }
+            s.terminal.record(match &value {
+                Ok(_) => Terminal::Succeeded,
+                Err(TaskFailure::Failed) => Terminal::Failed,
+                Err(TaskFailure::Panicked) => Terminal::Panicked,
+            });
         });
         this.drop_inner();
         if this.status.observation().terminal == Terminal::Panicked {
@@ -173,6 +187,8 @@ pub struct ProducerExit {
 impl ProducerExit {
     /// Run on the EXISTING producer's executor/thread. A blocked closure retains
     /// the charge. No public cancellation-as-ack setter is provided.
+    /// Returns this closure's normalized result. Inspect WorkStatus for the
+    /// aggregate outcome, which also retains earlier/later cleanup failures.
     pub fn run(
         mut self,
         producer: impl FnOnce() -> Result<(), TaskFailure>,
@@ -180,16 +196,19 @@ impl ProducerExit {
         let status = self.status.take().unwrap();
         let result = catch_unwind(AssertUnwindSafe(producer)).unwrap_or(Err(TaskFailure::Panicked));
         status.update(|s| {
-            s.terminal = match result {
+            s.terminal.record(match result {
                 Ok(()) => Terminal::Succeeded,
                 Err(TaskFailure::Failed) => Terminal::Failed,
                 Err(TaskFailure::Panicked) => Terminal::Panicked,
-            };
+            });
             s.exit_acknowledged = true;
         });
         result
     }
     /// Wrap an async producer without imposing Send or choosing an executor.
+    /// Like owned tasks, a known aggregate panic at Ready yields Panicked even
+    /// if this future returned Ok. WorkStatus remains authoritative for cleanup
+    /// after Ready; neither this output nor run's output certifies native commit.
     pub fn track<F, T>(mut self, future: F) -> impl Future<Output = Result<T, TaskFailure>>
     where
         F: Future<Output = Result<T, TaskFailure>>,
@@ -202,7 +221,7 @@ impl Drop for ProducerExit {
         if let Some(status) = &self.status {
             status.update(|s| {
                 if !s.exit_acknowledged {
-                    s.terminal = Terminal::DroppedUnknown;
+                    s.terminal.record(Terminal::DroppedUnknown);
                     s.exit_acknowledged = true;
                 }
             });
@@ -626,11 +645,18 @@ impl<D: Clone, T: Clone> TimerCompletion<D, T> {
 }
 impl<D, T> Drop for TimerCompletion<D, T> {
     fn drop(&mut self) {
+        // Take first so automatic field drop cannot destroy the payload after
+        // acknowledgment. Its receipt remains alive throughout payload drop,
+        // including unwind; retained completion clones keep their own charge.
+        let completion = self.completion.take();
+        let panic = catch_unwind(AssertUnwindSafe(|| drop(completion))).is_err();
         self.status.update(|s| {
+            s.terminal.record(if panic {
+                Terminal::Panicked
+            } else {
+                Terminal::DroppedUnknown
+            });
             s.exit_acknowledged = true;
-            if s.terminal == Terminal::Running {
-                s.terminal = Terminal::DroppedUnknown;
-            }
         });
     }
 }
@@ -693,11 +719,11 @@ impl Drop for Effect {
             let panic = catch_unwind(AssertUnwindSafe(|| drop(callback))).is_err();
             self.status.update(|s| {
                 s.exit_acknowledged = true;
-                s.terminal = if panic {
+                s.terminal.record(if panic {
                     Terminal::Panicked
                 } else {
                     Terminal::DroppedUnknown
-                };
+                });
             });
         }
     }
@@ -783,11 +809,11 @@ pub fn drain_world_effects(world: &mut World, budget: usize) -> usize {
             let result = catch_unwind(AssertUnwindSafe(|| callback(world)));
             effect.status.update(|s| {
                 s.exit_acknowledged = true;
-                s.terminal = if result.is_ok() {
+                s.terminal.record(if result.is_ok() {
                     Terminal::Succeeded
                 } else {
                     Terminal::Panicked
-                };
+                });
             });
         }
     }
@@ -801,5 +827,41 @@ mod tests {
     fn epoch_max_refuses_without_advancing() {
         assert_eq!(checked_epoch(u64::MAX), Err(Error::Exhausted));
         assert_eq!(checked_epoch(u64::MAX - 1), Ok(u64::MAX));
+    }
+    #[test]
+    fn aggregate_terminal_evidence_never_downgrades_in_any_order() {
+        let evidence = [
+            Terminal::Running,
+            Terminal::DroppedUnknown,
+            Terminal::Succeeded,
+            Terminal::Failed,
+            Terminal::Panicked,
+        ];
+        for (a_rank, &a) in evidence.iter().enumerate() {
+            for (b_rank, &b) in evidence.iter().enumerate() {
+                let expected = evidence[a_rank.max(b_rank)];
+                let mut forward = a;
+                forward.record(b);
+                let mut reverse = b;
+                reverse.record(a);
+                assert_eq!(forward, expected);
+                assert_eq!(reverse, expected);
+            }
+        }
+    }
+    #[test]
+    fn tracked_pending_drop_preserves_known_failure_without_early_ack() {
+        for known in [Terminal::Failed, Terminal::Panicked] {
+            let status = WorkStatus::default();
+            status.update(|s| s.terminal.record(known));
+            let pending = Tracked::new(
+                std::future::pending::<Result<(), TaskFailure>>(),
+                status.clone(),
+            );
+            assert!(!status.observation().exit_acknowledged);
+            drop(pending);
+            assert!(status.observation().exit_acknowledged);
+            assert_eq!(status.observation().terminal, known);
+        }
     }
 }
