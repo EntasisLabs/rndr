@@ -3138,9 +3138,8 @@ mod tests {
             None,
         );
         assert_eq!(built.index.line_count(), full.lines.len());
-        for row in 0..full.lines.len() {
+        for (row, line) in full.lines.iter().enumerate() {
             let indexed = built.index.line(row);
-            let line = &full.lines[row];
             assert_eq!(indexed.start, line.start, "row {row} start");
             assert_eq!(indexed.end, line.end, "row {row} end");
             assert_eq!(indexed.y.to_bits(), line.y.to_bits(), "row {row} y");
@@ -3171,9 +3170,8 @@ mod tests {
         );
         assert_eq!(folded.index.line_count(), full.lines.len());
         assert!(folded.index.line_count() < built.index.line_count());
-        for row in 0..full.lines.len() {
+        for (row, line) in full.lines.iter().enumerate() {
             let indexed = folded.index.line(row);
-            let line = &full.lines[row];
             assert_eq!(indexed.start, line.start, "folded row {row} start");
             assert_eq!(indexed.y.to_bits(), line.y.to_bits(), "folded row {row} y");
             assert_eq!(indexed.h.to_bits(), line.h.to_bits(), "folded row {row} h");
