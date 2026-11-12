@@ -1,0 +1,13 @@
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f4-owned-adapters-and-completion-gates/crates/rndr_flow)
+error[E0382]: borrow of moved value: `world`
+   --> crates/rndr_flow/tests/independent_r3.rs:134:43
+    |
+132 |             let world = flow.register_world().unwrap();
+    |                 ----- move occurs because `world` has type `WorldOwner`, which does not implement the `Copy` trait
+133 |             world.bind(sim.world()).unwrap();
+    |             ----- value moved here
+134 |             let owner = flow.create_scope(world.scope()).unwrap();
+    |                                           ^^^^^ value borrowed here after move
+
+For more information about this error, try `rustc --explain E0382`.
+error: could not compile `rndr-flow` (test "independent_r3") due to 1 previous error

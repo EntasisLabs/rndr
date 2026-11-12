@@ -1,0 +1,10 @@
+$ sh -c git rev-parse HEAD HEAD^; git status --short; rustc --version; cargo --version; df -k .
+2abc7d32c9029587ac74bea599428545efa8a1e6
+896ed5e4c294caa83550257226541cda245825cf
+?? docs/reports/rndr-flow-f4-r3-independent-evidence/
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+cargo 1.98.0 (797e8a9bc 2026-08-05)
+Filesystem   1024-blocks      Used Available Capacity iused    ifree %iused  Mounted on
+/dev/disk3s5   239362496 201665124   7912412    97% 1921318 79124120    2%   /System/Volumes/Data
+
+exit=0

@@ -1,0 +1,12 @@
+$ cargo fmt --all --check (CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=2)
+exit=0
+$ rustfmt --edition 2021 --check saved independent probe
+exit=0
+$ sh -n saved independent runner
+exit=0
+tracked diff check exit=0
+2abc7d32c9029587ac74bea599428545efa8a1e6
+896ed5e4c294caa83550257226541cda245825cf
+f16e5572d35450d586dd4f10e00591fa36fb2b04
+Filesystem   1024-blocks      Used Available Capacity iused    ifree %iused  Mounted on
+/dev/disk3s5   239362496 201666292   7911244    97% 1921426 79112440    2%   /System/Volumes/Data
