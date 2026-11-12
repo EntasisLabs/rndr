@@ -273,6 +273,18 @@ impl ProtectionHost {
             .checked_add(1)
             .ok_or(Error::Exhausted)?;
         let world = self.native[at].world;
+        if !flow.world_is_live(world) {
+            return Err(Error::Stale);
+        }
+        let state = get_world(worlds, world)?
+            .resource::<CloseGuard>()
+            .ok_or(Error::Invalid)?
+            .state();
+        if !matches!(state, CloseState::Pending(r) | CloseState::Failed(r, _) | CloseState::Ready(r)
+            if *r == self.native[at].request)
+        {
+            return Err(Error::Stale);
+        }
         if choice == Choice::Cancel {
             get_world_mut(worlds, world)?
                 .resource_mut::<CloseGuard>()
@@ -281,18 +293,23 @@ impl ProtectionHost {
             self.native.remove(at);
             return Ok(());
         }
+        // World/guard admission above precedes removal. The fallible choice is
+        // captured and the attempt reinserted on either result; retry the native
+        // request only after admission succeeds. Refusal is not cancellation.
         let mut attempt = self.native.remove(at);
-        if choice == Choice::Save {
-            let g = get_world_mut(worlds, world)?
+        let phase = self
+            .pass(flow, worlds)
+            .choose(&mut attempt.guard, decision, choice);
+        if phase.is_ok() && choice == Choice::Save {
+            // Admission above established this guard, with no intervening callback.
+            let g = get_world_mut(worlds, world)
+                .expect("validated World")
                 .resource_mut::<CloseGuard>()
-                .ok_or(Error::Invalid)?;
+                .expect("validated CloseGuard");
             if let Some(request) = g.retry(attempt.request) {
                 attempt.request = request;
             }
         }
-        let phase = self
-            .pass(flow, worlds)
-            .choose(&mut attempt.guard, decision, choice);
         match phase {
             Ok(p) => {
                 attempt.phase = p;
@@ -512,81 +529,99 @@ impl ProtectionHost {
             });
         }
         let mut attempts = std::mem::take(&mut self.native);
-        for n in &mut attempts {
-            let mut pass = self.pass(flow, worlds);
-            if n.phase == Phase::Saving {
-                n.phase = pass.poll(&mut n.guard);
+        // Restore ownership even if a fallible World/guard lookup refuses below.
+        let result = (|| {
+            for n in &mut attempts {
+                let mut pass = self.pass(flow, worlds);
+                if n.phase == Phase::Saving {
+                    n.phase = pass.poll(&mut n.guard);
+                }
+                if pass.validate(&n.guard).is_err() {
+                    n.phase = Phase::Failed;
+                    let g = get_world_mut(worlds, n.world)?
+                        .resource_mut::<CloseGuard>()
+                        .ok_or(Error::Invalid)?;
+                    if matches!(g.state(), CloseState::Ready(_)) {
+                        g.invalidate();
+                        if let CloseState::Pending(r) = g.state() {
+                            n.request = *r;
+                        }
+                    }
+                }
             }
-            if pass.validate(&n.guard).is_err() {
-                n.phase = Phase::Failed;
+            // First validate every owned attempt, then publish native readiness.
+            // Destroying a manager World destroys its actual native document store:
+            // another retained presentation (or application lease) must not outlive it.
+            // Compute the greatest dependency-closed subset of Ready attempts.
+            // Removing B (e.g. for an application lease) must also remove every
+            // manager A presented by B, transitively. Starting with all Ready nodes
+            // preserves legitimate jointly closing cycles; order cannot affect this
+            // monotone fixed point. No second store or ownership transfer is used.
+            let mut prepared: Vec<_> = attempts
+                .iter()
+                .filter(|n| n.phase == Phase::Ready)
+                .map(|n| n.world)
+                .collect();
+            loop {
+                let blocked: Vec<_> = attempts
+                    .iter()
+                    .filter(|n| {
+                        prepared.contains(&n.world)
+                            && n.guard
+                                .docs
+                                .iter()
+                                .filter(|d| d.target.manager == n.world)
+                                .any(|d| {
+                                    flow.leases.values().any(|l| {
+                                        l.document == d.target.document
+                                            && flow.held(l)
+                                            && !prepared
+                                                .iter()
+                                                .any(|w| scope_in_world(flow, l.scope, *w))
+                                    })
+                                })
+                    })
+                    .map(|n| n.world)
+                    .collect();
+                if blocked.is_empty() {
+                    break;
+                }
+                prepared.retain(|w| !blocked.contains(w));
+            }
+            for n in &mut attempts {
                 let g = get_world_mut(worlds, n.world)?
                     .resource_mut::<CloseGuard>()
                     .ok_or(Error::Invalid)?;
-                if matches!(g.state(), CloseState::Ready(_)) {
-                    g.invalidate();
-                    if let CloseState::Pending(r) = g.state() {
-                        n.request = *r;
+                if n.phase == Phase::Ready && !prepared.contains(&n.world) {
+                    // Cancellation/withdrawal of a participant revokes a previous
+                    // Ready before the runner can consume it. Keep the freeze; the
+                    // fresh request is reconciled at the next pass.
+                    if matches!(g.state(), CloseState::Ready(_)) {
+                        g.invalidate();
                     }
+                    continue;
                 }
-            }
-        }
-        // First validate every owned attempt, then publish native readiness.
-        // Destroying a manager World destroys its actual native document store:
-        // another retained presentation (or application lease) must not outlive it.
-        // Ready phases form the bounded jointly-prepared teardown cohort; no
-        // second document store or implicit ownership transfer is introduced.
-        let prepared: Vec<_> = attempts
-            .iter()
-            .filter(|n| n.phase == Phase::Ready)
-            .map(|n| n.world)
-            .collect();
-        for n in &mut attempts {
-            let manager_in_use = n
-                .guard
-                .docs
-                .iter()
-                .filter(|d| d.target.manager == n.world)
-                .any(|d| {
-                    flow.leases.values().any(|l| {
-                        l.document == d.target.document
-                            && flow.held(l)
-                            && !scope_in_world(flow, l.scope, n.world)
-                            && !prepared
-                                .iter()
-                                .any(|world| scope_in_world(flow, l.scope, *world))
-                    })
-                });
-            let g = get_world_mut(worlds, n.world)?
-                .resource_mut::<CloseGuard>()
-                .ok_or(Error::Invalid)?;
-            if n.phase == Phase::Ready && manager_in_use {
-                // Cancellation/withdrawal of a participant revokes a previous
-                // Ready before the runner can consume it. Keep the freeze; the
-                // fresh request is reconciled at the next pass.
-                if matches!(g.state(), CloseState::Ready(_)) {
-                    g.invalidate();
-                }
-                continue;
-            }
-            match n.phase {
-                Phase::Ready => {
-                    if matches!(g.state(),CloseState::Failed(r,_)if *r==n.request) {
-                        g.discard(n.request);
-                    } else {
-                        g.complete(n.request, Ok(()));
+                match n.phase {
+                    Phase::Ready => {
+                        if matches!(g.state(),CloseState::Failed(r,_)if *r==n.request) {
+                            g.discard(n.request);
+                        } else {
+                            g.complete(n.request, Ok(()));
+                        }
                     }
+                    Phase::Failed => {
+                        g.complete(
+                            n.request,
+                            Err("flow protection failed; retry, cancel or informed discard".into()),
+                        );
+                    }
+                    _ => {}
                 }
-                Phase::Failed => {
-                    g.complete(
-                        n.request,
-                        Err("flow protection failed; retry, cancel or informed discard".into()),
-                    );
-                }
-                _ => {}
             }
-        }
+            Ok(())
+        })();
         self.native = attempts;
-        Ok(())
+        result
     }
     /// Only terminal WorldOwner loss releases native Ready protections. The runner,
     /// not flow, commits native destruction after *all* participating guards are Ready.
@@ -867,6 +902,27 @@ impl TransitionHost<ProtectedTarget> for ProtectionPass<'_, '_> {
             worlds: None,
             native_world: None,
         })
+    }
+    fn validate_entry(
+        &self,
+        scope: ScopeId,
+        target: &ProtectedTarget,
+        lease: &PresentationLease,
+    ) -> Result<(), Error> {
+        if !self.flow.document_is_live(target.document)
+            || !self.flow.world_is_live(target.manager)
+            || !self.host.records.iter().any(|r| r.target == *target)
+            || !self.flow.leases.values().any(|l| {
+                l.scope == scope
+                    && l.document == target.document
+                    && std::sync::Arc::ptr_eq(&l.held, &lease.0)
+                    && self.flow.held(l)
+            })
+        {
+            return Err(Error::Stale);
+        }
+        revision(get_world(self.worlds, target.manager)?, target.native)?;
+        Ok(())
     }
     fn dirty(&self, g: &FrozenDocuments) -> bool {
         g.docs.iter().any(|d| !matches!(d.state, Protection::Safe))

@@ -207,6 +207,14 @@ pub trait TransitionHost<D> {
     ) -> Result<Phase, Error>;
     fn poll(&mut self, guard: &mut Self::Guard) -> Phase;
     fn validate(&self, guard: &Self::Guard) -> Result<(), Error>;
+    /// Observational, callback-free validation of the incoming native identity and
+    /// its exact presentation lease. Required even when no outgoing target exists.
+    fn validate_entry(
+        &self,
+        scope: ScopeId,
+        document: &D,
+        lease: &crate::PresentationLease,
+    ) -> Result<(), Error>;
 }
 /// Bounded retained history plus bounded owned operations/outcomes. Not an executor,
 /// document store, UI tree, navigation service or implicit resource eviction policy.
@@ -483,13 +491,28 @@ impl<R, D: Clone + Eq, G> Retained<R, D, G> {
             Err(Error::Stale)
         }
     }
+    fn incoming_entry<'a>(&'a self, c: &'a Navigation<R, D>) -> Option<&'a RetainedEntry<R, D>> {
+        if let Navigation::Select { tab, entry } = c {
+            self.tab(*tab)
+                .ok()?
+                .history
+                .iter()
+                .find(|e| e.id() == *entry)
+        } else {
+            c.new_entry()
+        }
+    }
     fn resolve(&self, c: &Navigation<R, D>) -> Result<(Vec<ScopeId>, Vec<ScopeId>), Error> {
         let mut affected = vec![];
         let mut tabs = vec![];
         match c {
             Navigation::Select { tab, entry } => {
                 let t = self.tab(*tab)?;
-                if !t.history.iter().any(|e| e.id() == *entry) {
+                if !t
+                    .history
+                    .iter()
+                    .any(|e| e.id() == *entry && e.owner.liveness().is_live())
+                {
                     return Err(Error::Stale);
                 }
                 tabs.push(*tab);
@@ -616,6 +639,13 @@ impl<R, D: Clone + Eq, G> Retained<R, D, G> {
                     .filter(|e| self.pending[at].affected.contains(&e.id()))
                     .map(|e| (e.id(), e.document.clone()))
                     .collect();
+                if self
+                    .incoming_entry(&self.pending[at].command)
+                    .is_some_and(|e| host.validate_entry(e.id(), &e.document, &e.lease).is_err())
+                {
+                    self.pending[at].phase = Phase::Failed;
+                    continue;
+                }
                 match host.protect(self.pending[at].id, &targets) {
                     Ok(g) => {
                         self.pending[at].phase = if host.dirty(&g) {
@@ -646,7 +676,22 @@ impl<R, D: Clone + Eq, G> Retained<R, D, G> {
                     p.phase = Phase::Failed;
                     continue;
                 }
-                // Take command out only after every target validated.
+                // Incoming owners can be lost while the outgoing documents wait
+                // for a decision/save, including a different-document replacement.
+                // Re-resolve every identity and the exact truncation set, and check
+                // the incoming native authority/lease at this final boundary too.
+                let p = &self.pending[at];
+                let valid = self
+                    .resolve(&p.command)
+                    .is_ok_and(|(a, t)| a == p.affected && t == p.tabs)
+                    && self
+                        .incoming_entry(&p.command)
+                        .is_none_or(|e| host.validate_entry(e.id(), &e.document, &e.lease).is_ok());
+                if !valid {
+                    self.pending[at].phase = Phase::Failed;
+                    continue;
+                }
+                // No callbacks between final validation and metadata mutation.
                 let p = self.pending.remove(at);
                 self.commit(p);
                 return; // removal shifts indexes; next pass resumes

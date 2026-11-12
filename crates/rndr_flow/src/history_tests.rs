@@ -3,6 +3,14 @@ use crate::{Coordinator, DocumentId, Limits};
 struct Host;
 impl TransitionHost<DocumentId> for Host {
     type Guard = bool;
+    fn validate_entry(
+        &self,
+        _: ScopeId,
+        _: &DocumentId,
+        _: &crate::PresentationLease,
+    ) -> Result<(), Error> {
+        Ok(())
+    }
     fn protect(&mut self, _: OperationId, t: &[(ScopeId, DocumentId)]) -> Result<bool, Error> {
         Ok(!t.is_empty())
     }
