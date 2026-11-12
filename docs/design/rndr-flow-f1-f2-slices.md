@@ -1617,3 +1617,180 @@ the terminal handback. `main` remains
 `d18c55414d30c4c563148b30fd7e096f0bfd863d`. A local candidate commit is not
 acceptance, approval, sealing, integration, push, publication or deployment.
 The sender retains independent assessment/review/fixes and the native lifecycle.
+
+## O. F2 correction after independent P2 review of c289747
+
+### O.1 Reproduction before correction and permanent public coverage
+
+The sender accepted the **review deliverable only**, not the implementation.
+This correction continues the same undertaking from clean candidate
+`c289747aff85d6cb538b61359c28681e0272eac0`; accepted F1/main remains
+`d18c55414d30c4c563148b30fd7e096f0bfd863d`. The complete original review,
+probe source, commands and logs remain unchanged in
+`target/f2/independent-review/`. Fresh correction evidence is separate under
+`target/f2/p2-correction/`, including a before/after hash inventory of that
+independent evidence. Historical sections above are preserved, not rewritten
+as though the old candidate already passed this review.
+
+Before any production edit, permanent public-path tests were added in
+`crates/rndr_liquid_ui/tests/source_normalization.rs` and run with:
+
+```sh
+export PATH="$HOME/.cargo/bin:$PATH"
+export CARGO_BUILD_JOBS=2 CARGO_INCREMENTAL=0
+export CARGO_TARGET_DIR="$PWD/target/f2"
+cargo test --locked --offline -p rndr_liquid_ui --test source_normalization -- --nocapture
+```
+
+- `before.log`: the exact opening-CRLF repro and initial CRLF-boundary matrix
+  both fail, **0 passed / 2 failed, exit 101**. The repro uses the review's
+  exact multiline accordion, CRLF wire split at byte **13**, public creation,
+  public push of the remainder and public normalized setter. Expected one
+  accordion from `LiquidStream::new(a).blocks()`, actual empty.
+- `before-all.log`: a separately runnable normalized-prefix-extension test was
+  then added, still before any production edit. **All three tests fail,
+  exit 101**; the prefix test demonstrates the second unsafe path, not just
+  the early return. These are genuine runtime failures, not setup failures.
+- After correction, the matrix was expanded to **all 556 combinations** of
+  every byte split (therefore including before/inside/after each opening,
+  body and closing CRLF), complete/pending fence, keyed/unkeyed setter and
+  normalized equality/prefix extension. It checks actual Liquid blocks and
+  Markdown source, complete occurrence handles, preservation of two equal
+  completed blocks' handles/state/record revisions, new missing-state handles,
+  absent pending identities, atomic invalid-key refusal, normalized no-op
+  source revisions, and public push completion after a pending setter.
+- The exact repro also checks that a real canonical projection repair advances
+  the opaque source revision. Repeating a genuine normalized no-op does not.
+  Existing `keyed_identity.rs`'s completed-duplicate CRLF no-op regression is
+  retained and passes alongside these tests.
+- Additional physical coverage exercises keyed and unkeyed repair with two
+  mounted controls, or with both controls genuinely released offscreen and
+  then remounted. Distinct open/closed duplicate records must survive both
+  branches. This exposed a necessary correction in the common replacement
+  path: a released native binding could outlive the cleared saved entry and
+  remount an empty slot, blocking the renderer's fresh slot. The new test
+  failed before that correction (`after-mounted.log`,
+  `mounted-diagnostic.log`) and passes afterward (`after-saved-slot-fix.log`).
+  The fix is limited to exact Liquid-owned slot handles, described below.
+
+`after-focused.log` records the first three tests and existing five keyed
+identity tests passing. `after-expanded.log` is a **fixture-only compilation
+failure** from trying to inspect the private revision tuple field; the fixture
+was corrected to use public opaque equality/inequality, not an API expansion.
+It is not counted as defect evidence. `after-expanded-fixed-fixture.log`
+records all 556 cases passing. `after-saved-slot-fix.log` records all four final
+normalization tests plus the five existing keyed tests passing. Initial full
+gates are retained in `initial-gates/`; the final full rerun after the saved-slot
+correction is the qualification that applies to the final production tree.
+
+### O.2 Canonical staging and ownership decision
+
+This is a renderer-side complete-source setter repair, consistent with F0 §7
+and slices B/C/D/F/N; it does **not** change raw parser or core production.
+
+1. Both legacy and keyed setters continue to normalize CRLF, build a complete
+   canonical `LiquidStream`, validate the complete sidecar and check authority
+   before publication. Every successful setter path now installs that staged
+   stream. None clones/pushes into the old raw stream to derive setter output.
+2. Normalized byte equality alone is not a no-op proof. Actual public block
+   projection, prior stream blocks, normalized Markdown output and pending
+   language must agree with staging, and the current keys must agree. Only
+   when the physical Markdown bytes also agree can presentation be skipped.
+   Even then, replace the private stream with canonical staging so latent
+   chunk-dependent parser cursors cannot affect the next public push. Handles,
+   records, state revisions and source revision remain unchanged.
+3. If only physical Markdown CRLF bytes differ, publish normalized presentation
+   through the validated common mapping without spuriously advancing the source
+   revision or resetting duplicates. If canonical blocks/Markdown/pending state
+   actually differ, it is a real projection repair: the checked source revision
+   advances, even when the normalized raw source bytes were equal. No new block
+   inherits an invalid old pending index or a missing occurrence's state.
+4. Normalized true source-prefix extension remains the **identity** append
+   exception in the shared resolver, preserving equal completed duplicates and
+   inherited keys. The legacy **physical** append fast path is stricter: both
+   the old block vector (indices included) and exact old Markdown output must
+   be prefixes of canonical staging. Derive its delta from canonical Markdown,
+   never from a push into the prior parser. Otherwise use the full canonical
+   replacement/remap path with its existing checked admission and rollback.
+5. Full replacement transfers saved/mounted/carry state through that same
+   logical mapping. Private saved state now retains its exact `MarkdownSlot`
+   handle. Once the logical plan succeeds and saved state has moved to carry,
+   detach those released bindings as well as mounted bindings; otherwise core
+   could later remount a stale empty native slot. Do not clear all host slots
+   or sweep application entities. Refusals occur before this detach and leave
+   saved bindings, source, records and revisions untouched. Existing F1 parking,
+   independent ownership, feed settlement and callback bounds remain in force.
+
+Only `view.rs`, the focused new normalization test and this append-only design
+ledger change in this correction. Original three-variant `LiquidUpdateError`,
+additive `LiquidF2Error`, legacy signatures and public record/envelope/request
+layouts are untouched; there are no parser/core production, Cargo/dependency/
+lockfile, SDK/Medousa, facade, new-crate or migration changes.
+
+**Residual boundary:** raw `LiquidStream` and an uninterrupted series of public
+raw pushes can still exhibit inherited chunk-sensitive CRLF behavior before a
+complete-source setter repairs it. This correction does not claim a general
+parser streaming fix. A setter canonically stages its complete normalized
+input and installs safe starting state; a later newly split raw CRLF can again
+require that boundary. Complete-source parsing, projection comparison and
+full-value correspondence retain their whole-stream/worst-case comparison
+costs. No release performance probes have been run and no new scaling,
+physical-quiescence-under-uncontrolled-producers, or broad readiness claim is
+made. Sender assessment and fresh independent re-review remain required before
+native approval/integration; this correction performs no seal, approval,
+integration, push, publication or deployment.
+
+### O.3 Final correction qualification receipts
+
+The full gate batch was rerun **after the final canonical/saved-slot production
+correction and all four final public normalization tests**. Commands ran
+serially with the O.1 environment, locked/offline Cargo, worktree-local target,
+no downloads/shared-target commands and no lockfile edits. The following exact
+commands each exited **0**; complete command files and logs are in
+`target/f2/p2-correction/`, with statuses in `results` and the rerunnable batch
+in `run-gates.sh`:
+
+| Exact command | Final result | Local log |
+| --- | --- | --- |
+| `cargo test --locked --offline -p rndr_liquid -p rndr_liquid_ui -- --nocapture` | UI **104 passed, 0 failed, 2 existing opt-in ignored**, plus **1 UI doctest**; parser **11 passed**, plus **5 parser doctests**; **121 total passing**, no test-name filters | `liquid.log` |
+| `cargo test --locked --offline -p rndr_core --lib --test runtime --test feed --test markdown` | **179 passed, 0 failed, 1 pre-existing ignored**, no test-name filters | `core.log` |
+| `cargo check --locked --offline -p rndr --no-default-features --features liquid` | Passed Liquid facade compilation | `facade.log` |
+| `cargo test --locked --offline -p rndr --no-default-features --features liquid --test editing_compatibility` | **2 passed**, none failed/ignored/filtered | `compat.log` |
+| `cargo test --locked --offline -p rndr --no-default-features --test editing_compatibility` | **2 passed**, none failed/ignored/filtered; Liquid/UI feature disabled | `feature-off.log` |
+| `cargo clippy --locked --offline -p rndr_liquid_ui --lib --tests -- -D warnings` | Passed with no warnings | `clippy.log` |
+| `cargo fmt --all -- --check` | Passed | `fmt.log` |
+| `git diff --check` | Passed; repeated for staged/committed correction range at handback | `diff.log` |
+
+A fresh `python3 target/f2/p2-correction/verify-vectors.py` audit of the **final**
+`liquid.log` independently checks the actual logged resource vectors, not just
+a test summary. `vector-verification.log` records:
+
+- Exactly **100 cycles numbered 0–99 for each seed 1/7/42**: **all 300 cycles**
+  ran on the final production correction, not a shortened prefix.
+- Every vector has **19 counters**, and **every counter equals its per-World
+  baseline after every teardown**. The retained baseline is
+  `[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]`, not an
+  assumed all-zero baseline.
+- **`external_ack_pending=0` on all 300 teardown records**, with the permanent
+  F2 identity operations still interleaved on every cycle and all F1 physical
+  ownership/settlement assertions active.
+- The final log also records 556 normalization boundary cases and passing
+  mounted/offscreen restoration, legacy exhaustive-match, and all existing
+  independent-review/F1 regression tests. No new regression is ignored.
+
+`independent-evidence-before.sha256` and `independent-evidence-after.sha256`
+compare **identically**, preserving all independent-review files. Historical
+candidate/document prefix and original proof/test files remain intact. The
+focused correction contains only `crates/rndr_liquid_ui/src/view.rs`,
+`crates/rndr_liquid_ui/tests/source_normalization.rs`, and this appended
+ledger. Worktree-local target size is about **2.3 GiB**, with about **9.8 GiB**
+available on the volume at final audit. The exact correction commit and clean
+status are returned in the durable terminal handback; `main` remains accepted
+F1 `d18c55414d30c4c563148b30fd7e096f0bfd863d`.
+
+These are author-run correction receipts, **not independent acceptance**. The
+unchanged `liquid_stream_cost` and `liquid_density_cost` opt-in release probes
+remain unrun, and the whole-stream staging/comparison performance caveat remains.
+The sender retains assessment and fresh independent re-review before any native
+approval or integration. No seal, approval, merge/integration, push,
+publication or deployment was performed.

@@ -30,6 +30,9 @@ pub struct LiquidView {
 struct Saved {
     block: usize,
     state: BlockState,
+    // Released native bindings outlive their roots. Keep our exact slot handle
+    // so a canonical replacement can retire it without sweeping other hosts.
+    slot: MarkdownSlot,
 }
 
 impl Component for LiquidView {}
@@ -153,8 +156,29 @@ fn set_source(
         .get::<LiquidView>(view)
         .and_then(|l| l.stream.as_ref())
         .map(|s| s.source().replace("\r\n", "\n"));
-    let source_changed = prior_source.as_deref() != Some(normalized.as_str());
-    if !source_changed && lifecycle::same_keys(world, view, keys) {
+    // Chunk-local CRLF normalization in the raw stream can leave a different
+    // projection than a complete parse of the normalized source. Source equality
+    // alone is not a no-op proof (including while a fence is still pending).
+    let prior = world
+        .get::<LiquidView>(view)
+        .and_then(|l| l.stream.as_ref());
+    let same_projection = world
+        .get::<LiquidView>(view)
+        .is_some_and(|liquid| liquid.blocks.as_slice() == stream.blocks())
+        && prior.is_some_and(|prior| {
+            prior.blocks() == stream.blocks()
+                && prior.markdown().replace("\r\n", "\n") == stream.markdown()
+                && prior.pending_lang() == stream.pending_lang()
+        });
+    let source_changed = prior_source.as_deref() != Some(normalized.as_str()) || !same_projection;
+    if !source_changed
+        && lifecycle::same_keys(world, view, keys)
+        && prior.is_some_and(|prior| prior.markdown() == stream.markdown())
+    {
+        // Even an observably equal stream may carry chunk-dependent private
+        // cursors. Install canonical staging for the next public push without
+        // touching membership, presentation, handles or any revision.
+        world.get_mut::<LiquidView>(view).unwrap().stream = Some(stream);
         return Ok(());
     }
     let tx = lifecycle::transaction(world, view).ok_or(crate::LiquidF2Error::StaleOwner)?;
@@ -162,37 +186,43 @@ fn set_source(
         tx.commit();
         return Err(crate::LiquidF2Error::StaleOwner);
     };
-    if let Some(prior) = liquid.stream.as_ref() {
-        if keys.is_none() {
-            if let Some(rest) = prior_source
-                .as_deref()
-                .and_then(|source| normalized.strip_prefix(source))
-            {
-                let mut stream = prior.clone();
-                let write = stream.push_str(rest);
-                if let Err(reason) = lifecycle::replace_detailed(
-                    world,
-                    view,
-                    stream.blocks(),
-                    stream.markdown(),
-                    true,
-                    keys,
-                    source_changed,
-                ) {
-                    world.insert(view, liquid);
-                    tx.commit();
-                    return Err(reason);
-                }
-                lifecycle::bind_markdown(world, view, stream.markdown());
-                liquid.stream = Some(stream);
-                adopt_blocks(&mut liquid);
-                world.insert(view, liquid);
-                tx.commit();
-                apply_markdown(world, view, write);
-                return Ok(());
-            }
+    let append = prior_source
+        .as_deref()
+        .is_some_and(|s| normalized.starts_with(s));
+    // Preserve physical mounts on a proven append, but publish the *canonical*
+    // staging above, never a clone of the chunk-dependent prior parser. Both
+    // block-vector indices and projected markdown bytes must be a true prefix
+    // before an append-only presentation write is safe.
+    let delta = liquid.stream.as_ref().and_then(|prior| {
+        (append && keys.is_none() && stream.blocks().starts_with(&liquid.blocks))
+            .then(|| stream.markdown().strip_prefix(prior.markdown()))
+            .flatten()
+            .map(str::to_owned)
+    });
+    if let Some(delta) = delta {
+        if let Err(reason) = lifecycle::replace_detailed(
+            world,
+            view,
+            stream.blocks(),
+            stream.markdown(),
+            true,
+            keys,
+            source_changed,
+        ) {
+            world.insert(view, liquid);
+            tx.commit();
+            return Err(reason);
         }
+        lifecycle::bind_markdown(world, view, stream.markdown());
+        liquid.stream = Some(stream);
+        adopt_blocks(&mut liquid);
+        world.insert(view, liquid);
+        tx.commit();
+        apply_markdown(world, view, MarkdownWrite::Append(delta));
+        return Ok(());
     }
+    // Append still governs logical correspondence when canonical repair needs
+    // a full presentation replacement: equal settled duplicates retain state.
     let old_blocks = Arc::clone(&liquid.blocks);
     let mut states = vec![None; old_blocks.len()];
     for saved in liquid.saved.values() {
@@ -213,9 +243,6 @@ fn set_source(
             states[mounted.block] = Some(state);
         }
     }
-    let append = prior_source
-        .as_deref()
-        .is_some_and(|s| normalized.starts_with(s));
     let mapping = match lifecycle::replace_detailed(
         world,
         view,
@@ -237,7 +264,12 @@ fn set_source(
         .iter()
         .map(|i| i.and_then(|i| states.get(i).cloned().flatten()))
         .collect();
-    liquid.saved.clear();
+    // Saved state has moved into carry through the validated logical mapping.
+    // Retire its released native bindings too: otherwise core can remount an
+    // empty old slot (its saved entry is gone), blocking the new presentation.
+    for (_, saved) in liquid.saved.drain() {
+        let _ = saved.slot.detach(world);
+    }
     // Physical slots cannot choose semantic correspondence. Recreate them from
     // the validated logical plan, including unchanged blocks that moved.
     for mounted in std::mem::take(&mut liquid.mounted) {
@@ -320,6 +352,7 @@ impl LiquidView {
                         Saved {
                             block: mounted.block,
                             state,
+                            slot: mounted.slot,
                         },
                     );
                 }
@@ -487,7 +520,7 @@ impl MarkdownSlotHost for LiquidHooks {
                     }
                 }
             }
-            liquid.saved.insert(source, Saved { block, state });
+            liquid.saved.insert(source, Saved { block, state, slot });
         }
         lifecycle::park_under(world, slot.root);
         lifecycle::clear_presentation(world, slot.root);
