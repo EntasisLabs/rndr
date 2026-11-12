@@ -1,6 +1,35 @@
 # rndr-flow F4 candidate report — 2026-11-12
 
-## Outcome and authority
+## Scoped correction supersedes the original handback
+
+The independent review of `9e09c575f222384d5e3c843511552f64d0cbbf4d`
+**failed** on R1/R2; standard green gates did not prove those compositions.
+Review-only parent `acaa7ede97f01791f19fe4629ad3e3157011aee4` and all original
+implementation/review evidence are preserved. See the new
+[correction report](rndr-flow-f4-correction.md),
+[21-gate runner](rndr-flow-f4-correction-gates.sh), and
+[separate fresh qualification](rndr-flow-f4-correction-evidence/qualified/summary.tsv).
+
+R1 now destroys the actual timer completion under the owned catch boundary
+**before** acknowledging returned/unwound destruction. A single destructor panic
+is `Panicked`, not unknown, and does not escape update. R2 uses monotonic aggregate
+terminal evidence across producer/task/timer/effect transitions: known panic or
+failure cannot become success/unknown. Actual-exit acknowledgment stays separate;
+blocked producers remain unacknowledged/charged. The review did **not** demonstrate
+a timer capacity leak, and the correction makes no such claim.
+
+Permanent regressions promote all three saved reviewer probes and add 12 timer
+and 20 real producer ordering cases. Final corrected-source fingerprints and
+exact-HEAD rerun details belong to the correction handback, not the old logs.
+Facade compatibility is now **executed**, not merely compiled.
+
+Everything below is the **historical original implementation handback**, with its
+then-fresh results and limits retained for provenance. Its blanket matrix
+completion claim was disproved by R1/R2 and is not evidence of correction or
+acceptance. Neither worker delivery nor this correction is sender acceptance;
+fresh independent exact-head review and sealed native integration remain required.
+
+## Historical outcome and authority
 
 Implemented F4 in the isolated undertaking based on accepted F3
 `f16e5572d35450d586dd4f10e00591fa36fb2b04`. The candidate is the commit containing
@@ -55,7 +84,7 @@ accumulate uncharged queued/published payloads while their World is not advanced
 (b) an application scope earlier than its target World is revisited after that
 World's retirement. Both now have exact negative/progress tests.
 
-## Fresh verification
+## Historical original verification (not fresh correction evidence)
 
 Run from repository root:
 

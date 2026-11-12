@@ -1,0 +1,3 @@
+# Preserve exact raw command output, including interleaved test progress spaces.
+# Only correction receipt logs are exempt; all source/docs remain checked.
+*.txt -whitespace

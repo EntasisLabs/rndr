@@ -1,0 +1,14 @@
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f4-owned-adapters-and-completion-gates/crates/rndr_flow)
+error[E0382]: borrow of moved value: `world`
+  --> crates/rndr_flow/tests/f4_terminal_order.rs:55:43
+   |
+53 |             let world = flow.register_world().unwrap();
+   |                 ----- move occurs because `world` has type `WorldOwner`, which does not implement the `Copy` trait
+54 |             world.bind(sim.world()).unwrap();
+   |             ----- value moved here
+55 |             let owner = flow.create_scope(world.scope()).unwrap();
+   |                                           ^^^^^ value borrowed here after move
+
+For more information about this error, try `rustc --explain E0382`.
+error: could not compile `rndr-flow` (test "f4_terminal_order") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

@@ -1,0 +1,140 @@
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f4-owned-adapters-and-completion-gates/crates/rndr_flow)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.31s
+     Running tests/f4_terminal_order.rs (target/debug/deps/f4_terminal_order-447d8ab72f982435)
+
+running 1 test
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3757061) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+terminal-order kind=0 cleanup_first=false panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3757061) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=0 cleanup_first=true panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3757061) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=1 cleanup_first=false panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3757061) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=1 cleanup_first=true panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3757061) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=2 cleanup_first=false panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3757061) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=2 cleanup_first=true panic_retained=true actual_exit=true independent_progress=true
+
+thread '<unnamed>' (3757068) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:41:14:
+actual producer poll/run panic
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3757061) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=3 cleanup_first=false panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3757061) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+
+thread '<unnamed>' (3757069) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:41:14:
+actual producer poll/run panic
+terminal-order kind=3 cleanup_first=true panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3757061) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=4 cleanup_first=false panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3757061) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=4 cleanup_first=true panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3757061) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=5 cleanup_first=false panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3757061) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=5 cleanup_first=true panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3757061) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=6 cleanup_first=false panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3757061) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=6 cleanup_first=true panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3757061) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=7 cleanup_first=false panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3757061) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=7 cleanup_first=true panic_retained=true actual_exit=true independent_progress=true
+
+thread '<unnamed>' (3757078) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:41:14:
+actual producer poll/run panic
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3757061) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=8 cleanup_first=false panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3757061) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+
+thread '<unnamed>' (3757079) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:41:14:
+actual producer poll/run panic
+terminal-order kind=8 cleanup_first=true panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3757061) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=9 cleanup_first=false panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3757061) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=9 cleanup_first=true panic_retained=true actual_exit=true independent_progress=true
+test real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/f4_timer_drop.rs (target/debug/deps/f4_timer_drop-8756baf851f2311b)
+
+running 1 test
+timer-order mode=0 panic=false no_early_ack=true receipt_preserved=true independent_progress=true
+
+thread 'timer_cancel_publish_world_drop_and_retained_clone_orders_contain_single_panic' (3757083) panicked at crates/rndr_flow/tests/f4_timer_drop.rs:36:17:
+single owned timer payload drop panic
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+timer-order mode=0 panic=true no_early_ack=true receipt_preserved=true independent_progress=true
+timer-order mode=1 panic=false no_early_ack=true receipt_preserved=true independent_progress=true
+
+thread 'timer_cancel_publish_world_drop_and_retained_clone_orders_contain_single_panic' (3757083) panicked at crates/rndr_flow/tests/f4_timer_drop.rs:36:17:
+single owned timer payload drop panic
+timer-order mode=1 panic=true no_early_ack=true receipt_preserved=true independent_progress=true
+timer-order mode=2 panic=false no_early_ack=true receipt_preserved=true independent_progress=true
+
+thread 'timer_cancel_publish_world_drop_and_retained_clone_orders_contain_single_panic' (3757083) panicked at crates/rndr_flow/tests/f4_timer_drop.rs:36:17:
+single owned timer payload drop panic
+timer-order mode=2 panic=true no_early_ack=true receipt_preserved=true independent_progress=true
+timer-order mode=3 panic=false no_early_ack=true receipt_preserved=true independent_progress=true
+
+thread 'timer_cancel_publish_world_drop_and_retained_clone_orders_contain_single_panic' (3757083) panicked at crates/rndr_flow/tests/f4_timer_drop.rs:36:17:
+single owned timer payload drop panic
+timer-order mode=3 panic=true no_early_ack=true receipt_preserved=true independent_progress=true
+timer-order mode=4 panic=false no_early_ack=true receipt_preserved=true independent_progress=true
+
+thread 'timer_cancel_publish_world_drop_and_retained_clone_orders_contain_single_panic' (3757083) panicked at crates/rndr_flow/tests/f4_timer_drop.rs:36:17:
+single owned timer payload drop panic
+timer-order mode=4 panic=true no_early_ack=true receipt_preserved=true independent_progress=true
+timer-order mode=5 panic=false no_early_ack=true receipt_preserved=true independent_progress=true
+
+thread 'timer_cancel_publish_world_drop_and_retained_clone_orders_contain_single_panic' (3757083) panicked at crates/rndr_flow/tests/f4_timer_drop.rs:36:17:
+single owned timer payload drop panic
+timer-order mode=5 panic=true no_early_ack=true receipt_preserved=true independent_progress=true
+test timer_cancel_publish_world_drop_and_retained_clone_orders_contain_single_panic ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

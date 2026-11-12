@@ -1,0 +1,41 @@
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f4-owned-adapters-and-completion-gates/crates/rndr_flow)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.33s
+     Running tests/f4_corrections.rs (target/debug/deps/f4_corrections-6d5d7970614a85d8)
+
+running 3 tests
+
+thread 'world_abandonment_must_not_ack_before_capture_destruction_or_hide_panic' (3754921) panicked at crates/rndr_flow/tests/f4_corrections.rs:73:9:
+single abandoned effect capture destructor panic
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'producer_success_must_not_erase_payload_cleanup_panic' (3754919) panicked at crates/rndr_flow/tests/f4_corrections.rs:11:13:
+single payload destructor panic
+during capture destructor: Observation { retired: false, cancellation_signalled: false, cleanup_attempted: false, exit_acknowledged: false, pending_deliveries: 0, terminal: Running }; after: Observation { retired: false, cancellation_signalled: false, cleanup_attempted: false, exit_acknowledged: true, pending_deliveries: 0, terminal: Panicked }
+
+thread 'timer_payload_destructor_must_be_normalized_before_exit_ack' (3754920) panicked at crates/rndr_flow/tests/f4_corrections.rs:73:9:
+single abandoned effect capture destructor panic
+test world_abandonment_must_not_ack_before_capture_destruction_or_hide_panic ... ok
+after producer success: Observation { retired: true, cancellation_signalled: true, cleanup_attempted: false, exit_acknowledged: true, pending_deliveries: 0, terminal: Succeeded }
+
+thread 'producer_success_must_not_erase_payload_cleanup_panic' (3754919) panicked at crates/rndr_flow/tests/f4_corrections.rs:58:5:
+assertion `left == right` failed: a known cancellation/destructor panic must remain visible after producer succeeds
+  left: Succeeded
+ right: Panicked
+test producer_success_must_not_erase_payload_cleanup_panic ... FAILED
+timer update panicked=true; during destructor: Observation { retired: true, cancellation_signalled: true, cleanup_attempted: true, exit_acknowledged: true, pending_deliveries: 1, terminal: DroppedUnknown }; after: Observation { retired: true, cancellation_signalled: true, cleanup_attempted: true, exit_acknowledged: true, pending_deliveries: 0, terminal: DroppedUnknown }
+
+thread 'timer_payload_destructor_must_be_normalized_before_exit_ack' (3754920) panicked at crates/rndr_flow/tests/f4_corrections.rs:162:5:
+assertion `left == right` failed: single timer payload destructor panic is not an unknown/successful exit
+  left: DroppedUnknown
+ right: Panicked
+test timer_payload_destructor_must_be_normalized_before_exit_ack ... FAILED
+
+failures:
+
+failures:
+    producer_success_must_not_erase_payload_cleanup_panic
+    timer_payload_destructor_must_be_normalized_before_exit_ack
+
+test result: FAILED. 1 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p rndr-flow --test f4_corrections`

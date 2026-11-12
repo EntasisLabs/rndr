@@ -1,0 +1,19 @@
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f4-owned-adapters-and-completion-gates/crates/rndr_flow)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.84s
+     Running tests/f4_terminal_order.rs (target/debug/deps/f4_terminal_order-447d8ab72f982435)
+
+running 1 test
+test real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/f4_timer_drop.rs (target/debug/deps/f4_timer_drop-8756baf851f2311b)
+
+running 1 test
+test timer_cancel_publish_world_drop_and_retained_clone_orders_contain_single_panic ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+    Checking rndr_core v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f4-owned-adapters-and-completion-gates/crates/rndr_core)
+    Checking rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f4-owned-adapters-and-completion-gates/crates/rndr_flow)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.00s

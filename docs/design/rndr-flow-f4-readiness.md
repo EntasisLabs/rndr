@@ -7,7 +7,16 @@ This undertaking implements the five F4 slices authorized after that acceptance.
 This is a committed worker candidate for independent sender review, **not F4
 acceptance or integration**. See the [report](../reports/rndr-flow-f4.md),
 [reproducible gates](../reports/rndr-flow-f4-gates.sh) and
-[raw evidence](../reports/rndr-flow-f4-evidence/summary.tsv).
+[original raw evidence](../reports/rndr-flow-f4-evidence/summary.tsv).
+
+**Correction status:** original candidate `9e09c575` failed independent review on
+R1/R2; review-only descendant `acaa7ede` is preserved. The scoped correction
+implements the original acknowledgment/panic contracts rather than weakening
+them. See [correction report](../reports/rndr-flow-f4-correction.md),
+[fresh gates](../reports/rndr-flow-f4-correction-gates.sh) and
+[new evidence](../reports/rndr-flow-f4-correction-evidence/qualified/summary.tsv).
+All old implementation and independent review evidence stays unchanged;
+new green qualification is worker evidence, not independent acceptance.
 
 The old F3 handoff's “F4 not authorized/implemented” wording is superseded by the
 current authorization and implementation, not by reinterpretation of F0/F3.
@@ -74,13 +83,24 @@ positive limits with `configure_work` before any request/work has been admitted.
 - `ProducerExit::run` normalizes a producer closure on its **existing** thread or
   executor; `track` wraps an async producer without adding Send/runtime bounds.
   Keep the guard/wrapper with that exact producer, not with its UI observer.
-  Dropping an unstarted/abandoned guard reports `DroppedUnknown`, not success.
+  Dropping an unstarted/abandoned guard with no known outcome reports
+  `DroppedUnknown`, not success. A previously known failure/panic is retained.
+  `run` returns its closure's normalized result; it does not overwrite aggregate
+  `WorkStatus` evidence from cleanup. `track`, like owned tasks, returns
+  `Err(Panicked)` at Ready if aggregate panic is already known. Later cleanup can
+  still change aggregate status after either output; neither output certifies
+  native commit or backend success.
 - `advance_feed(&mut Feed)` guards maximum epoch **before** core `advance` can
   clear queued values. Exclusive mutable feed ownership spans check/mutation.
   The owned replacement path does not need to advance an old feed at all.
 - `replace_timer`: existing `after` and manual-clock semantics, with a concrete
   `TimerHandle` and event-lifetime observation. `TimerCompletion::completion`
-  retains its delivery receipt. No second timer wheel. Repeated/late native
+  retains its delivery receipt. Destruction takes and destroys the actual
+  completion under the owned catch boundary, then acknowledges returned/unwound
+  destruction; a single payload destructor panic is contained as `Panicked`.
+  Inside that destructor exit is still unacknowledged and its receipt is live.
+  Caller-retained clones retain their receipt independently of event exit.
+  No second timer wheel. Repeated/late native
   `every` ticks are separately qualified through the consumer gate and a bounded
   owning-World cancellation effect; no invented interval scheduling API.
 - `own_world_effect` admits a `FnOnce(&mut World)` in the exact World's local
@@ -149,7 +169,13 @@ outputs as well as queued/published receipts), and
 
 Logical death is immediate through F3 `Liveness`/`state` and
 `request_is_current`; `retired` records the later physical drain attempt.
-`Succeeded` means the wrapped computation returned, **not** that native commit,
+Aggregate terminal evidence is monotonic: known `Panicked` takes precedence over
+`Failed`, then `Succeeded`, then `DroppedUnknown`, then `Running`. Actual-exit
+acknowledgment is independent, never fabricated by cleanup, quiet pumps or a
+known panic. Task/feed/timer cancellation marks `cleanup_attempted` before
+invoking cancellation/destruction, so a caught panic cannot hide the real attempt. `DroppedUnknown` describes abandonment without a better known
+outcome; it does not erase failure. `Succeeded` means the wrapped computation
+returned with no aggregate failure yet known, **not** that native commit,
 save, IO or backend work succeeded. A custom executor that retains a Job then
 panics leaves a retired, charged `Panicked` observation without a fabricated
 cancellation signal or exit acknowledgment; later polling cannot erase that
@@ -207,6 +233,9 @@ host write/history/revision counters. Refusals do not merely assert Err.
 | Hidden, recoverable suspend/resume; unrecoverable refusal | `hidden_and_recoverable_suspend_restart_activity_not_stream_buffering`; ordered-stream and private untouched suspension tests |
 | Cooperative versus blocked custom executor/producer | `f4_producers.rs`: actual external producer closures use channel handshakes (no sleeps), cooperative cancellation versus deliberately blocked work across seeds 1/7/42; held `Job` cancel test retains charge until actual future drop; no backend cancel inferred |
 | Background/local panic, explicit failure, cancel/drop; destructor panic | local/background normalization suite; producer/effect panic test; private future-destructor-panic test; `f4_start_panic.rs` retained-Job startup failure; independent cleanup continues |
+| **R1: actual timer destruction before acknowledgment; single unwind contained** | Promoted `f4_corrections.rs::timer_payload_destructor_must_be_normalized_before_exit_ack`; `f4_timer_drop.rs` covers 12 normal/panic cases across cancelled/published events, runtime-buffer/World destruction and clone-before/clone-after orders; exact inside-drop receipt/ack snapshots, same-World and independent-World progress, retained receipt charge until final disposal |
+| **R2: cleanup panic versus real producer outcome, both orderings** | Promoted `f4_corrections.rs::producer_success_must_not_erase_payload_cleanup_panic`; `f4_terminal_order.rs` covers 20 channel-controlled actual producers: closure and tracked-future success/Failed/Panicked/actual panic/guard-or-future drop, cleanup before/after exit, blocked unacknowledged charge and independent progress; no sleeps or manufactured acknowledgment |
+| Aggregate task/effect/timer outcome precedence | `work::tests::aggregate_terminal_evidence_never_downgrades_in_any_order` checks all terminal pairs both orders; tracked pending-drop preserves Failed/Panicked without early ack; existing local/background/start-panic and World-effect tests stay required |
 | Timer fired/disposed/replaced/repeated | `timer_manual_deadline_replacement_and_published_disposal`; `f4_timer_entity.rs::native_every_repeated_and_already_published_ticks_are_gated_without_new_timer_wheel` |
 | Non-Send Rc local future; injected executor | local Rc suite and actual core `Executor`/`Job` held-executor races (no Tokio/runtime) |
 | Native revision/readonly/composition; wrong operation/target | `f4_source.rs` snapshots including pending Input IME; `flow_owned.rs` preserves exact F2 revision/stale-block errors |
