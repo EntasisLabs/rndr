@@ -2,7 +2,7 @@
 # New correction evidence only. Optional destination enables exact-HEAD reruns.
 set -eu
 export CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=2
-out=${1:-docs/reports/rndr-flow-f4-correction-evidence}
+out=${1:-docs/reports/rndr-flow-f4-correction-evidence/qualified}
 export out
 mkdir -p "$out"
 test ! -e "$out/summary.tsv" || { echo 'Refusing to overwrite evidence'; exit 73; }

@@ -7,7 +7,7 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
     mpsc, Arc,
 };
-use std::task::{Context, Poll, Wake, Waker};
+use std::task::{Context, Poll, Waker};
 
 struct PanicDrop(Arc<AtomicBool>);
 impl Drop for PanicDrop {
@@ -28,10 +28,6 @@ fn pump(flow: &mut Coordinator) {
     for _ in 0..400 {
         flow.pump_work(1);
     }
-}
-struct Noop;
-impl Wake for Noop {
-    fn wake(self: Arc<Self>) {}
 }
 fn result(kind: usize) -> Result<(), TaskFailure> {
     match kind % 5 {
@@ -100,8 +96,7 @@ fn real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon() {
                         }
                     });
                     let mut future = pin!(future);
-                    let waker = Waker::from(Arc::new(Noop));
-                    let mut cx = Context::from_waker(&waker);
+                    let mut cx = Context::from_waker(Waker::noop());
                     match future.as_mut().poll(&mut cx) {
                         Poll::Ready(r) => Some(r),
                         Poll::Pending => {
