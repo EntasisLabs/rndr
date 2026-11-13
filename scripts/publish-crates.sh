@@ -89,7 +89,7 @@ declare -A VERSIONS=()
 while IFS=$'\t' read -r name version; do
     VERSIONS["$name"]="$version"
 done < <(cargo metadata --format-version 1 --no-deps | python3 -c '
-    import json, sys
+import json, sys
 wanted = {"rndr_core", "rndr-flow", "rndr_paint", "rndr_std", "rndr_term", "rndr_ui", "rndr_app", "rndr_liquid", "rndr_chart", "rndr_liquid_ui", "rndr_canvas", "rndr_canvas_ui", "rndr_render", "rndr_media", "rndr_browser", "rndr"}
 meta = json.load(sys.stdin)
 for package in meta["packages"]:

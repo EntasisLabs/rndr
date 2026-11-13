@@ -38,7 +38,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/EntasisLabs/rndr"
@@ -48,22 +48,22 @@ homepage = "https://github.com/EntasisLabs/rndr"
 rust-version = "1.95"
 
 [workspace.dependencies]
-rndr = { path = "crates/rndr", version = "0.5.0" }
-rndr_core = { path = "crates/rndr_core", version = "0.5.0", default-features = false }
-rndr-flow = { path = "crates/rndr_flow", version = "0.5.0", default-features = false }
-rndr_liquid = { path = "crates/rndr_liquid", version = "0.5.0" }
-rndr_chart = { path = "crates/rndr_chart", version = "0.5.0" }
-rndr_liquid_ui = { path = "crates/rndr_liquid_ui", version = "0.5.0" }
-rndr_canvas = { path = "crates/rndr_canvas", version = "0.5.0" }
-rndr_canvas_ui = { path = "crates/rndr_canvas_ui", version = "0.5.0" }
-rndr_paint = { path = "crates/rndr_paint", version = "0.5.0" }
-rndr_render = { path = "crates/rndr_render", version = "0.5.0" }
-rndr_std = { path = "crates/rndr_std", version = "0.5.0" }
-rndr_term = { path = "crates/rndr_term", version = "0.5.0" }
-rndr_browser = { path = "crates/rndr_browser", version = "0.5.0" }
-rndr_ui = { path = "crates/rndr_ui", version = "0.5.0" }
-rndr_app = { path = "crates/rndr_app", version = "0.5.0" }
-rndr_media = { path = "crates/rndr_media", version = "0.5.0" }
+rndr = { path = "crates/rndr", version = "0.6.0" }
+rndr_core = { path = "crates/rndr_core", version = "0.6.0", default-features = false }
+rndr-flow = { path = "crates/rndr_flow", version = "0.6.0", default-features = false }
+rndr_liquid = { path = "crates/rndr_liquid", version = "0.6.0" }
+rndr_chart = { path = "crates/rndr_chart", version = "0.6.0" }
+rndr_liquid_ui = { path = "crates/rndr_liquid_ui", version = "0.6.0" }
+rndr_canvas = { path = "crates/rndr_canvas", version = "0.6.0" }
+rndr_canvas_ui = { path = "crates/rndr_canvas_ui", version = "0.6.0" }
+rndr_paint = { path = "crates/rndr_paint", version = "0.6.0" }
+rndr_render = { path = "crates/rndr_render", version = "0.6.0" }
+rndr_std = { path = "crates/rndr_std", version = "0.6.0" }
+rndr_term = { path = "crates/rndr_term", version = "0.6.0" }
+rndr_browser = { path = "crates/rndr_browser", version = "0.6.0" }
+rndr_ui = { path = "crates/rndr_ui", version = "0.6.0" }
+rndr_app = { path = "crates/rndr_app", version = "0.6.0" }
+rndr_media = { path = "crates/rndr_media", version = "0.6.0" }
 wgpu = "30"
 # 0.31.0-beta.4 is the newest published winit with client drag coordinates.
 # Stable remains 0.30.13, which reports paths only. accesskit_winit 0.34

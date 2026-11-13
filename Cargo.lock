@@ -669,7 +669,7 @@ dependencies = [
 
 [[package]]
 name = "canvas-editor"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "rndr_canvas",
  "rndr_canvas_ui",
@@ -681,7 +681,7 @@ dependencies = [
 
 [[package]]
 name = "canvas-scene"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "rndr_core",
  "rndr_paint",
@@ -740,7 +740,7 @@ checksum = "f079e83a288787bcd14a6aea84cee5c87a67c5a3e660c30f557a3d24761b3527"
 
 [[package]]
 name = "chart-gallery"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "rndr_chart",
  "rndr_core",
@@ -843,7 +843,7 @@ dependencies = [
 
 [[package]]
 name = "create-view"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "base64",
  "resvg",
@@ -929,7 +929,7 @@ checksum = "be1e0bca6c3637f992fc1cc7cbc52a78c1ef6db076dbf1059c4323d6a2048376"
 
 [[package]]
 name = "desktop"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "rndr_app",
  "rndr_core",
@@ -1102,7 +1102,7 @@ dependencies = [
 
 [[package]]
 name = "expand"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "rndr_core",
  "rndr_paint",
@@ -2077,7 +2077,7 @@ checksum = "ae293c039020f9ec10710af98d29ce6aa2051486638b49c9a6409f3b4a9e98ad"
 
 [[package]]
 name = "idle"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "rndr_core",
  "rndr_render",
@@ -2391,7 +2391,7 @@ dependencies = [
 
 [[package]]
 name = "lifecycle"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "rndr_core",
  "rndr_render",
@@ -2412,7 +2412,7 @@ checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
 
 [[package]]
 name = "liquid-view"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "rndr_core",
  "rndr_liquid_ui",
@@ -3100,7 +3100,7 @@ dependencies = [
 
 [[package]]
 name = "overlay"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "rndr_core",
  "rndr_render",
@@ -3117,7 +3117,7 @@ dependencies = [
 
 [[package]]
 name = "palette"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "rndr_core",
  "rndr_paint",
@@ -3244,7 +3244,7 @@ checksum = "2ee67f1008b1ba2321834326597b8e186293b049a023cdef258527550b9935b4"
 
 [[package]]
 name = "pen-probe"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "rndr_core",
  "rndr_render",
@@ -3793,7 +3793,7 @@ dependencies = [
 
 [[package]]
 name = "rndr"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "rndr_browser",
  "rndr_canvas",
@@ -3812,14 +3812,14 @@ dependencies = [
 
 [[package]]
 name = "rndr-flow"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "rndr_core",
 ]
 
 [[package]]
 name = "rndr_app"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "rndr_core",
  "serde",
@@ -3828,7 +3828,7 @@ dependencies = [
 
 [[package]]
 name = "rndr_browser"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "block2 0.5.1",
  "gdkx11",
@@ -3847,7 +3847,7 @@ dependencies = [
 
 [[package]]
 name = "rndr_canvas"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -3857,7 +3857,7 @@ dependencies = [
 
 [[package]]
 name = "rndr_canvas_ui"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "rndr_canvas",
  "rndr_core",
@@ -3867,7 +3867,7 @@ dependencies = [
 
 [[package]]
 name = "rndr_chart"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "rndr_core",
  "rndr_liquid",
@@ -3876,7 +3876,7 @@ dependencies = [
 
 [[package]]
 name = "rndr_core"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "pulldown-cmark",
  "tokio",
@@ -3886,7 +3886,7 @@ dependencies = [
 
 [[package]]
 name = "rndr_liquid"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "regex",
  "serde",
@@ -3895,7 +3895,7 @@ dependencies = [
 
 [[package]]
 name = "rndr_liquid_ui"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "rndr-flow",
  "rndr_chart",
@@ -3907,7 +3907,7 @@ dependencies = [
 
 [[package]]
 name = "rndr_media"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "block2 0.6.2",
  "dispatch2",
@@ -3928,7 +3928,7 @@ dependencies = [
 
 [[package]]
 name = "rndr_paint"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "insta",
  "lyon",
@@ -3937,7 +3937,7 @@ dependencies = [
 
 [[package]]
 name = "rndr_render"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "accesskit",
  "accesskit_macos",
@@ -3985,14 +3985,14 @@ dependencies = [
 
 [[package]]
 name = "rndr_std"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "rndr_core",
 ]
 
 [[package]]
 name = "rndr_term"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "alacritty_terminal",
  "insta",
@@ -4004,7 +4004,7 @@ dependencies = [
 
 [[package]]
 name = "rndr_ui"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "rndr_core",
  "rndr_paint",
@@ -4411,7 +4411,7 @@ dependencies = [
 
 [[package]]
 name = "source-session"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "rndr_core",
  "rndr_paint",
@@ -4442,7 +4442,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "stream"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "rndr_core",
  "rndr_paint",
@@ -4593,7 +4593,7 @@ dependencies = [
 
 [[package]]
 name = "terminal"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "rndr_core",
  "rndr_render",
@@ -4724,7 +4724,7 @@ checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
 
 [[package]]
 name = "titlebar"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "rndr_core",
  "rndr_render",
@@ -4929,7 +4929,7 @@ dependencies = [
 
 [[package]]
 name = "two-windows"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "rndr_core",
  "rndr_render",
@@ -5327,7 +5327,7 @@ dependencies = [
 
 [[package]]
 name = "web-hello"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "console_error_panic_hook",
  "rndr_core",

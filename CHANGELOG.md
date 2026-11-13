@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+## 0.6.0
+
+Workspace 0.6.0. `scripts/publish-crates.sh` uploads sixteen crates in this order: `rndr_core`, `rndr-flow`, `rndr_paint`, `rndr_std`, `rndr_term`, `rndr_ui`, `rndr_app`, `rndr_liquid`, `rndr_chart`, `rndr_liquid_ui`, `rndr_canvas`, `rndr_canvas_ui`, `rndr_render`, `rndr_media`, `rndr_browser`, and `rndr`. First crates.io publish for `rndr-flow`. Examples, including Desktop Workshop, `source-session`, `titlebar`, and `lifecycle`, stay `publish = false`. Minimum Rust version remains **1.95**. 0.6.0 is a 0.y release, not a 1.0 stability promise. See [package policy](docs/ui-status.md#package-policy).
+
+### New publishable crate
+
+- `rndr-flow`: optional headless scope ownership for an application-owned world. Depend on package `rndr-flow` and import `rndr_flow`; there is no facade feature or automatic re-export. Covers F0–F5 foundations: lifecycle ownership and identity, bounded async work with cancellation and native completion gates, retained transitions, and coordinated close guards (including opt-in all-World Session validation). F6 and application migration are not included. Qualification is headless; native GUI/event-loop/platform behavior is not certified. Destruction is nontransactional. See [`rndr-flow`](crates/rndr_flow/README.md) and [session close validation](docs/design/rndr-flow-f5-session-close-validation.md).
+
+### Liquid Markdown host
+
+- Stream Liquid with `push_liquid_str` / `LiquidStream`: append reparses only past the last stable prefix, finished blocks stay mounted, and an unclosed fence shows a pending skeleton until it closes. `set_liquid_source` keeps unchanged block reader state on append or identical replacements.
+- Persist Liquid component state across host-slot recycling and publish interaction envelopes for host-facing events.
+- Recipe step timers (`Start` / `Pause` / `Resume` / `Reset`) survive recycling; deadlines use the app clock and emit `timer_*` envelopes (plus `LiquidEvent::StartTimer` on start).
+- Feeds and dashboard tiles load through `LiquidHost::load_feed` without the renderer opening a network connection. Loads move through pending, ready, failed, and stale; a later failure keeps the last ready body. Tiles refresh manually or on an interval.
+- Visual fidelity for Liquid blocks: styled prose fonts/size/alignment/line spacing, colored code tokens with a code accessibility role, chart tooltip overlays, and positioned slide image layers on a 640×360 stage.
+
+### Markdown host slots and editing
+
+- Markdown views virtualize blocks: only the visible window plus overscan is realized; heights are measured when realized and estimated otherwise. Host-slot roots stay stable across scroll-away. Opt-in recycling releases offscreen host slots when a view asks for it. **Migration:** `children_of(view)` is the realized window, not one child per block; keep document data on `MarkdownView::blocks()`. See [markdown host slots](docs/markdown-host-slots.md).
+- Source commits and undo history store splices instead of cloning the whole document; views apply only the edited range.
+- Plain-text editor scroll queries binary-search row tops; plain-text row heights are indexed instead of retaining every caret edge. Scroll anchors and whole-line folds survive edits. Idle frames skip reshaping labels whose stored layout is still current. Structured text hit-testing follows indented layout.
+
+### Packaging
+
+- Publish order and CI archive checks include `rndr-flow`. The facade package glob is narrowed so `rndr-flow` is not mistaken for `rndr`.
+
+### Dependencies and known limitations
+
+- **Known limitation (Linux `browser` feature):** unchanged from 0.5.0 — `glib` **0.18.5** remains via the pinned `gtk`/`webkit2gtk` stack (`RUSTSEC-2024-0429`). The optional facade `browser` feature stays off by default. Accepted for 0.6.0 with this disclosure.
+
 ## 0.5.0
 
 Workspace 0.5.0. `scripts/publish-crates.sh` uploads fifteen crates in this order: `rndr_core`, `rndr_paint`, `rndr_std`, `rndr_term`, `rndr_ui`, `rndr_app`, `rndr_liquid`, `rndr_chart`, `rndr_liquid_ui`, `rndr_canvas`, `rndr_canvas_ui`, `rndr_render`, `rndr_media`, `rndr_browser`, and `rndr`. First crates.io publish for `rndr_liquid`, `rndr_chart`, `rndr_liquid_ui`, `rndr_canvas`, `rndr_canvas_ui`, `rndr_media`, and `rndr_browser`. Examples, including Desktop Workshop, `source-session`, `titlebar`, and `lifecycle`, stay `publish = false`. Minimum Rust version is **1.95** (`AtomicU64::try_update` in `rndr_core`). 0.5.0 is a 0.y release, not a 1.0 stability promise. See [package policy](docs/ui-status.md#package-policy).

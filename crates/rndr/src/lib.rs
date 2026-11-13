@@ -5,12 +5,14 @@
 //! extra features. `rndr_app` is a separate published starter crate. Headless
 //! programs can depend on `rndr_core` alone and skip the window and the GPU.
 //!
-//! 0.5.0 publishes this crate together with `rndr_core`, `rndr_paint`,
-//! `rndr_std`, `rndr_term`, `rndr_ui`, `rndr_app`, `rndr_liquid`, `rndr_chart`,
-//! `rndr_liquid_ui`, `rndr_canvas`, `rndr_canvas_ui`, `rndr_render`, `rndr_media`,
-//! and `rndr_browser`. `ui`, `observe`, `browser`, `media`, `chart`, `liquid`,
-//! and `canvas` are off by default. `ui` uses `rndr_ui`. This is a 0.y release,
-//! not a 1.0 stability promise. Examples in the repository are not published.
+//! 0.6.0 publishes this crate together with `rndr_core`, `rndr-flow`,
+//! `rndr_paint`, `rndr_std`, `rndr_term`, `rndr_ui`, `rndr_app`, `rndr_liquid`,
+//! `rndr_chart`, `rndr_liquid_ui`, `rndr_canvas`, `rndr_canvas_ui`,
+//! `rndr_render`, `rndr_media`, and `rndr_browser`. `ui`, `observe`, `browser`,
+//! `media`, `chart`, `liquid`, and `canvas` are off by default. `ui` uses
+//! `rndr_ui`. `rndr-flow` is a separate optional dependency with no facade
+//! feature. This is a 0.y release, not a 1.0 stability promise. Examples in
+//! the repository are not published.
 //!
 //! # How the crates fit
 //!

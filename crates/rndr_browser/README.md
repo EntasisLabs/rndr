@@ -5,7 +5,7 @@ Optional embedded browser for [rndr](https://github.com/EntasisLabs/rndr).
 The facade feature `browser` is **off** by default. It is the only way a
 desktop build of `rndr` links this crate. `rndr_core`, `rndr_ui`, and
 `rndr_paint` do not depend on it. Enabling `browser` does not enable `dialog`.
-The crate is publish-eligible and is ordered immediately before the `rndr` facade. The optional dependency is versioned, so `cargo package` of the default facade resolves it even with `browser` off. 0.5.0 publishes it with the rest of the SDK.
+The crate is publish-eligible and is ordered immediately before the `rndr` facade. The optional dependency is versioned, so `cargo package` of the default facade resolves it even with `browser` off. 0.6.0 publishes it with the rest of the SDK.
 
 The host owns the session. A guest page can navigate. It cannot call into
 application commands, and this slice does not evaluate script or search the
