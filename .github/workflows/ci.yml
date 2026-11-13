@@ -201,10 +201,12 @@ jobs:
           paint_files="$(tar -tzf "${paint_crate[0]}")"
           render_files="$(tar -tzf "${render_crate[0]}")"
           media_files="$(tar -tzf "${media_crate[0]}")"
-          test "$(printf '%s\n' "$paint_files" | grep -c '\.snap$')" = 7
+          test "$(printf '%s\n' "$paint_files" | grep -c '\.snap$')" = 8
           test "$(printf '%s\n' "$render_files" | grep -c '\.snap$')" = 2
           printf '%s\n' "$paint_files" | grep -q '/Inter-LICENSE.txt$'
           printf '%s\n' "$paint_files" | grep -q '/latin_atlas.bin$'
+          printf '%s\n' "$paint_files" | grep -q '/Lucide-LICENSE.txt$'
+          printf '%s\n' "$paint_files" | grep -q '/icon_atlas.bin$'
           printf '%s\n' "$media_files" | grep -q '/LICENSE$'
           # Doc excludes match unpublished examples so rustdoc does not walk them.
           # shellcheck disable=SC2046

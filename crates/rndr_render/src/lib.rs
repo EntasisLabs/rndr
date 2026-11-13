@@ -476,6 +476,7 @@ fn run_apps(apps: Vec<App>, close_validator: Option<Box<CloseValidator>>) {
 }
 
 fn install_text_engine(app: &mut App) {
+    rndr_paint::install_icons();
     #[cfg(feature = "parley")]
     if (!app.world().has_resource::<Arc<dyn TextEngine>>()
         && !app.world().has_resource::<rndr_core::TextFace>())
@@ -2332,11 +2333,13 @@ impl ApplicationHandler for Handler {
                 move |event| bus.access(event),
             ));
         }
+        rndr_paint::install_icons();
         ensure_text_engine(self.app.world_mut());
         let engine = text_engine(self.app.world());
         let coverage = engine.coverage_atlas();
-        // Emoji lives in the color atlas. The builtin engine leaves it empty;
-        // the shader still binds a 1×1 texture so both engines share a pipeline.
+        // Emoji lives in the color atlas. The builtin engine stores icon masks
+        // there (alpha is coverage, tinted by the text color). The shader still
+        // binds a texture so both engines share a pipeline.
         let color_atlas = engine.color_atlas();
         if let Some(atlas) = &color_atlas {
             debug_assert!(

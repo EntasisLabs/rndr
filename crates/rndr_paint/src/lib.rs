@@ -49,6 +49,7 @@
 mod affine;
 mod display;
 mod font;
+mod icons;
 mod latin;
 mod path;
 mod snapshot;
@@ -64,6 +65,9 @@ pub use display::{
     TextSource,
 };
 pub use font::{atlas_r8, glyph_uv, solid_uv, ATLAS_H, ATLAS_W};
+pub use icons::{
+    icon_atlas_size, icon_coverage, install_icons, IconFace, ICON_CELL, ICON_COLS, ICON_PITCH,
+};
 pub use latin::LatinFace;
 pub use path::{Cap, FillRule, Join, Marker, Path, PathBuilder, Stroke};
 pub use snapshot::quads_snapshot;
@@ -244,6 +248,7 @@ pub fn frame_with_snapshot_frame<T>(
     app: &mut App,
     snapshot: impl FnOnce(&World, &Frame) -> T,
 ) -> (Frame, T) {
+    install_icons();
     app.update();
     let (quads, draws) = paint_parts(app.world());
     let frame = Frame {
@@ -267,6 +272,7 @@ pub fn frame_live_with_snapshot<T>(
     app: &mut App,
     snapshot: impl FnOnce(&World) -> T,
 ) -> (Frame, T) {
+    install_icons();
     app.update_live();
     let (quads, draws) = paint_parts(app.world());
     let frame = Frame {
@@ -352,6 +358,7 @@ pub fn paint_subtree(world: &World, root: rndr_core::Entity) -> (Vec<Quad>, Vec<
 }
 
 fn paint_roots(world: &World, roots: &[rndr_core::Entity]) -> (Vec<Quad>, Vec<Placed>) {
+    install_icons();
     let quads = RefCell::new(Vec::new());
     let draws = RefCell::new(Vec::new());
     let scale = world

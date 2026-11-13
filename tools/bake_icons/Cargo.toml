@@ -1,0 +1,17 @@
+[package]
+name = "bake_icons"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+rust-version.workspace = true
+description = "Bake the vendored Lucide subset into rndr's icon glyph atlas"
+
+[[bin]]
+name = "bake_icons"
+path = "src/main.rs"
+
+[dependencies]
+resvg = "0.45"
+tiny-skia = "0.11"
+usvg = "0.45"

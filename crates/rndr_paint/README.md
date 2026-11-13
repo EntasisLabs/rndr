@@ -6,7 +6,7 @@ Turns an [`rndr_core`](https://docs.rs/rndr_core) world into colored quads in lo
 let frame = rndr_paint::frame(&mut app);
 ```
 
-`frame` runs one update and returns the quads plus any foreign-surface rectangles. A bitmap atlas for Latin text ships in the crate. It is derived from Inter Regular. The SIL Open Font License text is `Inter-LICENSE.txt`.
+`frame` runs one update and returns the quads plus any foreign-surface rectangles. A bitmap atlas for Latin text ships in the crate. It is derived from Inter Regular. The SIL Open Font License text is `Inter-LICENSE.txt`. A second coverage atlas holds a Lucide icon subset (ISC, `Lucide-LICENSE.txt`) addressed by Private Use scalars.
 
 ## Text and backgrounds
 

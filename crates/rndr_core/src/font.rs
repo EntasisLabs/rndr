@@ -219,6 +219,13 @@ pub trait Font: Send + Sync {
     fn atlas(&self) -> Option<Arc<FontAtlas>> {
         None
     }
+    /// Which atlas [`PlacedGlyph::atlas`] should name for `ch`.
+    ///
+    /// `0` is the coverage atlas and `1` is the color atlas. `2` is an icon
+    /// mask stored in the color-atlas texture and tinted with the text color.
+    fn glyph_atlas(&self, _ch: char) -> u8 {
+        0
+    }
     /// Color atlas (RGBA) for emoji and other color glyphs. The bitmap and Latin
     /// faces have none.
     fn color_atlas(&self) -> Option<Arc<ColorAtlas>> {
@@ -579,7 +586,7 @@ pub(crate) fn layout_text_weighted(
                     color: span_color(spans, abs),
                     face: span_face(spans, abs),
                     weight: span_weight(spans, abs).unwrap_or(default_weight),
-                    atlas: 0,
+                    atlas: font.glyph_atlas(ch),
                 });
             }
             x += adv;

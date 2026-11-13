@@ -62,7 +62,11 @@ fn button(world: &World, root: Entity, label: &str) -> Entity {
     under(world, root, &mut all);
     let label = all
         .into_iter()
-        .find(|e| world.get::<Label>(*e).is_some_and(|l| l.text == label))
+        .find(|e| {
+            world
+                .get::<Label>(*e)
+                .is_some_and(|l| rndr_core::strip_icon_scalars(&l.text) == label)
+        })
         .unwrap_or_else(|| panic!("no {label:?} in {:?}", texts(world, root)));
     label
 }
@@ -119,11 +123,29 @@ fn blocks_mount_in_place_of_their_references() {
     assert!(all.iter().any(|t| t.ends_with("Careful")), "{all:?}");
     for want in ["Approve", "Reject", "Copy", "fn main() {}", "Between."] {
         assert!(
-            all.iter().any(|t| t == want),
+            all.iter().any(|t| rndr_core::strip_icon_scalars(t) == want),
             "{want:?} missing from {all:?}"
         );
     }
+    assert!(
+        all.iter()
+            .any(|t| t.contains(rndr_core::Icon::X.scalar()) && t.contains("Reject")),
+        "reject should draw the x glyph, got {all:?}"
+    );
     assert!(!all.iter().any(|t| t.contains('\u{E001}')), "{all:?}");
+    let reject = button(app.world(), view, "Reject");
+    let mut named = reject;
+    let name = loop {
+        if let Some(semantics) = app.world().get::<Semantics>(named) {
+            break semantics.name.clone();
+        }
+        named = app
+            .world()
+            .get::<Parent>(named)
+            .expect("button root")
+            .entity;
+    };
+    assert_eq!(name.as_deref(), Some("Reject"));
     let md = app.world().get::<MarkdownView>(view).unwrap();
     let ys: Vec<f32> = children_of(app.world(), view)
         .into_iter()
@@ -131,6 +153,17 @@ fn blocks_mount_in_place_of_their_references() {
         .collect();
     assert!(ys.windows(2).all(|w| w[0] <= w[1]), "{ys:?}");
     assert_eq!(md.blocks().len(), 6);
+}
+
+#[test]
+fn every_allowlisted_icon_has_a_baked_glyph() {
+    for id in rndr_liquid::ICON_ALLOWLIST {
+        let canonical = rndr_liquid::normalize_icon_id(id).unwrap_or_else(|| panic!("{id}"));
+        assert!(
+            rndr_core::Icon::from_name(&canonical).is_some(),
+            "{id} -> {canonical} has no glyph"
+        );
+    }
 }
 
 #[test]

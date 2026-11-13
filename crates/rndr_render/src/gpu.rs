@@ -234,14 +234,18 @@ fn paint(in: VsOut) -> vec4<f32> {
     // RGB is already in the surface working space: linear on an sRGB target,
     // authored sRGB on an 8-bit Unorm target. Coverage alpha is the mask.
     // Color glyphs (emoji) sample the sRGB color atlas; `glyph_atlas` > 0.5
-    // selects that path. The instance flag lives in `radius.y`.
+    // selects that path. `glyph_atlas` > 1.5 is an icon mask packed into the
+    // color atlas: alpha is coverage and the vertex color tints it.
+    // The instance flag lives in `radius.y`.
     // The atlases have one mip level. An explicit level keeps these samples
     // valid after the branches above, which WGSL uniformity rules require.
     let coverage = textureSampleLevel(atlas, atlas_samp, in.uv, 0.0).r;
     let sprite = textureSampleLevel(color_atlas, color_samp, in.uv, 0.0);
-    let color_glyph = in.glyph_atlas > 0.5;
+    let icon_glyph = in.glyph_atlas > 1.5;
+    let color_glyph = in.glyph_atlas > 0.5 && !icon_glyph;
+    let mask = select(coverage, sprite.a, icon_glyph);
     let rgb = select(in.color.rgb, sprite.rgb, color_glyph);
-    let alpha = select(in.color.a * coverage, sprite.a * in.color.a, color_glyph);
+    let alpha = select(in.color.a * mask, sprite.a * in.color.a, color_glyph);
     var corner = round_rect(px, in.rect, in.radius);
     if in.kind.y > 0.5 {
         corner = box_coverage(px, in.rect, in.corners);
