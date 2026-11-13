@@ -282,7 +282,10 @@ pub(crate) fn sync_pending(
     world.insert(entity, Parent { entity: view });
 }
 
-/// Text with `{{icon:id}}` shortcodes removed. Icons have no glyphs here.
+/// Text with `{{icon:id}}` shortcodes removed.
+///
+/// Host events and other non-visual payloads use this. Visible labels use
+/// [`with_icons`], which substitutes a Private Use scalar for an allowlisted id.
 pub fn plain(text: &str) -> String {
     let mut out = String::new();
     for part in split_icons(text) {
@@ -291,6 +294,36 @@ pub fn plain(text: &str) -> String {
         }
     }
     out.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Visible text. Allowlisted `{{icon:id}}` shortcodes become icon scalars.
+///
+/// Unknown ids are dropped. Whitespace collapses the same way as [`plain`].
+pub fn with_icons(text: &str) -> String {
+    let mut out = String::new();
+    for part in split_icons(text) {
+        match part {
+            InlineIcon::Text(t) => out.push_str(t),
+            InlineIcon::Icon(id) => {
+                if let Some(icon) = icon_for(id) {
+                    out.push(icon.scalar());
+                }
+            }
+        }
+    }
+    out.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn icon_for(id: &str) -> Option<rndr_core::Icon> {
+    let canonical = normalize_icon_id(id)?;
+    rndr_core::Icon::from_name(&canonical)
+}
+
+fn lead(icon: &Option<String>, text: &str) -> String {
+    match icon.as_deref().and_then(icon_for) {
+        Some(icon) => format!("{} {text}", icon.scalar()),
+        None => text.to_string(),
+    }
 }
 
 fn filled(s: &Option<String>) -> Option<&str> {
@@ -313,7 +346,7 @@ impl Cx<'_> {
     }
 
     fn text(&mut self, parent: Entity, value: &str, role: Typography) {
-        let value = plain(value);
+        let value = with_icons(value);
         if !value.is_empty() {
             let _ = text(self.world, parent, &value, role);
         }
@@ -357,7 +390,7 @@ impl Cx<'_> {
 
     fn card(&mut self, parent: Entity, title: &str) -> Entity {
         let id = self.id();
-        let title = plain(title);
+        let title = with_icons(title);
         match Card::mount(self.world, parent, id, &title) {
             Ok(h) => {
                 crate::lifecycle::own_created(self.world, parent, h.root);
@@ -379,7 +412,7 @@ impl Cx<'_> {
             "danger" | "error" | "critical" | "negative" | "bad" => Feedback::Danger,
             _ => Feedback::Info,
         };
-        let title = plain(title);
+        let title = with_icons(title);
         let title = if title.is_empty() {
             "Note".to_string()
         } else {
@@ -395,12 +428,14 @@ impl Cx<'_> {
     }
 
     fn button(&mut self, parent: Entity, label: &str, variant: ButtonVariant, act: Act) {
-        let label = plain(label);
-        if label.is_empty() {
+        let visible = with_icons(label);
+        let name = rndr_core::strip_icon_scalars(&plain(label));
+        if visible.is_empty() || name.trim().is_empty() {
             return;
         }
         let id = self.id();
-        let mut props = ButtonProps::new(label, HostIntent::Command(id.0));
+        let mut props = ButtonProps::new(visible, HostIntent::Command(id.0));
+        props.name = Some(name);
         props.variant = variant;
         if let Ok(h) = Button::mount(self.world, parent, id, props) {
             crate::lifecycle::own_created(self.world, parent, h.root);
@@ -636,8 +671,8 @@ impl Cx<'_> {
                     }
                     let col = self.column(row);
                     let label = match filled(&seg.badge) {
-                        Some(b) => format!("{} · {b}", seg.label),
-                        None => seg.label.clone(),
+                        Some(b) => format!("{} · {b}", lead(&seg.icon, &seg.label)),
+                        None => lead(&seg.icon, &seg.label),
                     };
                     self.text(col, &label, Typography::Emphasis);
                     self.opt(col, &seg.subtitle, Typography::Secondary);
@@ -655,7 +690,7 @@ impl Cx<'_> {
                     let ts = filled(&event.ts).unwrap_or("-").to_string();
                     self.text(row, &ts, Typography::Secondary);
                     let col = self.column(row);
-                    self.text(col, &event.label, Typography::Emphasis);
+                    self.text(col, &lead(&event.icon, &event.label), Typography::Emphasis);
                     self.opt(col, &event.detail, Typography::Reading);
                     self.opt(col, &event.body, Typography::Reading);
                     self.opt(col, &event.meta, Typography::Secondary);
@@ -667,8 +702,10 @@ impl Cx<'_> {
                 for (n, item) in p.items.iter().enumerate() {
                     let s = self.surface(parent);
                     let label = match filled(&item.score) {
-                        Some(score) => format!("{}. {} — {score}", n + 1, item.label),
-                        None => format!("{}. {}", n + 1, item.label),
+                        Some(score) => {
+                            format!("{}. {} — {score}", n + 1, lead(&item.icon, &item.label))
+                        }
+                        None => format!("{}. {}", n + 1, lead(&item.icon, &item.label)),
                     };
                     self.text(s, &label, Typography::Emphasis);
                     self.opt(s, &item.summary, Typography::Reading);
@@ -753,7 +790,7 @@ impl Cx<'_> {
                     let col = self.column(row);
                     self.text(
                         col,
-                        &format!("{}. {}", n + 1, step.label),
+                        &format!("{}. {}", n + 1, lead(&step.icon, &step.label)),
                         Typography::Emphasis,
                     );
                     self.opt(col, &step.body, Typography::Reading);
@@ -764,7 +801,11 @@ impl Cx<'_> {
                 self.heading(parent, &p.title, &p.subtitle);
                 for (n, item) in p.items.iter().enumerate() {
                     let open = self.state.open.contains(&n);
-                    let label = format!("{} {}", if open { "−" } else { "+" }, item.label);
+                    let label = format!(
+                        "{} {}",
+                        if open { "−" } else { "+" },
+                        lead(&item.icon, &item.label)
+                    );
                     self.button(parent, &label, ButtonVariant::Quiet, Act::Toggle(n));
                     if open {
                         let s = self.column(parent);
@@ -877,7 +918,8 @@ impl Cx<'_> {
     }
 
     fn card_block(&mut self, parent: Entity, p: &CardProps) {
-        let c = self.card(parent, &p.title);
+        let title = lead(&p.icon, &p.title);
+        let c = self.card(parent, &title);
         self.opt(c, &p.subtitle, Typography::Secondary);
         if let Some(src) = filled(&p.image) {
             let src = src.to_string();
@@ -888,7 +930,7 @@ impl Cx<'_> {
         for point in p.points.iter().flatten() {
             self.text(
                 c,
-                &format!("{} — {}", point.label, point.body),
+                &format!("{} — {}", lead(&point.icon, &point.label), point.body),
                 Typography::Reading,
             );
         }
@@ -911,7 +953,7 @@ impl Cx<'_> {
                 label: plain(&a.label),
                 intent: a.intent.clone(),
             });
-            self.button(row, &a.label, variant, act);
+            self.button(row, &lead(&a.icon, &a.label), variant, act);
         }
     }
 
@@ -932,7 +974,7 @@ impl Cx<'_> {
                     .get(&axis.id)
                     .map(String::as_str)
                     .unwrap_or("—");
-                let _ = text(self.world, row, &plain(v), Typography::Reading);
+                let _ = text(self.world, row, v, Typography::Reading);
             }
         }
         if let Some(r) = filled(&p.recommendation) {
@@ -956,7 +998,7 @@ impl Cx<'_> {
             for (column_index, tile) in chunk.iter().enumerate() {
                 let instance = &instances[row_index * columns + column_index];
                 let s = self.surface(row);
-                self.text(s, &tile.label, Typography::Secondary);
+                self.text(s, &lead(&tile.icon, &tile.label), Typography::Secondary);
                 let value = if let Some(feed) = tile.feed.as_deref() {
                     let spec = crate::feed::Spec {
                         instance: instance.clone(),
@@ -1022,7 +1064,7 @@ impl Cx<'_> {
             .iter()
             .enumerate()
             .map(|(n, t)| {
-                let l = plain(&t.label);
+                let l = with_icons(&lead(&t.icon, &t.label));
                 if l.is_empty() {
                     format!("Tab {}", n + 1)
                 } else {

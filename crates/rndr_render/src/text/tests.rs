@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use rndr_core::{
-    text_engine, App, Axis, Chrome, Color, Label, Layout, List, ListRows, Rect, Size, TextEngine,
-    TextFace, TextStyle, Viewport, World, FONT_WEIGHT_REGULAR,
+    text_engine, App, Axis, Chrome, Color, Icon, Label, Layout, List, ListRows, Rect, Size,
+    TextEngine, TextFace, TextSpan, TextStyle, Viewport, World, FONT_WEIGHT_REGULAR,
 };
 use rndr_paint::{frame, quads_snapshot, LatinFace};
 
@@ -475,4 +475,37 @@ fn features_and_axes_are_part_of_the_layout_cache_key() {
         f32::INFINITY,
     );
     assert_eq!(engine.shape_count(), featured + 1);
+}
+
+#[test]
+fn an_icon_scalar_is_a_coverage_glyph_that_scales_with_the_font() {
+    let engine = bundled();
+    let text = format!("A{}", Icon::Check.scalar());
+    let small = engine.layout(&text, &inter(16.0), &[], f32::INFINITY);
+    let icon = small
+        .glyphs
+        .iter()
+        .find(|glyph| glyph.ch == Icon::Check.scalar())
+        .expect("icon");
+    assert_eq!(icon.atlas, 0, "icons tint through the coverage atlas");
+    assert!(icon.w > 8.0 && icon.w < 24.0, "{}", icon.w);
+    let big = engine.layout(&text, &inter(32.0), &[], f32::INFINITY);
+    let grown = big
+        .glyphs
+        .iter()
+        .find(|glyph| glyph.ch == Icon::Check.scalar())
+        .expect("scaled icon");
+    assert!(grown.w > icon.w * 1.6, "{} vs {}", grown.w, icon.w);
+    let tinted = engine.layout(
+        &text,
+        &inter(16.0),
+        &[TextSpan::new(0, text.len(), Color::rgb(0.2, 0.4, 0.8))],
+        f32::INFINITY,
+    );
+    let colored = tinted
+        .glyphs
+        .iter()
+        .find(|glyph| glyph.ch == Icon::Check.scalar())
+        .expect("tinted icon");
+    assert_eq!(colored.color, Some(Color::rgb(0.2, 0.4, 0.8)));
 }

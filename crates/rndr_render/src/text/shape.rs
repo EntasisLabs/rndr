@@ -200,10 +200,20 @@ fn shape_once(
                 let color = span_color(runs, text_range.start);
                 let weight = span_weight(runs, text_range.start).unwrap_or(style.weight);
                 let face = span_face(runs, text_range.start);
+                let icon = text.get(text_range.clone()).is_some_and(|slice| {
+                    slice.chars().count() == 1 && rndr_core::is_icon_scalar(ch)
+                });
+                let mut icon_pen = None;
                 for _glyph in cluster.glyphs() {
                     let Some(glyph) = positioned.next() else {
                         break;
                     };
+                    if icon {
+                        if icon_pen.is_none() {
+                            icon_pen = Some((glyph.x, glyph.y));
+                        }
+                        continue;
+                    }
                     if let Some(placed) = raster_glyph(
                         state,
                         GlyphPaint {
@@ -222,6 +232,25 @@ fn shape_once(
                             face,
                             synth,
                         },
+                        &mut keys,
+                    ) {
+                        glyphs.push(placed);
+                    }
+                }
+                if let Some((x_px, baseline_px)) = icon_pen {
+                    if let Some(placed) = raster_icon(
+                        state,
+                        ch,
+                        px_size,
+                        x_px,
+                        baseline_px,
+                        scale,
+                        text_range.start,
+                        text_range.end,
+                        color,
+                        weight,
+                        face,
+                        synth,
                         &mut keys,
                     ) {
                         glyphs.push(placed);
@@ -419,6 +448,67 @@ struct PlacedInk {
     color: Option<Color>,
     weight: u16,
     face: u8,
+}
+
+const ICON_FONT_KEY: u64 = 0xA11C_E100;
+
+#[allow(clippy::too_many_arguments)]
+fn raster_icon(
+    state: &mut State,
+    ch: char,
+    px_size: f32,
+    x_px: f32,
+    baseline_px: f32,
+    scale: f32,
+    start: usize,
+    end: usize,
+    color: Option<Color>,
+    weight: u16,
+    face: u8,
+    synth: InkSynth,
+    keys: &mut Vec<GlyphKey>,
+) -> Option<PlacedGlyph> {
+    let px = px_size.round().max(1.0) as u32;
+    let pixels = rndr_paint::icon_coverage(ch, px)?;
+    let key = glyph_key(ICON_FONT_KEY, ch as u32, px_size.to_bits(), 0, false, synth);
+    if let Some(hit) = state.coverage.resident(key) {
+        keys.push(hit.key);
+        return Some(place_glyph(
+            hit,
+            &PlacedInk {
+                x_px,
+                baseline_px,
+                scale,
+                start,
+                end,
+                ch,
+                color,
+                weight,
+                face,
+            },
+            false,
+        ));
+    }
+    let ink = match state.coverage.insert(key, px, px, 0, px as i32, &pixels) {
+        Inserted::Ready(ink) => ink,
+        Inserted::Grew | Inserted::Skip => return None,
+    };
+    keys.push(ink.key);
+    Some(place_glyph(
+        ink,
+        &PlacedInk {
+            x_px,
+            baseline_px,
+            scale,
+            start,
+            end,
+            ch,
+            color,
+            weight,
+            face,
+        },
+        false,
+    ))
 }
 
 fn place_glyph(ink: super::atlas::Ink, at: &PlacedInk, color_glyph: bool) -> PlacedGlyph {
@@ -879,6 +969,13 @@ fn outline_run(state: &mut State, source: &rndr_paint::TextSource) -> Option<Vec
                     .get(text_range.clone())
                     .and_then(|slice| slice.chars().next())
                     .unwrap_or('\u{FFFD}');
+                // Icon masks are coverage sprites. A run that contains one keeps
+                // those sprites instead of dropping the icon from the outlines.
+                if text.get(text_range.clone()).is_some_and(|slice| {
+                    slice.chars().count() == 1 && rndr_core::is_icon_scalar(ch)
+                }) {
+                    return None;
+                }
                 let foreground = span_color(runs, text_range.start).unwrap_or(source.color);
                 let shift = shifts
                     .iter()

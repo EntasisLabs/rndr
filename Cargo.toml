@@ -35,6 +35,7 @@ members = [
     "examples/create-view",
     "examples/web",
     "examples/source-session",
+    "tools/bake_icons",
 ]
 
 [workspace.package]

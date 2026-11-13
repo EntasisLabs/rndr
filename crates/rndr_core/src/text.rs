@@ -391,6 +391,9 @@ struct LineKey {
     italic: bool,
     width_bits: u32,
     letter_bits: u32,
+    /// Identity of the installed icon face. Zero before one is registered, so
+    /// a line cached without icons is not reused after they are installed.
+    fallback: u64,
     runs: Vec<RunKey>,
 }
 
@@ -492,6 +495,14 @@ impl BuiltinText {
         }
         if fonts.is_empty() {
             fonts.push(shared_bitmap());
+        }
+        if let Some(extra) = crate::icon::fallback_font() {
+            if !fonts
+                .iter()
+                .any(|font| font.family_name() == extra.family_name())
+            {
+                fonts.push(extra);
+            }
         }
         fonts
     }
@@ -855,6 +866,7 @@ fn line_key(text: &str, style: &TextStyle, max_width: f32, runs: &[TextSpan]) ->
         italic: style.style == FontStyle::Italic,
         width_bits: max_width.to_bits(),
         letter_bits: style.letter_spacing.to_bits(),
+        fallback: crate::icon::fallback_stamp(),
         runs: runs
             .iter()
             .map(|run| RunKey {
@@ -990,6 +1002,10 @@ impl Font for FaceStack {
 
     fn glyph_uv(&self, ch: char) -> [f32; 4] {
         self.fonts[self.resolve(ch)].glyph_uv(ch)
+    }
+
+    fn glyph_atlas(&self, ch: char) -> u8 {
+        self.fonts[self.resolve(ch)].glyph_atlas(ch)
     }
 
     fn solid_uv(&self) -> [f32; 4] {

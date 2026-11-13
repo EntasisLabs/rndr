@@ -135,8 +135,9 @@ impl Button {
     }
 }
 impl IconButton {
-    /// `glyph` is caller-provided text/art, not a licensed OS-symbol asset.
+    /// `glyph` is caller-provided text, or one built-in [`rndr_core::Icon`] scalar.
     /// Name is required; no generic icon fallback is silently announced.
+    /// A built-in scalar draws the Lucide glyph, tinted with the label color.
     pub fn mount(
         world: &mut World,
         parent: Entity,
@@ -158,6 +159,22 @@ impl IconButton {
             props,
             NavigationMeta::default(),
         )
+    }
+
+    /// Built-in Lucide glyph. `name` is the persistent accessible name.
+    ///
+    /// The visible label is the icon's Private Use scalar. Assistive
+    /// technologies hear `name`, not the scalar. An empty name is rejected.
+    pub fn icon(
+        world: &mut World,
+        parent: Entity,
+        id: UiId,
+        icon: rndr_core::Icon,
+        name: &str,
+        props: ButtonProps,
+    ) -> Result<ControlHandle, UiError> {
+        let glyph = icon.scalar().to_string();
+        Self::mount(world, parent, id, &glyph, name, props)
     }
 }
 impl NavigationRow {
@@ -246,7 +263,14 @@ fn mount_control(
     meta: NavigationMeta,
 ) -> Result<ControlHandle, UiError> {
     parent_valid(world, parent)?;
-    if props.label.trim().is_empty() || props.name.as_ref().is_some_and(|n| n.trim().is_empty()) {
+    let accessible = props
+        .name
+        .clone()
+        .unwrap_or_else(|| rndr_core::strip_icon_scalars(&props.label));
+    if props.label.trim().is_empty()
+        || accessible.trim().is_empty()
+        || props.name.as_ref().is_some_and(|n| n.trim().is_empty())
+    {
         return Err(UiError::InvalidProps);
     }
     let h = if let Some(root) = find(world, parent, id) {
@@ -345,7 +369,7 @@ fn mount_control(
     } else {
         world.insert(h.root, ControlDisabled);
     }
-    let mut name = props.name.clone().unwrap_or_else(|| props.label.clone());
+    let mut name = accessible;
     if kind == Kind::Navigation {
         if let Some(v) = &meta.secondary {
             name.push_str(&format!(", {v}"));

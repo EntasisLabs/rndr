@@ -2,8 +2,9 @@
 name = "rndr_paint"
 version.workspace = true
 edition.workspace = true
-# Inter atlas bytes are OFL-1.1. Other `[workspace.package]` fields stay inherited.
-license = "MIT AND OFL-1.1"
+# Inter atlas bytes are OFL-1.1. The Lucide icon atlas is ISC.
+# Other `[workspace.package]` fields stay inherited.
+license = "MIT AND OFL-1.1 AND ISC"
 repository.workspace = true
 homepage.workspace = true
 rust-version.workspace = true
@@ -12,7 +13,7 @@ documentation = "https://docs.rs/rndr_paint"
 readme = "README.md"
 keywords = ["gui", "graphics", "paint", "ui", "2d"]
 categories = ["gui", "graphics", "rendering"]
-exclude = ["**/*.snap.new"]
+exclude = ["**/*.snap.new", "icons/**"]
 
 [features]
 # Fenced-code token colors. Forwards `rndr_core`'s `highlight` feature.

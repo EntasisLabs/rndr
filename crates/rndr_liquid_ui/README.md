@@ -101,7 +101,7 @@ named by its id.
 
 ## Current limits
 
-- Icons (`{{icon:id}}`) and emoji fields are dropped; there are no icon glyphs yet.
+- Allowlisted `{{icon:id}}` shortcodes and `icon:` fields draw built-in Lucide glyphs. Emoji fields are still dropped.
 - Slide washes, scrims and motion are not drawn. A slide with no layers still
   shows its label, body and notes with previous/next.
 - Card detail (summary, points, chips and meta) stays on the face. A detail

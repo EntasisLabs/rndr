@@ -109,6 +109,7 @@ mod fs;
 mod grid;
 mod hierarchy;
 pub mod hotkey;
+mod icon;
 mod image_view;
 mod ime;
 mod input;
@@ -245,6 +246,9 @@ pub use hierarchy::{children_of, despawn, roots, set_parent, Children, Parent};
 pub use hotkey::{
     note_unregistered, GlobalHotkey, HotkeyBinding, HotkeyError, HotkeyHandle, HotkeyId,
     HotkeyRejected,
+};
+pub use icon::{
+    install_fallback_font, is_icon_scalar, strip_icon_scalars, Icon, ICON_SCALAR_START,
 };
 pub use image_view::ImageView;
 pub use ime::{resolve_ime, text_frame, ImeEvent, ResolvedIme, TextFrame};

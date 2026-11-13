@@ -717,6 +717,9 @@ fn role_of(world: &World, entity: Entity) -> Option<AccessRole> {
         return Some(mark.0);
     }
     if world.has::<Label>(entity) {
+        if decorative_icon_label(world, entity) {
+            return None;
+        }
         return Some(AccessRole::Label);
     }
     if world.has::<crate::TabPanel>(entity) {
@@ -770,11 +773,21 @@ fn text_value(world: &World, entity: Entity) -> String {
         .unwrap_or_default()
 }
 
+/// An icon-only label is decoration. Its scalar is not an accessible name.
+fn decorative_icon_label(world: &World, entity: Entity) -> bool {
+    world.get::<Label>(entity).is_some_and(|label| {
+        !label.text.is_empty()
+            && label.text.chars().any(crate::is_icon_scalar)
+            && crate::strip_icon_scalars(&label.text).is_empty()
+    })
+}
+
 fn visible_text(world: &World, entity: Entity) -> String {
     let mut parts = Vec::new();
     if let Some(label) = world.get::<Label>(entity) {
-        if !label.text.is_empty() {
-            parts.push(label.text.clone());
+        let text = crate::strip_icon_scalars(&label.text);
+        if !text.is_empty() {
+            parts.push(text);
         }
     }
     for child in children_of(world, entity) {

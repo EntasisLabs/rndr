@@ -40,7 +40,7 @@ PUBLISH_ORDER = (
 )
 
 LICENSES = {
-    "rndr_paint": "MIT AND OFL-1.1",
+    "rndr_paint": "MIT AND OFL-1.1 AND ISC",
     "rndr_render": "MIT AND OFL-1.1",
 }
 
