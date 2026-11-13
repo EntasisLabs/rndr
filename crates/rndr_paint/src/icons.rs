@@ -19,7 +19,7 @@ const ICON_EM: f32 = 16.0;
 
 const ICON_ATLAS: &[u8] = include_bytes!("icon_atlas.bin");
 
-/// Width and height of [`ICON_ATLAS`], in pixels.
+/// Width and height of the baked coverage atlas, in pixels.
 pub fn icon_atlas_size() -> (u32, u32) {
     let rows = (Icon::COUNT as u32).div_ceil(ICON_COLS);
     (ICON_COLS * ICON_PITCH, rows * ICON_PITCH)

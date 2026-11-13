@@ -54,7 +54,7 @@ pub use host::{
     LiquidImage, NoHost,
 };
 pub use lifecycle::{liquid_surface_handle, LiquidLimits, LiquidSurfaceHandle, LiquidUpdateError};
-pub use render::plain;
+pub use render::{plain, with_icons};
 pub use state::{
     liquid_component_state, liquid_component_states, put_liquid_component_state,
     subscribe_liquid_interactions, FeedPhase, FeedSlot, LiquidComponentRecord,
