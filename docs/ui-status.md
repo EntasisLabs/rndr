@@ -15,6 +15,7 @@ feature. `publish = false` stays on the examples, including desktop. The
 What the kits and the core document model cover, with tests in this repo:
 
 - Semantic themes, cards, controls, collections, data editors, and selection.
+- [Slider, range, number stepper, tooltip, and toast](basic-inputs.md). Values stay on the last mount until the host mounts again. Tooltips link with described-by while visible. Toasts are polite status regions; reduced motion skips their fade. Date and color pickers are not implemented.
 - [`ListView::mount_virtual`](virtual-list.md) and [`ListView::mount_variable`](virtual-list.md): a viewport window over a longer logical list. Variable rows keep an item anchor plus a milli-point remainder. The retained `ListView` is still a bounded list. Headless anchor math is not native certification.
 - [Range and multiple selection](selection-modes.md): `SelectionMode` adds `Multiple` and `Range` on lists and tables. `None` and `Single` still publish `Selected(Option<ItemId>)`. The new modes emit a set-changed event with no id list. Headless gestures are not pointer, keyboard, or AT certification.
 - [Diff presentation](diff-presentation.md): the host supplies hunk ids, row text, heights, and a gutter mark. The view draws the mark and moves between hunks with the variable-list anchor. It does not parse a diff. Headless tests do not make the native diff cell Supported.

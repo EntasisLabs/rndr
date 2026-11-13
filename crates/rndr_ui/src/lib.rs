@@ -15,6 +15,7 @@ pub mod data;
 pub mod diff;
 pub mod editing;
 pub mod editing_recipes;
+pub mod inputs;
 mod lifecycle;
 pub mod menu;
 pub mod selection;
@@ -73,6 +74,8 @@ impl Plugin for UiPlugin {
         app.world_mut().insert_resource(Installed);
         app.add_system(Schedule::Input, collections::requests);
         app.add_system(Schedule::Input, menu::hover);
+        app.add_system(Schedule::Input, inputs::drive);
+        app.add_system(Schedule::Update, inputs::publish);
         app.add_system(Schedule::PostUpdate, data::inspector_blur);
         app.add_system(Schedule::Layout, collections::styles);
         app.add_system(Schedule::Layout, data::styles);
@@ -80,6 +83,7 @@ impl Plugin for UiPlugin {
         app.add_system(Schedule::Layout, selection::styles);
         app.add_system(Schedule::Layout, menu::styles);
         app.add_system(Schedule::Layout, window_controls::styles);
+        app.add_system(Schedule::Layout, inputs::styles);
         app.add_system(Schedule::Layout, resolve_styles);
         app.add_system(Schedule::Layout, structured::prepare_projection);
         app.add_system_front(Schedule::Input, structured_embeds::capture_exit);

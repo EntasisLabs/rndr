@@ -809,6 +809,26 @@ pub(crate) fn sync_preview(world: &mut World, entity: crate::entity::Entity) {
     }
 }
 
+/// Replace a text field's label and end its current typing run.
+///
+/// The caret moves to the end of `text` when one is already present. The next
+/// typed character starts a new history snapshot. Returns false when `entity`
+/// is not a live [`TextField`]. Emits no typing events.
+pub fn replace_field_text(world: &mut World, entity: Entity, text: &str) -> bool {
+    if !world.is_alive(entity) || !world.has::<TextField>(entity) || !world.has::<Label>(entity) {
+        return false;
+    }
+    world.get_mut::<Label>(entity).unwrap().text = text.into();
+    let len = text.len();
+    if let Some(caret) = world.get_mut::<Caret>(entity) {
+        caret.index = len;
+        caret.anchor = len;
+    }
+    world.remove::<EditHistory>(entity);
+    world.remove::<ImePreview>(entity);
+    true
+}
+
 /// Owner-driven draft replacement, not a user edit or property model transaction.
 /// Only opted-in TextFields are accepted. Discards local caret/typing history so
 /// undo cannot resurrect an old object/property draft. Emits no typing events.

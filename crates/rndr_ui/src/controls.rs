@@ -206,6 +206,9 @@ pub(crate) fn owns_entity(world: &World, entity: Entity) -> bool {
     if crate::collections::owns_entity(world, entity) {
         return true;
     }
+    if crate::inputs::owns_entity(world, entity) {
+        return true;
+    }
     world.has::<OwnedBy>(entity)
 }
 

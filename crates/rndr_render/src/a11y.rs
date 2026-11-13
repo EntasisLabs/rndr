@@ -1,6 +1,6 @@
 //! Push [`rndr_core::access_tree`] to the platform accessibility adapter.
 
-use accesskit::{Action, ActionData, Node, NodeId, Rect, Role, TreeId, TreeInfo, TreeUpdate};
+use accesskit::{Action, ActionData, Live, Node, NodeId, Rect, Role, TreeId, TreeInfo, TreeUpdate};
 use rndr_core::{
     access_tree, entity_from_access_id, AccessCommand, AccessRole, World, ACCESS_ROOT,
 };
@@ -176,6 +176,24 @@ impl Bridge {
                     value: value.to_string(),
                 })
             }
+            Action::Increment | Action::Decrement
+                if world.has::<rndr_core::NumericAccess>(entity) =>
+            {
+                if !rndr_core::access_details(world, entity).set_value {
+                    return None;
+                }
+                let access = world.get::<rndr_core::NumericAccess>(entity).copied()?;
+                let delta = if request.action == Action::Increment {
+                    access.step
+                } else {
+                    -access.step
+                };
+                let next = access.normalize(access.value + delta)?;
+                Some(AccessCommand::SetValue {
+                    entity,
+                    value: rndr_core::NumericAccess::text(next),
+                })
+            }
             Action::Focus => Some(AccessCommand::Focus(entity)),
             Action::Click => Some(AccessCommand::Activate(entity)),
             Action::SetValue => {
@@ -185,6 +203,11 @@ impl Bridge {
                         if world.has::<rndr_core::Scrollbar>(entity) =>
                     {
                         value.to_string()
+                    }
+                    Some(ActionData::NumericValue(value))
+                        if world.has::<rndr_core::NumericAccess>(entity) =>
+                    {
+                        rndr_core::NumericAccess::text(*value)
                     }
                     _ => return None,
                 };
@@ -209,7 +232,11 @@ fn platform_node(world: &World, node: &rndr_core::AccessNode) -> Node {
     } else if !node.name.is_empty() {
         out.set_label(node.name.clone());
     }
-    if matches!(node.role, AccessRole::TextInput | AccessRole::Code) && !node.value.is_empty() {
+    if matches!(
+        node.role,
+        AccessRole::TextInput | AccessRole::Code | AccessRole::SpinButton
+    ) && !node.value.is_empty()
+    {
         out.set_value(node.value.clone());
     }
     out.set_bounds(Rect {
@@ -321,6 +348,40 @@ fn platform_node(world: &World, node: &rndr_core::AccessNode) -> Node {
             out.remove_action(Action::Focus);
         }
     }
+    if let Some(access) = entity_from_access_id(node.id)
+        .and_then(|entity| world.get::<rndr_core::NumericAccess>(entity))
+        .copied()
+    {
+        if let Some(value) = access.normalize(access.value) {
+            out.set_numeric_value(value);
+        }
+        out.set_min_numeric_value(access.min.min(access.max));
+        out.set_max_numeric_value(access.min.max(access.max));
+        if access.step.is_finite() && access.step > 0.0 {
+            out.set_numeric_value_step(access.step);
+        }
+        if access.jump.is_finite() && access.jump > 0.0 {
+            out.set_numeric_value_jump(access.jump);
+        }
+        out.set_orientation(if access.horizontal {
+            accesskit::Orientation::Horizontal
+        } else {
+            accesskit::Orientation::Vertical
+        });
+        if details.set_value {
+            out.add_action(Action::SetValue);
+            out.add_action(Action::Increment);
+            out.add_action(Action::Decrement);
+        }
+    }
+    if let Some(live) =
+        entity_from_access_id(node.id).and_then(|entity| world.get::<rndr_core::LiveRegion>(entity))
+    {
+        out.set_live(match live.0 {
+            rndr_core::LivePoliteness::Polite => Live::Polite,
+            rndr_core::LivePoliteness::Assertive => Live::Assertive,
+        });
+    }
     if !node.enabled {
         out.set_disabled();
     }
@@ -370,6 +431,9 @@ fn role(role: AccessRole) -> Role {
         AccessRole::Code => Role::Code,
         AccessRole::Tooltip => Role::Tooltip,
         AccessRole::Image => Role::Image,
+        AccessRole::Slider => Role::Slider,
+        AccessRole::SpinButton => Role::SpinButton,
+        AccessRole::Status => Role::Status,
     }
 }
 
@@ -849,5 +913,119 @@ mod tests {
         assert_eq!(native(code).role(), Role::Code);
         assert_eq!(native(code).label(), Some("rust"));
         assert_eq!(native(code).value(), Some("fn main() {}"));
+    }
+
+    #[test]
+    fn slider_spin_button_and_status_reach_accesskit() {
+        let mut app = App::new();
+        let slider = app.world_mut().spawn((
+            Layout::column(),
+            Focusable,
+            AccessMark(AccessRole::Slider),
+            NumericAccess {
+                value: 40.,
+                min: 0.,
+                max: 100.,
+                step: 1.,
+                jump: 10.,
+                horizontal: true,
+            },
+            Semantics {
+                name: Some("Volume".into()),
+                ..Semantics::default()
+            },
+        ));
+        let spin = app.world_mut().spawn((
+            Layout::column(),
+            Label::new("4"),
+            TextField,
+            Focusable,
+            AccessMark(AccessRole::SpinButton),
+            NumericAccess {
+                value: 4.,
+                min: 0.,
+                max: 8.,
+                step: 1.,
+                jump: 2.,
+                horizontal: true,
+            },
+        ));
+        app.world_mut().insert(
+            spin,
+            Semantics {
+                name: Some("Count".into()),
+                readonly: true,
+                ..Semantics::default()
+            },
+        );
+        let status = app.world_mut().spawn((
+            Label::new("Saved"),
+            AccessMark(AccessRole::Status),
+            LiveRegion(LivePoliteness::Polite),
+            Semantics {
+                name: Some("Saved".into()),
+                ..Semantics::default()
+            },
+        ));
+        let hidden_tip = app.world_mut().spawn((
+            Label::new("hidden"),
+            AccessMark(AccessRole::Tooltip),
+            Hidden,
+        ));
+        app.world_mut()
+            .insert(slider, DescribedBy(vec![hidden_tip]));
+        let mut bridge = Bridge::default();
+        let tree = bridge.update(app.world());
+        let native = |entity| {
+            tree.nodes
+                .iter()
+                .find(|(id, _)| *id == NodeId(access_id(entity)))
+                .map(|(_, node)| node)
+        };
+        let slider_node = native(slider).unwrap();
+        assert_eq!(slider_node.role(), Role::Slider);
+        assert_eq!(slider_node.label(), Some("Volume"));
+        assert_eq!(slider_node.numeric_value(), Some(40.));
+        assert_eq!(slider_node.min_numeric_value(), Some(0.));
+        assert_eq!(slider_node.max_numeric_value(), Some(100.));
+        assert_eq!(slider_node.numeric_value_step(), Some(1.));
+        assert_eq!(slider_node.numeric_value_jump(), Some(10.));
+        assert_eq!(
+            slider_node.orientation(),
+            Some(accesskit::Orientation::Horizontal)
+        );
+        assert!(slider_node.supports_action(Action::SetValue));
+        assert!(slider_node.supports_action(Action::Increment));
+        assert!(slider_node.described_by().is_empty());
+        let spin_node = native(spin).unwrap();
+        assert_eq!(spin_node.role(), Role::SpinButton);
+        assert_eq!(spin_node.value(), Some("4"));
+        assert_eq!(spin_node.numeric_value(), Some(4.));
+        assert!(spin_node.is_read_only());
+        assert!(!spin_node.supports_action(Action::SetValue));
+        let status_node = native(status).unwrap();
+        assert_eq!(status_node.role(), Role::Status);
+        assert_eq!(status_node.live(), Some(accesskit::Live::Polite));
+        assert!(native(hidden_tip).is_none());
+        let request = accesskit::ActionRequest {
+            action: Action::Increment,
+            target_tree: TreeId::ROOT,
+            target_node: NodeId(access_id(slider)),
+            data: None,
+        };
+        let command = bridge.command(app.world(), &request).unwrap();
+        assert_eq!(
+            try_apply_access(app.world_mut(), command),
+            AccessCommandResult::Applied
+        );
+        assert_eq!(app.world().get::<NumericAccess>(slider).unwrap().value, 40.);
+        app.update();
+        assert_eq!(
+            events::<NumericAccessSet>(app.world()),
+            &[NumericAccessSet {
+                entity: slider,
+                value: 41.,
+            }]
+        );
     }
 }
