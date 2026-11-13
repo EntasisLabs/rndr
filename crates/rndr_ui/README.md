@@ -84,6 +84,11 @@ Headless checks:
 cargo test --offline --locked -p rndr_ui
 ```
 
+A seeded input soak of these components, plus Liquid blocks, is
+`rndr_liquid_ui`'s `fuzz_gallery` test. It runs under `cargo test --workspace`.
+The longer soak is ignored; see that test for `RNDR_FUZZ_SEED` and
+`RNDR_FUZZ_FRAMES`.
+
 Write any new paint dumps under `local-captures/` (gitignored) or another
 directory outside the repo. Do not add them under `evidence/`.
 
