@@ -1,11 +1,12 @@
 //! `chart` blocks: an `rndr_chart` painter in a paint surface, with the
 //! title, legend and caption as ordinary text around it. The tooltip is an
 //! absolute overlay on the plot, and the plot is described by that overlay.
+use crate::render::text;
 use rndr_chart::{Chart, ChartPainter, ChartScene, ChartTheme};
 use rndr_core::*;
 use rndr_liquid::chart::ChartProps;
 use rndr_paint::{Canvas, CanvasPainter, CanvasRegistry};
-use rndr_ui::{text, Appearance, Typography, UiTheme};
+use rndr_ui::{Appearance, Typography, UiTheme};
 use std::collections::HashMap;
 
 const DEFAULT_HEIGHT: f32 = 260.0;
@@ -305,4 +306,16 @@ pub(crate) fn hover(world: &mut World) {
         );
         world.insert(plot, DescribedBy(vec![tip]));
     }
+}
+
+#[cfg(test)]
+pub(crate) fn count(world: &World) -> usize {
+    world
+        .resource::<ChartSlots>()
+        .map_or(0, |r| r.by_root.len())
+}
+
+fn set_parent(world: &mut World, child: Entity, parent: Entity) {
+    rndr_core::set_parent(world, child, parent);
+    crate::lifecycle::own_created(world, parent, child);
 }

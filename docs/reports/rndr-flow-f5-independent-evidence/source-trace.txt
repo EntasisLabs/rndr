@@ -1,0 +1,593 @@
+CANDIDATE 286818f9bcac048b725a650594ea88fa9b1d1624
+PARENT 2f01d288b14c6e14caee538f9646ffe6aa018921
+ .../qualified-final/audit.txt                      |   28 +
+ .../qualified-final/compatibility-liquid.txt       |   12 +
+ .../qualified-final/compatibility-off.txt          |   12 +
+ .../qualified-final/consumer.txt                   |  874 +++++++++++
+ .../rndr-flow-f5-evidence/qualified-final/core.txt | 1427 ++++++++++++++++++
+ .../qualified-final/environment.txt                |   21 +
+ .../qualified-final/facade-liquid.txt              |    4 +
+ .../qualified-final/facade-off.txt                 |    4 +
+ .../qualified-final/feature-off.txt                |    5 +
+ .../qualified-final/flow-dependencies.txt          |   11 +
+ .../rndr-flow-f5-evidence/qualified-final/flow.txt | 1522 ++++++++++++++++++++
+ .../rndr-flow-f5-evidence/qualified-final/fmt.txt  |    3 +
+ .../qualified-final/host-adapter.txt               |   41 +
+ .../qualified-final/lint-consumer.txt              |    9 +
+ .../qualified-final/lint-core.txt                  |    5 +
+ .../qualified-final/lint-flow.txt                  |    5 +
+ .../qualified-final/liquid.txt                     |   44 +
+ .../qualified-final/reverse-dependencies.txt       |    4 +
+ .../qualified-final/reviewer-probes.txt            |  146 ++
+ .../qualified-final/source-clean.txt               |    3 +
+ .../qualified-final/source-digests.txt             |  583 ++++++++
+ .../qualified-final/source-fingerprints.txt        |  586 ++++++++
+ .../qualified-final/summary.tsv                    |   23 +
+ .../qualified-final/whitespace.txt                 |    3 +
+ docs/reports/rndr-flow-f5.md                       |   26 +-
+ 25 files changed, 5398 insertions(+), 3 deletions(-)
+M	crates/rndr_core/src/editing.rs
+A	crates/rndr_core/src/freeze.rs
+M	crates/rndr_core/src/lib.rs
+M	crates/rndr_core/src/structured.rs
+M	crates/rndr_core/src/structured_native.rs
+A	crates/rndr_core/tests/close_freeze.rs
+A	crates/rndr_flow/src/history.rs
+A	crates/rndr_flow/src/history_tests.rs
+M	crates/rndr_flow/src/lib.rs
+A	crates/rndr_flow/src/protection.rs
+A	crates/rndr_flow/src/topology.rs
+A	crates/rndr_flow/tests/f5.rs
+A	crates/rndr_flow/tests/f5_admission.rs
+A	crates/rndr_flow/tests/f5_cycles.rs
+A	crates/rndr_flow/tests/f5_native.rs
+A	crates/rndr_flow/tests/f5_quit_save.rs
+A	crates/rndr_flow/tests/f5_saves.rs
+A	crates/rndr_flow/tests/f5_shared_ime.rs
+A	crates/rndr_flow/tests/f5_support/mod.rs
+A	crates/rndr_flow/tests/f5_windows.rs
+   263	            .native
+   264	            .iter()
+   265	            .position(|n| {
+   266	                n.operation == decision.operation
+   267	                    && n.round == decision.round
+   268	                    && matches!(n.phase, Phase::AwaitingDecision | Phase::Failed)
+   269	            })
+   270	            .ok_or(Error::Stale)?;
+   271	        let round = self.native[at]
+   272	            .round
+   273	            .checked_add(1)
+   274	            .ok_or(Error::Exhausted)?;
+   275	        let world = self.native[at].world;
+   276	        if choice == Choice::Cancel {
+   277	            get_world_mut(worlds, world)?
+   278	                .resource_mut::<CloseGuard>()
+   279	                .ok_or(Error::Invalid)?
+   280	                .cancel();
+   281	            self.native.remove(at);
+   282	            return Ok(());
+   283	        }
+   284	        let mut attempt = self.native.remove(at);
+   285	        if choice == Choice::Save {
+   286	            let g = get_world_mut(worlds, world)?
+   287	                .resource_mut::<CloseGuard>()
+   288	                .ok_or(Error::Invalid)?;
+   289	            if let Some(request) = g.retry(attempt.request) {
+   290	                attempt.request = request;
+   291	            }
+   292	        }
+   293	        let phase = self
+   294	            .pass(flow, worlds)
+   295	            .choose(&mut attempt.guard, decision, choice);
+   296	        match phase {
+   297	            Ok(p) => {
+   298	                attempt.phase = p;
+   299	                attempt.round = round;
+   300	                self.native.insert(at, attempt);
+   301	                Ok(())
+   302	            }
+   303	            Err(e) => {
+   304	                self.native.insert(at, attempt);
+   305	                Err(e)
+   306	            }
+   307	        }
+   308	    }
+   309	    /// Run host-defined persistence under an owned panic boundary, then acknowledge
+   310	    /// only the exact current saved revision. A dropped/lost job never chooses discard.
+   311	    /// This synchronous lane does not await the quit/navigation operation it protects.
+   312	    pub fn save_native<F>(
+   313	        &mut self,
+   314	        flow: &Coordinator,
+   315	        worlds: &mut [HostWorld<'_>],
+   316	        ticket: SaveTicket,
+   317	        save: F,
+   318	    ) -> Result<(), Error>
+   515	        for n in &mut attempts {
+   516	            let mut pass = self.pass(flow, worlds);
+   517	            if n.phase == Phase::Saving {
+   518	                n.phase = pass.poll(&mut n.guard);
+   519	            }
+   520	            if pass.validate(&n.guard).is_err() {
+   521	                n.phase = Phase::Failed;
+   522	                let g = get_world_mut(worlds, n.world)?
+   523	                    .resource_mut::<CloseGuard>()
+   524	                    .ok_or(Error::Invalid)?;
+   525	                if matches!(g.state(), CloseState::Ready(_)) {
+   526	                    g.invalidate();
+   527	                    if let CloseState::Pending(r) = g.state() {
+   528	                        n.request = *r;
+   529	                    }
+   530	                }
+   531	            }
+   532	        }
+   533	        // First validate every owned attempt, then publish native readiness.
+   534	        // Destroying a manager World destroys its actual native document store:
+   535	        // another retained presentation (or application lease) must not outlive it.
+   536	        // Ready phases form the bounded jointly-prepared teardown cohort; no
+   537	        // second document store or implicit ownership transfer is introduced.
+   538	        let prepared: Vec<_> = attempts
+   539	            .iter()
+   540	            .filter(|n| n.phase == Phase::Ready)
+   541	            .map(|n| n.world)
+   542	            .collect();
+   543	        for n in &mut attempts {
+   544	            let manager_in_use = n
+   545	                .guard
+   546	                .docs
+   547	                .iter()
+   548	                .filter(|d| d.target.manager == n.world)
+   549	                .any(|d| {
+   550	                    flow.leases.values().any(|l| {
+   551	                        l.document == d.target.document
+   552	                            && flow.held(l)
+   553	                            && !scope_in_world(flow, l.scope, n.world)
+   554	                            && !prepared
+   555	                                .iter()
+   556	                                .any(|world| scope_in_world(flow, l.scope, *world))
+   557	                    })
+   558	                });
+   559	            let g = get_world_mut(worlds, n.world)?
+   560	                .resource_mut::<CloseGuard>()
+   561	                .ok_or(Error::Invalid)?;
+   562	            if n.phase == Phase::Ready && manager_in_use {
+   563	                // Cancellation/withdrawal of a participant revokes a previous
+   564	                // Ready before the runner can consume it. Keep the freeze; the
+   565	                // fresh request is reconciled at the next pass.
+   566	                if matches!(g.state(), CloseState::Ready(_)) {
+   567	                    g.invalidate();
+   568	                }
+   569	                continue;
+   570	            }
+   571	            match n.phase {
+   572	                Phase::Ready => {
+   573	                    if matches!(g.state(),CloseState::Failed(r,_)if *r==n.request) {
+   574	                        g.discard(n.request);
+   575	                    } else {
+   576	                        g.complete(n.request, Ok(()));
+   577	                    }
+   578	                }
+   648	    // Earliest Input has not necessarily reached Chrome yet. Conservatively block
+   649	    // admission for pending IME in the manager World; never clear/drop preedit.
+   650	    if world
+   651	        .resource::<Input>()
+   652	        .is_some_and(|i| !i.ime_preedit.is_empty() || !i.ime_commit.is_empty())
+   653	    {
+   654	        return Err(Error::Pending);
+   655	    }
+   656	    match native {
+   657	        NativeDocument::Source(id) => world
+   658	            .resource::<SourceDocuments>()
+   659	            .and_then(|d| d.get(id))
+   660	            .ok_or(Error::Stale)?
+   661	            .freeze()
+   662	            .map_err(|_| Error::Pending),
+   663	        NativeDocument::Structured(id) => world
+   664	            .resource::<StructuredDocuments>()
+   665	            .and_then(|d| d.get(id))
+   666	            .ok_or(Error::Stale)?
+   667	            .freeze()
+   668	            .map_err(|_| Error::Pending),
+   669	    }
+   670	}
+   671	fn fail_save(
+   672	    guard: &mut FrozenDocuments,
+   673	    ticket: SaveTicket,
+   674	    _failure: SaveFailure,
+   675	) -> Result<(), Error> {
+   676	    let d = guard
+   677	        .docs
+   678	        .iter_mut()
+   679	        .find(|d| matches!(d.state,Protection::Waiting(t)if t==ticket))
+   680	        .ok_or(Error::Stale)?;
+   681	    d.state = Protection::Failed;
+   682	    Ok(())
+   683	}
+   684	pub struct ProtectionPass<'a, 'b> {
+   685	    host: &'a mut ProtectionHost,
+   686	    flow: &'a Coordinator,
+   687	    worlds: &'a mut [HostWorld<'b>],
+   688	    native: bool,
+   689	}
+   690	impl ProtectionPass<'_, '_> {
+   691	    pub fn complete_owned_save(
+   692	        &mut self,
+   693	        guard: &mut FrozenDocuments,
+   694	        mut result: SavedWork,
+   695	    ) -> Result<(), Error> {
+   696	        let status = result.result;
+   697	        let accepted = self.save_inner(guard, result.ticket, |_, _| status, true);
+   698	        if accepted.is_ok() {
+   699	            result.armed = false;
+   700	        }
+   701	        accepted
+   702	    }
+   703	    pub fn save<F>(
+   704	        &mut self,
+   705	        guard: &mut FrozenDocuments,
+   900	        Ok(if choice == Choice::Save {
+   901	            Phase::Saving
+   902	        } else {
+   903	            Phase::Ready
+   904	        })
+   905	    }
+   906	    fn poll(&mut self, g: &mut FrozenDocuments) -> Phase {
+   907	        for d in &mut g.docs {
+   908	            if matches!(d.state, Protection::Waiting(_)) && d.lost.load(Ordering::Acquire) {
+   909	                d.state = Protection::Failed;
+   910	            }
+   911	        }
+   912	        if g.docs.iter().any(|d| matches!(d.state, Protection::Failed)) {
+   913	            Phase::Failed
+   914	        } else if g.docs.iter().all(|d| matches!(d.state, Protection::Safe)) {
+   915	            Phase::Ready
+   916	        } else {
+   917	            Phase::Saving
+   918	        }
+   919	    }
+   920	    fn validate(&self, g: &FrozenDocuments) -> Result<(), Error> {
+   921	        if let Some(world) = g.native_world {
+   922	            if self.host.records.iter().any(|r| {
+   923	                (r.target.manager == world
+   924	                    || self.flow.leases.values().any(|l| {
+   925	                        l.document == r.target.document
+   926	                            && self.flow.held(l)
+   927	                            && scope_in_world(self.flow, l.scope, world)
+   928	                    }))
+   929	                    && !g.docs.iter().any(|d| d.target == r.target)
+   930	            }) {
+   931	                return Err(Error::Stale);
+   932	            }
+   933	        }
+   934	        if g.worlds.as_ref().is_some_and(|w| !w.valid()) {
+   935	            return Err(Error::Stale);
+   936	        }
+   937	        for d in &g.docs {
+   938	            if !d.leases.valid()
+   939	                || revision(get_world(self.worlds, d.target.manager)?, d.target.native)?
+   940	                    != d.revision
+   941	            {
+   942	                return Err(Error::Stale);
+   943	            }
+   944	        }
+   945	        Ok(())
+   946	    }
+   947	}
+   390	            .map(|p| p.phase)
+   391	            .or_else(|| {
+   392	                self.outcomes
+   393	                    .iter()
+   394	                    .find(|(i, _)| *i == id)
+   395	                    .map(|(_, p)| *p)
+   396	            })
+   397	            .or_else(|| {
+   398	                self.sender
+   399	                    .0
+   400	                    .queue
+   401	                    .borrow()
+   402	                    .iter()
+   403	                    .find(|(i, _)| *i == id)
+   404	                    .map(|_| Phase::Queued)
+   405	            })
+   406	    }
+   407	    pub fn decision(&self, id: OperationId) -> Option<DecisionId> {
+   408	        self.pending
+   409	            .iter()
+   410	            .find(|p| p.id == id && matches!(p.phase, Phase::AwaitingDecision | Phase::Failed))
+   411	            .map(|p| DecisionId {
+   412	                operation: id,
+   413	                round: p.round,
+   414	            })
+   415	    }
+   416	    pub fn guard(&self, id: OperationId) -> Option<&G> {
+   417	        self.pending
+   418	            .iter()
+   419	            .find(|p| p.id == id)
+   420	            .and_then(|p| p.guard.as_ref())
+   421	    }
+   422	    pub fn guard_mut(&mut self, id: OperationId) -> Option<&mut G> {
+   423	        self.pending
+   424	            .iter_mut()
+   425	            .find(|p| p.id == id)
+   426	            .and_then(|p| p.guard.as_mut())
+   427	    }
+   428	    fn finish(&mut self, id: OperationId, phase: Phase) {
+   429	        self.sender.0.charged.set(self.sender.0.charged.get() - 1);
+   430	        self.sender
+   431	            .0
+   432	            .coalesced
+   433	            .borrow_mut()
+   434	            .retain(|(i, _)| *i != id);
+   435	        if self.outcomes.len() == self.limits.outcomes {
+   436	            self.outcomes.pop_front();
+   437	        }
+   438	        self.outcomes.push_back((id, phase));
+   439	    }
+   440	    pub fn choose<H: TransitionHost<D, Guard = G>>(
+   441	        &mut self,
+   442	        host: &mut H,
+   443	        decision: DecisionId,
+   444	        choice: Choice,
+   445	    ) -> Result<(), Error> {
+   446	        let p = self
+   447	            .pending
+   448	            .iter_mut()
+   449	            .find(|p| p.id == decision.operation)
+   450	            .ok_or(Error::Stale)?;
+   451	        if p.round != decision.round || !matches!(p.phase, Phase::AwaitingDecision | Phase::Failed)
+   452	        {
+   453	            return Err(Error::Stale);
+   454	        }
+   455	        let next = p.round.checked_add(1).ok_or(Error::Exhausted)?;
+   456	        if choice == Choice::Cancel {
+   457	            p.phase = Phase::Cancelled;
+   458	            p.guard = None;
+   459	        } else {
+   460	            p.phase = host.choose(p.guard.as_mut().ok_or(Error::Invalid)?, decision, choice)?;
+   461	        }
+   462	        p.round = next;
+   463	        Ok(())
+   464	    }
+   465	    /// Cancellation is explicit and wins in every precommit phase. Observers carry no ownership.
+   466	    pub fn cancel(&mut self, id: OperationId) -> Result<(), Error> {
+   467	        if let Some(p) = self.pending.iter_mut().find(|p| p.id == id) {
+   468	            p.phase = Phase::Cancelled;
+   469	            p.guard = None;
+   470	            return Ok(());
+   471	        }
+   472	        let mut q = self.sender.0.queue.borrow_mut();
+   473	        if let Some(at) = q.iter().position(|(i, _)| *i == id) {
+   474	            let removed = q.remove(at);
+   475	            drop(q);
+   476	            drop(removed);
+   477	            self.finish(id, Phase::Cancelled);
+   478	            return Ok(());
+   479	        }
+   480	        if self.phase(id) == Some(Phase::Committed) {
+   548	            if !e.owner.liveness().is_live()
+   549	                || !tabs.iter().any(|id| {
+   550	                    self.tab(*id).is_ok_and(|t| {
+   551	                        e.owner
+   552	                            .life
+   553	                            .parent
+   554	                            .as_ref()
+   555	                            .is_some_and(|p| std::sync::Arc::ptr_eq(p, &t.owner.life))
+   556	                    })
+   557	                })
+   558	                || self
+   559	                    .tabs
+   560	                    .iter()
+   561	                    .any(|t| t.history.iter().any(|old| old.id() == e.id()))
+   562	            {
+   563	                return Err(Error::Invalid);
+   564	            }
+   565	            let total: usize = self.tabs.iter().map(|t| t.history.len()).sum();
+   566	            if total + 1 - affected.len() > self.limits.entries {
+   567	                return Err(Error::Capacity);
+   568	            }
+   569	        }
+   570	        Ok((affected, tabs))
+   571	    }
+   572	    /// One bounded scheduling pass. Reentrant submissions wait for the next pass;
+   573	    /// conflicting tabs serialize while unrelated entries can progress. No host callback
+   574	    /// or await between final all-target validation and metadata/owner removal.
+   575	    pub fn tick<H: TransitionHost<D, Guard = G>>(&mut self, host: &mut H) {
+   576	        while self.pending.len() < self.limits.operations {
+   577	            let Some((id, command)) = self.sender.0.queue.borrow_mut().pop_front() else {
+   578	                break;
+   579	            };
+   580	            match self.resolve(&command) {
+   581	                Ok((affected, tabs)) => self.pending.push(Pending {
+   582	                    id,
+   583	                    command,
+   584	                    affected,
+   585	                    tabs,
+   586	                    phase: Phase::Queued,
+   587	                    round: 1,
+   663	        }
+   664	    }
+   665	    fn commit(&mut self, p: Pending<R, D, G>) {
+   666	        let replacement_at = if let Navigation::Replace { tab, old, .. } = &p.command {
+   667	            self.tab(*tab)
+   668	                .ok()
+   669	                .and_then(|t| t.history.iter().position(|e| e.id() == *old))
+   670	        } else {
+   671	            None
+   672	        };
+   673	        let Pending {
+   674	            id,
+   675	            command,
+   676	            affected,
+   677	            guard,
+   678	            ..
+   679	        } = p;
+   680	        // All owners move out of authoritative metadata before destruction.
+   681	        let mut retired = vec![];
+   682	        for t in &mut self.tabs {
+   683	            let mut i = 0;
+   684	            while i < t.history.len() {
+   685	                if affected.contains(&t.history[i].id()) {
+   686	                    retired.push(t.history.remove(i));
+   687	                } else {
+   688	                    i += 1;
+   689	                }
+   690	            }
+   691	            if t.selected.is_some_and(|id| affected.contains(&id)) {
+   692	                t.selected = t.history.last().map(|e| e.id());
+   693	            }
+   694	        }
+   695	        match command {
+   696	            Navigation::Push { tab, entry, .. } => {
+   697	                let t = self.tabs.iter_mut().find(|t| t.owner.id() == tab).unwrap();
+   698	                t.selected = Some(entry.id());
+   699	                t.history.push(entry);
+   700	            }
+   701	            Navigation::Replace { tab, entry, .. } => {
+   702	                let t = self.tabs.iter_mut().find(|t| t.owner.id() == tab).unwrap();
+   703	                t.selected = Some(entry.id());
+   704	                t.history.insert(replacement_at.unwrap(), entry);
+   705	            }
+   706	            Navigation::Select { tab, entry } => {
+   707	                self.tabs
+   708	                    .iter_mut()
+   709	                    .find(|t| t.owner.id() == tab)
+   710	                    .unwrap()
+   711	                    .selected = Some(entry)
+   712	            }
+   713	            Navigation::Close { .. } => {}
+   714	        }
+   715	        self.finish(id, Phase::Committed);
+   716	        drop(retired);
+   717	        drop(guard);
+   718	    }
+   719	}
+    20	    pub fn step<'a>(
+    21	        &mut self,
+    22	        slots: impl IntoIterator<Item = (&'a mut World, &'a mut CloseSlot, bool)>,
+    23	    ) -> bool {
+    24	        let mut slots: Vec<_> = slots.into_iter().collect();
+    25	        for (world, close, primary) in &mut slots {
+    26	            let quit = world.resource_mut::<Input>().is_some_and(|input| {
+    27	                let quit = input.quit;
+    28	                input.quit = false; // consume the edge; Cancel must not immediately re-arm
+    29	                quit
+    30	            });
+    31	            self.exiting |= quit || (*primary && close.requested);
+    32	        }
+    33	        for (world, close, _) in &mut slots {
+    34	            if (self.exiting || close.requested) && !close.active {
+    35	                close.active = true;
+    36	                close.needs_frame = true;
+    37	                if let Some(guard) = world.resource_mut::<CloseGuard>() {
+    38	                    guard.request();
+    39	                }
+    40	            }
+    41	            close.requested = false;
+    42	        }
+    43	        let cancelled = slots.iter().any(|(world, close, _)| {
+    44	            close.active
+    45	                && world
+    46	                    .resource::<CloseGuard>()
+    47	                    .is_some_and(|g| matches!(g.state(), CloseState::Idle))
+    48	        });
+    49	        if self.exiting && cancelled {
+    50	            // A cancel in any window cancels the whole process-exit transaction.
+    51	            self.exiting = false;
+    52	            for (world, close, _) in &mut slots {
+    53	                close.active = false;
+    54	                close.needs_frame = true;
+    55	                if let Some(guard) = world.resource_mut::<CloseGuard>() {
+    56	                    guard.cancel();
+    57	                }
+    58	            }
+    59	            return false;
+    60	        }
+    61	        let ready = |world: &World| {
+    62	            world
+    63	                .resource::<CloseGuard>()
+    64	                .is_none_or(|g| matches!(g.state(), CloseState::Ready(_)))
+    65	        };
+    66	        if self.exiting {
+    67	            return slots.iter().all(|(world, _, _)| ready(world));
+    68	        }
+    69	        for (world, close, _) in &mut slots {
+    70	            if close.active {
+    71	                if world
+    72	                    .resource::<CloseGuard>()
+    73	                    .is_some_and(|g| matches!(g.state(), CloseState::Idle))
+    74	                {
+    75	                    close.active = false;
+    76	                } else if ready(world) {
+    77	                    close.closed = true;
+    78	                }
+    79	            }
+    80	        }
+    81	        false
+    82	    }
+    83	}
+    84	
+    85	#[cfg(test)]
+    86	mod tests {
+    87	    use super::*;
+    88	    use rndr_core::{App, CloseRequest};
+    89	
+    90	    fn protected() -> App {
+    91	        let mut app = App::new();
+    92	        app.world_mut().insert_resource(CloseGuard::default());
+    93	        app
+    94	    }
+    95	    fn pending(app: &App) -> CloseRequest {
+    96	        match app.world().resource::<CloseGuard>().unwrap().state() {
+    97	            CloseState::Pending(r) => *r,
+    98	            state => panic!("expected pending, got {state:?}"),
+    99	        }
+   100	    }
+   101	    fn step(d: &mut CloseDrain, app: &mut App, c: &mut CloseSlot, primary: bool) -> bool {
+   102	        d.step([(app.world_mut(), c, primary)])
+   103	    }
+   104	
+   105	    #[test]
+   106	    fn failure_never_exits_or_destroys_in_memory_text_retry_drains() {
+   107	        let mut app = protected();
+   108	        let text = "unsaved α\nexact bytes".to_string();
+   109	        app.world_mut().insert_resource(text.clone());
+   110	        let mut c = CloseSlot {
+   111	            requested: true,
+   112	            ..Default::default()
+   113	        };
+   114	        let mut d = CloseDrain::default();
+   115	        assert!(!step(&mut d, &mut app, &mut c, true));
+   116	        let r = pending(&app);
+   117	        // Inject actual IO failure without touching live notes: a file cannot be a directory.
+   118	        let path = std::env::temp_dir().join(format!("rndr-close-{}-{:?}", std::process::id(), r));
+   119	        std::fs::write(&path, b"not a directory").unwrap();
+   120	        let result =
+   121	            std::fs::write(path.join("recovery"), text.as_bytes()).map_err(|e| e.to_string());
+   122	        std::fs::remove_file(path).unwrap();
+   123	        assert!(result.is_err());
+   124	        app.world_mut()
+   125	            .resource_mut::<CloseGuard>()
+342:pub struct Session {
+353:    pub fn window(mut self, app: App) -> Self {
+359:    pub fn run(self) {
+375:pub fn run(app: App) {
+511:struct Handler {
+2700:    fn reconcile_close(&mut self, event_loop: &dyn ActiveEventLoop) {
+2732:        self.slots.retain(|slot| !slot.close.closed);
+2929:        self.reconcile_close(event_loop);
+2949:        self.reconcile_close(event_loop);
+1:# F5 retained transition / native host contract
+5:## Ownership and bounds
+9:Each tab is a direct child of its exact registered World. An entry is a direct child of its exact tab. `add_tab` checks coordinator membership and World ancestry; new entries must have the tab's actual parent liveness. Push captures `after`, replace captures `old`, and select/back/forward capture exact retained entry IDs before submission. Replace preserves its old history position. Back/forward/select never dispose retained entries. Push protects every truncated forward entry; replace protects its old entry; close protects its entire explicit entry set. Shared documents are never implicitly closed by presentation disposal.
+15:## Decisions, saves and atomic commit
+19:`TransitionHost` is the small synchronous admission/validation seam, not a service framework. Its concrete `ProtectionPass` freezes **real native writers**, captures native revisions, and holds every presentation lease (including hidden and other Worlds). It preflights the complete affected set. Immediately before a retained commit, every document and participant snapshot is validated again, with no await/reentrant callback between final validation and metadata removal. All removed owners leave metadata before resource destruction. The protection guard survives their destruction. A participant loss rejects the whole commit; it does not retire a second valid entry.
+21:Saved revision metadata is not a second document store. Initial saved revisions come from the host's actual persistence state; `None` is conservatively dirty. A save result changes that metadata only after exact ticket/revision/lease validation and success. Informed discard marks only this protection safe; it does **not** mark the document saved. Completed external persistence is not rolled back by later cancel/failure. Cancel without completed persistence preserves bytes, revision, native history, selection and installed resource ownership.
+23:Synchronous `save` catches a host persistence callback at the actual immutable native authority. `save_source` writes the exact frozen source bytes with `write_all` and `sync_all` to a host-authorized path. It is not an atomic file-replacement/directory durability or destination-security policy. Structured persistence uses the native structured authority and host's existing encoder, not a flattened source substitute.
+25:For existing asynchronous/external producers, mint exactly one `SaveWork` via `own_save` / `own_native_save`. Keep it with that actual job on the existing executor/thread; `run` normalizes failure/panic and returns an owned result. Dropping the actual job or undelivered result records loss, leading to Failed with freeze retained. Copying/dropping an observer `SaveTicket` does nothing. `complete_owned_save` / `complete_native_owned_save` perform the authoritative exact-revision acknowledgment. A separate synchronous callback cannot acknowledge an already-claimed job. These types do not spawn work, claim backend termination, replace F4 exit accounting, or wait for quit/navigation before permitting saves.
+27:## Native composition sequence
+31:3. Present the exact owned native decision. Save lanes run independently of retained navigation/quit scheduling. Failure remains Failed and frozen until explicit retry, informed discard or cancel. Native retry allocates a fresh native request while retaining freeze; old decisions/save tickets cannot satisfy it.
+32:4. A World's native Ready retains protection and **does not dispose any entry**. If that World owns the actual native document manager, every lease outside it must belong to a jointly prepared teardown cohort before manager Ready is published. An application lease outside Worlds blocks manager teardown until explicitly released/restarted. This is ownership protection, not automatic model transfer: hosts wanting independent window closure must place shared native managers under their existing application-owned lifetime. A non-manager presentation can close without closing its shared manager. Participant withdrawal revokes a prior manager Ready before runner consumption. The unchanged `CloseDrain` retains primary/secondary/process-exit/cancel policy and waits for all participating guards. New flow World registration and new leases of protected documents refuse at their authoritative coordinator boundaries through Ready. `close_document` preserves its old idempotence/InUse policy and additionally refuses unleased frozen documents. Frozen structured authorities cannot be removed from their manager.
+33:5. Native managers expose read-only exact identity enumeration. Unregistered manager documents, missing Worlds and lost leases cannot bless Ready. An unavoidable added native document invalidates Ready; register it and explicitly cancel/restart the attempt so the whole affected set is snapshotted again. Existing freezes survive Failed. The adapter does not invent a fallback target or silently omit an unleased native manager document.
+34:6. Core content/history admission rejects source and structured programmatic writes, undo/redo, source reload, editor mutation and composition start under freeze, independently of UI readonly setters. Live composition and pending Input IME prevent snapshot admission without clearing preedit. Existing selection/read APIs remain available. The adapter requires every shared lease World and conservatively blocks its pending IME (and manager-World IME) rather than guessing a selected target. A missing shared participant stays queued; it is never treated as quiescent. Normal apps with no F5 freeze retain their previous behavior.
+35:7. Only actual terminal WorldOwner loss after native consumption permits `reconcile_world_loss` to release native protection. Call `Retained::reconcile_world_loss` to abandon affected owned operations and release dead tabs/entries; queued commands keep exact stale targets and refuse, never target a reopened window. Then perform normal F3/F4 cleanup/drain/accounting. Do not fabricate backend exit acknowledgment. The host must retain the protection owner for the entire attempt; forced owner/process loss has the same explicit limits as F3/F4.
+37:## F6 handoff, not F6 claims
+39:The separately authorized application owner must supply its real typed route/document/incarnation mapping, source/structured persistence encoders and destinations, dirty/saved revision registration, window creation/destructive-boundary hooks, decision UI and actual backend save completion/exit evidence. It must retain its SDK/session/approval/security/durable-job authorities, not migrate them into flow. Wire every presentation lease and native manager document, including hidden/shared/multiworld cases. Preserve explicit cancellation and any unavoidable topology restart UX.

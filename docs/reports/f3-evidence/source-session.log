@@ -1,0 +1,44 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.39s
+     Running unittests src/bin/projection.rs (target/debug/deps/projection-0693c0e04c6357e4)
+
+running 5 tests
+test tests::reveal_opaque_selects_exact_raw_range_and_changes_no_bytes ... ok
+test tests::mount_apply_undo_preview_and_stale_target_use_one_history ... ok
+test tests::native_replacement_field_ime_preedit_is_local_commit_then_apply_is_one_source_edit ... ok
+test tests::external_source_edit_during_native_draft_composition_makes_apply_stale ... ok
+test tests::resize_and_bidi_shape_never_change_logical_mapping_or_dirty_source ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.45s
+
+     Running unittests src/main.rs (target/debug/deps/source_session-2f432996c0197471)
+
+running 11 tests
+test tests::delayed_save_acknowledges_capture_without_replacing_later_source ... ok
+test tests::extension_controls_select_fold_diagnose_fix_and_navigate ... ok
+test tests::native_and_capture_share_shaped_typography ... ok
+test tests::readonly_control_preserves_navigation_and_updates_visible_status ... ok
+test tests::extension_fake_completion_delivers_only_at_deadline_and_refuses_late_source ... ok
+test tests::extension_syntax_is_registry_owned_and_base_demo_remains_exact ... ok
+test tests::extension_fake_request_retains_native_timer_after_handler_returns ... ok
+test tests::extension_rectangle_uses_real_shaped_editor_rows ... ok
+test tests::split_views_share_source_but_keep_distinct_entities_and_accessible_names ... ok
+test tests::layout_keeps_editor_and_commands_visible_at_default_and_minimum_sizes ... ok
+test tests::extension_layout_keeps_source_and_tools_reachable_at_supported_sizes ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.89s
+
+     Running unittests src/bin/structured.rs (target/debug/deps/structured-465d29e35365e954)
+
+running 2 tests
+test tests::structured_demo_is_shaped_and_shows_real_blocks ... ok
+test tests::structured_demo_layout_keeps_editor_and_buttons_reachable ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.48s
+
+     Running tests/e2_geometry.rs (target/debug/deps/e2_geometry-df191f9caa2c2643)
+
+running 2 tests
+test mixed_bidi_left_right_remain_logical_grapheme_commands ... ok
+test shaped_page_selection_geometry_remains_coherent_after_resize_and_readonly ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s

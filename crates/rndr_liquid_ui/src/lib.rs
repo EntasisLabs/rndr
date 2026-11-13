@@ -34,21 +34,36 @@
 mod chart;
 mod feed;
 mod host;
+mod identity;
+mod lifecycle;
+pub use identity::{
+    inspect_liquid_occurrences, liquid_component_handle, liquid_component_state_for,
+    liquid_source_revision, put_liquid_component_state_for, reset_liquid_block,
+    reset_liquid_surface, set_liquid_source_keyed, subscribe_liquid_interactions_owned_for,
+    LiquidBlockHandle, LiquidF2Error, LiquidInteractionEnvelopeFor, LiquidInteractionHandlerFor,
+    LiquidKeyMap, LiquidOccurrenceDescription, LiquidSourceRevision, LiquidSubscribeErrorFor,
+};
 mod render;
 mod state;
 mod timer;
 mod view;
 
+pub use feed::{put_liquid_feed_result, put_liquid_feed_result_for, LiquidFeedContext};
 pub use host::{
     FeedBody, FeedDatatype, FeedEntry, FeedOutcome, FeedRequest, LiquidEvent, LiquidHost,
     LiquidImage, NoHost,
 };
+pub use lifecycle::{liquid_surface_handle, LiquidLimits, LiquidSurfaceHandle, LiquidUpdateError};
 pub use render::plain;
 pub use state::{
     liquid_component_state, liquid_component_states, put_liquid_component_state,
     subscribe_liquid_interactions, FeedPhase, FeedSlot, LiquidComponentRecord,
     LiquidComponentState, LiquidDisposition, LiquidInteraction, LiquidInteractionEnvelope,
     LiquidInteractionHandler, LiquidRevisionError,
+};
+pub use state::{
+    subscribe_liquid_interactions_owned, unsubscribe_liquid_interactions,
+    LiquidInteractionSubscription, LiquidListenerOwner, LiquidSubscribeError,
 };
 pub use timer::{
     liquid_timer, liquid_timers, LiquidTimerAction, LiquidTimerRecord, LiquidTimerStatus,
@@ -62,6 +77,7 @@ use rndr_core::{App, Plugin, Schedule};
 /// Add it after [`rndr_core::MarkdownPlugin`] so blocks mount in the same
 /// frame the markdown parses. It installs [`rndr_ui::UiPlugin`] if needed.
 pub struct LiquidUiPlugin {
+    limits: LiquidLimits,
     host: Box<dyn LiquidHost>,
 }
 
@@ -69,19 +85,34 @@ impl LiquidUiPlugin {
     /// Plugin that sends block requests to `host`.
     pub fn new(host: impl LiquidHost + 'static) -> Self {
         Self {
+            limits: LiquidLimits::default(),
             host: Box::new(host),
         }
     }
 }
 
+impl LiquidUiPlugin {
+    /// Configure admission before plugin installation. Zero budgets are refused.
+    pub fn with_limits(mut self, limits: LiquidLimits) -> Result<Self, LiquidUpdateError> {
+        if !limits.valid() {
+            return Err(LiquidUpdateError::Capacity);
+        }
+        self.limits = limits;
+        Ok(self)
+    }
+}
 impl Plugin for LiquidUiPlugin {
     fn build(self, app: &mut App) {
         app.add_plugin(rndr_ui::UiPlugin);
+        app.world_mut().insert_resource(self.limits);
         app.world_mut()
             .insert_resource(view::HostSlot(Some(self.host)));
+        app.add_system(Schedule::Update, state::begin_pump);
+        app.add_system(Schedule::Update, lifecycle::drain);
         app.add_system(Schedule::Update, chart::hover);
         app.add_system(Schedule::Update, timer::reconcile);
         app.add_system(Schedule::Update, feed::reconcile);
         app.add_system(Schedule::PostUpdate, view::reconcile);
+        app.add_system(Schedule::PostUpdate, lifecycle::drain);
     }
 }

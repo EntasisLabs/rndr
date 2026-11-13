@@ -1,0 +1,5 @@
+$ cargo check --offline --locked -p rndr-flow --no-default-features --lib
+    Checking rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f4-owned-adapters-and-completion-gates/crates/rndr_flow)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.23s
+
+exit=0

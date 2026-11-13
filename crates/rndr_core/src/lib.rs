@@ -82,6 +82,8 @@ mod chrome;
 mod clipboard;
 pub mod clock;
 mod close;
+mod freeze;
+pub use freeze::DocumentFreeze;
 mod compose;
 mod cursor;
 mod decor;

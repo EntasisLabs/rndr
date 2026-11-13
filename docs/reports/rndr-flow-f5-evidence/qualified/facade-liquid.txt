@@ -1,0 +1,11 @@
+$ cargo check --offline --locked -p rndr --no-default-features --features liquid --lib
+   Compiling serde_derive v1.0.229
+    Checking serde v1.0.229
+    Checking rndr_liquid v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_liquid)
+    Checking rndr_chart v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_chart)
+    Checking rndr_ui v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_ui)
+    Checking rndr_liquid_ui v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_liquid_ui)
+    Checking rndr v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr)
+    Finished `dev` profile [unoptimized] target(s) in 2.74s
+
+exit=0

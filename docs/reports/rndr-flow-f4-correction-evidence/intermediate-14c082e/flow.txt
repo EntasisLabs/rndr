@@ -1,0 +1,806 @@
+$ cargo test --offline --locked -p rndr-flow --no-default-features -- --nocapture
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f4-owned-adapters-and-completion-gates/crates/rndr_flow)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.43s
+     Running unittests src/lib.rs (target/debug/deps/rndr_flow-a463ef8c260aca93)
+
+running 39 tests
+
+thread 'budget_tests::queued_unwind_commands_are_charged_fifo_before_next_callback' (3766607) panicked at crates/rndr_flow/src/budget_tests.rs:105:9:
+expected incremental queue unwind
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test budget_tests::newly_suspended_child_between_pumps_precedes_waiting_parent_cleanup ... ok
+test budget_tests::unrelated_live_registrations_cannot_starve_an_inflight_dead_subtree ... ok
+test budget_tests::newly_dead_ancestor_restarts_before_parent_and_keeps_reverse_order ... ok
+test budget_tests::saturated_metadata_callbacks_commands_and_leases_all_make_progress ... ok
+test budget_tests::queued_unwind_commands_are_charged_fifo_before_next_callback ... ok
+test budget_tests::lease_ancestry_is_resumable_and_counts_remain_exact_without_pumping ... ok
+test f4_tests::effect_capacity_refusal_returns_untouched_capture_and_pending_is_not_acknowledged ... ok
+test f4_tests::lane_generation_max_refuses_atomically_with_old_valid_request ... ok
+test f4_tests::unrecoverable_refusal_does_not_advance_activity_or_cancel_work ... ok
+test lease_admission_tests::exhausted_inactive_slot_is_not_reclaimed ... ok
+test lease_admission_tests::exhausted_active_slot_remains_valid ... ok
+test lease_admission_tests::capacity_refusal_does_not_consume_final_serial ... ok
+
+thread 'f4_tests::destructor_panic_is_observed_after_ack_and_independent_cleanup_continues' (3766612) panicked at crates/rndr_flow/src/f4_tests.rs:400:9:
+controlled future destructor panic
+test f4_tests::default_lane_capacity_exact_native_identity_and_terminal_sequence_refusals_are_untouched ... ok
+test lease_admission_tests::exhausted_mixed_storage_preserves_inactive_and_active_leases ... ok
+test f4_tests::work_serial_max_refuses_without_replacing_or_cancelling_valid_last_slot ... ok
+test lease_admission_tests::exhausted_lease_admission_preserves_stale_invalid_precedence ... ok
+
+thread 'tests::cleanup_captures_release_once_on_success_error_unwind_and_rejection_drop' (3766625) panicked at crates/rndr_flow/src/tests.rs:162:22:
+expected capture unwind
+test f4_tests::destructor_panic_is_observed_after_ack_and_independent_cleanup_continues ... ok
+test tests::coordinator_drop_signals_but_never_runs_arbitrary_callbacks ... ok
+test tests::capacity_diagnostics_and_foreign_stale_identity_are_bounded ... ok
+test tests::cleanup_rejection_returns_untouched_ownership_and_never_calls_in_admission ... ok
+test tests::all_identity_counters_refuse_exhaustion_before_replacing_valid_work ... ok
+budget lease-table leases=4096 units=8192
+test tests::lease_capacity_does_not_evict_admitted_presentations ... ok
+test tests::cleanup_captures_release_once_on_success_error_unwind_and_rejection_drop ... ok
+test budget_tests::full_default_lease_table_sweeps_with_tiny_budgets_and_no_callbacks ... ok
+test tests::hidden_retains_and_suspension_restarts_only_recoverable_activity ... ok
+test tests::reentrant_ancestor_disposal_revisits_previously_live_children_before_parent ... ok
+test tests::removed_components_and_refused_bindings_retain_single_ownership ... ok
+test work::tests::aggregate_terminal_evidence_never_downgrades_in_any_order ... ok
+test work::tests::epoch_max_refuses_without_advancing ... ok
+test work::tests::tracked_pending_drop_preserves_known_failure_without_early_ack ... ok
+
+thread 'tests::duplicate_reentrant_error_panic_cleanup_is_consumed_once_with_bounded_queue' (3766628) panicked at crates/rndr_flow/src/tests.rs:275:9:
+expected unwind probe
+test tests::world_component_removal_explicit_dispose_and_world_drop_share_one_contract ... ok
+test tests::sim_host_keeps_logical_death_separate_from_explicit_cleanup_pump ... ok
+test budget_tests::callback_entry_scans_and_revalidation_are_charged_not_bulk ... ok
+test tests::subtree_logical_death_precedes_child_first_reverse_cleanup ... ok
+test tests::shared_documents_survive_presentation_and_world_loss ... ok
+budget callback-free deep=false scopes=4096 units=24577
+F3 cycle=1 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=3
+test tests::duplicate_reentrant_error_panic_cleanup_is_consumed_once_with_bounded_queue ... ok
+F3 cycle=2 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=6
+F3 cycle=3 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=9
+F3 cycle=4 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=12
+F3 cycle=5 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=15
+F3 cycle=6 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=18
+F3 cycle=7 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=21
+F4 budget capacity=4096 lanes_per_scope=32 queue=1024 units=33375 charged=0
+test f4_tests::one_unit_default_capacity_slots_lanes_and_full_commands_progress_without_scans ... ok
+F3 cycle=8 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=24
+F3 cycle=9 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=27
+F3 cycle=10 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=30
+F3 cycle=11 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=33
+F3 cycle=12 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=36
+F3 cycle=13 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=39
+F3 cycle=14 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=42
+F3 cycle=15 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=45
+budget callback-free deep=true scopes=4096 units=24577
+test budget_tests::capacity_wide_and_deep_callback_free_retirement_is_incremental ... ok
+F3 cycle=16 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=48
+F3 cycle=17 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=51
+F3 cycle=18 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=54
+F3 cycle=19 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=57
+F3 cycle=20 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=60
+F3 cycle=21 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=63
+F3 cycle=22 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=66
+F3 cycle=23 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=69
+F3 cycle=24 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=72
+F3 cycle=25 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=75
+F3 cycle=26 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=78
+F3 cycle=27 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=81
+F3 cycle=28 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=84
+F3 cycle=29 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=87
+F3 cycle=30 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=90
+F3 cycle=31 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=93
+F3 cycle=32 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=96
+F3 cycle=33 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=99
+F3 cycle=34 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=102
+F3 cycle=35 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=105
+F3 cycle=36 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=108
+F3 cycle=37 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=111
+F3 cycle=38 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=114
+F3 cycle=39 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=117
+F3 cycle=40 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=120
+F3 cycle=41 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=123
+F3 cycle=42 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=126
+F3 cycle=43 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=129
+F3 cycle=44 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=132
+F3 cycle=45 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=135
+F3 cycle=46 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=138
+F3 cycle=47 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=141
+F3 cycle=48 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=144
+F3 cycle=49 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=147
+F3 cycle=50 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=150
+F3 cycle=51 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=153
+F3 cycle=52 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=156
+F3 cycle=53 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=159
+F3 cycle=54 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=162
+F3 cycle=55 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=165
+F3 cycle=56 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=168
+F3 cycle=57 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=171
+F3 cycle=58 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=174
+F3 cycle=59 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=177
+F3 cycle=60 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=180
+F3 cycle=61 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=183
+F3 cycle=62 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=186
+F3 cycle=63 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=189
+F3 cycle=64 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=192
+F3 cycle=65 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=195
+F3 cycle=66 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=198
+F3 cycle=67 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=201
+F3 cycle=68 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=204
+F3 cycle=69 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=207
+F3 cycle=70 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=210
+F3 cycle=71 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=213
+F3 cycle=72 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=216
+F3 cycle=73 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=219
+F3 cycle=74 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=222
+F3 cycle=75 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=225
+F3 cycle=76 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=228
+F3 cycle=77 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=231
+F3 cycle=78 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=234
+F3 cycle=79 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=237
+F3 cycle=80 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=240
+F3 cycle=81 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=243
+F3 cycle=82 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=246
+F3 cycle=83 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=249
+F3 cycle=84 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=252
+F3 cycle=85 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=255
+F3 cycle=86 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=258
+F3 cycle=87 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=261
+F3 cycle=88 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=264
+F3 cycle=89 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=267
+F3 cycle=90 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=270
+F3 cycle=91 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=273
+F3 cycle=92 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=276
+F3 cycle=93 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=279
+F3 cycle=94 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=282
+F3 cycle=95 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=285
+F3 cycle=96 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=288
+F3 cycle=97 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=291
+F3 cycle=98 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=294
+F3 cycle=99 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=297
+F3 cycle=100 scopes=1 cleanups=0 leases=0 active_leases=0 pending_scopes=0 pending_cleanups=0 queued_commands=0 callbacks=300
+test tests::one_hundred_lifecycle_cycles_return_every_storage_count_to_baseline ... ok
+
+test result: ok. 39 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.22s
+
+     Running tests/f4.rs (target/debug/deps/f4-4cef3c6ad2124e1b)
+
+running 16 tests
+
+thread 'local_rc_panic_failure_cancel_before_poll_and_future_drop_are_distinct' (3766685) panicked at crates/rndr_flow/tests/f4.rs:373:17:
+background poll panic
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+F4 seed=1 cycle=1 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=2
+test hidden_and_recoverable_suspend_restart_activity_not_stream_buffering ... ok
+test cancelled_custom_job_is_charged_until_job_future_actually_drops ... ok
+test ordered_native_session_turn_and_revision_identity_never_substitutes_target ... ok
+test captured_epoch_rejects_old_sender_before_mutation ... ok
+test lane_and_slot_capacity_refusal_returns_untouched_future_and_old_request ... ok
+test already_published_event_rejected_even_in_input_after_drop ... ok
+test owner_drops_during_future_completion_and_world_loss_are_not_successful_ui_delivery ... ok
+F4 seed=1 cycle=2 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=4
+
+thread 'producer_panic_and_error_normalize_and_world_effect_panic_does_not_skip_cleanup' (3766690) panicked at crates/rndr_flow/tests/f4.rs:916:21:
+controlled producer panic
+F4 seed=1 cycle=3 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=6
+test controlled_old_finishes_last_custom_executor_and_inbox_cancel_orderings ... ok
+test owning_world_effect_runs_before_custom_cleanup_child_first ... ok
+test cooperative_and_blocked_feed_stay_charged_independently_of_eligibility ... ok
+test same_logical_key_reopen_foreign_coordinator_world_and_lag_reject ... ok
+F4 seed=1 cycle=4 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=8
+test timer_manual_deadline_replacement_and_published_disposal ... ok
+F4 seed=1 cycle=5 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=10
+test same_owner_replacement_independent_lanes_and_duplicate_zero_writes ... ok
+F4 seed=1 cycle=6 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=12
+F4 seed=1 cycle=7 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=14
+
+thread 'local_rc_panic_failure_cancel_before_poll_and_future_drop_are_distinct' (3766685) panicked at crates/rndr_flow/tests/f4.rs:358:21:
+local poll panic
+
+thread 'local_rc_panic_failure_cancel_before_poll_and_future_drop_are_distinct' (3766685) panicked at crates/rndr_flow/tests/f4.rs:373:17:
+background poll panic
+
+thread 'local_rc_panic_failure_cancel_before_poll_and_future_drop_are_distinct' (3766685) panicked at crates/rndr_flow/tests/f4.rs:358:21:
+local poll panic
+
+thread 'producer_panic_and_error_normalize_and_world_effect_panic_does_not_skip_cleanup' (3766690) panicked at crates/rndr_flow/tests/f4.rs:922:50:
+controlled removal panic
+
+thread 'local_rc_panic_failure_cancel_before_poll_and_future_drop_are_distinct' (3766685) panicked at crates/rndr_flow/tests/f4.rs:373:17:
+background poll panic
+F4 seed=1 cycle=8 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=16
+
+thread 'local_rc_panic_failure_cancel_before_poll_and_future_drop_are_distinct' (3766685) panicked at crates/rndr_flow/tests/f4.rs:358:21:
+local poll panic
+test local_rc_panic_failure_cancel_before_poll_and_future_drop_are_distinct ... ok
+F4 seed=1 cycle=9 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=18
+test producer_panic_and_error_normalize_and_world_effect_panic_does_not_skip_cleanup ... ok
+F4 seed=1 cycle=10 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=20
+F4 seed=1 cycle=11 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=22
+F4 seed=1 cycle=12 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=24
+F4 seed=1 cycle=13 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=26
+F4 seed=1 cycle=14 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=28
+F4 seed=1 cycle=15 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=30
+F4 seed=1 cycle=16 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=32
+F4 seed=1 cycle=17 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=34
+F4 seed=1 cycle=18 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=36
+F4 seed=1 cycle=19 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=38
+F4 seed=1 cycle=20 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=40
+F4 seed=1 cycle=21 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=42
+F4 seed=1 cycle=22 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=44
+F4 seed=1 cycle=23 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=46
+F4 seed=1 cycle=24 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=48
+F4 seed=1 cycle=25 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=50
+F4 seed=1 cycle=26 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=52
+F4 seed=1 cycle=27 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=54
+F4 seed=1 cycle=28 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=56
+F4 seed=1 cycle=29 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=58
+F4 seed=1 cycle=30 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=60
+F4 seed=1 cycle=31 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=62
+F4 seed=1 cycle=32 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=64
+F4 seed=1 cycle=33 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=66
+F4 seed=1 cycle=34 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=68
+F4 seed=1 cycle=35 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=70
+F4 seed=1 cycle=36 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=72
+F4 seed=1 cycle=37 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=74
+F4 seed=1 cycle=38 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=76
+F4 seed=1 cycle=39 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=78
+F4 seed=1 cycle=40 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=80
+F4 seed=1 cycle=41 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=82
+F4 seed=1 cycle=42 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=84
+F4 seed=1 cycle=43 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=86
+F4 seed=1 cycle=44 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=88
+F4 seed=1 cycle=45 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=90
+F4 seed=1 cycle=46 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=92
+F4 seed=1 cycle=47 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=94
+F4 seed=1 cycle=48 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=96
+F4 seed=1 cycle=49 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=98
+F4 seed=1 cycle=50 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=100
+F4 seed=1 cycle=51 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=102
+F4 seed=1 cycle=52 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=104
+F4 seed=1 cycle=53 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=106
+F4 seed=1 cycle=54 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=108
+F4 seed=1 cycle=55 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=110
+F4 seed=1 cycle=56 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=112
+F4 seed=1 cycle=57 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=114
+F4 seed=1 cycle=58 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=116
+F4 seed=1 cycle=59 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=118
+F4 seed=1 cycle=60 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=120
+F4 seed=1 cycle=61 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=122
+F4 seed=1 cycle=62 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=124
+F4 seed=1 cycle=63 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=126
+F4 seed=1 cycle=64 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=128
+F4 seed=1 cycle=65 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=130
+F4 seed=1 cycle=66 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=132
+F4 seed=1 cycle=67 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=134
+F4 seed=1 cycle=68 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=136
+F4 seed=1 cycle=69 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=138
+F4 seed=1 cycle=70 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=140
+F4 seed=1 cycle=71 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=142
+F4 seed=1 cycle=72 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=144
+F4 seed=1 cycle=73 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=146
+F4 seed=1 cycle=74 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=148
+F4 seed=1 cycle=75 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=150
+F4 seed=1 cycle=76 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=152
+F4 seed=1 cycle=77 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=154
+F4 seed=1 cycle=78 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=156
+F4 seed=1 cycle=79 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=158
+F4 seed=1 cycle=80 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=160
+F4 seed=1 cycle=81 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=162
+F4 seed=1 cycle=82 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=164
+F4 seed=1 cycle=83 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=166
+F4 seed=1 cycle=84 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=168
+F4 seed=1 cycle=85 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=170
+F4 seed=1 cycle=86 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=172
+F4 seed=1 cycle=87 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=174
+F4 seed=1 cycle=88 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=176
+F4 seed=1 cycle=89 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=178
+F4 seed=1 cycle=90 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=180
+F4 seed=1 cycle=91 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=182
+F4 seed=1 cycle=92 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=184
+F4 seed=1 cycle=93 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=186
+F4 seed=1 cycle=94 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=188
+F4 seed=1 cycle=95 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=190
+F4 seed=1 cycle=96 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=192
+F4 seed=1 cycle=97 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=194
+F4 seed=1 cycle=98 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=196
+F4 seed=1 cycle=99 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=198
+F4 seed=1 cycle=100 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=200
+F4 seed=1 cycle=101 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=202
+F4 seed=1 cycle=102 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=204
+F4 seed=1 cycle=103 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=206
+F4 seed=1 cycle=104 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=208
+F4 seed=1 cycle=105 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=210
+F4 seed=1 cycle=106 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=212
+F4 seed=1 cycle=107 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=214
+F4 seed=1 cycle=108 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=216
+F4 seed=1 cycle=109 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=218
+F4 seed=1 cycle=110 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=220
+F4 seed=1 cycle=111 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=222
+F4 seed=1 cycle=112 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=224
+F4 seed=1 cycle=113 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=226
+F4 seed=1 cycle=114 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=228
+F4 seed=1 cycle=115 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=230
+F4 seed=1 cycle=116 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=232
+F4 seed=1 cycle=117 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=234
+F4 seed=1 cycle=118 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=236
+F4 seed=1 cycle=119 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=238
+F4 seed=1 cycle=120 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=240
+F4 seed=7 cycle=1 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=2
+F4 seed=7 cycle=2 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=4
+F4 seed=7 cycle=3 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=6
+F4 seed=7 cycle=4 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=8
+F4 seed=7 cycle=5 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=10
+F4 seed=7 cycle=6 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=12
+F4 seed=7 cycle=7 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=14
+F4 seed=7 cycle=8 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=16
+F4 seed=7 cycle=9 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=18
+F4 seed=7 cycle=10 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=20
+F4 seed=7 cycle=11 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=22
+F4 seed=7 cycle=12 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=24
+F4 seed=7 cycle=13 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=26
+F4 seed=7 cycle=14 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=28
+F4 seed=7 cycle=15 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=30
+F4 seed=7 cycle=16 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=32
+F4 seed=7 cycle=17 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=34
+F4 seed=7 cycle=18 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=36
+F4 seed=7 cycle=19 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=38
+F4 seed=7 cycle=20 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=40
+F4 seed=7 cycle=21 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=42
+F4 seed=7 cycle=22 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=44
+F4 seed=7 cycle=23 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=46
+F4 seed=7 cycle=24 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=48
+F4 seed=7 cycle=25 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=50
+F4 seed=7 cycle=26 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=52
+F4 seed=7 cycle=27 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=54
+F4 seed=7 cycle=28 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=56
+F4 seed=7 cycle=29 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=58
+F4 seed=7 cycle=30 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=60
+F4 seed=7 cycle=31 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=62
+F4 seed=7 cycle=32 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=64
+F4 seed=7 cycle=33 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=66
+F4 seed=7 cycle=34 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=68
+F4 seed=7 cycle=35 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=70
+F4 seed=7 cycle=36 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=72
+F4 seed=7 cycle=37 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=74
+F4 seed=7 cycle=38 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=76
+F4 seed=7 cycle=39 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=78
+F4 seed=7 cycle=40 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=80
+F4 seed=7 cycle=41 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=82
+F4 seed=7 cycle=42 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=84
+F4 seed=7 cycle=43 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=86
+F4 seed=7 cycle=44 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=88
+F4 seed=7 cycle=45 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=90
+F4 seed=7 cycle=46 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=92
+F4 seed=7 cycle=47 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=94
+F4 seed=7 cycle=48 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=96
+F4 seed=7 cycle=49 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=98
+F4 seed=7 cycle=50 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=100
+F4 seed=7 cycle=51 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=102
+F4 seed=7 cycle=52 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=104
+F4 seed=7 cycle=53 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=106
+F4 seed=7 cycle=54 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=108
+F4 seed=7 cycle=55 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=110
+F4 seed=7 cycle=56 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=112
+F4 seed=7 cycle=57 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=114
+F4 seed=7 cycle=58 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=116
+F4 seed=7 cycle=59 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=118
+F4 seed=7 cycle=60 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=120
+F4 seed=7 cycle=61 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=122
+F4 seed=7 cycle=62 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=124
+F4 seed=7 cycle=63 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=126
+F4 seed=7 cycle=64 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=128
+F4 seed=7 cycle=65 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=130
+F4 seed=7 cycle=66 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=132
+F4 seed=7 cycle=67 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=134
+F4 seed=7 cycle=68 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=136
+F4 seed=7 cycle=69 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=138
+F4 seed=7 cycle=70 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=140
+F4 seed=7 cycle=71 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=142
+F4 seed=7 cycle=72 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=144
+F4 seed=7 cycle=73 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=146
+F4 seed=7 cycle=74 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=148
+F4 seed=7 cycle=75 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=150
+F4 seed=7 cycle=76 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=152
+F4 seed=7 cycle=77 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=154
+F4 seed=7 cycle=78 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=156
+F4 seed=7 cycle=79 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=158
+F4 seed=7 cycle=80 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=160
+F4 seed=7 cycle=81 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=162
+F4 seed=7 cycle=82 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=164
+F4 seed=7 cycle=83 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=166
+F4 seed=7 cycle=84 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=168
+F4 seed=7 cycle=85 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=170
+F4 seed=7 cycle=86 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=172
+F4 seed=7 cycle=87 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=174
+F4 seed=7 cycle=88 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=176
+F4 seed=7 cycle=89 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=178
+F4 seed=7 cycle=90 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=180
+F4 seed=7 cycle=91 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=182
+F4 seed=7 cycle=92 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=184
+F4 seed=7 cycle=93 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=186
+F4 seed=7 cycle=94 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=188
+F4 seed=7 cycle=95 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=190
+F4 seed=7 cycle=96 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=192
+F4 seed=7 cycle=97 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=194
+F4 seed=7 cycle=98 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=196
+F4 seed=7 cycle=99 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=198
+F4 seed=7 cycle=100 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=200
+F4 seed=7 cycle=101 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=202
+F4 seed=7 cycle=102 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=204
+F4 seed=7 cycle=103 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=206
+F4 seed=7 cycle=104 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=208
+F4 seed=7 cycle=105 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=210
+F4 seed=7 cycle=106 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=212
+F4 seed=7 cycle=107 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=214
+F4 seed=7 cycle=108 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=216
+F4 seed=7 cycle=109 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=218
+F4 seed=7 cycle=110 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=220
+F4 seed=7 cycle=111 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=222
+F4 seed=7 cycle=112 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=224
+F4 seed=7 cycle=113 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=226
+F4 seed=7 cycle=114 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=228
+F4 seed=7 cycle=115 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=230
+F4 seed=7 cycle=116 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=232
+F4 seed=7 cycle=117 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=234
+F4 seed=7 cycle=118 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=236
+F4 seed=7 cycle=119 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=238
+F4 seed=7 cycle=120 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=240
+F4 seed=42 cycle=1 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=2
+F4 seed=42 cycle=2 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=4
+F4 seed=42 cycle=3 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=6
+F4 seed=42 cycle=4 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=8
+F4 seed=42 cycle=5 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=10
+F4 seed=42 cycle=6 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=12
+F4 seed=42 cycle=7 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=14
+F4 seed=42 cycle=8 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=16
+F4 seed=42 cycle=9 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=18
+F4 seed=42 cycle=10 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=20
+F4 seed=42 cycle=11 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=22
+F4 seed=42 cycle=12 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=24
+F4 seed=42 cycle=13 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=26
+F4 seed=42 cycle=14 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=28
+F4 seed=42 cycle=15 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=30
+F4 seed=42 cycle=16 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=32
+F4 seed=42 cycle=17 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=34
+F4 seed=42 cycle=18 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=36
+F4 seed=42 cycle=19 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=38
+F4 seed=42 cycle=20 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=40
+F4 seed=42 cycle=21 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=42
+F4 seed=42 cycle=22 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=44
+F4 seed=42 cycle=23 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=46
+F4 seed=42 cycle=24 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=48
+F4 seed=42 cycle=25 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=50
+F4 seed=42 cycle=26 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=52
+F4 seed=42 cycle=27 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=54
+F4 seed=42 cycle=28 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=56
+F4 seed=42 cycle=29 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=58
+F4 seed=42 cycle=30 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=60
+F4 seed=42 cycle=31 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=62
+F4 seed=42 cycle=32 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=64
+F4 seed=42 cycle=33 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=66
+F4 seed=42 cycle=34 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=68
+F4 seed=42 cycle=35 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=70
+F4 seed=42 cycle=36 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=72
+F4 seed=42 cycle=37 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=74
+F4 seed=42 cycle=38 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=76
+F4 seed=42 cycle=39 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=78
+F4 seed=42 cycle=40 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=80
+F4 seed=42 cycle=41 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=82
+F4 seed=42 cycle=42 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=84
+F4 seed=42 cycle=43 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=86
+F4 seed=42 cycle=44 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=88
+F4 seed=42 cycle=45 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=90
+F4 seed=42 cycle=46 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=92
+F4 seed=42 cycle=47 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=94
+F4 seed=42 cycle=48 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=96
+F4 seed=42 cycle=49 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=98
+F4 seed=42 cycle=50 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=100
+F4 seed=42 cycle=51 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=102
+F4 seed=42 cycle=52 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=104
+F4 seed=42 cycle=53 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=106
+F4 seed=42 cycle=54 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=108
+F4 seed=42 cycle=55 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=110
+F4 seed=42 cycle=56 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=112
+F4 seed=42 cycle=57 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=114
+F4 seed=42 cycle=58 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=116
+F4 seed=42 cycle=59 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=118
+F4 seed=42 cycle=60 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=120
+F4 seed=42 cycle=61 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=122
+F4 seed=42 cycle=62 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=124
+F4 seed=42 cycle=63 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=126
+F4 seed=42 cycle=64 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=128
+F4 seed=42 cycle=65 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=130
+F4 seed=42 cycle=66 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=132
+F4 seed=42 cycle=67 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=134
+F4 seed=42 cycle=68 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=136
+F4 seed=42 cycle=69 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=138
+F4 seed=42 cycle=70 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=140
+F4 seed=42 cycle=71 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=142
+F4 seed=42 cycle=72 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=144
+F4 seed=42 cycle=73 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=146
+F4 seed=42 cycle=74 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=148
+F4 seed=42 cycle=75 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=150
+F4 seed=42 cycle=76 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=152
+F4 seed=42 cycle=77 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=154
+F4 seed=42 cycle=78 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=156
+F4 seed=42 cycle=79 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=158
+F4 seed=42 cycle=80 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=160
+F4 seed=42 cycle=81 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=162
+F4 seed=42 cycle=82 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=164
+F4 seed=42 cycle=83 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=166
+F4 seed=42 cycle=84 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=168
+F4 seed=42 cycle=85 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=170
+F4 seed=42 cycle=86 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=172
+F4 seed=42 cycle=87 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=174
+F4 seed=42 cycle=88 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=176
+F4 seed=42 cycle=89 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=178
+F4 seed=42 cycle=90 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=180
+F4 seed=42 cycle=91 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=182
+F4 seed=42 cycle=92 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=184
+F4 seed=42 cycle=93 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=186
+F4 seed=42 cycle=94 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=188
+F4 seed=42 cycle=95 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=190
+F4 seed=42 cycle=96 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=192
+F4 seed=42 cycle=97 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=194
+F4 seed=42 cycle=98 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=196
+F4 seed=42 cycle=99 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=198
+F4 seed=42 cycle=100 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=200
+F4 seed=42 cycle=101 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=202
+F4 seed=42 cycle=102 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=204
+F4 seed=42 cycle=103 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=206
+F4 seed=42 cycle=104 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=208
+F4 seed=42 cycle=105 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=210
+F4 seed=42 cycle=106 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=212
+F4 seed=42 cycle=107 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=214
+F4 seed=42 cycle=108 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=216
+F4 seed=42 cycle=109 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=218
+F4 seed=42 cycle=110 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=220
+F4 seed=42 cycle=111 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=222
+F4 seed=42 cycle=112 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=224
+F4 seed=42 cycle=113 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=226
+F4 seed=42 cycle=114 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=228
+F4 seed=42 cycle=115 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=230
+F4 seed=42 cycle=116 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=232
+F4 seed=42 cycle=117 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=234
+F4 seed=42 cycle=118 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=236
+F4 seed=42 cycle=119 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=238
+F4 seed=42 cycle=120 charged=0 handles=0 retired_unack=0 scopes=2 cleanups=0 queued=0 acknowledged=240
+test one_hundred_twenty_cycles_return_every_registry_and_ack_to_baseline ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/f4_corrections.rs (target/debug/deps/f4_corrections-b8c072d72ffce847)
+
+running 3 tests
+
+thread 'world_abandonment_must_not_ack_before_capture_destruction_or_hide_panic' (3766697) panicked at crates/rndr_flow/tests/f4_corrections.rs:73:9:
+single abandoned effect capture destructor panic
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'producer_success_must_not_erase_payload_cleanup_panic' (3766695) panicked at crates/rndr_flow/tests/f4_corrections.rs:11:13:
+single payload destructor panic
+
+thread 'timer_payload_destructor_must_be_normalized_before_exit_ack' (3766696) panicked at crates/rndr_flow/tests/f4_corrections.rs:73:9:
+single abandoned effect capture destructor panic
+timer update panicked=false; during destructor: Observation { retired: true, cancellation_signalled: true, cleanup_attempted: true, exit_acknowledged: false, pending_deliveries: 1, terminal: Running }; after: Observation { retired: true, cancellation_signalled: true, cleanup_attempted: true, exit_acknowledged: true, pending_deliveries: 0, terminal: Panicked }
+during capture destructor: Observation { retired: false, cancellation_signalled: false, cleanup_attempted: false, exit_acknowledged: false, pending_deliveries: 0, terminal: Running }; after: Observation { retired: false, cancellation_signalled: false, cleanup_attempted: false, exit_acknowledged: true, pending_deliveries: 0, terminal: Panicked }
+test timer_payload_destructor_must_be_normalized_before_exit_ack ... ok
+after producer success: Observation { retired: true, cancellation_signalled: true, cleanup_attempted: false, exit_acknowledged: true, pending_deliveries: 0, terminal: Panicked }
+test world_abandonment_must_not_ack_before_capture_destruction_or_hide_panic ... ok
+test producer_success_must_not_erase_payload_cleanup_panic ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/f4_native_task.rs (target/debug/deps/f4_native_task-6dea7806b2e46eed)
+
+running 1 test
+test actual_owned_task_transposes_into_exact_native_commit_without_losing_receipt_or_failure ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/f4_producers.rs (target/debug/deps/f4_producers-57ec3f963ca4dd2d)
+
+running 1 test
+test actual_cooperative_and_blocked_producers_ack_only_after_their_owned_closure_exits ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/f4_receipts.rs (target/debug/deps/f4_receipts-eeb964959561a715)
+
+running 2 tests
+test application_scope_before_target_world_is_revisited_after_world_retirement ... ok
+test acknowledged_future_cannot_evade_capacity_through_queued_or_published_payloads ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/f4_source.rs (target/debug/deps/f4_source-7da470d871ca09cf)
+
+running 2 tests
+test ordered_source_chunks_advance_only_owned_native_receipts_without_replacement_or_rebase ... ok
+test native_source_zero_mutation_revision_readonly_composition_operation_and_target_refusals ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/f4_start_panic.rs (target/debug/deps/f4_start_panic-6fcd6724c4327f2e)
+
+running 1 test
+
+thread 'retained_job_after_executor_start_panic_stays_charged_without_fabricated_cancel_or_success' (3766717) panicked at crates/rndr_flow/tests/f4_start_panic.rs:11:9:
+controlled executor panic after retaining Job
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test retained_job_after_executor_start_panic_stays_charged_without_fabricated_cancel_or_success ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/f4_terminal_order.rs (target/debug/deps/f4_terminal_order-aac87d3a71f3cb2b)
+
+running 1 test
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3766747) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+terminal-order kind=0 cleanup_first=false panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3766747) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=0 cleanup_first=true panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3766747) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=1 cleanup_first=false panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3766747) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=1 cleanup_first=true panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3766747) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=2 cleanup_first=false panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3766747) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=2 cleanup_first=true panic_retained=true actual_exit=true independent_progress=true
+
+thread '<unnamed>' (3766754) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:37:14:
+actual producer poll/run panic
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3766747) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=3 cleanup_first=false panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3766747) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+
+thread '<unnamed>' (3766755) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:37:14:
+actual producer poll/run panic
+terminal-order kind=3 cleanup_first=true panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3766747) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=4 cleanup_first=false panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3766747) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=4 cleanup_first=true panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3766747) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=5 cleanup_first=false panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3766747) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=5 cleanup_first=true panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3766747) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=6 cleanup_first=false panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3766747) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=6 cleanup_first=true panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3766747) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=7 cleanup_first=false panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3766747) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=7 cleanup_first=true panic_retained=true actual_exit=true independent_progress=true
+
+thread '<unnamed>' (3766764) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:37:14:
+actual producer poll/run panic
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3766747) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=8 cleanup_first=false panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3766747) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+
+thread '<unnamed>' (3766765) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:37:14:
+actual producer poll/run panic
+terminal-order kind=8 cleanup_first=true panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3766747) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=9 cleanup_first=false panic_retained=true actual_exit=true independent_progress=true
+
+thread 'real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon' (3766747) panicked at crates/rndr_flow/tests/f4_terminal_order.rs:16:13:
+single queue cleanup panic
+terminal-order kind=9 cleanup_first=true panic_retained=true actual_exit=true independent_progress=true
+test real_producer_cleanup_panic_and_exit_both_orderings_run_track_and_abandon ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/f4_timer_drop.rs (target/debug/deps/f4_timer_drop-ad12fa988d6827b0)
+
+running 1 test
+timer-order mode=0 panic=false no_early_ack=true receipt_preserved=true independent_progress=true
+
+thread 'timer_cancel_publish_world_drop_and_retained_clone_orders_contain_single_panic' (3766769) panicked at crates/rndr_flow/tests/f4_timer_drop.rs:36:17:
+single owned timer payload drop panic
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+timer-order mode=0 panic=true no_early_ack=true receipt_preserved=true independent_progress=true
+timer-order mode=1 panic=false no_early_ack=true receipt_preserved=true independent_progress=true
+
+thread 'timer_cancel_publish_world_drop_and_retained_clone_orders_contain_single_panic' (3766769) panicked at crates/rndr_flow/tests/f4_timer_drop.rs:36:17:
+single owned timer payload drop panic
+timer-order mode=1 panic=true no_early_ack=true receipt_preserved=true independent_progress=true
+timer-order mode=2 panic=false no_early_ack=true receipt_preserved=true independent_progress=true
+
+thread 'timer_cancel_publish_world_drop_and_retained_clone_orders_contain_single_panic' (3766769) panicked at crates/rndr_flow/tests/f4_timer_drop.rs:36:17:
+single owned timer payload drop panic
+timer-order mode=2 panic=true no_early_ack=true receipt_preserved=true independent_progress=true
+timer-order mode=3 panic=false no_early_ack=true receipt_preserved=true independent_progress=true
+
+thread 'timer_cancel_publish_world_drop_and_retained_clone_orders_contain_single_panic' (3766769) panicked at crates/rndr_flow/tests/f4_timer_drop.rs:36:17:
+single owned timer payload drop panic
+timer-order mode=3 panic=true no_early_ack=true receipt_preserved=true independent_progress=true
+timer-order mode=4 panic=false no_early_ack=true receipt_preserved=true independent_progress=true
+
+thread 'timer_cancel_publish_world_drop_and_retained_clone_orders_contain_single_panic' (3766769) panicked at crates/rndr_flow/tests/f4_timer_drop.rs:36:17:
+single owned timer payload drop panic
+timer-order mode=4 panic=true no_early_ack=true receipt_preserved=true independent_progress=true
+timer-order mode=5 panic=false no_early_ack=true receipt_preserved=true independent_progress=true
+
+thread 'timer_cancel_publish_world_drop_and_retained_clone_orders_contain_single_panic' (3766769) panicked at crates/rndr_flow/tests/f4_timer_drop.rs:36:17:
+single owned timer payload drop panic
+timer-order mode=5 panic=true no_early_ack=true receipt_preserved=true independent_progress=true
+test timer_cancel_publish_world_drop_and_retained_clone_orders_contain_single_panic ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/f4_timer_entity.rs (target/debug/deps/f4_timer_entity-13b3c43c256307b6)
+
+running 3 tests
+test recycled_entity_never_substitutes_recreated_semantic_scope ... ok
+test extracted_world_effect_allows_bounded_callback_reentry_without_losing_new_effect ... ok
+test native_every_repeated_and_already_published_ticks_are_gated_without_new_timer_wheel ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/reviewer_probes.rs (target/debug/deps/reviewer_probes-77d31a3aa52bd646)
+
+running 3 tests
+
+thread 'queued_fifo_survives_callback_unwind_and_full_queue' (3766786) panicked at crates/rndr_flow/tests/reviewer_probes.rs:30:9:
+queued unwind
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FIFO/unwind: foreign requests rejected in submitted order; queue empty; counts zero
+test queued_fifo_survives_callback_unwind_and_full_queue ... ok
+owner-drop reentry: trace [2,1,3], descendants stale immediately, root baseline
+test dropping_ancestor_inside_suspended_cleanup_reorders_pending_children ... ok
+suspension: 3 attempted errors, resume pending until final activity consumed, lifetime retained
+test bounded_suspend_drain_requires_all_activity_attempts_and_retains_lifetime ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+   Doc-tests rndr_flow
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+exit=0

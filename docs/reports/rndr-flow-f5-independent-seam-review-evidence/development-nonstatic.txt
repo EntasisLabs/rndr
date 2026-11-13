@@ -1,0 +1,165 @@
+free_kib_before=5072536
+82136b2588d92d3404e38e5aff92eb601777ce5a8db45698037a77df939af2f1  docs/reports/rndr-flow-f5-independent-seam-review-evidence/adversarial.rs
+82136b2588d92d3404e38e5aff92eb601777ce5a8db45698037a77df939af2f1  crates/rndr_flow/tests/f5_independent_seam_probe.rs
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_flow)
+error[E0373]: closure may outlive the current function, but it borrows `ready_mask`, which is owned by the current function
+  --> crates/rndr_flow/tests/f5_independent_seam_probe.rs:40:22
+   |
+40 |         let mut hook=|ws: &mut [CloseWorld<'_>]| {
+   |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^ may outlive borrowed value `ready_mask`
+...
+45 |                 if ready_mask & (1<<i)!=0 {assert!(g.complete(r,Ok(())));}
+   |                    ---------- `ready_mask` is borrowed here
+   |
+note: function requires argument type to outlive `'static`
+  --> crates/rndr_flow/tests/f5_independent_seam_probe.rs:50:20
+   |
+50 | ...   assert_eq!(d.reconcile(&mut ns, |_|{},Some(&mut hook)),CloseOutcom...
+   |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: to force the closure to take ownership of `ready_mask` (and any other referenced variables), use the `move` keyword
+   |
+40 |         let mut hook=move |ws: &mut [CloseWorld<'_>]| {
+   |                      ++++
+
+error[E0373]: closure may outlive the current function, but it borrows `failure_mask`, which is owned by the current function
+  --> crates/rndr_flow/tests/f5_independent_seam_probe.rs:40:22
+   |
+40 | ...    let mut hook=|ws: &mut [CloseWorld<'_>]| {
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^ may outlive borrowed value `failure_mask`
+...
+46 | ...            else if failure_mask & (1<<i)!=0 {assert!(g.complete(r,Er...
+   |                        ------------ `failure_mask` is borrowed here
+   |
+note: function requires argument type to outlive `'static`
+  --> crates/rndr_flow/tests/f5_independent_seam_probe.rs:50:20
+   |
+50 | ...   assert_eq!(d.reconcile(&mut ns, |_|{},Some(&mut hook)),CloseOutcom...
+   |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: to force the closure to take ownership of `failure_mask` (and any other referenced variables), use the `move` keyword
+   |
+40 |         let mut hook=move |ws: &mut [CloseWorld<'_>]| {
+   |                      ++++
+
+error[E0373]: closure may outlive the current function, but it borrows `calls`, which is owned by the current function
+  --> crates/rndr_flow/tests/f5_independent_seam_probe.rs:40:22
+   |
+40 |         let mut hook=|ws: &mut [CloseWorld<'_>]| {
+   |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^ may outlive borrowed value `calls`
+41 |             calls+=1;assert_eq!(ws.len(),4);assert!(ws[0].primary() && !...
+   |             ----- `calls` is borrowed here
+   |
+note: function requires argument type to outlive `'static`
+  --> crates/rndr_flow/tests/f5_independent_seam_probe.rs:50:20
+   |
+50 | ...   assert_eq!(d.reconcile(&mut ns, |_|{},Some(&mut hook)),CloseOutcom...
+   |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: to force the closure to take ownership of `calls` (and any other referenced variables), use the `move` keyword
+   |
+40 |         let mut hook=move |ws: &mut [CloseWorld<'_>]| {
+   |                      ++++
+
+error[E0373]: closure may outlive the current function, but it borrows `error`, which is owned by the current function
+  --> crates/rndr_flow/tests/f5_independent_seam_probe.rs:40:22
+   |
+40 |         let mut hook=|ws: &mut [CloseWorld<'_>]| {
+   |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^ may outlive borrowed value `error`
+...
+48 |             if error {Err("global validation refused".into())}else{Ok(())}
+   |                ----- `error` is borrowed here
+   |
+note: function requires argument type to outlive `'static`
+  --> crates/rndr_flow/tests/f5_independent_seam_probe.rs:50:20
+   |
+50 | ...   assert_eq!(d.reconcile(&mut ns, |_|{},Some(&mut hook)),CloseOutcom...
+   |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: to force the closure to take ownership of `error` (and any other referenced variables), use the `move` keyword
+   |
+40 |         let mut hook=move |ws: &mut [CloseWorld<'_>]| {
+   |                      ++++
+
+error[E0502]: cannot borrow `calls` as immutable because it is also borrowed as mutable
+  --> crates/rndr_flow/tests/f5_independent_seam_probe.rs:51:9
+   |
+40 |         let mut hook=|ws: &mut [CloseWorld<'_>]| {
+   |                      --------------------------- mutable borrow occurs here
+41 |             calls+=1;assert_eq!(ws.len(),4);assert!(ws[0].primary() && !...
+   |             ----- first borrow occurs due to use of `calls` in closure
+...
+50 |         assert_eq!(d.reconcile(&mut ns, |_|{},Some(&mut hook)),CloseOutc...
+   |                    ------------------------------------------- argument requires that `calls` is borrowed for `'static`
+51 |         assert_eq!(calls,1);assert!(!ns[0].slot.closed && !ns[0].slot.ac...
+   |         ^^^^^^^^^^^^^^^^^^^ immutable borrow occurs here
+
+error[E0373]: closure may outlive the current function, but it borrows `old`, which is owned by the current function
+   --> crates/rndr_flow/tests/f5_independent_seam_probe.rs:97:26
+    |
+ 97 | ...ail=|ws: &mut [CloseWorld<'_>]| {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^ may outlive borrowed value `old`
+ 98 | ...w,r) in ws.iter().zip(&old) {assert_eq!(pending(w.world()),*r);}
+    |                           --- `old` is borrowed here
+    |
+note: function requires argument type to outlive `'static`
+   --> crates/rndr_flow/tests/f5_independent_seam_probe.rs:102:24
+    |
+102 | ...q!(d.reconcile(&mut ns, |_|panic!("frame repeated"),Some(&mut fail)),Cl...
+    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: to force the closure to take ownership of `old` (and any other referenced variables), use the `move` keyword
+    |
+ 97 |             let mut fail=move |ws: &mut [CloseWorld<'_>]| {
+    |                          ++++
+
+error[E0373]: closure may outlive the current function, but it borrows `round`, which is owned by the current function
+   --> crates/rndr_flow/tests/f5_independent_seam_probe.rs:97:26
+    |
+ 97 |             let mut fail=|ws: &mut [CloseWorld<'_>]| {
+    |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^ may outlive borrowed value `round`
+ 98 |                 for (w,r) in ws.iter().zip(&old) {assert_eq!(pend...
+ 99 |                 if round%2==0 {panic!("independent round {round}");}
+    |                    ----- `round` is borrowed here
+    |
+note: function requires argument type to outlive `'static`
+   --> crates/rndr_flow/tests/f5_independent_seam_probe.rs:102:24
+    |
+102 | ...q!(d.reconcile(&mut ns, |_|panic!("frame repeated"),Some(&mut fail)),Cl...
+    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: to force the closure to take ownership of `round` (and any other referenced variables), use the `move` keyword
+    |
+ 97 |             let mut fail=move |ws: &mut [CloseWorld<'_>]| {
+    |                          ++++
+
+error[E0373]: closure may outlive the current function, but it borrows `called`, which is owned by the current function
+   --> crates/rndr_flow/tests/f5_independent_seam_probe.rs:140:17
+    |
+140 |     let mut all=|ws: &mut [CloseWorld<'_>]|{called+=1;assert!(ws.iter()...
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^ ------ `called` is borrowed here
+    |                 |
+    |                 may outlive borrowed value `called`
+    |
+note: function requires argument type to outlive `'static`
+   --> crates/rndr_flow/tests/f5_independent_seam_probe.rs:141:16
+    |
+141 |     assert_eq!(d.reconcile(&mut ns, |_|{},Some(&mut all)),CloseOutcome:...
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: to force the closure to take ownership of `called` (and any other referenced variables), use the `move` keyword
+    |
+140 |     let mut all=move |ws: &mut [CloseWorld<'_>]|{called+=1;assert!(ws.iter().all(|w|w.closing()));Ok(())};
+    |                 ++++
+
+error[E0502]: cannot borrow `called` as immutable because it is also borrowed as mutable
+   --> crates/rndr_flow/tests/f5_independent_seam_probe.rs:141:79
+    |
+140 | ...all=|ws: &mut [CloseWorld<'_>]|{called+=1;assert!(ws.iter().all(|w|w.closing()));Ok(())};
+    |        --------------------------- ------ first borrow occurs due to use of `called` in closure
+    |        |
+    |        mutable borrow occurs here
+141 | ...q!(d.reconcile(&mut ns, |_|{},Some(&mut all)),CloseOutcome::Exit);assert_eq!(called,1);
+    |       ------------------------------------------                     ^^^^^^^^^^^^^^^^^^^^ immutable borrow occurs here
+    |       |
+    |       argument requires that `called` is borrowed for `'static`
+
+Some errors have detailed explanations: E0373, E0502.
+For more information about an error, try `rustc --explain E0373`.
+error: could not compile `rndr-flow` (test "f5_independent_seam_probe") due to 9 previous errors
+exit=101
+Filesystem   1024-blocks      Used Available Capacity iused    ifree %iused  Mounted on
+/dev/disk3s5   239362496 204505132   5072404    98% 1935966 50724040    4%   /System/Volumes/Data

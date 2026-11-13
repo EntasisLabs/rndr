@@ -1,0 +1,2 @@
+COMMAND: ../rndr-flow-f5-retained-transitions-and-close-guards/target/debug/deps/rndr_core-6ee1ebda0b1c170c --exact freeze::tests::concurrent_leases_preserve_count (100 invocations)
+PASS 100/100 fresh executions; no rebuild. This is not a memory-model/model-checking proof.

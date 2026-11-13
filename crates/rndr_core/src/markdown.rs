@@ -1085,6 +1085,7 @@ fn run_spacer(world: &mut World, view: Entity, slot: &mut Option<Entity>, height
         box_layout(Axis::Column, Size::Fill, Size::Px(height)),
     );
     world.insert(entity, Parent { entity: view });
+    world.insert(entity, host::NativeProjection(view));
     entity
 }
 
@@ -1348,8 +1349,33 @@ fn box_layout(axis: Axis, width: Size, height: Size) -> Layout {
     }
 }
 
+// Construction has no callbacks: this tree contains only nodes just created by
+// Markdown, never application attachments. Tag once, not on later traversal.
 #[allow(clippy::too_many_arguments)]
 fn spawn_block(
+    world: &mut World,
+    view: Entity,
+    index: usize,
+    block: &MarkdownBlock,
+    content: f32,
+    outer: f32,
+    theme: &MarkdownTheme,
+    base: &TextStyle,
+    columns: &ListColumns,
+) -> Entity {
+    let root = spawn_block_inner(
+        world, view, index, block, content, outer, theme, base, columns,
+    );
+    let mut pending = vec![root];
+    while let Some(entity) = pending.pop() {
+        pending.extend(children_of(world, entity));
+        world.insert(entity, host::NativeProjection(view));
+    }
+    root
+}
+
+#[allow(clippy::too_many_arguments)]
+fn spawn_block_inner(
     world: &mut World,
     view: Entity,
     index: usize,

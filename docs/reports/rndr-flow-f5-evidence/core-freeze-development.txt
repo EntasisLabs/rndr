@@ -1,0 +1,11 @@
+   Compiling rndr_core v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_core)
+    Finished `test` profile [unoptimized] target(s) in 5.13s
+     Running tests/close_freeze.rs (target/debug/deps/close_freeze-e3356cde58509298)
+
+running 3 tests
+test structured_composition_is_not_silently_discarded_by_freeze ... ok
+test source_freeze_is_owned_nested_and_not_readonly_policy_or_history_mutation ... ok
+test structured_freeze_blocks_all_writer_paths_and_manager_removal_preserving_state ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

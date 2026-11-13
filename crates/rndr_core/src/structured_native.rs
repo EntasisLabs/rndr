@@ -24,6 +24,10 @@ pub struct StructuredDocuments {
     views: HashMap<StructuredHandle, Entity>,
 }
 impl StructuredDocuments {
+    /// Exact retained handles for host close-protection coverage checks.
+    pub fn handles(&self) -> impl Iterator<Item = StructuredHandle> + '_ {
+        self.documents.keys().copied()
+    }
     /// Retain an already validated tree without converting it to source text.
     pub fn insert(&mut self, document: StructuredDocument) -> StructuredHandle {
         static NEXT: AtomicU64 = AtomicU64::new(1);
@@ -42,7 +46,9 @@ impl StructuredDocuments {
     }
     /// Close only an unattached document. Detach its view first.
     pub fn remove(&mut self, handle: StructuredHandle) -> Option<StructuredDocument> {
-        if self.views.contains_key(&handle) {
+        if self.views.contains_key(&handle)
+            || self.documents.get(&handle).is_some_and(|d| d.is_frozen())
+        {
             return None;
         }
         self.documents.remove(&handle)

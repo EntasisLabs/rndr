@@ -22,6 +22,7 @@ import unittest
 
 PUBLISH_ORDER = (
     "rndr_core",
+    "rndr-flow",
     "rndr_paint",
     "rndr_std",
     "rndr_term",
@@ -231,7 +232,7 @@ class ArchiveSetTests(unittest.TestCase):
                 verify_archive_set(root, packages)
             message = str(raised.exception)
             self.assertIn("unexpected: titlebar-0.5.0.crate", message)
-            self.assertIn("expected 15 archives", message)
+            self.assertIn("expected 16 archives", message)
 
     def test_missing_archive_is_rejected(self):
         packages = {
@@ -254,7 +255,7 @@ class ArchiveSetTests(unittest.TestCase):
             for name in expected_archives(packages):
                 (root / name).write_bytes(b"fake")
             found = verify_archive_set(root, packages)
-            self.assertEqual(len(found), 15)
+            self.assertEqual(len(found), 16)
 
     def test_exclude_args_cover_unpublished_examples(self):
         packages = {

@@ -1,0 +1,105 @@
+windows-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:04:58.1757975Z 
+windows-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:04:58.2068596Z   stable-x86_64-pc-windows-msvc updated - rustc 1.100.0 (0ef1bc386 2026-11-09) (from rustc 1.99.1 (58cf8f9c3 2026-10-13))
+windows-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:04:58.2069120Z 
+windows-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:04:58.2414741Z ##[end-action id=__dtolnay_rust-toolchain.__run_4;outcome=success;conclusion=success;duration_ms=20850]
+windows-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:04:58.2421090Z ##[start-action display=rustup default stable;id=__dtolnay_rust-toolchain.__run_5]
+windows-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:04:58.3339592Z 
+windows-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:04:58.3569530Z   stable-x86_64-pc-windows-msvc unchanged - rustc 1.100.0 (0ef1bc386 2026-11-09)
+windows-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:04:58.3570407Z 
+windows-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:04:58.3570845Z info: note that the toolchain 'stable-x86_64-pc-windows-msvc' is currently in use (overridden by 'D:\a\rndr\rndr\rust-toolchain.toml')
+windows-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:04:58.3665152Z ##[end-action id=__dtolnay_rust-toolchain.__run_5;outcome=success;conclusion=success;duration_ms=124]
+windows-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:04:59.6597064Z ##[endgroup]
+windows-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:04:59.7528327Z rustc 1.100.0 (0ef1bc386 2026-11-09)
+windows-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:04:59.7528762Z binary: rustc
+windows-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:04:59.7529032Z commit-hash: 0ef1bc386059596dada8fb65b50425aab2ea637a
+windows-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:04:59.7529493Z commit-date: 2026-11-09
+windows-latest	Clippy	2026-11-12T22:05:38.8132626Z error: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+windows-latest	Clippy	2026-11-12T22:05:38.8342460Z   --> crates\rndr_core\src\freeze.rs:15:14
+windows-latest	Clippy	2026-11-12T22:05:38.8448471Z    |
+windows-latest	Clippy	2026-11-12T22:05:38.8469079Z 15 |             .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| n.checked_add(1))
+windows-latest	Clippy	2026-11-12T22:05:38.8488280Z    |              ^^^^^^^^^^^^
+windows-latest	Clippy	2026-11-12T22:05:43.6827414Z error: the loop variable `block_index` is used to index `state.blocks`
+windows-latest	Clippy	2026-11-12T22:05:43.6828512Z   --> crates\rndr_core\src\structured\text_ops.rs:12:24
+windows-latest	Clippy	2026-11-12T22:05:43.6829511Z    |
+windows-latest	Clippy	2026-11-12T22:05:43.6830082Z 12 |     for block_index in first.0..=last.0 {
+windows-latest	Clippy	2026-11-12T22:05:43.6830791Z    |                        ^^^^^^^^^^^^^^^^
+windows-latest	Clippy	2026-11-12T22:05:43.6831784Z note: for this index operation
+windows-latest	Clippy	2026-11-12T22:05:43.6832492Z   --> crates\rndr_core\src\structured\text_ops.rs:27:9
+windows-latest	Clippy	2026-11-12T22:05:43.6833082Z    |
+windows-latest	Clippy	2026-11-12T22:05:43.6833640Z 27 |         state.blocks[block_index].runs = runs;
+windows-latest	Clippy	2026-11-12T22:05:43.6834374Z    |         ^^^^^^^^^^^^^^^^^^^^^^^^^
+windows-latest	Clippy	2026-11-12T22:05:43.6837302Z    = note: `-D clippy::needless-range-loop` implied by `-D warnings`
+windows-latest	Clippy	2026-11-12T22:05:43.6838560Z    = help: to override `-D warnings` add `#[allow(clippy::needless_range_loop)]`
+windows-latest	Clippy	2026-11-12T22:05:43.6839556Z help: consider using an iterator and `.enumerate()`
+windows-latest	Clippy	2026-11-12T22:05:43.6840190Z    |
+windows-latest	Clippy	2026-11-12T22:05:43.6840813Z 12 -     for block_index in first.0..=last.0 {
+macos-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:04:42.8425270Z 
+macos-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:04:42.8988790Z   stable-aarch64-apple-darwin updated - rustc 1.100.0 (0ef1bc386 2026-11-09) (from rustc 1.99.1 (58cf8f9c3 2026-10-13))
+macos-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:04:42.8989700Z 
+macos-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:04:42.8989850Z info: self-update is disabled for this build of rustup
+macos-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:04:42.8990460Z info: any updates to rustup will need to be fetched with your system package manager
+macos-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:04:43.0373900Z 
+macos-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:04:43.0590660Z   stable-aarch64-apple-darwin unchanged - rustc 1.100.0 (0ef1bc386 2026-11-09)
+macos-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:04:43.0591490Z 
+macos-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:04:43.0596920Z info: note that the toolchain 'stable-aarch64-apple-darwin' is currently in use (overridden by '/Users/runner/work/rndr/rndr/rust-toolchain.toml')
+macos-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:04:43.0705920Z ##[end-action id=__dtolnay_rust-toolchain.__run_5;outcome=success;conclusion=success;duration_ms=127]
+macos-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:04:43.6226630Z ##[endgroup]
+macos-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:04:43.6854960Z rustc 1.100.0 (0ef1bc386 2026-11-09)
+macos-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:04:43.6855540Z binary: rustc
+macos-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:04:43.6855860Z commit-hash: 0ef1bc386059596dada8fb65b50425aab2ea637a
+macos-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:04:43.6856180Z commit-date: 2026-11-09
+macos-latest	Clippy	2026-11-12T22:05:02.0535180Z error: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+macos-latest	Clippy	2026-11-12T22:05:02.0636720Z   --> crates/rndr_core/src/freeze.rs:15:14
+macos-latest	Clippy	2026-11-12T22:05:02.0769100Z    |
+macos-latest	Clippy	2026-11-12T22:05:02.0880180Z 15 |             .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| n.checked_add(1))
+macos-latest	Clippy	2026-11-12T22:05:02.0981760Z    |              ^^^^^^^^^^^^
+macos-latest	Clippy	2026-11-12T22:05:06.0170920Z error: the loop variable `block_index` is used to index `state.blocks`
+macos-latest	Clippy	2026-11-12T22:05:06.0268800Z   --> crates/rndr_core/src/structured/text_ops.rs:12:24
+macos-latest	Clippy	2026-11-12T22:05:06.0409660Z    |
+macos-latest	Clippy	2026-11-12T22:05:06.0410770Z 12 |     for block_index in first.0..=last.0 {
+macos-latest	Clippy	2026-11-12T22:05:06.0512840Z    |                        ^^^^^^^^^^^^^^^^
+macos-latest	Clippy	2026-11-12T22:05:06.0647320Z note: for this index operation
+macos-latest	Clippy	2026-11-12T22:05:06.0648110Z   --> crates/rndr_core/src/structured/text_ops.rs:27:9
+macos-latest	Clippy	2026-11-12T22:05:06.0658340Z    |
+macos-latest	Clippy	2026-11-12T22:05:06.0660830Z 27 |         state.blocks[block_index].runs = runs;
+macos-latest	Clippy	2026-11-12T22:05:06.0661410Z    |         ^^^^^^^^^^^^^^^^^^^^^^^^^
+macos-latest	Clippy	2026-11-12T22:05:06.0663520Z    = note: `-D clippy::needless-range-loop` implied by `-D warnings`
+macos-latest	Clippy	2026-11-12T22:05:06.0664220Z    = help: to override `-D warnings` add `#[allow(clippy::needless_range_loop)]`
+macos-latest	Clippy	2026-11-12T22:05:06.0665870Z help: consider using an iterator and `.enumerate()`
+macos-latest	Clippy	2026-11-12T22:05:06.0730340Z    |
+macos-latest	Clippy	2026-11-12T22:05:06.0771700Z 12 -     for block_index in first.0..=last.0 {
+ubuntu-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:06:43.4042378Z 
+ubuntu-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:06:43.4107566Z   stable-x86_64-unknown-linux-gnu updated - rustc 1.100.0 (0ef1bc386 2026-11-09) (from rustc 1.99.1 (58cf8f9c3 2026-10-13))
+ubuntu-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:06:43.4177800Z 
+ubuntu-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:06:43.4184425Z ##[end-action id=__dtolnay_rust-toolchain.__run_4;outcome=success;conclusion=success;duration_ms=10823]
+ubuntu-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:06:43.4193816Z ##[start-action display=rustup default stable;id=__dtolnay_rust-toolchain.__run_5]
+ubuntu-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:06:43.4355340Z 
+ubuntu-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:06:43.4416326Z   stable-x86_64-unknown-linux-gnu unchanged - rustc 1.100.0 (0ef1bc386 2026-11-09)
+ubuntu-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:06:43.4416820Z 
+ubuntu-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:06:43.4417364Z info: note that the toolchain 'stable-x86_64-unknown-linux-gnu' is currently in use (overridden by '/home/runner/work/rndr/rndr/rust-toolchain.toml')
+ubuntu-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:06:43.4430351Z ##[end-action id=__dtolnay_rust-toolchain.__run_5;outcome=success;conclusion=success;duration_ms=23]
+ubuntu-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:06:43.5571942Z ##[endgroup]
+ubuntu-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:06:43.5710735Z rustc 1.100.0 (0ef1bc386 2026-11-09)
+ubuntu-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:06:43.5711457Z binary: rustc
+ubuntu-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:06:43.5711864Z commit-hash: 0ef1bc386059596dada8fb65b50425aab2ea637a
+ubuntu-latest	Run dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec	2026-11-12T22:06:43.5712371Z commit-date: 2026-11-09
+ubuntu-latest	Clippy	2026-11-12T22:07:19.8207284Z error: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+ubuntu-latest	Clippy	2026-11-12T22:07:19.8232063Z   --> crates/rndr_core/src/freeze.rs:15:14
+ubuntu-latest	Clippy	2026-11-12T22:07:19.8232708Z    |
+ubuntu-latest	Clippy	2026-11-12T22:07:19.8262752Z 15 |             .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| n.checked_add(1))
+ubuntu-latest	Clippy	2026-11-12T22:07:19.8281939Z    |              ^^^^^^^^^^^^
+ubuntu-latest	Clippy	2026-11-12T22:07:23.0928123Z error: the loop variable `block_index` is used to index `state.blocks`
+ubuntu-latest	Clippy	2026-11-12T22:07:23.0952298Z   --> crates/rndr_core/src/structured/text_ops.rs:12:24
+ubuntu-latest	Clippy	2026-11-12T22:07:23.0952803Z    |
+ubuntu-latest	Clippy	2026-11-12T22:07:23.0953212Z 12 |     for block_index in first.0..=last.0 {
+ubuntu-latest	Clippy	2026-11-12T22:07:23.0953717Z    |                        ^^^^^^^^^^^^^^^^
+ubuntu-latest	Clippy	2026-11-12T22:07:23.0954413Z note: for this index operation
+ubuntu-latest	Clippy	2026-11-12T22:07:23.0955269Z   --> crates/rndr_core/src/structured/text_ops.rs:27:9
+ubuntu-latest	Clippy	2026-11-12T22:07:23.0955718Z    |
+ubuntu-latest	Clippy	2026-11-12T22:07:23.0956181Z 27 |         state.blocks[block_index].runs = runs;
+ubuntu-latest	Clippy	2026-11-12T22:07:23.0956739Z    |         ^^^^^^^^^^^^^^^^^^^^^^^^^
+ubuntu-latest	Clippy	2026-11-12T22:07:23.0958866Z    = note: `-D clippy::needless-range-loop` implied by `-D warnings`
+ubuntu-latest	Clippy	2026-11-12T22:07:23.0959736Z    = help: to override `-D warnings` add `#[allow(clippy::needless_range_loop)]`
+ubuntu-latest	Clippy	2026-11-12T22:07:23.0960449Z help: consider using an iterator and `.enumerate()`
+ubuntu-latest	Clippy	2026-11-12T22:07:23.0960890Z    |
+ubuntu-latest	Clippy	2026-11-12T22:07:23.0961619Z 12 -     for block_index in first.0..=last.0 {

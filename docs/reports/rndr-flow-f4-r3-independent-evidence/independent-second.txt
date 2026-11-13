@@ -1,0 +1,48 @@
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f4-owned-adapters-and-completion-gates/crates/rndr_flow)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.33s
+     Running tests/independent_r3.rs (target/debug/deps/independent_r3-f620bd186d5b50e1)
+
+running 1 test
+test paused_future_then_suppressed_output_preserves_reserved_queued_published_cloned_charge ...
+thread '<unnamed>' (3831246) panicked at crates/rndr_flow/tests/independent_r3.rs:92:13:
+future destructor panic, separately caught before output destruction
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+independent-paused startup_panic=false future_panic=true output_panic=false future_ack_false=true output_user_ack_true=true reserved_until_final_clone=true no_write=true exactly_once=true
+
+thread '<unnamed>' (3831247) panicked at crates/rndr_flow/tests/independent_r3.rs:92:13:
+future destructor panic, separately caught before output destruction
+
+thread '<unnamed>' (3831247) panicked at crates/rndr_flow/tests/independent_r3.rs:60:13:
+output panic only after earlier future unwind was caught
+independent-paused startup_panic=false future_panic=true output_panic=true future_ack_false=true output_user_ack_true=true reserved_until_final_clone=true no_write=true exactly_once=true
+
+thread 'paused_future_then_suppressed_output_preserves_reserved_queued_published_cloned_charge' (3831245) panicked at crates/rndr_flow/tests/independent_r3.rs:23:13:
+startup returned/unwound while actual Job is retained
+independent-paused startup_panic=true future_panic=false output_panic=false future_ack_false=true output_user_ack_true=true reserved_until_final_clone=true no_write=true exactly_once=true
+
+thread 'paused_future_then_suppressed_output_preserves_reserved_queued_published_cloned_charge' (3831245) panicked at crates/rndr_flow/tests/independent_r3.rs:23:13:
+startup returned/unwound while actual Job is retained
+
+thread '<unnamed>' (3831249) panicked at crates/rndr_flow/tests/independent_r3.rs:60:13:
+output panic only after earlier future unwind was caught
+independent-paused startup_panic=true future_panic=false output_panic=true future_ack_false=true output_user_ack_true=true reserved_until_final_clone=true no_write=true exactly_once=true
+
+thread 'paused_future_then_suppressed_output_preserves_reserved_queued_published_cloned_charge' (3831245) panicked at crates/rndr_flow/tests/independent_r3.rs:23:13:
+startup returned/unwound while actual Job is retained
+
+thread '<unnamed>' (3831250) panicked at crates/rndr_flow/tests/independent_r3.rs:92:13:
+future destructor panic, separately caught before output destruction
+independent-paused startup_panic=true future_panic=true output_panic=false future_ack_false=true output_user_ack_true=true reserved_until_final_clone=true no_write=true exactly_once=true
+
+thread 'paused_future_then_suppressed_output_preserves_reserved_queued_published_cloned_charge' (3831245) panicked at crates/rndr_flow/tests/independent_r3.rs:23:13:
+startup returned/unwound while actual Job is retained
+
+thread '<unnamed>' (3831251) panicked at crates/rndr_flow/tests/independent_r3.rs:92:13:
+future destructor panic, separately caught before output destruction
+
+thread '<unnamed>' (3831251) panicked at crates/rndr_flow/tests/independent_r3.rs:60:13:
+output panic only after earlier future unwind was caught
+independent-paused startup_panic=true future_panic=true output_panic=true future_ack_false=true output_user_ack_true=true reserved_until_final_clone=true no_write=true exactly_once=true
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

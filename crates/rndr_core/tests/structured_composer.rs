@@ -59,6 +59,36 @@ fn toggle_marks_keep_other_marks_per_run() {
 }
 
 #[test]
+fn marks_preserve_multiblock_endpoints_and_history() {
+    for (anchor, head) in [(6, 14), (14, 6), (6, 7)] {
+        let mut doc = StructuredDocument::new("keep\nabc\ndef\nghi\ntail");
+        let before = doc.blocks().to_vec();
+        select(&mut doc, anchor, head);
+        let selection = doc.selection();
+        let (start, end) = (anchor.min(head), anchor.max(head));
+        doc.toggle_mark(MarkKind::Strong, API).unwrap();
+        assert_eq!(doc.plain_text(), "keep\nabc\ndef\nghi\ntail");
+        assert_eq!(doc.selection(), selection);
+        let after = doc.blocks().to_vec();
+        let mut offset = 0;
+        for (original, block) in before.iter().zip(&after) {
+            assert_eq!(block.id, original.id);
+            for run in &block.runs {
+                for _ in run.text.bytes() {
+                    assert_eq!(run.marks.strong, (start..end).contains(&offset));
+                    offset += 1;
+                }
+            }
+            offset += 1; // Plain-text newline between blocks.
+        }
+        doc.undo().unwrap();
+        assert_eq!(doc.blocks(), before);
+        doc.redo().unwrap();
+        assert_eq!(doc.blocks(), after);
+    }
+}
+
+#[test]
 fn pills_are_atomic_for_positions_and_typing() {
     let mut doc = StructuredDocument::new("hi  there");
     mention(&mut doc);

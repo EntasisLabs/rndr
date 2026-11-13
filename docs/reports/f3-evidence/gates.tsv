@@ -1,0 +1,24 @@
+flow-test	0	cargo test --locked -p rndr-flow --no-default-features
+cycles	0	cargo test --locked -p rndr-flow --no-default-features one_hundred_lifecycle_cycles -- --nocapture
+headless	0	cargo build --locked -p rndr-flow --no-default-features
+dependency-tree	0	cargo tree --locked -p rndr-flow --no-default-features -e normal,build
+dependency-inverse	0	cargo tree --locked -i rndr-flow
+fmt	0	cargo fmt --all --check
+flow-clippy	0	cargo clippy --locked -p rndr-flow --no-default-features --all-targets -- -D warnings
+liquid	0	cargo test --locked -p rndr_liquid -p rndr_liquid_ui -- --nocapture
+core-ui-paint-render	0	cargo test --locked -p rndr_core -p rndr_ui -p rndr_paint -p rndr_render
+source-session	0	cargo test --locked -p source-session
+contributor-clippy	0	cargo clippy --locked -p rndr_core -p rndr_ui -p rndr_paint -p rndr_render -p source-session --lib --bins -- -D warnings
+workspace-check	0	cargo check --locked --workspace
+feature-off	0	cargo check --locked -p rndr_core -p rndr_ui -p rndr_paint --no-default-features
+editing-off	0	cargo test --locked -p rndr --no-default-features --test editing_compatibility
+editing-ui	0	cargo test --locked -p rndr --no-default-features --features ui --test editing_compatibility
+editing-liquid	0	cargo test --locked -p rndr --no-default-features --features liquid --test editing_compatibility
+docs	0	env RUSTDOCFLAGS=-Dwarnings cargo doc --locked -p rndr-flow -p rndr_core -p rndr_ui --no-deps
+ci-clippy	0	cargo clippy --locked --workspace --all-targets -- -D warnings
+ci-feature-off-clippy	0	cargo clippy --locked -p rndr_render -p rndr -p rndr_ui --no-default-features --all-targets -- -D warnings
+facade-off	0	cargo test --locked -p rndr --no-default-features --lib
+facade-ui	0	cargo test --locked -p rndr --no-default-features --features ui --lib
+facade-ui-doc	0	cargo test --locked -p rndr --no-default-features --features ui --doc
+facade-liquid-canvas	0	cargo test --locked -p rndr --no-default-features --features liquid,canvas --lib
+diff-check	0	git diff --check

@@ -1,0 +1,14 @@
+   Compiling serde_derive v1.0.229
+   Compiling serde v1.0.229
+   Compiling rndr_liquid v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_liquid)
+   Compiling rndr_chart v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_chart)
+   Compiling rndr_liquid_ui v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_liquid_ui)
+   Compiling rndr v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.96s
+     Running tests/editing_compatibility.rs (target/debug/deps/editing_compatibility-2cbf37c83c88dc43)
+
+running 2 tests
+test legacy_root_types_and_function_signature_are_unchanged ... ok
+test additive_document_namespaces_resolve_without_ui_feature ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

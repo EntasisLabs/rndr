@@ -1,0 +1,89 @@
+$ cargo test --offline --locked -p rndr_render --no-default-features --lib -- --nocapture
+    Finished `test` profile [unoptimized] target(s) in 0.21s
+     Running unittests src/lib.rs (target/debug/deps/rndr_render-1badf7c371f6c0b2)
+
+running 60 tests
+test close::tests::mutation_after_completion_invalidates_ready_before_destruction ... ok
+
+thread 'close_boundary_tests::errors_and_panics_refuse_whole_pass_without_cancelling_or_losing_text' (4122471) panicked at crates/rndr_render/src/close_boundary_tests.rs:169:21:
+validator injected failure
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test close::tests::pending_cancel_quit_is_consumed_and_stale_success_rejected ... ok
+test close::tests::process_exit_waits_for_secondary_and_cancel_resets_all ... ok
+test close::tests::secondary_failure_explicit_discard_closes_only_that_window ... ok
+test close_boundary_tests::dynamically_admitted_window_is_in_next_validation_and_exit_queue_fence ... ok
+test close::tests::ordinary_apps_keep_primary_secondary_and_quit_behavior ... ok
+test close::tests::unguarded_primary_cannot_destroy_guarded_secondary_or_new_window ... ok
+
+thread 'close_boundary_tests::validator_panic_payload_destructor_is_also_contained' (4122478) panicked at crates/rndr_render/src/close_boundary_tests.rs:321:13:
+Box<dyn Any>
+test close::tests::failure_never_exits_or_destroys_in_memory_text_retry_drains ... ok
+test close_boundary_tests::no_hook_compatibility_and_secondary_withdrawal_are_not_sticky ... ok
+test close_boundary_tests::hidden_callback_precedes_final_validation_and_never_follows_consumption ... ok
+test close_boundary_tests::new_quit_or_cancel_in_callback_settles_or_defers_before_validation ... ok
+test color::tests::srgb_transfer_decodes_known_channels ... ok
+test color::tests::theme_canvas_matches_on_srgb_and_unorm_surfaces ... ok
+test close_boundary_tests::participation_changes_inside_validator_refuse_all_consumption ... ok
+test close_boundary_tests::fabricated_participation_is_rejected_before_and_after_hook ... ok
+test close_boundary_tests::public_session_hook_covers_every_live_world_and_actual_intent ... ok
+test decode::tests::downsample_averages_a_two_by_two ... ok
+test export::tests::rejects_an_oversized_export ... ok
+test file_drop::tests::a_late_path_list_cannot_replace_or_resurrect_a_drag ... ok
+test file_drop::tests::client_physical_pixels_divide_by_the_window_scale ... ok
+test file_drop::tests::appkit_flipped_content_is_logical_and_is_not_scaled_again ... ok
+test file_drop::tests::each_event_keeps_the_point_from_its_own_callback ... ok
+test file_drop::tests::a_drag_correlates_one_point_with_every_path_and_cancel_clears_them ... ok
+test file_drop::tests::win32_screen_point_and_xdnd_root_point_share_the_client_scale ... ok
+test file_drop::tests::winit_path_events_carry_no_position_at_any_scale ... ok
+test file_drop::tests::file_uris_become_paths_and_other_uris_are_skipped ... ok
+test lifecycle::tests::an_icon_must_be_an_image ... ok
+test gpu::tests::upload_encodes_fill_border_and_glyph_tint_for_both_formats ... ok
+test lifecycle::tests::messages_round_trip_and_strangers_are_refused ... ok
+test notify::tests::feature_off_returns_unsupported ... ok
+test scene::tests::a_rotated_child_runs_before_the_camera ... ok
+test scene::tests::a_zoomed_shadow_stays_on_a_fine_grid_and_keeps_its_tail ... ok
+test scene::tests::an_integer_pan_slides_the_shadow_texture_without_resizing_it ... ok
+test scene::tests::rotated_glyphs_use_outlines_and_a_linear_fallback ... ok
+test startup::tests::a_hidden_window_does_not_plan_ui_thread_device_init ... ok
+test startup::tests::the_first_present_is_recorded_once ... ok
+test system::tests::kde_factor_reads_the_animation_speed ... ok
+test tablet::tests::a_missing_force_does_not_invent_pressure ... ok
+test tablet::tests::a_pen_move_keeps_pressure_tilt_twist_and_logical_position ... ok
+test tablet::tests::eraser_contact_press_and_release_are_start_and_end ... ok
+test tests::a_path_response_must_match_the_outstanding_transfer ... ok
+test tests::blur_cancels_native_held_pointer_and_pending_press ... ok
+test tests::browser_platform_follows_the_host_os ... ok
+test tests::hotkey_argument_beats_the_environment ... ok
+test tests::idle_flow_waits_until_a_future_deadline ... ok
+
+thread 'close_boundary_tests::validator_panic_payload_destructor_is_also_contained' (4122478) panicked at crates/rndr_render/src/close_boundary_tests.rs:310:13:
+payload destructor panic
+test lifecycle::tests::ids_become_safe_names ... ok
+test file_drop::tests::file_uris_keep_windows_unc_and_unix_absolute_paths ... ok
+test tests::reported_text_survives_ctrl_and_alt_but_not_super ... ok
+test web_input::tests::ime_keys_stay_in_the_text_area ... ok
+test tests::native_startup_preserves_text_face_before_first_update ... ok
+
+thread 'close_boundary_tests::validator_panic_payload_destructor_is_also_contained' (4122478) panicked at crates/rndr_render/src/close_boundary_tests.rs:321:13:
+Box<dyn Any>
+
+thread 'close_boundary_tests::validator_panic_payload_destructor_is_also_contained' (4122478) panicked at crates/rndr_render/src/close_boundary_tests.rs:310:13:
+payload destructor panic
+test web_input::tests::paste_chords ... ok
+
+thread 'close_boundary_tests::errors_and_panics_refuse_whole_pass_without_cancelling_or_losing_text' (4122471) panicked at crates/rndr_render/src/close_boundary_tests.rs:169:21:
+validator injected failure
+test web_input::tests::paste_fills_text_and_html ... ok
+test decode::tests::garbage_is_unknown_and_a_bad_jpeg_is_invalid ... ok
+test decode::tests::png_round_trips_a_red_pixel ... ok
+test tests::native_startup_preserves_application_owned_text ... ok
+test tests::native_startup_after_headless_update_selects_the_platform_default ... ok
+test close_boundary_tests::validator_panic_payload_destructor_is_also_contained ... ok
+test web_input::tests::preedit_caret_sits_at_the_end ... ok
+test close_boundary_tests::errors_and_panics_refuse_whole_pass_without_cancelling_or_losing_text ... ok
+test decode::tests::webp_round_trips_rgba ... ok
+
+test result: ok. 60 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+exit=0

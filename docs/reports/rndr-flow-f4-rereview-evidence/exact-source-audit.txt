@@ -1,0 +1,15 @@
+$ python3 docs/reports/rndr-flow-f4-correction-audit.py docs/reports/rndr-flow-f4-rereview-evidence
+F4 PASS: 360/360 cycles, 720 exit acknowledgments; full Counts/WorkCounts equality is asserted inside compiled tests, not a fabricated raw vector
+F1/F2 PASS: 300/300 teardowns, all 19 components equal per-World baseline, zero pending external acknowledgments every row
+Correction matrices PASS: 20 producer orderings; 12 timer destruction/clone/World orderings
+flow: 73 passed; 0 ignored
+core: 831 passed; 7 ignored
+liquid: 16 passed; 0 ignored
+consumer: 115 passed; 2 ignored
+compatibility-off: 2 passed; 0 ignored
+compatibility-liquid: 2 passed; 0 ignored
+SOURCE PASS: all 23 fingerprints equal current bytes and git HEAD blobs
+HEAD 218e06c9998296a87f6393e182f03f9e40e97b92
+bda61046daef65661d697bd90e4665d6827c9417
+
+exit=0

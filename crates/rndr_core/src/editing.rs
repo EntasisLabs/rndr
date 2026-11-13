@@ -234,6 +234,7 @@ pub struct SourceSession {
     edits: Vec<(u64, Vec<SourceChange>)>,
     active_view: Option<Entity>,
     readonly: bool,
+    freeze: crate::freeze::FreezeState,
     pub(crate) policy_epoch: u64,
     composition: Option<SourceSelection>,
     events: VecDeque<ChangeEvent>,
@@ -453,7 +454,15 @@ impl SourceSession {
     }
     /// True when document-owned admission is readonly.
     pub fn is_readonly(&self) -> bool {
-        self.readonly
+        self.readonly || self.freeze.active()
+    }
+    /// Freeze content/history at the writer without cancelling live IME.
+    /// Resolve composition through its editor owner before retrying.
+    pub fn freeze(&self) -> Result<crate::DocumentFreeze, EditError> {
+        if self.is_composing() {
+            return Err(EditError::Composing);
+        }
+        self.freeze.acquire().ok_or(EditError::RevisionExhausted)
     }
     /// True while a native preedit owns a captured selection.
     pub fn is_composing(&self) -> bool {
@@ -505,7 +514,7 @@ impl SourceSession {
         self.events.drain(..)
     }
     fn admit(&self) -> Result<(), EditError> {
-        if self.readonly {
+        if self.is_readonly() {
             return Err(EditError::Readonly);
         }
         if self.composition.is_some() {
@@ -850,7 +859,7 @@ impl SourceSession {
         }
         let action = crate::keys::standard_action(platform, event);
         // Navigation/copy is allowed in readonly, but never clipboard cut/paste.
-        if (self.readonly || view_readonly) && !crate::interaction::readonly_field_key(event) {
+        if (self.is_readonly() || view_readonly) && !crate::interaction::readonly_field_key(event) {
             return Ok(StepResult::default());
         }
         if self.composition.is_some() {
@@ -889,7 +898,7 @@ impl SourceSession {
             }
         }
         let mut event = event.clone();
-        if self.readonly || view_readonly || passive {
+        if self.is_readonly() || view_readonly || passive {
             event.text = None;
         }
         if self.selections.ranges().len() > 1 && origin != EditOrigin::Ime {
@@ -1223,6 +1232,10 @@ pub struct SourceDocuments {
     documents: HashMap<DocumentId, SourceSession>,
 }
 impl SourceDocuments {
+    /// Exact retained native identities for host protection coverage checks.
+    pub fn ids(&self) -> impl Iterator<Item = DocumentId> + '_ {
+        self.documents.keys().copied()
+    }
     /// Open exact source bytes with revision zero and empty history.
     pub fn open(&mut self, text: impl Into<String>) -> DocumentId {
         static NEXT: AtomicU64 = AtomicU64::new(1);
@@ -1252,6 +1265,7 @@ impl SourceDocuments {
                 edits: Vec::new(),
                 active_view: None,
                 readonly: false,
+                freeze: Default::default(),
                 policy_epoch: 0,
                 composition: None,
                 events: VecDeque::new(),
@@ -1482,7 +1496,7 @@ pub fn project_source(world: &mut World, entity: Entity) {
     });
     let text = (!unchanged).then(|| doc.share_text());
     let revision = doc.revision;
-    let readonly = doc.readonly;
+    let readonly = doc.is_readonly();
     let generation = doc.generation();
     let mapped_anchor = world
         .get::<SourceProjection>(entity)
@@ -1702,7 +1716,7 @@ pub fn prepare_source_input(world: &mut World) {
                 && owner.is_none()
                 && focused == Some(entity)
                 && preedit
-                && !doc.readonly
+                && !doc.is_readonly()
                 && doc.composition.is_none()
             {
                 // Native composition has exactly one captured range. Collapse

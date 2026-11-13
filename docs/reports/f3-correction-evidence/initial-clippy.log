@@ -1,0 +1,13 @@
+    Checking rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_flow)
+error: length comparison to zero
+   --> crates/rndr_flow/src/budget_tests.rs:278:11
+    |
+278 |     while flow.leases.len() != 0 || flow.scopes.len() != 2 {
+    |           ^^^^^^^^^^^^^^^^^^^^^^ help: using `!is_empty` is clearer and more explicit: `!flow.leases.is_empty()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#len_zero
+    = note: `-D clippy::len-zero` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::len_zero)]`
+
+error: could not compile `rndr-flow` (lib test) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

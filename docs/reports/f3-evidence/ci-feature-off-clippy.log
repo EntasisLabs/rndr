@@ -1,0 +1,52 @@
+   Compiling proc-macro2 v1.0.107
+    Checking rndr_core v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_core)
+    Checking hashbrown v0.17.1
+    Checking objc2-core-foundation v0.3.2
+    Checking log v0.4.34
+    Checking tracing-core v0.1.36
+   Compiling rndr_render v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_render)
+    Checking objc2-app-kit v0.2.2
+   Compiling rustix v1.1.5
+    Checking errno v0.3.14
+    Checking getrandom v0.4.3
+    Checking console v0.16.6
+    Checking tracing v0.1.44
+   Compiling quote v1.0.47
+    Checking indexmap v2.14.2
+   Compiling syn v3.0.6
+   Compiling syn v2.0.119
+    Checking objc2-foundation v0.3.2
+    Checking objc2-core-graphics v0.3.2
+    Checking tempfile v3.27.0
+    Checking objc2-core-video v0.3.2
+    Checking insta v1.49.0
+   Compiling bytemuck_derive v1.12.1
+   Compiling thiserror-impl v2.0.20
+    Checking bytemuck v1.25.2
+   Compiling zerocopy-derive v0.8.57
+    Checking thiserror v2.0.20
+    Checking naga-types v30.0.1
+    Checking wgpu-types v30.0.1
+    Checking objc2-metal v0.3.2
+    Checking objc2-app-kit v0.3.2
+    Checking winit-common v0.31.0-beta.4
+    Checking zerocopy v0.8.57
+    Checking rndr_paint v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_paint)
+    Checking rndr_ui v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_ui)
+    Checking rndr_std v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_std)
+    Checking objc2-quartz-core v0.3.2
+    Checking raw-window-metal v1.1.0
+    Checking winit-appkit v0.31.0-beta.4
+    Checking half v2.7.1
+    Checking naga v30.0.1
+    Checking tiff v0.11.3
+    Checking winit v0.31.0-beta.4
+    Checking image v0.25.10
+    Checking arboard v3.7.0
+    Checking wgpu-naga-bridge v30.0.1
+    Checking wgpu-hal v30.0.1
+    Checking wgpu-core-deps-apple v30.0.1
+    Checking wgpu-core v30.0.1
+    Checking wgpu v30.0.1
+    Checking rndr v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 10.91s

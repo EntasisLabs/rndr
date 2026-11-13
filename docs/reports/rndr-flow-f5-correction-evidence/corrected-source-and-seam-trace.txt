@@ -1,0 +1,573 @@
+Corrected source and unchanged renderer production seam trace
+eed1878119f11ee66e73cdb0a6fe24a1027205eb
+bf56c67fd5b67ddf993ec5c02e5af4ef7ef507d5
+   193	/// validate/commit. Freeze remains owned by G through failure and until commit/cancel.
+   194	pub trait TransitionHost<D> {
+   195	    type Guard;
+   196	    fn protect(
+   197	        &mut self,
+   198	        operation: OperationId,
+   199	        targets: &[(ScopeId, D)],
+   200	    ) -> Result<Self::Guard, Error>;
+   201	    fn dirty(&self, guard: &Self::Guard) -> bool;
+   202	    fn choose(
+   203	        &mut self,
+   204	        guard: &mut Self::Guard,
+   205	        decision: DecisionId,
+   206	        choice: Choice,
+   207	    ) -> Result<Phase, Error>;
+   208	    fn poll(&mut self, guard: &mut Self::Guard) -> Phase;
+   209	    fn validate(&self, guard: &Self::Guard) -> Result<(), Error>;
+   210	    /// Observational, callback-free validation of the incoming native identity and
+   211	    /// its exact presentation lease. Required even when no outgoing target exists.
+   212	    fn validate_entry(
+   213	        &self,
+   214	        scope: ScopeId,
+   215	        document: &D,
+   216	        lease: &crate::PresentationLease,
+   217	    ) -> Result<(), Error>;
+   218	}
+   219	/// Bounded retained history plus bounded owned operations/outcomes. Not an executor,
+   220	/// document store, UI tree, navigation service or implicit resource eviction policy.
+   221	#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+   222	pub struct HistoryCounts {
+   490	        } else {
+   491	            Err(Error::Stale)
+   492	        }
+   493	    }
+   494	    fn incoming_entry<'a>(&'a self, c: &'a Navigation<R, D>) -> Option<&'a RetainedEntry<R, D>> {
+   495	        if let Navigation::Select { tab, entry } = c {
+   496	            self.tab(*tab)
+   497	                .ok()?
+   498	                .history
+   499	                .iter()
+   500	                .find(|e| e.id() == *entry)
+   501	        } else {
+   502	            c.new_entry()
+   503	        }
+   504	    }
+   505	    fn resolve(&self, c: &Navigation<R, D>) -> Result<(Vec<ScopeId>, Vec<ScopeId>), Error> {
+   506	        let mut affected = vec![];
+   507	        let mut tabs = vec![];
+   508	        match c {
+   509	            Navigation::Select { tab, entry } => {
+   510	                let t = self.tab(*tab)?;
+   511	                if !t
+   512	                    .history
+   513	                    .iter()
+   514	                    .any(|e| e.id() == *entry && e.owner.liveness().is_live())
+   515	                {
+   516	                    return Err(Error::Stale);
+   517	                }
+   518	                tabs.push(*tab);
+   519	            }
+   520	            Navigation::Push { tab, after, .. } => {
+   521	                let t = self.tab(*tab)?;
+   522	                let at = match after {
+   523	                    Some(id) => {
+   524	                        t.history
+   525	                            .iter()
+   526	                            .position(|e| e.id() == *id)
+   527	                            .ok_or(Error::Stale)?
+   528	                            + 1
+   529	                    }
+   530	                    None => {
+   531	                        if !t.history.is_empty() {
+   532	                            return Err(Error::Stale);
+   533	                        }
+   534	                        0
+   535	                    }
+   536	                };
+   537	                affected.extend(t.history[at..].iter().map(|e| e.id()));
+   538	                tabs.push(*tab);
+   539	            }
+   540	            Navigation::Replace { tab, old, .. } => {
+   541	                let t = self.tab(*tab)?;
+   542	                if !t.history.iter().any(|e| e.id() == *old) {
+   543	                    return Err(Error::Stale);
+   544	                }
+   545	                affected.push(*old);
+   546	                tabs.push(*tab);
+   547	            }
+   548	            Navigation::Close { entries } => {
+   549	                if entries.is_empty() {
+   550	                    return Err(Error::Invalid);
+   551	                }
+   552	                for id in entries {
+   553	                    if affected.contains(id) {
+   554	                        return Err(Error::Invalid);
+   555	                    }
+   556	                    let t = self
+   557	                        .tabs
+   558	                        .iter()
+   559	                        .find(|t| {
+   560	                            t.owner.liveness().is_live() && t.history.iter().any(|e| e.id() == *id)
+   561	                        })
+   562	                        .ok_or(Error::Stale)?;
+   563	                    affected.push(*id);
+   564	                    if !tabs.contains(&t.owner.id()) {
+   565	                        tabs.push(t.owner.id());
+   566	                    }
+   567	                }
+   568	            }
+   569	        }
+   570	        if let Some(e) = c.new_entry() {
+   571	            if !e.owner.liveness().is_live()
+   572	                || !tabs.iter().any(|id| {
+   573	                    self.tab(*id).is_ok_and(|t| {
+   574	                        e.owner
+   575	                            .life
+   576	                            .parent
+   577	                            .as_ref()
+   578	                            .is_some_and(|p| std::sync::Arc::ptr_eq(p, &t.owner.life))
+   579	                    })
+   580	                })
+   581	                || self
+   582	                    .tabs
+   583	                    .iter()
+   584	                    .any(|t| t.history.iter().any(|old| old.id() == e.id()))
+   585	            {
+   586	                return Err(Error::Invalid);
+   587	            }
+   588	            let total: usize = self.tabs.iter().map(|t| t.history.len()).sum();
+   589	            if total + 1 - affected.len() > self.limits.entries {
+   590	                return Err(Error::Capacity);
+   591	            }
+   592	        }
+   593	        Ok((affected, tabs))
+   594	    }
+   595	    /// One bounded scheduling pass. Reentrant submissions wait for the next pass;
+   630	                });
+   631	                if !valid {
+   632	                    self.pending[at].phase = Phase::Cancelled;
+   633	                    continue;
+   634	                }
+   635	                let targets: Vec<_> = self
+   636	                    .tabs
+   637	                    .iter()
+   638	                    .flat_map(|t| t.history.iter())
+   639	                    .filter(|e| self.pending[at].affected.contains(&e.id()))
+   640	                    .map(|e| (e.id(), e.document.clone()))
+   641	                    .collect();
+   642	                if self
+   643	                    .incoming_entry(&self.pending[at].command)
+   644	                    .is_some_and(|e| host.validate_entry(e.id(), &e.document, &e.lease).is_err())
+   645	                {
+   646	                    self.pending[at].phase = Phase::Failed;
+   647	                    continue;
+   648	                }
+   649	                match host.protect(self.pending[at].id, &targets) {
+   650	                    Ok(g) => {
+   651	                        self.pending[at].phase = if host.dirty(&g) {
+   652	                            Phase::AwaitingDecision
+   653	                        } else {
+   654	                            Phase::Ready
+   655	                        };
+   656	                        self.pending[at].guard = Some(g);
+   657	                    }
+   658	                    Err(Error::Pending) => {
+   659	                        continue;
+   660	                    }
+   661	                    Err(_) => {
+   662	                        self.pending[at].phase = Phase::Failed;
+   663	                        continue;
+   664	                    }
+   665	                }
+   666	            }
+   667	            let p = &mut self.pending[at];
+   668	            if p.phase == Phase::Saving {
+   669	                p.phase = host.poll(p.guard.as_mut().expect("saving owns protection"));
+   670	            }
+   671	            if p.phase == Phase::Ready {
+   672	                if host
+   673	                    .validate(p.guard.as_ref().expect("ready owns protection"))
+   674	                    .is_err()
+   675	                {
+   676	                    p.phase = Phase::Failed;
+   677	                    continue;
+   678	                }
+   679	                // Incoming owners can be lost while the outgoing documents wait
+   680	                // for a decision/save, including a different-document replacement.
+   681	                // Re-resolve every identity and the exact truncation set, and check
+   682	                // the incoming native authority/lease at this final boundary too.
+   683	                let p = &self.pending[at];
+   684	                let valid = self
+   685	                    .resolve(&p.command)
+   686	                    .is_ok_and(|(a, t)| a == p.affected && t == p.tabs)
+   687	                    && self
+   688	                        .incoming_entry(&p.command)
+   689	                        .is_none_or(|e| host.validate_entry(e.id(), &e.document, &e.lease).is_ok());
+   690	                if !valid {
+   691	                    self.pending[at].phase = Phase::Failed;
+   692	                    continue;
+   693	                }
+   694	                // No callbacks between final validation and metadata mutation.
+   695	                let p = self.pending.remove(at);
+   696	                self.commit(p);
+   697	                return; // removal shifts indexes; next pass resumes
+   698	            }
+   699	        }
+   700	        let mut at = 0;
+   701	        while at < self.pending.len() {
+   702	            if self.pending[at].phase == Phase::Cancelled {
+   703	                let p = self.pending.remove(at);
+   704	                self.finish(p.id, Phase::Cancelled);
+   705	            } else {
+   256	        &mut self,
+   257	        flow: &Coordinator,
+   258	        worlds: &mut [HostWorld<'_>],
+   259	        decision: DecisionId,
+   260	        choice: Choice,
+   261	    ) -> Result<(), Error> {
+   262	        let at = self
+   263	            .native
+   264	            .iter()
+   265	            .position(|n| {
+   266	                n.operation == decision.operation
+   267	                    && n.round == decision.round
+   268	                    && matches!(n.phase, Phase::AwaitingDecision | Phase::Failed)
+   269	            })
+   270	            .ok_or(Error::Stale)?;
+   271	        let round = self.native[at]
+   272	            .round
+   273	            .checked_add(1)
+   274	            .ok_or(Error::Exhausted)?;
+   275	        let world = self.native[at].world;
+   276	        if !flow.world_is_live(world) {
+   277	            return Err(Error::Stale);
+   278	        }
+   279	        let state = get_world(worlds, world)?
+   280	            .resource::<CloseGuard>()
+   281	            .ok_or(Error::Invalid)?
+   282	            .state();
+   283	        if !matches!(state, CloseState::Pending(r) | CloseState::Failed(r, _) | CloseState::Ready(r)
+   284	            if *r == self.native[at].request)
+   285	        {
+   286	            return Err(Error::Stale);
+   287	        }
+   288	        if choice == Choice::Cancel {
+   289	            get_world_mut(worlds, world)?
+   290	                .resource_mut::<CloseGuard>()
+   291	                .ok_or(Error::Invalid)?
+   292	                .cancel();
+   293	            self.native.remove(at);
+   294	            return Ok(());
+   295	        }
+   296	        // World/guard admission above precedes removal. The fallible choice is
+   297	        // captured and the attempt reinserted on either result; retry the native
+   298	        // request only after admission succeeds. Refusal is not cancellation.
+   299	        let mut attempt = self.native.remove(at);
+   300	        let phase = self
+   301	            .pass(flow, worlds)
+   302	            .choose(&mut attempt.guard, decision, choice);
+   303	        if phase.is_ok() && choice == Choice::Save {
+   304	            // Admission above established this guard, with no intervening callback.
+   305	            let g = get_world_mut(worlds, world)
+   306	                .expect("validated World")
+   307	                .resource_mut::<CloseGuard>()
+   308	                .expect("validated CloseGuard");
+   309	            if let Some(request) = g.retry(attempt.request) {
+   310	                attempt.request = request;
+   311	            }
+   312	        }
+   313	        match phase {
+   314	            Ok(p) => {
+   315	                attempt.phase = p;
+   316	                attempt.round = round;
+   317	                self.native.insert(at, attempt);
+   318	                Ok(())
+   319	            }
+   320	            Err(e) => {
+   321	                self.native.insert(at, attempt);
+   322	                Err(e)
+   323	            }
+   324	        }
+   325	    }
+   515	                .iter()
+   516	                .any(|d| !matches!(d.state, Protection::Safe))
+   517	            {
+   518	                Phase::AwaitingDecision
+   519	            } else {
+   520	                Phase::Ready
+   521	            };
+   522	            self.native.push(NativeAttempt {
+   523	                world: id,
+   524	                request,
+   525	                operation,
+   526	                round: 1,
+   527	                guard,
+   528	                phase,
+   529	            });
+   530	        }
+   531	        let mut attempts = std::mem::take(&mut self.native);
+   532	        // Restore ownership even if a fallible World/guard lookup refuses below.
+   533	        let result = (|| {
+   534	            for n in &mut attempts {
+   535	                let mut pass = self.pass(flow, worlds);
+   536	                if n.phase == Phase::Saving {
+   537	                    n.phase = pass.poll(&mut n.guard);
+   538	                }
+   539	                if pass.validate(&n.guard).is_err() {
+   540	                    n.phase = Phase::Failed;
+   541	                    let g = get_world_mut(worlds, n.world)?
+   542	                        .resource_mut::<CloseGuard>()
+   543	                        .ok_or(Error::Invalid)?;
+   544	                    if matches!(g.state(), CloseState::Ready(_)) {
+   545	                        g.invalidate();
+   546	                        if let CloseState::Pending(r) = g.state() {
+   547	                            n.request = *r;
+   548	                        }
+   549	                    }
+   550	                }
+   551	            }
+   552	            // First validate every owned attempt, then publish native readiness.
+   553	            // Destroying a manager World destroys its actual native document store:
+   554	            // another retained presentation (or application lease) must not outlive it.
+   555	            // Compute the greatest dependency-closed subset of Ready attempts.
+   556	            // Removing B (e.g. for an application lease) must also remove every
+   557	            // manager A presented by B, transitively. Starting with all Ready nodes
+   558	            // preserves legitimate jointly closing cycles; order cannot affect this
+   559	            // monotone fixed point. No second store or ownership transfer is used.
+   560	            let mut prepared: Vec<_> = attempts
+   561	                .iter()
+   562	                .filter(|n| n.phase == Phase::Ready)
+   563	                .map(|n| n.world)
+   564	                .collect();
+   565	            loop {
+   566	                let blocked: Vec<_> = attempts
+   567	                    .iter()
+   568	                    .filter(|n| {
+   569	                        prepared.contains(&n.world)
+   570	                            && n.guard
+   571	                                .docs
+   572	                                .iter()
+   573	                                .filter(|d| d.target.manager == n.world)
+   574	                                .any(|d| {
+   575	                                    flow.leases.values().any(|l| {
+   576	                                        l.document == d.target.document
+   577	                                            && flow.held(l)
+   578	                                            && !prepared
+   579	                                                .iter()
+   580	                                                .any(|w| scope_in_world(flow, l.scope, *w))
+   581	                                    })
+   582	                                })
+   583	                    })
+   584	                    .map(|n| n.world)
+   585	                    .collect();
+   586	                if blocked.is_empty() {
+   587	                    break;
+   588	                }
+   589	                prepared.retain(|w| !blocked.contains(w));
+   590	            }
+   591	            for n in &mut attempts {
+   592	                let g = get_world_mut(worlds, n.world)?
+   593	                    .resource_mut::<CloseGuard>()
+   594	                    .ok_or(Error::Invalid)?;
+   595	                if n.phase == Phase::Ready && !prepared.contains(&n.world) {
+   596	                    // Cancellation/withdrawal of a participant revokes a previous
+   597	                    // Ready before the runner can consume it. Keep the freeze; the
+   598	                    // fresh request is reconciled at the next pass.
+   599	                    if matches!(g.state(), CloseState::Ready(_)) {
+   600	                        g.invalidate();
+   601	                    }
+   602	                    continue;
+   603	                }
+   604	                match n.phase {
+   605	                    Phase::Ready => {
+   606	                        if matches!(g.state(),CloseState::Failed(r,_)if *r==n.request) {
+   607	                            g.discard(n.request);
+   608	                        } else {
+   609	                            g.complete(n.request, Ok(()));
+   610	                        }
+   611	                    }
+   612	                    Phase::Failed => {
+   613	                        g.complete(
+   614	                            n.request,
+   615	                            Err("flow protection failed; retry, cancel or informed discard".into()),
+   616	                        );
+   617	                    }
+   618	                    _ => {}
+   619	                }
+   620	            }
+   621	            Ok(())
+   622	        })();
+   623	        self.native = attempts;
+   624	        result
+   625	    }
+   626	    /// Only terminal WorldOwner loss releases native Ready protections. The runner,
+   627	    /// not flow, commits native destruction after *all* participating guards are Ready.
+   628	    pub fn reconcile_world_loss(&mut self, flow: &Coordinator) {
+   629	        self.native.retain(|n| flow.world_is_live(n.world));
+   630	    }
+   905	    }
+   906	    fn validate_entry(
+   907	        &self,
+   908	        scope: ScopeId,
+   909	        target: &ProtectedTarget,
+   910	        lease: &PresentationLease,
+   911	    ) -> Result<(), Error> {
+   912	        if !self.flow.document_is_live(target.document)
+   913	            || !self.flow.world_is_live(target.manager)
+   914	            || !self.host.records.iter().any(|r| r.target == *target)
+   915	            || !self.flow.leases.values().any(|l| {
+   916	                l.scope == scope
+   917	                    && l.document == target.document
+   918	                    && std::sync::Arc::ptr_eq(&l.held, &lease.0)
+   919	                    && self.flow.held(l)
+   920	            })
+   921	        {
+   922	            return Err(Error::Stale);
+   923	        }
+   924	        revision(get_world(self.worlds, target.manager)?, target.native)?;
+   925	        Ok(())
+   926	    }
+   927	    fn dirty(&self, g: &FrozenDocuments) -> bool {
+   928	        g.docs.iter().any(|d| !matches!(d.state, Protection::Safe))
+   929	    }
+   930	    fn choose(
+   931	        &mut self,
+   932	        g: &mut FrozenDocuments,
+   933	        decision: DecisionId,
+   934	        choice: Choice,
+   935	    ) -> Result<Phase, Error> {
+   936	        if decision.operation != g.operation {
+   937	            return Err(Error::Stale);
+   938	        }
+   939	        self.validate(g)?;
+   940	        for d in &mut g.docs {
+   941	            if !matches!(d.state, Protection::Safe) {
+   942	                d.lost = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+   943	                d.claimed = false;
+   944	                d.state = match choice {
+   945	                    Choice::Discard => Protection::Safe,
+   330	/// [`Session::new`] is the window `run` opens. [`Session::window`] adds another
+   331	/// app, with its own world and surface. [`rndr_core::Desktop::open`] can add more after
+   332	/// the loop has started. Closing the first window exits. Closing a later
+   333	/// window removes only that window. [`Input::quit`] on any window exits.
+   334	/// An opt-in [`rndr_core::CloseGuard`] delays either path until protection is
+   335	/// ready. Process exit drains every window, including hidden/secondary windows.
+   336	///
+   337	/// # Panics
+   338	///
+   339	/// Panics if the process cannot create the event loop or a window, or if the
+   340	/// loop returns an error. A redraw after a window exists also panics if that
+   341	/// surface was not created.
+   342	pub struct Session {
+   343	    apps: Vec<App>,
+   344	}
+   345	
+   346	impl Session {
+   347	    /// A session whose first window is `app`.
+   348	    pub fn new(app: App) -> Self {
+   349	        Self { apps: vec![app] }
+   350	    }
+   351	
+   352	    /// Queue `app` as another window, created when [`Session::run`] starts.
+   353	    pub fn window(mut self, app: App) -> Self {
+   354	        self.apps.push(app);
+   355	        self
+   356	    }
+   357	
+   358	    /// Block on the desktop event loop until the session exits.
+   359	    pub fn run(self) {
+   360	        run_apps(self.apps);
+   361	    }
+   362	}
+   363	
+   364	/// Block on the desktop event loop. Core stays headless; this is the only winit caller.
+   365	///
+   366	/// Returns when the window is closed, [`rndr_core::Input::quit`] is set, or a
+   367	/// tray item built to quit the process fires. Hide leaves the process running.
+   368	/// This is [`Session::new`]`(app).`[`Session::run`]`()`.
+   369	///
+   370	/// # Panics
+   371	///
+   372	/// Panics if the process cannot create the event loop or the window, or if
+   373	/// the loop returns an error. A redraw after that window exists also panics
+   374	/// if the surface was not created.
+   375	pub fn run(app: App) {
+   376	    Session::new(app).run();
+   377	}
+   378	
+   379	fn run_apps(apps: Vec<App>) {
+   380	    let mut apps = apps;
+  2697	        slot.request_redraw();
+  2698	    }
+  2699	
+  2700	    fn reconcile_close(&mut self, event_loop: &dyn ActiveEventLoop) {
+  2701	        // Updates (including hidden frames) and build closures may queue opens.
+  2702	        // Admit one batch before checking guards. Recursive opens stay queued
+  2703	        // and prevent commitment; their wake schedules another bounded pass.
+  2704	        self.spawn_windows(event_loop);
+  2705	        let exit = self.close.step(
+  2706	            self.slots
+  2707	                .iter_mut()
+  2708	                .map(|slot| (slot.app.world_mut(), &mut slot.close, slot.primary)),
+  2709	        );
+  2710	        if exit {
+  2711	            // No application code may run between guard validation and the
+  2712	            // atomic queue/admission commitment. An open racing this check
+  2713	            // either joins the drain or occurs after shutdown was committed.
+  2714	            if self.hub.try_commit_exit() {
+  2715	                event_loop.exit();
+  2716	            } else {
+  2717	                self.wake.wake();
+  2718	            }
+  2719	            return;
+  2720	        }
+  2721	        for slot in &mut self.slots {
+  2722	            if std::mem::take(&mut slot.close.needs_frame) {
+  2723	                if rndr_core::window::is_visible(slot.app.world()) {
+  2724	                    slot.request_redraw();
+  2725	                } else {
+  2726	                    // A newly requested hidden gate still needs a system pass,
+  2727	                    // even with no queued task or redraw to wake it.
+  2728	                    slot.run_hidden_frame(event_loop);
+  2729	                }
+  2730	            }
+  2731	        }
+  2732	        self.slots.retain(|slot| !slot.close.closed);
+  2733	        if self.slots.is_empty() && self.hub.try_commit_exit() {
+  2734	            event_loop.exit();
+  2735	        }
+  2736	    }
+  2911	    fn about_to_wait(&mut self, event_loop: &dyn ActiveEventLoop) {
+  2912	        // winit can finish dispatching a batch after exit() is called. Once
+  2913	        // committed, no later callback may update a Ready world or build opens.
+  2914	        if event_loop.exiting() {
+  2915	            return;
+  2916	        }
+  2917	        self.spawn_windows(event_loop);
+  2918	        for slot in &mut self.slots {
+  2919	            slot.install_gpu_if_ready();
+  2920	            slot.pump_shell(event_loop);
+  2921	            let hidden = !rndr_core::window::is_visible(slot.app.world());
+  2922	            let tray_pending = slot.primary
+  2923	                && (rndr_core::tray::pending(slot.app.world())
+  2924	                    || rndr_core::app_menu_pending(slot.app.world()));
+  2925	            if hidden && (slot.app.wants_frame() || tray_pending) {
+  2926	                slot.run_hidden_frame(event_loop);
+  2927	            }
+  2928	        }
+  2929	        self.reconcile_close(event_loop);
+  2930	        self.sync_flow(event_loop);
+  2931	    }
+  2932	
+  2933	    fn window_event(
+  2934	        &mut self,
+  2935	        event_loop: &dyn ActiveEventLoop,
+  2936	        window_id: WindowId,
+  2937	        event: WindowEvent,
+  2938	    ) {
+  2939	        if event_loop.exiting() {
+  2940	            return;
+  2941	        }
+  2942	        if let Some(slot) = self
+  2943	            .slots
+  2944	            .iter_mut()
+  2945	            .find(|slot| slot.winit_id == Some(window_id))
+  2946	        {
+  2947	            slot.window_event(event_loop, window_id, event);
+  2948	        }
+  2949	        self.reconcile_close(event_loop);
+  2950	    }

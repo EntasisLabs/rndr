@@ -1,0 +1,6 @@
+$ cargo clippy --offline --locked -p rndr_core --features tokio --all-targets -- -D warnings
+    Checking tokio v1.54.1
+    Checking rndr_core v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-pr-149-ci-repair/crates/rndr_core)
+    Finished `dev` profile [unoptimized] target(s) in 8.74s
+
+exit=0

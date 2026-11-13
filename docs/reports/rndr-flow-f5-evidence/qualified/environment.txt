@@ -1,0 +1,21 @@
+$ sh -c git rev-parse HEAD HEAD^; git status --short; rustc -Vv; cargo -V; env | grep -E "CARGO_(INCREMENTAL|BUILD_JOBS|PROFILE|TARGET_DIR)"; df -k .; du -sk target
+ccbe77929b651080864fe1a346ade65471d29979
+bf56c67fd5b67ddf993ec5c02e5af4ef7ef507d5
+?? docs/reports/rndr-flow-f5-evidence/qualified/
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+binary: rustc
+commit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea
+commit-date: 2026-08-18
+host: aarch64-apple-darwin
+release: 1.98.0
+LLVM version: 22.1.8
+cargo 1.98.0 (797e8a9bc 2026-08-05)
+CARGO_BUILD_JOBS=1
+CARGO_PROFILE_TEST_DEBUG=0
+CARGO_PROFILE_DEV_DEBUG=0
+CARGO_INCREMENTAL=0
+Filesystem   1024-blocks      Used Available Capacity iused    ifree %iused  Mounted on
+/dev/disk3s5   239362496 202056696   7520844    97% 1928467 75208440    3%   /System/Volumes/Data
+291916	target
+
+exit=0

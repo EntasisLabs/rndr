@@ -1,0 +1,28 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running unittests src/lib.rs (target/debug/deps/rndr_flow-a463ef8c260aca93)
+
+running 9 tests
+
+thread 'budget_tests::queued_unwind_commands_are_charged_fifo_before_next_callback' (3593172) panicked at crates/rndr_flow/src/budget_tests.rs:105:9:
+expected incremental queue unwind
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test budget_tests::unrelated_live_registrations_cannot_starve_an_inflight_dead_subtree ... ok
+test budget_tests::newly_suspended_child_between_pumps_precedes_waiting_parent_cleanup ... ok
+test budget_tests::newly_dead_ancestor_restarts_before_parent_and_keeps_reverse_order ... ok
+test budget_tests::queued_unwind_commands_are_charged_fifo_before_next_callback ... ok
+test budget_tests::saturated_metadata_callbacks_commands_and_leases_all_make_progress ... ok
+test budget_tests::lease_ancestry_is_resumable_and_counts_remain_exact_without_pumping ... ok
+budget lease-table leases=4096 units=8192
+test budget_tests::full_default_lease_table_sweeps_with_tiny_budgets_and_no_callbacks ... ok
+test budget_tests::callback_entry_scans_and_revalidation_are_charged_not_bulk ... ok
+budget callback-free deep=false scopes=4096 units=24577
+budget callback-free deep=true scopes=4096 units=24577
+test budget_tests::capacity_wide_and_deep_callback_free_retirement_is_incremental ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 20 filtered out; finished in 0.16s
+
+     Running tests/reviewer_probes.rs (target/debug/deps/reviewer_probes-77d31a3aa52bd646)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s

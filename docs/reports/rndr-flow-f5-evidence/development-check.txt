@@ -1,0 +1,16 @@
+    Checking memchr v2.8.3
+    Checking unicase v2.10.0
+    Checking bitflags v2.13.2
+    Checking pulldown-cmark v0.13.6
+    Checking unicode-segmentation v1.13.3
+    Checking web-time v1.1.0
+    Checking rndr_core v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_core)
+    Checking rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_flow)
+error[E0451]: fields `authority` and `serial` of struct `history::OperationId` are private
+   --> crates/rndr_flow/src/protection.rs:102:39
+    |
+102 |             let operation=OperationId{authority:self.authority,serial};
+    |                                       ^^^^^^^^^ private field  ^^^^^^ private field
+
+For more information about this error, try `rustc --explain E0451`.
+error: could not compile `rndr-flow` (lib) due to 1 previous error

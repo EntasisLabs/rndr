@@ -1,0 +1,4 @@
+d495e27e8f0a05e97f91ae8eb86a6c8dfd60ffb4589142ce5f9c584acb75b9c1  docs/design/rndr-flow-f5-session-close-validation.md
+bde7fcd054fd9e542033e11980718bebbdaab8d5de37c424467a607022a12527  docs/reports/rndr-flow-f5-seam-audit.py
+6e81ae6f8e3d6d97b5b14edf418ea7cd037d114e3d921aaabebe74523f78f817  docs/reports/rndr-flow-f5-seam-evidence/run-preserved-probes.sh
+43b957e7deee83583217cac4bb615cfad6279b5deb6f0633dfeb6604f79d3d8c  docs/reports/rndr-flow-f5-seam-gates.sh

@@ -1,0 +1,8 @@
+From clean exact source commit da364e3acbf17192ab9a1041609453d0c8fc77f1:
+$ sh docs/reports/rndr-flow-f5-seam-gates.sh
+exit=0
+All 27 command/exit receipts and before/after free-space observations are in qualification/summary.tsv.
+Each qualification/<gate>.txt preserves its exact command, complete stdout/stderr and exit code.
+The source manifest fingerprints all 589 selected crates/Cargo source files.
+The harness manifest fingerprints the committed scripts and detailed new contract.
+No source file changed during or after qualification; the handback child adds only docs/evidence.

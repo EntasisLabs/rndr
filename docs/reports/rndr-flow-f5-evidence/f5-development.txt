@@ -1,0 +1,78 @@
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_flow)
+    Finished `test` profile [unoptimized] target(s) in 0.70s
+     Running tests/f5.rs (target/debug/deps/f5-7c92ecb493efe32d)
+
+running 9 tests
+test cancel_preserves_exact_bytes_revision_history_selection_and_resources ... FAILED
+test reentrant_submission_conflict_queue_and_unrelated_selection_progress ... FAILED
+test retained_back_forward_replace_and_forward_truncation_guard_exact_incarnations ... FAILED
+test multi_entry_validation_is_atomic_on_unavoidable_participant_loss ... FAILED
+test confirmed_disposal_once_stale_duplicate_foreign_decisions_and_saves_refuse ... FAILED
+test pending_ime_blocks_snapshot_without_discarding_preedit ... FAILED
+test actual_source_save_lane_is_live_while_close_waits ... FAILED
+test source_programmatic_undo_redo_reload_and_input_policy_cannot_bypass_save_freeze ... FAILED
+test failure_panic_and_lost_save_retain_freeze_until_explicit_cancel_or_discard ... FAILED
+
+failures:
+
+---- cancel_preserves_exact_bytes_revision_history_selection_and_resources stdout ----
+
+thread 'cancel_preserves_exact_bytes_revision_history_selection_and_resources' (3885268) panicked at crates/rndr_flow/tests/f5_support/mod.rs:20:92:
+called `Result::unwrap()` on an `Err` value: Invalid
+
+---- reentrant_submission_conflict_queue_and_unrelated_selection_progress stdout ----
+
+thread 'reentrant_submission_conflict_queue_and_unrelated_selection_progress' (3885273) panicked at crates/rndr_flow/tests/f5_support/mod.rs:20:92:
+called `Result::unwrap()` on an `Err` value: Invalid
+
+---- retained_back_forward_replace_and_forward_truncation_guard_exact_incarnations stdout ----
+
+thread 'retained_back_forward_replace_and_forward_truncation_guard_exact_incarnations' (3885274) panicked at crates/rndr_flow/tests/f5_support/mod.rs:20:92:
+called `Result::unwrap()` on an `Err` value: Invalid
+
+---- multi_entry_validation_is_atomic_on_unavoidable_participant_loss stdout ----
+
+thread 'multi_entry_validation_is_atomic_on_unavoidable_participant_loss' (3885271) panicked at crates/rndr_flow/tests/f5_support/mod.rs:20:92:
+called `Result::unwrap()` on an `Err` value: Invalid
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- confirmed_disposal_once_stale_duplicate_foreign_decisions_and_saves_refuse stdout ----
+
+thread 'confirmed_disposal_once_stale_duplicate_foreign_decisions_and_saves_refuse' (3885269) panicked at crates/rndr_flow/tests/f5_support/mod.rs:20:92:
+called `Result::unwrap()` on an `Err` value: Invalid
+
+---- pending_ime_blocks_snapshot_without_discarding_preedit stdout ----
+
+thread 'pending_ime_blocks_snapshot_without_discarding_preedit' (3885272) panicked at crates/rndr_flow/tests/f5_support/mod.rs:20:92:
+called `Result::unwrap()` on an `Err` value: Invalid
+
+---- actual_source_save_lane_is_live_while_close_waits stdout ----
+
+thread 'actual_source_save_lane_is_live_while_close_waits' (3885267) panicked at crates/rndr_flow/tests/f5_support/mod.rs:20:92:
+called `Result::unwrap()` on an `Err` value: Invalid
+
+---- source_programmatic_undo_redo_reload_and_input_policy_cannot_bypass_save_freeze stdout ----
+
+thread 'source_programmatic_undo_redo_reload_and_input_policy_cannot_bypass_save_freeze' (3885275) panicked at crates/rndr_flow/tests/f5_support/mod.rs:20:92:
+called `Result::unwrap()` on an `Err` value: Invalid
+
+---- failure_panic_and_lost_save_retain_freeze_until_explicit_cancel_or_discard stdout ----
+
+thread 'failure_panic_and_lost_save_retain_freeze_until_explicit_cancel_or_discard' (3885270) panicked at crates/rndr_flow/tests/f5_support/mod.rs:20:92:
+called `Result::unwrap()` on an `Err` value: Invalid
+
+
+failures:
+    actual_source_save_lane_is_live_while_close_waits
+    cancel_preserves_exact_bytes_revision_history_selection_and_resources
+    confirmed_disposal_once_stale_duplicate_foreign_decisions_and_saves_refuse
+    failure_panic_and_lost_save_retain_freeze_until_explicit_cancel_or_discard
+    multi_entry_validation_is_atomic_on_unavoidable_participant_loss
+    pending_ime_blocks_snapshot_without_discarding_preedit
+    reentrant_submission_conflict_queue_and_unrelated_selection_progress
+    retained_back_forward_replace_and_forward_truncation_guard_exact_incarnations
+    source_programmatic_undo_redo_reload_and_input_policy_cannot_bypass_save_freeze
+
+test result: FAILED. 0 passed; 9 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p rndr-flow --test f5`

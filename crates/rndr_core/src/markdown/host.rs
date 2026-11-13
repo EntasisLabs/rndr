@@ -1,6 +1,11 @@
 //! Explicit, programmatic host content. Markdown never executes or requests UI.
 use super::*;
 
+// Entity generations are part of the owner identity. Metadata lives only on
+// live projections, so there is no dead-view table or retained document data.
+pub(super) struct NativeProjection(pub(super) Entity);
+impl Component for NativeProjection {}
+
 /// Caller-selected identity, scoped to one markdown view. Never reuse an ID
 /// within that view's lifetime, even after removal (prevents stale-handle ABA).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -230,6 +235,74 @@ pub trait MarkdownSlotHost: Send + Sync {
 #[derive(Default)]
 pub struct MarkdownSlotHosts {
     hosts: std::collections::HashMap<Entity, Box<dyn MarkdownSlotHost>>,
+    // Only active callback frames live here. A frame guard removes its flag even
+    // on unwind; no per-view tombstones or monotonically growing ID table.
+    dispatch: std::sync::Arc<
+        std::sync::Mutex<
+            std::collections::HashMap<Entity, Vec<std::sync::Arc<std::sync::atomic::AtomicBool>>>,
+        >,
+    >,
+}
+
+impl MarkdownSlotHosts {
+    /// Enumerate exact live native Markdown-created projections for `view`.
+    ///
+    /// Includes native text, rule/quote/list/checkbox implementation nodes and
+    /// window spacers; excludes the caller's view, host-slot roots and all
+    /// application content. Works after component removal or raw view despawn.
+    /// Ownership follows creation, not current ancestry: reparenting a native
+    /// projection does not transfer ownership. Entity generations prevent ABA.
+    /// No document or dead-owner registry is retained; despawning each returned
+    /// entity releases its metadata. This is read-only, O(live native projections
+    /// in World), and does not promise ordering. Callers must not cascade through
+    /// returned nodes if they need to preserve application-attached children.
+    pub fn native_projections(world: &World, view: Entity) -> Vec<Entity> {
+        world
+            .entities_with::<NativeProjection>()
+            .into_iter()
+            .filter(|e| {
+                world
+                    .get::<NativeProjection>(*e)
+                    .is_some_and(|p| p.0 == view)
+            })
+            .collect()
+    }
+
+    /// Remove this view's registration, without touching any other view.
+    ///
+    /// Also invalidates callbacks temporarily extracted by dispatch. Such a
+    /// callback is dropped after it returns, never restored. Drop the returned
+    /// value outside the World resource borrow; captures may run destructors.
+    pub fn remove(&mut self, view: Entity) -> Option<Box<dyn MarkdownSlotHost>> {
+        if let Some(frames) = self.dispatch.lock().unwrap().get(&view) {
+            for frame in frames {
+                frame.store(false, std::sync::atomic::Ordering::Release);
+            }
+        }
+        self.hosts.remove(&view)
+    }
+}
+
+type DispatchFrames = std::sync::Arc<
+    std::sync::Mutex<
+        std::collections::HashMap<Entity, Vec<std::sync::Arc<std::sync::atomic::AtomicBool>>>,
+    >,
+>;
+struct DispatchFrame {
+    frames: DispatchFrames,
+    view: Entity,
+    live: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+impl Drop for DispatchFrame {
+    fn drop(&mut self) {
+        let mut frames = self.frames.lock().unwrap();
+        if let Some(stack) = frames.get_mut(&self.view) {
+            stack.retain(|flag| !std::sync::Arc::ptr_eq(flag, &self.live));
+            if stack.is_empty() {
+                frames.remove(&self.view);
+            }
+        }
+    }
 }
 
 /// Remove every host binding on `view`, including slots released offscreen.
@@ -255,11 +328,13 @@ pub fn set_markdown_slot_host(
     if world.resource_mut::<MarkdownSlotHosts>().is_none() {
         world.insert_resource(MarkdownSlotHosts::default());
     }
-    world
-        .resource_mut::<MarkdownSlotHosts>()
-        .unwrap()
-        .hosts
-        .insert(view, Box::new(host));
+    let old = {
+        let hosts = world.resource_mut::<MarkdownSlotHosts>().unwrap();
+        let old = hosts.remove(view);
+        hosts.hosts.insert(view, Box::new(host));
+        old
+    };
+    drop(old);
 }
 
 fn notify(
@@ -270,20 +345,50 @@ fn notify(
     source: usize,
     mount: bool,
 ) {
-    let Some(mut host) = world
-        .resource_mut::<MarkdownSlotHosts>()
-        .and_then(|hosts| hosts.hosts.remove(&view))
-    else {
+    let require_markdown = world.has::<MarkdownView>(view);
+    let Some((mut host, frame)) = world.resource_mut::<MarkdownSlotHosts>().and_then(|hosts| {
+        let host = hosts.hosts.remove(&view)?;
+        let live = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+        hosts
+            .dispatch
+            .lock()
+            .unwrap()
+            .entry(view)
+            .or_default()
+            .push(live.clone());
+        Some((
+            host,
+            DispatchFrame {
+                frames: hosts.dispatch.clone(),
+                view,
+                live,
+            },
+        ))
+    }) else {
         return;
     };
+    // Markdown sync legitimately extracts MarkdownView while invoking us. Do
+    // not mistake that transaction for component disposal. Explicit remove
+    // invalidates this frame; raw/cascade despawn is additionally checked here.
     if mount {
         host.slot_mounted(world, slot, index, source);
     } else {
         host.slot_unmounted(world, slot, index, source);
     }
-    if let Some(hosts) = world.resource_mut::<MarkdownSlotHosts>() {
-        hosts.hosts.insert(view, host);
+    if frame.live.load(std::sync::atomic::Ordering::Acquire)
+        && world.is_alive(view)
+        && (!require_markdown || world.has::<MarkdownView>(view))
+    {
+        if let Some(hosts) = world.resource_mut::<MarkdownSlotHosts>() {
+            // A replacement wins, including one installed by nested dispatch.
+            if let std::collections::hash_map::Entry::Vacant(entry) = hosts.hosts.entry(view) {
+                entry.insert(host);
+                return;
+            }
+        }
     }
+    // Fail closed on unwind: neither the host nor frame is restored.
+    drop(host);
 }
 fn anchored(doc: &MarkdownView, binding: &Binding) -> bool {
     binding.start != usize::MAX
@@ -594,5 +699,173 @@ mod shift_tests {
             (10, 0, 6)
         );
         assert_eq!(remap(0, 4, 10, 0, 6), Some((0, 4)));
+    }
+}
+
+#[cfg(test)]
+mod registration_tests {
+    use super::*;
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+    struct Probe {
+        drops: Arc<AtomicUsize>,
+        action: u8,
+    }
+    impl Drop for Probe {
+        fn drop(&mut self) {
+            self.drops.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+    impl MarkdownSlotHost for Probe {
+        fn slot_mounted(&mut self, world: &mut World, slot: MarkdownSlot, _: usize, _: usize) {
+            match self.action {
+                1 => {
+                    let old = world
+                        .resource_mut::<MarkdownSlotHosts>()
+                        .unwrap()
+                        .remove(slot.view);
+                    drop(old);
+                }
+                2 => {
+                    set_markdown_slot_host(
+                        world,
+                        slot.view,
+                        Probe {
+                            drops: self.drops.clone(),
+                            action: 0,
+                        },
+                    );
+                    notify(world, slot.view, slot, 0, 0, true);
+                }
+                3 => {
+                    world.despawn_entity(slot.view);
+                }
+                4 => panic!("callback failure"),
+                5 => {
+                    world.remove::<MarkdownView>(slot.view);
+                }
+                6 => {
+                    crate::despawn(world, slot.view);
+                }
+                _ => {}
+            }
+        }
+        fn slot_unmounted(&mut self, world: &mut World, slot: MarkdownSlot, i: usize, s: usize) {
+            self.slot_mounted(world, slot, i, s);
+        }
+    }
+    #[test]
+    fn native_ownership_survives_authority_loss_without_claiming_attachments() {
+        for raw in [false, true] {
+            let mut app = crate::App::new();
+            app.add_plugin(crate::MarkdownPlugin);
+            app.world_mut()
+                .insert_resource(crate::Viewport::new(320.0, 180.0));
+            let view = crate::markdown_view(
+                app.world_mut(),
+                "# Heading\n\n> quote\n\n- [x] task\n- bullet\n\n---\n\ntext\n",
+            );
+            let other = crate::markdown_view(app.world_mut(), "Unrelated view\n");
+            app.update();
+            let owned = MarkdownSlotHosts::native_projections(app.world(), view);
+            let other_owned = MarkdownSlotHosts::native_projections(app.world(), other);
+            assert!(!owned.is_empty());
+            assert!(!other_owned.is_empty());
+            let child = app.world_mut().spawn(Layout::column());
+            set_parent(app.world_mut(), child, owned[0]);
+            // A reparented native node keeps its exact creation owner.
+            set_parent(app.world_mut(), owned[0], other);
+            assert_eq!(
+                MarkdownSlotHosts::native_projections(app.world(), view).len(),
+                owned.len()
+            );
+            if raw {
+                app.world_mut().despawn_entity(view);
+            } else {
+                app.world_mut().remove::<MarkdownView>(view);
+            }
+            assert_eq!(
+                MarkdownSlotHosts::native_projections(app.world(), view).len(),
+                owned.len()
+            );
+            let replacement = if raw {
+                let replacement = app.world_mut().spawn(Layout::column());
+                assert_eq!(replacement.index(), view.index());
+                assert_ne!(replacement.generation(), view.generation());
+                assert!(MarkdownSlotHosts::native_projections(app.world(), replacement).is_empty());
+                Some(replacement)
+            } else {
+                None
+            };
+            for entity in owned {
+                app.world_mut().despawn_entity(entity);
+            }
+            if let Some(replacement) = replacement {
+                assert!(app.world().is_alive(replacement));
+            }
+            assert!(app.world().is_alive(child));
+            assert!(MarkdownSlotHosts::native_projections(app.world(), view).is_empty());
+            assert_eq!(
+                MarkdownSlotHosts::native_projections(app.world(), other),
+                other_owned
+            );
+        }
+    }
+
+    #[test]
+    fn callback_removal_replacement_raw_loss_and_unwind_never_resurrect() {
+        for action in 1..=6 {
+            let mut world = World::new();
+            let drops = Arc::new(AtomicUsize::new(0));
+            let other = world.spawn(Layout::column());
+            set_markdown_slot_host(
+                &mut world,
+                other,
+                Probe {
+                    drops: drops.clone(),
+                    action: 0,
+                },
+            );
+            for _ in 0..100 {
+                let view = crate::markdown_view(&mut world, "");
+                set_markdown_slot_host(
+                    &mut world,
+                    view,
+                    Probe {
+                        drops: drops.clone(),
+                        action,
+                    },
+                );
+                let slot = MarkdownSlot {
+                    view,
+                    root: view,
+                    id: MarkdownSlotId(1),
+                };
+                let before = drops.load(Ordering::SeqCst);
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    notify(&mut world, view, slot, 0, 0, true)
+                }));
+                assert_eq!(result.is_err(), action == 4);
+                let hosts = world.resource::<MarkdownSlotHosts>().unwrap();
+                assert!(hosts.dispatch.lock().unwrap().is_empty());
+                assert!(hosts.hosts.contains_key(&other));
+                assert_eq!(hosts.hosts.contains_key(&view), action == 2);
+                assert_eq!(drops.load(Ordering::SeqCst), before + 1);
+                let old = world
+                    .resource_mut::<MarkdownSlotHosts>()
+                    .unwrap()
+                    .remove(view);
+                drop(old);
+                if world.is_alive(view) {
+                    world.despawn_entity(view);
+                }
+            }
+            assert_eq!(
+                world.resource::<MarkdownSlotHosts>().unwrap().hosts.len(),
+                1
+            );
+        }
     }
 }

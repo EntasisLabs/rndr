@@ -1,0 +1,71 @@
+warning: crates/rndr_flow/Cargo.toml: `default-features` is ignored for rndr_core, since `default-features` was not specified for `workspace.dependencies.rndr_core`, this could become a hard error in the future
+warning: `rndr-flow` (manifest) generated 1 warning
+   Compiling pulldown-cmark v0.13.6
+   Compiling memchr v2.8.3
+   Compiling bitflags v2.13.2
+   Compiling unicase v2.10.0
+   Compiling web-time v1.1.0
+   Compiling unicode-segmentation v1.13.3
+   Compiling rndr_core v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_core)
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_flow)
+error[E0277]: the trait bound `ScopeOwner: rndr_core::Component` is not satisfied
+   --> crates/rndr_flow/src/lib.rs:176:51
+    |
+176 |         if !world.is_alive(entity) || world.has::<Self>(entity) {
+    |                                             ---   ^^^^ unsatisfied trait bound
+    |                                             |
+    |                                             required by a bound introduced by this call
+    |
+help: the trait `rndr_core::Component` is not implemented for `ScopeOwner`
+   --> crates/rndr_flow/src/lib.rs:163:1
+    |
+163 | pub struct ScopeOwner {
+    | ^^^^^^^^^^^^^^^^^^^^^
+    = help: the following other types implement trait `rndr_core::Component`:
+              Absolute
+              AccessMark
+              ActivationHandler
+              Align
+              AlignSelf
+              AnchoredPopup
+              AspectRatio
+              AtomicMount
+            and 122 others
+note: required by a bound in `World::has`
+   --> crates/rndr_core/src/world.rs:218:19
+    |
+218 |     pub fn has<T: Component>(&self, entity: Entity) -> bool {
+    |                   ^^^^^^^^^ required by this bound in `World::has`
+
+error[E0277]: the trait bound `ScopeOwner: rndr_core::Component` is not satisfied
+   --> crates/rndr_flow/src/lib.rs:179:30
+    |
+179 |         world.insert(entity, self);
+    |               ------         ^^^^ unsatisfied trait bound
+    |               |
+    |               required by a bound introduced by this call
+    |
+help: the trait `rndr_core::Component` is not implemented for `ScopeOwner`
+   --> crates/rndr_flow/src/lib.rs:163:1
+    |
+163 | pub struct ScopeOwner {
+    | ^^^^^^^^^^^^^^^^^^^^^
+    = help: the following other types implement trait `rndr_core::Component`:
+              Absolute
+              AccessMark
+              ActivationHandler
+              Align
+              AlignSelf
+              AnchoredPopup
+              AspectRatio
+              AtomicMount
+            and 122 others
+note: required by a bound in `World::insert`
+   --> crates/rndr_core/src/world.rs:188:22
+    |
+188 |     pub fn insert<T: Component>(&mut self, entity: Entity, value: T) {
+    |                      ^^^^^^^^^ required by this bound in `World::insert`
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `rndr-flow` (lib) due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...

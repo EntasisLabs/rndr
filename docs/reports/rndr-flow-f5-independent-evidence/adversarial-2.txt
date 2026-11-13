@@ -1,0 +1,51 @@
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_flow)
+warning: unused import: `CloseState`
+ --> crates/rndr_flow/tests/f5_independent_review.rs:6:34
+  |
+6 | use rndr_core::{App, CloseGuard, CloseState};
+  |                                  ^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `rndr-flow` (test "f5_independent_review") generated 1 warning (run `cargo fix --test "f5_independent_review" -p rndr-flow` to apply 1 suggestion)
+    Finished `test` profile [unoptimized] target(s) in 1.87s
+     Running tests/f5_independent_review.rs (target/debug/deps/f5_independent_review-b56bed128eba9005)
+
+running 10 tests
+replacement-loss phase=Some(Committed) selected=Ok(Some(ScopeId { test runner::tests::secondary_failure_explicit_discard_closes_only_that_window ... authority: 1, serial: 7 })) new_state=Disposed old_state=Disposed
+ok
+
+thread 'replacement_owner_loss_must_refuse_before_commit' (3976378) panicked at crates/rndr_flow/tests/f5_independent_review.rs:24:5:
+assertion `left != right` failed: dead replacement cannot replace live original
+  left: Some(Committed)
+ right: Some(Committed)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test runner::tests::pending_cancel_quit_is_consumed_and_stale_success_rejected ... okomitted-world result=Err(Pending) freeze=false decision=None native=Pending(
+CloseRequest(7))
+
+thread 'omitted_world_on_native_save_choice_must_retain_freeze' (3976377) panicked at crates/rndr_flow/tests/f5_independent_review.rs:78:5:
+failed admission must not drop the existing attempt
+test runner::tests::ordinary_apps_keep_primary_secondary_and_quit_behavior ... ok
+cohort guards A=Ready(CloseRequest(14)) B=Pending(CloseRequest(15))
+cohort runner closed A=truetest runner::tests::mutation_after_completion_invalidates_ready_before_destruction ... ok
+ B=false unrelated_primary=false
+
+thread 'manager_cohort_must_be_transitively_consumable' (3976376) panicked at crates/rndr_flow/tests/f5_independent_review.rs:60:5:
+A's native authority must survive while B's shared presentation cannot close
+test runner::tests::unguarded_primary_cannot_destroy_guarded_secondary_or_new_window ... ok
+test runner::tests::process_exit_waits_for_secondary_and_cancel_resets_all ... ok
+test runner::tests::failure_never_exits_or_destroys_in_memory_text_retry_drains ... ok
+test replacement_owner_loss_must_refuse_before_commit ... FAILED
+test omitted_world_on_native_save_choice_must_retain_freeze ... FAILED
+test manager_cohort_must_be_transitively_consumable ... FAILED
+
+failures:
+
+failures:
+    manager_cohort_must_be_transitively_consumable
+    omitted_world_on_native_save_choice_must_retain_freeze
+    replacement_owner_loss_must_refuse_before_commit
+
+test result: FAILED. 7 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p rndr-flow --test f5_independent_review`

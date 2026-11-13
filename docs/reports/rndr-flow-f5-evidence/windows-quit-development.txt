@@ -1,0 +1,16 @@
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_flow)
+    Finished `test` profile [unoptimized] target(s) in 1.76s
+     Running tests/f5_quit_save.rs (target/debug/deps/f5_quit_save-4392572bf2dd8c1e)
+
+running 1 test
+test actual_owned_durable_save_progresses_while_native_quit_waits ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/f5_windows.rs (target/debug/deps/f5_windows-7e89e7589c0af422)
+
+running 1 test
+test terminal_window_loss_reclaims_tabs_without_closing_shared_document ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.50s
+

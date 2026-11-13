@@ -1,0 +1,26 @@
+$ cargo clippy --offline --locked -p rndr_liquid_ui --all-targets --no-deps -- -D warnings
+    Checking libm v0.2.16
+    Checking num-traits v0.2.19
+    Checking euclid v0.22.14
+    Checking arrayvec v0.7.8
+    Checking lyon_geom v1.0.20
+    Checking lyon_path v1.0.19
+    Checking aho-corasick v1.1.5
+    Checking float_next_after v1.0.0
+    Checking regex-syntax v0.8.11
+    Checking regex-automata v0.4.18
+    Checking lyon_tessellation v1.0.23
+    Checking serde_core v1.0.229
+    Checking lyon_algorithms v1.0.22
+    Checking lyon v1.0.19
+    Checking serde v1.0.229
+    Checking regex v1.13.1
+    Checking rndr_liquid v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_liquid)
+    Checking rndr_paint v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_paint)
+    Checking rndr_chart v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_chart)
+    Checking rndr_ui v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_ui)
+    Checking rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_flow)
+    Checking rndr_liquid_ui v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_liquid_ui)
+    Finished `dev` profile [unoptimized] target(s) in 6.24s
+
+exit=0

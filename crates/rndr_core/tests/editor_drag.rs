@@ -188,15 +188,12 @@ fn autoscroll_uses_elapsed_time_clamps_at_edges_and_stops_on_release() {
         "idle redraws must not rearm native wakes"
     );
     assert_eq!(app.world().get::<Editor>(e).unwrap().offset, 0.0);
-    for expected in 1..=5 {
+    for line in &full.lines[1..=5] {
         clock.advance(std::time::Duration::from_millis(50));
         assert!(app.wants_frame(), "due drag timer must request a frame");
         // No pointer motion: only the clock drives these frames.
         app.update();
-        assert_eq!(
-            app.world().get::<Editor>(e).unwrap().offset,
-            full.lines[expected].y
-        );
+        assert_eq!(app.world().get::<Editor>(e).unwrap().offset, line.y);
         assert_eq!(selection(&app, e).1, 0);
         assert!(selection(&app, e).0 < text.len());
     }

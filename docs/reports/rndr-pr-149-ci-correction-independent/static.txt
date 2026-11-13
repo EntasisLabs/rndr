@@ -1,0 +1,56 @@
+PASS exact ancestry; evidence-only candidate; ALL previously tracked paths preserved except 3 rename files / 2 authorized tools.
+PASS manifest docs/reports/rndr-flow-f5-independent-seam-review-evidence/qualification/source-digests.txt 589 Git matches; 583 baseline bytes unchanged / 6 changed.
+PASS manifest docs/reports/rndr-pr-149-ci-correction/source-digests.txt 589 Git matches; 583 baseline bytes unchanged / 6 changed.
+PASS all 598 nonhistorical tracked Rust files: no fetch_update token.
+PASS complete receipt environment 954 bytes 
+PASS complete receipt fmt 28 bytes 
+PASS complete receipt clippy-workspace 627 bytes 
+PASS complete receipt clippy-no-default 187 bytes 
+PASS complete receipt clippy-dialog 172 bytes 
+PASS complete receipt clippy-wasm 185 bytes 
+PASS complete receipt clippy-ui 175 bytes 
+PASS complete receipt clippy-liquid-canvas 498 bytes 
+PASS complete receipt clippy-tokio 161 bytes 
+PASS complete receipt flow 232634 bytes (144, 0)
+PASS complete receipt consumer 80873 bytes (115, 2)
+PASS complete receipt core-freeze 686 bytes (3, 0)
+PASS complete receipt composer 1004 bytes (9, 0)
+PASS complete receipt historical-audit 2334 bytes 
+PASS actual integer try_update stable 1.95.0; fetch_update forwards; checked CAS body.
+Installed doc SHA256 697b8d1e6dd44657db216e3a514b19e6150adfc42a0465663ff8ce145cc7fab7
+(8));
+3384            /// assert_eq!(x.load(Ordering::SeqCst), 9);
+3385            /// ```
+3386            #[inline]
+3387            #[stable(feature = "atomic_try_update", since = "1.95.0")]
+3388            #[$cfg_cas]
+3389            #[cfg_attr(miri, track_caller)] // even without panics, this helps for Miri backtraces
+3390            #[rustc_should_not_be_called_on_const_items]
+3391            pub fn try_update(
+3392                &self,
+3393                set_order: Ordering,
+3394                fetch_order: Ordering,
+3395                mut f: impl FnMut($int_type) -> Option<$int_type>,
+3396            ) -> Result<$int_type, $int_type> {
+3397                let mut prev = self.load(fetch_order);
+3398                while let Some(next) = f(prev) {
+3399                    match self.compare_exchange_weak(prev, next, set_order, fetch_order) {
+3400                        x @ Ok(_) => return x,
+3401                        Err(next_prev) => prev = next_prev
+3402                    }
+3403                }
+3404                Err(prev)
+3405            }
+3406
+3407            /// Fetches the value, applies a function to it that it return a new value.
+3408            /// The new value
+pub fn fetch_update<F>(&self,
+3332                                   set_order: Ordering,
+3333                                   fetch_order: Ordering,
+3334                                   f: F) -> Result<$int_type, $int_type>
+3335            where F: FnMut($int_type) -> Option<$int_type> {
+3336                self.try_update(set_order, fetch_order, f)
+3337            }
+3338
+3339            /// Fetches the value, and applies a function to it th
+LIMIT metadata + local 1.98 only; not Rust 1.95/1.100 execution or remote CI.

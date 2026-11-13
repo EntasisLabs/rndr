@@ -1,0 +1,24 @@
+F4 PASS: 360/360 cycles, 720 exit acknowledgments; full Counts/WorkCounts equality is asserted inside compiled tests, not a fabricated raw vector
+F1/F2 PASS: 300/300 teardowns, all 19 components equal per-World baseline, zero pending external acknowledgments every row
+Correction matrices PASS: 20 producer orderings; 12 timer destruction/clone/World orderings
+flow: 78 passed; 0 ignored
+core: 831 passed; 7 ignored
+liquid: 16 passed; 0 ignored
+consumer: 115 passed; 2 ignored
+compatibility-off: 2 passed; 0 ignored
+compatibility-liquid: 2 passed; 0 ignored
+SOURCE PASS: all 25 fingerprints equal current bytes and git HEAD blobs
+HEAD 896ed5e4c294caa83550257226541cda245825cf
+5b648bb723263064f1096bfc2aeeb31f14813d4f
+R3 PASS: 11 tracked future branches + 45 local/background/custom task cases; promoted channel-controlled panic/control and native-identity timer probes all pass
+F3 PASS: nine unchanged budget tests; F1/F2 full per-World baselines stable, global listener=1, all other counters=0
+BOUNDARY PASS: main=accepted F3; F0/epic/F3 budget sources and ALL historical reports/evidence unchanged; protected production/manifests/lockfile unchanged; no disposable probes remain
+flow passed/ignored (78, 0)
+core passed/ignored (831, 7)
+liquid passed/ignored (16, 0)
+consumer passed/ignored (115, 2)
+compatibility-off passed/ignored (2, 0)
+compatibility-liquid passed/ignored (2, 0)
+REVIEWER PROBES PASS: both unchanged saved suites freshly executed, 3+3=6 passed
+All 22 completed gates zero exit; recorded disk readings above 4.25 GiB
+R3 source audit PASS: 25 refreshed fingerprints; final audit may precede its own summary row

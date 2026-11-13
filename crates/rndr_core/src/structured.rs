@@ -507,6 +507,7 @@ pub struct StructuredDocument {
     state: State,
     next_block: u64,
     readonly: bool,
+    freeze: crate::freeze::FreezeState,
     policy_epoch: u64,
     atomic_lifetimes: std::collections::HashMap<BlockId, u64>,
     next_atomic_lifetime: u64,
@@ -552,6 +553,7 @@ impl StructuredDocument {
                 selection: StructuredSelection::Text(TextSelection { anchor: p, head: p }),
             },
             readonly: false,
+            freeze: Default::default(),
             policy_epoch: 0,
             atomic_lifetimes: Default::default(),
             next_atomic_lifetime: 1,
@@ -639,7 +641,18 @@ impl StructuredDocument {
     }
     /// Whether all content/history mutations are refused.
     pub fn is_readonly(&self) -> bool {
-        self.readonly
+        self.readonly || self.freeze.active()
+    }
+    /// Whether an owned host protection currently freezes this authority.
+    pub fn is_frozen(&self) -> bool {
+        self.freeze.active()
+    }
+    /// Freeze all native content/history admission; live composition must end first.
+    pub fn freeze(&self) -> Result<crate::DocumentFreeze, StructuredError> {
+        if self.is_composing() {
+            return Err(StructuredError::CompositionActive);
+        }
+        self.freeze.acquire().ok_or(StructuredError::Readonly)
     }
     /// Set readonly; enabling it also cancels any transient composition capture.
     pub fn set_readonly(&mut self, value: bool) {
@@ -710,7 +723,7 @@ impl StructuredDocument {
         if tx.base != self.revision {
             return Err(StructuredError::StaleRevision);
         }
-        if self.readonly {
+        if self.is_readonly() {
             return Err(StructuredError::Readonly);
         }
         if self.is_composing() {
@@ -868,7 +881,7 @@ impl StructuredDocument {
                 return self.command(vec![], origin);
             }
             if self.state.blocks[i - 1].is_atomic() {
-                if self.readonly {
+                if self.is_readonly() {
                     return Err(StructuredError::Readonly);
                 }
                 self.set_selection(StructuredSelection::Node(self.state.blocks[i - 1].id))?;
@@ -917,7 +930,7 @@ impl StructuredDocument {
                 return self.command(vec![], origin);
             }
             if self.state.blocks[i + 1].is_atomic() {
-                if self.readonly {
+                if self.is_readonly() {
                     return Err(StructuredError::Readonly);
                 }
                 self.set_selection(StructuredSelection::Node(self.state.blocks[i + 1].id))?;
@@ -968,7 +981,7 @@ impl StructuredDocument {
                 if self.blocks().iter().any(|b| b.id == block && b.is_atomic()) =>
             {
                 // Whole HR replacement removes the node, then inserts into repaired caret.
-                if self.readonly {
+                if self.is_readonly() {
                     return Err(StructuredError::Readonly);
                 }
                 if self.is_composing() {
@@ -1158,7 +1171,7 @@ impl StructuredDocument {
         self.history(true)
     }
     fn history(&mut self, redo: bool) -> Result<bool, StructuredError> {
-        if self.readonly {
+        if self.is_readonly() {
             return Err(StructuredError::Readonly);
         }
         if self.is_composing() {
@@ -1185,7 +1198,7 @@ impl StructuredDocument {
     }
     /// Capture typed range; preedit text belongs to the view, never this tree.
     pub fn begin_composition(&mut self) -> Result<(), StructuredError> {
-        if self.readonly {
+        if self.is_readonly() {
             return Err(StructuredError::Readonly);
         }
         if self.is_composing() {

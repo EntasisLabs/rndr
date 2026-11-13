@@ -1,0 +1,20 @@
+$ sh -ec git diff --exit-code HEAD -- crates Cargo.toml Cargo.lock; git rev-parse HEAD; rustc -Vv; cargo -V; cargo clippy -V; env | grep -E "CARGO_(INCREMENTAL|BUILD_JOBS|PROFILE|TARGET_DIR)"; df -k .
+e228c824618aec25b7f8657d1569472925486b24
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+binary: rustc
+commit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea
+commit-date: 2026-08-18
+host: aarch64-apple-darwin
+release: 1.98.0
+LLVM version: 22.1.8
+cargo 1.98.0 (797e8a9bc 2026-08-05)
+clippy 0.1.98 (88d9e12ae1 2026-08-18)
+CARGO_BUILD_JOBS=1
+CARGO_PROFILE_TEST_DEBUG=0
+CARGO_PROFILE_DEV_DEBUG=0
+CARGO_TARGET_DIR=/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/target
+CARGO_INCREMENTAL=0
+Filesystem   1024-blocks      Used Available Capacity iused    ifree %iused  Mounted on
+/dev/disk3s5   239362496 205055736   4522608    98% 1947280 45226080    4%   /System/Volumes/Data
+
+exit=0

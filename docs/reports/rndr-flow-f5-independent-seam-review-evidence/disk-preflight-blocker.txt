@@ -1,0 +1,6 @@
+The optional eighth real-native extra probe did not start after correction of a reviewer-only enum import.
+Preflight rejected free_kib=4208564 < floor_kib=4456448. No Cargo invocation/build under floor.
+The preceding development compile failed on reviewer-only NativeChoice import; source and log preserved.
+Canonical adversarial.rs remains byte-identical to the successful seven-new + seven-original test run.
+Extra source is saved separately as unverified-real-native-extra.rs, NOT qualified evidence.
+No cleanup, alternate target, or floor override was attempted.

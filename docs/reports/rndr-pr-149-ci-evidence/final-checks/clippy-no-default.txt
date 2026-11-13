@@ -1,0 +1,4 @@
+$ cargo clippy --offline --locked -p rndr_render -p rndr -p rndr_ui --no-default-features --all-targets -- -D warnings
+    Finished `dev` profile [unoptimized] target(s) in 0.17s
+
+exit=0

@@ -1,0 +1,51 @@
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_flow)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.54s
+     Running unittests src/lib.rs (target/debug/deps/rndr_flow-a463ef8c260aca93)
+
+running 29 tests
+test budget_tests::unrelated_live_registrations_cannot_starve_an_inflight_dead_subtree ... ok
+test lease_admission_tests::capacity_refusal_does_not_consume_final_serial ... ok
+test budget_tests::newly_dead_ancestor_restarts_before_parent_and_keeps_reverse_order ... ok
+test budget_tests::newly_suspended_child_between_pumps_precedes_waiting_parent_cleanup ... ok
+test budget_tests::queued_unwind_commands_are_charged_fifo_before_next_callback ... ok
+test lease_admission_tests::exhausted_active_slot_remains_valid ... ok
+test lease_admission_tests::exhausted_inactive_slot_is_not_reclaimed ... ok
+test lease_admission_tests::exhausted_lease_admission_preserves_stale_invalid_precedence ... ok
+test lease_admission_tests::exhausted_mixed_storage_preserves_inactive_and_active_leases ... ok
+test budget_tests::saturated_metadata_callbacks_commands_and_leases_all_make_progress ... ok
+test tests::coordinator_drop_signals_but_never_runs_arbitrary_callbacks ... ok
+test tests::all_identity_counters_refuse_exhaustion_before_replacing_valid_work ... ok
+test tests::capacity_diagnostics_and_foreign_stale_identity_are_bounded ... ok
+test tests::lease_capacity_does_not_evict_admitted_presentations ... ok
+test tests::cleanup_rejection_returns_untouched_ownership_and_never_calls_in_admission ... ok
+test tests::reentrant_ancestor_disposal_revisits_previously_live_children_before_parent ... ok
+test tests::cleanup_captures_release_once_on_success_error_unwind_and_rejection_drop ... ok
+test tests::hidden_retains_and_suspension_restarts_only_recoverable_activity ... ok
+test budget_tests::lease_ancestry_is_resumable_and_counts_remain_exact_without_pumping ... ok
+test tests::removed_components_and_refused_bindings_retain_single_ownership ... ok
+test tests::subtree_logical_death_precedes_child_first_reverse_cleanup ... ok
+test budget_tests::full_default_lease_table_sweeps_with_tiny_budgets_and_no_callbacks ... ok
+test budget_tests::callback_entry_scans_and_revalidation_are_charged_not_bulk ... ok
+test tests::world_component_removal_explicit_dispose_and_world_drop_share_one_contract ... ok
+test tests::shared_documents_survive_presentation_and_world_loss ... ok
+test tests::sim_host_keeps_logical_death_separate_from_explicit_cleanup_pump ... ok
+test tests::duplicate_reentrant_error_panic_cleanup_is_consumed_once_with_bounded_queue ... ok
+test budget_tests::capacity_wide_and_deep_callback_free_retirement_is_incremental ... ok
+test tests::one_hundred_lifecycle_cycles_return_every_storage_count_to_baseline ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.08s
+
+     Running tests/reviewer_probes.rs (target/debug/deps/reviewer_probes-77d31a3aa52bd646)
+
+running 3 tests
+test queued_fifo_survives_callback_unwind_and_full_queue ... ok
+test dropping_ancestor_inside_suspended_cleanup_reorders_pending_children ... ok
+test bounded_suspend_drain_requires_all_activity_attempts_and_retains_lifetime ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+   Doc-tests rndr_flow
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

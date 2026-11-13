@@ -1,0 +1,84 @@
+    Checking objc2-foundation v0.3.2
+    Checking rndr_core v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_core)
+    Checking rustix v1.1.5
+    Checking wgpu-types v30.0.1
+    Checking naga v30.0.1
+    Checking objc2-foundation v0.2.2
+    Checking objc2-core-video v0.3.2
+   Compiling zvariant v5.15.1
+    Checking dispatch2 v0.3.1
+    Checking accesskit v0.25.2
+    Checking png v0.18.1
+    Checking harfrust v0.12.0
+    Checking tokio v1.54.1
+    Checking accesskit_consumer v0.39.2
+    Checking gethostname v1.1.0
+    Checking x11rb v0.13.2
+    Checking zbus_names v4.3.5
+    Checking regex v1.13.1
+    Checking rndr_canvas v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_canvas)
+    Checking objc2-app-kit v0.2.2
+    Checking rndr_liquid v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_liquid)
+    Checking objc2-metal v0.3.2
+    Checking objc2-app-kit v0.3.2
+    Checking fontique v0.12.0
+    Checking winit-common v0.31.0-beta.4
+    Checking parley_engine v0.12.0
+   Compiling zbus_macros v5.19.0
+    Checking nix v0.28.0
+    Checking parley v0.12.0
+    Checking polling v3.11.0
+    Checking rndr_paint v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_paint)
+    Checking rndr_ui v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_ui)
+    Checking rustix-openpty v0.2.0
+    Checking accesskit_macos v0.27.2
+    Checking vte v0.15.0
+    Checking rndr_std v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_std)
+    Checking portable-pty v0.9.0
+    Checking rndr_chart v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_chart)
+    Checking rndr_app v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_app)
+    Checking objc2-core-media v0.3.2
+    Checking alacritty_terminal v0.26.0
+    Checking objc2-web-kit v0.2.2
+    Checking objc2-avf-audio v0.3.2
+    Checking wgpu-naga-bridge v30.0.1
+    Checking rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_flow)
+    Checking objc2-av-foundation v0.3.2
+    Checking objc2-quartz-core v0.3.2
+    Checking rndr_browser v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_browser)
+    Checking rndr_canvas_ui v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_canvas_ui)
+    Checking rndr_liquid_ui v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_liquid_ui)
+    Checking zbus v5.19.0
+    Checking raw-window-metal v1.1.0
+    Checking rndr_term v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_term)
+    Checking wgpu-hal v30.0.1
+    Checking rndr_media v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_media)
+    Checking muda v0.21.2
+    Checking winit-appkit v0.31.0-beta.4
+    Checking arboard v3.7.0
+    Checking tray-icon v0.26.1
+    Checking wgpu-core-deps-apple v30.0.1
+    Checking wgpu-core v30.0.1
+    Checking winit v0.31.0-beta.4
+    Checking wgpu v30.0.1
+    Checking rndr_render v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_render)
+    Checking web-hello v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/examples/web)
+    Checking desktop v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/examples/desktop)
+    Checking create-view v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/examples/create-view)
+    Checking idle v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/examples/idle)
+    Checking source-session v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/examples/source-session)
+    Checking canvas-editor v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/examples/canvas-editor)
+    Checking overlay v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/examples/overlay)
+    Checking pen-probe v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/examples/pen-probe)
+    Checking chart-gallery v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/examples/chart-gallery)
+    Checking canvas-scene v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/examples/canvas-scene)
+    Checking lifecycle v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/examples/lifecycle)
+    Checking stream v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/examples/stream)
+    Checking liquid-view v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/examples/liquid-view)
+    Checking expand v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/examples/expand)
+    Checking palette v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/examples/palette)
+    Checking terminal v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/examples/terminal)
+    Checking rndr v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr)
+    Checking two-windows v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/examples/windows)
+    Checking titlebar v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/examples/titlebar)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 9.50s

@@ -1,0 +1,26 @@
+$ sh -c find crates/rndr_flow -type f \( -name "*.rs" -o -name Cargo.toml \) -print | sort | while IFS= read -r p; do shasum -a 256 "$p"; done; shasum -a 256 Cargo.lock crates/rndr_liquid_ui/Cargo.toml crates/rndr_liquid_ui/tests/flow_owned.rs
+2c8823a10ecbcbbe5b36363852c5f7e200569839c9dc330b2ca73cfde78a86f8  crates/rndr_flow/Cargo.toml
+6a83c09e4f98d0bc41921e6b0e3369262e10fc16f9262b288e139ab04c1c2677  crates/rndr_flow/src/budget_tests.rs
+508fb4e6fbef0230a8cbdb60d2d5c2d4a377a7b2fb3f15c16e509e0ad40becd9  crates/rndr_flow/src/f4_tests.rs
+a9e417dfc35e796b3b8779e120bcb0ee0b6a11a188024e2d78e816fdd0c42339  crates/rndr_flow/src/lease_admission_tests.rs
+2b5e2204220a672aa3db00e40f23ecfd108025b237825bfaada302584bafa963  crates/rndr_flow/src/lib.rs
+5026a9ccc9ac904e611b7e85447128f86d5eeff5488b0a8a4b9e412ee6012b52  crates/rndr_flow/src/request.rs
+6b0c964e8666ddc9b80af8565362760f5c531d6f0c1f6283f9f44271bc3e2733  crates/rndr_flow/src/tests.rs
+75ba46ef272e133e0f4880afdc543c30b68ee2f31d53988efe8c6e9e72378293  crates/rndr_flow/src/transition.rs
+c2bbf33f1cf5053863b433b1c67885abc159f97a1be4bce34ef4260705f69d0b  crates/rndr_flow/src/work.rs
+8f57c472a5d817b53f0b0e0dd3f16b63063a05048d01a8f2e63dd3b09bb6ebea  crates/rndr_flow/tests/f4_corrections.rs
+7e1053e3889a0ec61f2a1b27c3fe2ab4a7bdf25cf64445e3cf492a58b08fe88f  crates/rndr_flow/tests/f4_native_task.rs
+e5449e097e4a49a753034e2d296bbd1dcd02846010ff43e7ea792564b9afe840  crates/rndr_flow/tests/f4_producers.rs
+f75782e96b941e9ff50ab4b4ac16946206757dfd7c991b6e56b7a41ee21a5f16  crates/rndr_flow/tests/f4_receipts.rs
+a1525794a7d71d8d03a25576a0d360e4b3df19c6784d986d6480e6bfc4b7158c  crates/rndr_flow/tests/f4_source.rs
+b7e11ebc58af535404b9e0466bb8870e379254dd99863ec19be4a390de86c9de  crates/rndr_flow/tests/f4_start_panic.rs
+3769a333a35df3d8ace2dddb2e4648cda86f4cbf7ed2318afe3d72e94b10fabe  crates/rndr_flow/tests/f4_terminal_order.rs
+34cecd6d9bf61724d27c196dc6c846b7cbf2a6d498054183bfa8958eef6057b6  crates/rndr_flow/tests/f4_timer_drop.rs
+1febc65a34d42d1a73954c6de83007a44c9cbdaa3ca1e28938353cf5624afb07  crates/rndr_flow/tests/f4_timer_entity.rs
+936b8000fab753aa2fc4a19f4f37df6f115c5c5fc77bb62858c74cf297e2a461  crates/rndr_flow/tests/f4.rs
+13cf18544295edbb2ac228e051bee86b281278da7e74ea5cca8549bf7e2dfa64  crates/rndr_flow/tests/reviewer_probes.rs
+0d5fac44c8c3262ed87202e5637fcddef9e2aa6040f4434c21d5707688848348  Cargo.lock
+16cdc1107dcffcf91f88b7a08755e86c08ccef8dcba311a0650f8a2b0bf68f29  crates/rndr_liquid_ui/Cargo.toml
+2636b845d956eb6999457c3784c4e780ada02d021fc1a4799d37dc801a1c85c7  crates/rndr_liquid_ui/tests/flow_owned.rs
+
+exit=0

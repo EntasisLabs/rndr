@@ -1,0 +1,24 @@
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f4-owned-adapters-and-completion-gates/crates/rndr_flow)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.32s
+     Running tests/independent_review.rs (target/debug/deps/independent_review-da163dccddcc06d1)
+
+running 3 tests
+
+thread 'world_abandonment_must_not_ack_before_capture_destruction_or_hide_panic' (3796698) panicked at crates/rndr_flow/tests/independent_review.rs:73:9:
+single abandoned effect capture destructor panic
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'producer_success_must_not_erase_payload_cleanup_panic' (3796696) panicked at crates/rndr_flow/tests/independent_review.rs:11:13:
+single payload destructor panic
+during capture destructor: Observation { retired: false, cancellation_signalled: false, cleanup_attempted: false, exit_acknowledged: false, pending_deliveries: 0, terminal: Running }; after: Observation { retired: false, cancellation_signalled: false, cleanup_attempted: false, exit_acknowledged: true, pending_deliveries: 0, terminal: Panicked }
+test world_abandonment_must_not_ack_before_capture_destruction_or_hide_panic ... ok
+
+thread 'timer_payload_destructor_must_be_normalized_before_exit_ack' (3796697) panicked at crates/rndr_flow/tests/independent_review.rs:73:9:
+single abandoned effect capture destructor panic
+after producer success: Observation { retired: true, cancellation_signalled: true, cleanup_attempted: true, exit_acknowledged: true, pending_deliveries: 0, terminal: Panicked }
+test producer_success_must_not_erase_payload_cleanup_panic ... ok
+timer update panicked=false; during destructor: Observation { retired: true, cancellation_signalled: true, cleanup_attempted: true, exit_acknowledged: false, pending_deliveries: 1, terminal: Running }; after: Observation { retired: true, cancellation_signalled: true, cleanup_attempted: true, exit_acknowledged: true, pending_deliveries: 0, terminal: Panicked }
+test timer_payload_destructor_must_be_normalized_before_exit_ack ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

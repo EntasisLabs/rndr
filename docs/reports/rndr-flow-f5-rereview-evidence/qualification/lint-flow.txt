@@ -1,0 +1,6 @@
+$ cargo clippy --offline --locked -p rndr-flow --no-default-features --all-targets -- -D warnings
+    Checking rndr_core v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_core)
+    Checking rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_flow)
+    Finished `dev` profile [unoptimized] target(s) in 3.53s
+
+exit=0

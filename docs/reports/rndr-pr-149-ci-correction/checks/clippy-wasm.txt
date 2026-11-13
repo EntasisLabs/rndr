@@ -1,0 +1,4 @@
+$ cargo clippy --offline --locked -p rndr_render -p rndr -p web-hello --target wasm32-unknown-unknown -- -D warnings
+    Finished `dev` profile [unoptimized] target(s) in 0.21s
+
+exit=0

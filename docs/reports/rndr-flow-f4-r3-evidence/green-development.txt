@@ -1,0 +1,137 @@
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f4-owned-adapters-and-completion-gates/crates/rndr_flow)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.39s
+     Running tests/f4_discarded_output.rs (target/debug/deps/f4_discarded_output-dea2a03673ebd800)
+
+running 3 tests
+
+thread 'tracked_discarded_output_single_unwind_is_normalized' (3804524) panicked at crates/rndr_flow/tests/f4_discarded_output.rs:32:9:
+earlier queue cleanup panic; caught before producer is released
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'tracked_discarded_nonpanicking_output_control' (3804523) panicked at crates/rndr_flow/tests/f4_discarded_output.rs:32:9:
+earlier queue cleanup panic; caught before producer is released
+
+thread 'timer_native_identity_destruction_also_stays_under_owned_catch' (3804522) panicked at crates/rndr_flow/tests/f4_discarded_output.rs:146:13:
+single event native identity destructor panic
+
+thread '<unnamed>' (3804526) panicked at crates/rndr_flow/tests/f4_discarded_output.rs:25:13:
+single discarded output destructor panic; no unwind was active
+discarded-success output_panic=false normalized=true; before=Observation { retired: true, cancellation_signalled: true, cleanup_attempted: true, exit_acknowledged: false, pending_deliveries: 0, terminal: Panicked }; after=Observation { retired: true, cancellation_signalled: true, cleanup_attempted: true, exit_acknowledged: true, pending_deliveries: 0, terminal: Panicked }
+discarded-success output_panic=true normalized=true; before=Observation { retired: true, cancellation_signalled: true, cleanup_attempted: true, exit_acknowledged: false, pending_deliveries: 0, terminal: Panicked }; after=Observation { retired: true, cancellation_signalled: true, cleanup_attempted: true, exit_acknowledged: true, pending_deliveries: 0, terminal: Panicked }
+test tracked_discarded_nonpanicking_output_control ... ok
+test timer_native_identity_destruction_also_stays_under_owned_catch ... ok
+test tracked_discarded_output_single_unwind_is_normalized ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/f4_output_branches.rs (target/debug/deps/f4_output_branches-257ce2f889618262)
+
+running 2 tests
+R3-track mode=0 future_panic=false output_panic=false exactly_once=true actual_exit=true reclaimed=true
+
+thread 'tracked_nonunit_ready_error_poll_panic_and_pending_drop_branches' (3804529) panicked at crates/rndr_flow/tests/f4_output_branches.rs:75:13:
+single future destructor panic before output destructor runs
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+R3-track mode=0 future_panic=true output_panic=false exactly_once=true actual_exit=true reclaimed=true
+R3-task path=0 future_panic=false output_panic=false exactly_once=true receipt_preserved=true actual_exit=true reclaimed=true
+
+thread 'tracked_nonunit_ready_error_poll_panic_and_pending_drop_branches' (3804529) panicked at crates/rndr_flow/tests/f4_output_branches.rs:75:13:
+single future destructor panic before output destructor runs
+
+thread 'tracked_nonunit_ready_error_poll_panic_and_pending_drop_branches' (3804529) panicked at crates/rndr_flow/tests/f4_output_branches.rs:30:13:
+single output destructor panic after future destruction returned
+
+thread 'local_background_and_custom_tasks_keep_nonunit_drop_panics_and_receipts_owned' (3804528) panicked at crates/rndr_flow/tests/f4_output_branches.rs:75:13:
+single future destructor panic before output destructor runs
+R3-track mode=0 future_panic=true output_panic=true exactly_once=true actual_exit=true reclaimed=true
+R3-track mode=1 future_panic=false output_panic=false exactly_once=true actual_exit=true reclaimed=true
+
+thread 'tracked_nonunit_ready_error_poll_panic_and_pending_drop_branches' (3804529) panicked at crates/rndr_flow/tests/f4_output_branches.rs:75:13:
+single future destructor panic before output destructor runs
+R3-task path=0 future_panic=true output_panic=false exactly_once=true receipt_preserved=true actual_exit=true reclaimed=true
+R3-track mode=1 future_panic=true output_panic=false exactly_once=true actual_exit=true reclaimed=true
+R3-track mode=2 future_panic=false output_panic=false exactly_once=true actual_exit=true reclaimed=true
+
+thread 'local_background_and_custom_tasks_keep_nonunit_drop_panics_and_receipts_owned' (3804528) panicked at crates/rndr_flow/tests/f4_output_branches.rs:75:13:
+single future destructor panic before output destructor runs
+
+thread 'tracked_nonunit_ready_error_poll_panic_and_pending_drop_branches' (3804529) panicked at crates/rndr_flow/tests/f4_output_branches.rs:75:13:
+single future destructor panic before output destructor runs
+
+thread 'local_background_and_custom_tasks_keep_nonunit_drop_panics_and_receipts_owned' (3804528) panicked at crates/rndr_flow/tests/f4_output_branches.rs:30:13:
+single output destructor panic after future destruction returned
+R3-track mode=2 future_panic=true output_panic=false exactly_once=true actual_exit=true reclaimed=true
+
+thread 'tracked_nonunit_ready_error_poll_panic_and_pending_drop_branches' (3804529) panicked at crates/rndr_flow/tests/f4_output_branches.rs:51:18:
+single poll panic before future destructor runs
+R3-track mode=3 future_panic=false output_panic=false exactly_once=true actual_exit=true reclaimed=true
+R3-task path=0 future_panic=true output_panic=true exactly_once=true receipt_preserved=true actual_exit=true reclaimed=true
+
+thread 'tracked_nonunit_ready_error_poll_panic_and_pending_drop_branches' (3804529) panicked at crates/rndr_flow/tests/f4_output_branches.rs:51:18:
+single poll panic before future destructor runs
+
+thread 'tracked_nonunit_ready_error_poll_panic_and_pending_drop_branches' (3804529) panicked at crates/rndr_flow/tests/f4_output_branches.rs:75:13:
+single future destructor panic before output destructor runs
+R3-track mode=3 future_panic=true output_panic=false exactly_once=true actual_exit=true reclaimed=true
+R3-task path=1 future_panic=false output_panic=false exactly_once=true receipt_preserved=true actual_exit=true reclaimed=true
+R3-track mode=4 future_panic=false output_panic=false exactly_once=true actual_exit=true reclaimed=true
+
+thread 'local_background_and_custom_tasks_keep_nonunit_drop_panics_and_receipts_owned' (3804528) panicked at crates/rndr_flow/tests/f4_output_branches.rs:75:13:
+single future destructor panic before output destructor runs
+
+thread 'tracked_nonunit_ready_error_poll_panic_and_pending_drop_branches' (3804529) panicked at crates/rndr_flow/tests/f4_output_branches.rs:75:13:
+single future destructor panic before output destructor runs
+R3-track mode=4 future_panic=true output_panic=false exactly_once=true actual_exit=true reclaimed=true
+test tracked_nonunit_ready_error_poll_panic_and_pending_drop_branches ... ok
+R3-task path=1 future_panic=true output_panic=false exactly_once=true receipt_preserved=true actual_exit=true reclaimed=true
+
+thread 'local_background_and_custom_tasks_keep_nonunit_drop_panics_and_receipts_owned' (3804528) panicked at crates/rndr_flow/tests/f4_output_branches.rs:75:13:
+single future destructor panic before output destructor runs
+
+thread 'local_background_and_custom_tasks_keep_nonunit_drop_panics_and_receipts_owned' (3804528) panicked at crates/rndr_flow/tests/f4_output_branches.rs:30:13:
+single output destructor panic after future destruction returned
+R3-task path=1 future_panic=true output_panic=true exactly_once=true receipt_preserved=true actual_exit=true reclaimed=true
+R3-task path=2 future_panic=false output_panic=false exactly_once=true receipt_preserved=true actual_exit=true reclaimed=true
+
+thread 'local_background_and_custom_tasks_keep_nonunit_drop_panics_and_receipts_owned' (3804528) panicked at crates/rndr_flow/tests/f4_output_branches.rs:75:13:
+single future destructor panic before output destructor runs
+R3-task path=2 future_panic=true output_panic=false exactly_once=true receipt_preserved=true actual_exit=true reclaimed=true
+
+thread 'local_background_and_custom_tasks_keep_nonunit_drop_panics_and_receipts_owned' (3804528) panicked at crates/rndr_flow/tests/f4_output_branches.rs:75:13:
+single future destructor panic before output destructor runs
+
+thread 'local_background_and_custom_tasks_keep_nonunit_drop_panics_and_receipts_owned' (3804528) panicked at crates/rndr_flow/tests/f4_output_branches.rs:30:13:
+single output destructor panic after future destruction returned
+R3-task path=2 future_panic=true output_panic=true exactly_once=true receipt_preserved=true actual_exit=true reclaimed=true
+
+thread 'local_background_and_custom_tasks_keep_nonunit_drop_panics_and_receipts_owned' (3804528) panicked at crates/rndr_flow/tests/f4_output_branches.rs:193:13:
+caught startup failure with actual Job retained
+R3-task path=3 future_panic=false output_panic=false exactly_once=true receipt_preserved=true actual_exit=true reclaimed=true
+
+thread 'local_background_and_custom_tasks_keep_nonunit_drop_panics_and_receipts_owned' (3804528) panicked at crates/rndr_flow/tests/f4_output_branches.rs:193:13:
+caught startup failure with actual Job retained
+
+thread 'local_background_and_custom_tasks_keep_nonunit_drop_panics_and_receipts_owned' (3804528) panicked at crates/rndr_flow/tests/f4_output_branches.rs:30:13:
+single output destructor panic after future destruction returned
+R3-task path=3 future_panic=false output_panic=true exactly_once=true receipt_preserved=true actual_exit=true reclaimed=true
+
+thread 'local_background_and_custom_tasks_keep_nonunit_drop_panics_and_receipts_owned' (3804528) panicked at crates/rndr_flow/tests/f4_output_branches.rs:193:13:
+caught startup failure with actual Job retained
+
+thread 'local_background_and_custom_tasks_keep_nonunit_drop_panics_and_receipts_owned' (3804528) panicked at crates/rndr_flow/tests/f4_output_branches.rs:75:13:
+single future destructor panic before output destructor runs
+R3-task path=3 future_panic=true output_panic=false exactly_once=true receipt_preserved=true actual_exit=true reclaimed=true
+
+thread 'local_background_and_custom_tasks_keep_nonunit_drop_panics_and_receipts_owned' (3804528) panicked at crates/rndr_flow/tests/f4_output_branches.rs:193:13:
+caught startup failure with actual Job retained
+
+thread 'local_background_and_custom_tasks_keep_nonunit_drop_panics_and_receipts_owned' (3804528) panicked at crates/rndr_flow/tests/f4_output_branches.rs:75:13:
+single future destructor panic before output destructor runs
+
+thread 'local_background_and_custom_tasks_keep_nonunit_drop_panics_and_receipts_owned' (3804528) panicked at crates/rndr_flow/tests/f4_output_branches.rs:30:13:
+single output destructor panic after future destruction returned
+R3-task path=3 future_panic=true output_panic=true exactly_once=true receipt_preserved=true actual_exit=true reclaimed=true
+test local_background_and_custom_tasks_keep_nonunit_drop_panics_and_receipts_owned ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

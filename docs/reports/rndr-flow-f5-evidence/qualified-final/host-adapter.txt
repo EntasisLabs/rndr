@@ -1,0 +1,41 @@
+$ cargo test --offline --locked -p rndr-flow --test f5_native --test f5_admission --test f5_quit_save -- --nocapture
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_flow)
+    Finished `test` profile [unoptimized] target(s) in 0.50s
+     Running tests/f5_admission.rs (target/debug/deps/f5_admission-b9976d413a9a1ea6)
+
+running 2 tests
+test retained_disposal_conflicts_with_native_ready_and_resumes_after_cancel ... ok
+test unavoidable_new_document_while_ready_invalidates_and_requires_explicit_restart ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/f5_native.rs (target/debug/deps/f5_native-60dcf546c6638f59)
+
+running 11 tests
+test runner::tests::process_exit_waits_for_secondary_and_cancel_resets_all ... ok
+test runner::tests::secondary_failure_explicit_discard_closes_only_that_window ... ok
+test runner::tests::mutation_after_completion_invalidates_ready_before_destruction ... ok
+test runner::tests::ordinary_apps_keep_primary_secondary_and_quit_behavior ... ok
+test runner::tests::pending_cancel_quit_is_consumed_and_stale_success_rejected ... ok
+test runner::tests::unguarded_primary_cannot_destroy_guarded_secondary_or_new_window ... ok
+test runner::tests::failure_never_exits_or_destroys_in_memory_text_retry_drains ... ok
+thread 'quit_save_lane_failure_retry_stale_request_and_late_window_admission' (3938035) panicked at crates/rndr_flow/tests/f5_native.rs:118:63:
+save panic
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+test missing_world_unregistered_document_and_lost_shared_lease_never_bless_ready ... ok
+test multiworld_shared_hidden_leases_ready_is_not_disposal_cancel_preserves_everything ... ok
+test quit_save_lane_failure_retry_stale_request_and_late_window_admission ... ok
+test secondary_native_manager_cannot_destroy_a_shared_document_before_joint_preparation ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/f5_quit_save.rs (target/debug/deps/f5_quit_save-4392572bf2dd8c1e)
+
+running 1 test
+test actual_owned_durable_save_progresses_while_native_quit_waits ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+exit=0

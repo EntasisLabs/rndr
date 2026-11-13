@@ -1,0 +1,16 @@
+Local standard-library source: /Users/theelevators/.rustup/toolchains/stable-aarch64-apple-darwin/share/doc/rust/html/src/core/sync/atomic.rs.html
+This is API/implementation evidence, not an executed Rust 1.95 build.
+3334                                   f: F) -> Result<$int_type, $int_type>
+3335            where F: FnMut($int_type) -> Option<$int_type> {
+3336                self.try_update(set_order, fetch_order, f)
+3337            }
+3338
+3339            /// Fetches the value, and applies a function to it that returns an optional
+3340            /// new value. Returns a `Result` of `Ok(previous_value)` if the function returned `Some(_)`, else
+3451            /// ```
+3452            #[inline]
+3453            #[stable(feature = "atomic_try_update", since = "1.95.0")]
+3454            #[$cfg_cas]
+3455            #[cfg_attr(miri, track_caller)] // even without panics, this helps for Miri backtraces
+3456            #[rustc_should_not_be_called_on_const_items]
+3457            pub fn update(

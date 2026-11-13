@@ -1,0 +1,5 @@
+PASS exact reviewed candidate ancestry, main fixed, 589 complete source fingerprints, source unchanged, all original failed receipts/source bytes untouched
+PASS 27 unique expected zero-exit gates; endpoint minimum free_kib= 4845932  (endpoints only; continuous samples not persisted)
+PASS independent raw F1/F2 full-vector 300 coordinates, F3 nine budgets, F4 360/720-ack and F5 360 baseline/90 seam rows; preserved 13/4/9; new7+original7 helper probes14
+KNOWN resource exception reproduced: four repeated opaque secondary panic payloads retain four Arc owners; no unconditional no-leak claim
+UNVERIFIED optional eighth real-native extra probe: below-floor preflight refusal after reviewer-only import fix; excluded from PASS totals

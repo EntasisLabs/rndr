@@ -1,0 +1,56 @@
+warning: crates/rndr_flow/Cargo.toml: `default-features` is ignored for rndr_core, since `default-features` was not specified for `workspace.dependencies.rndr_core`, this could become a hard error in the future
+warning: `rndr-flow` (manifest) generated 1 warning
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f3-headless-ownership-core-and-f4-readiness/crates/rndr_flow)
+error[E0277]: the trait bound `(): Bundle` is not satisfied
+   --> crates/rndr_flow/src/tests.rs:202:25
+    |
+202 |     let e = world.spawn(());
+    |                   ----- ^^ the trait `rndr_core::Component` is not implemented for `()`
+    |                   |
+    |                   required by a bound introduced by this call
+    |
+    = help: the following other types implement trait `rndr_core::Component`:
+              Absolute
+              AccessMark
+              ActivationHandler
+              Align
+              AlignSelf
+              AnchoredPopup
+              AspectRatio
+              AtomicMount
+            and 123 others
+    = note: required for `()` to implement `Bundle`
+note: required by a bound in `rndr_core::World::spawn`
+   --> crates/rndr_core/src/world.rs:149:42
+    |
+149 |     pub fn spawn(&mut self, bundle: impl Bundle) -> Entity {
+    |                                          ^^^^^^ required by this bound in `World::spawn`
+
+error[E0277]: the trait bound `(): Bundle` is not satisfied
+   --> crates/rndr_flow/src/tests.rs:216:32
+    |
+216 |     let recycled = world.spawn(());
+    |                          ----- ^^ the trait `rndr_core::Component` is not implemented for `()`
+    |                          |
+    |                          required by a bound introduced by this call
+    |
+    = help: the following other types implement trait `rndr_core::Component`:
+              Absolute
+              AccessMark
+              ActivationHandler
+              Align
+              AlignSelf
+              AnchoredPopup
+              AspectRatio
+              AtomicMount
+            and 123 others
+    = note: required for `()` to implement `Bundle`
+note: required by a bound in `rndr_core::World::spawn`
+   --> crates/rndr_core/src/world.rs:149:42
+    |
+149 |     pub fn spawn(&mut self, bundle: impl Bundle) -> Entity {
+    |                                          ^^^^^^ required by this bound in `World::spawn`
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `rndr-flow` (lib test) due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...

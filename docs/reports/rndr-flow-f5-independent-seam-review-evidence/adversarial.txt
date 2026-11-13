@@ -1,0 +1,92 @@
+free_kib_before=4884372
+24c2921feb839394c65d9c2f8355b39079cf7383e1554a259c5f3dad8da7970f  docs/reports/rndr-flow-f5-independent-seam-review-evidence/adversarial.rs
+24c2921feb839394c65d9c2f8355b39079cf7383e1554a259c5f3dad8da7970f  crates/rndr_flow/tests/f5_independent_seam_probe.rs
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_flow)
+    Finished `test` profile [unoptimized] target(s) in 1.07s
+     Running tests/f5_independent_seam_probe.rs (target/debug/deps/f5_independent_seam_probe-73419a02fbe95afd)
+
+running 14 tests
+test cancel_process_then_secondary_quit_uses_fresh_native_requests ... ok
+test error_and_panic_retry_preserves_exact_request_without_repeating_frames ... 
+thread 'error_and_panic_retry_preserves_exact_request_without_repeating_frames' (4135081) panicked at crates/rndr_flow/tests/f5_independent_seam_probe.rs:99:32:
+independent round 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'error_and_panic_retry_preserves_exact_request_without_repeating_frames' (4135081) panicked at crates/rndr_flow/tests/f5_independent_seam_probe.rs:99:32:
+independent round 2
+
+thread 'error_and_panic_retry_preserves_exact_request_without_repeating_frames' (4135081) panicked at crates/rndr_flow/tests/f5_independent_seam_probe.rs:99:32:
+independent round 4
+
+thread 'error_and_panic_retry_preserves_exact_request_without_repeating_frames' (4135081) panicked at crates/rndr_flow/tests/f5_independent_seam_probe.rs:99:32:
+independent round 6
+
+thread 'error_and_panic_retry_preserves_exact_request_without_repeating_frames' (4135081) panicked at crates/rndr_flow/tests/f5_independent_seam_probe.rs:99:32:
+independent round 8
+
+thread 'error_and_panic_retry_preserves_exact_request_without_repeating_frames' (4135081) panicked at crates/rndr_flow/tests/f5_independent_seam_probe.rs:99:32:
+independent round 10
+
+thread 'error_and_panic_retry_preserves_exact_request_without_repeating_frames' (4135081) panicked at crates/rndr_flow/tests/f5_independent_seam_probe.rs:99:32:
+independent round 0
+
+thread 'error_and_panic_retry_preserves_exact_request_without_repeating_frames' (4135081) panicked at crates/rndr_flow/tests/f5_independent_seam_probe.rs:99:32:
+independent round 2
+
+thread 'error_and_panic_retry_preserves_exact_request_without_repeating_frames' (4135081) panicked at crates/rndr_flow/tests/f5_independent_seam_probe.rs:99:32:
+independent round 4
+
+thread 'error_and_panic_retry_preserves_exact_request_without_repeating_frames' (4135081) panicked at crates/rndr_flow/tests/f5_independent_seam_probe.rs:99:32:
+independent round 6
+
+thread 'error_and_panic_retry_preserves_exact_request_without_repeating_frames' (4135081) panicked at crates/rndr_flow/tests/f5_independent_seam_probe.rs:99:32:
+independent round 8
+
+thread 'error_and_panic_retry_preserves_exact_request_without_repeating_frames' (4135081) panicked at crates/rndr_flow/tests/f5_independent_seam_probe.rs:99:32:
+independent round 10
+ok
+test hook_local_drop_queued_open_after_last_check_forces_new_full_pass ... ok
+test independent_secondary_readiness_error_matrix_preserves_unrelated_primary ... INDEPENDENT secondary-matrix coordinates=128 all_worlds=true partial_readiness_only=true global_error_atomic=true
+ok
+test late_primary_quit_in_hook_refuses_entire_secondary_pass_then_revalidates ... ok
+test opaque_secondary_payload_leak_is_real_repeatable_and_not_bounded_by_window_count ... 
+thread 'opaque_secondary_payload_leak_is_real_repeatable_and_not_bounded_by_window_count' (4135085) panicked at crates/rndr_flow/tests/f5_independent_seam_probe.rs:153:9:
+Box<dyn Any>
+
+thread 'opaque_secondary_payload_leak_is_real_repeatable_and_not_bounded_by_window_count' (4135085) panicked at crates/rndr_flow/tests/f5_independent_seam_probe.rs:149:45:
+Box<dyn Any>
+
+thread 'opaque_secondary_payload_leak_is_real_repeatable_and_not_bounded_by_window_count' (4135085) panicked at crates/rndr_flow/tests/f5_independent_seam_probe.rs:153:9:
+Box<dyn Any>
+
+thread 'opaque_secondary_payload_leak_is_real_repeatable_and_not_bounded_by_window_count' (4135085) panicked at crates/rndr_flow/tests/f5_independent_seam_probe.rs:149:45:
+Box<dyn Any>
+
+thread 'opaque_secondary_payload_leak_is_real_repeatable_and_not_bounded_by_window_count' (4135085) panicked at crates/rndr_flow/tests/f5_independent_seam_probe.rs:153:9:
+Box<dyn Any>
+
+thread 'opaque_secondary_payload_leak_is_real_repeatable_and_not_bounded_by_window_count' (4135085) panicked at crates/rndr_flow/tests/f5_independent_seam_probe.rs:149:45:
+Box<dyn Any>
+
+thread 'opaque_secondary_payload_leak_is_real_repeatable_and_not_bounded_by_window_count' (4135085) panicked at crates/rndr_flow/tests/f5_independent_seam_probe.rs:153:9:
+Box<dyn Any>
+
+thread 'opaque_secondary_payload_leak_is_real_repeatable_and_not_bounded_by_window_count' (4135085) panicked at crates/rndr_flow/tests/f5_independent_seam_probe.rs:149:45:
+Box<dyn Any>
+INDEPENDENT opaque-secondary-payload repeated=4 destructors=0 leaked_arc_owners=4 same_window=true safety_retained=true RESOURCE_EXCEPTION_NOT_NO_LEAK=true
+ok
+test runner::tests::failure_never_exits_or_destroys_in_memory_text_retry_drains ... ok
+test runner::tests::mutation_after_completion_invalidates_ready_before_destruction ... ok
+test runner::tests::ordinary_apps_keep_primary_secondary_and_quit_behavior ... ok
+test runner::tests::pending_cancel_quit_is_consumed_and_stale_success_rejected ... ok
+test runner::tests::process_exit_waits_for_secondary_and_cancel_resets_all ... ok
+test runner::tests::secondary_failure_explicit_discard_closes_only_that_window ... ok
+test runner::tests::unguarded_primary_cannot_destroy_guarded_secondary_or_new_window ... ok
+test secondary_destruction_runs_arbitrary_resources_only_after_validation ... INDEPENDENT destruction-boundary callbacks_before_commit=0 resource_destructors_during_removal=2 queued_opens=2 rollback_NOT_promised=true
+ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+exit=0
+Filesystem   1024-blocks      Used Available Capacity iused    ifree %iused  Mounted on
+/dev/disk3s5   239362496 204696352   4881184    98% 1935980 48811840    4%   /System/Volumes/Data

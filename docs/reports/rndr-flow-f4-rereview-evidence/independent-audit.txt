@@ -1,0 +1,14 @@
+Exact candidate 218e06c9998296a87f6393e182f03f9e40e97b92 parent bda61046daef65661d697bd90e4665d6827c9417 ; main remains accepted F3
+Qualified source, F0/epic, F3 budget proofs and historical FAIL/evidence unchanged
+21 unique green gates; every recorded before/after free-space reading >4.25 GiB
+All 23 fresh fingerprints match current bytes and exact candidate blobs
+360 unique F4 cycles / 720 cumulative actual-exit acknowledgments; full Counts equality is a compiled-test assertion, not raw-vector logging
+300 unique F1/F2 rows: complete 19-counter vectors, fixed per-World baselines (global listener=1, all others=0), external ack=0 every row
+Nine unchanged F3 budget tests green; all 20 producer / 12 timer case coordinates present
+flow passed/ignored (73, 0)
+core passed/ignored (831, 7)
+liquid passed/ignored (16, 0)
+consumer passed/ignored (115, 2)
+compatibility-off passed/ignored (2, 0)
+compatibility-liquid passed/ignored (2, 0)
+Original reviewer probes fresh 3/3 green. NEW adversarial 2 pass / 1 fail: candidate FAIL, not acceptance.

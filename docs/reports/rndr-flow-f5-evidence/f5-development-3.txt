@@ -1,0 +1,30 @@
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f5-retained-transitions-and-close-guards/crates/rndr_flow)
+    Finished `test` profile [unoptimized] target(s) in 1.50s
+     Running tests/f5.rs (target/debug/deps/f5-7c92ecb493efe32d)
+
+running 9 tests
+test multi_entry_validation_is_atomic_on_unavoidable_participant_loss ... ok
+test reentrant_submission_conflict_queue_and_unrelated_selection_progress ... ok
+test retained_back_forward_replace_and_forward_truncation_guard_exact_incarnations ... ok
+test pending_ime_blocks_snapshot_without_discarding_preedit ... ok
+test cancel_preserves_exact_bytes_revision_history_selection_and_resources ... ok
+test source_programmatic_undo_redo_reload_and_input_policy_cannot_bypass_save_freeze ... FAILED
+test failure_panic_and_lost_save_retain_freeze_until_explicit_cancel_or_discard ... ok
+test confirmed_disposal_once_stale_duplicate_foreign_decisions_and_saves_refuse ... ok
+test actual_source_save_lane_is_live_while_close_waits ... ok
+
+failures:
+
+---- source_programmatic_undo_redo_reload_and_input_policy_cannot_bypass_save_freeze stdout ----
+
+thread 'source_programmatic_undo_redo_reload_and_input_policy_cannot_bypass_save_freeze' (3886792) panicked at crates/rndr_flow/tests/f5.rs:42:33:
+called `Result::unwrap()` on an `Err` value: Stale
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    source_programmatic_undo_redo_reload_and_input_policy_cannot_bypass_save_freeze
+
+test result: FAILED. 8 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p rndr-flow --test f5`

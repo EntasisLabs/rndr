@@ -59,6 +59,8 @@ mod clipboard;
 #[path = "clipboard_web.rs"]
 mod clipboard;
 mod close;
+#[cfg(test)]
+mod close_boundary_tests;
 mod color;
 mod decode;
 #[cfg(native_dialog)]
@@ -325,6 +327,8 @@ pub fn toggle_window(
     rndr_core::hotkey::toggle_window(world, binding)
 }
 
+pub use close::{CloseValidator, CloseWorld};
+
 /// One or more windows driven by a single event loop.
 ///
 /// [`Session::new`] is the window `run` opens. [`Session::window`] adds another
@@ -341,12 +345,16 @@ pub fn toggle_window(
 /// surface was not created.
 pub struct Session {
     apps: Vec<App>,
+    close_validator: Option<Box<CloseValidator>>,
 }
 
 impl Session {
     /// A session whose first window is `app`.
     pub fn new(app: App) -> Self {
-        Self { apps: vec![app] }
+        Self {
+            apps: vec![app],
+            close_validator: None,
+        }
     }
 
     /// Queue `app` as another window, created when [`Session::run`] starts.
@@ -355,9 +363,24 @@ impl Session {
         self
     }
 
+    /// Install an opt-in all-live-World validator at the final native close
+    /// boundary, after application/hidden callbacks and before consumption.
+    /// Use `CloseWorld::closing`, not public guard state, as participation.
+    /// Err or an unwinding panic retains all windows for retry/cancel; the hook
+    /// must retain its protection on failure. No hook preserves legacy behavior.
+    /// The validator is trusted application code: it must check every live World
+    /// and must not remove guards, replace Worlds or mutate after validating them.
+    pub fn close_validator(
+        mut self,
+        validator: impl for<'a> FnMut(&mut [CloseWorld<'a>]) -> Result<(), String> + 'static,
+    ) -> Self {
+        self.close_validator = Some(Box::new(validator));
+        self
+    }
+
     /// Block on the desktop event loop until the session exits.
     pub fn run(self) {
-        run_apps(self.apps);
+        run_apps(self.apps, self.close_validator);
     }
 }
 
@@ -376,7 +399,7 @@ pub fn run(app: App) {
     Session::new(app).run();
 }
 
-fn run_apps(apps: Vec<App>) {
+fn run_apps(apps: Vec<App>, close_validator: Option<Box<CloseValidator>>) {
     let mut apps = apps;
     if apps.is_empty() {
         return;
@@ -443,6 +466,7 @@ fn run_apps(apps: Vec<App>) {
         pen,
         executor: pool,
         close: close::CloseDrain::default(),
+        close_validator,
         lifecycle: Vec::new(),
     };
     event_loop.run_app(session).expect("run");
@@ -2663,6 +2687,24 @@ impl ApplicationHandler for Handler {
     }
 }
 
+impl close::CloseParticipant for Handler {
+    fn parts(
+        &mut self,
+    ) -> (
+        &mut rndr_core::World,
+        &mut close::CloseSlot,
+        bool,
+        rndr_core::WindowId,
+    ) {
+        (
+            self.app.world_mut(),
+            &mut self.close,
+            self.primary,
+            self.desktop_id,
+        )
+    }
+}
+
 struct Running {
     slots: Vec<Handler>,
     hub: WindowHub,
@@ -2672,6 +2714,7 @@ struct Running {
     pen: pen::PenFeed,
     executor: Arc<dyn rndr_core::Executor>,
     close: close::CloseDrain,
+    close_validator: Option<Box<CloseValidator>>,
     /// Links and reopens that arrived before the primary window existed.
     lifecycle: Vec<lifecycle::Incoming>,
 }
@@ -2702,32 +2745,30 @@ impl Running {
         // Admit one batch before checking guards. Recursive opens stay queued
         // and prevent commitment; their wake schedules another bounded pass.
         self.spawn_windows(event_loop);
-        let exit = self.close.step(
-            self.slots
-                .iter_mut()
-                .map(|slot| (slot.app.world_mut(), &mut slot.close, slot.primary)),
+        let outcome = self.close.reconcile(
+            &mut self.slots,
+            |slot| {
+                if rndr_core::window::is_visible(slot.app.world()) {
+                    slot.request_redraw();
+                } else {
+                    slot.run_hidden_frame(event_loop);
+                }
+            },
+            self.close_validator.as_deref_mut(),
         );
-        if exit {
-            // No application code may run between guard validation and the
-            // atomic queue/admission commitment. An open racing this check
-            // either joins the drain or occurs after shutdown was committed.
+        if outcome == close::CloseOutcome::Deferred {
+            self.wake.wake();
+            return;
+        }
+        if outcome == close::CloseOutcome::Exit {
+            // Preserve the atomic queue/admission fence. A racing open either
+            // joins a future all-World pass or is rejected after commitment.
             if self.hub.try_commit_exit() {
                 event_loop.exit();
             } else {
                 self.wake.wake();
             }
             return;
-        }
-        for slot in &mut self.slots {
-            if std::mem::take(&mut slot.close.needs_frame) {
-                if rndr_core::window::is_visible(slot.app.world()) {
-                    slot.request_redraw();
-                } else {
-                    // A newly requested hidden gate still needs a system pass,
-                    // even with no queued task or redraw to wake it.
-                    slot.run_hidden_frame(event_loop);
-                }
-            }
         }
         self.slots.retain(|slot| !slot.close.closed);
         if self.slots.is_empty() && self.hub.try_commit_exit() {

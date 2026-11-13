@@ -7,7 +7,7 @@ use crate::{LiquidEvent, LiquidImage};
 use rndr_core::*;
 use rndr_liquid::*;
 use rndr_ui::controls::{Button, ButtonProps, ButtonVariant, HostIntent, ModeSelector};
-use rndr_ui::{text, Callout, Card, Feedback, Surface, Typography, UiId};
+use rndr_ui::{Callout, Card, Feedback, Surface, Typography, UiId};
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
@@ -76,7 +76,7 @@ impl BlockState {
         }
     }
 
-    fn init(&mut self, block: &LiquidBlock) {
+    pub(crate) fn init(&mut self, block: &LiquidBlock) {
         if self.ready {
             return;
         }
@@ -173,6 +173,12 @@ impl BlockState {
 /// Clear `root` and render its block again from [`BlockRoot`] and
 /// [`BlockState`].
 pub(crate) fn rebuild(world: &mut World, root: Entity) {
+    let Some(logical_key) = crate::lifecycle::ancestor_key(world, root) else {
+        return;
+    };
+    if !crate::lifecycle::block_live(world, logical_key) {
+        return;
+    }
     let Some(BlockRoot { blocks, index, .. }) = world.get::<BlockRoot>(root).cloned() else {
         return;
     };
@@ -182,9 +188,9 @@ pub(crate) fn rebuild(world: &mut World, root: Entity) {
     if !matches!(block, LiquidBlock::Chart(_)) {
         chart::release(world, root);
     }
-    for child in children_of(world, root) {
-        despawn(world, child);
-    }
+    crate::lifecycle::park_under(world, root);
+    crate::view::reset_nested_cursor(world, root);
+    crate::lifecycle::clear_presentation(world, root);
     let mut state = world.remove::<BlockState>(root).unwrap_or_default();
     state.init(&block);
     if let Some(layout) = world.get_mut::<Layout>(root) {
@@ -200,6 +206,9 @@ pub(crate) fn rebuild(world: &mut World, root: Entity) {
     };
     cx.block(root, &block);
     let Cx { actions, state, .. } = cx;
+    if !world.is_alive(root) || !crate::lifecycle::block_live(world, logical_key) {
+        return;
+    }
     world.insert(root, actions);
     world.insert(root, state);
 }
@@ -242,7 +251,11 @@ pub(crate) fn sync_pending(
                 PendingMark,
             ));
             set_parent(world, entity, view);
-            let _ = text(world, entity, &text_value, Typography::Secondary);
+            let label = text(world, entity, &text_value, Typography::Secondary);
+            crate::lifecycle::own_projection(world, view, entity);
+            if let Ok(label) = label {
+                crate::lifecycle::own_projection(world, view, label);
+            }
             *slot = Some(entity);
             entity
         }
@@ -334,7 +347,10 @@ impl Cx<'_> {
     fn surface(&mut self, parent: Entity) -> Entity {
         let id = self.id();
         match Surface::Raised.mount(self.world, parent, id) {
-            Ok(h) => h.content,
+            Ok(h) => {
+                crate::lifecycle::own_created(self.world, parent, h.root);
+                h.content
+            }
             Err(_) => self.column(parent),
         }
     }
@@ -343,7 +359,10 @@ impl Cx<'_> {
         let id = self.id();
         let title = plain(title);
         match Card::mount(self.world, parent, id, &title) {
-            Ok(h) => h.content,
+            Ok(h) => {
+                crate::lifecycle::own_created(self.world, parent, h.root);
+                h.content
+            }
             Err(_) => {
                 let c = self.surface(parent);
                 self.text(c, &title, Typography::Heading);
@@ -367,7 +386,10 @@ impl Cx<'_> {
             title
         };
         match Callout::mount(self.world, parent, id, meaning, &title) {
-            Ok(h) => h.content,
+            Ok(h) => {
+                crate::lifecycle::own_created(self.world, parent, h.root);
+                h.content
+            }
             Err(_) => self.surface(parent),
         }
     }
@@ -381,6 +403,7 @@ impl Cx<'_> {
         let mut props = ButtonProps::new(label, HostIntent::Command(id.0));
         props.variant = variant;
         if let Ok(h) = Button::mount(self.world, parent, id, props) {
+            crate::lifecycle::own_created(self.world, parent, h.root);
             self.actions.0.insert(h.root, act);
         }
     }
@@ -927,14 +950,16 @@ impl Cx<'_> {
             .and_then(|c| c.trim().parse::<usize>().ok())
             .filter(|c| (1..=6).contains(c))
             .unwrap_or(3);
-        for chunk in p.tiles.chunks(columns) {
+        let instances = crate::feed::dashboard_instances(&p.tiles);
+        for (row_index, chunk) in p.tiles.chunks(columns).enumerate() {
             let row = self.row(parent);
-            for tile in chunk {
+            for (column_index, tile) in chunk.iter().enumerate() {
+                let instance = &instances[row_index * columns + column_index];
                 let s = self.surface(row);
                 self.text(s, &tile.label, Typography::Secondary);
                 let value = if let Some(feed) = tile.feed.as_deref() {
                     let spec = crate::feed::Spec {
-                        instance: tile.id.clone(),
+                        instance: instance.clone(),
                         feed_id: feed.to_string(),
                         datatype: FeedDatatype::Text,
                         field: tile.field.clone(),
@@ -965,7 +990,7 @@ impl Cx<'_> {
                                     &format!("Refresh {}", tile.label),
                                     ButtonVariant::Quiet,
                                     Act::FeedRefresh {
-                                        instance: tile.id.clone(),
+                                        instance: instance.clone(),
                                     },
                                 );
                             }
@@ -1028,6 +1053,7 @@ impl Cx<'_> {
         ) else {
             return;
         };
+        crate::lifecycle::own_created(self.world, parent, handle.root);
         for (panel, tab) in handle.panels.iter().zip(&p.panels) {
             self.markdown(*panel, &tab.body);
         }
@@ -1170,4 +1196,21 @@ fn tree_lines(nodes: &[TreeNode], depth: usize, out: &mut Vec<String>) {
             tree_lines(children, depth + 1, out);
         }
     }
+}
+
+// These wrappers are used only at renderer construction sites, never around
+// host callbacks. Their ownership proof is creation, not arbitrary ancestry.
+pub(crate) fn text(
+    world: &mut World,
+    parent: Entity,
+    value: &str,
+    role: Typography,
+) -> Result<Entity, rndr_ui::UiError> {
+    let entity = rndr_ui::text(world, parent, value, role)?;
+    crate::lifecycle::own_created(world, parent, entity);
+    Ok(entity)
+}
+fn set_parent(world: &mut World, child: Entity, parent: Entity) {
+    rndr_core::set_parent(world, child, parent);
+    crate::lifecycle::own_created(world, parent, child);
 }

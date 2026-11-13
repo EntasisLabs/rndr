@@ -1,0 +1,35 @@
+   Compiling rndr-flow v0.5.0 (/Users/theelevators/Library/Application Support/medousa/forge/worktrees/fbb77c0fa9c2/rndr-flow-f4-owned-adapters-and-completion-gates/crates/rndr_flow)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.35s
+     Running tests/independent_rereview.rs (target/debug/deps/independent_rereview-4049040faa8b757a)
+
+running 3 tests
+
+thread 'tracked_discarded_output_single_unwind_is_normalized' (3802730) panicked at crates/rndr_flow/tests/independent_rereview.rs:32:9:
+earlier queue cleanup panic; caught before producer is released
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'tracked_discarded_nonpanicking_output_control' (3802729) panicked at crates/rndr_flow/tests/independent_rereview.rs:32:9:
+earlier queue cleanup panic; caught before producer is released
+
+thread 'timer_native_identity_destruction_also_stays_under_owned_catch' (3802728) panicked at crates/rndr_flow/tests/independent_rereview.rs:146:13:
+single event native identity destructor panic
+
+thread '<unnamed>' (3802732) panicked at crates/rndr_flow/tests/independent_rereview.rs:25:13:
+single discarded output destructor panic; no unwind was active
+discarded-success output_panic=false normalized=true; before=Observation { retired: true, cancellation_signalled: true, cleanup_attempted: true, exit_acknowledged: false, pending_deliveries: 0, terminal: Panicked }; after=Observation { retired: true, cancellation_signalled: true, cleanup_attempted: true, exit_acknowledged: true, pending_deliveries: 0, terminal: Panicked }
+test timer_native_identity_destruction_also_stays_under_owned_catch ... ok
+discarded-success output_panic=true normalized=false; before=Observation { retired: true, cancellation_signalled: true, cleanup_attempted: true, exit_acknowledged: false, pending_deliveries: 0, terminal: Panicked }; after=Observation { retired: true, cancellation_signalled: true, cleanup_attempted: true, exit_acknowledged: true, pending_deliveries: 0, terminal: Panicked }
+
+thread 'tracked_discarded_output_single_unwind_is_normalized' (3802730) panicked at crates/rndr_flow/tests/independent_rereview.rs:107:5:
+ProducerExit::track discarded an owned successful output outside the catch boundary; no panic was already unwinding
+test tracked_discarded_nonpanicking_output_control ... ok
+test tracked_discarded_output_single_unwind_is_normalized ... FAILED
+
+failures:
+
+failures:
+    tracked_discarded_output_single_unwind_is_normalized
+
+test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p rndr-flow --test independent_rereview`
