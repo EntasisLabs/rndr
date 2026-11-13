@@ -113,3 +113,13 @@ named by its id.
 cargo run -p liquid-view
 cargo run -p liquid-view -- --export liquid.png
 ```
+
+`tests/fuzz_gallery.rs` mounts every `rndr_ui` family and every canonical
+Liquid block, then drives seeded pointer, key, text, and clipboard input on
+`rndr_core::Sim`. `cargo test -p rndr_liquid_ui --test fuzz_gallery` runs the
+short fixed seed. The longer soak is ignored:
+
+```sh
+RNDR_FUZZ_SEED=1 RNDR_FUZZ_FRAMES=20000 \
+  cargo test -p rndr_liquid_ui --test fuzz_gallery -- --ignored fuzz_gallery_soak --exact
+```
