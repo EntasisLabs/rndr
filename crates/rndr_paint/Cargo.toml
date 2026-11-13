@@ -2,7 +2,8 @@
 name = "rndr_paint"
 version.workspace = true
 edition.workspace = true
-# Inter atlas bytes are OFL-1.1. Other `[workspace.package]` fields stay inherited.
+# Inter atlas bytes are OFL-1.1. The Lucide icon atlas is ISC.
+# Other `[workspace.package]` fields stay inherited.
 license = "MIT AND OFL-1.1 AND ISC"
 repository.workspace = true
 homepage.workspace = true

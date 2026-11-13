@@ -26,4 +26,4 @@ positive render geometry. They do not replace native screenshot/GPU inspection.
 
 The `highlight` feature forwards `rndr_core`'s fenced-code token colors.
 
-License: MIT AND OFL-1.1.
+License: MIT AND OFL-1.1 AND ISC.
