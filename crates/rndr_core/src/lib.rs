@@ -176,7 +176,8 @@ mod wrap;
 
 pub use access::{
     access_id, access_tree, apply_access, entity_from_access_id, AccessCommand, AccessMark,
-    AccessNode, AccessRole, AccessTree, CollectionAccess, DataAccess, DescribedBy, ACCESS_ROOT,
+    AccessNode, AccessRole, AccessTree, CollectionAccess, DataAccess, DescribedBy, LivePoliteness,
+    LiveRegion, NumericAccess, NumericAccessSet, ACCESS_ROOT,
 };
 pub use access_text::{access_text, AccessTextSnapshot, AccessTextState};
 pub use action::{apply_actions, Actions, Binding, Chord, Fired, COPY, CUT, PASTE};
@@ -216,8 +217,8 @@ pub use entity::Entity;
 pub use event::{events, send, Event, Events};
 pub use feed::{Epoch, Feed, FeedConfig, FeedError, OnFull};
 pub use field::{
-    reset_field_draft, CapturesKeys, FieldTransaction, FieldTransactions, FocusBoundary,
-    ImePreview, Submitted, TextChanged, TextField,
+    replace_field_text, reset_field_draft, CapturesKeys, FieldTransaction, FieldTransactions,
+    FocusBoundary, ImePreview, Submitted, TextChanged, TextField,
 };
 pub use file_drop::{FileDrop, FileHover, FileHoverCancel, FileHoverSet};
 pub use flex::{

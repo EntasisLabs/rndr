@@ -82,6 +82,13 @@ pub enum AccessRole {
     Tooltip,
     /// A positioned image. The name is the label or the source.
     Image,
+    /// A single-value or one-thumb range slider. Pair it with [`NumericAccess`].
+    Slider,
+    /// A numeric field that also steps. Pair it with [`NumericAccess`].
+    /// A [`TextField`] keeps this role when it is also marked with it.
+    SpinButton,
+    /// A polite live status region, such as a toast. Pair it with [`LiveRegion`].
+    Status,
 }
 /// Supplemental selection projection; input still uses canonical Button admission.
 #[derive(Clone, Debug)]
@@ -143,6 +150,112 @@ impl crate::Component for AccessMark {}
 #[derive(Clone, Debug)]
 pub struct DescribedBy(pub Vec<Entity>);
 impl crate::Component for DescribedBy {}
+
+/// Published numeric range for a slider or spin button.
+///
+/// Assistive technologies read this value. A set-value request does not write
+/// it; the request is [`NumericAccessSet`], and the control publishes a new
+/// value by replacing this component.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct NumericAccess {
+    /// Last published value.
+    pub value: f64,
+    /// Inclusive lower bound.
+    pub min: f64,
+    /// Inclusive upper bound.
+    pub max: f64,
+    /// Small step. Zero or non-finite disables snapping.
+    pub step: f64,
+    /// Large step, such as Page Up.
+    pub jump: f64,
+    /// `true` for a horizontal control, `false` for a vertical one.
+    pub horizontal: bool,
+}
+impl crate::Component for NumericAccess {}
+
+impl NumericAccess {
+    /// Short decimal for `value`, trimmed to micro-units so it round-trips.
+    pub fn text(value: f64) -> String {
+        if !value.is_finite() {
+            return "0".into();
+        }
+        let scaled = (value * 1_000_000.0).round() / 1_000_000.0;
+        if scaled == 0.0 {
+            return "0".into();
+        }
+        let mut text = format!("{scaled}");
+        if text.contains('.') {
+            while text.ends_with('0') {
+                text.pop();
+            }
+            if text.ends_with('.') {
+                text.pop();
+            }
+        }
+        if text == "-0" {
+            "0".into()
+        } else {
+            text
+        }
+    }
+
+    /// Clamp `value` into range. Exact endpoints stay put; other values snap
+    /// to [`Self::step`] when that step is finite and positive.
+    pub fn normalize(self, value: f64) -> Option<f64> {
+        if !value.is_finite() || !self.min.is_finite() || !self.max.is_finite() {
+            return None;
+        }
+        let (min, max) = if self.min <= self.max {
+            (self.min, self.max)
+        } else {
+            (self.max, self.min)
+        };
+        let clamped = value.clamp(min, max);
+        const ENDPOINT: f64 = 1e-9;
+        if (clamped - min).abs() <= ENDPOINT || (clamped - max).abs() <= ENDPOINT {
+            return Some(if (clamped - min).abs() <= ENDPOINT {
+                min
+            } else {
+                max
+            });
+        }
+        if self.step.is_finite() && self.step > 0.0 {
+            let steps = ((clamped - min) / self.step).round();
+            Some((min + steps * self.step).clamp(min, max))
+        } else {
+            Some(clamped)
+        }
+    }
+}
+
+/// Assistive-technology request for a new [`NumericAccess`] value.
+///
+/// [`try_apply_access`] sends this and leaves the published value unchanged.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct NumericAccessSet {
+    /// Slider thumb or spin button that was targeted.
+    pub entity: Entity,
+    /// Clamped, snapped value.
+    pub value: f64,
+}
+impl crate::Event for NumericAccessSet {}
+
+/// How soon a live region should be announced.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LivePoliteness {
+    /// Speak after the current announcement.
+    Polite,
+    /// Interrupt the current announcement.
+    Assertive,
+}
+
+/// Marks a node as a live region. [`AccessRole::Status`] is the usual role.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LiveRegion(
+    /// Politeness of the announcement.
+    pub LivePoliteness,
+);
+impl crate::Component for LiveRegion {}
 
 /// One node in [`AccessTree`].
 #[derive(Clone, Debug, PartialEq)]
@@ -345,6 +458,25 @@ pub fn try_apply_access(world: &mut World, command: AccessCommand) -> AccessComm
                 AccessCommandResult::Rejected
             }
         }
+        AccessCommand::SetValue { entity, value } if world.has::<NumericAccess>(entity) => {
+            if !crate::access_details(world, entity).set_value {
+                return AccessCommandResult::Rejected;
+            }
+            let Some(access) = world.get::<NumericAccess>(entity).copied() else {
+                return AccessCommandResult::Rejected;
+            };
+            let Some(next) = value.parse::<f64>().ok().and_then(|v| access.normalize(v)) else {
+                return AccessCommandResult::Rejected;
+            };
+            send(
+                world,
+                NumericAccessSet {
+                    entity,
+                    value: next,
+                },
+            );
+            AccessCommandResult::Applied
+        }
         AccessCommand::SetValue { .. } => AccessCommandResult::UnsupportedSetValue,
     }
 }
@@ -432,6 +564,8 @@ fn collect(
             | AccessRole::Code
             | AccessRole::Tooltip
             | AccessRole::Image
+            | AccessRole::Slider
+            | AccessRole::SpinButton
     ) {
         for child in children_of(world, entity) {
             children.extend(collect(world, child, focus, out));
@@ -454,10 +588,14 @@ fn collect(
             _ => visible_text(world, entity),
         });
     let value = match role {
-        AccessRole::TextInput => text_value(world, entity),
+        AccessRole::TextInput | AccessRole::SpinButton => text_value(world, entity),
         AccessRole::Code => world
             .get::<Label>(entity)
             .map(|label| label.text.clone())
+            .unwrap_or_default(),
+        AccessRole::Slider => world
+            .get::<NumericAccess>(entity)
+            .map(|access| NumericAccess::text(access.value))
             .unwrap_or_default(),
         _ => String::new(),
     };
@@ -473,14 +611,22 @@ fn collect(
             h: 0.0,
         }),
         children,
-        focusable: if world.has::<CollectionAccess>(entity) || world.has::<SelectionAccess>(entity)
-        {
+        focusable: if world.has::<CollectionAccess>(entity)
+            || world.has::<SelectionAccess>(entity)
+            || matches!(
+                role,
+                AccessRole::Slider | AccessRole::SpinButton | AccessRole::Status
+            ) {
             crate::access_details(world, entity).focus
         } else {
             world.has::<Focusable>(entity)
                 || matches!(
                     role,
-                    AccessRole::Button | AccessRole::TextInput | AccessRole::List | AccessRole::Tab
+                    AccessRole::Button
+                        | AccessRole::TextInput
+                        | AccessRole::SpinButton
+                        | AccessRole::List
+                        | AccessRole::Tab
                 )
         },
         focused: focus.is_some_and(|focus| {
@@ -540,10 +686,16 @@ fn role_of(world: &World, entity: Entity) -> Option<AccessRole> {
     if world.has::<Button>(entity) {
         return Some(AccessRole::Button);
     }
-    if world.has::<TextField>(entity)
-        || world.has::<Prompt>(entity)
-        || world.has::<crate::editor::Editor>(entity)
-    {
+    if world.has::<TextField>(entity) {
+        if world
+            .get::<AccessMark>(entity)
+            .is_some_and(|mark| mark.0 == AccessRole::SpinButton)
+        {
+            return Some(AccessRole::SpinButton);
+        }
+        return Some(AccessRole::TextInput);
+    }
+    if world.has::<Prompt>(entity) || world.has::<crate::editor::Editor>(entity) {
         return Some(AccessRole::TextInput);
     }
     if world.has::<List>(entity) {

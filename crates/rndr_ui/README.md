@@ -75,6 +75,7 @@ surface:
 
 - Collections and the virtual window: [data components](https://github.com/EntasisLabs/rndr/blob/main/docs/data-components.md) and [virtual lists](https://github.com/EntasisLabs/rndr/blob/main/docs/virtual-list.md). The `data_gallery` and `virtual_list_gallery` examples exercise them.
 - Editors and selection: [data editors](https://github.com/EntasisLabs/rndr/blob/main/docs/data-editors.md) and [selection controls](https://github.com/EntasisLabs/rndr/blob/main/docs/selection-controls.md).
+- Slider, range, number stepper, tooltip, and toast: [basic inputs](https://github.com/EntasisLabs/rndr/blob/main/docs/basic-inputs.md). The `inputs_gallery` example applies their requests. Date and color pickers are not in this crate yet.
 - A host-filled markdown block: [markdown slots](https://github.com/EntasisLabs/rndr/blob/main/docs/markdown-host-slots.md) and the `markdown_gallery` example.
 - Pixels of one component: [component capture](https://github.com/EntasisLabs/rndr/blob/main/docs/component-capture.md). `capture_isolated` paints the target subtree on its own.
 
