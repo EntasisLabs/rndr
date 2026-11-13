@@ -219,24 +219,24 @@ def run_workspace_package(packages=None):
 class ArchiveSetTests(unittest.TestCase):
     def test_extra_archive_is_rejected(self):
         packages = {
-            name: {"name": name, "version": "0.5.0", "publish": None} for name in PUBLISH_ORDER
+            name: {"name": name, "version": "0.6.0", "publish": None} for name in PUBLISH_ORDER
         }
-        packages["titlebar"] = {"name": "titlebar", "version": "0.5.0", "publish": []}
-        packages["lifecycle"] = {"name": "lifecycle", "version": "0.5.0", "publish": []}
+        packages["titlebar"] = {"name": "titlebar", "version": "0.6.0", "publish": []}
+        packages["lifecycle"] = {"name": "lifecycle", "version": "0.6.0", "publish": []}
         with tempfile.TemporaryDirectory() as temp:
             root = pathlib.Path(temp)
             for name in expected_archives(packages):
                 (root / name).write_bytes(b"fake")
-            (root / "titlebar-0.5.0.crate").write_bytes(b"extra")
+            (root / "titlebar-0.6.0.crate").write_bytes(b"extra")
             with self.assertRaises(SystemExit) as raised:
                 verify_archive_set(root, packages)
             message = str(raised.exception)
-            self.assertIn("unexpected: titlebar-0.5.0.crate", message)
+            self.assertIn("unexpected: titlebar-0.6.0.crate", message)
             self.assertIn("expected 16 archives", message)
 
     def test_missing_archive_is_rejected(self):
         packages = {
-            name: {"name": name, "version": "0.5.0", "publish": None} for name in PUBLISH_ORDER
+            name: {"name": name, "version": "0.6.0", "publish": None} for name in PUBLISH_ORDER
         }
         with tempfile.TemporaryDirectory() as temp:
             root = pathlib.Path(temp)
@@ -244,11 +244,11 @@ class ArchiveSetTests(unittest.TestCase):
                 (root / name).write_bytes(b"fake")
             with self.assertRaises(SystemExit) as raised:
                 verify_archive_set(root, packages)
-            self.assertIn("missing: rndr-0.5.0.crate", str(raised.exception))
+            self.assertIn("missing: rndr-0.6.0.crate", str(raised.exception))
 
     def test_exact_set_passes(self):
         packages = {
-            name: {"name": name, "version": "0.5.0", "publish": None} for name in PUBLISH_ORDER
+            name: {"name": name, "version": "0.6.0", "publish": None} for name in PUBLISH_ORDER
         }
         with tempfile.TemporaryDirectory() as temp:
             root = pathlib.Path(temp)
@@ -259,10 +259,10 @@ class ArchiveSetTests(unittest.TestCase):
 
     def test_exclude_args_cover_unpublished_examples(self):
         packages = {
-            name: {"name": name, "version": "0.5.0", "publish": None} for name in PUBLISH_ORDER
+            name: {"name": name, "version": "0.6.0", "publish": None} for name in PUBLISH_ORDER
         }
-        packages["titlebar"] = {"name": "titlebar", "version": "0.5.0", "publish": []}
-        packages["lifecycle"] = {"name": "lifecycle", "version": "0.5.0", "publish": []}
+        packages["titlebar"] = {"name": "titlebar", "version": "0.6.0", "publish": []}
+        packages["lifecycle"] = {"name": "lifecycle", "version": "0.6.0", "publish": []}
         args = package_exclude_args(packages)
         self.assertEqual(args.count("--exclude"), 2)
         self.assertIn("titlebar", args)

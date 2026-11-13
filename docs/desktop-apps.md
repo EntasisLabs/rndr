@@ -2,7 +2,7 @@
 
 `examples/desktop` is **Desktop Workshop**, an offline runnable reference built
 on existing rndr primitives. `crates/rndr_app` is its small, opinionated app kit, published at the same
-0.5.0 version as the rest of the workspace. The example itself stays
+0.6.0 version as the rest of the workspace. The example itself stays
 `publish = false`. The kit deliberately does not replace ECS, layout,
 `Shell`, `Chrome`, `TextField`, `Theme`, the task runtime or the renderer.
 
@@ -76,12 +76,12 @@ selection can vary with installed system fonts. Inspect the images yourself.
 ## Use the kit without learning another architecture
 
 The kit is an optional low-level ECS starter, not a replacement for `rndr_ui`'s
-retained semantic controls or a default dependency of the facade. From 0.5.0:
+retained semantic controls or a default dependency of the facade. From 0.6.0:
 
 ```toml
 [dependencies]
-rndr_app = "0.5.0"
-rndr_core = "0.5.0"
+rndr_app = "0.6.0"
+rndr_core = "0.6.0"
 ```
 
 Install `rndr_app::FormNavigation` before application Update systems. It installs

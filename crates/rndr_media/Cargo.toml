@@ -33,7 +33,7 @@ objc2-avf-audio = { version = "0.3", default-features = false, features = ["std"
 block2 = { version = "0.6", default-features = false, features = ["std"] }
 
 [dev-dependencies]
-rndr_render = { path = "../rndr_render", version = "0.5.0" }
+rndr_render = { path = "../rndr_render", version = "0.6.0" }
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu", "aarch64-apple-darwin"]

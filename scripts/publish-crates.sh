@@ -89,7 +89,7 @@ declare -A VERSIONS=()
 while IFS=$'\t' read -r name version; do
     VERSIONS["$name"]="$version"
 done < <(cargo metadata --format-version 1 --no-deps | python3 -c '
-    import json, sys
+import json, sys
 wanted = {"rndr_core", "rndr-flow", "rndr_paint", "rndr_std", "rndr_term", "rndr_ui", "rndr_app", "rndr_liquid", "rndr_chart", "rndr_liquid_ui", "rndr_canvas", "rndr_canvas_ui", "rndr_render", "rndr_media", "rndr_browser", "rndr"}
 meta = json.load(sys.stdin)
 for package in meta["packages"]:
@@ -124,7 +124,7 @@ published() {
 workspace_deps() {
     case "$1" in
     rndr_core) ;;
-    rndr_paint | rndr_std | rndr_app) echo rndr_core ;;
+    rndr-flow | rndr_paint | rndr_std | rndr_app) echo rndr_core ;;
     # rndr_paint is a versioned dev-dependency. The packaged lockfile resolves it.
     rndr_term | rndr_ui) echo rndr_core rndr_paint ;;
     rndr_render) echo rndr_core rndr_paint ;;
@@ -132,7 +132,8 @@ workspace_deps() {
     rndr_media) echo rndr_core rndr_render ;;
     rndr_liquid | rndr_canvas) ;;
     rndr_chart) echo rndr_core rndr_paint rndr_liquid ;;
-    rndr_liquid_ui) echo rndr_core rndr_paint rndr_ui rndr_liquid rndr_chart ;;
+    # rndr-flow is a versioned dev-dependency.
+    rndr_liquid_ui) echo rndr_core rndr_paint rndr_ui rndr_liquid rndr_chart rndr-flow ;;
     rndr_canvas_ui) echo rndr_core rndr_paint rndr_ui rndr_canvas ;;
     # No workspace crates. objc2 and WebKit resolve from crates.io.
     rndr_browser) ;;

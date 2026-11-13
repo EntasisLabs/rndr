@@ -16,11 +16,13 @@ or component-targeted/headless capture, nor compositor presentation proof.
 [Native observation](../../docs/native-observation.md) documents fail-closed
 whole-frame denial, limitations and the Python client/tests.
 
-0.5.0 publishes this crate with the fifteen-crate SDK set. `ui`, `observe`,
-`browser`, `media`, `chart`, `liquid`, and `canvas` are off by default. `ui`
-depends on published `rndr_ui`. `observe` enables the Unix whole-window probe and
-headless component capture. Examples stay unpublished. This is a 0.y release,
-not a 1.0 stability promise. See [package policy](../../docs/ui-status.md#package-policy).
+0.6.0 publishes this crate with the sixteen-crate SDK set (including
+`rndr-flow` as a separate optional dependency, not a facade feature). `ui`,
+`observe`, `browser`, `media`, `chart`, `liquid`, and `canvas` are off by
+default. `ui` depends on published `rndr_ui`. `observe` enables the Unix
+whole-window probe and headless component capture. Examples stay unpublished.
+This is a 0.y release, not a 1.0 stability promise. See
+[package policy](../../docs/ui-status.md#package-policy).
 
 Desktop application toolkit. One crate re-exports the entity world, the paint step, the `std::fs` plugin, and the winit + wgpu window.
 

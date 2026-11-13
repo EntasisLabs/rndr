@@ -53,14 +53,15 @@ native development libraries used by winit/wgpu and fontconfig; the repository's
 [CI configuration](.github/workflows/ci.yml) records the build packages. Runtime
 capabilities also depend on the desktop session and available graphics backend.
 
-**Release 0.5.0** publishes fifteen crates, in order: `rndr_core`, `rndr_paint`,
-`rndr_std`, `rndr_term`, `rndr_ui`, `rndr_app`, `rndr_liquid`, `rndr_chart`,
-`rndr_liquid_ui`, `rndr_canvas`, `rndr_canvas_ui`, `rndr_render`, `rndr_media`,
-`rndr_browser`, and `rndr`. Optional facade features `ui`, `observe`, `browser`,
-`media`, `chart`, `liquid`, and `canvas` are off by default. Examples, including
-Desktop Workshop, `source-session`, `titlebar`, and `lifecycle`, stay
-`publish = false`. This is a 0.y release, not a 1.0 stability promise.
-See [package policy](docs/ui-status.md#package-policy).
+**Release 0.6.0** publishes sixteen crates, in order: `rndr_core`, `rndr-flow`,
+`rndr_paint`, `rndr_std`, `rndr_term`, `rndr_ui`, `rndr_app`, `rndr_liquid`,
+`rndr_chart`, `rndr_liquid_ui`, `rndr_canvas`, `rndr_canvas_ui`, `rndr_render`,
+`rndr_media`, `rndr_browser`, and `rndr`. Optional facade features `ui`,
+`observe`, `browser`, `media`, `chart`, `liquid`, and `canvas` are off by
+default. `rndr-flow` is a separate optional dependency (no facade feature).
+Examples, including Desktop Workshop, `source-session`, `titlebar`, and
+`lifecycle`, stay `publish = false`. This is a 0.y release, not a 1.0 stability
+promise. See [package policy](docs/ui-status.md#package-policy).
 
 ### A small application
 
@@ -420,7 +421,7 @@ native-platform acceptance are different things:
   compositor presentation, or native screen-reader/IME certification.
 - **Pen input:** the pen probe is a hardware-validation spike, not a supported,
   cross-platform tablet API.
-- **Publishing:** 0.5.0 publishes `rndr_core`, `rndr_paint`, `rndr_std`, `rndr_term`, `rndr_ui`, `rndr_app`, `rndr_liquid`, `rndr_chart`, `rndr_liquid_ui`, `rndr_canvas`, `rndr_canvas_ui`, `rndr_render`, `rndr_media`, `rndr_browser`, and `rndr`. The facade's optional `chart`, `liquid`, `canvas`, `media` and `browser` features version-depend on those crates, so they are packaged before the facade. Examples stay unpublished. This tree does not upload. See [package policy](docs/ui-status.md#package-policy).
+- **Publishing:** 0.6.0 publishes `rndr_core`, `rndr-flow`, `rndr_paint`, `rndr_std`, `rndr_term`, `rndr_ui`, `rndr_app`, `rndr_liquid`, `rndr_chart`, `rndr_liquid_ui`, `rndr_canvas`, `rndr_canvas_ui`, `rndr_render`, `rndr_media`, `rndr_browser`, and `rndr`. The facade's optional `chart`, `liquid`, `canvas`, `media` and `browser` features version-depend on those crates, so they are packaged before the facade. `rndr-flow` is a separate optional dependency with no facade feature. Examples stay unpublished. This tree does not upload. See [package policy](docs/ui-status.md#package-policy).
 
 ## Documentation
 

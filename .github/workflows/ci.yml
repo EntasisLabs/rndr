@@ -164,7 +164,7 @@ jobs:
         if: runner.os == 'Linux'
         run: python3 scripts/check-desktop-packaging.py
 
-      # Facade manifest normalization. Registry rebuild waits until 0.5.0
+      # Facade manifest normalization. Registry rebuild waits until 0.6.0
       # dependencies are on the index; scripts/publish-crates.sh does that in order.
       - name: Facade archive normalization
         if: runner.os == 'Linux'
@@ -173,7 +173,7 @@ jobs:
       - name: Package and docs
         if: runner.os == 'Linux'
         run: |
-          # --no-verify: 0.5.0 path dependencies are not on crates.io until
+          # --no-verify: 0.6.0 path dependencies are not on crates.io until
           # publish. The tarball checks below still run. Ordered registry
           # verification is scripts/publish-crates.sh.
           # Excludes are derived from publish = false members; the archive-set

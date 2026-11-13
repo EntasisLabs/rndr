@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Facade manifest normalization before 0.5.0 dependencies are on the index.
+"""Facade manifest normalization before 0.6.0 dependencies are on the index.
 
 `cargo package` would otherwise write a lockfile that resolves optional `ui`
 and the `rndr_ui` dev-dependency from crates.io. This check excludes that

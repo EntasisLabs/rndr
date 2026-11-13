@@ -7,8 +7,9 @@ filesystem. `rndr_term` is the optional pseudoterminal. `rndr_render` is the
 only OS window and GPU, and it also does offscreen capture. The `rndr` facade
 re-exports those. `rndr_ui` and `rndr_app` are opt-in and depend only on core.
 `rndr_ui` is the component library. `rndr_app` is a starter (form navigation,
-spacing, draft preferences), not that library. Both publish at 0.5.0 with the
-facade. `publish = false` stays on the examples, including desktop. The
+spacing, draft preferences), not that library. Both publish at 0.6.0 with the
+facade. `rndr-flow` is an optional headless ownership crate with no facade
+feature. `publish = false` stays on the examples, including desktop. The
 [package policy](#package-policy) records the upload order.
 
 What the kits and the core document model cover, with tests in this repo:
@@ -75,7 +76,7 @@ records what the window submitted. It does not prove compositor presentation.
 
 ## Package policy
 
-Workspace version **0.5.0**. `scripts/publish-crates.sh` uploads these crates
+Workspace version **0.6.0**. `scripts/publish-crates.sh` uploads these crates
 in this order:
 
 1. `rndr_core` — no workspace dependencies.
@@ -97,9 +98,9 @@ in this order:
 
 Examples stay `publish = false`, including `desktop`, `source-session`, `titlebar`, and `lifecycle`. Optional versioned dependencies are still resolved when their features are off, so omitting `rndr_browser` or `rndr_media` from `cargo package --workspace` makes the default facade look for those crates on crates.io and fail. A later `cargo publish -p rndr` still waits until they are on the index; the workspace package command is what resolves them locally.
 
-0.5.0 is a 0.y release. Shipping these crates does not promise a stable 1.0 API. Experimental source sessions and the structured document stay experimental in their module docs.
+0.6.0 is a 0.y release. Shipping these crates does not promise a stable 1.0 API. Experimental source sessions and the structured document stay experimental in their module docs.
 
-`cargo package` in CI uses `--no-verify` for the library crates, including `rndr_browser` and `rndr_media`. Their 0.5.0 workspace dependencies are not on the index until a release is published, so a registry rebuild of a dependent crate cannot succeed in CI beforehand. The job still checks tarball membership, licenses, and the paint and render snapshot sets. `scripts/check-package-archives.py` derives the `--exclude` list and the expected archive set from workspace packages that remain publishable, and rejects both missing and unexpected `.crate` files. `scripts/check-facade-archive.py` checks that the facade manifest normalizes, including optional `ui`, `browser`, `media`, `chart`, `liquid`, and `canvas`. `scripts/publish-crates.sh --dry-run` runs that archive check and `cargo publish --dry-run` for each crate whose workspace dependencies are already on the index. That dry-run does not upload.
+`cargo package` in CI uses `--no-verify` for the library crates, including `rndr_browser` and `rndr_media`. Their 0.6.0 workspace dependencies are not on the index until a release is published, so a registry rebuild of a dependent crate cannot succeed in CI beforehand. The job still checks tarball membership, licenses, and the paint and render snapshot sets. `scripts/check-package-archives.py` derives the `--exclude` list and the expected archive set from workspace packages that remain publishable, and rejects both missing and unexpected `.crate` files. `scripts/check-facade-archive.py` checks that the facade manifest normalizes, including optional `ui`, `browser`, `media`, `chart`, `liquid`, and `canvas`. `scripts/publish-crates.sh --dry-run` runs that archive check and `cargo publish --dry-run` for each crate whose workspace dependencies are already on the index. That dry-run does not upload.
 
 ## Evidence
 
