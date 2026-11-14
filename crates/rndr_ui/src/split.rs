@@ -1,6 +1,6 @@
-//! Focusable split sash built on [`Splitter`](rndr_core::Splitter).
+//! Focusable split sash built on [`Splitter`].
 //!
-//! Pointer drag and clamping stay in core [`apply_split`](rndr_core::apply_split).
+//! Pointer drag and clamping stay in core [`apply_split`].
 //! This module adds focus, a slider role, arrow keys, Home/End, double-click
 //! reset, and a [`SplitSashChange`] event the host can persist.
 //!
@@ -116,13 +116,13 @@ pub struct SplitSashHandle {
     pub root: Entity,
     /// Pane before the handle.
     pub leading: Entity,
-    /// Focusable slider. Carries the [`Splitter`](rndr_core::Splitter).
+    /// Focusable slider. Carries the [`Splitter`].
     pub sash: Entity,
     /// Pane after the handle. It fills the space the leading pane does not use.
     pub trailing: Entity,
 }
 
-/// Semantic split: two panes and a [`Splitter`](rndr_core::Splitter) sash.
+/// Semantic split: two panes and a [`Splitter`] sash.
 pub struct SplitSash;
 
 impl SplitSash {
@@ -283,7 +283,7 @@ pub(crate) fn key_at(world: &World, entity: Entity) -> Option<UiId> {
 }
 
 /// Keys land before this runs. Pointer drag uses [`apply_split`]. When
-/// [`Shell`](rndr_core::Shell) also runs that system, the later call sees no
+/// [`Shell`] also runs that system, the later call sees no
 /// further pointer delta.
 pub(crate) fn drive(world: &mut World) {
     note_pointer(world);
@@ -308,7 +308,7 @@ pub(crate) fn drive(world: &mut World) {
     }
 }
 
-/// Focus and drag color. Direct [`Color`](rndr_core::Color) on the handle.
+/// Focus and drag color. Direct [`Color`] on the handle.
 pub(crate) fn styles(world: &mut World) {
     let focus = world.resource::<Focus>().and_then(|focus| focus.entity);
     let drag = world.resource::<Drag>().and_then(|drag| drag.entity);
