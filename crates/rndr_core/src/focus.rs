@@ -282,7 +282,12 @@ struct ScrollFocusPause {
     paused: bool,
 }
 
-pub(crate) fn pause_focus_reveal(world: &mut World) {
+/// Suspend [`reveal_entity`] for the focused entity until the next press, key,
+/// or [`resume_focus_reveal`].
+///
+/// Scroll drags and item-drag autoscroll use this so revealing the focused
+/// row does not pull the viewport back.
+pub fn pause_focus_reveal(world: &mut World) {
     let entity = world.resource::<Focus>().and_then(|f| f.entity);
     world.insert_resource(ScrollFocusPause {
         entity,
@@ -290,7 +295,8 @@ pub(crate) fn pause_focus_reveal(world: &mut World) {
     });
 }
 
-pub(crate) fn resume_focus_reveal(world: &mut World) {
+/// Allow [`reveal_entity`] to run for the focused entity again.
+pub fn resume_focus_reveal(world: &mut World) {
     if let Some(pause) = world.resource_mut::<ScrollFocusPause>() {
         pause.paused = false;
     }

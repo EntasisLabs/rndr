@@ -71,6 +71,11 @@ pub struct ViewProps {
     pub enabled: bool,
     /// Single by default. No automatic initial selection.
     pub selection: SelectionMode,
+    /// When true, an enabled visible row can be dragged onto another row in
+    /// this view. The view emits [`CollectionEventKind::Reordered`] and does
+    /// not change its order. Default false, so a press past the scroll slop
+    /// still scrolls.
+    pub reorder: bool,
 }
 impl ViewProps {
     /// Enabled single-select view with an empty state.
@@ -80,7 +85,14 @@ impl ViewProps {
             empty: "No items to display".into(),
             enabled: true,
             selection: SelectionMode::Single,
+            reorder: false,
         }
+    }
+
+    /// Enable [`Self::reorder`].
+    pub fn with_reorder(mut self) -> Self {
+        self.reorder = true;
+        self
     }
 }
 /// Observable state transitions. Input sends are visible to the host on Update;
@@ -111,6 +123,19 @@ pub enum CollectionEventKind {
     Activated(ItemId),
     /// Branch expansion changed.
     Expanded(ItemId, bool),
+    /// The host should apply [`reorder_list`] or [`reorder_tree`] and mount
+    /// again. The view order is unchanged until that mount.
+    Reordered(ItemMove),
+}
+/// A requested move. `place` comes from [`crate::drag::DropPlace`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ItemMove {
+    /// Row that moved.
+    pub id: ItemId,
+    /// Row it was dropped relative to.
+    pub target: ItemId,
+    /// Before, after, or inside `target`. Edge places are not emitted.
+    pub place: crate::drag::DropPlace,
 }
 /// Composed slots. Retained ListView/TreeView support passive content with a
 /// stable subtree lifetime. `mount_virtual` and `mount_variable` support nested
@@ -757,6 +782,7 @@ fn sync(world: &mut World, root: Entity, view: &mut View) {
             world.insert(row.chevron, Hidden);
         }
     }
+    bind_drag(world, root, view);
 }
 impl ViewHandle {
     /// Validate generation and the owned interaction/content slot topology.
@@ -1068,6 +1094,8 @@ fn activate(world: &mut World, entity: Entity) {
 }
 pub(crate) fn requests(world: &mut World) {
     virtual_list::requests(world);
+    note_reorder_drop(world);
+    note_reorder_keys(world);
     for root in world.entities_with::<View>() {
         if validate(world, root).is_err() {
             continue;
@@ -1081,6 +1109,420 @@ pub(crate) fn requests(world: &mut World) {
         }
         world.insert(root, v);
     }
+}
+fn bind_drag(world: &mut World, root: Entity, view: &View) {
+    let kind = if view.tree {
+        crate::drag::TREE_NODE
+    } else {
+        crate::drag::LIST_ROW
+    };
+    let geometry = if view.tree {
+        crate::drag::DropGeometry::nest(Axis::Column)
+    } else {
+        crate::drag::DropGeometry::reorder(Axis::Column)
+    };
+    let gate = if view.tree { tree_gate } else { list_gate };
+    for (id, row) in &view.rows {
+        let live = view.props.reorder && row.visible && enabled(view, *id);
+        if live {
+            world.insert(
+                row.slot.root,
+                crate::drag::DragSource {
+                    payload: crate::drag::DragPayload {
+                        kind,
+                        value: id.0,
+                        owner: Some(root),
+                    },
+                    enabled: true,
+                    name: row.item.name.clone(),
+                    keyboard: crate::drag::DragKeyboard::Host,
+                },
+            );
+            world.insert(
+                row.slot.root,
+                crate::drag::DropTarget {
+                    enabled: true,
+                    kinds: vec![kind],
+                    owner: Some(root),
+                    geometry,
+                    gate: Some(gate),
+                },
+            );
+        } else {
+            world.remove::<crate::drag::DragSource>(row.slot.root);
+            world.remove::<crate::drag::DropTarget>(row.slot.root);
+        }
+    }
+}
+fn list_gate(
+    world: &World,
+    payload: crate::drag::DragPayload,
+    target: Entity,
+    place: crate::drag::DropPlace,
+) -> bool {
+    let Some(owner) = world.get::<RowOwner>(target).copied() else {
+        return false;
+    };
+    if payload.owner != Some(owner.view) {
+        return false;
+    }
+    let Some(view) = world.get::<View>(owner.view) else {
+        return false;
+    };
+    !view.tree && reorder_list(&items_of(view), ItemId(payload.value), owner.id, place).is_some()
+}
+fn tree_gate(
+    world: &World,
+    payload: crate::drag::DragPayload,
+    target: Entity,
+    place: crate::drag::DropPlace,
+) -> bool {
+    let Some(owner) = world.get::<RowOwner>(target).copied() else {
+        return false;
+    };
+    if payload.owner != Some(owner.view) {
+        return false;
+    }
+    let Some(view) = world.get::<View>(owner.view) else {
+        return false;
+    };
+    view.tree && reorder_tree(&nodes_of(view), ItemId(payload.value), owner.id, place).is_some()
+}
+fn items_of(view: &View) -> Vec<Item> {
+    view.order
+        .iter()
+        .map(|id| view.rows[id].item.clone())
+        .collect()
+}
+fn nodes_of(view: &View) -> Vec<TreeNode> {
+    view.order
+        .iter()
+        .map(|id| TreeNode {
+            item: view.rows[id].item.clone(),
+            parent: view.rows[id].parent,
+        })
+        .collect()
+}
+fn note_reorder_drop(world: &mut World) {
+    let Some(drop) = crate::drag::committed(world) else {
+        return;
+    };
+    if virtual_list::note_drop(world, drop) {
+        return;
+    }
+    let Some(owner) = drop.payload.owner else {
+        return;
+    };
+    let Some(row) = world.get::<RowOwner>(drop.target).copied() else {
+        return;
+    };
+    if row.view != owner || !world.has::<View>(owner) {
+        return;
+    }
+    let view = world.get::<View>(owner).unwrap().clone();
+    if !view.props.reorder {
+        return;
+    }
+    publish_move(
+        world,
+        owner,
+        &view,
+        ItemId(drop.payload.value),
+        row.id,
+        drop.place,
+    );
+}
+fn note_reorder_keys(world: &mut World) {
+    let keys = world
+        .resource::<Input>()
+        .map(|input| input.keys.clone())
+        .unwrap_or_default();
+    let mut used = Vec::new();
+    for (index, event) in keys.iter().enumerate() {
+        if !reorder_chord(event) {
+            continue;
+        }
+        let LogicalKey::Named(key) = event.logical else {
+            continue;
+        };
+        if apply_reorder_key(world, key) {
+            used.push(index);
+        }
+    }
+    if used.is_empty() {
+        return;
+    }
+    if let Some(input) = world.resource_mut::<Input>() {
+        input.keys = input
+            .keys
+            .iter()
+            .cloned()
+            .enumerate()
+            .filter(|(index, _)| !used.contains(index))
+            .map(|(_, event)| event)
+            .collect();
+        if input.keys.is_empty() {
+            input.key = None;
+        }
+    }
+}
+fn reorder_chord(event: &KeyEvent) -> bool {
+    !event.released
+        && !event.repeat
+        && !event.synthetic
+        && event.modifiers.alt
+        && !event.modifiers.command()
+        && !event.modifiers.shift
+        && matches!(
+            event.logical,
+            LogicalKey::Named(
+                NamedKey::ArrowUp
+                    | NamedKey::ArrowDown
+                    | NamedKey::ArrowLeft
+                    | NamedKey::ArrowRight
+            )
+        )
+}
+fn apply_reorder_key(world: &mut World, key: NamedKey) -> bool {
+    let Some(focus) = world.resource::<Focus>().and_then(|focus| focus.entity) else {
+        return false;
+    };
+    if world.has::<CapturesKeys>(focus) {
+        return false;
+    }
+    if let Some(owner) = world.get::<RowOwner>(focus).copied() {
+        return retained_key(world, owner.view, owner.id, key);
+    }
+    virtual_list::reorder_key(world, focus, key)
+}
+fn retained_key(world: &mut World, root: Entity, id: ItemId, key: NamedKey) -> bool {
+    let Some(view) = world.get::<View>(root).cloned() else {
+        return false;
+    };
+    if !view.props.reorder || !view.props.enabled {
+        return false;
+    }
+    let order = available(&view);
+    let name = view
+        .rows
+        .get(&id)
+        .map(|row| row.item.name.clone())
+        .unwrap_or_default();
+    let index = order.iter().position(|item| *item == id);
+    let movement = index.and_then(|index| match key {
+        NamedKey::ArrowUp if index > 0 => Some((order[index - 1], crate::drag::DropPlace::Before)),
+        NamedKey::ArrowDown => order
+            .get(index + 1)
+            .copied()
+            .map(|target| (target, crate::drag::DropPlace::After)),
+        NamedKey::ArrowRight if view.tree && index > 0 => {
+            Some((order[index - 1], crate::drag::DropPlace::Inside))
+        }
+        NamedKey::ArrowLeft if view.tree => view
+            .rows
+            .get(&id)
+            .and_then(|row| row.parent)
+            .map(|parent| (parent, crate::drag::DropPlace::After)),
+        _ => None,
+    });
+    match movement {
+        Some((target, place)) => publish_move(world, root, &view, id, target, place),
+        None => crate::drag::announce(world, &format!("Cannot move {name}.")),
+    }
+    true
+}
+fn publish_move(
+    world: &mut World,
+    root: Entity,
+    view: &View,
+    id: ItemId,
+    target: ItemId,
+    place: crate::drag::DropPlace,
+) {
+    let name = view
+        .rows
+        .get(&id)
+        .map(|row| row.item.name.clone())
+        .unwrap_or_default();
+    let ok = if view.tree {
+        reorder_tree(&nodes_of(view), id, target, place).is_some()
+    } else {
+        reorder_list(&items_of(view), id, target, place).is_some()
+    };
+    if !ok {
+        crate::drag::announce(world, &format!("Cannot move {name}."));
+        return;
+    }
+    let target_name = view
+        .rows
+        .get(&target)
+        .map(|row| row.item.name.clone())
+        .unwrap_or_default();
+    emit(
+        world,
+        root,
+        CollectionEventKind::Reordered(ItemMove { id, target, place }),
+    );
+    crate::drag::announce(
+        world,
+        &format!(
+            "Moved {name} {} {target_name}.",
+            crate::drag::place_word(place)
+        ),
+    );
+}
+/// Move `id` to `place` relative to `target`. `None` when the order would not
+/// change, the ids are missing, or `place` is not before or after.
+pub fn reorder_list(
+    items: &[Item],
+    id: ItemId,
+    target: ItemId,
+    place: crate::drag::DropPlace,
+) -> Option<Vec<Item>> {
+    if id == target
+        || !matches!(
+            place,
+            crate::drag::DropPlace::Before | crate::drag::DropPlace::After
+        )
+    {
+        return None;
+    }
+    let mut seen = BTreeSet::new();
+    if items.iter().any(|item| !seen.insert(item.id)) {
+        return None;
+    }
+    let from = items.iter().position(|item| item.id == id)?;
+    let mut next: Vec<Item> = items.iter().filter(|item| item.id != id).cloned().collect();
+    let mut index = next.iter().position(|item| item.id == target)?;
+    if place == crate::drag::DropPlace::After {
+        index += 1;
+    }
+    next.insert(index, items[from].clone());
+    let same = next.iter().zip(items).all(|(next, old)| next.id == old.id);
+    if same {
+        None
+    } else {
+        Some(next)
+    }
+}
+/// Move the subtree at `id` to `place` relative to `target`.
+///
+/// Before and after keep the target's parent. Inside appends the subtree as
+/// the target's last children. `None` when that would cycle, exceed depth 32,
+/// leave the forest unchanged, or the nodes are not a unique preorder.
+pub fn reorder_tree(
+    nodes: &[TreeNode],
+    id: ItemId,
+    target: ItemId,
+    place: crate::drag::DropPlace,
+) -> Option<Vec<TreeNode>> {
+    if id == target || matches!(place, crate::drag::DropPlace::Edge(_)) {
+        return None;
+    }
+    let map = parent_map(nodes)?;
+    if under(&map, target, id) {
+        return None;
+    }
+    let start = nodes.iter().position(|node| node.item.id == id)?;
+    let end = subtree_end(nodes, &map, start);
+    if nodes
+        .iter()
+        .skip(end)
+        .any(|node| under(&map, node.item.id, id))
+    {
+        return None;
+    }
+    let mut moved = nodes[start..end].to_vec();
+    let mut rest: Vec<TreeNode> = nodes[..start]
+        .iter()
+        .chain(nodes[end..].iter())
+        .cloned()
+        .collect();
+    let target_index = rest.iter().position(|node| node.item.id == target)?;
+    let rest_map = parent_map(&rest)?;
+    let insert_at = match place {
+        crate::drag::DropPlace::Before => target_index,
+        crate::drag::DropPlace::After | crate::drag::DropPlace::Inside => {
+            subtree_end(&rest, &rest_map, target_index)
+        }
+        crate::drag::DropPlace::Edge(_) => return None,
+    };
+    moved[0].parent = match place {
+        crate::drag::DropPlace::Inside => Some(target),
+        crate::drag::DropPlace::Before | crate::drag::DropPlace::After => rest[target_index].parent,
+        crate::drag::DropPlace::Edge(_) => return None,
+    };
+    for (offset, node) in moved.into_iter().enumerate() {
+        rest.insert(insert_at + offset, node);
+    }
+    let built = parent_map(&rest)?;
+    for node in &rest {
+        depth_of(&built, node.item.id)?;
+    }
+    let same = rest.len() == nodes.len()
+        && rest
+            .iter()
+            .zip(nodes)
+            .all(|(next, old)| next.item.id == old.item.id && next.parent == old.parent);
+    if same {
+        None
+    } else {
+        Some(rest)
+    }
+}
+fn parent_map(nodes: &[TreeNode]) -> Option<BTreeMap<ItemId, Option<ItemId>>> {
+    let mut map = BTreeMap::new();
+    for node in nodes {
+        if map.insert(node.item.id, node.parent).is_some() {
+            return None;
+        }
+    }
+    for parent in map.values().flatten() {
+        if !map.contains_key(parent) {
+            return None;
+        }
+    }
+    Some(map)
+}
+fn under(map: &BTreeMap<ItemId, Option<ItemId>>, id: ItemId, ancestor: ItemId) -> bool {
+    if id == ancestor {
+        return true;
+    }
+    let mut current = id;
+    for _ in 0..32 {
+        match map.get(&current).copied().flatten() {
+            Some(parent) if parent == ancestor => return true,
+            Some(parent) => current = parent,
+            None => return false,
+        }
+    }
+    false
+}
+fn subtree_end(nodes: &[TreeNode], map: &BTreeMap<ItemId, Option<ItemId>>, start: usize) -> usize {
+    let id = nodes[start].item.id;
+    let mut end = start + 1;
+    while end < nodes.len() && nodes[end].item.id != id && under(map, nodes[end].item.id, id) {
+        end += 1;
+    }
+    end
+}
+fn depth_of(map: &BTreeMap<ItemId, Option<ItemId>>, id: ItemId) -> Option<usize> {
+    let mut depth = 0usize;
+    let mut current = id;
+    for _ in 0..33 {
+        match map.get(&current).copied() {
+            Some(Some(parent)) => {
+                depth += 1;
+                if depth >= 32 {
+                    return None;
+                }
+                current = parent;
+            }
+            Some(None) => return Some(depth),
+            None => return None,
+        }
+    }
+    None
 }
 pub(crate) fn styles(world: &mut World) {
     let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();

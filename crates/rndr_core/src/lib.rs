@@ -226,7 +226,7 @@ pub use flex::{
     paint_order, Absolute, Align, AlignSelf, AspectRatio, Items, Justify, MaxSize, Padding, Sticky,
     Wrap,
 };
-pub use focus::{apply_focus, reveal_entity};
+pub use focus::{apply_focus, pause_focus_reveal, resume_focus_reveal, reveal_entity};
 pub use font::{
     apply_text_layout, field_text_width, layout_text, layout_text_spans, line_col, measure_text,
     text_face, BitmapFont, ColorAtlas, Font, FontAtlas, FontAxis, FontFeature, GlyphBox,
@@ -264,8 +264,9 @@ pub use keys::{
     Modifiers, NamedKey, Platform, Trigger,
 };
 pub use layout::{
-    ancestor_with, apply_scroll, hit_test, layered_roots, layout_propagate, Axis, Clip, Layout,
-    Rect, Scroll, ScrollDrag, Size, ViewportRows, SCROLL_DRAG_SLOP,
+    ancestor_with, apply_scroll, hit_test, layered_roots, layout_propagate, Axis, Clip,
+    IgnorePointer, Layout, PointerDragOwner, Rect, Scroll, ScrollDrag, Size, ViewportRows,
+    SCROLL_DRAG_SLOP,
 };
 pub use list::{
     list_window, List, ListActivated, ListItem, ListKeys, ListRows, LIST_ACTIVATE, LIST_DOWN,
