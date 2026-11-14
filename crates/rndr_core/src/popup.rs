@@ -23,6 +23,19 @@ impl Component for PassivePopup {}
 #[derive(Clone, Copy)]
 pub struct FocusOwner(pub Entity);
 impl Component for FocusOwner {}
+/// Escape policy for one open [`AnchoredPopup`].
+///
+/// Absent, Escape closes the popup and returns focus to the anchor. Present,
+/// the function returns whether this Escape should close it. `false` leaves
+/// the popup open and leaves the key unconsumed, so a focused field and the
+/// keymap can still see it. Repeat, release, synthetic, and modified Escape
+/// stay consumed and do not close, as they do without this component.
+#[derive(Clone, Copy)]
+pub struct PopupEscape(
+    /// `true` closes the popup. `false` leaves it open and does not consume Escape.
+    pub fn(&mut World, Entity) -> bool,
+);
+impl Component for PopupEscape {}
 /// Where an [`AnchoredPopup`] opens relative to its anchor. Without this
 /// component it opens below (or above) the anchor at least 240 points wide.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -255,8 +268,17 @@ pub(crate) fn key(world: &mut World, event: &KeyEvent) -> bool {
     }
     match event.logical {
         LogicalKey::Named(NamedKey::Escape) => {
-            close_popup(world, root, true);
-            true
+            let policy = world.get::<PopupEscape>(root).map(|policy| policy.0);
+            let close = match policy {
+                Some(policy) => policy(world, root),
+                None => true,
+            };
+            if close {
+                close_popup(world, root, true);
+                true
+            } else {
+                false
+            }
         }
         LogicalKey::Named(NamedKey::Tab) => {
             close_popup(world, outermost(world, root), true);

@@ -253,6 +253,7 @@ fn projection(role: AccessRole) -> SelectionAccess {
         multiselect: false,
         controls: None,
         labelled_by: None,
+        active_descendant: None,
     }
 }
 fn mount(

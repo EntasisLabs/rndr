@@ -19,6 +19,7 @@ pub mod editing_recipes;
 pub mod inputs;
 mod lifecycle;
 pub mod menu;
+pub mod palette;
 pub mod selection;
 pub mod source_tools;
 pub mod split;
@@ -47,6 +48,7 @@ pub fn identity(world: &rndr_core::World, entity: rndr_core::Entity) -> Option<U
         .or_else(|| surfaces::key_at(world, entity))
         .or_else(|| editing::key_at(world, entity))
         .or_else(|| structured::key_at(world, entity))
+        .or_else(|| palette::key_at(world, entity))
         .or_else(|| split::key_at(world, entity))
         .or_else(|| tabs::key_at(world, entity))
 }
@@ -82,6 +84,7 @@ impl Plugin for UiPlugin {
         app.add_system(Schedule::Input, inputs::drive);
         app.add_system(Schedule::Input, split::drive);
         app.add_system(Schedule::Input, tabs::drive);
+        app.add_system(Schedule::Update, palette::drive);
         app.add_system(Schedule::Update, inputs::publish);
         app.add_system(Schedule::Update, tabs::publish);
         app.add_system(Schedule::PostUpdate, data::inspector_blur);
@@ -92,6 +95,7 @@ impl Plugin for UiPlugin {
         app.add_system(Schedule::Layout, menu::styles);
         app.add_system(Schedule::Layout, window_controls::styles);
         app.add_system(Schedule::Layout, inputs::styles);
+        app.add_system(Schedule::Layout, palette::place);
         app.add_system(Schedule::Layout, split::styles);
         app.add_system(Schedule::Layout, tabs::styles);
         app.add_system(Schedule::Layout, resolve_styles);

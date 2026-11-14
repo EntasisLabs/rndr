@@ -234,7 +234,7 @@ fn platform_node(world: &World, node: &rndr_core::AccessNode) -> Node {
     }
     if matches!(
         node.role,
-        AccessRole::TextInput | AccessRole::Code | AccessRole::SpinButton
+        AccessRole::TextInput | AccessRole::Code | AccessRole::SpinButton | AccessRole::ComboBox
     ) && !node.value.is_empty()
     {
         out.set_value(node.value.clone());
@@ -272,6 +272,9 @@ fn platform_node(world: &World, node: &rndr_core::AccessNode) -> Node {
     }
     if let Some(id) = details.controls {
         out.set_controls(vec![NodeId(id)]);
+    }
+    if let Some(id) = details.active_descendant {
+        out.set_active_descendant(NodeId(id));
     }
     let mut described: Vec<NodeId> = entity_from_access_id(node.id)
         .and_then(|e| world.get::<rndr_core::DataAccess>(e))
@@ -739,6 +742,7 @@ mod tests {
             multiselect: false,
             controls: None,
             labelled_by: None,
+            active_descendant: None,
         };
         let check = w.spawn((
             Layout::row(),
@@ -783,6 +787,9 @@ mod tests {
             meta(AccessRole::Option),
         ));
         set_parent(w, option, popup);
+        w.get_mut::<SelectionAccess>(trigger)
+            .unwrap()
+            .active_descendant = Some(option);
         let t = tree_update(w);
         let native = |e| {
             &t.nodes
@@ -796,6 +803,10 @@ mod tests {
         assert_eq!(native(trigger).role(), Role::ComboBox);
         assert_eq!(native(trigger).is_expanded(), Some(true));
         assert_eq!(native(trigger).controls(), &[NodeId(access_id(popup))]);
+        assert_eq!(
+            native(trigger).active_descendant(),
+            Some(NodeId(access_id(option)))
+        );
         assert_eq!(native(popup).role(), Role::ListBox);
         assert!(native(popup).is_multiselectable());
         assert_eq!(native(popup).labelled_by(), &[NodeId(access_id(trigger))]);

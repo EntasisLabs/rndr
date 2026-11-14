@@ -95,6 +95,9 @@ pub struct AccessDetails {
     pub checked: Option<bool>,
     /// Multiple selection supported by a ListBox.
     pub multiselect: bool,
+    /// Access id of the combobox active descendant, when that option is alive
+    /// and visible. Focus stays on the field.
+    pub active_descendant: Option<u64>,
 }
 
 /// Validate generation and every ancestor's visibility.
@@ -217,6 +220,10 @@ pub fn access_details(world: &World, entity: Entity) -> AccessDetails {
                     .find(|tab| valid_tab_relation(world, *tab).is_some_and(|r| r.panel == entity))
                     .map(access_id)
             }),
+        active_descendant: selection
+            .and_then(|s| s.active_descendant)
+            .filter(|e| world.is_alive(*e) && !world.has::<crate::Hidden>(*e))
+            .map(access_id),
     }
 }
 
