@@ -8,6 +8,7 @@
 - macOS vibrancy is inserted behind the content view, as a sibling in the frame view. A subview of the content view composites above its Metal layer and would cover the app. The material, the transparent-window requirement, and the Windows Mica / Acrylic / Tabbed path are unchanged.
 - A nested `SplitSash` estimates its span after the outer split has claimed its leading pane, and a fill estimate subtracts sibling bars. The first frame no longer sizes the inner leading pane against the whole window.
 - `TreeProps::translucent` clears tree row fills. Hover and selection use a light overlay. Row labels use the control type size, disclosure marks are the icon chevrons, and a leaf draws no chevron slot.
+- Text span highlights are inset and rounded. Selection quads stay full-height.
 
 ### Live markdown editing
 
