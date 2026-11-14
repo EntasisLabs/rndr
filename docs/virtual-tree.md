@@ -6,7 +6,7 @@ These checks are headless. They do not certify a platform screen reader, a physi
 
 ## Mount
 
-`VirtualTree::mount` places a scroll viewport under the parent. Pass every node the host has loaded, not only the visible window. Children are the nodes whose `parent` is that id, in slice order. `expanded` is the set of open branches. An id in that slice that is not a node is rejected. A later mount with the same id reuses the viewport. The host sets the viewport width and height. The row stride is `TreeProps::row_height` (32 points unless the host changes it) and every row, including a loading row, uses it.
+`VirtualTree::mount` places a scroll viewport under the parent. Pass every node the host has loaded, not only the visible window. Children are the nodes whose `parent` is that id, in slice order. `expanded` is the set of open branches. An id in that slice that is not a node is rejected. A later mount with the same id reuses the viewport. The host sets the viewport width and height. The row stride is `TreeProps::row_height` (32 points unless the host changes it) and every row, including a loading row, uses it. `TreeProps::translucent` clears the row fill so the parent surface shows through; hover and selection then use a light overlay. The default fill stays the content token.
 
 A node is a branch when it is `expandable`, `loading`, or already has children. Expanding a branch that has no children and is not already `loading` emits `LoadChildren`. The tree shows a "Loading…" row until the host mounts the children or clears the expansion. The host applies that mount. The tree does not fetch anything.
 

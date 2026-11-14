@@ -38,6 +38,7 @@ members = [
     "examples/web",
     "examples/source-session",
     "examples/live-markdown",
+    "examples/investigation",
     "tools/bake_icons",
 ]
 

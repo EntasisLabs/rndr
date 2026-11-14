@@ -288,10 +288,13 @@ pub(crate) fn key_at(world: &World, entity: Entity) -> Option<UiId> {
 pub(crate) fn drive(world: &mut World) {
     note_pointer(world);
     note_access(world);
-    let sashes = world.entities_with::<SashState>();
+    let mut sashes = world.entities_with::<SashState>();
     if sashes.is_empty() {
         return;
     }
+    // Outer splits first, so a nested sash estimates the space the outer
+    // leading pane has already claimed instead of the whole window.
+    sashes.sort_by_key(|sash| depth(world, *sash));
     for sash in &sashes {
         absorb(world, *sash);
     }
@@ -728,6 +731,18 @@ fn estimated_pair(world: &World, sash: Entity) -> Option<f32> {
     Some((inner - extras - gaps).max(0.0))
 }
 
+fn depth(world: &World, mut entity: Entity) -> u32 {
+    let mut n = 0;
+    while let Some(parent) = world.get::<Parent>(entity).map(|parent| parent.entity) {
+        n += 1;
+        entity = parent;
+        if n > 64 {
+            break;
+        }
+    }
+    n
+}
+
 fn estimated_span(world: &World, entity: Entity, axis: Axis, depth: u8) -> Option<f32> {
     if depth > 32 {
         return None;
@@ -748,7 +763,21 @@ fn estimated_span(world: &World, entity: Entity, axis: Axis, depth: u8) -> Optio
             if let Some(parent) = world.get::<Parent>(entity).map(|parent| parent.entity) {
                 let span = estimated_span(world, parent, axis, depth + 1)?;
                 let parent_layout = world.get::<Layout>(parent).copied()?;
-                Some((span - parent_layout.padding * 2.0).max(0.0))
+                let inner = (span - parent_layout.padding * 2.0).max(0.0);
+                let kids = children_of(world, parent);
+                let gaps = if kids.len() > 1 {
+                    parent_layout.gap * (kids.len() as f32 - 1.0)
+                } else {
+                    0.0
+                };
+                let mut used = gaps;
+                for child in kids {
+                    if child == entity {
+                        continue;
+                    }
+                    used += bar_px(world, child, axis);
+                }
+                Some((inner - used).max(0.0))
             } else {
                 let viewport = world.resource::<Viewport>().copied().unwrap_or_default();
                 Some(match axis {

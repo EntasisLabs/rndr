@@ -175,6 +175,7 @@ available, but observation still requires an explicit application-session opt-in
 | Hidden overlay and global shortcut | `cargo run -p overlay` |
 | Multiple windows and messages | `cargo run -p two-windows` |
 | Custom titlebar, drag and resize | `cargo run -p titlebar` |
+| Frosted investigation console | `cargo run -p investigation` |
 | Single instance, incoming links and app icon | `cargo run -p lifecycle` |
 | Embedded shell | `cargo run -p terminal` |
 | Pan/zoom vector scene | `cargo run -p canvas-scene` |
@@ -376,8 +377,12 @@ native-platform acceptance are different things:
   and fields inside it keep their presses, a double-click maximizes (or follows the
   macOS setting) and a right-click opens the window menu on Windows.
   `WindowConfig::backdrop` asks for Mica, Acrylic or Tabbed on Windows 11 and
-  vibrancy on macOS when the window is `transparent`. Linux X11 is tested natively;
-  macOS and Windows are compile-checked only. `cargo run -p titlebar` shows them.
+  vibrancy on macOS when the window is `transparent`. The macOS material is an
+  `NSVisualEffectView` behind the content view, so the Metal layer can show
+  through. Linux and the browser ignore `Backdrop`. Linux X11 is tested natively
+  for the transparent window; macOS and Windows are compile-checked only.
+  `cargo run -p titlebar` shows the titlebar. `cargo run -p investigation` is a
+  three-pane console on that material.
 - **Launches, links and the app icon:** `rndr_render::single_instance(id)` in `main`
   keeps one process per user: a later launch hands its arguments to the first and
   returns `false` (a socket in `$XDG_RUNTIME_DIR` on Linux, a named pipe on Windows;
