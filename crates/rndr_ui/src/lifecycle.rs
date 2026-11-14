@@ -26,6 +26,7 @@ pub(crate) fn interactive_key_at(world: &World, entity: Entity) -> Option<UiId> 
         .or_else(|| crate::palette::key_at(world, entity))
         .or_else(|| crate::split::key_at(world, entity))
         .or_else(|| crate::tabs::key_at(world, entity))
+        .or_else(|| crate::tree::key_at(world, entity))
 }
 
 /// First matching direct child, in retained child order. No registry, recursive

@@ -132,6 +132,12 @@ pub struct CollectionAccess {
     /// Logical tree parent row. The layout may be a flat scroll stack; the
     /// accessibility projection restores hierarchy without a second layout tree.
     pub parent: Option<Entity>,
+    /// One-based position among siblings. `None` when the row does not publish one.
+    pub position: Option<usize>,
+    /// Sibling count, including this row. `None` when the row does not publish one.
+    pub set_size: Option<usize>,
+    /// The collection allows more than one selected row.
+    pub multiselect: bool,
 }
 impl crate::Component for CollectionAccess {}
 
