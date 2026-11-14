@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Split sash
+
+- `rndr_ui::split::SplitSash` is a focusable splitter built on core `Splitter`. Pointer drag and clamping stay in `apply_split`. The sash adds a slider role, arrow keys with a configurable step, Home/End, double-click reset to a default ratio, an accessible name and value, and a `SplitSashChange` event the host can persist. Horizontal and vertical splits nest. A core handle on its own stays non-focusable. See [split sash](docs/split-sash.md).
+
 ## 0.6.0
 
 Workspace 0.6.0. `scripts/publish-crates.sh` uploads sixteen crates in this order: `rndr_core`, `rndr-flow`, `rndr_paint`, `rndr_std`, `rndr_term`, `rndr_ui`, `rndr_app`, `rndr_liquid`, `rndr_chart`, `rndr_liquid_ui`, `rndr_canvas`, `rndr_canvas_ui`, `rndr_render`, `rndr_media`, `rndr_browser`, and `rndr`. First crates.io publish for `rndr-flow`. Examples, including Desktop Workshop, `source-session`, `titlebar`, and `lifecycle`, stay `publish = false`. Minimum Rust version remains **1.95**. 0.6.0 is a 0.y release, not a 1.0 stability promise. See [package policy](docs/ui-status.md#package-policy).

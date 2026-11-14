@@ -326,7 +326,7 @@ pub use secondary::{ContextTarget, SecondaryPress};
 pub use shell::Shell;
 pub use sim::Sim;
 pub use slot::{effects_animating, EffectSlot, SurfaceSlot};
-pub use split::{apply_split, Drag, Splitter};
+pub use split::{apply_split, split_budget, Drag, Splitter};
 pub use style::{
     label_box, Body, Border, Color, CrossMark, Label, LabelBox, ScrollIndicator, TextOverflow,
     CELL_H, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
