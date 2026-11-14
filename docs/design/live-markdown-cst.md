@@ -1,6 +1,6 @@
 # Live markdown CST
 
-**Agreed direction, 2026-11-14.** Medousa edits markdown files that contain rndr Liquid fences as a typed document, with the file bytes as the only durable text. This document is the design for that editor. It adds no code, no dependency, and no version change. Names in `text` fences are proposed module names for later milestones. They are not public API, and this document does not ratify the experimental editing APIs already in the tree.
+**Agreed direction, 2026-11-14.** Medousa edits markdown files that contain rndr Liquid fences as a typed document, with the file bytes as the only durable text. This document is the design for that editor. The headless milestones M1–M5 now live in the unpublished crate `rndr_markdown` (`publish = false`, no workspace version change). Names below that the crate has shipped are the crate's real types. The UI surface and native IME/AT gates have not shipped, and this document does not ratify the experimental editing APIs already in `rndr_core`.
 
 The decision in one pass: a new document authority holds the markdown bytes and a lossless concrete syntax tree over those bytes. The typed surface, including every Liquid fence, is a view of that tree. A visual edit becomes a small text splice. A canonical printer runs only when the command creates text that has no source span yet. After the splice, the editor reparses the edited block and its siblings, checks the result against the tree the command expected, and widens to the parent when the local parse disagrees. Crash recovery is a per-document journal of those splices. Concurrent editing is out of scope; the last section says what would sit under this tree later.
 
@@ -40,7 +40,7 @@ Opening a path chooses one writer. Source mode for that path is a `SourceSession
 
 The session stores the file as UTF-8 bytes, including a leading BOM, mixed `\n` and `\r\n`, and a missing final newline. A splice is a UTF-8 scalar range, the same boundary rule `SourceBatch` uses. Carets snap to graphemes with the same `floor_grapheme` behavior `snapped_selection` uses in `editing.rs`. Logical affinity and bidi visual affinity stay distinct, as E7 already records; this design does not certify native bidi motion.
 
-The tree is a rowan-style green/red tree. Green nodes are immutable and own their width. Red nodes carry parent pointers and offsets and are rebuilt when a green subtree is grafted. Trivia lives on tokens. `rowan` is not a workspace dependency today (`rndr_core` depends on `pulldown-cmark` only). Milestone M1 may use `rowan` or a smaller green/red tree of the same shape. The tests below are the requirement either way. The milestone records the choice and the dependency it adds. It does not add that dependency in disguise inside `rndr_core`.
+The tree is a rowan-style green/red tree. Green nodes are immutable and own their width. Red nodes carry parent pointers and offsets and are rebuilt when a green subtree is grafted. Trivia lives on tokens. `rowan` is not a workspace dependency (`rndr_core` depends on `pulldown-cmark` only). M1 uses a crate-local green/red tree of that shape, in `crates/rndr_markdown/src/green.rs`. It does not add `rowan`, and it does not put the tree inside `rndr_core`.
 
 Lossless means the concatenation of the green children of the root equals the bytes. Parsing does not rewrite a delimiter, a line ending, an escape, an entity, or a fence. Two parses of the same bytes build equal green trees. Session ids are not part of green equality.
 
@@ -199,7 +199,7 @@ After the scratch splice:
 5. On disagreement, widen the span to the parent block, including that parent's immediate siblings, and parse again. The expected footprint stays what the command named; nodes outside it must still be green-equal.
 6. Repeat until the span is the root. If the root parse disagrees with the expected footprint, discard the scratch and refuse the command. If the command was a literal insert, retry once with the escape form from §4 before refusing.
 
-The root parse of an accepted scratch must equal a from-scratch parse of the scratch bytes. The keystroke path trusts the widen loop. The fuzzer in §11 is the oracle that checks the trust.
+The root parse of an accepted scratch must equal a from-scratch parse of the scratch bytes. The widen loop grafts a window only when that graft's concatenation matches and the grafted document equals a from-scratch parse. A mismatch widens. The confirming parse is what the implementation uses today so a bad resync cannot publish; the fuzzer in §11 is the same check from outside. Dropping the confirming parse is allowed only after the resync rules alone satisfy the fuzzer.
 
 These are the mismatches the widen exists to catch, and the span that actually decides them:
 
@@ -291,7 +291,7 @@ A torn tail (a partial last frame, or a bad checksum) is ignored. Sequences star
 
 Opening a file and editing nothing creates no journal, appends no frame, and does not change a byte. A no-op splice does the same. If a journal is already caught up with the file, opening it also appends nothing and writes nothing.
 
-**Group commit.** Frames are buffered and fsynced as a group. The group waits at least 50 ms and is on disk within 100 ms of the oldest unflushed frame. The default delay inside that window is 80 ms. A crash can lose the group still in the buffer. That window is the durability of typing. Undo steps are frames too: an undo appends the inverse splice at the next sequence. Replaying the log reproduces the undos. It does not rebuild the undo stack.
+**Group commit.** Frames are buffered and fsynced as a group. The group waits at least 50 ms and is on disk within 100 ms of the oldest unflushed frame. The default delay inside that window is 80 ms. The crate does not start a timer thread. The host calls `Session::poll` with the frame clock, which matches the toolkit's explicit frame lifecycle. `Session::flush` group-commits immediately. A crash can lose the group still in the buffer. That window is the durability of typing. Undo steps are frames too: an undo appends the inverse splice at the next sequence. Replaying the log reproduces the undos. It does not rebuild the undo stack.
 
 **Checkpoint.** On idle (one second after the last edit, if the journal is ahead of the header), on focus leaving the document, on the host's save, and on `flush`, the session writes the bytes out:
 
@@ -377,14 +377,14 @@ Each milestone is one PR-sized result with one owner. None of them change `works
 
 | Milestone | Result | Depends on | Done when |
 |---|---|---|---|
-| M0 | This document. | — | The PR is docs-only and CI is green. |
-| M1 | The `rndr_markdown` crate and a lossless parse of §2, including opaque nodes and Liquid fences recognized via `FENCE_LANGS`. No editor, no journal. | M0 | Concatenation and reparse-equality tests, including the E7 comparison bytes. The green/red implementation choice is recorded in the PR. |
-| M2 | Scratch reparse of a block and its siblings, parent widen, and the reference-definition pass. | M1 | Table-driven tests for all six hazards in §5, plus the blank-line ownership cases in §6. |
-| M3 | The edit compiler and the printer for new content. | M2 | Invariant 2 holds on the corpus. The seeded fuzzer runs in CI and the ignored soak is wired. A command that cannot be expressed is refused with zero byte changes. |
-| M4 | `MarkdownSession`: load-time ids, the undo stack, composition, the raw flip. | M3 | Id tests from §7. Refusal tests from §11. One stack serves both views. Preedit writes no frame. |
-| M5 | The journal, checkpoint, recovery, and conflict value. | M4 | Crash-window tests for a torn frame, a checkpoint that landed before the header fsync, an idempotent replay, and an external hash mismatch that quarantines the journal. Clean open writes nothing. |
-| M6 | The surface: viewport paint, caret, selection, the access tree, Liquid field views. `parse_fence` refreshes render values and is not written back. | M4. Parallel with M5 once the session splice API is stable. | Headless access tests from §9. Field-edit tests that keep comments, order, and quoting. The §12 numbers, measured and written down. |
-| M7 | Native IME and assistive-technology passes on real platforms. | M6 | Evidence attached, with the same boundary the rest of the toolkit uses: uncertified platforms stay uncertified in the notes. |
+| M0 | This document. | — | The design is in the tree. |
+| M1 | The `rndr_markdown` crate and a lossless parse of §2, including opaque nodes and Liquid fences recognized via `FENCE_LANGS`. | M0 | Done. Concatenation and reparse-equality tests. Crate-local green/red tree, recorded above. |
+| M2 | Scratch reparse of a block and its siblings, parent widen, and the reference-definition pass. | M1 | Done. Hazard tests cover the six cases in §5. A graft is published only when it equals a full parse. |
+| M3 | The edit compiler and the printer for new content. | M2 | Done. `tests/fuzz.rs` runs the CI seed. The ignored soak is wired. A no-op insert records nothing. |
+| M4 | `Session`: load-time ids, the undo stack, composition, the raw flip. The headless typed view, including Liquid fields. | M3 | Done for the headless session. One stack serves both modes. Preedit writes no frame. Field order, comments, and quoting are views over the fence. |
+| M5 | The journal, checkpoint, recovery, and conflict value. | M4 | Done. Torn tail, replay, idempotent second replay, external hash quarantine, clean open writes nothing, clean flush does not rewrite. |
+| M6 | The surface: viewport paint, caret, selection, the access tree wired to `access.rs`. `EditorSurface` stays the source mount. | M4 and M5. | Not started. Headless field views exist; there is no retained surface yet. The §12 numbers are not measured, and the confirming full parse in §5 is still on the edit path. |
+| M7 | Native IME and assistive-technology passes on real platforms. `resolve_ime` is not yet called by the session. | M6 | Not started. Headless composition refuses edits and keeps the preedit out of the bytes. |
 
 M5 and M6 can proceed together after M4 because one owns the file and the other owns the view. A conflict at their boundary (the flush API, the composition refusal) comes back to a single owner before either merges. M7 does not gate the headless invariants.
 
