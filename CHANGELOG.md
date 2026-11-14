@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Tab strip
+
+- `rndr_ui::tabs::TabStrip` is an editor and document tab strip. A tab has a label, an optional icon, a dirty mark, an optional pin, and a close button. Middle-click, Delete, and Ctrl+W (Cmd+W on macOS) ask the host to close when the tab allows it. The tablist uses roving focus: Left/Right/Home/End move, Enter and Space activate. Overflow scrolls horizontally, with chevrons and a menu of the tabs that are not fully in view. The selected tab is scrolled into view when it changes and when the strip first has a size. Drag uses the item-drag primitive. Before/after zones reorder inside a strip or move a tab onto another strip. A pane-edge drop emits a split request (direction and tab id) the host can mount as a `SplitSash`. Alt+Left and Alt+Right move a tab the same way. The strip does not apply order or splits; the host does, as with `Reordered`. Moves are announced on the polite live region. See [tab strip](docs/tab-strip.md). `cargo run -p rndr_ui --example tab_strip`.
+
 ### Split sash
 
 - `rndr_ui::split::SplitSash` is a focusable splitter built on core `Splitter`. Pointer drag and clamping stay in `apply_split`. The sash adds a slider role, arrow keys with a configurable step, Home/End, double-click reset to a default ratio, an accessible name and value, and a `SplitSashChange` event the host can persist. Horizontal and vertical splits nest. A core handle on its own stays non-focusable. See [split sash](docs/split-sash.md).

@@ -2,7 +2,8 @@
 //!
 //! A [`DragSource`] carries a host [`DragPayload`]. A [`DropTarget`] accepts or
 //! rejects that payload and reports a [`DropPlace`]: before, after, inside, or
-//! an edge reserved for a later split. File drop is a separate path. See
+//! an edge a [tab strip](crate::tabs) can map to a split request. File drop is
+//! a separate path. See
 //! `docs/item-drag.md`.
 
 use rndr_core::*;
@@ -109,8 +110,8 @@ impl DropGeometry {
 
     /// Cross-axis edge zones around a before/after interior.
     ///
-    /// A later tab strip can map the edge zones to drop-to-split. This
-    /// primitive does not split panes.
+    /// [`crate::tabs`] maps these bands to a split request. This primitive
+    /// does not split panes.
     pub fn split(axis: Axis) -> Self {
         Self {
             axis,
