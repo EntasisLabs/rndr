@@ -396,12 +396,16 @@ fn platform_node(world: &World, node: &rndr_core::AccessNode) -> Node {
     {
         out.set_selected(node.selected);
     }
+    if let Some(level) = node.level.or_else(|| {
+        entity_from_access_id(node.id)
+            .and_then(|entity| world.get::<rndr_core::CollectionAccess>(entity))
+            .and_then(|access| access.level)
+    }) {
+        out.set_level(level);
+    }
     if let Some(access) = entity_from_access_id(node.id)
         .and_then(|entity| world.get::<rndr_core::CollectionAccess>(entity))
     {
-        if let Some(level) = access.level {
-            out.set_level(level);
-        }
         if access.multiselect {
             out.set_multiselectable();
         }
@@ -447,6 +451,9 @@ fn role(role: AccessRole) -> Role {
         AccessRole::Slider => Role::Slider,
         AccessRole::SpinButton => Role::SpinButton,
         AccessRole::Status => Role::Status,
+        AccessRole::Heading => Role::Heading,
+        AccessRole::Paragraph => Role::Paragraph,
+        AccessRole::Link => Role::Link,
     }
 }
 

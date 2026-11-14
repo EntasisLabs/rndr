@@ -6,6 +6,7 @@ members = [
     "crates/rndr_flow",
     "crates/rndr_liquid",
     "crates/rndr_markdown",
+    "crates/rndr_markdown_ui",
     "crates/rndr_chart",
     "crates/rndr_liquid_ui",
     "crates/rndr_canvas",
@@ -36,6 +37,7 @@ members = [
     "examples/create-view",
     "examples/web",
     "examples/source-session",
+    "examples/live-markdown",
     "tools/bake_icons",
 ]
 

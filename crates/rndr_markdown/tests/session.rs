@@ -63,6 +63,10 @@ fn two_letters_share_one_undo_step() {
     assert_eq!(session.bytes(), "ab.\n");
     session.undo(200).unwrap();
     assert_eq!(session.bytes(), ".\n");
+    session.redo(300).unwrap();
+    assert_eq!(session.bytes(), "ab.\n");
+    session.undo(400).unwrap();
+    assert_eq!(session.bytes(), ".\n");
 }
 
 #[test]

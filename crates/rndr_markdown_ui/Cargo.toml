@@ -1,0 +1,21 @@
+[package]
+name = "rndr_markdown_ui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Retained live markdown editing surface"
+
+[dependencies]
+rndr_core = { workspace = true }
+rndr_ui = { workspace = true }
+rndr_markdown = { path = "../rndr_markdown" }
+rndr_liquid = { workspace = true }
+unicode-segmentation = "1.13"
+
+[dev-dependencies]
+rndr_paint = { workspace = true }
+
+[[bench]]
+name = "keystroke"
+harness = false

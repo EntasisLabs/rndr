@@ -177,8 +177,8 @@ mod wrap;
 
 pub use access::{
     access_id, access_tree, apply_access, entity_from_access_id, AccessCommand, AccessMark,
-    AccessNode, AccessRole, AccessTree, CollectionAccess, DataAccess, DescribedBy, LivePoliteness,
-    LiveRegion, NumericAccess, NumericAccessSet, ACCESS_ROOT,
+    AccessNode, AccessOverlay, AccessRole, AccessTree, CollectionAccess, DataAccess, DescribedBy,
+    LivePoliteness, LiveRegion, NumericAccess, NumericAccessSet, ACCESS_ROOT,
 };
 pub use access_text::{access_text, AccessTextSnapshot, AccessTextState};
 pub use action::{apply_actions, Actions, Binding, Chord, Fired, COPY, CUT, PASTE};
