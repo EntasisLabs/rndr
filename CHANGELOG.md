@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Investigation console
+
+- `investigation` is a sample security console on the existing window material. The window is transparent and asks for [`Backdrop::Window`](crates/rndr_core/src/window_chrome.rs): Mica on Windows 11, and a behind-window vibrancy view on macOS. Linux and the browser still ignore `Backdrop`. The three panes are resizable `SplitSash`es. Investigations, closed cases, and agents are virtual lists; groups are a `VirtualTree`. `cargo run -p investigation`. `--export` writes a headless frame. `--features observe -- --observe` opens the native surface-copy session. Neither capture includes the window server's blur. See the example's crate docs for the visual gaps.
+- macOS vibrancy is inserted behind the content view, as a sibling in the frame view. A subview of the content view composites above its Metal layer and would cover the app. The material, the transparent-window requirement, and the Windows Mica / Acrylic / Tabbed path are unchanged.
+
 ### Live markdown editing
 
 - `rndr_markdown_ui` (unpublished) mounts a retained typed editor on a `rndr_markdown::Session`. The concrete tree stays the authority. Typing, deletion, Enter, Backspace, mark toggles, headings, lists, quotes, code fences, and Liquid field edits compile to splices on that session, with one undo stack and copy/paste of the source bytes. `EditorSurface` is unchanged and is not given a markdown mode. `cargo run -p live-markdown`.

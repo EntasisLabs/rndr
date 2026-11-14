@@ -212,7 +212,13 @@ fn place_traffic_lights(window: &dyn Window, titlebar: rndr_core::Titlebar) -> f
     (zoom.origin.x + zoom.size.width) as f32
 }
 
-/// A behind-window `NSVisualEffectView` under the content view.
+/// A behind-window `NSVisualEffectView` sitting behind the content view.
+///
+/// The content view hosts the Metal layer. A subview of that view is composited
+/// above the layer and would cover the app, so the effect is a sibling in the
+/// frame view, ordered below the content view. Transparent pixels in the
+/// surface then show the material. `content.frame()` is already in the frame
+/// view's coordinates.
 #[cfg(target_os = "macos")]
 fn add_vibrancy(window: &dyn Window, backdrop: Backdrop) {
     use objc2_app_kit::{
@@ -233,7 +239,10 @@ fn add_vibrancy(window: &dyn Window, backdrop: Backdrop) {
         return;
     };
     unsafe {
-        let effect = NSVisualEffectView::initWithFrame(mtm.alloc(), content.bounds());
+        let Some(frame_view) = content.superview() else {
+            return;
+        };
+        let effect = NSVisualEffectView::initWithFrame(mtm.alloc(), content.frame());
         effect.setMaterial(material);
         effect.setBlendingMode(NSVisualEffectBlendingMode::BehindWindow);
         effect.setState(NSVisualEffectState::Active);
@@ -241,10 +250,10 @@ fn add_vibrancy(window: &dyn Window, backdrop: Backdrop) {
             NSAutoresizingMaskOptions::NSViewWidthSizable
                 | NSAutoresizingMaskOptions::NSViewHeightSizable,
         );
-        content.addSubview_positioned_relativeTo(
+        frame_view.addSubview_positioned_relativeTo(
             &effect,
             NSWindowOrderingMode::NSWindowBelow,
-            None,
+            Some(&*content),
         );
     }
 }

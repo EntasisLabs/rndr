@@ -1,0 +1,18 @@
+[package]
+name = "investigation"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Frosted investigation console on the existing window material"
+
+[features]
+default = []
+# Native surface-copy session. Off unless the example is launched with it.
+observe = ["rndr_render/observe"]
+
+[dependencies]
+rndr_core = { workspace = true }
+rndr_paint = { workspace = true }
+rndr_render = { workspace = true }
+rndr_ui = { workspace = true }

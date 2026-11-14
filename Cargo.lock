@@ -2166,6 +2166,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "investigation"
+version = "0.6.0"
+dependencies = [
+ "rndr_core",
+ "rndr_paint",
+ "rndr_render",
+ "rndr_ui",
+]
+
+[[package]]
 name = "itertools"
 version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
