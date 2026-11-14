@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Tab strip
+
+- `rndr_ui::tabs::TabStrip` is an editor and document tab strip. A tab has a label, an optional icon, a dirty mark, an optional pin, and a close button. Middle-click, Delete, and Ctrl+W (Cmd+W on macOS) ask the host to close when the tab allows it. The tablist uses roving focus: Left/Right/Home/End move, Enter and Space activate. Overflow scrolls horizontally, with chevrons and a menu of the tabs that are not fully in view. The selected tab is scrolled into view when it changes and when the strip first has a size. Drag uses the item-drag primitive. Before/after zones reorder inside a strip or move a tab onto another strip. A pane-edge drop emits a split request (direction and tab id) the host can mount as a `SplitSash`. Alt+Left and Alt+Right move a tab the same way. The strip does not apply order or splits; the host does, as with `Reordered`. Moves are announced on the polite live region. See [tab strip](docs/tab-strip.md). `cargo run -p rndr_ui --example tab_strip`.
+
 ### Command palette
 
 - `rndr_ui::palette::CommandPalette` is a focus-scoped combobox: a text field over `ListView::mount_virtual`, opened as an `AnchoredPopup` on the next `Layer`. Type-to-filter uses `fuzzy_match` unless the host installs a matcher. Arrow, Page, Home, and End move the active command. Enter activates it. Escape dismisses and returns focus to the anchor unless the host defers that key. Hosts can add prefix modes, sections, Lucide icons, and shortcut hints. Empty and loading are separate. Async results keep the current rows until `resolve` accepts the epoch of that edit. The field is a combobox, the list is a listbox, and the active option is the combobox active descendant. The `palette` example is a caller of this component. Headless tests only; VoiceOver, Narrator, and Orca were not run. See [command palette](docs/command-palette.md).

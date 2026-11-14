@@ -78,6 +78,7 @@ surface:
 - Slider, range, number stepper, tooltip, and toast: [basic inputs](https://github.com/EntasisLabs/rndr/blob/main/docs/basic-inputs.md). The `inputs_gallery` example applies their requests. Date and color pickers are not in this crate yet.
 - Command palette: [command palette](https://github.com/EntasisLabs/rndr/blob/main/docs/command-palette.md). `CommandPalette` is the widget. `cargo run -p palette` is a caller.
 - A focusable split: [split sash](https://github.com/EntasisLabs/rndr/blob/main/docs/split-sash.md). `split::SplitSash` keeps core `Splitter` drag and clamping, and adds a slider role, arrow keys, Home/End, double-click reset, and a ratio event. The `split_gallery` example nests one.
+- Editor and document tabs: [tab strip](https://github.com/EntasisLabs/rndr/blob/main/docs/tab-strip.md). `tabs::TabStrip` scrolls, closes, reorders, and asks the host to split. The `tab_strip` example drags a tab across a `SplitSash`.
 - A host-filled markdown block: [markdown slots](https://github.com/EntasisLabs/rndr/blob/main/docs/markdown-host-slots.md) and the `markdown_gallery` example.
 - Pixels of one component: [component capture](https://github.com/EntasisLabs/rndr/blob/main/docs/component-capture.md). `capture_isolated` paints the target subtree on its own.
 

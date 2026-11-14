@@ -9,8 +9,9 @@ with `UiPlugin`. Core still owns the pointer, hit testing, and scroll capture.
 A press on a drag source does not capture the scrollport. The source autoscrolls
 that port itself when the pointer sits near an edge.
 
-This is not a tab strip and not a kanban. Edge zones are reported so a later
-tab strip can map them to drop-to-split. Nothing in this change splits a pane.
+This is not a kanban. Edge zones are reported so a tab strip can map them to
+a split request. Nothing here splits a pane. The strip that consumes them is
+[tab strip](tab-strip.md).
 
 ## Payload
 
@@ -155,7 +156,7 @@ The keyboard path names rows that are off screen.
 
 ## What this does not do
 
-- No tab strip, and no code that splits a pane when an edge zone is dropped on.
+- No code that splits a pane when an edge zone is dropped on. The tab strip emits a split request instead.
 - No kanban board.
 - No drag of a file from the operating system. That remains `FileHover` / `FileDrop`.
 - No claim that a platform screen reader spoke the announcement, or that a
