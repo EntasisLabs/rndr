@@ -4,9 +4,9 @@
 //! cargo bench -p rndr_markdown_ui --bench keystroke
 //! ```
 //!
-//! The session still runs the confirming full parse on every edit. That cost
-//! is included in the splice+reparse number. Relayout measures only the
-//! edited block.
+//! Splice and reparse stay on the edited window. A debug build still checks
+//! that window against a full parse; release does not. Relayout measures only
+//! the edited block.
 
 use std::time::Instant;
 

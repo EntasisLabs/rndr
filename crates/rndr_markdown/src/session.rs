@@ -7,11 +7,12 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Duration;
 
 use unicode_segmentation::GraphemeCursor;
 
-use crate::edit::{self, apply_view, Applied, Command, EditError, Splice};
+use crate::edit::{self, Applied, Command, EditError, Splice};
 use crate::green::{Green, RedTree};
 use crate::journal::{self, hash_bytes, Conflict, Hash, Journal, JournalError};
 use crate::kind::SyntaxKind;
@@ -31,7 +32,7 @@ pub struct Session {
     bytes: String,
     tree: Green,
     red: RedTree,
-    ids: Vec<u64>,
+    ids: Arc<Vec<u64>>,
     next_id: u64,
     undo: Vec<Step>,
     redo: Vec<Step>,
@@ -58,8 +59,8 @@ pub struct Session {
 struct Step {
     forward: Vec<Splice>,
     inverse: Vec<Splice>,
-    ids_before: Vec<u64>,
-    ids_after: Vec<u64>,
+    ids_before: Arc<Vec<u64>>,
+    ids_after: Arc<Vec<u64>>,
     next_id_before: u64,
     next_id_after: u64,
     caret_before: usize,
@@ -89,7 +90,7 @@ impl Session {
             bytes: bytes.to_string(),
             tree,
             red,
-            ids,
+            ids: Arc::new(ids),
             next_id,
             undo: Vec::new(),
             redo: Vec::new(),
@@ -149,7 +150,7 @@ impl Session {
 
     /// Session ids parallel to [`Self::red`] nodes. Load assigns `1..=n`.
     pub fn ids(&self) -> &[u64] {
-        &self.ids
+        self.ids.as_slice()
     }
 
     /// Journal frames recorded for this session. Zero after a clean open.
@@ -432,12 +433,21 @@ impl Session {
     }
 
     fn apply(&mut self, cmd: Command, now_ms: u64, group: bool) -> Result<(), EditError> {
-        let before_ids = self.ids.clone();
+        let before_ids = Arc::clone(&self.ids);
         let before_next = self.next_id;
         let before_caret = self.caret;
         let before_anchor = self.anchor;
-        let applied = apply_view(&self.bytes, &self.tree, &cmd)?;
+        let placeholder = Green::branch(SyntaxKind::Document, Vec::new());
+        let tree = std::mem::replace(&mut self.tree, placeholder);
+        let applied = match edit::apply_owned(&self.bytes, tree, &cmd) {
+            Ok(applied) => applied,
+            Err((tree, err)) => {
+                self.tree = tree;
+                return Err(err);
+            }
+        };
         if applied.splices.is_empty() {
+            self.tree = applied.tree;
             return Ok(());
         }
         if group && self.try_group(&cmd, &applied, now_ms) {
@@ -449,7 +459,7 @@ impl Session {
         self.record_journal(&applied.splices, &applied);
         self.install(applied, None, before_next);
         self.last_edit = Some(span);
-        let ids_after = self.ids.clone();
+        let ids_after = Arc::clone(&self.ids);
         let next_after = self.next_id;
         self.undo.push(Step {
             forward,
@@ -499,7 +509,7 @@ impl Session {
             if let Some(forward) = last.forward.first_mut() {
                 forward.replacement.push_str(text);
             }
-            last.ids_after.clone_from(&self.ids);
+            last.ids_after = Arc::clone(&self.ids);
             last.next_id_after = self.next_id;
             last.at_ms = now_ms;
         }
@@ -517,7 +527,7 @@ impl Session {
             }
             let deleted = self.bytes.as_bytes()[splice.start..splice.end].to_vec();
             self.recorded += 1;
-            self.journal.push(
+            self.push_frame(
                 splice.start,
                 splice.end,
                 &deleted,
@@ -527,16 +537,34 @@ impl Session {
             return;
         }
         self.recorded += 1;
-        self.journal.push(
+        let end = self.bytes.len();
+        let deleted = self.bytes.as_bytes().to_vec();
+        self.push_frame(
             0,
-            self.bytes.len(),
-            self.bytes.as_bytes(),
+            end,
+            &deleted,
             applied.bytes.as_bytes(),
             applied.bytes.as_bytes(),
         );
     }
 
-    fn install(&mut self, applied: Applied, restore_ids: Option<Vec<u64>>, next_floor: u64) {
+    fn push_frame(
+        &mut self,
+        start: usize,
+        end: usize,
+        deleted: &[u8],
+        replacement: &[u8],
+        post: &[u8],
+    ) {
+        if self.journal_path.is_some() {
+            self.journal.push(start, end, deleted, replacement, post);
+        } else {
+            self.journal
+                .push_unhashed(start, end, deleted, replacement, post);
+        }
+    }
+
+    fn install(&mut self, applied: Applied, restore_ids: Option<Arc<Vec<u64>>>, next_floor: u64) {
         let edit_start = applied.splices.iter().map(|s| s.start).min().unwrap_or(0);
         let old_tail = applied
             .splices
@@ -545,6 +573,24 @@ impl Session {
             .max()
             .unwrap_or(edit_start);
         let delta = applied.bytes.len() as isize - self.bytes.len() as isize;
+        let ids_fit = restore_ids
+            .as_ref()
+            .is_none_or(|saved| saved.len() == self.red.nodes().len());
+        if applied.splices.len() == 1
+            && ids_fit
+            && applied
+                .replaced
+                .clone()
+                .is_some_and(|replaced| self.red.reuse_graft(&applied.tree, replaced))
+        {
+            self.bytes = applied.bytes;
+            self.tree = applied.tree;
+            if let Some(saved) = restore_ids {
+                self.ids = saved;
+                self.next_id = next_floor;
+            }
+            return;
+        }
         let new_red = RedTree::from_green(&applied.tree);
         let (ids, next_id) = if let Some(saved) = restore_ids {
             if saved.len() == new_red.nodes().len() {
@@ -552,16 +598,28 @@ impl Session {
             } else {
                 let mut next = self.next_id.max(next_floor);
                 let ids = reassign(
-                    &self.red, &self.ids, &new_red, edit_start, old_tail, delta, &mut next,
+                    &self.red,
+                    self.ids.as_slice(),
+                    &new_red,
+                    edit_start,
+                    old_tail,
+                    delta,
+                    &mut next,
                 );
-                (ids, next)
+                (Arc::new(ids), next)
             }
         } else {
             let mut next = self.next_id.max(next_floor);
             let ids = reassign(
-                &self.red, &self.ids, &new_red, edit_start, old_tail, delta, &mut next,
+                &self.red,
+                self.ids.as_slice(),
+                &new_red,
+                edit_start,
+                old_tail,
+                delta,
+                &mut next,
             );
-            (ids, next)
+            (Arc::new(ids), next)
         };
         self.bytes = applied.bytes;
         self.tree = applied.tree;
@@ -577,6 +635,18 @@ fn load_ids(red: &RedTree) -> (Vec<u64>, u64) {
     (ids, next)
 }
 
+fn document_offset(tree: &RedTree, mut index: u32) -> usize {
+    let mut offset = 0usize;
+    loop {
+        let node = &tree.nodes()[index as usize];
+        offset += node.offset;
+        match node.parent {
+            Some(parent) => index = parent,
+            None => return offset,
+        }
+    }
+}
+
 fn reassign(
     old: &RedTree,
     old_ids: &[u64],
@@ -588,17 +658,19 @@ fn reassign(
 ) -> Vec<u64> {
     let mut map = std::collections::HashMap::<(SyntaxKind, usize), u64>::new();
     for (index, node) in old.nodes().iter().enumerate() {
-        map.entry((node.kind, node.offset))
+        map.entry((node.kind, document_offset(old, index as u32)))
             .or_insert(old_ids[index]);
     }
     let new_tail = (old_tail as isize + delta).max(0) as usize;
     new.nodes()
         .iter()
-        .map(|node| {
-            let old_offset = if node.offset < edit_start || node.offset + node.width <= edit_start {
-                Some(node.offset)
-            } else if node.offset >= new_tail {
-                Some((node.offset as isize - delta).max(0) as usize)
+        .enumerate()
+        .map(|(index, node)| {
+            let at = document_offset(new, index as u32);
+            let old_offset = if at < edit_start || at + node.width <= edit_start {
+                Some(at)
+            } else if at >= new_tail {
+                Some((at as isize - delta).max(0) as usize)
             } else {
                 None
             };
@@ -621,6 +693,7 @@ fn apply_splices(bytes: &str, tree: &Green, splices: &[Splice]) -> Result<Applie
             bytes: bytes.to_string(),
             tree: tree.clone(),
             widened_to_root: false,
+            replaced: None,
         });
     }
     // Replay each inverse splice as its own insert/delete command so the
@@ -647,6 +720,7 @@ fn apply_splices(bytes: &str, tree: &Green, splices: &[Splice]) -> Result<Applie
         bytes: text,
         tree: current,
         widened_to_root: widened,
+        replaced: None,
     })
 }
 
