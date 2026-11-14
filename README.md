@@ -13,7 +13,8 @@ presents the result. There is no third-party ECS or external layout engine.
 ## What you can build
 
 - **Desktop tools and workspaces.** Compose themed controls, toolbars, lists, trees,
-  data tables, property inspectors, scroll regions and resizable panes.
+  data tables, property inspectors, scroll regions and resizable panes. Opt-in
+  list and tree reorder drags a row onto another; file drop stays a path transfer.
 - **Document and content interfaces.** Display streaming Markdown, embed host-owned
   controls in Markdown, edit source-backed text, or work with a structured document
   tree with typed transactions and its own undo history.

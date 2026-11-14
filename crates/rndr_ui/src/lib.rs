@@ -13,6 +13,7 @@ pub mod composition;
 pub mod controls;
 pub mod data;
 pub mod diff;
+pub mod drag;
 pub mod editing;
 pub mod editing_recipes;
 pub mod inputs;
@@ -95,6 +96,7 @@ impl Plugin for UiPlugin {
         app.add_system(Schedule::Layout, structured_embeds::reconcile);
         app.add_system(Schedule::Layout, data::measure_cells);
         app.add_system(Schedule::Layout, controls::resolve_toolbars);
+        drag::install(app);
     }
 }
 

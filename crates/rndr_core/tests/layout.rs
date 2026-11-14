@@ -1,7 +1,8 @@
 use rndr_core::{
     apply_scroll, despawn, hit_test, layout_propagate, set_parent, spawn_node, toggle_disclosure,
-    App, Axis, Clip, Color, Disclosure, Focus, Focusable, Input, Insets, Layout, NodeSpec, Rect,
-    Scroll, ScrollDrag, Shell, Size, Viewport, World, SCROLL_DRAG_SLOP,
+    App, Axis, Clip, Color, Disclosure, Entity, Focus, Focusable, IgnorePointer, Input, Insets,
+    Layout, NodeSpec, PointerDragOwner, Rect, Scroll, ScrollDrag, Shell, Size, Viewport, World,
+    SCROLL_DRAG_SLOP,
 };
 
 fn px(w: f32, h: f32) -> Layout {
@@ -483,4 +484,39 @@ fn pointer_drag_selects_the_pressed_row() {
         app.world().get::<Scroll>(port).unwrap().offset[1],
         -(SCROLL_DRAG_SLOP + 6.0)
     );
+}
+
+#[test]
+fn ignore_pointer_lets_the_hit_fall_through() {
+    let mut world = World::new();
+    world.insert_resource(Viewport::new(100.0, 80.0));
+    let parent = world.spawn(px(100.0, 80.0));
+    let back = world.spawn(px(100.0, 80.0));
+    let front = world.spawn((px(100.0, 80.0), IgnorePointer));
+    set_parent(&mut world, back, parent);
+    set_parent(&mut world, front, parent);
+    layout_propagate(&mut world);
+    assert_eq!(hit_test(&world, 10.0, 10.0), Some(back));
+}
+
+fn claim_press(_: &World, _: Entity) -> bool {
+    true
+}
+
+#[test]
+fn pointer_drag_owner_does_not_capture_the_scrollport() {
+    let mut world = World::new();
+    world.insert_resource(Viewport::new(100.0, 50.0));
+    world.insert_resource(Input::default());
+    world.insert_resource(PointerDragOwner(claim_press));
+    let port = world.spawn((fill_column(), Scroll::default()));
+    let row = world.spawn(px(100.0, 40.0));
+    let rest = world.spawn(px(100.0, 40.0));
+    set_parent(&mut world, row, port);
+    set_parent(&mut world, rest, port);
+    layout_propagate(&mut world);
+    press_drag(&mut world, 10.0, 10.0, true, true);
+    press_drag(&mut world, 10.0, 10.0 - 30.0, false, true);
+    assert_eq!(world.get::<Scroll>(port).unwrap().offset[1], 0.0);
+    assert!(world.resource::<ScrollDrag>().unwrap().entity.is_none());
 }

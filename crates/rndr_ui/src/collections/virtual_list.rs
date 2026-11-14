@@ -846,6 +846,7 @@ fn compose_realized_rows(w: &mut World, root: Entity, v: &VirtualView, wanted: &
                 ..Semantics::default()
             },
         );
+        bind_row_drag(w, root, v, id, slot.root, item);
         w.insert(
             slot.root,
             CollectionAccess {
@@ -863,6 +864,171 @@ fn compose_realized_rows(w: &mut World, root: Entity, v: &VirtualView, wanted: &
         }
         (v.compose)(w, slot, item);
     }
+}
+fn bind_row_drag(
+    w: &mut World,
+    root: Entity,
+    view: &VirtualView,
+    id: ItemId,
+    row: Entity,
+    item: &Item,
+) {
+    let live = view.props.reorder && view.props.enabled && item.enabled;
+    if !live {
+        w.remove::<crate::drag::DragSource>(row);
+        w.remove::<crate::drag::DropTarget>(row);
+        return;
+    }
+    w.insert(
+        row,
+        crate::drag::DragSource {
+            payload: crate::drag::DragPayload {
+                kind: crate::drag::LIST_ROW,
+                value: id.0,
+                owner: Some(root),
+            },
+            enabled: true,
+            name: item.name.clone(),
+            keyboard: crate::drag::DragKeyboard::Host,
+        },
+    );
+    w.insert(
+        row,
+        crate::drag::DropTarget {
+            enabled: true,
+            kinds: vec![crate::drag::LIST_ROW],
+            owner: Some(root),
+            geometry: crate::drag::DropGeometry::reorder(Axis::Column),
+            gate: Some(virtual_gate),
+        },
+    );
+}
+fn virtual_gate(
+    world: &World,
+    payload: crate::drag::DragPayload,
+    target: Entity,
+    place: crate::drag::DropPlace,
+) -> bool {
+    let Some(row) = owner(world, target) else {
+        return false;
+    };
+    if payload.owner != Some(row.view) {
+        return false;
+    }
+    let Some(view) = world.get::<VirtualView>(row.view) else {
+        return false;
+    };
+    super::reorder_list(view.items.as_ref(), ItemId(payload.value), row.id, place).is_some()
+}
+pub(super) fn note_drop(world: &mut World, drop: crate::drag::DragDrop) -> bool {
+    let Some(root) = drop.payload.owner else {
+        return false;
+    };
+    if !world.has::<VirtualView>(root) {
+        return false;
+    }
+    let Some(view) = world.get::<VirtualView>(root).cloned() else {
+        return true;
+    };
+    if !view.props.reorder {
+        return true;
+    }
+    let Some(target) = owner(world, drop.target) else {
+        return true;
+    };
+    if target.view != root {
+        return true;
+    }
+    let id = ItemId(drop.payload.value);
+    if super::reorder_list(view.items.as_ref(), id, target.id, drop.place).is_none() {
+        return true;
+    }
+    let name = item_name(&view, id);
+    let target_name = item_name(&view, target.id);
+    emit(
+        world,
+        root,
+        CollectionEventKind::Reordered(super::ItemMove {
+            id,
+            target: target.id,
+            place: drop.place,
+        }),
+    );
+    crate::drag::announce(
+        world,
+        &format!(
+            "Moved {name} {} {target_name}.",
+            crate::drag::place_word(drop.place)
+        ),
+    );
+    true
+}
+pub(super) fn reorder_key(world: &mut World, focus: Entity, key: NamedKey) -> bool {
+    let root = if world.has::<VirtualView>(focus) {
+        focus
+    } else if let Some(row) = owner(world, focus) {
+        row.view
+    } else {
+        return false;
+    };
+    let Some(view) = world.get::<VirtualView>(root).cloned() else {
+        return false;
+    };
+    if !view.props.reorder || !view.props.enabled {
+        return false;
+    }
+    let Some(id) = logical_focus(world, root, &view) else {
+        crate::drag::announce(world, "Cannot move.");
+        return true;
+    };
+    if !item_enabled(&view, id) {
+        crate::drag::announce(world, "Cannot move.");
+        return true;
+    }
+    let order: Vec<ItemId> = view
+        .items
+        .iter()
+        .filter(|item| item.enabled)
+        .map(|item| item.id)
+        .collect();
+    let name = item_name(&view, id);
+    let index = order.iter().position(|item| *item == id);
+    let movement = index.and_then(|index| match key {
+        NamedKey::ArrowUp if index > 0 => Some((order[index - 1], crate::drag::DropPlace::Before)),
+        NamedKey::ArrowDown => order
+            .get(index + 1)
+            .copied()
+            .map(|target| (target, crate::drag::DropPlace::After)),
+        _ => None,
+    });
+    match movement {
+        Some((target, place))
+            if super::reorder_list(view.items.as_ref(), id, target, place).is_some() =>
+        {
+            let target_name = item_name(&view, target);
+            emit(
+                world,
+                root,
+                CollectionEventKind::Reordered(super::ItemMove { id, target, place }),
+            );
+            crate::drag::announce(
+                world,
+                &format!(
+                    "Moved {name} {} {target_name}.",
+                    crate::drag::place_word(place)
+                ),
+            );
+        }
+        _ => crate::drag::announce(world, &format!("Cannot move {name}.")),
+    }
+    true
+}
+fn item_name(view: &VirtualView, id: ItemId) -> String {
+    view.items
+        .iter()
+        .find(|item| item.id == id)
+        .map(|item| item.name.clone())
+        .unwrap_or_default()
 }
 fn focus_target(w: &mut World, entity: Entity) -> Entity {
     let row = w.get::<Owner>(entity).copied();

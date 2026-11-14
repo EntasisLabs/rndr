@@ -92,7 +92,7 @@ Supply a **preorder forest**: parents precede descendants; a subtree must be con
 
 ## Interaction and reconciliation contract
 
-Initial modes: `SelectionMode::Single` (default: zero or one selected ID) and `SelectionMode::None`. Nothing is initially selected or activated. Multiple/range selection, toggle-to-deselect and selection-follows-focus are **not implemented**. `select(None)` explicitly clears Single selection. Click/Space in None mode focus but do not select; Enter still activates. No double-click activation, drag-and-drop, typeahead, PageUp/PageDown, editing cells, lazy loading or cross-page selection persistence is claimed.
+Initial modes: `SelectionMode::Single` (default: zero or one selected ID) and `SelectionMode::None`. Nothing is initially selected or activated. Multiple/range selection, toggle-to-deselect and selection-follows-focus are **not implemented**. `select(None)` explicitly clears Single selection. Click/Space in None mode focus but do not select; Enter still activates. No double-click activation, typeahead, PageUp/PageDown, editing cells, lazy loading or cross-page selection persistence is claimed. Opt-in reorder is a separate contract: [`ViewProps::reorder`](item-drag.md) emits `Reordered` and does not change the host's order. It is off unless the view asks for it.
 
 | Input / operation | Result |
 |---|---|
@@ -100,7 +100,9 @@ Initial modes: `SelectionMode::Single` (default: zero or one selected ID) and `S
 | Up / Down / Home / End | Move focus among visible enabled rows; no selection or activation; no wrap. |
 | Tree Right | Open a closed branch; otherwise move to its first enabled visible direct child. |
 | Tree Left | Close an open branch; otherwise move to nearest available ancestor. |
-| Primary pointer release / Space release | Select the row, separately from focus. Pointer press focuses. Crossing core scroll-drag slop, Escape, blur, retargeting or removal cancels pending release. |
+| Primary pointer release / Space release | Select the row, separately from focus. Pointer press focuses. Crossing core scroll-drag slop, Escape, blur, retargeting or removal cancels pending release. With `reorder`, crossing the same slop starts an item drag instead of scrolling, and the pending click is cancelled. |
+| Drag a reorder row past the slop, then release on another row | Emits `Reordered` for before, after, or (trees) inside. The view order stays until the host mounts the result of `reorder_list` or `reorder_tree`. Escape, a reject, or a release with no target cancels. |
+| Alt+Up / Alt+Down on a reorder row | Keyboard move before the previous row or after the next. Tree Alt+Right moves inside the previous visible row. Tree Alt+Left places the row after its parent. A polite status region announces the move or the refusal. |
 | Screen-reader / AT Activate on a row | Canonical click action: selects (Single mode), not host `Activated`. In None mode it does not select. |
 | Enter | One explicit `Activated(id)` per non-repeat key press; does not select. Enter/Space on a separately focused disclosure button uses canonical button expansion instead. |
 | `set_expanded` | Retains subtree IDs/content/selection, hides descendants from layout/input/AT when collapsed. Focus inside that subtree moves to nearest visible enabled ancestor. |
