@@ -20,7 +20,7 @@ mod session;
 mod view;
 
 pub use edit::{apply_text, apply_view, print_liquid, Applied, Command, EditError, Splice};
-pub use green::{Green, RedNode, RedTree};
+pub use green::{Green, RedNode, RedTree, TokenText};
 pub use journal::{hash_bytes, recover, Conflict, Frame, Hash, Journal, JournalError};
 pub use kind::SyntaxKind;
 pub use parse::parse;

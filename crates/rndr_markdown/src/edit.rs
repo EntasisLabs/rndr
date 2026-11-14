@@ -1,6 +1,9 @@
-//! Visual edits become splices. The tree is updated by reparsing the edited
-//! block and its neighboring siblings, widening toward the root when that
-//! local parse does not resync with the following block.
+//! Visual edits become splices. The tree is updated by reparsing a window
+//! around the edit. The window grows until both edges are closed cuts of this
+//! grammar: a list separated from the edit by only blank lines is included,
+//! and a list that still ends on a blank line is not published until the next
+//! non-blank line has been parsed. A closed window matches a from-scratch
+//! parse. Release builds do not parse the rest of the document to confirm it.
 
 use std::ops::Range;
 
@@ -147,6 +150,8 @@ pub struct Applied {
     pub tree: Green,
     /// The reparse grew until it covered the whole document.
     pub widened_to_root: bool,
+    /// Top-level children replaced in place, when the root node was reused.
+    pub(crate) replaced: Option<std::ops::Range<usize>>,
 }
 
 /// Apply `splices` to `bytes`. Ranges are interpreted against the original
@@ -167,25 +172,40 @@ pub fn apply_text(bytes: &str, splices: &[Splice]) -> String {
 }
 
 /// Compile `cmd` and reparse. The returned tree matches [`parse`] of the
-/// resulting bytes when the local reparse resyncs or widens to the root.
+/// resulting bytes: the window is a closed cut, or the reparse grew to the root.
 pub fn apply_view(bytes: &str, tree: &Green, cmd: &Command) -> Result<Applied, EditError> {
-    let splices = compile(bytes, tree, cmd)?;
+    apply_owned(bytes, tree.clone(), cmd).map_err(|(_, err)| err)
+}
+
+/// [`apply_view`] taking ownership of `tree` so a uniquely held root can be
+/// grafted without cloning every sibling.
+pub(crate) fn apply_owned(
+    bytes: &str,
+    tree: Green,
+    cmd: &Command,
+) -> Result<Applied, (Green, EditError)> {
+    let splices = match compile(bytes, &tree, cmd) {
+        Ok(splices) => splices,
+        Err(err) => return Err((tree, err)),
+    };
     let splices: Vec<Splice> = splices.into_iter().filter(|s| !s.is_noop(bytes)).collect();
     if splices.is_empty() {
         return Ok(Applied {
             splices,
             bytes: bytes.to_string(),
-            tree: tree.clone(),
+            tree,
             widened_to_root: false,
+            replaced: None,
         });
     }
-    let (next, next_tree, widened) = reparse_all(tree, bytes, &splices);
+    let (next, next_tree, widened, replaced) = reparse_all(tree, bytes, &splices);
     debug_assert_eq!(next_tree.concat(), next);
     Ok(Applied {
         splices,
         bytes: next,
         tree: next_tree,
         widened_to_root: widened,
+        replaced,
     })
 }
 
@@ -573,17 +593,22 @@ fn link_covering(node: &Green, offset: usize, start: usize, end: usize) -> Optio
     None
 }
 
-fn reparse_all(tree: &Green, bytes: &str, splices: &[Splice]) -> (String, Green, bool) {
+fn reparse_all(
+    tree: Green,
+    bytes: &str,
+    splices: &[Splice],
+) -> (String, Green, bool, Option<std::ops::Range<usize>>) {
     if splices.len() == 1 {
         let splice = &splices[0];
         let next = apply_text(bytes, splices);
         let delta = next.len() as isize - bytes.len() as isize;
         let re = reparse_span(tree, bytes, &next, splice.start, splice.end, delta);
-        return (next, re.tree, re.widened_to_root);
+        return (next, re.tree, re.widened_to_root, re.replaced);
     }
-    let mut tree = tree.clone();
+    let mut tree = tree;
     let mut text = bytes.to_string();
     let mut widened = false;
+    let mut replaced = None;
     let mut applied_delta: isize = 0;
     for splice in splices {
         let start = (splice.start as isize + applied_delta) as usize;
@@ -595,33 +620,36 @@ fn reparse_all(tree: &Green, bytes: &str, splices: &[Splice]) -> (String, Green,
         };
         let next = apply_text(&text, std::slice::from_ref(&one));
         let delta = next.len() as isize - text.len() as isize;
-        let re = reparse_span(&tree, &text, &next, start, end, delta);
+        let re = reparse_span(tree, &text, &next, start, end, delta);
         widened |= re.widened_to_root;
+        replaced = re.replaced;
         applied_delta += delta;
         text = next;
         tree = re.tree;
     }
-    (text, tree, widened)
+    (text, tree, widened, replaced)
 }
 
 struct Reparsed {
     tree: Green,
     widened_to_root: bool,
+    replaced: Option<std::ops::Range<usize>>,
 }
 
 fn reparse_span(
-    old: &Green,
+    mut old: Green,
     _old_bytes: &str,
     new_bytes: &str,
     edit_start: usize,
     edit_end: usize,
     delta: isize,
 ) -> Reparsed {
-    let ranges = child_ranges(old);
+    let ranges = child_ranges(&old);
     if ranges.is_empty() {
         return Reparsed {
             tree: parse(new_bytes),
             widened_to_root: true,
+            replaced: None,
         };
     }
     let mut lo = 0;
@@ -646,6 +674,7 @@ fn reparse_span(
         return Reparsed {
             tree: parse(new_bytes),
             widened_to_root: true,
+            replaced: None,
         };
     }
     lo = lo.saturating_sub(1);
@@ -671,56 +700,198 @@ fn reparse_span(
                 return Reparsed {
                     tree: parse(new_bytes),
                     widened_to_root: true,
+                    replaced: None,
                 };
             }
         } else {
-            let defs_before = defs_before(old, win_lo);
-            let defs_after = defs_after(old, win_hi);
-            let parsed =
-                parse::parse_with(&new_bytes[new_lo..follow_end], &defs_before, &defs_after);
-            if let Some(window) = resynced(
-                parsed.children(),
-                new_hi - new_lo,
-                follow_old.map(|i| &ranges[i].2),
-            ) {
-                let mut children = Vec::new();
-                children.extend(old.children()[..lo].iter().cloned());
-                children.extend(window);
-                children.extend(old.children()[hi..].iter().cloned());
-                let mut tree = Green::branch(SyntaxKind::Document, children);
-                let old_defs = parse::definitions_in(old);
-                let new_defs = parse::definitions_in(&tree);
-                if !same_defs(&old_defs, &new_defs) {
-                    tree = parse::reresolve(&tree, &new_defs);
+            let slice = &new_bytes[new_lo..follow_end];
+            // Definitions only change inlines that contain `[`. A window
+            // without one resolves the same way with an empty map, and the
+            // scan of every other block stays off this path.
+            let (defs_before, defs_after) = if slice.contains('[') {
+                (defs_before(&old, win_lo), defs_after(&old, win_hi))
+            } else {
+                (Defs::default(), Defs::default())
+            };
+            let parsed = parse::parse_with(slice, &defs_before, &defs_after);
+            // A list stops at a blank line only after it has seen the next
+            // non-blank line. Ending the slice on that blank makes the gap
+            // look like a sibling, while a from-scratch parse may keep the
+            // blank and pull the later item into the list.
+            let right_open = list_lookahead_open(parsed.children(), follow_end, new_bytes.len());
+            let left_at = cover_affected_list(&ranges, lo, edit_start, edit_end);
+            if !right_open && left_at == lo {
+                let follow = follow_old.map(|i| (ranges[i].2, &new_bytes[new_hi..follow_end]));
+                if let Some(window) = resynced(parsed.children(), new_hi - new_lo, follow) {
+                    let prefix: usize = old.children()[..lo].iter().map(Green::width).sum();
+                    let middle: usize = window.iter().map(Green::width).sum();
+                    let suffix: usize = old.children()[hi..].iter().map(Green::width).sum();
+                    if prefix + middle + suffix == new_bytes.len() {
+                        let touched = defs_touched(&old.children()[lo..hi], &window);
+                        let same_len = window.len() == hi - lo;
+                        let old_defs = touched.then(|| parse::definitions_in(&old));
+                        let owned = std::mem::replace(
+                            &mut old,
+                            Green::branch(SyntaxKind::Document, Vec::new()),
+                        );
+                        let mut tree = graft(owned, lo, hi, window);
+                        if let Some(old_defs) = old_defs {
+                            let new_defs = parse::definitions_in(&tree);
+                            if !same_defs(&old_defs, &new_defs) {
+                                tree = parse::reresolve(&tree, &new_defs);
+                            }
+                        }
+                        #[cfg(debug_assertions)]
+                        {
+                            assert_eq!(tree.concat(), new_bytes);
+                            assert_eq!(
+                                tree,
+                                parse(new_bytes),
+                                "incremental reparse diverged from a full parse"
+                            );
+                        }
+                        return Reparsed {
+                            tree,
+                            widened_to_root: lo == 0 && hi == ranges.len(),
+                            replaced: same_len.then_some(lo..hi),
+                        };
+                    }
                 }
-                if tree.concat() == new_bytes && tree == parse(new_bytes) {
-                    return Reparsed {
-                        tree,
-                        widened_to_root: lo == 0 && hi == ranges.len(),
-                    };
-                }
+            }
+            if widen_for_list(&mut lo, &mut hi, &ranges, left_at, right_open) {
+                continue;
             }
         }
         if lo == 0 && hi == ranges.len() {
             return Reparsed {
                 tree: parse(new_bytes),
                 widened_to_root: true,
+                replaced: None,
             };
         }
+        let old_lo = lo;
+        let old_hi = hi;
         lo = lo.saturating_sub(1);
         if hi < ranges.len() {
             hi += 1;
         }
+        if lo == old_lo && hi == old_hi {
+            return Reparsed {
+                tree: parse(new_bytes),
+                widened_to_root: true,
+                replaced: None,
+            };
+        }
     }
 }
 
-fn child_ranges(doc: &Green) -> Vec<(usize, usize, Green)> {
+/// A slice that ends in a list and then only blank lines has not decided
+/// whether those blanks belong to the list. At EOF the decision is final.
+fn list_lookahead_open(nodes: &[Green], slice_end: usize, doc_len: usize) -> bool {
+    if slice_end >= doc_len {
+        return false;
+    }
+    let mut i = nodes.len();
+    while i > 0 && nodes[i - 1].kind() == SyntaxKind::BlockGap {
+        i -= 1;
+    }
+    i < nodes.len() && i > 0 && nodes[i - 1].kind() == SyntaxKind::List
+}
+
+/// Index of a list that sits before `lo` with only blank lines between it and
+/// the window, when the edit touches the blanks or the following block.
+/// Otherwise `lo`.
+fn cover_affected_list(
+    ranges: &[(usize, usize, SyntaxKind)],
+    lo: usize,
+    edit_start: usize,
+    edit_end: usize,
+) -> usize {
+    let mut i = lo;
+    while i > 0 && ranges[i - 1].2 == SyntaxKind::BlockGap {
+        i -= 1;
+    }
+    if i == 0 || ranges[i - 1].2 != SyntaxKind::List {
+        return lo;
+    }
+    let list_idx = i - 1;
+    let region_start = ranges[list_idx].1;
+    let mut continuation = list_idx + 1;
+    while continuation < ranges.len() && ranges[continuation].2 == SyntaxKind::BlockGap {
+        continuation += 1;
+    }
+    let region_end = if continuation < ranges.len() {
+        ranges[continuation].1
+    } else {
+        ranges.last().map(|range| range.1).unwrap_or(region_start)
+    };
+    let touches = if edit_start == edit_end {
+        edit_start >= region_start && edit_start < region_end
+    } else {
+        edit_start < region_end && edit_end > region_start
+    };
+    if touches {
+        list_idx
+    } else {
+        lo
+    }
+}
+
+/// Follow index of the next non-blank block after `hi`. That block is the line
+/// a list examines once it has seen a run of blanks. `hi` itself stays the
+/// current follow, so the returned index is greater when more siblings exist.
+fn cover_list_lookahead(ranges: &[(usize, usize, SyntaxKind)], hi: usize) -> usize {
+    if hi >= ranges.len() {
+        return hi;
+    }
+    let mut i = hi + 1;
+    while i < ranges.len() && ranges[i].2 == SyntaxKind::BlockGap {
+        i += 1;
+    }
+    i
+}
+
+fn widen_for_list(
+    lo: &mut usize,
+    hi: &mut usize,
+    ranges: &[(usize, usize, SyntaxKind)],
+    left_at: usize,
+    right_open: bool,
+) -> bool {
+    let old_lo = *lo;
+    let old_hi = *hi;
+    if left_at < *lo {
+        *lo = left_at;
+    }
+    if right_open {
+        let jumped = cover_list_lookahead(ranges, *hi);
+        if jumped > *hi {
+            *hi = jumped;
+        }
+    }
+    *lo != old_lo || *hi != old_hi
+}
+
+fn graft(mut old: Green, lo: usize, hi: usize, window: Vec<Green>) -> Green {
+    match old.splice_children(lo, hi, window) {
+        Ok(()) => old,
+        Err(window) => {
+            let mut children = Vec::with_capacity(old.children().len() - (hi - lo) + window.len());
+            children.extend(old.children()[..lo].iter().cloned());
+            children.extend(window);
+            children.extend(old.children()[hi..].iter().cloned());
+            Green::branch(old.kind(), children)
+        }
+    }
+}
+
+fn child_ranges(doc: &Green) -> Vec<(usize, usize, SyntaxKind)> {
     let mut at = 0;
-    let mut out = Vec::new();
+    let mut out = Vec::with_capacity(doc.children().len());
     for child in doc.children() {
         let start = at;
         at += child.width();
-        out.push((start, at, child.clone()));
+        out.push((start, at, child.kind()));
     }
     out
 }
@@ -735,7 +906,11 @@ fn map_pos(pos: usize, edit_start: usize, edit_end: usize, delta: isize) -> usiz
     }
 }
 
-fn resynced(nodes: &[Green], window: usize, follow: Option<&Green>) -> Option<Vec<Green>> {
+fn resynced(
+    nodes: &[Green],
+    window: usize,
+    follow: Option<(SyntaxKind, &str)>,
+) -> Option<Vec<Green>> {
     let mut acc = 0;
     let mut split = None;
     for (i, node) in nodes.iter().enumerate() {
@@ -755,11 +930,8 @@ fn resynced(nodes: &[Green], window: usize, follow: Option<&Green>) -> Option<Ve
     let suffix = &nodes[split..];
     match follow {
         None => suffix.is_empty().then(|| nodes[..split].to_vec()),
-        Some(old) => {
-            if suffix.len() == 1
-                && suffix[0].kind() == old.kind()
-                && suffix[0].concat() == old.concat()
-            {
+        Some((kind, bytes)) => {
+            if suffix.len() == 1 && suffix[0].kind() == kind && suffix[0].concat() == bytes {
                 Some(nodes[..split].to_vec())
             } else {
                 None
@@ -797,6 +969,14 @@ fn collect_defs_between(node: &Green, at: usize, start: usize, end: usize, defs:
         collect_defs_between(child, child_at, start, end, defs);
         child_at += child.width();
     }
+}
+
+fn defs_touched(old_span: &[Green], window: &[Green]) -> bool {
+    old_span.iter().any(contains_refdef) || window.iter().any(contains_refdef)
+}
+
+fn contains_refdef(node: &Green) -> bool {
+    node.kind() == SyntaxKind::LinkRefDef || node.children().iter().any(contains_refdef)
 }
 
 fn same_defs(left: &Defs, right: &Defs) -> bool {

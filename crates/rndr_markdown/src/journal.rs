@@ -117,6 +117,33 @@ impl Journal {
         replacement: &[u8],
         post: &[u8],
     ) {
+        self.push_inner(start, end, deleted, replacement, post, true);
+    }
+
+    /// Like [`Self::push`] but skip the document hash.
+    ///
+    /// A session with no journal file never writes the frame. Hashing the
+    /// whole buffer on that path is not observable.
+    pub(crate) fn push_unhashed(
+        &mut self,
+        start: usize,
+        end: usize,
+        deleted: &[u8],
+        replacement: &[u8],
+        post: &[u8],
+    ) {
+        self.push_inner(start, end, deleted, replacement, post, false);
+    }
+
+    fn push_inner(
+        &mut self,
+        start: usize,
+        end: usize,
+        deleted: &[u8],
+        replacement: &[u8],
+        post: &[u8],
+        hash_post: bool,
+    ) {
         let seq = self.next_seq;
         self.next_seq += 1;
         self.pending.push(Frame {
@@ -125,7 +152,7 @@ impl Journal {
             end: end as u64,
             deleted: deleted.to_vec(),
             replacement: replacement.to_vec(),
-            post_hash: hash_bytes(post),
+            post_hash: if hash_post { hash_bytes(post) } else { [0; 32] },
         });
     }
 

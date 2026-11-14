@@ -12,32 +12,36 @@ use rndr_liquid::FENCE_LANGS;
 
 /// Parse `src` into a document whose concatenation equals `src`.
 pub fn parse(src: &str) -> Green {
-    let mut doc = parse_raw(src);
-    let defs = collect_defs(&doc);
-    finish(&mut doc, &defs);
-    debug_assert_eq!(doc.concat(), src, "parse dropped or invented bytes");
-    doc
+    crate::green::with_parse_source(src, |src| {
+        let mut doc = parse_raw(src);
+        let defs = collect_defs(&doc);
+        finish(&mut doc, &defs);
+        debug_assert_eq!(doc.concat(), src, "parse dropped or invented bytes");
+        doc
+    })
 }
 
 /// Parse blocks, leaving paragraph text raw, and resolve inlines with `defs`
 /// plus any definitions inside `src`. Definitions in `defs_before` win over
 /// later ones; `defs_after` apply only when the document does not define them.
 pub fn parse_with(src: &str, defs_before: &Defs, defs_after: &Defs) -> Green {
-    let mut doc = parse_raw(src);
-    let mut defs = Defs::default();
-    for (label, dest) in defs_before.iter() {
-        defs.insert_first(label, dest);
-    }
-    let internal = collect_defs(&doc);
-    for (label, dest) in internal.iter() {
-        defs.insert_first(label, dest);
-    }
-    for (label, dest) in defs_after.iter() {
-        defs.insert_first(label, dest);
-    }
-    finish(&mut doc, &defs);
-    debug_assert_eq!(doc.concat(), src);
-    doc
+    crate::green::with_parse_source(src, |src| {
+        let mut doc = parse_raw(src);
+        let mut defs = Defs::default();
+        for (label, dest) in defs_before.iter() {
+            defs.insert_first(label, dest);
+        }
+        let internal = collect_defs(&doc);
+        for (label, dest) in internal.iter() {
+            defs.insert_first(label, dest);
+        }
+        for (label, dest) in defs_after.iter() {
+            defs.insert_first(label, dest);
+        }
+        finish(&mut doc, &defs);
+        debug_assert_eq!(doc.concat(), src);
+        doc
+    })
 }
 
 fn parse_raw(src: &str) -> Green {
@@ -1431,6 +1435,16 @@ fn refill_paragraph(children: &[Green], defs: &Defs) -> Green {
         let (logical, prefixes) = logical_source(children);
         let inlines = inline::parse_inlines(&logical, defs);
         return Green::branch(SyntaxKind::Paragraph, inject_prefixes(&inlines, &prefixes));
+    }
+    // One raw text leaf is already a slice of the source buffer. Parsing it
+    // directly keeps those tokens on that buffer.
+    if let [only] = children {
+        if only.kind() == SyntaxKind::Text {
+            return Green::branch(
+                SyntaxKind::Paragraph,
+                inline::parse_inlines(only.text(), defs),
+            );
+        }
     }
     let text = concat_children(children);
     Green::branch(SyntaxKind::Paragraph, inline::parse_inlines(&text, defs))

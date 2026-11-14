@@ -124,6 +124,65 @@ fn hazards_survive_a_local_insert() {
 }
 
 #[test]
+fn inserting_into_a_blank_joins_the_next_list_item() {
+    // The blank between `b` and `- c` stays inside one list once `q` makes
+    // `b` a lazy continuation of `- a`. A window that stops on the blank
+    // would publish two lists.
+    let src = "- a\n\nb\n\n- c\n";
+    let at = src.find("\n\nb").unwrap() + 1;
+    let applied = round_trip(
+        src,
+        Command::Insert {
+            at,
+            text: "q".into(),
+        },
+    );
+    assert_eq!(applied.bytes, "- a\nq\nb\n\n- c\n");
+    assert_eq!(applied.tree.children().len(), 1);
+    assert_eq!(
+        applied.tree.children()[0].kind(),
+        rndr_markdown::SyntaxKind::List
+    );
+}
+
+#[test]
+fn indenting_after_a_blank_continues_the_previous_list() {
+    let src = "- a\n\nb\n";
+    let at = src.find('b').unwrap();
+    let applied = round_trip(
+        src,
+        Command::Insert {
+            at,
+            text: "  ".into(),
+        },
+    );
+    assert_eq!(applied.bytes, "- a\n\n  b\n");
+    assert_eq!(applied.tree.children().len(), 1);
+    assert_eq!(
+        applied.tree.children()[0].kind(),
+        rndr_markdown::SyntaxKind::List
+    );
+}
+
+#[test]
+fn deleting_the_blank_before_a_rule_makes_a_setext_heading() {
+    let src = "Foo\n\n---\n";
+    let at = src.find("\n\n").unwrap() + 1;
+    let applied = round_trip(
+        src,
+        Command::Delete {
+            start: at,
+            end: at + 1,
+        },
+    );
+    assert_eq!(applied.bytes, "Foo\n---\n");
+    assert_eq!(
+        applied.tree.children()[0].kind(),
+        rndr_markdown::SyntaxKind::Heading
+    );
+}
+
+#[test]
 fn bad_boundary_is_refused() {
     let src = "é\n";
     let tree = parse(src);
