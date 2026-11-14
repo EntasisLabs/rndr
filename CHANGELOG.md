@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- In-app item drag, separate from file drop. A `DragSource` carries a host `DragPayload` (kind, value, and optional owner). A press stays a click until it crosses the scroll slop, then a preview follows the pointer and does not steal the hit. `DropTarget` accepts or rejects per payload. Hover reports before, after, inside, or an edge zone so a later tab strip can drop-to-split; this change does not build that strip or a kanban. Escape and a release outside an accepted target cancel. A drag near a scrollport edge autoscrolls, including virtual lists. Alt+Enter picks up a generic source; list and tree reorder use Alt+arrow. Announcements go to a polite live region. `ViewProps::reorder` is off by default. List and tree emit `Reordered` and leave the model to the host (`reorder_list`, `reorder_tree`). See [item drag](docs/item-drag.md). `cargo run -p rndr --example item_drag`.
+
 ## 0.6.0
 
 Workspace 0.6.0. `scripts/publish-crates.sh` uploads sixteen crates in this order: `rndr_core`, `rndr-flow`, `rndr_paint`, `rndr_std`, `rndr_term`, `rndr_ui`, `rndr_app`, `rndr_liquid`, `rndr_chart`, `rndr_liquid_ui`, `rndr_canvas`, `rndr_canvas_ui`, `rndr_render`, `rndr_media`, `rndr_browser`, and `rndr`. First crates.io publish for `rndr-flow`. Examples, including Desktop Workshop, `source-session`, `titlebar`, and `lifecycle`, stay `publish = false`. Minimum Rust version remains **1.95**. 0.6.0 is a 0.y release, not a 1.0 stability promise. See [package policy](docs/ui-status.md#package-policy).
