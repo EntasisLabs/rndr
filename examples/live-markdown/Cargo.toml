@@ -1,0 +1,14 @@
+[package]
+name = "live-markdown"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Live markdown editor over the concrete syntax tree"
+
+[dependencies]
+rndr_core = { workspace = true }
+rndr_markdown_ui = { path = "../../crates/rndr_markdown_ui" }
+rndr_paint = { workspace = true }
+rndr_render = { workspace = true }
+rndr_ui = { workspace = true }

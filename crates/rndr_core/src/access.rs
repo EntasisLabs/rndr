@@ -89,6 +89,12 @@ pub enum AccessRole {
     SpinButton,
     /// A polite live status region, such as a toast. Pair it with [`LiveRegion`].
     Status,
+    /// A heading. [`AccessNode::level`] is 1 through 6 when the source named one.
+    Heading,
+    /// A paragraph of prose.
+    Paragraph,
+    /// A link. The name is the label. The value is the destination when one is known.
+    Link,
 }
 /// Supplemental selection projection; input still uses canonical Button admission.
 #[derive(Clone, Debug)]
@@ -285,7 +291,24 @@ pub struct AccessNode {
     pub enabled: bool,
     /// `Some` when the node is a disclosure. `true` means it is open.
     pub expanded: Option<bool>,
+    /// Heading level, or the depth of a tree row. `None` when the role has none.
+    pub level: Option<usize>,
 }
+
+/// Accessibility nodes that are not entities.
+///
+/// A live markdown surface publishes one node per block, including blocks that
+/// are not painted. Their ids have bit 63 set, so [`entity_from_access_id`]
+/// does not decode them as entities. The nodes are children of the entity
+/// that carries this component, and that entity's layout children are not
+/// walked again.
+#[derive(Clone, Debug, Default)]
+pub struct AccessOverlay {
+    /// Nodes in preorder. Each node's [`AccessNode::children`] are ids in this
+    /// same list.
+    pub nodes: Vec<AccessNode>,
+}
+impl crate::Component for AccessOverlay {}
 
 /// The window node plus every node [`access_tree`] emitted.
 #[derive(Clone, Debug, PartialEq)]
@@ -309,9 +332,14 @@ pub fn access_id(entity: Entity) -> u64 {
 
 /// Entity encoded by [`access_id`], whether or not it is still alive.
 ///
-/// [`ACCESS_ROOT`] returns `None`.
+/// [`ACCESS_ROOT`] returns `None`. An [`AccessOverlay`] id, which has bit 63
+/// set, also returns `None`.
 pub fn entity_from_access_id(id: u64) -> Option<Entity> {
-    if id == 0 || id == ACCESS_ROOT {
+    // Bit 63 marks an [`AccessOverlay`] node. [`ACCESS_ROOT`] is the only
+    // all-ones id, and it is rejected above this bit test by the comparison
+    // with [`ACCESS_ROOT`] once the high bit is also set — so test the root
+    // first.
+    if id == 0 || id == ACCESS_ROOT || id & (1 << 63) != 0 {
         return None;
     }
     let raw = id - 1;
@@ -366,6 +394,7 @@ pub fn access_tree(world: &World) -> AccessTree {
             selected: false,
             enabled: true,
             expanded: None,
+            level: None,
         },
     );
     AccessTree {
@@ -555,23 +584,42 @@ fn collect(
     };
     let id = access_id(entity);
     let mut children = Vec::new();
-    if !matches!(
-        role,
-        AccessRole::Button
-            | AccessRole::CheckBox
-            | AccessRole::ComboBox
-            | AccessRole::Option
-            | AccessRole::ListItem
-            | AccessRole::TreeItem
-            | AccessRole::Label
-            | AccessRole::Code
-            | AccessRole::Tooltip
-            | AccessRole::Image
-            | AccessRole::Slider
-            | AccessRole::SpinButton
-    ) {
+    let overlay = world.has::<AccessOverlay>(entity);
+    if !overlay
+        && !matches!(
+            role,
+            AccessRole::Button
+                | AccessRole::CheckBox
+                | AccessRole::ComboBox
+                | AccessRole::Option
+                | AccessRole::ListItem
+                | AccessRole::TreeItem
+                | AccessRole::Label
+                | AccessRole::Code
+                | AccessRole::Tooltip
+                | AccessRole::Image
+                | AccessRole::Slider
+                | AccessRole::SpinButton
+                | AccessRole::Heading
+                | AccessRole::Paragraph
+                | AccessRole::Link
+        )
+    {
         for child in children_of(world, entity) {
             children.extend(collect(world, child, focus, out));
+        }
+    }
+    if let Some(overlay) = world.get::<AccessOverlay>(entity) {
+        let nested: std::collections::BTreeSet<u64> = overlay
+            .nodes
+            .iter()
+            .flat_map(|node| node.children.iter().copied())
+            .collect();
+        for node in &overlay.nodes {
+            if !nested.contains(&node.id) {
+                children.push(node.id);
+            }
+            out.push(node.clone());
         }
     }
     // Composed tree rows fold passive content into the supplied name, but
@@ -650,6 +698,9 @@ fn collect(
                     .and_then(|a| a.expanded)
                     .or_else(|| world.get::<Disclosure>(entity).map(|d| d.open))
             }),
+        level: world
+            .get::<CollectionAccess>(entity)
+            .and_then(|access| access.level),
     };
     out.push(node);
     vec![id]

@@ -41,7 +41,13 @@ pub struct Session {
     /// Frames recorded since open. A clean open stays at zero.
     recorded: u64,
     revision: u64,
+    /// Moving end of the selection. A byte offset into [`Self::bytes`].
     caret: usize,
+    /// Anchor of the selection. Equals [`Self::caret`] when the range is empty.
+    anchor: usize,
+    /// The splice footprint of the last edit that changed bytes, in the
+    /// coordinates described on [`EditSpan`].
+    last_edit: Option<EditSpan>,
     last_edit_ms: Option<u64>,
     doc_path: Option<PathBuf>,
     journal_path: Option<PathBuf>,
@@ -50,10 +56,16 @@ pub struct Session {
 }
 
 struct Step {
+    forward: Vec<Splice>,
     inverse: Vec<Splice>,
     ids_before: Vec<u64>,
+    ids_after: Vec<u64>,
     next_id_before: u64,
+    next_id_after: u64,
     caret_before: usize,
+    anchor_before: usize,
+    caret_after: usize,
+    anchor_after: usize,
     /// Milliseconds of the last edit merged into this step.
     at_ms: u64,
     /// The step is a run of typed characters.
@@ -87,6 +99,8 @@ impl Session {
             recorded: 0,
             revision: 0,
             caret: bytes.len(),
+            anchor: bytes.len(),
+            last_edit: None,
             last_edit_ms: None,
             doc_path: None,
             journal_path: None,
@@ -151,6 +165,62 @@ impl Session {
     /// Revision. A no-op command does not advance it.
     pub fn revision(&self) -> u64 {
         self.revision
+    }
+
+    /// Moving end of the selection, snapped to a byte the session last stored.
+    pub fn caret(&self) -> usize {
+        self.caret
+    }
+
+    /// Selection anchor. Equals [`Self::caret`] when nothing is selected.
+    pub fn anchor(&self) -> usize {
+        self.anchor
+    }
+
+    /// Move the selection and end the open typing run.
+    ///
+    /// A caret move is not an undo step. It closes the run so the next
+    /// character starts a new one, including when the offset happens to sit
+    /// where the run left off.
+    pub fn move_caret(&mut self, anchor: usize, head: usize) -> Result<(), EditError> {
+        if self.composition.is_some() {
+            return Err(EditError::Composing);
+        }
+        let anchor = floor_grapheme(&self.bytes, anchor.min(self.bytes.len()));
+        let head = floor_grapheme(&self.bytes, head.min(self.bytes.len()));
+        if anchor != self.anchor || head != self.caret {
+            if let Some(last) = self.undo.last_mut() {
+                last.typing = false;
+            }
+        }
+        self.anchor = anchor;
+        self.caret = head;
+        Ok(())
+    }
+
+    /// Footprint of the last edit that changed bytes.
+    ///
+    /// `None` after a clean open. A no-op leaves the previous footprint and
+    /// does not advance [`Self::revision`]. The next accepted edit replaces
+    /// the footprint. Prefix bytes before [`EditSpan::old_start`] are unchanged,
+    /// and bytes that began at [`EditSpan::old_end`] begin at [`EditSpan::new_end`].
+    pub fn last_edit(&self) -> Option<EditSpan> {
+        self.last_edit
+    }
+
+    /// Record the caret after an edit without closing the typing run.
+    ///
+    /// Undo restores the caret from before the step. Redo restores the caret
+    /// stored here.
+    pub fn note_caret(&mut self, anchor: usize, head: usize) {
+        let anchor = floor_grapheme(&self.bytes, anchor.min(self.bytes.len()));
+        let head = floor_grapheme(&self.bytes, head.min(self.bytes.len()));
+        self.anchor = anchor;
+        self.caret = head;
+        if let Some(last) = self.undo.last_mut() {
+            last.anchor_after = anchor;
+            last.caret_after = head;
+        }
     }
 
     /// True while a preedit is open. The preedit is not part of the bytes.
@@ -235,15 +305,57 @@ impl Session {
         let Some(step) = self.undo.pop() else {
             return Ok(());
         };
-        let applied = apply_splices(&self.bytes, &self.tree, &step.inverse)?;
+        let applied = match apply_splices(&self.bytes, &self.tree, &step.inverse) {
+            Ok(applied) => applied,
+            Err(err) => {
+                self.undo.push(step);
+                return Err(err);
+            }
+        };
         let ids_before = step.ids_before.clone();
         let next_id_before = step.next_id_before;
         let caret_before = step.caret_before;
+        let anchor_before = step.anchor_before;
+        let span = span_of(&applied.splices, applied.widened_to_root);
         self.record_journal(&step.inverse, &applied);
         self.install(applied, Some(ids_before), next_id_before);
         self.caret = caret_before.min(self.bytes.len());
+        self.anchor = anchor_before.min(self.bytes.len());
         self.redo.push(step);
+        self.last_edit = Some(span);
         self.last_edit_ms = Some(now_ms);
+        self.revision += 1;
+        Ok(())
+    }
+
+    /// Redo one undone step. The forward splice is a new journal frame.
+    pub fn redo(&mut self, now_ms: u64) -> Result<(), EditError> {
+        if self.composition.is_some() {
+            return Err(EditError::Composing);
+        }
+        let Some(step) = self.redo.pop() else {
+            return Ok(());
+        };
+        let applied = match apply_splices(&self.bytes, &self.tree, &step.forward) {
+            Ok(applied) => applied,
+            Err(err) => {
+                self.redo.push(step);
+                return Err(err);
+            }
+        };
+        let ids_after = step.ids_after.clone();
+        let next_id_after = step.next_id_after;
+        let caret_after = step.caret_after;
+        let anchor_after = step.anchor_after;
+        let span = span_of(&applied.splices, applied.widened_to_root);
+        self.record_journal(&step.forward, &applied);
+        self.install(applied, Some(ids_after), next_id_after);
+        self.caret = caret_after.min(self.bytes.len());
+        self.anchor = anchor_after.min(self.bytes.len());
+        self.undo.push(step);
+        self.last_edit = Some(span);
+        self.last_edit_ms = Some(now_ms);
+        self.revision += 1;
         Ok(())
     }
 
@@ -323,6 +435,7 @@ impl Session {
         let before_ids = self.ids.clone();
         let before_next = self.next_id;
         let before_caret = self.caret;
+        let before_anchor = self.anchor;
         let applied = apply_view(&self.bytes, &self.tree, &cmd)?;
         if applied.splices.is_empty() {
             return Ok(());
@@ -330,14 +443,25 @@ impl Session {
         if group && self.try_group(&cmd, &applied, now_ms) {
             return Ok(());
         }
+        let forward = applied.splices.clone();
         let inverse = invert(&applied.splices, &self.bytes);
+        let span = span_of(&applied.splices, applied.widened_to_root);
         self.record_journal(&applied.splices, &applied);
         self.install(applied, None, before_next);
+        self.last_edit = Some(span);
+        let ids_after = self.ids.clone();
+        let next_after = self.next_id;
         self.undo.push(Step {
+            forward,
             inverse,
             ids_before: before_ids,
+            ids_after,
             next_id_before: before_next,
+            next_id_after: next_after,
             caret_before: before_caret,
+            anchor_before: before_anchor,
+            caret_after: before_caret,
+            anchor_after: before_anchor,
             at_ms: now_ms,
             typing: matches!(cmd, Command::Insert { ref text, .. } if text.chars().count() == 1),
         });
@@ -366,10 +490,17 @@ impl Session {
             return false;
         }
         let extra = text.len();
+        let span = span_of(&applied.splices, applied.widened_to_root);
         self.record_journal(&applied.splices, applied);
         self.install(applied.clone(), None, self.next_id);
+        self.last_edit = Some(span);
         if let Some(last) = self.undo.last_mut() {
             last.inverse[0].end += extra;
+            if let Some(forward) = last.forward.first_mut() {
+                forward.replacement.push_str(text);
+            }
+            last.ids_after.clone_from(&self.ids);
+            last.next_id_after = self.next_id;
             last.at_ms = now_ms;
         }
         self.redo.clear();
@@ -557,3 +688,37 @@ pub fn floor_grapheme(text: &str, index: usize) -> usize {
 
 /// How long a typing run stays open.
 pub const TYPING_GAP: Duration = Duration::from_millis(600);
+
+/// Footprint of one accepted edit.
+///
+/// [`Self::old_start`] and [`Self::old_end`] are offsets in the bytes from
+/// before the edit. [`Self::new_end`] is where that range ends afterwards.
+/// The start of the new range is still [`Self::old_start`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EditSpan {
+    /// First touched byte before the edit.
+    pub old_start: usize,
+    /// End of the touched range before the edit.
+    pub old_end: usize,
+    /// End of the touched range after the edit.
+    pub new_end: usize,
+    /// The reparse grew until it covered the whole document.
+    pub widened_to_root: bool,
+}
+
+fn span_of(splices: &[Splice], widened_to_root: bool) -> EditSpan {
+    let old_start = splices.iter().map(|splice| splice.start).min().unwrap_or(0);
+    let old_end = splices
+        .iter()
+        .map(|splice| splice.end)
+        .max()
+        .unwrap_or(old_start);
+    let deleted: usize = splices.iter().map(|splice| splice.end - splice.start).sum();
+    let inserted: usize = splices.iter().map(|splice| splice.replacement.len()).sum();
+    EditSpan {
+        old_start,
+        old_end,
+        new_end: old_end + inserted - deleted,
+        widened_to_root,
+    }
+}
