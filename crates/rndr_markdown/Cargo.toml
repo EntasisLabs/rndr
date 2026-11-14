@@ -1,0 +1,19 @@
+[package]
+name = "rndr_markdown"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
+publish = false
+description = "Lossless markdown concrete syntax tree for live editing"
+
+[dependencies]
+rndr_liquid = { path = "../rndr_liquid" }
+sha2 = "0.10"
+unicode-general-category = "1.1"
+unicode-segmentation = "1.13"
+
+[dev-dependencies]
+rndr_liquid = { path = "../rndr_liquid" }
