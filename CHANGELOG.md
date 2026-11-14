@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Virtual tree
+
+- `rndr_ui::tree::VirtualTree` is a virtualized tree for file trees and outlines. The host owns the nodes. The tree lays out and paints only the visible window, and it asks the host to load children of an expanded branch that does not have them yet. Rows draw indent guides, an optional icon, a label, secondary text, and a badge. Selection is single or multiple: click, Shift range, and Ctrl or Command. The keyboard follows the tree pattern (arrows, Home, End, Page, type-ahead, and `*` to expand siblings) with one tab stop. F2 asks the host to rename. A secondary press asks for a context menu on the next frame. Drag reuses item drag, with before, after, and inside targets; the host applies `reorder_nodes`. `reveal` scrolls a node into view, and keyboard focus stays in view. Rows publish tree and treeitem roles, level, expanded, set size, and position. Moves are announced on the polite live region. Headless only. See [virtual tree](docs/virtual-tree.md). `cargo run -p rndr_ui --example tree`.
+
 ### Tab strip
 
 - `rndr_ui::tabs::TabStrip` is an editor and document tab strip. A tab has a label, an optional icon, a dirty mark, an optional pin, and a close button. Middle-click, Delete, and Ctrl+W (Cmd+W on macOS) ask the host to close when the tab allows it. The tablist uses roving focus: Left/Right/Home/End move, Enter and Space activate. Overflow scrolls horizontally, with chevrons and a menu of the tabs that are not fully in view. The selected tab is scrolled into view when it changes and when the strip first has a size. Drag uses the item-drag primitive. Before/after zones reorder inside a strip or move a tab onto another strip. A pane-edge drop emits a split request (direction and tab id) the host can mount as a `SplitSash`. Alt+Left and Alt+Right move a tab the same way. The strip does not apply order or splits; the host does, as with `Reordered`. Moves are announced on the polite live region. See [tab strip](docs/tab-strip.md). `cargo run -p rndr_ui --example tab_strip`.
