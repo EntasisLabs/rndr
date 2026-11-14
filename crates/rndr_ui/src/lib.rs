@@ -3,7 +3,8 @@
 //! Install [`UiPlugin`] for core interaction, scrolling and semantic styling.
 //! No window, GPU, filesystem runtime or parallel focus dispatcher is installed.
 //! Collections offer retained bounded rows and virtual ListView rows, uniform
-//! or variable height. A host-supplied diff view draws gutter marks on the
+//! or variable height. [`tree::VirtualTree`] realizes only the visible window
+//! of a host-owned tree. A host-supplied diff view draws gutter marks on the
 //! variable-height list. Native screen-reader, IME and cross-platform visual
 //! certification remain separate from headless tests.
 #![deny(missing_docs)]
@@ -30,6 +31,7 @@ pub mod surfaces;
 pub mod tabs;
 pub mod theme_bridge;
 pub mod tokens;
+pub mod tree;
 pub mod window_controls;
 pub use composition::{section_layout, WorkspaceLayout};
 use rndr_core::{App, Layout, Plugin, Schedule, Size};
@@ -51,6 +53,7 @@ pub fn identity(world: &rndr_core::World, entity: rndr_core::Entity) -> Option<U
         .or_else(|| palette::key_at(world, entity))
         .or_else(|| split::key_at(world, entity))
         .or_else(|| tabs::key_at(world, entity))
+        .or_else(|| tree::key_at(world, entity))
 }
 
 /// Sole installation owner for UI styling and reusable core interaction.
@@ -80,6 +83,7 @@ impl Plugin for UiPlugin {
         }
         app.world_mut().insert_resource(Installed);
         app.add_system(Schedule::Input, collections::requests);
+        app.add_system(Schedule::Input, tree::drive);
         app.add_system(Schedule::Input, menu::hover);
         app.add_system(Schedule::Input, inputs::drive);
         app.add_system(Schedule::Input, split::drive);
@@ -87,8 +91,10 @@ impl Plugin for UiPlugin {
         app.add_system(Schedule::Update, palette::drive);
         app.add_system(Schedule::Update, inputs::publish);
         app.add_system(Schedule::Update, tabs::publish);
+        app.add_system(Schedule::Update, tree::publish);
         app.add_system(Schedule::PostUpdate, data::inspector_blur);
         app.add_system(Schedule::Layout, collections::styles);
+        app.add_system(Schedule::Layout, tree::styles);
         app.add_system(Schedule::Layout, data::styles);
         app.add_system(Schedule::Layout, controls::resolve_controls);
         app.add_system(Schedule::Layout, selection::styles);

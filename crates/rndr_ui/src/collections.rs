@@ -654,6 +654,12 @@ fn sync(world: &mut World, root: Entity, view: &mut View) {
             expanded: None,
             level: None,
             parent: None,
+            position: None,
+            set_size: None,
+            multiselect: matches!(
+                view.props.selection,
+                SelectionMode::Multiple | SelectionMode::Range
+            ),
         },
     );
     world.insert(root, Semantics { name: Some(view.props.name.clone()), description: "Arrows move focus. Space or click selects. Enter activates. Tree Left/Right collapses/expands.".into(), readonly: false });
@@ -702,6 +708,9 @@ fn sync(world: &mut World, root: Entity, view: &mut View) {
                 expanded: row.branch.then_some(view.expanded.contains(id)),
                 level: view.tree.then_some(row.depth + 1),
                 parent: row.parent.map(|p| view.rows[&p].slot.root),
+                position: None,
+                set_size: None,
+                multiselect: false,
             },
         );
         world.get_mut::<Layout>(row.chevron).unwrap().width =
