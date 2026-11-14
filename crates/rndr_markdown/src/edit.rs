@@ -67,6 +67,39 @@ pub enum Command {
         /// End of the emphasized text.
         end: usize,
     },
+    /// Toggle strong on a byte range. An existing `**` or `__` pair is reused.
+    ToggleStrong {
+        /// Start of the strong text.
+        start: usize,
+        /// End of the strong text.
+        end: usize,
+    },
+    /// Toggle strikethrough on a byte range. An existing `~~` pair is reused.
+    ToggleStrike {
+        /// Start of the struck text.
+        start: usize,
+        /// End of the struck text.
+        end: usize,
+    },
+    /// Toggle inline code on a byte range. An existing backtick run is reused.
+    /// A new span uses a run long enough for the body, with the padding space
+    /// CommonMark requires when the body starts or ends with a backtick.
+    ToggleCode {
+        /// Start of the code text.
+        start: usize,
+        /// End of the code text.
+        end: usize,
+    },
+    /// Toggle a link on a byte range. An existing link whose label is exactly
+    /// that range is unwrapped. Otherwise the printer inserts `[text](destination)`.
+    ToggleLink {
+        /// Start of the label.
+        start: usize,
+        /// End of the label.
+        end: usize,
+        /// Destination used when the span is not already a link.
+        destination: String,
+    },
     /// Split a block at a byte offset by inserting a blank line.
     Split {
         /// Byte offset.
@@ -86,6 +119,19 @@ pub enum Command {
         /// Byte offset.
         at: usize,
         /// Printer output.
+        text: String,
+    },
+    /// Replace a source range with bytes that are already markdown.
+    ///
+    /// Unlike [`Command::Insert`], the replacement is not escaped. Structural
+    /// commands (a heading marker, a list marker, a pasted markdown fragment)
+    /// use this so the reparse can see the new syntax.
+    Replace {
+        /// Start of the range.
+        start: usize,
+        /// End of the range.
+        end: usize,
+        /// Bytes written in place of the range.
         text: String,
     },
 }
@@ -199,6 +245,21 @@ fn compile(bytes: &str, tree: &Green, cmd: &Command) -> Result<Vec<Splice>, Edit
             }])
         }
         Command::ToggleEmphasis { start, end } => {
+            toggle_mark(bytes, tree, *start, *end, SyntaxKind::Emphasis, "*", "*")
+        }
+        Command::ToggleStrong { start, end } => {
+            toggle_mark(bytes, tree, *start, *end, SyntaxKind::Strong, "**", "**")
+        }
+        Command::ToggleStrike { start, end } => toggle_mark(
+            bytes,
+            tree,
+            *start,
+            *end,
+            SyntaxKind::Strikethrough,
+            "~~",
+            "~~",
+        ),
+        Command::ToggleCode { start, end } => {
             boundary(bytes, *start)?;
             boundary(bytes, *end)?;
             if *start > *end {
@@ -207,19 +268,51 @@ fn compile(bytes: &str, tree: &Green, cmd: &Command) -> Result<Vec<Splice>, Edit
             if *start == *end {
                 return Ok(vec![]);
             }
-            if let Some(existing) = emphasis_covering(tree, 0, *start, *end) {
+            if let Some(existing) = mark_covering(tree, 0, *start, *end, SyntaxKind::InlineCode) {
                 return Ok(existing);
             }
+            let body = &bytes[*start..*end];
+            let (open, close) = code_delimiters(body);
             Ok(vec![
                 Splice {
                     start: *start,
                     end: *start,
-                    replacement: "*".to_string(),
+                    replacement: open,
                 },
                 Splice {
                     start: *end,
                     end: *end,
-                    replacement: "*".to_string(),
+                    replacement: close,
+                },
+            ])
+        }
+        Command::ToggleLink {
+            start,
+            end,
+            destination,
+        } => {
+            boundary(bytes, *start)?;
+            boundary(bytes, *end)?;
+            if *start > *end {
+                return Err(EditError::InvalidRange);
+            }
+            if *start == *end {
+                return Ok(vec![]);
+            }
+            if let Some(existing) = link_covering(tree, 0, *start, *end) {
+                return Ok(existing);
+            }
+            let dest = link_destination(destination);
+            Ok(vec![
+                Splice {
+                    start: *start,
+                    end: *start,
+                    replacement: "[".to_string(),
+                },
+                Splice {
+                    start: *end,
+                    end: *end,
+                    replacement: format!("]({dest})"),
                 },
             ])
         }
@@ -231,7 +324,12 @@ fn compile(bytes: &str, tree: &Green, cmd: &Command) -> Result<Vec<Splice>, Edit
                 replacement: "\n\n".to_string(),
             }])
         }
-        Command::SetField { start, end, value } => {
+        Command::SetField { start, end, value }
+        | Command::Replace {
+            start,
+            end,
+            text: value,
+        } => {
             boundary(bytes, *start)?;
             boundary(bytes, *end)?;
             if *start > *end {
@@ -321,8 +419,48 @@ fn leaves_are_literal(node: &Green, offset: usize, range: Range<usize>) -> bool 
     true
 }
 
-fn emphasis_covering(node: &Green, offset: usize, start: usize, end: usize) -> Option<Vec<Splice>> {
-    if matches!(node.kind(), SyntaxKind::Emphasis | SyntaxKind::Strong) {
+fn toggle_mark(
+    bytes: &str,
+    tree: &Green,
+    start: usize,
+    end: usize,
+    kind: SyntaxKind,
+    open: &str,
+    close: &str,
+) -> Result<Vec<Splice>, EditError> {
+    boundary(bytes, start)?;
+    boundary(bytes, end)?;
+    if start > end {
+        return Err(EditError::InvalidRange);
+    }
+    if start == end {
+        return Ok(vec![]);
+    }
+    if let Some(existing) = mark_covering(tree, 0, start, end, kind) {
+        return Ok(existing);
+    }
+    Ok(vec![
+        Splice {
+            start,
+            end: start,
+            replacement: open.to_string(),
+        },
+        Splice {
+            start: end,
+            end,
+            replacement: close.to_string(),
+        },
+    ])
+}
+
+fn mark_covering(
+    node: &Green,
+    offset: usize,
+    start: usize,
+    end: usize,
+    kind: SyntaxKind,
+) -> Option<Vec<Splice>> {
+    if node.kind() == kind {
         let children = node.children();
         if children.len() >= 2
             && children
@@ -355,7 +493,79 @@ fn emphasis_covering(node: &Green, offset: usize, start: usize, end: usize) -> O
     }
     let mut at = offset;
     for child in node.children() {
-        if let Some(found) = emphasis_covering(child, at, start, end) {
+        if let Some(found) = mark_covering(child, at, start, end, kind) {
+            return Some(found);
+        }
+        at += child.width();
+    }
+    None
+}
+
+fn code_delimiters(body: &str) -> (String, String) {
+    let mut longest = 0usize;
+    let mut run = 0usize;
+    for c in body.chars() {
+        if c == '`' {
+            run += 1;
+            longest = longest.max(run);
+        } else {
+            run = 0;
+        }
+    }
+    let ticks = "`".repeat(longest + 1);
+    if body.starts_with('`') || body.ends_with('`') {
+        (format!("{ticks} "), format!(" {ticks}"))
+    } else {
+        (ticks.clone(), ticks)
+    }
+}
+
+fn link_destination(destination: &str) -> String {
+    if destination.contains(|c: char| c.is_whitespace() || c == '(' || c == ')') {
+        format!("<{destination}>")
+    } else {
+        destination.to_string()
+    }
+}
+
+fn link_covering(node: &Green, offset: usize, start: usize, end: usize) -> Option<Vec<Splice>> {
+    if node.kind() == SyntaxKind::Link {
+        let children = node.children();
+        if let Some(open) = children
+            .first()
+            .filter(|c| c.kind() == SyntaxKind::Delimiter)
+        {
+            let mut at = offset + open.width();
+            let mut inner_end = None;
+            let mut close_at = None;
+            for child in children.iter().skip(1) {
+                if child.kind() == SyntaxKind::Delimiter && child.concat() == "]" {
+                    inner_end = Some(at);
+                    close_at = Some(at);
+                    break;
+                }
+                at += child.width();
+            }
+            if inner_end == Some(end) && offset + open.width() == start {
+                let close_at = close_at?;
+                return Some(vec![
+                    Splice {
+                        start: offset,
+                        end: offset + open.width(),
+                        replacement: String::new(),
+                    },
+                    Splice {
+                        start: close_at,
+                        end: offset + node.width(),
+                        replacement: String::new(),
+                    },
+                ]);
+            }
+        }
+    }
+    let mut at = offset;
+    for child in node.children() {
+        if let Some(found) = link_covering(child, at, start, end) {
             return Some(found);
         }
         at += child.width();

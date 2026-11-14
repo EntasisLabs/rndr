@@ -396,10 +396,11 @@ fn platform_node(world: &World, node: &rndr_core::AccessNode) -> Node {
     {
         out.set_selected(node.selected);
     }
-    if let Some(level) = entity_from_access_id(node.id)
-        .and_then(|e| world.get::<rndr_core::CollectionAccess>(e))
-        .and_then(|a| a.level)
-    {
+    if let Some(level) = node.level.or_else(|| {
+        entity_from_access_id(node.id)
+            .and_then(|e| world.get::<rndr_core::CollectionAccess>(e))
+            .and_then(|a| a.level)
+    }) {
         out.set_level(level);
     }
     if let Some(expanded) = node.expanded {
@@ -437,6 +438,9 @@ fn role(role: AccessRole) -> Role {
         AccessRole::Slider => Role::Slider,
         AccessRole::SpinButton => Role::SpinButton,
         AccessRole::Status => Role::Status,
+        AccessRole::Heading => Role::Heading,
+        AccessRole::Paragraph => Role::Paragraph,
+        AccessRole::Link => Role::Link,
     }
 }
 
