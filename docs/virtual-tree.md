@@ -28,7 +28,7 @@ The tree is one tab stop. Arrows, Home, End, and Page Up/Down move focus inside 
 | Alt+Up, Alt+Down | Ask to move the focused row before the previous visible row, or after the next, when reorder is on |
 | Alt+Right, Alt+Left | Ask to move it inside the previous visible row, or after its parent |
 
-`TreeSelection::Single` replaces the one id. Ctrl or Command on that id clears it. `TreeSelection::Multiple` replaces the set on a plain click. Shift selects the visible enabled range from the anchor. Ctrl or Command toggles one id. Shift with Ctrl or Command adds the range. `TreeSelection::None` does not select. A disabled node, and a node under a disabled ancestor, cannot be focused or selected.
+`TreeSelection::Single` replaces the one id. Ctrl or Command on that id clears it. `TreeSelection::Multiple` replaces the set on a plain click. Shift selects the visible enabled range from the anchor. Ctrl or Command toggles one id. Shift with Ctrl or Command adds the range. On macOS a Control-click is the secondary gesture, so Command is the toggle. `TreeSelection::None` does not select. A disabled node, and a node under a disabled ancestor, cannot be focused or selected.
 
 ## Drag, reveal, and menus
 

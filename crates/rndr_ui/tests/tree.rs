@@ -51,6 +51,24 @@ fn named(key: NamedKey) -> KeyEvent {
     KeyEvent::named(key, Modifiers::default())
 }
 
+/// Ctrl on Windows and Linux, Command on macOS. Control-click is the
+/// secondary gesture on macOS, so it does not toggle a row.
+fn command_click(sim: &mut Sim, entity: Entity) {
+    let primary_super = platform_of(sim.world()).primary_is_super();
+    {
+        let input = sim.world().resource_mut::<Input>().unwrap();
+        if primary_super {
+            input.super_key = true;
+        } else {
+            input.ctrl = true;
+        }
+    }
+    click(sim, entity);
+    let input = sim.world().resource_mut::<Input>().unwrap();
+    input.ctrl = false;
+    input.super_key = false;
+}
+
 fn click(sim: &mut Sim, entity: Entity) {
     let rect = sim.world().get::<Rect>(entity).copied().unwrap();
     let at = [rect.x + rect.w * 0.5, rect.y + rect.h * 0.5];
@@ -242,10 +260,8 @@ fn single_and_multiple_selection() {
         tree.selection(sim.world()),
         [NodeId(1), NodeId(2), NodeId(3)].into()
     );
-    sim.world().resource_mut::<Input>().unwrap().ctrl = true;
     let second = tree.row(sim.world(), NodeId(2)).unwrap();
-    click(&mut sim, second);
-    sim.world().resource_mut::<Input>().unwrap().ctrl = false;
+    command_click(&mut sim, second);
     assert_eq!(tree.selection(sim.world()), [NodeId(1), NodeId(3)].into());
     let first = tree.row(sim.world(), NodeId(1)).unwrap();
     click(&mut sim, first);
