@@ -283,8 +283,40 @@ fn fsync_dir(path: &Path) -> io::Result<()> {
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."));
-    let dir = File::open(parent)?;
-    dir.sync_all()
+    let dir = open_dir(parent)?;
+    dir.sync_all().map_err(|err| {
+        io::Error::new(
+            err.kind(),
+            format!("fsync directory {}: {err}", parent.display()),
+        )
+    })
+}
+
+#[cfg(unix)]
+fn open_dir(path: &Path) -> io::Result<File> {
+    File::open(path)
+}
+
+/// A directory handle on Windows has to be opened for write with backup
+/// semantics. A read-only `File::open` is denied, and `FlushFileBuffers`
+/// refuses a handle that was not opened for write.
+#[cfg(windows)]
+fn open_dir(path: &Path) -> io::Result<File> {
+    use std::os::windows::fs::OpenOptionsExt;
+    const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
+    OpenOptions::new()
+        .write(true)
+        .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+        .open(path)
+}
+
+#[cfg(not(any(unix, windows)))]
+fn open_dir(path: &Path) -> io::Result<File> {
+    let _ = path;
+    Err(io::Error::new(
+        io::ErrorKind::Unsupported,
+        "directory fsync is not available on this platform",
+    ))
 }
 
 fn write_header(path: &Path, seq: u64, hash: Hash) -> io::Result<()> {

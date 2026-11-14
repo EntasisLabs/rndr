@@ -304,7 +304,7 @@ Opening a file and editing nothing creates no journal, appends no frame, and doe
 
 The journal group is fsynced before step 2, so a crash during the checkpoint still has the frames. Each frame's post-hash is what makes step 6's crash window recoverable: if the rename landed and the header is still old, the file's hash equals the last frame's post-hash, and recovery resumes there instead of treating the file as foreign.
 
-If a platform cannot fsync a directory, the checkpoint returns an error that names that step and does not report success. Milestone M5 tests the crash order on the operating systems CI already runs and records the rename guarantee each one actually provides.
+On Windows the directory is opened for write with backup semantics, which is what `FlushFileBuffers` accepts for a directory. If a platform cannot fsync a directory, the checkpoint returns an error that names that step and does not report success. Milestone M5 tests the crash order on the operating systems CI already runs. `std::fs::rename` replaces the destination, including on Windows.
 
 **Recovery.** Hash the file with SHA-256.
 
