@@ -1,7 +1,7 @@
 //! Command palette.
 //!
 //! A focus-scoped combobox: a text field over a uniform virtual list, opened
-//! as an [`AnchoredPopup`] on the next [`Layer`]. The popup is the focus
+//! as an [`AnchoredPopup`] on the next [`rndr_core::Layer`]. The popup is the focus
 //! scope. Escape dismisses it and returns focus to the anchor, unless the
 //! host defers that key. Arrow, Page, Home, and End move the active command.
 //! Enter activates it. Focus stays on the field.
