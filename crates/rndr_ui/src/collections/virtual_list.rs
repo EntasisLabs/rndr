@@ -777,6 +777,12 @@ fn project_window(w: &mut World, root: Entity, v: &VirtualView, geometry: &Reali
             expanded: None,
             level: None,
             parent: None,
+            position: None,
+            set_size: None,
+            multiselect: matches!(
+                v.props.selection,
+                super::SelectionMode::Multiple | super::SelectionMode::Range
+            ),
         },
     );
     if v.props.enabled {
@@ -854,6 +860,9 @@ fn compose_realized_rows(w: &mut World, root: Entity, v: &VirtualView, wanted: &
                 expanded: None,
                 level: None,
                 parent: None,
+                position: None,
+                set_size: None,
+                multiselect: false,
             },
         );
         // Disabled ancestry is inherited by embedded controls too.

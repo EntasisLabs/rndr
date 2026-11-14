@@ -54,7 +54,7 @@ carry over to another key or renderer.
   row root to a different key.
   Replacing the renderer also destroys old composed content. Same-key overlapping
   rows retain their content/focus across metadata replacement and reorder.
-* This is not lazy/remote data loading, virtual TreeView, or virtual DataTable.
+* This is not lazy/remote data loading or a virtual DataTable. A virtualized tree is [`VirtualTree`](virtual-tree.md), not a mode of the retained TreeView.
   Retained lists stay at `MAX_ITEMS` 1024. Tables stay 256×32. Trees stay on the
   retained budget. Core geometry for the uniform path is f32: extremely large
   total heights eventually lose sub-row precision; `u32::MAX` is a type limit,

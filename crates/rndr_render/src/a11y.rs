@@ -398,10 +398,23 @@ fn platform_node(world: &World, node: &rndr_core::AccessNode) -> Node {
     }
     if let Some(level) = node.level.or_else(|| {
         entity_from_access_id(node.id)
-            .and_then(|e| world.get::<rndr_core::CollectionAccess>(e))
-            .and_then(|a| a.level)
+            .and_then(|entity| world.get::<rndr_core::CollectionAccess>(entity))
+            .and_then(|access| access.level)
     }) {
         out.set_level(level);
+    }
+    if let Some(access) = entity_from_access_id(node.id)
+        .and_then(|entity| world.get::<rndr_core::CollectionAccess>(entity))
+    {
+        if access.multiselect {
+            out.set_multiselectable();
+        }
+        if let Some(size) = access.set_size {
+            out.set_size_of_set(size);
+        }
+        if let Some(position) = access.position {
+            out.set_position_in_set(position);
+        }
     }
     if let Some(expanded) = node.expanded {
         out.set_expanded(expanded);
@@ -568,6 +581,9 @@ mod tests {
                 expanded: None,
                 level: None,
                 parent: None,
+                position: None,
+                set_size: None,
+                multiselect: true,
             },
         ));
         let branch = w.spawn((
@@ -580,6 +596,9 @@ mod tests {
                 expanded: Some(true),
                 level: Some(1),
                 parent: None,
+                position: Some(1),
+                set_size: Some(2),
+                multiselect: false,
             },
         ));
         let leaf = w.spawn((
@@ -592,6 +611,9 @@ mod tests {
                 expanded: None,
                 level: Some(2),
                 parent: Some(branch),
+                position: Some(1),
+                set_size: Some(1),
+                multiselect: false,
             },
         ));
         set_parent(w, branch, tree);
@@ -611,6 +633,11 @@ mod tests {
         assert_eq!(node(branch).is_selected(), Some(false));
         assert_eq!(node(leaf).is_selected(), Some(true));
         assert_eq!(node(leaf).level(), Some(2));
+        assert!(node(tree).is_multiselectable());
+        assert_eq!(node(branch).size_of_set(), Some(2));
+        assert_eq!(node(branch).position_in_set(), Some(1));
+        assert_eq!(node(leaf).size_of_set(), Some(1));
+        assert_eq!(node(leaf).position_in_set(), Some(1));
         assert_eq!(node(tree).children(), &[NodeId(access_id(branch))]);
         assert_eq!(node(branch).children(), &[NodeId(access_id(leaf))]);
         assert_eq!(t.focus, NodeId(access_id(leaf)));
@@ -854,6 +881,9 @@ mod tests {
                 expanded: None,
                 level: None,
                 parent: None,
+                position: None,
+                set_size: None,
+                multiselect: false,
             },
         ));
         set_parent(w, row, table);
