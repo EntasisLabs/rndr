@@ -43,7 +43,7 @@ use crate::drag::{
     self, committed, DragKeyboard, DragPayload, DragSource, DropGeometry, DropPlace, DropTarget,
 };
 use crate::lifecycle::{find_keyed_child, require_layout_parent};
-use crate::{Token, Typography, UiError, UiId, UiRecipe, UiStyle, UiTheme};
+use crate::{Token, Typography, UiColor, UiError, UiId, UiRecipe, UiStyle, UiTheme};
 use rndr_core::*;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
@@ -177,6 +177,19 @@ pub struct TreeProps {
     /// Uniform row height in logical points. Finite and at least 1.
     /// Virtualization uses this stride for every row, including a loading row.
     pub row_height: f32,
+    /// Row fill. [`TreeRowFill::Solid`] keeps the semantic tokens.
+    pub row_fill: TreeRowFill,
+}
+
+/// How a tree row is filled.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum TreeRowFill {
+    /// Content, hover, pressed, and selected tokens.
+    #[default]
+    Solid,
+    /// Clear rows, with a light overlay when hovered or selected.
+    /// The parent surface shows through.
+    Translucent,
 }
 
 impl TreeProps {
@@ -190,7 +203,14 @@ impl TreeProps {
             selection: TreeSelection::Single,
             reorder: false,
             row_height: ROW_HEIGHT,
+            row_fill: TreeRowFill::Solid,
         }
+    }
+
+    /// Clear row fills. Hover and selection use a light overlay.
+    pub fn translucent(mut self) -> Self {
+        self.row_fill = TreeRowFill::Translucent;
+        self
     }
 
     /// [`TreeSelection::Multiple`].
@@ -663,10 +683,15 @@ pub(crate) fn styles(world: &mut World) {
         let Some(state) = world.get::<TreeState>(root).cloned() else {
             continue;
         };
+        let background = if state.props.row_fill == TreeRowFill::Translucent {
+            UiColor::Explicit(Color::rgba(0.0, 0.0, 0.0, 0.0))
+        } else {
+            Token::Content.into()
+        };
         world.insert(
             root,
             UiRecipe(UiStyle {
-                background: Some(Token::Content.into()),
+                background: Some(background),
                 corner: Some(crate::Corner::Group),
                 ..UiStyle::default()
             }),
@@ -1767,6 +1792,8 @@ fn create_slot(world: &mut World, parent: Entity) -> Slot {
         },
         Align::center(),
         Label::new(""),
+        LabelBox::CONTENT,
+        row_type(13.0, 500),
         TabStop(false),
     ));
     set_parent(world, chevron, root);
@@ -1778,6 +1805,8 @@ fn create_slot(world: &mut World, parent: Entity) -> Slot {
         },
         Align::center(),
         Label::new(""),
+        LabelBox::CONTENT,
+        row_type(13.0, 400),
     ));
     set_parent(world, icon, root);
     let label = world.spawn((
@@ -1787,6 +1816,8 @@ fn create_slot(world: &mut World, parent: Entity) -> Slot {
             ..Layout::column()
         },
         Label::new("").overflow(TextOverflow::Ellipsis),
+        LabelBox::CONTENT,
+        row_type(13.0, 500),
     ));
     set_parent(world, label, root);
     let secondary = world.spawn((
@@ -1796,6 +1827,8 @@ fn create_slot(world: &mut World, parent: Entity) -> Slot {
         },
         MaxSize::width(180.0),
         Label::new("").overflow(TextOverflow::Ellipsis),
+        LabelBox::CONTENT,
+        row_type(12.0, 400),
     ));
     set_parent(world, secondary, root);
     let badge = world.spawn((
@@ -1805,6 +1838,8 @@ fn create_slot(world: &mut World, parent: Entity) -> Slot {
         },
         MaxSize::width(72.0),
         Label::new("").overflow(TextOverflow::Ellipsis),
+        LabelBox::CONTENT,
+        row_type(12.0, 500),
     ));
     set_parent(world, badge, root);
     Slot {
@@ -2010,7 +2045,18 @@ fn paint_row(
     } else {
         Token::Content
     };
-    let color = theme.color(fill);
+    let color = match state.props.row_fill {
+        TreeRowFill::Solid => theme.color(fill),
+        TreeRowFill::Translucent => {
+            if selected {
+                Color::rgba(1.0, 1.0, 1.0, 0.12)
+            } else if pressed || (hovered && live && !loading) {
+                Color::rgba(1.0, 1.0, 1.0, 0.06)
+            } else {
+                Color::rgba(0.0, 0.0, 0.0, 0.0)
+            }
+        }
+    };
     world.insert(slot.root, color);
     world.insert(
         slot.root,
@@ -2040,6 +2086,8 @@ fn set_label(world: &mut World, entity: Entity, text: &str, secondary: bool) {
     } else {
         Token::Text
     };
+    world.insert(entity, LabelBox::CONTENT);
+    world.insert(entity, row_type(if secondary { 12.0 } else { 13.0 }, 500));
     if let Some(label) = world.get_mut::<Label>(entity) {
         label.text = text.to_string();
         label.color = Some(theme.color(token));
@@ -2047,15 +2095,36 @@ fn set_label(world: &mut World, entity: Entity, text: &str, secondary: bool) {
     }
 }
 
+fn row_type(size: f32, weight: u16) -> TextStyle {
+    TextStyle {
+        size,
+        weight,
+        line_height: Some(1.15),
+        family: "Inter".into(),
+        ..TextStyle::default()
+    }
+}
+
 fn bind_icon(world: &mut World, slot: &Slot, icon: Option<Icon>) {
     if let Some(icon) = icon {
         world.remove::<Hidden>(slot.icon);
+        world.insert(slot.icon, LabelBox::CONTENT);
+        world.insert(slot.icon, row_type(13.0, 400));
+        let ink = theme_ink(world);
         if let Some(label) = world.get_mut::<Label>(slot.icon) {
             label.text = icon.scalar().to_string();
+            label.color = Some(ink);
         }
     } else {
         world.insert(slot.icon, Hidden);
     }
+}
+
+fn theme_ink(world: &World) -> Color {
+    world
+        .resource::<UiTheme>()
+        .map(|theme| theme.color(Token::Secondary))
+        .unwrap_or(Color::rgba(0.7, 0.72, 0.76, 1.0))
 }
 
 struct Chevron<'a> {
@@ -2076,15 +2145,19 @@ fn bind_chevron(world: &mut World, tree: Entity, slot: &Slot, chevron: Chevron<'
         live,
         loading,
     } = chevron;
-    world.remove::<Hidden>(slot.chevron);
     if branch && !loading {
+        world.remove::<Hidden>(slot.chevron);
         let icon = if open {
             Icon::ChevronDown
         } else {
             Icon::ChevronRight
         };
+        world.insert(slot.chevron, LabelBox::CONTENT);
+        world.insert(slot.chevron, row_type(12.0, 500));
+        let ink = theme_ink(world);
         if let Some(text) = world.get_mut::<Label>(slot.chevron) {
             text.text = icon.scalar().to_string();
+            text.color = Some(ink);
         }
         world.insert(
             slot.chevron,
@@ -2115,6 +2188,7 @@ fn bind_chevron(world: &mut World, tree: Entity, slot: &Slot, chevron: Chevron<'
             },
         );
     } else {
+        world.insert(slot.chevron, Hidden);
         if let Some(text) = world.get_mut::<Label>(slot.chevron) {
             text.text.clear();
         }

@@ -6,6 +6,8 @@
 
 - `investigation` is a sample security console on the existing window material. The window is transparent and asks for [`Backdrop::Window`](crates/rndr_core/src/window_chrome.rs): Mica on Windows 11, and a behind-window vibrancy view on macOS. Linux and the browser still ignore `Backdrop`. The three panes are resizable `SplitSash`es. Investigations, closed cases, and agents are virtual lists; groups are a `VirtualTree`. `cargo run -p investigation`. `--export` writes a headless frame. `--features observe -- --observe` opens the native surface-copy session. Neither capture includes the window server's blur. See the example's crate docs for the visual gaps.
 - macOS vibrancy is inserted behind the content view, as a sibling in the frame view. A subview of the content view composites above its Metal layer and would cover the app. The material, the transparent-window requirement, and the Windows Mica / Acrylic / Tabbed path are unchanged.
+- A nested `SplitSash` estimates its span after the outer split has claimed its leading pane, and a fill estimate subtracts sibling bars. The first frame no longer sizes the inner leading pane against the whole window.
+- `TreeProps::translucent` clears tree row fills. Hover and selection use a light overlay. Row labels use the control type size, disclosure marks are the icon chevrons, and a leaf draws no chevron slot.
 
 ### Live markdown editing
 

@@ -481,19 +481,24 @@ fn paint_visited(
     if let Some(layout) = layout {
         let text_color = label.and_then(|label| label.color).unwrap_or(theme.text);
         for highlight in &layout.highlights {
+            // Inset and round so a span background reads as a chip, not a
+            // full-line selection bar.
+            let inset_y = (highlight.h * 0.22).clamp(0.0, 3.0);
+            let height = (highlight.h - inset_y * 2.0).max(1.0);
+            let radius = (height * 0.45).min(3.5);
             push(
                 out,
                 snap_box(
                     rect.x + TEXT_ORIGIN_X + highlight.x,
-                    rect.y + TEXT_ORIGIN_Y + highlight.y + shift_y,
+                    rect.y + TEXT_ORIGIN_Y + highlight.y + shift_y + inset_y,
                     highlight.w,
-                    highlight.h,
+                    height,
                     scale,
                 ),
                 highlight.color,
                 solid,
                 text_clip,
-                0.0,
+                radius,
                 0,
             );
         }

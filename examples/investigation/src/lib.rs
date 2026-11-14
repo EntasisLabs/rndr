@@ -39,7 +39,6 @@
 
 use rndr_core::*;
 use rndr_ui::collections::{Item, ItemId, ListView, RowSlot, ViewProps, VirtualViewHandle};
-use rndr_ui::controls::ModeSelector;
 use rndr_ui::menu::{open_menu, MenuAt, MenuEntry, MenuItem, MenuPicked};
 use rndr_ui::split::{SplitSash, SplitSashProps};
 use rndr_ui::tree::{NodeId, TreeHandle, TreeNode, TreeProps, VirtualTree};
@@ -63,8 +62,8 @@ const CLEAR: Color = Color::rgba(0.0, 0.0, 0.0, 0.0);
 const SELECTED_ROW: Color = Color::rgba(1.0, 1.0, 1.0, 0.12);
 const CHIP: Color = Color::rgba(1.0, 1.0, 1.0, 0.08);
 const FIELD: Color = Color::rgba(0.0, 0.0, 0.0, 0.28);
-const CODE_INK: Color = Color::rgba(0.78, 0.90, 1.0, 1.0);
-const CODE_BG: Color = Color::rgba(0.55, 0.78, 1.0, 0.18);
+const CODE_INK: Color = Color::rgba(0.90, 0.91, 0.94, 1.0);
+const CODE_BG: Color = Color::rgba(1.0, 1.0, 1.0, 0.10);
 const ACCENT: Color = Color::rgba(0.62, 0.78, 1.0, 1.0);
 const RED: Color = Color::rgba(0.96, 0.42, 0.38, 1.0);
 const USER_BUBBLE: Color = Color::rgba(0.23, 0.38, 0.66, 0.92);
@@ -267,13 +266,14 @@ pub fn install(app: &mut App) {
     world.insert(root, BorderSides::uniform(HAIRLINE, 1.0));
 
     let mut side = SplitSashProps::new("Sidebar and case");
-    side.min_leading = 260.0;
-    side.min_trailing = 640.0;
+    side.min_leading = 220.0;
+    side.min_trailing = 520.0;
     let mut main = SplitSashProps::new("Conversation and audit");
-    main.min_leading = 420.0;
-    main.min_trailing = 260.0;
-    let outer = SplitSash::mount(world, root, UiId(1), side, 0.28).unwrap();
-    let inner = SplitSash::mount(world, outer.trailing, UiId(2), main, 0.68).unwrap();
+    main.min_leading = 340.0;
+    main.min_trailing = 240.0;
+    // At 1280: sidebar ~300, audit ~280, center the rest. Minimums fit that width.
+    let outer = SplitSash::mount(world, root, UiId(1), side, 0.24).unwrap();
+    let inner = SplitSash::mount(world, outer.trailing, UiId(2), main, 0.70).unwrap();
     paint_glass(world, outer.leading, GLASS_SIDE);
     paint_glass(world, inner.leading, GLASS_CENTER);
     paint_glass(world, inner.trailing, GLASS_RIGHT);
@@ -289,7 +289,7 @@ pub fn install(app: &mut App) {
         slots.open,
         "Investigations",
         OPEN,
-        52.0,
+        60.0,
         UiId(10),
         investigation_row,
     );
@@ -298,7 +298,7 @@ pub fn install(app: &mut App) {
         slots.closed,
         "Closed cases",
         CLOSED,
-        52.0,
+        60.0,
         UiId(11),
         investigation_row,
     );
@@ -328,6 +328,7 @@ pub fn install(app: &mut App) {
     });
     app.add_system(Schedule::Update, on_status);
     app.add_system(Schedule::Layout, polish);
+    app.add_system(Schedule::Layout, hold_panes);
 }
 
 fn paint_glass(world: &mut World, entity: Entity, color: Color) {
@@ -404,10 +405,10 @@ fn sidebar(world: &mut World, pane: Entity) -> (Entity, Entity) {
     );
     search_field(world, body);
     let slots = SidebarSlots {
-        open: labeled_slot(world, body, "INVESTIGATIONS", 156.0),
-        closed: labeled_slot(world, body, "CLOSED", 108.0),
-        groups: labeled_slot(world, body, "GROUPS", 156.0),
-        agents: labeled_slot(world, body, "AGENTS", 196.0),
+        open: labeled_slot(world, body, "INVESTIGATIONS", 186.0),
+        closed: labeled_slot(world, body, "CLOSED", 124.0),
+        groups: labeled_slot(world, body, "GROUPS", 140.0),
+        agents: labeled_slot(world, body, "AGENTS", 188.0),
     };
     world.insert_resource(slots);
     (spacer, lights)
@@ -580,31 +581,76 @@ fn audit(world: &mut World, pane: Entity) -> (Entity, Entity) {
         layout.padding = 12.0;
         layout.gap = 10.0;
     }
-    let mode = ModeSelector::mount(
+    let (case_panel, audit_panel) = segmented(world, pane);
+    case_body(world, case_panel);
+    audit_body(world, audit_panel);
+    (case_panel, audit_panel)
+}
+
+fn segmented(world: &mut World, pane: Entity) -> (Entity, Entity) {
+    let track = spawn_colored(
         world,
         pane,
-        UiId(40),
-        "Case view",
-        &["Case", "Audit Log"],
-        TabOrientation::Horizontal,
-        1,
+        Layout {
+            width: Size::Fill,
+            height: Size::Px(30.0),
+            gap: 2.0,
+            padding: 2.0,
+            ..Layout::row()
+        },
+        CHIP,
+    );
+    world.insert(track, Radius(8.0));
+    world.insert(track, WindowDrag);
+    segment(world, track, "case", "Case", false);
+    segment(world, track, "audit", "Audit Log", true);
+    let case_panel = panel(world, pane);
+    let audit_panel = panel(world, pane);
+    world.insert(case_panel, Hidden);
+    (case_panel, audit_panel)
+}
+
+fn segment(world: &mut World, parent: Entity, action: &str, label: &str, selected: bool) {
+    let button = spawn_colored(
+        world,
+        parent,
+        Layout {
+            width: Size::Fill,
+            height: Size::Fill,
+            ..Layout::row()
+        },
+        if selected {
+            Color::rgba(1.0, 1.0, 1.0, 0.14)
+        } else {
+            CLEAR
+        },
+    );
+    world.insert(button, Radius(6.0));
+    world.insert(button, Align::center());
+    world.insert(button, Button::new(action));
+    world.insert(button, Focusable);
+    world.insert(button, TabStop(true));
+    world.insert(
+        button,
+        Semantics {
+            name: Some(label.into()),
+            ..Semantics::default()
+        },
+    );
+    text(world, button, label, 12.0, 600, INK, Size::Hug);
+}
+
+fn panel(world: &mut World, parent: Entity) -> Entity {
+    spawn(
+        world,
+        Some(parent),
+        Layout {
+            width: Size::Fill,
+            height: Size::Fill,
+            gap: 8.0,
+            ..Layout::column()
+        },
     )
-    .unwrap();
-    if let Some(layout) = world.get_mut::<Layout>(mode.root) {
-        layout.width = Size::Fill;
-        layout.height = Size::Fill;
-    }
-    world.insert(mode.group, WindowDrag);
-    for panel in &mode.panels {
-        if let Some(layout) = world.get_mut::<Layout>(*panel) {
-            layout.width = Size::Fill;
-            layout.height = Size::Fill;
-            layout.gap = 8.0;
-        }
-    }
-    case_body(world, mode.panels[0]);
-    audit_body(world, mode.panels[1]);
-    (mode.panels[0], mode.panels[1])
 }
 
 fn case_body(world: &mut World, panel: Entity) {
@@ -713,13 +759,16 @@ fn timeline(world: &mut World, parent: Entity, moment: &Moment, last: bool) {
         world,
         Some(rail),
         Layout {
-            width: Size::Px(16.0),
-            height: Size::Px(16.0),
+            width: Size::Px(18.0),
+            height: Size::Px(18.0),
             ..Layout::row()
         },
     );
     world.insert(dot, Align::center());
-    glyph(world, dot, moment.icon, 12.0, ACCENT);
+    let icon = glyph(world, dot, moment.icon, 14.0, ACCENT);
+    if let Some(style) = world.get_mut::<TextStyle>(icon) {
+        style.line_height = Some(1.0);
+    }
     if !last {
         spawn_colored(
             world,
@@ -839,7 +888,7 @@ fn mount_groups(world: &mut World, parent: Entity) -> TreeHandle {
         world,
         parent,
         UiId(13),
-        TreeProps::new("Groups").row_height(26.0),
+        TreeProps::new("Groups").row_height(26.0).translucent(),
         &nodes,
         &[NodeId(100)],
     )
@@ -961,6 +1010,11 @@ fn build_case(world: &mut World, parent: Entity) -> BuiltCase {
         label.overflow = TextOverflow::Ellipsis;
     }
     let status = text(world, column, "", 11.0, 400, MUTED, Size::Fill);
+    for entity in [code, title, status, time] {
+        if let Some(style) = world.get_mut::<TextStyle>(entity) {
+            style.line_height = Some(1.15);
+        }
+    }
     BuiltCase {
         code,
         title,
@@ -1045,9 +1099,9 @@ fn prepare_slot(world: &mut World, slot: RowSlot) {
     world.insert(
         slot.content,
         Padding {
-            top: 2.0,
+            top: 6.0,
             right: 10.0,
-            bottom: 2.0,
+            bottom: 4.0,
             left: 2.0,
         },
     );
@@ -1625,10 +1679,13 @@ fn spawn_colored(world: &mut World, parent: Entity, layout: Layout, color: Color
 }
 
 fn on_status(world: &mut World) {
-    let opened = world
+    let fired = world
         .resource::<Fired>()
-        .and_then(|fired| fired.name.as_deref())
-        == Some("status");
+        .and_then(|fired| fired.name.clone());
+    if fired.as_deref() == Some("case") || fired.as_deref() == Some("audit") {
+        show_segment(world, fired.as_deref() == Some("audit"));
+    }
+    let opened = fired.as_deref() == Some("status");
     if opened {
         let (anchor, current) = {
             let console = world.resource::<Console>().unwrap();
@@ -1688,6 +1745,74 @@ fn apply_status(world: &mut World, status: &str) {
     }
     if let Some(console) = world.resource_mut::<Console>() {
         console.status = status.to_string();
+    }
+}
+
+fn show_segment(world: &mut World, audit: bool) {
+    let Some(console) = world.resource::<Console>().cloned() else {
+        return;
+    };
+    if audit {
+        world.insert(console.case_panel, Hidden);
+        world.remove::<Hidden>(console.audit_panel);
+    } else {
+        world.insert(console.audit_panel, Hidden);
+        world.remove::<Hidden>(console.case_panel);
+    }
+    paint_segment(world, "case", !audit);
+    paint_segment(world, "audit", audit);
+}
+
+fn paint_segment(world: &mut World, action: &str, selected: bool) {
+    let Some(button) = world.entities_with::<Button>().into_iter().find(|entity| {
+        world
+            .get::<Button>(*entity)
+            .is_some_and(|b| b.action == action)
+    }) else {
+        return;
+    };
+    world.insert(
+        button,
+        if selected {
+            Color::rgba(1.0, 1.0, 1.0, 0.14)
+        } else {
+            CLEAR
+        },
+    );
+}
+
+fn hold_panes(world: &mut World) {
+    let width = world
+        .resource::<Viewport>()
+        .map(|viewport| viewport.width)
+        .unwrap_or(0.0);
+    let Some(console) = world.resource::<Console>().cloned() else {
+        return;
+    };
+    let right = world
+        .get::<Rect>(console.right)
+        .map(|rect| rect.w)
+        .unwrap_or(0.0);
+    if width < 1100.0 || right >= 220.0 {
+        return;
+    }
+    let Some(split_root) = world
+        .get::<Parent>(console.sidebar)
+        .map(|parent| parent.entity)
+    else {
+        return;
+    };
+    let Some(window) = world.get::<Parent>(split_root).map(|parent| parent.entity) else {
+        return;
+    };
+    let mut side = SplitSashProps::new("Sidebar and case");
+    side.min_leading = 220.0;
+    side.min_trailing = 520.0;
+    let mut main = SplitSashProps::new("Conversation and audit");
+    main.min_leading = 340.0;
+    main.min_trailing = 240.0;
+    if let Ok(outer) = SplitSash::mount(world, window, UiId(1), side, 0.24) {
+        let _ = SplitSash::mount(world, outer.trailing, UiId(2), main, 0.70);
     }
 }
 
@@ -1767,5 +1892,21 @@ mod tests {
         assert!(world.has::<Hidden>(console.case_panel));
         assert!(!world.has::<Hidden>(console.audit_panel));
         assert_eq!(console.open_list.selected(world), Some(ItemId(63)));
+        let side = world.get::<Rect>(console.sidebar).unwrap();
+        let center = world.get::<Rect>(console.center).unwrap();
+        let right = world.get::<Rect>(console.right).unwrap();
+        assert!(side.w > 240.0 && side.w < 380.0, "sidebar width {}", side.w);
+        assert!(
+            right.w > 240.0,
+            "audit pane width {} (center {})",
+            right.w,
+            center.w
+        );
+        assert!(
+            center.w < right.w * 3.0,
+            "center {} is too wide beside audit {}",
+            center.w,
+            right.w
+        );
     }
 }
