@@ -2,15 +2,19 @@
 //!
 //! The bytes of a document are the authority. [`parse`] builds a green tree
 //! whose concatenation is those bytes, including delimiter spelling, line
-//! endings, escapes, and Liquid fences.
+//! endings, escapes, and Liquid fences. A visual edit is a splice. The tree
+//! is updated by reparsing the edited block and widening when that graft
+//! does not match a full parse.
 
 #![deny(missing_docs)]
 
+mod edit;
 mod green;
 mod inline;
 mod kind;
 mod parse;
 
+pub use edit::{apply_text, apply_view, print_liquid, Applied, Command, EditError, Splice};
 pub use green::{Green, RedNode, RedTree};
 pub use kind::SyntaxKind;
 pub use parse::parse;
