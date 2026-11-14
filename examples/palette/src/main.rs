@@ -1,12 +1,12 @@
 //! Command palette.
 //!
-//! A search field over a virtual list of commands. Typing emits `TextChanged`
-//! during Input. Update starts a background feed that waits, then filters.
-//! A reply stamped with an older epoch is dropped, so a slow result cannot
-//! replace a newer query. The list's standard keymap actions move the selection
-//! and Enter activates the row. Each row's shortcut comes from `Keymap::shortcut`
-//! and is drawn in its own dim label color. Letters the filter matched are
-//! highlighted. Running a command spawns a task whose handle lives in ordinary
+//! The window is a thin caller of [`rndr_ui::palette::CommandPalette`]. Typing
+//! emits `TextChanged` during Input. Update starts a background feed that waits,
+//! then filters. A reply stamped with an older epoch is dropped, so a slow
+//! result cannot replace a newer query. The palette moves the active command
+//! and Enter activates it. Each row's shortcut comes from `Keymap::shortcut`.
+//! Letters the filter matched are highlighted. A leading `>` selects the
+//! Actions mode. Running a command spawns a task whose handle lives in ordinary
 //! app state. Activating Ask Medousa switches the field to a multi-line prompt:
 //! Enter sends, Shift+Enter inserts a newline, and the Ask chord
 //! (Ctrl+Enter or Cmd+Enter) returns to the list. Esc returns when the
@@ -33,28 +33,25 @@ use std::time::Duration;
 
 use rndr_core::window::{self, WindowConfig, WindowKind};
 use rndr_core::{
-    context_stack, events, feed, platform_of, set_parent, sleep, spawn, spawn_detached, theme_of,
-    toggle_on_click, App, Axis, CapturesKeys, Caret, Color, Context, Dismiss, DismissHold, Entity,
-    Event, Focus, HotkeyBinding, HotkeyRejected, ImageView, Item, KeyBinding, Keymap, KeymapFired,
-    Keystroke, Label, Layout, LogicalSize, Menu, NamedKey, Placeholder, Position, Prompt, Radius,
-    Schedule, Size, Spans, Submitted, TaskHandle, TextChanged, TextFace, TextField, TextOverflow,
-    TextSpan, Theme, TrayConfig, TrayIcon, TrayItemId, TrayMenu, World, TEXT_ORIGIN_X,
+    events, feed, platform_of, set_parent, sleep, spawn, spawn_detached, theme_of, toggle_on_click,
+    App, Caret, Context, Dismiss, DismissHold, Entity, Event, Focusable, HotkeyBinding,
+    HotkeyRejected, Icon, Item, KeyBinding, Keymap, KeymapFired, Keystroke, Label, Layout,
+    LogicalSize, Menu, NamedKey, Placeholder, Position, Prompt, Schedule, Size, Submitted, TabStop,
+    TaskHandle, TextChanged, TextFace, TextOverflow, Theme, TrayConfig, TrayIcon, TrayItemId,
+    TrayMenu, World,
 };
 use rndr_paint::LatinFace;
-use rndr_render::{configured_hotkey, load_rgba, run, toggle_window};
+use rndr_render::{configured_hotkey, run, toggle_window};
+use rndr_ui::collections::{CollectionEvent, CollectionEventKind};
 #[cfg(test)]
-use rndr_ui::collections::ItemId;
-use rndr_ui::collections::{
-    CollectionEvent, CollectionEventKind, Item as SemanticItem, ListView, RowSlot, ViewProps,
-    VirtualViewHandle,
+use rndr_ui::collections::{ItemId, VirtualViewHandle};
+use rndr_ui::palette::{
+    fuzzy_match, CommandPalette, PaletteCommand, PaletteHandle, PaletteMode, PaletteProps,
 };
 use rndr_ui::{UiId, UiPlugin};
-use unicode_normalization::UnicodeNormalization;
 
 const CONTEXT: &str = "Palette";
 const ROW_H: f32 = 32.0;
-const ICON_PX: f32 = 16.0;
-const ICON_RADIUS: f32 = 4.0;
 /// Simulated search latency. Overlapping queries finish out of order; the
 /// feed's epoch keeps the newer one.
 const SEARCH_LAG: Duration = Duration::from_millis(100);
@@ -104,6 +101,8 @@ const COMMANDS: &[(&str, &str)] = &[
 /// delivered. Update also ignores a result whose query is no longer the field.
 struct Filtered {
     query: String,
+    mode: Option<char>,
+    epoch: u64,
     hits: Vec<usize>,
 }
 
@@ -117,6 +116,7 @@ struct Ran {
 impl Event for Ran {}
 
 struct Palette {
+    ui: PaletteHandle,
     field: Entity,
     list: Entity,
     status: Entity,
@@ -166,7 +166,6 @@ fn text_layout(width: Size, height: Size) -> Layout {
 }
 
 fn setup(world: &mut World) {
-    load_row_icons(world);
     let theme = theme_of(world);
     {
         let keymap = world
@@ -179,53 +178,36 @@ fn setup(world: &mut World) {
 
     let root = world.spawn((
         Layout {
-            axis: Axis::Column,
             gap: 10.0,
             padding: 16.0,
             width: Size::Fill,
             height: Size::Fill,
-            min_width: 0.0,
-            min_height: 0.0,
+            ..Layout::column()
         },
         theme.canvas,
-        Context::new(CONTEXT),
     ));
-
-    let field = world.spawn((
+    let anchor = world.spawn((
         Layout {
-            min_height: 36.0,
-            ..text_layout(Size::Fill, Size::Hug)
+            width: Size::Fill,
+            height: Size::Px(1.0),
+            ..Layout::column()
         },
-        theme.title,
-        Radius(theme.radius),
-        Label::new(""),
-        TextField,
-        CapturesKeys,
+        Focusable,
+        TabStop(false),
     ));
-    set_parent(world, field, root);
-
-    let list = ListView::mount_virtual(
-        world,
-        root,
-        UiId(700),
-        ViewProps::new("Commands"),
-        &[],
-        ROW_H,
-        build_virtual_row,
-    )
-    .unwrap()
-    .root;
-    world.get_mut::<Layout>(list).unwrap().height = Size::Fill;
-    world.insert(
-        list,
-        rndr_ui::collections::VirtualListPolicy {
-            hover_navigation: true,
-            selection_follows_navigation: true,
-            double_click_activate: true,
-            focus_owner: Some(field),
-        },
-    );
-    world.insert(field, rndr_core::KeyNavigation(search_navigation));
+    set_parent(world, anchor, root);
+    let mut props = PaletteProps::new("Commands");
+    props.placeholder = "Type to filter".into();
+    props.loading = "Searching…".into();
+    props.list_height = 340.0;
+    props.row_height = ROW_H;
+    props.width = 640.0;
+    let ui = CommandPalette::mount(world, anchor, UiId(700), props).unwrap();
+    ui.set_async(world, true).unwrap();
+    ui.set_modes(world, &[PaletteMode::new('>', "Actions", "Filter actions")])
+        .unwrap();
+    world.insert(ui.root, Context::new(CONTEXT));
+    assert!(ui.open(world));
 
     let status = world.spawn((
         Layout {
@@ -233,19 +215,16 @@ fn setup(world: &mut World) {
             ..text_layout(Size::Fill, Size::Px(36.0))
         },
         theme.status,
-        Radius(theme.radius),
         Label::new("").overflow(TextOverflow::Ellipsis),
     ));
     set_parent(world, status, root);
 
-    world.insert_resource(Focus {
-        entity: Some(field),
-    });
     let show_item = install_tray(world);
     let (search, search_tx) = feed::open(world, rndr_core::FeedConfig::latest());
     world.insert_resource(Palette {
-        field,
-        list,
+        ui,
+        field: ui.field,
+        list: ui.list,
         status,
         show_item,
         query: String::new(),
@@ -257,7 +236,7 @@ fn setup(world: &mut World) {
         asking: false,
         draft: String::new(),
     });
-    start_search(world, String::new());
+    start_search(world, String::new(), None, 0);
     paint_status(world);
 }
 
@@ -354,364 +333,72 @@ fn install_tray(world: &mut World) -> TrayItemId {
     show
 }
 
-fn load_row_icons(world: &mut World) {
-    for index in 0..4u32 {
-        let _ = load_rgba(world, u64::from(index), 16, 16, row_icon(index));
-    }
-}
-
-fn row_icon(index: u32) -> Vec<u8> {
-    let colors = [
-        [232, 84, 70, 255],
-        [70, 160, 232, 255],
-        [232, 180, 60, 255],
-        [90, 190, 120, 255],
+fn command_icon(index: usize) -> Icon {
+    const ICONS: [Icon; 8] = [
+        Icon::Search,
+        Icon::File,
+        Icon::Settings,
+        Icon::Terminal,
+        Icon::Brain,
+        Icon::Calendar,
+        Icon::Clipboard,
+        Icon::Code,
     ];
-    let color = colors[index as usize % 4];
-    let mut pixels = vec![0u8; 16 * 16 * 4];
-    for pixel in pixels.as_chunks_mut::<4>().0 {
-        *pixel = color;
-    }
-    pixels
+    ICONS[index % ICONS.len()]
 }
 
-fn row_icon_entity(world: &World, row: Entity) -> Option<Entity> {
-    for child in rndr_core::children_of(world, row) {
-        if world.has::<ImageView>(child) {
-            return Some(child);
-        }
-        for grandchild in rndr_core::children_of(world, child) {
-            if world.has::<ImageView>(grandchild) {
-                return Some(grandchild);
-            }
-        }
-    }
-    None
+fn command_row(world: &World, index: usize) -> Option<PaletteCommand> {
+    let (action, title) = COMMANDS.get(index)?;
+    let mut command = PaletteCommand::new(index as u64, *title);
+    command.icon = Some(command_icon(index));
+    let platform = platform_of(world);
+    command.shortcut = world
+        .resource::<Keymap>()
+        .map(|keymap| keymap.shortcut(action, &[], platform))
+        .unwrap_or_default();
+    Some(command)
 }
 
-fn ensure_row_icon(world: &mut World, row: Entity, index: u32) {
-    let image = u64::from(index % 4);
-    if let Some(icon) = row_icon_entity(world, row) {
-        if let Some(view) = world.get_mut::<ImageView>(icon) {
-            view.image = image;
-            view.radius = ICON_RADIUS;
-        }
-        return;
-    }
-    // A lead spacer matches the text inset. Row padding would also shrink the
-    // row vertically and clip the label.
-    let lead = world.spawn((Layout {
-        axis: Axis::Row,
-        gap: 0.0,
-        padding: 0.0,
-        width: Size::Px(TEXT_ORIGIN_X + ICON_PX),
-        height: Size::Fill,
-        min_width: 0.0,
-        min_height: 0.0,
-    },));
-    let spacer = world.spawn((Layout {
-        width: Size::Px(TEXT_ORIGIN_X),
-        height: Size::Px(1.0),
-        ..Layout::row()
-    },));
-    let icon = world.spawn((
-        Layout {
-            width: Size::Px(ICON_PX),
-            height: Size::Px(ICON_PX),
-            ..Layout::row()
-        },
-        ImageView::new(image).with_radius(ICON_RADIUS),
-    ));
-    set_parent(world, spacer, lead);
-    set_parent(world, icon, lead);
-    set_parent(world, lead, row);
-}
-
-fn search_navigation(world: &mut World, _field: Entity, key: &rndr_core::KeyEvent) -> bool {
-    let Some(p) = world.resource::<Palette>() else {
-        return false;
-    };
-    if p.asking {
-        return false;
-    }
-    let list = p.list;
-    VirtualViewHandle { root: list }.forward_key(world, key)
+fn commands_for(world: &World, hits: &[usize]) -> Vec<PaletteCommand> {
+    hits.iter()
+        .filter_map(|index| command_row(world, *index))
+        .collect()
 }
 
 fn reconcile_commands(world: &mut World, list: Entity) {
-    let hits = world.resource::<Palette>().unwrap().hits.clone();
-    let items: Vec<_> = hits
-        .iter()
-        .map(|i| SemanticItem::new(*i as u64, COMMANDS[*i].1))
-        .collect();
-    let parent = world.get::<rndr_core::Parent>(list).unwrap().entity;
-    ListView::mount_virtual(
-        world,
-        parent,
-        UiId(700),
-        ViewProps::new("Commands"),
-        &items,
-        ROW_H,
-        build_virtual_row,
-    )
-    .unwrap();
-    let h = VirtualViewHandle { root: list };
-    if h.selected(world).is_none() {
-        if let Some(id) = h.active(world) {
-            let _ = h.select(world, Some(id));
-        }
-    }
-}
-
-fn build_virtual_row(world: &mut World, slot: RowSlot, item: &SemanticItem) {
-    let hit = item.id.0 as usize;
-    let selected = world
-        .resource::<Palette>()
-        .is_some_and(|p| VirtualViewHandle { root: p.list }.active(world) == Some(item.id));
-    let row = slot.content;
-    let Some(&(action, title)) = COMMANDS.get(hit) else {
-        return;
+    let _ = list;
+    let (ui, hits) = {
+        let palette = world.resource::<Palette>().unwrap();
+        (palette.ui, palette.hits.clone())
     };
-    let platform = platform_of(world);
-    let stack = context_stack(world, row);
-    let shortcut = world
-        .resource::<Keymap>()
-        .map(|keymap| keymap.shortcut(action, &stack, platform))
-        .unwrap_or_default();
-    let theme = theme_of(world);
-    let selected_color = Color::rgb(0.24, 0.40, 0.62);
-    world.insert(row, if selected { selected_color } else { theme.pane });
-    world.insert(row, Radius(6.0));
-    if let Some(layout) = world.get_mut::<Layout>(row) {
-        layout.axis = Axis::Row;
-        layout.gap = 12.0;
-        layout.padding = 0.0;
-    }
-    if let Some(label) = world.get_mut::<Label>(row) {
-        label.text.clear();
-    }
-    ensure_row_icon(world, row, hit as u32);
-    let (name, keys) = row_parts(world, row);
-    set_text(world, name, title);
-    set_text(world, keys, &shortcut);
-    let dim = Color::rgb(0.62, 0.66, 0.74);
-    if let Some(label) = world.get_mut::<Label>(keys) {
-        label.color = Some(dim);
-    }
-    world.remove::<Spans>(keys);
-    let query = world
-        .resource::<Palette>()
-        .map(|palette| palette.query.clone())
-        .unwrap_or_default();
-    let ranges = fuzzy(&query, title)
-        .map(|(_, ranges)| ranges)
-        .unwrap_or_default();
-    if ranges.is_empty() {
-        world.remove::<Spans>(name);
-    } else {
-        let text = theme.text;
-        let mark = Color::rgba(0.95, 0.78, 0.25, 0.70);
-        world.insert(
-            name,
-            Spans {
-                runs: ranges
-                    .into_iter()
-                    .map(|(start, end)| TextSpan::new(start, end, text).highlight(mark))
-                    .collect(),
-            },
-        );
-    }
+    let epoch = ui.epoch(world).unwrap_or(0);
+    let commands = commands_for(world, &hits);
+    let _ = ui.resolve(world, epoch, &commands);
 }
 
-fn row_parts(world: &mut World, row: Entity) -> (Entity, Entity) {
-    let clear = Color::rgba(0.0, 0.0, 0.0, 0.0);
-    let mut labels: Vec<Entity> = rndr_core::children_of(world, row)
-        .into_iter()
-        .filter(|child| world.has::<Label>(*child))
-        .collect();
-    while labels.len() < 2 {
-        let width = if labels.is_empty() {
-            Size::Fill
-        } else {
-            Size::Hug
-        };
-        let child = world.spawn((
-            Layout {
-                width,
-                height: Size::Fill,
-                ..Layout::row()
-            },
-            clear,
-            Label::new(""),
-        ));
-        set_parent(world, child, row);
-        labels.push(child);
-    }
-    if let Some(layout) = world.get_mut::<Layout>(labels[0]) {
-        layout.width = Size::Fill;
-        layout.height = Size::Fill;
-    }
-    if let Some(layout) = world.get_mut::<Layout>(labels[1]) {
-        layout.width = Size::Hug;
-        layout.height = Size::Fill;
-    }
-    (labels[0], labels[1])
-}
-
-/// One base character in `title`, plus any combining marks that follow it.
-struct Atom {
-    start: usize,
-    end: usize,
-    bases: Vec<char>,
-}
-
-/// One folded base from the query, tied back to the grapheme it came from.
-struct Needle {
-    base: char,
-    piece: usize,
-}
-
-/// Cost of matching a base only after folding an accent away.
-///
-/// Larger than a position gap inside a title, so an exact accent match
-/// sorts ahead of a folded one. Case differences are not a penalty.
-const ACCENT_PENALTY: i32 = 1_000;
-
-/// Subsequence match. Lower score is better: tight, early matches win.
-/// An exact accent match scores above the same letters with accents folded
-/// off. Ranges are byte spans in `title` for the letters that hit, merged
-/// when they sit next to each other. Matching ignores case and diacritics,
-/// and a hit covers the original character including a following combining
-/// mark.
 fn fuzzy(query: &str, title: &str) -> Option<(i32, Vec<(usize, usize)>)> {
-    let query = query.trim();
-    if query.is_empty() {
-        return Some((0, Vec::new()));
-    }
-    let (pieces, needles) = query_needles(query);
-    if needles.is_empty() {
-        return Some((0, Vec::new()));
-    }
-    let mut score = 0i32;
-    let mut last: Option<usize> = None;
-    let mut ranges = Vec::new();
-    let mut needle = 0usize;
-    for atom in atoms(title) {
-        if needle >= needles.len() {
-            break;
-        }
-        let grapheme = &title[atom.start..atom.end];
-        let mut used = false;
-        let mut inexact = false;
-        for base in &atom.bases {
-            if needle >= needles.len() {
-                break;
-            }
-            if *base == needles[needle].base {
-                let at = atom.start;
-                score += match last {
-                    Some(prev) => (at as i32 - prev as i32 - 1).max(0),
-                    None => at as i32,
-                };
-                last = Some(at);
-                if !same_grapheme(&pieces[needles[needle].piece], grapheme) {
-                    inexact = true;
-                }
-                needle += 1;
-                used = true;
-            }
-        }
-        if !used {
-            continue;
-        }
-        if inexact {
-            score += ACCENT_PENALTY;
-        }
-        if let Some((_, end)) = ranges.last_mut() {
-            if *end == atom.start {
-                *end = atom.end;
-                continue;
-            }
-        }
-        ranges.push((atom.start, atom.end));
-    }
-    (needle == needles.len()).then_some((score, ranges))
+    fuzzy_match(query, title).map(|hit| (hit.score, hit.ranges))
 }
 
-fn query_needles(query: &str) -> (Vec<String>, Vec<Needle>) {
-    let mut pieces = Vec::new();
-    let mut needles = Vec::new();
-    for atom in atoms(query) {
-        let grapheme = &query[atom.start..atom.end];
-        if grapheme.chars().all(char::is_whitespace) {
-            continue;
-        }
-        let piece = pieces.len();
-        pieces.push(grapheme.to_string());
-        for base in atom.bases {
-            needles.push(Needle { base, piece });
-        }
-    }
-    (pieces, needles)
+fn bound(action: &str) -> bool {
+    bindings().iter().any(|binding| binding.action == action)
 }
 
-fn same_grapheme(query: &str, title: &str) -> bool {
-    fold_grapheme(query) == fold_grapheme(title)
-}
-
-fn fold_grapheme(text: &str) -> String {
-    text.nfd().flat_map(char::to_lowercase).collect()
-}
-
-fn atoms(text: &str) -> Vec<Atom> {
-    let mut atoms: Vec<Atom> = Vec::new();
-    let mut chars = text.char_indices().peekable();
-    while let Some((start, ch)) = chars.next() {
-        if is_mark(ch) {
-            if let Some(prev) = atoms.last_mut() {
-                prev.end = start + ch.len_utf8();
-            }
-            continue;
-        }
-        let mut end = start + ch.len_utf8();
-        while let Some(&(at, next)) = chars.peek() {
-            if !is_mark(next) {
-                break;
-            }
-            chars.next();
-            end = at + next.len_utf8();
-        }
-        atoms.push(Atom {
-            start,
-            end,
-            bases: fold_bases(ch),
-        });
-    }
-    atoms
-}
-
-fn fold_bases(ch: char) -> Vec<char> {
-    let lower: String = ch.to_lowercase().collect();
-    lower.nfd().filter(|ch| !is_mark(*ch)).collect()
-}
-
-fn is_mark(ch: char) -> bool {
-    matches!(
-        ch,
-        '\u{0300}'..='\u{036F}'
-            | '\u{1AB0}'..='\u{1AFF}'
-            | '\u{1DC0}'..='\u{1DFF}'
-            | '\u{20D0}'..='\u{20FF}'
-            | '\u{FE20}'..='\u{FE2F}'
-            | '\u{3099}'..='\u{309A}'
-    )
-}
-
+#[cfg(test)]
 fn filter(query: &str) -> Vec<usize> {
+    filter_in(query, None)
+}
+
+fn filter_in(query: &str, mode: Option<char>) -> Vec<usize> {
     let mut hits: Vec<(i32, usize)> = COMMANDS
         .iter()
         .enumerate()
-        .filter_map(|(index, (_, title))| fuzzy(query, title).map(|(score, _)| (score, index)))
+        .filter_map(|(index, (action, title))| {
+            if mode == Some('>') && !bound(action) {
+                return None;
+            }
+            fuzzy(query, title).map(|(score, _)| (score, index))
+        })
         .collect();
     hits.sort_by_key(|(score, index)| (*score, *index));
     hits.into_iter().map(|(_, index)| index).collect()
@@ -749,9 +436,16 @@ fn palette_update(world: &mut World) {
         .iter()
         .map(|event| (event.entity, event.text.clone()))
         .collect();
-    let filtered: Vec<(String, Vec<usize>)> = events::<Filtered>(world)
+    let filtered: Vec<(String, Option<char>, u64, Vec<usize>)> = events::<Filtered>(world)
         .iter()
-        .map(|event| (event.query.clone(), event.hits.clone()))
+        .map(|event| {
+            (
+                event.query.clone(),
+                event.mode,
+                event.epoch,
+                event.hits.clone(),
+            )
+        })
         .collect();
     let ran: Vec<&'static str> = events::<Ran>(world)
         .iter()
@@ -780,8 +474,13 @@ fn palette_update(world: &mut World) {
             (palette.field, palette.asking)
         };
         if entity == field && !asking {
-            world.resource_mut::<Palette>().unwrap().query = text.clone();
-            start_search(world, text);
+            let ui = world.resource::<Palette>().unwrap().ui;
+            let parsed = ui.query(world);
+            let (filter, mode, epoch) = parsed
+                .map(|query| (query.filter, query.mode, query.epoch))
+                .unwrap_or_else(|| (text, None, 0));
+            world.resource_mut::<Palette>().unwrap().query = filter.clone();
+            start_search(world, filter, mode, epoch);
         }
     }
 
@@ -801,12 +500,16 @@ fn palette_update(world: &mut World) {
         }
     }
 
-    for (query, hits) in filtered {
-        let (current, asking) = {
+    for (query, mode, epoch, hits) in filtered {
+        let (current, asking, current_mode) = {
             let palette = world.resource::<Palette>().unwrap();
-            (palette.query.clone(), palette.asking)
+            let ui = palette.ui;
+            let query = palette.query.clone();
+            let asking = palette.asking;
+            (query, asking, ui)
         };
-        if asking || query != current {
+        let current_mode = current_mode.query(world).and_then(|query| query.mode);
+        if asking || query != current || mode != current_mode {
             continue;
         }
         let list = world.resource::<Palette>().unwrap().list;
@@ -816,7 +519,11 @@ fn palette_update(world: &mut World) {
             let hint = status_hint(world);
             world.resource_mut::<Palette>().unwrap().message = hint;
         }
-        reconcile_commands(world, list);
+        let ui = world.resource::<Palette>().unwrap().ui;
+        let commands = commands_for(world, &hits);
+        if ui.resolve(world, epoch, &commands).unwrap_or(false) {
+            let _ = list;
+        }
     }
 
     for title in ran {
@@ -861,6 +568,10 @@ fn sync_dismiss_hold(world: &mut World) {
             .unwrap_or(true),
         None => false,
     };
+    let ui = world.resource::<Palette>().map(|palette| palette.ui);
+    if let Some(ui) = ui {
+        let _ = ui.set_defer_escape(world, hold);
+    }
     world.insert_resource(DismissHold { hold });
 }
 
@@ -889,6 +600,9 @@ fn enter_ask(world: &mut World) {
         let palette = world.resource::<Palette>().unwrap();
         (palette.field, palette.list, palette.draft.clone())
     };
+    let ui = world.resource::<Palette>().unwrap().ui;
+    let _ = ui.set_suspended(world, true);
+    let _ = ui.set_query(world, "");
     world.insert(field, Prompt::new().max_lines(6));
     world.insert(field, Placeholder::new("Ask Medousa"));
     if let Some(label) = world.get_mut::<Label>(field) {
@@ -920,6 +634,9 @@ fn leave_ask(world: &mut World) {
         .unwrap_or_default();
     world.remove::<Prompt>(field);
     world.remove::<Placeholder>(field);
+    let ui = world.resource::<Palette>().unwrap().ui;
+    let _ = ui.set_suspended(world, false);
+    let _ = ui.set_query(world, "");
     if let Some(label) = world.get_mut::<Label>(field) {
         label.text.clear();
         label.overflow = TextOverflow::Visible;
@@ -970,25 +687,37 @@ fn clear_query(world: &mut World) {
         caret.index = 0;
         caret.anchor = 0;
     }
+    let ui = world.resource::<Palette>().unwrap().ui;
+    let _ = ui.set_query(world, "");
+    let epoch = ui.epoch(world).unwrap_or(0);
     world.resource_mut::<Palette>().unwrap().query.clear();
-    start_search(world, String::new());
+    start_search(world, String::new(), None, epoch);
 }
 
 /// Start a search for `query`. A newer call advances the epoch, so a reply
 /// from this search is dropped if the field changes again before it returns.
-fn start_search(world: &mut World, query: String) {
-    let epoch = world.resource::<Palette>().unwrap().search.advance();
+fn start_search(world: &mut World, query: String, mode: Option<char>, epoch: u64) {
+    let feed_epoch = world.resource::<Palette>().unwrap().search.advance();
     let tx = world.resource::<Palette>().unwrap().search_tx.clone();
     world.resource_mut::<Palette>().unwrap().message = "Searching…".into();
     // Detach so this search can finish after a newer one has started. The
-    // epoch, not the task handle, decides which reply is applied.
+    // feed epoch drops a stale reply before it is delivered. The palette
+    // epoch drops one that still arrives after a newer edit.
     spawn_detached(world, async move {
         sleep(SEARCH_LAG).await;
-        if tx.is_cancelled() || tx.epoch() != epoch {
+        if tx.is_cancelled() || tx.epoch() != feed_epoch {
             return;
         }
-        let hits = filter(&query);
-        let _ = tx.send_at(epoch, Filtered { query, hits });
+        let hits = filter_in(&query, mode);
+        let _ = tx.send_at(
+            feed_epoch,
+            Filtered {
+                query,
+                mode,
+                epoch,
+                hits,
+            },
+        );
     })
     .detach();
 }
@@ -1176,14 +905,8 @@ mod tests {
     }
 
     #[test]
-    fn row_icons_are_solid_and_inset_like_the_text() {
-        let icon = super::row_icon(0);
-        let edge = &icon[0..4];
-        let inner = &icon[(8 * 16 + 8) * 4..][..4];
-        assert_eq!(edge, &[232, 84, 70, 255]);
-        assert_eq!(edge, inner);
-
-        use rndr_core::{Rect, Schedule, Sim, Theme};
+    fn row_icons_are_lucide_glyphs_inset_like_the_text() {
+        use rndr_core::{is_icon_scalar, Rect, Schedule, Sim, Theme};
 
         let mut sim = Sim::new();
         sim.app.world_mut().insert_resource(Theme::default());
@@ -1200,14 +923,10 @@ mod tests {
             .expect("a row")
             .content;
         let row_rect = *sim.app.world().get::<Rect>(row).expect("row rect");
-        let icon_entity = super::row_icon_entity(sim.world(), row).expect("icon");
+        let glyph = super::command_icon(0).scalar().to_string();
+        let icon_entity = icon_label(sim.world(), row, &glyph).expect("icon");
         let icon_rect = *sim.app.world().get::<Rect>(icon_entity).expect("icon rect");
-        let view = *sim
-            .app
-            .world()
-            .get::<rndr_core::ImageView>(icon_entity)
-            .unwrap();
-        assert!((view.radius - super::ICON_RADIUS).abs() < 1.0e-4);
+        assert!(glyph.chars().all(is_icon_scalar));
         assert!(
             (icon_rect.x - (row_rect.x + rndr_core::TEXT_ORIGIN_X)).abs() < 1.0,
             "icon x {} row x {}",
@@ -1481,8 +1200,8 @@ mod tests {
             .row(sim.app.world(), super::ItemId(3))
             .unwrap()
             .content;
-        let icon = super::row_icon_entity(sim.app.world(), row).unwrap();
-        assert_eq!(sim.app.world().get::<ImageView>(icon).unwrap().image, 3);
+        let glyph = super::command_icon(3).scalar().to_string();
+        assert!(icon_label(sim.app.world(), row, &glyph).is_some());
     }
 
     #[test]
@@ -1627,6 +1346,36 @@ mod tests {
     fn list_count(sim: &rndr_core::Sim) -> u32 {
         let list = sim.app.world().resource::<super::Palette>().unwrap().list;
         super::VirtualViewHandle { root: list }.len(sim.app.world()) as u32
+    }
+
+    fn icon_label(
+        world: &rndr_core::World,
+        row: rndr_core::Entity,
+        text: &str,
+    ) -> Option<rndr_core::Entity> {
+        fn walk(
+            world: &rndr_core::World,
+            entity: rndr_core::Entity,
+            text: &str,
+            found: &mut Option<rndr_core::Entity>,
+        ) {
+            if found.is_some() {
+                return;
+            }
+            if world
+                .get::<rndr_core::Label>(entity)
+                .is_some_and(|label| label.text == text)
+            {
+                *found = Some(entity);
+                return;
+            }
+            for child in rndr_core::children_of(world, entity) {
+                walk(world, child, text, found);
+            }
+        }
+        let mut found = None;
+        walk(world, row, text, &mut found);
+        found
     }
 
     fn opaque_rgb(icon: &rndr_core::TrayIcon) -> Option<[u8; 3]> {

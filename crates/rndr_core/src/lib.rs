@@ -315,7 +315,8 @@ pub use pointers::{
 #[cfg(feature = "pool")]
 pub use pool::thread_pool;
 pub use popup::{
-    close_popup, open_popup, popup_rect, AnchoredPopup, FocusOwner, PassivePopup, PopupPlacement,
+    close_popup, open_popup, popup_rect, AnchoredPopup, FocusOwner, PassivePopup, PopupEscape,
+    PopupPlacement,
 };
 pub use prompt::{Placeholder, Prompt, PromptHistory};
 pub use runtime::{

@@ -3132,7 +3132,6 @@ dependencies = [
  "rndr_paint",
  "rndr_render",
  "rndr_ui",
- "unicode-normalization",
 ]
 
 [[package]]
@@ -4017,6 +4016,7 @@ version = "0.6.0"
 dependencies = [
  "rndr_core",
  "rndr_paint",
+ "unicode-normalization",
 ]
 
 [[package]]

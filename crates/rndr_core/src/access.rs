@@ -105,6 +105,9 @@ pub struct SelectionAccess {
     pub controls: Option<Entity>,
     /// Live trigger labelling the popup.
     pub labelled_by: Option<Entity>,
+    /// Option the combobox names as the active descendant while focus stays
+    /// on the field. The platform bridge publishes this id; it does not move focus.
+    pub active_descendant: Option<Entity>,
 }
 impl crate::Component for SelectionAccess {}
 /// Passive table projection; does not add cell focus, input or model ownership.
@@ -589,6 +592,9 @@ fn collect(
         });
     let value = match role {
         AccessRole::TextInput | AccessRole::SpinButton => text_value(world, entity),
+        // A text field projected as a combobox keeps its typed value. A button
+        // trigger does not: its name is the summary, and its value stays empty.
+        AccessRole::ComboBox if world.has::<TextField>(entity) => text_value(world, entity),
         AccessRole::Code => world
             .get::<Label>(entity)
             .map(|label| label.text.clone())
