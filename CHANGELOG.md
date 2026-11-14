@@ -9,6 +9,7 @@
 - A nested `SplitSash` estimates its span after the outer split has claimed its leading pane, and a fill estimate subtracts sibling bars. The first frame no longer sizes the inner leading pane against the whole window.
 - `TreeProps::translucent` clears tree row fills. Hover and selection use a light overlay. Row labels use the control type size, disclosure marks are the icon chevrons, and a leaf draws no chevron slot.
 - Text span highlights are inset and rounded. Selection quads stay full-height.
+- At 1280×800 the groups list is tall enough for the visible rows, including Network, and the investigations list scrolls to make that room.
 
 ### Live markdown editing
 

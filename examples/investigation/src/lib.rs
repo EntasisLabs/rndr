@@ -405,9 +405,12 @@ fn sidebar(world: &mut World, pane: Entity) -> (Entity, Entity) {
     );
     search_field(world, body);
     let slots = SidebarSlots {
-        open: labeled_slot(world, body, "INVESTIGATIONS", 186.0),
+        // Six visible group rows at 26 points (Endpoints and its three
+        // members, then Identity and Network). Investigations scroll, so
+        // that list gives up the height Network was missing.
+        open: labeled_slot(world, body, "INVESTIGATIONS", 134.0),
         closed: labeled_slot(world, body, "CLOSED", 124.0),
-        groups: labeled_slot(world, body, "GROUPS", 140.0),
+        groups: labeled_slot(world, body, "GROUPS", 164.0),
         agents: labeled_slot(world, body, "AGENTS", 188.0),
     };
     world.insert_resource(slots);
@@ -1877,6 +1880,7 @@ mod tests {
             "Status Changed",
             "Paused: usage limit reached",
             "Endpoints",
+            "Network",
         ] {
             assert!(joined.contains(needle), "missing {needle}\n{joined}");
         }
@@ -1908,5 +1912,38 @@ mod tests {
             center.w,
             right.w
         );
+        let network = label_rect(world, "Network");
+        let agents = label_rect(world, "AGENTS");
+        assert!(
+            network.y + network.h <= agents.y + 0.5,
+            "Network {:?} is clipped by AGENTS {:?}",
+            network,
+            agents
+        );
+        assert!(
+            network.y + network.h <= side.y + side.h,
+            "Network {:?} falls outside the sidebar {:?}",
+            network,
+            side
+        );
+        let agents_list = world.get::<Rect>(console.agents.root).unwrap();
+        assert!(
+            agents_list.y + agents_list.h <= side.y + side.h + 0.5,
+            "agents {:?} fall outside the sidebar {:?}",
+            agents_list,
+            side
+        );
+    }
+
+    fn label_rect(world: &rndr_core::World, text: &str) -> Rect {
+        let entity = world
+            .entities_with::<Label>()
+            .into_iter()
+            .find(|entity| world.get::<Label>(*entity).unwrap().text == text)
+            .unwrap_or_else(|| panic!("missing label {text}"));
+        world
+            .get::<Rect>(entity)
+            .copied()
+            .unwrap_or_else(|| panic!("{text} has no rect"))
     }
 }
