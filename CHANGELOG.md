@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Command palette
+
+- `rndr_ui::palette::CommandPalette` is a focus-scoped combobox: a text field over `ListView::mount_virtual`, opened as an `AnchoredPopup` on the next `Layer`. Type-to-filter uses `fuzzy_match` unless the host installs a matcher. Arrow, Page, Home, and End move the active command. Enter activates it. Escape dismisses and returns focus to the anchor unless the host defers that key. Hosts can add prefix modes, sections, Lucide icons, and shortcut hints. Empty and loading are separate. Async results keep the current rows until `resolve` accepts the epoch of that edit. The field is a combobox, the list is a listbox, and the active option is the combobox active descendant. The `palette` example is a caller of this component. Headless tests only; VoiceOver, Narrator, and Orca were not run. See [command palette](docs/command-palette.md).
+
 ## 0.6.0
 
 Workspace 0.6.0. `scripts/publish-crates.sh` uploads sixteen crates in this order: `rndr_core`, `rndr-flow`, `rndr_paint`, `rndr_std`, `rndr_term`, `rndr_ui`, `rndr_app`, `rndr_liquid`, `rndr_chart`, `rndr_liquid_ui`, `rndr_canvas`, `rndr_canvas_ui`, `rndr_render`, `rndr_media`, `rndr_browser`, and `rndr`. First crates.io publish for `rndr-flow`. Examples, including Desktop Workshop, `source-session`, `titlebar`, and `lifecycle`, stay `publish = false`. Minimum Rust version remains **1.95**. 0.6.0 is a 0.y release, not a 1.0 stability promise. See [package policy](docs/ui-status.md#package-policy).

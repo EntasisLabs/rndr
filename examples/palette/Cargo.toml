@@ -11,4 +11,3 @@ rndr_ui = { path = "../../crates/rndr_ui" }
 rndr_core = { workspace = true }
 rndr_paint = { workspace = true }
 rndr_render = { workspace = true }
-unicode-normalization = "0.1"

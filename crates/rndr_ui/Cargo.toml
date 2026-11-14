@@ -15,6 +15,7 @@ exclude = ["**/*.snap.new"]
 
 [dependencies]
 rndr_core = { workspace = true }
+unicode-normalization = "0.1"
 
 [dev-dependencies]
 rndr_paint = { workspace = true }

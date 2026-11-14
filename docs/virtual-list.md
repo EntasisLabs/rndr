@@ -140,16 +140,15 @@ If the owner is stale/disabled, ordinary row focus is used instead. Core's small
 admission of the original target and revalidation of the returned target. It is
 not inherited and its callback must not recursively request focus.
 
-The palette installs `KeyNavigation` on its existing `CapturesKeys` search field,
-forwarding only navigation/Enter through `handle.forward_key`. Explicit editor
-hooks run before ordinary field editing; unhandled keys still type normally.
-No hook is installed on other editors by default; transactional ownership runs
-first. The palette's Ask prompt declines forwarding, preserving its existing
-Enter/Shift+Enter submission/draft behavior. Metadata keys are command IDs rather
-than filtered indices, and rendering uses direct command lookup, not a scan of
-all matches per visible row. Debouncing, stale-reply rejection, shortcut labels,
-fuzzy match highlights, icons, Scroll geometry and focus reveal remain exercised
-by the actual palette tests.
+[`CommandPalette`](command-palette.md) is the widget that installs this policy.
+It puts `KeyNavigation` on its field and forwards navigation and Enter through
+`handle.forward_key`. Explicit editor hooks run before ordinary field editing;
+unhandled keys still type. No hook is installed on other editors by default.
+The palette example's Ask prompt suspends forwarding, preserving
+Enter/Shift+Enter submission. Metadata keys are command ids rather than
+filtered indices. Debouncing, stale-reply rejection, shortcut labels, fuzzy
+match highlights, icons, scroll geometry, and focus reveal are exercised by
+the palette tests. The example is a caller of that widget.
 
 ## Run and verify
 

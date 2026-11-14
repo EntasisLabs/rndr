@@ -521,6 +521,7 @@ fn selection_state_and_relationship_changes_cannot_escape_frame_binding() {
                 multiselect: false,
                 controls: None,
                 labelled_by: None,
+                active_descendant: None,
             },
         ));
         let recv = request(&send, 0);

@@ -18,6 +18,7 @@ pub mod editing_recipes;
 pub mod inputs;
 mod lifecycle;
 pub mod menu;
+pub mod palette;
 pub mod selection;
 pub mod source_tools;
 pub mod structured;
@@ -44,6 +45,7 @@ pub fn identity(world: &rndr_core::World, entity: rndr_core::Entity) -> Option<U
         .or_else(|| surfaces::key_at(world, entity))
         .or_else(|| editing::key_at(world, entity))
         .or_else(|| structured::key_at(world, entity))
+        .or_else(|| palette::key_at(world, entity))
 }
 
 /// Sole installation owner for UI styling and reusable core interaction.
@@ -75,6 +77,7 @@ impl Plugin for UiPlugin {
         app.add_system(Schedule::Input, collections::requests);
         app.add_system(Schedule::Input, menu::hover);
         app.add_system(Schedule::Input, inputs::drive);
+        app.add_system(Schedule::Update, palette::drive);
         app.add_system(Schedule::Update, inputs::publish);
         app.add_system(Schedule::PostUpdate, data::inspector_blur);
         app.add_system(Schedule::Layout, collections::styles);
@@ -84,6 +87,7 @@ impl Plugin for UiPlugin {
         app.add_system(Schedule::Layout, menu::styles);
         app.add_system(Schedule::Layout, window_controls::styles);
         app.add_system(Schedule::Layout, inputs::styles);
+        app.add_system(Schedule::Layout, palette::place);
         app.add_system(Schedule::Layout, resolve_styles);
         app.add_system(Schedule::Layout, structured::prepare_projection);
         app.add_system_front(Schedule::Input, structured_embeds::capture_exit);
