@@ -188,6 +188,21 @@ fn liquid_field_edit_keeps_the_key_and_comment() {
     assert!(next.contains("tone: tip"), "{next}");
 }
 
+/// Primary modifier for this process: Command on macOS, Control elsewhere.
+fn primary_modifiers() -> Modifiers {
+    if Platform::host().primary_is_super() {
+        Modifiers {
+            super_key: true,
+            ..Modifiers::default()
+        }
+    } else {
+        Modifiers {
+            ctrl: true,
+            ..Modifiers::default()
+        }
+    }
+}
+
 #[test]
 fn copy_and_paste_markdown() {
     let (mut app, handle, id) = boot("Hello\n");
@@ -200,14 +215,8 @@ fn copy_and_paste_markdown() {
     session.move_caret(0, 5).unwrap();
     let mut input = Input::default();
     input.push_key(
-        KeyEvent::character(
-            'c',
-            Modifiers {
-                ctrl: true,
-                ..Modifiers::default()
-            },
-        ),
-        Platform::X11,
+        KeyEvent::character('c', primary_modifiers()),
+        Platform::host(),
     );
     *app.world_mut().resource_mut::<Input>().unwrap() = input;
     app.world_mut().resource_mut::<Focus>().unwrap().entity = Some(handle.root);
@@ -224,14 +233,8 @@ fn copy_and_paste_markdown() {
     app.world_mut().resource_mut::<Clipboard>().unwrap().text = "**bold**".into();
     let mut input = Input::default();
     input.push_key(
-        KeyEvent::character(
-            'v',
-            Modifiers {
-                ctrl: true,
-                ..Modifiers::default()
-            },
-        ),
-        Platform::X11,
+        KeyEvent::character('v', primary_modifiers()),
+        Platform::host(),
     );
     *app.world_mut().resource_mut::<Input>().unwrap() = input;
     app.world_mut().resource_mut::<Focus>().unwrap().entity = Some(handle.root);
