@@ -152,6 +152,7 @@ impl DiffView {
                 empty: props.empty,
                 enabled: true,
                 selection: SelectionMode::None,
+                reorder: false,
             },
             &items,
             &heights,

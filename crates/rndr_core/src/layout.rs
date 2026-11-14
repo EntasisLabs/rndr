@@ -13,6 +13,7 @@ impl Component for Layout {}
 impl Component for Rect {}
 impl Component for Clip {}
 impl Component for Scroll {}
+impl Component for IgnorePointer {}
 
 /// Main axis children stack along.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -176,6 +177,24 @@ impl Default for Scroll {
 /// Movement, in points, before a held contact starts scrolling.
 pub const SCROLL_DRAG_SLOP: f32 = 4.0;
 
+/// Hit testing skips this entity and its descendants. Paint is unchanged.
+///
+/// A drag preview uses this so the ghost under the pointer does not become
+/// the drop target.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct IgnorePointer;
+
+/// Claims a press so [`apply_scroll`] does not capture that contact.
+///
+/// The function sees the entity under the pointer and must not mutate the
+/// world. Returning true leaves [`ScrollDrag::entity`] empty. The claimant
+/// owns the gesture, including any edge autoscroll.
+#[derive(Clone, Copy)]
+pub struct PointerDragOwner(
+    /// Called with the hit entity on a press that would otherwise scroll.
+    pub fn(&World, Entity) -> bool,
+);
+
 /// One captured scroll drag. Cleared when the pointer is released.
 /// A press that starts on a [`Splitter`] does not capture.
 #[derive(Clone, Copy, Debug, Default)]
@@ -320,7 +339,10 @@ pub fn hit_test(world: &World, x: f32, y: f32) -> Option<Entity> {
 // transformed group is composited inside its parent's clip, so a point outside
 // that clip misses the whole group; a collapsed transform draws nothing.
 fn hit_walk(world: &World, entity: Entity, point: [f32; 2], hit: &mut Option<Entity>) {
-    if !world.is_alive(entity) || world.has::<crate::tabs::Hidden>(entity) {
+    if !world.is_alive(entity)
+        || world.has::<crate::tabs::Hidden>(entity)
+        || world.has::<IgnorePointer>(entity)
+    {
         return;
     }
     let mut point = point;
@@ -366,7 +388,8 @@ fn hit_walk(world: &World, entity: Entity, point: [f32; 2], hit: &mut Option<Ent
 /// A press that is not on a [`Splitter`] captures that scrollport, except a
 /// left press inside an [`crate::Editor`] (which owns selection drag). Once the
 /// contact moves [`SCROLL_DRAG_SLOP`] points, further movement is added to its
-/// offset. The press itself is left for focus. Offset changes are clamped and
+/// offset. A press [`PointerDragOwner`] claims is not captured. The press
+/// itself is left for focus. Offset changes are clamped and
 /// laid out immediately so later capture, hit testing and focus reveal read
 /// matching rectangles/clips, even when this system runs at Input front.
 pub fn apply_scroll(world: &mut World) {
@@ -453,10 +476,12 @@ fn apply_pointer_drag(world: &mut World, input: &Input) {
             if ancestor_with::<Splitter>(world, hit).is_some()
                 || (input.pointer.button == crate::PointerButton::Left
                     && ancestor_with::<crate::Editor>(world, hit).is_some())
+                || item_drag_claims(world, hit)
             {
                 // Editors own left-drag text selection (and bounded internal
                 // autoscroll), including inside retained markdown host slots.
-                // Do not simultaneously move their ancestor scrollport.
+                // An item-drag source owns its press the same way. Do not
+                // simultaneously move their ancestor scrollport.
                 None
             } else {
                 ancestor_with::<Scroll>(world, hit)
@@ -506,6 +531,12 @@ fn apply_pointer_drag(world: &mut World, input: &Input) {
     }
     drag.last = position;
     world.insert_resource(drag);
+}
+
+fn item_drag_claims(world: &World, hit: Entity) -> bool {
+    world
+        .resource::<PointerDragOwner>()
+        .is_some_and(|owner| (owner.0)(world, hit))
 }
 
 fn clear_scroll_drag(world: &mut World) {
