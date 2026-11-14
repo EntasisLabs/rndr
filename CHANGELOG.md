@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Split sash
+
+- `rndr_ui::split::SplitSash` is a focusable splitter built on core `Splitter`. Pointer drag and clamping stay in `apply_split`. The sash adds a slider role, arrow keys with a configurable step, Home/End, double-click reset to a default ratio, an accessible name and value, and a `SplitSashChange` event the host can persist. Horizontal and vertical splits nest. A core handle on its own stays non-focusable. See [split sash](docs/split-sash.md).
+
 - In-app item drag, separate from file drop. A `DragSource` carries a host `DragPayload` (kind, value, and optional owner). A press stays a click until it crosses the scroll slop, then a preview follows the pointer and does not steal the hit. `DropTarget` accepts or rejects per payload. Hover reports before, after, inside, or an edge zone so a later tab strip can drop-to-split; this change does not build that strip or a kanban. Escape and a release outside an accepted target cancel. A drag near a scrollport edge autoscrolls, including virtual lists. Alt+Enter picks up a generic source; list and tree reorder use Alt+arrow. Announcements go to a polite live region. `ViewProps::reorder` is off by default. List and tree emit `Reordered` and leave the model to the host (`reorder_list`, `reorder_tree`). See [item drag](docs/item-drag.md). `cargo run -p rndr --example item_drag`.
 
 ## 0.6.0

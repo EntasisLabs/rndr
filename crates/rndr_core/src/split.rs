@@ -10,6 +10,9 @@ impl Component for Splitter {}
 ///
 /// Defaults are 120 points of leading pane and 160 of trailing pane.
 /// [`apply_split`] writes the leading sibling's size and then clamps it.
+/// A focusable sash with a slider role, keyboard steps, and a ratio event is
+/// built on this component by `rndr_ui::split::SplitSash`. That control mounts
+/// a [`Splitter`] and leaves this drag path in place.
 #[derive(Clone, Copy, Debug)]
 pub struct Splitter {
     /// Minimum size of the previous sibling, in logical points.
@@ -53,6 +56,9 @@ pub struct Drag {
 /// whose size on that axis is [`Size::Fill`] uses the viewport content
 /// span. When the parent is smaller than both minimums, the leading side
 /// stays at `min_leading`. A missing [`crate::Input`] only reclamps.
+///
+/// A second call in the same frame applies no further pointer delta.
+/// [`Drag::last`] is already the position just applied. Reclamp still runs.
 pub fn apply_split(world: &mut World) {
     let Some(input) = world.resource::<Input>().cloned() else {
         reclamp_all(world);
@@ -129,6 +135,27 @@ fn write_leading(world: &mut World, splitter: Entity, axis: Axis, desired: f32) 
     }
 }
 
+/// Length the leading and trailing panes share, in logical points.
+///
+/// Padding, gaps, and every other sibling's current size come out of the
+/// parent span. This is the budget [`apply_split`] clamps against, before
+/// [`Splitter::min_trailing`] is reserved. `None` when that span is not
+/// known yet.
+pub fn split_budget(world: &World, splitter: Entity) -> Option<f32> {
+    let axis = parent_axis(world, splitter)?;
+    let parent = world.get::<Parent>(splitter)?.entity;
+    let parent_layout = world.get::<Layout>(parent).copied()?;
+    let span = parent_span(world, parent, axis)?;
+    Some(pair_length(
+        world,
+        splitter,
+        axis,
+        parent,
+        &parent_layout,
+        span,
+    ))
+}
+
 fn clamp_leading(world: &World, splitter: Entity, axis: Axis, desired: f32) -> f32 {
     let spec = world.get::<Splitter>(splitter).copied().unwrap_or_default();
     let Some(parent) = world.get::<Parent>(splitter).map(|parent| parent.entity) else {
@@ -140,6 +167,21 @@ fn clamp_leading(world: &World, splitter: Entity, axis: Axis, desired: f32) -> f
     let Some(span) = parent_span(world, parent, axis) else {
         return spec.min_leading.max(desired);
     };
+    let pair = pair_length(world, splitter, axis, parent, &parent_layout, span);
+    // Reserve the trailing minimum. A parent smaller than both minimums
+    // keeps the leading side at `min_leading`.
+    let max = (pair - spec.min_trailing).max(spec.min_leading);
+    desired.clamp(spec.min_leading, max)
+}
+
+fn pair_length(
+    world: &World,
+    splitter: Entity,
+    axis: Axis,
+    parent: Entity,
+    parent_layout: &Layout,
+    span: f32,
+) -> f32 {
     let inner = (span - parent_layout.padding * 2.0).max(0.0);
     let kids = children_of(world, parent);
     let gaps = if kids.len() > 1 {
@@ -168,10 +210,8 @@ fn clamp_leading(world: &World, splitter: Entity, axis: Axis, desired: f32) -> f
             Axis::Column => rect.h,
         })
         .unwrap_or(0.0);
-    // Replace the trailing pane's current size with its minimum so leftover stays usable.
     let other_without_trailing = (other - trailing_len).max(0.0);
-    let max = (inner - other_without_trailing - spec.min_trailing - gaps).max(spec.min_leading);
-    desired.clamp(spec.min_leading, max)
+    (inner - other_without_trailing - gaps).max(0.0)
 }
 
 fn parent_span(world: &World, parent: Entity, axis: Axis) -> Option<f32> {

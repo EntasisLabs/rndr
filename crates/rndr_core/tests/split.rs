@@ -1,7 +1,7 @@
 use rndr_core::{
-    detail_pane, set_parent, shell, spawn_node, splitter, tree_column, App, Axis, Color,
-    Disclosure, Drag, Focus, Focusable, Input, Insets, Key, Label, Layout, NodeSpec, Parent, Rect,
-    Scroll, Shell, Size, Splitter, Viewport, World,
+    detail_pane, set_parent, shell, spawn_node, split_budget, splitter, tree_column, App, Axis,
+    Color, Disclosure, Drag, Focus, Focusable, Input, Insets, Key, Label, Layout, NodeSpec, Parent,
+    Rect, Scroll, Shell, Size, Splitter, Viewport, World,
 };
 
 fn px_fill(w: f32) -> Layout {
@@ -334,6 +334,14 @@ fn insets_shrink_the_drag_clamp() {
     drag_to(&mut app, 2000.0, y);
     // 800 - 40 - 20 content, minus the 8px seam and the 160px trailing minimum.
     assert_eq!(app.world().get::<Rect>(leading).unwrap().w, 572.0);
+}
+
+#[test]
+fn split_budget_is_the_span_the_two_panes_share() {
+    let (app, _leading, seam, _trailing) = boot_row();
+    // 800 points of viewport, minus the 8-point handle. The trailing pane is
+    // not part of the budget; clamp reserves its minimum from this length.
+    assert_eq!(split_budget(app.world(), seam), Some(792.0));
 }
 
 fn node_named(world: &World, name: &str) -> rndr_core::Entity {
