@@ -43,7 +43,7 @@ windows = { version = "=0.62.2", features = [
 [target.'cfg(target_os = "macos")'.dependencies]
 # Same objc2 generation as rndr_render. A newer objc2 would load a second runtime.
 block2 = "=0.5.1"
-objc2 = "=0.5.2"
+objc2 = "=0.6.5"
 objc2-app-kit = { version = "=0.2.2", features = ["NSResponder", "NSView", "NSWindow"] }
 objc2-foundation = { version = "=0.2.2", features = [
     "NSArray",
