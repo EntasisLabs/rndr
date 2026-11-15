@@ -83,6 +83,7 @@ mod clipboard;
 pub mod clock;
 mod close;
 mod freeze;
+pub mod timing;
 pub use freeze::DocumentFreeze;
 mod compose;
 mod cursor;
@@ -293,6 +294,7 @@ pub use panel_place::{
 pub use selectable::{
     selectable_input, Selectable, SelectablePlugin, MULTI_PRESS_INTERVAL, MULTI_PRESS_SLOP,
 };
+pub use timing::{FrameStage, FrameTimings, NativeFrameTiming, TimingSummary};
 mod popup;
 pub use app_menu::{
     app_menu, app_menu_id, app_menu_pending, app_menu_support, parse_app_menu_id,
