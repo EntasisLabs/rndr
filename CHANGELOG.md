@@ -7,6 +7,11 @@
 - `UiTheme::ramp` is a `TypeRamp` of per-role `TypeMetrics` (size, line height, weight, tracking). The default is the previous ramp, so unchanged themes resolve identical styles. An application can supply its own metrics; roles and the independent UI/reading scales keep their meaning, and tracking scales with text.
 - `Typography::Caption` (11/14) is compact metadata and `Typography::Overline` (11/14 semibold, tracked) is a group heading; the caller supplies letter case. Both use secondary ink through `text`.
 - An inline icon scalar now reserves one em of advance with the Parley engine. It used to advance by the fallback face's notdef, about half an em, so its one-em sprite overlapped the next glyph. The sprite is also centred on the run font's cap height instead of hanging from the em top. Text without icon scalars still shapes in one pass.
+- `Icon::GitBranch` (Lucide `git-branch`) joins the baked set. Icon scalars after it in sorted order moved by one; use `Icon` values, not literal scalars.
+
+### Editor
+
+- The editor's per-paragraph row cache now keys on the text style. A size, weight or tracking change (reading zoom, a new type ramp) used to reuse rows shaped at the old size: wrapped lines painted correctly, but the gutter numbers, scroll extent and window edges followed the stale wrap until the text changed.
 
 ### Investigation console
 
