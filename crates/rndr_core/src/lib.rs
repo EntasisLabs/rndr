@@ -78,6 +78,7 @@ mod app;
 mod appearance;
 mod button;
 mod caret;
+mod caret_blink;
 mod chrome;
 mod clipboard;
 pub mod clock;
@@ -192,6 +193,7 @@ pub use caret::{
     apply_caret, caret_line_col, selection_spans, set_editing, set_editing_field, Caret, CaretRow,
     EditField, Editing, Field, TextSelection,
 };
+pub use caret_blink::{caret_visible, CARET_BLINK};
 pub use chrome::Chrome;
 pub use clipboard::{Clipboard, ClipboardImage};
 pub use clock::{ManualClock, SystemClock, Time};

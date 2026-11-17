@@ -402,6 +402,7 @@ fn paint_visited(
     secondary: &[rndr_core::source_presentation::SecondarySelectionMark],
     chrome: &[rndr_core::structured_chrome::StructuredChromePaint],
     decor: &Decor,
+    caret_on: bool,
 ) {
     let text_clip = if clip_text {
         clip.intersect(Clip {
@@ -629,7 +630,7 @@ fn paint_visited(
             0,
         );
     }
-    for mark in secondary.iter().filter(|m| m.caret) {
+    for mark in secondary.iter().filter(|m| m.caret && caret_on) {
         push(
             out,
             snap_box(
@@ -646,7 +647,8 @@ fn paint_visited(
             0,
         );
     }
-    if let Some(caret) = caret {
+    // The blink hides only an insertion point; a selection head stays drawn.
+    if let Some(caret) = caret.filter(|c| caret_on || c.index != c.anchor) {
         push_caret(
             out,
             rect,
@@ -941,6 +943,7 @@ fn walk_entity(
                 &rndr_core::source_presentation::secondary_selection_marks(world, entity),
                 &rndr_core::structured_chrome::chrome_paint(world, entity),
                 &decor,
+                rndr_core::caret_visible(world),
             );
             // Structural markers occupy a host-reserved sibling gutter, not editable bytes.
             for mark in rndr_core::structured_chrome::structured_marks(world, entity) {

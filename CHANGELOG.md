@@ -11,6 +11,9 @@
 
 ### Editor
 
+- The focused insertion caret blinks (`CARET_BLINK`, 530 ms on/off) and `caret_visible` reports the phase. Moving the caret or changing the focused text shows it at once and restarts the interval. A selection, an unfocused view and `SystemAppearance::reduced_motion` keep it on, and those arm no timer. Paint skips only collapsed carets during the off phase.
+- A selected `NavigationRow` shows a 3-point accent bar on its leading edge instead of prefixing the label with `| `. The label text is the caller's text; selection remains announced through the selected state.
+
 - The editor's per-paragraph row cache now keys on the text style. A size, weight or tracking change (reading zoom, a new type ramp) used to reuse rows shaped at the old size: wrapped lines painted correctly, but the gutter numbers, scroll extent and window edges followed the stale wrap until the text changed.
 
 ### Investigation console
