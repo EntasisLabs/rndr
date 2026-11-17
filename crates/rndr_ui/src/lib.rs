@@ -38,7 +38,9 @@ use rndr_core::{App, Layout, Plugin, Schedule, Size};
 pub use style::{detach_style, resolve_styles, Corner, UiColor, UiRecipe, UiStyle};
 pub use surfaces::{separator, text, Callout, Card, Feedback, Surface, UiError, UiHandle, UiId};
 pub use theme_bridge::apply_theme_bridge;
-pub use tokens::{Appearance, Contrast, Density, Space, Token, Typography, UiTheme};
+pub use tokens::{
+    Appearance, Contrast, Density, Space, Token, TypeMetrics, TypeRamp, Typography, UiTheme,
+};
 pub use window_controls::{window_controls, WindowControls};
 
 /// Read the caller-stable key of a mounted component root. Internal decoration,

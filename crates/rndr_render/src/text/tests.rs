@@ -509,3 +509,23 @@ fn an_icon_scalar_is_a_coverage_glyph_that_scales_with_the_font() {
         .expect("tinted icon");
     assert_eq!(colored.color, Some(Color::rgb(0.2, 0.4, 0.8)));
 }
+
+#[test]
+fn an_inline_icon_reserves_its_em_and_centres_on_the_cap_height() {
+    let engine = bundled();
+    let text = format!("{} Today", Icon::ChevronDown.scalar());
+    let layout = engine.layout(&text, &inter(13.0), &[], f32::INFINITY);
+    let icon = layout
+        .glyphs
+        .iter()
+        .find(|g| g.ch == Icon::ChevronDown.scalar())
+        .expect("icon");
+    let t = layout.glyphs.iter().find(|g| g.ch == 'T').expect("T");
+    assert!(t.x >= icon.x + icon.w, "icon {icon:?} overlaps {t:?}");
+    let cap_mid = t.y + t.h / 2.0;
+    let icon_mid = icon.y + icon.h / 2.0;
+    assert!((icon_mid - cap_mid).abs() <= 1.0, "{icon_mid} vs {cap_mid}");
+    // Text without icons still shapes once with its authored tracking.
+    let plain = engine.layout("Today", &inter(13.0), &[], f32::INFINITY);
+    assert_eq!(plain.glyphs[0].x, 0.0);
+}
