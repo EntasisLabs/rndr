@@ -1,0 +1,7 @@
+JetBrains Mono variable upright font (weight axis), unmodified upstream binary.
+Copyright 2020 The JetBrains Mono Project Authors.
+License: SIL Open Font License 1.1, see OFL-JetBrainsMono.txt.
+Retrieved 2026-11-18 from Google Fonts:
+https://github.com/google/fonts/blob/main/ofl/jetbrainsmono/JetBrainsMono%5Bwght%5D.ttf
+SHA-256: 48715a42ec242c21e9f02692891e147d022299a52e48d5e413e1a942193ffeda
+Used for the generic monospace fallback when system fonts are unavailable.

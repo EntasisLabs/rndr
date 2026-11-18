@@ -311,8 +311,8 @@ fn shape_once(
         });
     }
     let width = parley_layout.width() / scale;
-    let height = parley_layout
-        .height()
+    // Parley reports device pixels; TextLayout and its line boxes use points.
+    let height = (parley_layout.height() / scale)
         .max(lines.iter().map(|line| line.y + line.h).fold(0.0, f32::max));
     let mut layout = TextLayout::shaped(glyphs, lines, width, height);
     apply_paragraph_spacing(&mut layout, text, style.paragraph_spacing);

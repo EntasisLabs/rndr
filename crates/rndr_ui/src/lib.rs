@@ -96,6 +96,7 @@ impl Plugin for UiPlugin {
         app.add_system(Schedule::Update, tree::publish);
         app.add_system(Schedule::PostUpdate, data::inspector_blur);
         app.add_system(Schedule::Layout, collections::styles);
+        app.add_system(Schedule::Layout, diff::styles);
         app.add_system(Schedule::Layout, tree::styles);
         app.add_system(Schedule::Layout, data::styles);
         app.add_system(Schedule::Layout, controls::resolve_controls);

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Diff presentation
+
+- `DiffView` now uses compact code typography, full-row change fills, quiet hunk bands, and measured horizontal scrolling including unrealized long lines. First mounts fill the parent; existing host viewport sizing is preserved. Blank source lines are accepted.
+- Additive `DiffAnnotation` / `mount_annotated` support old/new source-number cells and host-supplied UTF-8 syntax/inline-change spans without mixing coordinates into source text. Invalid annotation identities or ranges refuse before publication.
+- Bundle OFL-licensed JetBrains Mono and register the generic monospace fallback, including in deterministic bundled-font rendering.
+- Fix Parley `TextLayout::height` mixing device pixels with logical points at non-1× scale; explicit code line boxes now report their logical height consistently.
+
 ### Typography
 
 - `UiTheme::ramp` is a `TypeRamp` of per-role `TypeMetrics` (size, line height, weight, tracking). The default is the previous ramp, so unchanged themes resolve identical styles. An application can supply its own metrics; roles and the independent UI/reading scales keep their meaning, and tracking scales with text.
