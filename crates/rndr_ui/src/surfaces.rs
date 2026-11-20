@@ -18,15 +18,27 @@ pub enum Surface {
     Raised,
     /// Opaque overlay plane (not a modal/dialog widget).
     Overlay,
+    /// No fill. The parent shows through.
+    Transparent,
+    /// Frosted navigation. [`Token::Glass`].
+    Glass,
+    /// Frosted reading surface. [`Token::Material`].
+    Material,
+    /// Frosted inspector. [`Token::Panel`].
+    Panel,
 }
 impl Surface {
-    fn token(self) -> Token {
+    pub(crate) fn fill(self) -> crate::UiColor {
         match self {
-            Self::Canvas => Token::Canvas,
-            Self::Navigation => Token::Navigation,
-            Self::Content => Token::Content,
-            Self::Raised => Token::Raised,
-            Self::Overlay => Token::Overlay,
+            Self::Transparent => crate::UiColor::Explicit(Color::rgba(0.0, 0.0, 0.0, 0.0)),
+            Self::Canvas => Token::Canvas.into(),
+            Self::Navigation => Token::Navigation.into(),
+            Self::Content => Token::Content.into(),
+            Self::Raised => Token::Raised.into(),
+            Self::Overlay => Token::Overlay.into(),
+            Self::Glass => Token::Glass.into(),
+            Self::Material => Token::Material.into(),
+            Self::Panel => Token::Panel.into(),
         }
     }
 }
@@ -215,15 +227,18 @@ fn mount(
     };
     let node = *world.get::<Node>(handle.root).unwrap();
     world.get_mut::<Node>(handle.root).unwrap().kind = kind;
-    let (background, foreground) = match kind {
-        Kind::Surface(surface) => (surface.token(), Token::Text),
-        Kind::Card => (Token::Raised, Token::Text),
-        Kind::Callout(feedback) => feedback.palette(),
+    let (background, foreground): (crate::UiColor, crate::UiColor) = match kind {
+        Kind::Surface(surface) => (surface.fill(), Token::Text.into()),
+        Kind::Card => (Token::Raised.into(), Token::Text.into()),
+        Kind::Callout(feedback) => {
+            let (fill, ink) = feedback.palette();
+            (fill.into(), ink.into())
+        }
     };
     world.insert(
         handle.root,
         UiRecipe(UiStyle {
-            background: Some(background.into()),
+            background: Some(background),
             padding: Some(Space::X16),
             gap: Some(Space::X8),
             corner: Some(Corner::Group),
@@ -246,7 +261,7 @@ fn mount(
     world.insert(
         node.title,
         UiRecipe(UiStyle {
-            foreground: Some(foreground.into()),
+            foreground: Some(foreground),
             typography: Some(if matches!(kind, Kind::Callout(_)) {
                 Typography::Emphasis
             } else {

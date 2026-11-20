@@ -425,6 +425,7 @@ fn toast_undo_and_escape_dismiss_without_waiting_for_motion() {
             message: "Moved".into(),
             undo: Some("Undo".into()),
             duration: Duration::from_secs(30),
+            ..ToastProps::new("Moved")
         },
     )
     .unwrap();

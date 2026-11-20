@@ -35,7 +35,7 @@ pub mod tree;
 pub mod window_controls;
 pub use composition::{section_layout, WorkspaceLayout};
 use rndr_core::{App, Layout, Plugin, Schedule, Size};
-pub use style::{detach_style, resolve_styles, Corner, UiColor, UiRecipe, UiStyle};
+pub use style::{detach_style, resolve_styles, Corner, OverlayChrome, UiColor, UiRecipe, UiStyle};
 pub use surfaces::{separator, text, Callout, Card, Feedback, Surface, UiError, UiHandle, UiId};
 pub use theme_bridge::apply_theme_bridge;
 pub use tokens::{

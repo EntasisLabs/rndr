@@ -56,6 +56,58 @@ impl Corner {
         }
     }
 }
+
+/// Optional frost for a menu, palette, tooltip, toast, or other popover.
+///
+/// The default draws neither a backdrop blur nor a shadow. [`Self::frost`]
+/// blurs pixels the app has already drawn behind the popup and adds a drop
+/// shadow. It does not blur the desktop. That remains [`rndr_core::Backdrop`].
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct OverlayChrome {
+    /// Backdrop-blur sigma in logical points. `None`, zero, and non-finite
+    /// values draw no blur.
+    pub blur: Option<f32>,
+    /// Drop shadow under the popup.
+    pub shadow: bool,
+}
+
+impl OverlayChrome {
+    /// Twenty-point backdrop blur and a drop shadow.
+    pub fn frost() -> Self {
+        Self {
+            blur: Some(20.0),
+            shadow: true,
+        }
+    }
+}
+
+/// Apply or clear [`OverlayChrome`] on `entity`.
+pub(crate) fn paint_overlay(world: &mut World, entity: Entity, chrome: OverlayChrome) {
+    match chrome.blur {
+        Some(sigma) if sigma.is_finite() && sigma > 0.0 => {
+            world.insert(entity, BackdropBlur(sigma));
+        }
+        _ => {
+            world.remove::<BackdropBlur>(entity);
+        }
+    }
+    if chrome.shadow {
+        let dark = world
+            .resource::<UiTheme>()
+            .is_some_and(|theme| theme.appearance == Appearance::Dark);
+        let alpha = if dark { 0.46 } else { 0.18 };
+        world.insert(
+            entity,
+            Shadows(vec![Shadow::drop(
+                12.0,
+                28.0,
+                Color::rgba(0.0, 0.0, 0.0, alpha),
+            )]),
+        );
+    } else {
+        world.remove::<Shadows>(entity);
+    }
+}
 /// Semantic recipe on existing primitives. Authored primitive values win.
 /// Use Explicit within this component for an override of a semantic recipe.
 /// Removing UiStyle releases/restores only still-owned values on the next Layout.

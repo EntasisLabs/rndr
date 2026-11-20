@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Frosted surfaces
+
+- `Token::Glass`, `Token::Material`, and `Token::Panel` are translucent in light and dark standard contrast, and opaque in high contrast. `Surface::Transparent`, `Surface::Glass`, `Surface::Material`, and `Surface::Panel` mount those fills. `SplitSashProps::leading_fill` and `trailing_fill` follow a theme surface or stay clear, and the fill is resolved again when the theme changes. The default is still an opaque content pane.
+- Quiet controls and the focus-ring gap follow a translucent host instead of painting an opaque canvas tile. Fully clear ancestors are skipped. `TreeProps::translucent` uses a light wash on dark themes and an ink wash on light themes, and the row recipe is that wash. High contrast keeps the solid tokens.
+- Menus, the command palette, select popovers, tooltips, and toasts use `Corner::Overlay` (12). `OverlayChrome` optionally adds a `BackdropBlur` and a drop shadow: `open_menu_with`, `PaletteProps::chrome`, `SelectionProps::chrome`, `ToastProps::chrome`, and `TooltipHandle::chrome`. The default is still flat. The blur is of pixels the app has already drawn, not the desktop.
+- The investigation console panes use those surfaces. The nested split's parent pane is clear, so the center and audit glass composite over the window backdrop instead of an opaque content fill. `--light` exports the light theme. Row times keep a reserved slot, the status chevron has a box inside the button, the last agent sits above the window corner, code tokens are glued so they do not break mid-token, and timeline details stay on one line.
+
 ### Diff presentation
 
 - `DiffView` now uses compact code typography, full-row change fills, quiet hunk bands, and measured horizontal scrolling including unrealized long lines. First mounts fill the parent; existing host viewport sizing is preserved. Blank source lines are accepted.

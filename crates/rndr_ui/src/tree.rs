@@ -207,7 +207,8 @@ impl TreeProps {
         }
     }
 
-    /// Clear row fills. Hover and selection use a light overlay.
+    /// Clear row fills. Hover and selection use a theme wash: white on a
+    /// dark theme, ink on a light theme. High contrast keeps the solid tokens.
     pub fn translucent(mut self) -> Self {
         self.row_fill = TreeRowFill::Translucent;
         self
@@ -2019,6 +2020,36 @@ fn accessible_name(label: &str, secondary: &str, badge: &str, loading: bool) -> 
     name
 }
 
+fn row_color(
+    theme: &crate::UiTheme,
+    fill_mode: TreeRowFill,
+    fill: Token,
+    selected: bool,
+    hot: bool,
+) -> (Color, crate::UiColor) {
+    let solid = theme.contrast == crate::Contrast::High || fill_mode == TreeRowFill::Solid;
+    if solid {
+        return (theme.color(fill), fill.into());
+    }
+    let color = if selected {
+        wash(theme, 0.12)
+    } else if hot {
+        wash(theme, 0.06)
+    } else {
+        Color::rgba(0.0, 0.0, 0.0, 0.0)
+    };
+    (color, crate::UiColor::Explicit(color))
+}
+
+/// White over a dark theme, ink over a light theme.
+fn wash(theme: &crate::UiTheme, alpha: f32) -> Color {
+    if theme.appearance == crate::Appearance::Dark {
+        Color::rgba(1.0, 1.0, 1.0, alpha)
+    } else {
+        Color::rgba(0.10, 0.12, 0.16, alpha)
+    }
+}
+
 fn paint_row(
     world: &mut World,
     state: &TreeState,
@@ -2045,23 +2076,18 @@ fn paint_row(
     } else {
         Token::Content
     };
-    let color = match state.props.row_fill {
-        TreeRowFill::Solid => theme.color(fill),
-        TreeRowFill::Translucent => {
-            if selected {
-                Color::rgba(1.0, 1.0, 1.0, 0.12)
-            } else if pressed || (hovered && live && !loading) {
-                Color::rgba(1.0, 1.0, 1.0, 0.06)
-            } else {
-                Color::rgba(0.0, 0.0, 0.0, 0.0)
-            }
-        }
-    };
+    let (color, recipe) = row_color(
+        &theme,
+        state.props.row_fill,
+        fill,
+        selected,
+        pressed || (hovered && live && !loading),
+    );
     world.insert(slot.root, color);
     world.insert(
         slot.root,
         UiRecipe(UiStyle {
-            background: Some(fill.into()),
+            background: Some(recipe),
             corner: Some(crate::Corner::Control),
             ..UiStyle::default()
         }),
