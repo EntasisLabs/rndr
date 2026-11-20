@@ -38,7 +38,9 @@ use rndr_core::{App, Layout, Plugin, Schedule, Size};
 pub use style::{detach_style, resolve_styles, Corner, UiColor, UiRecipe, UiStyle};
 pub use surfaces::{separator, text, Callout, Card, Feedback, Surface, UiError, UiHandle, UiId};
 pub use theme_bridge::apply_theme_bridge;
-pub use tokens::{Appearance, Contrast, Density, Space, Token, Typography, UiTheme};
+pub use tokens::{
+    Appearance, Contrast, Density, Space, Token, TypeMetrics, TypeRamp, Typography, UiTheme,
+};
 pub use window_controls::{window_controls, WindowControls};
 
 /// Read the caller-stable key of a mounted component root. Internal decoration,
@@ -94,6 +96,7 @@ impl Plugin for UiPlugin {
         app.add_system(Schedule::Update, tree::publish);
         app.add_system(Schedule::PostUpdate, data::inspector_blur);
         app.add_system(Schedule::Layout, collections::styles);
+        app.add_system(Schedule::Layout, diff::styles);
         app.add_system(Schedule::Layout, tree::styles);
         app.add_system(Schedule::Layout, data::styles);
         app.add_system(Schedule::Layout, controls::resolve_controls);

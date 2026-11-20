@@ -49,6 +49,9 @@ pub struct UiTheme {
     pub reading_family: String,
     /// Monospace request. Actual fallback depends on the installed text engine.
     pub code_family: String,
+    /// Per-role metrics before text scale. Roles and scale semantics are fixed;
+    /// an application may supply its own sizes, line heights and weights.
+    pub ramp: TypeRamp,
 }
 impl Default for UiTheme {
     fn default() -> Self {
@@ -61,6 +64,7 @@ impl Default for UiTheme {
             ui_family: "Inter".into(),
             reading_family: "Inter".into(),
             code_family: "monospace".into(),
+            ramp: TypeRamp::default(),
         }
     }
 }
@@ -279,16 +283,8 @@ impl UiTheme {
     }
     /// Resolve a semantic type role using the current engine's family requests.
     pub fn typography(&self, role: Typography) -> TextStyle {
-        let (size, line, weight, reading) = match role {
-            Typography::Label => (14.0, 20.0, 400, false),
-            Typography::Emphasis => (13.0, 18.0, 600, false),
-            Typography::Secondary => (12.0, 16.0, 400, false),
-            Typography::Reading => (16.0, 24.0, 400, true),
-            Typography::Heading => (20.0, 28.0, 600, true),
-            Typography::Title => (26.0, 34.0, 600, true),
-            Typography::Code => (13.0, 20.0, 400, true),
-        };
-        let scale = if reading {
+        let m = self.ramp.metrics(role);
+        let scale = if role.is_reading() {
             self.reading_scale
         } else {
             self.text_scale
@@ -299,17 +295,98 @@ impl UiTheme {
             1.0
         };
         TextStyle {
-            size: size * scale,
-            line_height: Some(line / size),
-            weight,
+            size: m.size * scale,
+            line_height: Some(m.line / m.size),
+            weight: m.weight,
+            letter_spacing: m.tracking * scale,
             family: if role == Typography::Code {
                 self.code_family.clone()
-            } else if reading {
+            } else if role.is_reading() {
                 self.reading_family.clone()
             } else {
                 self.ui_family.clone()
             },
             ..TextStyle::default()
+        }
+    }
+}
+/// One role's unscaled metrics, in logical points.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TypeMetrics {
+    /// Em size.
+    pub size: f32,
+    /// Line box height.
+    pub line: f32,
+    /// Font weight, `400` regular.
+    pub weight: u16,
+    /// Extra advance between clusters.
+    pub tracking: f32,
+}
+impl TypeMetrics {
+    /// Untracked metrics.
+    pub const fn new(size: f32, line: f32, weight: u16) -> Self {
+        Self {
+            size,
+            line,
+            weight,
+            tracking: 0.0,
+        }
+    }
+    /// The same metrics with cluster tracking.
+    pub const fn tracking(self, tracking: f32) -> Self {
+        Self { tracking, ..self }
+    }
+}
+/// Metrics for every [`Typography`] role. The default is RNDR's ramp.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TypeRamp {
+    /// [`Typography::Label`].
+    pub label: TypeMetrics,
+    /// [`Typography::Emphasis`].
+    pub emphasis: TypeMetrics,
+    /// [`Typography::Secondary`].
+    pub secondary: TypeMetrics,
+    /// [`Typography::Caption`].
+    pub caption: TypeMetrics,
+    /// [`Typography::Overline`].
+    pub overline: TypeMetrics,
+    /// [`Typography::Reading`].
+    pub reading: TypeMetrics,
+    /// [`Typography::Heading`].
+    pub heading: TypeMetrics,
+    /// [`Typography::Title`].
+    pub title: TypeMetrics,
+    /// [`Typography::Code`].
+    pub code: TypeMetrics,
+}
+impl Default for TypeRamp {
+    fn default() -> Self {
+        Self {
+            label: TypeMetrics::new(14.0, 20.0, 400),
+            emphasis: TypeMetrics::new(13.0, 18.0, 600),
+            secondary: TypeMetrics::new(12.0, 16.0, 400),
+            caption: TypeMetrics::new(11.0, 14.0, 400),
+            overline: TypeMetrics::new(11.0, 14.0, 600).tracking(0.6),
+            reading: TypeMetrics::new(16.0, 24.0, 400),
+            heading: TypeMetrics::new(20.0, 28.0, 600),
+            title: TypeMetrics::new(26.0, 34.0, 600),
+            code: TypeMetrics::new(13.0, 20.0, 400),
+        }
+    }
+}
+impl TypeRamp {
+    /// Unscaled metrics for a role.
+    pub fn metrics(&self, role: Typography) -> TypeMetrics {
+        match role {
+            Typography::Label => self.label,
+            Typography::Emphasis => self.emphasis,
+            Typography::Secondary => self.secondary,
+            Typography::Caption => self.caption,
+            Typography::Overline => self.overline,
+            Typography::Reading => self.reading,
+            Typography::Heading => self.heading,
+            Typography::Title => self.title,
+            Typography::Code => self.code,
         }
     }
 }
@@ -360,6 +437,10 @@ pub enum Typography {
     Emphasis,
     /// Secondary label.
     Secondary,
+    /// Compact metadata: timestamps, counts, status.
+    Caption,
+    /// Tracked semibold group heading. Letter case stays with the caller.
+    Overline,
     /// Document reading.
     Reading,
     /// Subheading.
@@ -368,4 +449,13 @@ pub enum Typography {
     Title,
     /// Monospace request.
     Code,
+}
+impl Typography {
+    /// Scaled by the reading scale rather than the UI text scale.
+    pub fn is_reading(self) -> bool {
+        matches!(
+            self,
+            Self::Reading | Self::Heading | Self::Title | Self::Code
+        )
+    }
 }

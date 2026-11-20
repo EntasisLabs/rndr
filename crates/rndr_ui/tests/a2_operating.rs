@@ -447,12 +447,13 @@ fn actual_gallery_matrix_has_real_glyphs_wrap_targets_and_narrow_reflow() {
                             .quads
                             .iter()
                             .any(|q| q.rect == r && q.color == theme.color(Token::Focus)));
-                        assert!(a
+                        assert!(children_of(a.world(), nav.root).into_iter().any(|e| a
                             .world()
-                            .get::<Label>(nav.label)
-                            .unwrap()
-                            .text
-                            .starts_with("| "));
+                            .has::<Absolute>(
+                            e
+                        ) && !a
+                            .world()
+                            .has::<Hidden>(e)));
                         let n = access_tree(a.world())
                             .nodes
                             .into_iter()

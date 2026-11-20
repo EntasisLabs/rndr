@@ -147,3 +147,29 @@ fn stale_row_hint_is_ignored_and_ime_cursor_wins_over_affinity() {
     world.insert(e, layout);
     assert_eq!(caret_quad(&world).rect.y, TEXT_ORIGIN_Y + 16.0);
 }
+
+#[test]
+fn the_blink_off_phase_paints_no_insertion_caret_and_typing_restores_it() {
+    let clock = rndr_core::ManualClock::handle();
+    let (mut app, e) = boot("hello");
+    app.set_clock(clock.clone());
+    // Re-arm the blink on the manual clock.
+    app.world_mut().resource_mut::<Focus>().unwrap().entity = None;
+    app.update();
+    app.world_mut().resource_mut::<Focus>().unwrap().entity = Some(e);
+    app.update();
+    let color = Theme::default().caret;
+    let carets = |world: &World| {
+        paint(world)
+            .iter()
+            .filter(|q| q.uv == solid_uv() && q.color == color && q.rect.w == 2.0)
+            .count()
+    };
+    assert_eq!(carets(app.world()), 1);
+    clock.advance(rndr_core::CARET_BLINK);
+    app.update();
+    assert_eq!(carets(app.world()), 0, "off phase");
+    app.world_mut().resource_mut::<Input>().unwrap().chars = "!".into();
+    app.update();
+    assert_eq!(carets(app.world()), 1, "typing shows the caret at once");
+}

@@ -107,7 +107,7 @@ pub struct AtlasRegion {
     pub bytes: Vec<u8>,
 }
 
-/// Production text engine. System fonts plus the bundled Inter, Noto Sans
+/// Production text engine. System fonts plus bundled Inter, JetBrains Mono, Noto Sans
 /// Arabic, and Noto Color Emoji faces.
 ///
 /// [`crate::run`] inserts this as the world's [`rndr_core::TextEngine`]
@@ -318,6 +318,7 @@ impl Default for ParleyText {
 fn register_bundled(collection: &mut fontique::Collection) {
     let mut emoji = None;
     let mut sans = None;
+    let mut mono = None;
     for bytes in fonts::BUNDLED {
         let blob = fontique::Blob::new(Arc::new(bytes.to_vec()));
         for (id, _) in collection.register_fonts(blob, None) {
@@ -327,6 +328,7 @@ fn register_bundled(collection: &mut fontique::Collection) {
             match family.name() {
                 "Noto Color Emoji" => emoji = Some(id),
                 "Inter" => sans = Some(id),
+                "JetBrains Mono" => mono = Some(id),
                 _ => {}
             }
         }
@@ -336,6 +338,9 @@ fn register_bundled(collection: &mut fontique::Collection) {
     // host with no fonts still resolves them.
     if let Some(id) = emoji {
         collection.append_generic_families(fontique::GenericFamily::Emoji, std::iter::once(id));
+    }
+    if let Some(id) = mono {
+        collection.append_generic_families(fontique::GenericFamily::Monospace, std::iter::once(id));
     }
     if let Some(id) = sans {
         collection.append_generic_families(fontique::GenericFamily::SansSerif, std::iter::once(id));

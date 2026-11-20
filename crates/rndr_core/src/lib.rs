@@ -78,11 +78,13 @@ mod app;
 mod appearance;
 mod button;
 mod caret;
+mod caret_blink;
 mod chrome;
 mod clipboard;
 pub mod clock;
 mod close;
 mod freeze;
+pub mod timing;
 pub use freeze::DocumentFreeze;
 mod compose;
 mod cursor;
@@ -191,6 +193,7 @@ pub use caret::{
     apply_caret, caret_line_col, selection_spans, set_editing, set_editing_field, Caret, CaretRow,
     EditField, Editing, Field, TextSelection,
 };
+pub use caret_blink::{caret_visible, CARET_BLINK};
 pub use chrome::Chrome;
 pub use clipboard::{Clipboard, ClipboardImage};
 pub use clock::{ManualClock, SystemClock, Time};
@@ -293,6 +296,7 @@ pub use panel_place::{
 pub use selectable::{
     selectable_input, Selectable, SelectablePlugin, MULTI_PRESS_INTERVAL, MULTI_PRESS_SLOP,
 };
+pub use timing::{FrameStage, FrameTimings, NativeFrameTiming, TimingSummary};
 mod popup;
 pub use app_menu::{
     app_menu, app_menu_id, app_menu_pending, app_menu_support, parse_app_menu_id,

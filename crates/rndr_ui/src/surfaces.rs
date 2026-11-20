@@ -412,7 +412,10 @@ pub fn text(
         LabelBox::CONTENT,
         UiRecipe(UiStyle {
             foreground: Some(
-                if role == Typography::Secondary {
+                if matches!(
+                    role,
+                    Typography::Secondary | Typography::Caption | Typography::Overline
+                ) {
                     Token::Secondary
                 } else {
                     Token::Text

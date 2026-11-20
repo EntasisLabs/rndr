@@ -509,3 +509,67 @@ fn an_icon_scalar_is_a_coverage_glyph_that_scales_with_the_font() {
         .expect("tinted icon");
     assert_eq!(colored.color, Some(Color::rgb(0.2, 0.4, 0.8)));
 }
+
+#[test]
+fn an_inline_icon_reserves_its_em_and_centres_on_the_cap_height() {
+    let engine = bundled();
+    let text = format!("{} Today", Icon::ChevronDown.scalar());
+    let layout = engine.layout(&text, &inter(13.0), &[], f32::INFINITY);
+    let icon = layout
+        .glyphs
+        .iter()
+        .find(|g| g.ch == Icon::ChevronDown.scalar())
+        .expect("icon");
+    let t = layout.glyphs.iter().find(|g| g.ch == 'T').expect("T");
+    assert!(t.x >= icon.x + icon.w, "icon {icon:?} overlaps {t:?}");
+    let cap_mid = t.y + t.h / 2.0;
+    let icon_mid = icon.y + icon.h / 2.0;
+    assert!((icon_mid - cap_mid).abs() <= 1.0, "{icon_mid} vs {cap_mid}");
+    // Text without icons still shapes once with its authored tracking.
+    let plain = engine.layout("Today", &inter(13.0), &[], f32::INFINITY);
+    assert_eq!(plain.glyphs[0].x, 0.0);
+}
+
+#[test]
+fn retina_explicit_line_boxes_keep_logical_height() {
+    let engine = ParleyText::bundled();
+    let style = rndr_core::TextStyle {
+        family: "monospace".into(),
+        size: 13.,
+        line_height: Some(20. / 13.),
+        ..Default::default()
+    };
+    for scale in [1., 1.25, 2., 3.] {
+        engine.set_pixels_per_point(scale);
+        for (text, count) in [("let value = 42;", 1), ("one\ntwo", 2)] {
+            let layout = engine.layout(text, &style, &[], f32::INFINITY);
+            assert_eq!(layout.lines.len(), count);
+            assert!(
+                (layout.height - count as f32 * 20.).abs() < 0.02,
+                "logical height at scale {scale}: {}",
+                layout.height
+            );
+            let measured = engine.measure(text, &style, &[], f32::INFINITY);
+            assert!((measured.height - layout.height).abs() < 0.01);
+        }
+    }
+}
+
+#[test]
+fn bundled_generic_monospace_has_equal_advances_without_system_fonts() {
+    let engine = ParleyText::bundled();
+    let style = rndr_core::TextStyle {
+        family: "monospace".into(),
+        size: 13.,
+        ..Default::default()
+    };
+    for scale in [1., 2.] {
+        engine.set_pixels_per_point(scale);
+        let narrow = engine.measure("iiiiiiii", &style, &[], f32::INFINITY);
+        let wide = engine.measure("WWWWWWWW", &style, &[], f32::INFINITY);
+        assert!(
+            (narrow.width - wide.width).abs() < 0.01,
+            "generic code face must be fixed pitch: {narrow:?} {wide:?}"
+        );
+    }
+}

@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+### Diff presentation
+
+- `DiffView` now uses compact code typography, full-row change fills, quiet hunk bands, and measured horizontal scrolling including unrealized long lines. First mounts fill the parent; existing host viewport sizing is preserved. Blank source lines are accepted.
+- Additive `DiffAnnotation` / `mount_annotated` support old/new source-number cells and host-supplied UTF-8 syntax/inline-change spans without mixing coordinates into source text. Invalid annotation identities or ranges refuse before publication.
+- Bundle OFL-licensed JetBrains Mono and register the generic monospace fallback, including in deterministic bundled-font rendering.
+- Fix Parley `TextLayout::height` mixing device pixels with logical points at non-1× scale; explicit code line boxes now report their logical height consistently.
+
+### Typography
+
+- `UiTheme::ramp` is a `TypeRamp` of per-role `TypeMetrics` (size, line height, weight, tracking). The default is the previous ramp, so unchanged themes resolve identical styles. An application can supply its own metrics; roles and the independent UI/reading scales keep their meaning, and tracking scales with text.
+- `Typography::Caption` (11/14) is compact metadata and `Typography::Overline` (11/14 semibold, tracked) is a group heading; the caller supplies letter case. Both use secondary ink through `text`.
+- An inline icon scalar now reserves one em of advance with the Parley engine. It used to advance by the fallback face's notdef, about half an em, so its one-em sprite overlapped the next glyph. The sprite is also centred on the run font's cap height instead of hanging from the em top. Text without icon scalars still shapes in one pass.
+- `Icon::GitBranch` (Lucide `git-branch`) joins the baked set. Icon scalars after it in sorted order moved by one; use `Icon` values, not literal scalars.
+
+### Editor
+
+- The focused insertion caret blinks (`CARET_BLINK`, 530 ms on/off) and `caret_visible` reports the phase. Moving the caret or changing the focused text shows it at once and restarts the interval. A selection, an unfocused view and `SystemAppearance::reduced_motion` keep it on, and those arm no timer. Paint skips only collapsed carets during the off phase.
+- A selected `NavigationRow` shows a 3-point accent bar on its leading edge instead of prefixing the label with `| `. The label text is the caller's text; selection remains announced through the selected state.
+
+- The editor's per-paragraph row cache now keys on the text style. A size, weight or tracking change (reading zoom, a new type ramp) used to reuse rows shaped at the old size: wrapped lines painted correctly, but the gutter numbers, scroll extent and window edges followed the stale wrap until the text changed.
+
 ### Investigation console
 
 - `investigation` is a sample security console on the existing window material. The window is transparent and asks for [`Backdrop::Window`](crates/rndr_core/src/window_chrome.rs): Mica on Windows 11, and a behind-window vibrancy view on macOS. Linux and the browser still ignore `Backdrop`. The three panes are resizable `SplitSash`es. Investigations, closed cases, and agents are virtual lists; groups are a `VirtualTree`. `cargo run -p investigation`. `--export` writes a headless frame. `--features observe -- --observe` opens the native surface-copy session. Neither capture includes the window server's blur. See the example's crate docs for the visual gaps.

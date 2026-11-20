@@ -82,16 +82,16 @@ pub fn despawn(world: &mut World, entity: Entity) {
 /// component yields an empty list. The list is owned; it is not a borrow of
 /// the component.
 pub fn children_of(world: &World, entity: Entity) -> Vec<Entity> {
+    live_children(world, entity).collect()
+}
+
+// Immutable traversal must not materialize a mutation snapshot per parent.
+pub(crate) fn live_children(world: &World, entity: Entity) -> impl Iterator<Item = Entity> + '_ {
     world
         .get::<Children>(entity)
-        .map(|c| {
-            c.list
-                .iter()
-                .copied()
-                .filter(|child| world.is_alive(*child))
-                .collect()
-        })
-        .unwrap_or_default()
+        .into_iter()
+        .flat_map(|children| children.list.iter().copied())
+        .filter(|child| world.is_alive(*child))
 }
 
 /// Live entities with `T` that have no live [`Parent`].

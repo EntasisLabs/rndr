@@ -66,6 +66,7 @@ impl Plugin for Chrome {
         app.add_system_front(Schedule::Update, apply_chrome);
         app.add_system(Schedule::PostUpdate, apply_lists);
         app.add_system(Schedule::PostUpdate, apply_editor);
+        app.add_system(Schedule::PostUpdate, crate::caret_blink::apply_caret_blink);
         app.add_system(Schedule::PostUpdate, apply_clipboard);
     }
 }
