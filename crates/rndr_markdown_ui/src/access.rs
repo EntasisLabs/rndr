@@ -365,18 +365,83 @@ impl Builder<'_> {
         let mut child_at = at;
         let mut fields = Vec::new();
         for child in node.children() {
-            if child.kind() == SyntaxKind::Field {
-                let (key, value) = field_text(child);
-                fields.push(self.push(
-                    AccessRole::Label,
-                    key,
-                    value,
-                    None,
-                    child_at..child_at + child.width(),
-                    Vec::new(),
-                ));
+            let child_end = child_at + child.width();
+            match child.kind() {
+                SyntaxKind::Field => {
+                    let (key, value) = field_text(self.bytes, child, child_at);
+                    fields.push(self.push(
+                        AccessRole::Label,
+                        key,
+                        value,
+                        None,
+                        child_at..child_end,
+                        Vec::new(),
+                    ));
+                }
+                SyntaxKind::PipeRow => {
+                    let mut cursor = child_at;
+                    for field in child.children() {
+                        let end = cursor + field.width();
+                        if field.kind() == SyntaxKind::Field {
+                            let (key, value) = field_text(self.bytes, field, cursor);
+                            fields.push(self.push(
+                                AccessRole::Label,
+                                key,
+                                value,
+                                None,
+                                cursor..end,
+                                Vec::new(),
+                            ));
+                        }
+                        cursor = end;
+                    }
+                }
+                SyntaxKind::Table => {
+                    fields.push(self.table(child, child_at));
+                }
+                SyntaxKind::FieldSeparator => {
+                    fields.push(self.push(
+                        AccessRole::Label,
+                        "separator".into(),
+                        "---".into(),
+                        None,
+                        child_at..child_end,
+                        Vec::new(),
+                    ));
+                }
+                SyntaxKind::FieldComment | SyntaxKind::OpaqueInline => {
+                    let text = plain(self.bytes, child, child_at);
+                    if !text.is_empty() {
+                        fields.push(self.push(
+                            AccessRole::Label,
+                            if child.kind() == SyntaxKind::FieldComment {
+                                "comment".into()
+                            } else {
+                                String::new()
+                            },
+                            text,
+                            None,
+                            child_at..child_end,
+                            Vec::new(),
+                        ));
+                    }
+                }
+                SyntaxKind::FenceLine | SyntaxKind::BlockGap => {}
+                _ => {
+                    let text = plain(self.bytes, child, child_at);
+                    if !text.is_empty() {
+                        fields.push(self.push(
+                            AccessRole::Paragraph,
+                            String::new(),
+                            text,
+                            None,
+                            child_at..child_end,
+                            Vec::new(),
+                        ));
+                    }
+                }
             }
-            child_at += child.width();
+            child_at = child_end;
         }
         let name = if canonical.is_empty() {
             "Liquid".to_string()
@@ -461,17 +526,44 @@ fn fence_info_of(node: &Green) -> String {
         .unwrap_or_default()
 }
 
-fn field_text(node: &Green) -> (String, String) {
+fn field_text(bytes: &str, node: &Green, at: usize) -> (String, String) {
     let mut key = String::new();
-    let mut value = String::new();
+    let mut plain_value = String::new();
+    let mut scalar = false;
+    let mut after_indicator = false;
+    let mut value_start = None;
+    let mut value_end = at;
+    let mut cursor = at;
     for child in node.children() {
-        if child.kind() == SyntaxKind::FieldKey {
-            key = child.text().trim().to_string();
+        let end = cursor + child.width();
+        match child.kind() {
+            SyntaxKind::FieldKey => key = child.text().trim().to_string(),
+            SyntaxKind::BlockScalar => scalar = true,
+            SyntaxKind::FieldValue if !scalar => plain_value = child.text().to_string(),
+            SyntaxKind::LineEnding if scalar && !after_indicator => {
+                after_indicator = true;
+                value_start = Some(end);
+                value_end = end;
+            }
+            _ if scalar && after_indicator => {
+                if value_start.is_none() {
+                    value_start = Some(cursor);
+                }
+                value_end = end;
+            }
+            _ => {}
         }
-        if child.kind() == SyntaxKind::FieldValue {
-            value = child.text().to_string();
-        }
+        cursor = end;
     }
+    let value = if scalar {
+        bytes
+            .get(value_start.unwrap_or(at)..value_end)
+            .unwrap_or("")
+            .trim_end_matches(['\n', '\r'])
+            .to_string()
+    } else {
+        plain_value
+    };
     (key, value)
 }
 

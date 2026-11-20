@@ -281,3 +281,79 @@ title: Weekly
         .unwrap();
     assert!(plot_node.children.contains(&access_id(tip)));
 }
+
+#[test]
+fn emoji_is_drawn_when_the_fence_has_no_icon() {
+    let (app, view) = setup(
+        "\
+```card
+title: Sol
+emoji: 🌞
+```
+",
+    );
+    let texts: Vec<_> = descendants(app.world(), view)
+        .iter()
+        .filter_map(|entity| app.world().get::<Label>(*entity).map(|l| l.text.clone()))
+        .collect();
+    assert!(
+        texts
+            .iter()
+            .any(|text| text.contains('🌞') && text.contains("Sol")),
+        "{texts:?}"
+    );
+}
+
+#[test]
+fn timeline_shows_lane_granularity_and_layout() {
+    let (app, view) = setup(
+        "\
+```timeline
+title: Road
+granularity: day
+layout: rail
+---
+label: One
+ts: Monday
+lane: product
+emoji: 📍
+---
+label: Two
+ts: Tuesday
+```
+",
+    );
+    let texts: Vec<_> = descendants(app.world(), view)
+        .iter()
+        .filter_map(|entity| app.world().get::<Label>(*entity).map(|l| l.text.clone()))
+        .collect();
+    let joined = texts.join("\n");
+    assert!(joined.contains("product"), "{joined}");
+    assert!(joined.contains("day"), "{joined}");
+    assert!(joined.contains("rail"), "{joined}");
+    assert!(joined.contains('📍'), "{joined}");
+}
+
+#[test]
+fn shortlist_compact_tightens_the_block_gap() {
+    let (app, view) = setup(
+        "\
+```shortlist
+title: Picks
+density: compact
+---
+label: Alpha
+score: 9
+---
+label: Beta
+score: 8
+```
+",
+    );
+    let tight = descendants(app.world(), view).into_iter().any(|entity| {
+        app.world()
+            .get::<Layout>(entity)
+            .is_some_and(|layout| layout.gap == 2.0)
+    });
+    assert!(tight, "compact density did not tighten the block");
+}

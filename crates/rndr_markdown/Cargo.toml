@@ -17,3 +17,4 @@ unicode-segmentation = "1.13"
 
 [dev-dependencies]
 rndr_liquid = { path = "../rndr_liquid" }
+serde_json = "1"

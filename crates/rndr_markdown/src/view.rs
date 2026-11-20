@@ -85,25 +85,138 @@ pub struct LiquidFence<'a> {
     pub canonical: &'static str,
     /// Whether [`parse_fence`] accepts the body.
     pub valid: bool,
-    /// Fields, comments, and separators in source order.
+    /// Fields and comments in source order. Separators, gaps, and tables are
+    /// in [`Self::parts`], not here.
     pub fields: Vec<Field<'a>>,
+    /// Every body node, in source order. The ranges tile [`Self::body`].
+    pub parts: Vec<FencePart<'a>>,
+    /// Body slices between `---` separators. The separator itself is a part,
+    /// not a member of the group on either side.
+    pub groups: Vec<ItemGroup<'a>>,
+    /// Byte range of the body, between the opening and closing fence lines.
+    pub body: Range<usize>,
     /// Byte range of the whole fence.
     pub range: Range<usize>,
 }
 
-/// One field, comment, or separator inside a fence.
+/// One node of a fence body.
+///
+/// Concatenating [`FencePart::range`] across [`LiquidFence::parts`] yields
+/// [`LiquidFence::body`]. A byte that is not in one of these ranges is not in
+/// the body.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum FencePart<'a> {
+    /// A `key: value` field, including a block scalar and its continuation.
+    Field(Field<'a>),
+    /// A `#` comment line.
+    Comment {
+        /// Comment bytes, including the `#` and the line ending.
+        text: &'a str,
+        /// Absolute byte range.
+        range: Range<usize>,
+    },
+    /// A `---` item separator.
+    Separator {
+        /// Absolute byte range, including the line ending.
+        range: Range<usize>,
+    },
+    /// A blank line.
+    Gap {
+        /// Absolute byte range.
+        range: Range<usize>,
+    },
+    /// A `| key: value | key: value` row.
+    PipeRow {
+        /// Absolute byte range of the row.
+        range: Range<usize>,
+        /// Fields in the row, left to right.
+        fields: Vec<Field<'a>>,
+    },
+    /// A GFM pipe table inside the fence (compare, chart, and the same shape).
+    Table {
+        /// Absolute byte range of the table.
+        range: Range<usize>,
+        /// Rows, including the `|---|` separator row.
+        rows: Vec<FenceRow<'a>>,
+    },
+    /// A line the field grammar does not structure.
+    Opaque {
+        /// Line bytes, including the line ending.
+        text: &'a str,
+        /// Absolute byte range.
+        range: Range<usize>,
+    },
+    /// Nested markdown after the field preamble of `report`, `section`, or `block`.
+    Nested {
+        /// Absolute byte range of the nested blocks.
+        range: Range<usize>,
+    },
+}
+
+impl<'a> FencePart<'a> {
+    /// Absolute byte range of this part.
+    pub fn range(&self) -> Range<usize> {
+        match self {
+            Self::Field(field) => field.range.clone(),
+            Self::Comment { range, .. }
+            | Self::Separator { range }
+            | Self::Gap { range }
+            | Self::PipeRow { range, .. }
+            | Self::Table { range, .. }
+            | Self::Opaque { range, .. }
+            | Self::Nested { range } => range.clone(),
+        }
+    }
+}
+
+/// One row of a fence pipe table.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FenceRow<'a> {
+    /// Absolute byte range of the row, including its line ending.
+    pub range: Range<usize>,
+    /// True when every cell is a GFM alignment marker.
+    pub separator: bool,
+    /// Cells in order. Padding spaces stay in the cell text.
+    pub cells: Vec<FenceCell<'a>>,
+}
+
+/// One cell of a fence pipe table.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FenceCell<'a> {
+    /// Cell bytes as written, including padding spaces. The pipes are not included.
+    pub text: &'a str,
+    /// Absolute byte range of [`Self::text`].
+    pub range: Range<usize>,
+}
+
+/// Fields between two `---` separators, or before the first one.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ItemGroup<'a> {
+    /// Absolute byte range. Empty when the group has no parts.
+    pub range: Range<usize>,
+    /// Parts in this group. Separators are not included.
+    pub parts: Vec<FencePart<'a>>,
+}
+
+/// One field or comment inside a fence.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Field<'a> {
-    /// Key spelling, or empty for a comment or separator.
+    /// Key spelling, or empty for a comment.
     pub key: &'a str,
-    /// Value bytes, excluding surrounding quotes.
+    /// Value bytes. Quotes and a block-scalar indicator are not included.
+    /// A block scalar's value is the continuation lines, including their
+    /// indentation and the line endings between them.
     pub value: &'a str,
     /// Absolute byte range of [`Self::value`].
     pub value_span: Range<usize>,
+    /// Absolute byte range of the whole field or comment node.
+    pub range: Range<usize>,
     /// This node is a `#` comment line.
     pub comment: bool,
     /// The value is markdown for this fence kind.
     pub markdown: bool,
+    /// The value is a YAML block scalar (`|`, `|-`, `>`, and the other forms).
+    pub multiline: bool,
 }
 
 impl<'a> Field<'a> {
@@ -167,46 +280,104 @@ fn walk_liquid<'a>(source: &'a str, node: &Green, at: usize, out: &mut Vec<Liqui
 
 fn liquid_at<'a>(source: &'a str, node: &Green, at: usize) -> LiquidFence<'a> {
     let range = at..at + node.width();
-    let mut child_at = at;
+    let mut cursor = at;
     let mut info = "";
-    let mut body_start = None;
-    let mut body_end = None;
+    let mut open_end = range.end;
+    let mut close_start = range.end;
+    let mut saw_open = false;
+    for child in node.children() {
+        let end = cursor + child.width();
+        if child.kind() == SyntaxKind::FenceLine {
+            if !saw_open {
+                info = fence_info(&source[cursor..end]);
+                open_end = end;
+                saw_open = true;
+            } else {
+                close_start = cursor;
+            }
+        }
+        cursor = end;
+    }
+    let canonical = canonical_kind(info);
+    let body_range = if saw_open {
+        open_end..close_start
+    } else {
+        range.clone()
+    };
+    let body = source.get(body_range.clone()).unwrap_or("");
+    let mut parts = Vec::new();
     let mut fields = Vec::new();
+    let mut child_at = at;
     for child in node.children() {
         let child_end = child_at + child.width();
-        if child.kind() == SyntaxKind::FenceLine && info.is_empty() {
-            info = fence_info(&source[child_at..child_end]);
-            body_start = Some(child_end);
-        } else if child.kind() == SyntaxKind::FenceLine {
-            body_end = Some(child_at);
-        } else {
-            fields.extend(fields_in(source, child, child_at, ""));
+        if child.kind() != SyntaxKind::FenceLine {
+            let part = part_of(source, child, child_at, canonical);
+            if let Some(field) = field_of(&part) {
+                fields.push(field);
+            }
+            if let FencePart::PipeRow { fields: row, .. } = &part {
+                fields.extend(row.iter().cloned());
+            }
+            parts.push(part);
         }
         child_at = child_end;
     }
-    let canonical = canonical_kind(info);
-    let body = match (body_start, body_end) {
-        (Some(start), Some(end)) if end >= start => &source[start..end],
-        (Some(start), None) => &source[start..range.end],
-        _ => "",
-    };
-    let kind_for_fields = canonical;
-    // Re-walk fields now that the kind is known, so markdown flags are set.
-    let mut typed = Vec::new();
-    let mut child_at = at;
-    for child in node.children() {
-        typed.extend(fields_in(source, child, child_at, kind_for_fields));
-        child_at += child.width();
-    }
-    let _ = fields;
+    let groups = item_groups(&parts);
     LiquidFence {
         info,
         canonical,
         valid: parse_fence(canonical, body.trim_end_matches(['\n', '\r'])).is_some()
             || parse_fence(info, body.trim_end_matches(['\n', '\r'])).is_some(),
-        fields: typed,
+        fields,
+        parts,
+        groups,
+        body: body_range,
         range,
     }
+}
+
+fn field_of<'a>(part: &FencePart<'a>) -> Option<Field<'a>> {
+    match part {
+        FencePart::Field(field) => Some(field.clone()),
+        FencePart::Comment { text, range } => Some(Field {
+            key: "",
+            value: text,
+            value_span: range.clone(),
+            range: range.clone(),
+            comment: true,
+            markdown: false,
+            multiline: false,
+        }),
+        _ => None,
+    }
+}
+
+fn item_groups<'a>(parts: &[FencePart<'a>]) -> Vec<ItemGroup<'a>> {
+    let mut groups = Vec::new();
+    let mut current = Vec::new();
+    let mut saw_separator = false;
+    for part in parts {
+        if matches!(part, FencePart::Separator { .. }) {
+            if !current.is_empty() {
+                groups.push(group_from(std::mem::take(&mut current)));
+            }
+            saw_separator = true;
+        } else {
+            current.push(part.clone());
+        }
+    }
+    if !current.is_empty() || !saw_separator {
+        groups.push(group_from(current));
+    }
+    groups
+}
+
+fn group_from<'a>(parts: Vec<FencePart<'a>>) -> ItemGroup<'a> {
+    let range = match (parts.first(), parts.last()) {
+        (Some(first), Some(last)) => first.range().start..last.range().end,
+        _ => 0..0,
+    };
+    ItemGroup { range, parts }
 }
 
 fn fence_info(line: &str) -> &str {
@@ -228,49 +399,136 @@ fn canonical_kind(info: &str) -> &'static str {
     }
 }
 
-fn fields_in<'a>(source: &'a str, node: &Green, at: usize, kind: &str) -> Vec<Field<'a>> {
+fn part_of<'a>(source: &'a str, node: &Green, at: usize, kind: &str) -> FencePart<'a> {
+    let range = at..at + node.width();
     match node.kind() {
-        SyntaxKind::Field => {
-            let mut key = "";
-            let mut value = "";
-            let mut value_span = at..at;
-            let mut cursor = at;
-            for child in node.children() {
-                let end = cursor + child.width();
-                if child.kind() == SyntaxKind::FieldKey {
-                    key = &source[cursor..end];
-                }
-                if child.kind() == SyntaxKind::FieldValue {
-                    value = &source[cursor..end];
-                    value_span = cursor..end;
-                }
-                cursor = end;
+        SyntaxKind::Field => FencePart::Field(read_field(source, node, at, kind)),
+        SyntaxKind::FieldComment => FencePart::Comment {
+            text: source.get(range.clone()).unwrap_or(""),
+            range,
+        },
+        SyntaxKind::FieldSeparator => FencePart::Separator { range },
+        SyntaxKind::BlockGap => FencePart::Gap { range },
+        SyntaxKind::PipeRow => FencePart::PipeRow {
+            fields: pipe_fields(source, node, at, kind),
+            range,
+        },
+        SyntaxKind::Table => FencePart::Table {
+            rows: table_rows(source, node, at),
+            range,
+        },
+        SyntaxKind::OpaqueInline => FencePart::Opaque {
+            text: source.get(range.clone()).unwrap_or(""),
+            range,
+        },
+        _ => FencePart::Nested { range },
+    }
+}
+
+fn read_field<'a>(source: &'a str, node: &Green, at: usize, kind: &str) -> Field<'a> {
+    let range = at..at + node.width();
+    let mut key = "";
+    let mut plain: Option<Range<usize>> = None;
+    let mut scalar = false;
+    let mut after_indicator = false;
+    let mut value_start = None;
+    let mut value_end = at;
+    let mut cursor = at;
+    for child in node.children() {
+        let end = cursor + child.width();
+        match child.kind() {
+            SyntaxKind::FieldKey => key = source.get(cursor..end).unwrap_or(""),
+            SyntaxKind::BlockScalar => scalar = true,
+            SyntaxKind::FieldValue if !scalar => plain = Some(cursor..end),
+            SyntaxKind::LineEnding if scalar && !after_indicator => {
+                after_indicator = true;
+                value_start = Some(end);
+                value_end = end;
             }
-            vec![Field {
-                key,
-                value,
-                value_span,
-                comment: false,
-                markdown: is_markdown_field(kind, key),
-            }]
-        }
-        SyntaxKind::FieldComment => vec![Field {
-            key: "",
-            value: &source[at..at + node.width()],
-            value_span: at..at + node.width(),
-            comment: true,
-            markdown: false,
-        }],
-        SyntaxKind::FieldSeparator | SyntaxKind::PipeRow | SyntaxKind::BlockGap => Vec::new(),
-        _ => {
-            let mut out = Vec::new();
-            let mut cursor = at;
-            for child in node.children() {
-                out.extend(fields_in(source, child, cursor, kind));
-                cursor += child.width();
+            _ if scalar && after_indicator => {
+                if value_start.is_none() {
+                    value_start = Some(cursor);
+                }
+                value_end = end;
             }
-            out
+            SyntaxKind::FieldValue if scalar && !after_indicator => {
+                // Trailing bytes on the indicator line are part of the value.
+                value_start = Some(cursor);
+                value_end = end;
+                after_indicator = true;
+            }
+            _ => {}
         }
+        cursor = end;
+    }
+    let value_span = if scalar {
+        value_start.map(|start| start..value_end).unwrap_or(at..at)
+    } else {
+        plain.unwrap_or(at..at)
+    };
+    let value = source.get(value_span.clone()).unwrap_or("");
+    Field {
+        key,
+        value,
+        value_span,
+        range,
+        comment: false,
+        markdown: is_markdown_field(kind, key),
+        multiline: scalar,
+    }
+}
+
+fn pipe_fields<'a>(source: &'a str, node: &Green, at: usize, kind: &str) -> Vec<Field<'a>> {
+    let mut fields = Vec::new();
+    let mut cursor = at;
+    for child in node.children() {
+        let end = cursor + child.width();
+        if child.kind() == SyntaxKind::Field {
+            fields.push(read_field(source, child, cursor, kind));
+        }
+        cursor = end;
+    }
+    fields
+}
+
+fn table_rows<'a>(source: &'a str, node: &Green, at: usize) -> Vec<FenceRow<'a>> {
+    let mut rows = Vec::new();
+    let mut cursor = at;
+    for child in node.children() {
+        let end = cursor + child.width();
+        if child.kind() == SyntaxKind::TableRow {
+            rows.push(table_row(source, child, cursor));
+        }
+        cursor = end;
+    }
+    rows
+}
+
+fn table_row<'a>(source: &'a str, node: &Green, at: usize) -> FenceRow<'a> {
+    let mut cells = Vec::new();
+    let mut cursor = at;
+    for child in node.children() {
+        let end = cursor + child.width();
+        if child.kind() == SyntaxKind::TableCell {
+            let text = source.get(cursor..end).unwrap_or("");
+            cells.push(FenceCell {
+                text,
+                range: cursor..end,
+            });
+        }
+        cursor = end;
+    }
+    let separator = !cells.is_empty()
+        && cells.iter().all(|cell| {
+            let trimmed: String = cell.text.chars().filter(|c| !c.is_whitespace()).collect();
+            trimmed.is_empty()
+                || (trimmed.len() >= 3
+                    && trimmed.bytes().all(|b| b == b'-' || b == b':' || b == b'|'))
+        });
+    FenceRow {
+        range: at..at + node.width(),
+        separator,
+        cells,
     }
 }
 

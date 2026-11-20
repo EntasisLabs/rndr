@@ -439,7 +439,7 @@ fn parse_liquid_body(body: &str, _abs: usize, info: &str) -> Vec<Green> {
             i += 1;
             continue;
         }
-        if trimmed.bytes().all(|b| b == b'-') && trimmed.len() >= 3 {
+        if is_separator_line(trimmed) {
             out.push(Green::leaf(
                 SyntaxKind::FieldSeparator,
                 &body[line.start..line.end],
@@ -447,7 +447,45 @@ fn parse_liquid_body(body: &str, _abs: usize, info: &str) -> Vec<Green> {
             i += 1;
             continue;
         }
-        if is_field_line(trimmed) || is_pipe_row(trimmed) {
+        if is_block_scalar_line(trimmed) {
+            let start = i;
+            i += 1;
+            while i < lines.len() {
+                let next = body[lines[i].start..lines[i].text_end].trim();
+                if stops_block_scalar(next) {
+                    break;
+                }
+                i += 1;
+            }
+            out.push(scalar_field(body, &lines[start..i]));
+            saw_field = true;
+            continue;
+        }
+        if is_kv_pipe_row(trimmed) {
+            out.push(pipe_row_node(body, line));
+            saw_field = true;
+            i += 1;
+            continue;
+        }
+        if is_gfm_row(trimmed) {
+            // A report, section, or block treats a following table as nested
+            // markdown. Compare and chart fences keep the table here.
+            if trailing_markdown && saw_field {
+                break;
+            }
+            let start = i;
+            i += 1;
+            while i < lines.len() {
+                let next = body[lines[i].start..lines[i].text_end].trim();
+                if !is_gfm_row(next) {
+                    break;
+                }
+                i += 1;
+            }
+            out.push(fence_table(body, &lines[start..i]));
+            continue;
+        }
+        if is_field_line(trimmed) {
             out.push(field_node(body, line));
             saw_field = true;
             i += 1;
@@ -479,6 +517,41 @@ fn parse_liquid_body(body: &str, _abs: usize, info: &str) -> Vec<Green> {
     out
 }
 
+fn is_separator_line(trimmed: &str) -> bool {
+    trimmed.len() >= 3 && trimmed.bytes().all(|b| b == b'-')
+}
+
+fn stops_block_scalar(trimmed: &str) -> bool {
+    if trimmed.is_empty() {
+        return false;
+    }
+    if is_separator_line(trimmed) || is_kv_pipe_row(trimmed) || is_gfm_row(trimmed) {
+        return true;
+    }
+    if !is_field_line(trimmed) {
+        return false;
+    }
+    // `http://…` is prose inside a scalar, matching `kv::is_new_field_line`.
+    let key = trimmed
+        .split(':')
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_ascii_lowercase();
+    key != "http" && key != "https"
+}
+
+fn is_block_scalar_line(trimmed: &str) -> bool {
+    let Some((_, value)) = trimmed.split_once(':') else {
+        return false;
+    };
+    if !is_field_line(trimmed) {
+        return false;
+    }
+    let value = value.trim();
+    block_scalar_indicator(value) == Some(value)
+}
+
 fn is_field_line(trimmed: &str) -> bool {
     let bytes = trimmed.as_bytes();
     if bytes.is_empty() || !bytes[0].is_ascii_alphabetic() {
@@ -496,23 +569,60 @@ fn is_field_line(trimmed: &str) -> bool {
     i < bytes.len() && bytes[i] == b':'
 }
 
-fn is_pipe_row(trimmed: &str) -> bool {
-    trimmed.contains('|') && trimmed.contains(':')
+/// A `| key: value | key: value` row, the form `parse_kv_line` accepts.
+///
+/// A cell that merely contains a colon (`| Cost: high |`) is a table cell.
+/// The key has to sit immediately after a pipe.
+fn is_kv_pipe_row(trimmed: &str) -> bool {
+    let bytes = trimmed.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] != b'|' {
+            i += 1;
+            continue;
+        }
+        i += 1;
+        while i < bytes.len() && bytes[i] == b' ' {
+            i += 1;
+        }
+        let key = i;
+        if i >= bytes.len() || !bytes[i].is_ascii_alphabetic() {
+            continue;
+        }
+        i += 1;
+        while i < bytes.len()
+            && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_' || bytes[i] == b'-')
+        {
+            i += 1;
+        }
+        while i < bytes.len() && bytes[i] == b' ' {
+            i += 1;
+        }
+        if i < bytes.len() && bytes[i] == b':' && i > key {
+            return true;
+        }
+    }
+    false
+}
+
+fn is_gfm_row(trimmed: &str) -> bool {
+    trimmed.starts_with('|') && !is_kv_pipe_row(trimmed)
 }
 
 fn field_node(body: &str, line: &Line) -> Green {
     let text = &body[line.start..line.text_end];
     let nl = &body[line.text_end..line.end];
-    if is_pipe_row(text.trim()) && !is_field_line(text.trim()) {
-        let mut children = vec![Green::leaf(SyntaxKind::FieldValue, text)];
-        if !nl.is_empty() {
-            children.push(Green::leaf(SyntaxKind::LineEnding, nl));
-        }
-        return Green::branch(SyntaxKind::PipeRow, children);
-    }
-    let Some(colon) = text.find(':') else {
+    let Some(mut children) = field_children(text) else {
         return raw_line(body, line, SyntaxKind::OpaqueInline);
     };
+    if !nl.is_empty() {
+        children.push(Green::leaf(SyntaxKind::LineEnding, nl));
+    }
+    Green::branch(SyntaxKind::Field, children)
+}
+
+fn field_children(text: &str) -> Option<Vec<Green>> {
+    let colon = text.find(':')?;
     let key = &text[..colon];
     let after = &text[colon + 1..];
     let value_lead = after.len() - after.trim_start().len();
@@ -539,10 +649,117 @@ fn field_node(body: &str, line: &Line) -> Green {
     } else {
         children.push(Green::leaf(SyntaxKind::FieldValue, value));
     }
+    Some(children)
+}
+
+/// A `key: |` field plus every following line up to the next field, separator,
+/// or pipe row. The indicator stays trivia. The continuation lines are the value.
+fn scalar_field(body: &str, lines: &[Line]) -> Green {
+    let line = &lines[0];
+    let text = &body[line.start..line.text_end];
+    let mut children =
+        field_children(text).unwrap_or_else(|| vec![Green::leaf(SyntaxKind::Text, text)]);
+    let nl = &body[line.text_end..line.end];
     if !nl.is_empty() {
         children.push(Green::leaf(SyntaxKind::LineEnding, nl));
     }
+    for line in &lines[1..] {
+        let text = &body[line.start..line.text_end];
+        if !text.is_empty() {
+            children.push(Green::leaf(SyntaxKind::FieldValue, text));
+        }
+        let nl = &body[line.text_end..line.end];
+        if !nl.is_empty() {
+            children.push(Green::leaf(SyntaxKind::LineEnding, nl));
+        }
+    }
     Green::branch(SyntaxKind::Field, children)
+}
+
+fn pipe_row_node(body: &str, line: &Line) -> Green {
+    let text = &body[line.start..line.text_end];
+    let mut children = Vec::new();
+    let mut rest = text;
+    // `title: Sol | body: Hi` has its first field before any pipe.
+    let first_end = rest.find('|').unwrap_or(rest.len());
+    if first_end > 0 {
+        children.extend(segment_nodes(&rest[..first_end]));
+        rest = &rest[first_end..];
+    }
+    while let Some(stripped) = rest.strip_prefix('|') {
+        children.push(Green::leaf(SyntaxKind::Pipe, "|"));
+        let end = stripped.find('|').unwrap_or(stripped.len());
+        children.extend(segment_nodes(&stripped[..end]));
+        rest = &stripped[end..];
+    }
+    if !rest.is_empty() {
+        children.push(Green::leaf(SyntaxKind::Text, rest));
+    }
+    let nl = &body[line.text_end..line.end];
+    if !nl.is_empty() {
+        children.push(Green::leaf(SyntaxKind::LineEnding, nl));
+    }
+    Green::branch(SyntaxKind::PipeRow, children)
+}
+
+fn segment_nodes(part: &str) -> Vec<Green> {
+    let lead = part.len() - part.trim_start().len();
+    let trail = part.len() - part.trim_end().len();
+    let mut nodes = Vec::new();
+    if lead > 0 {
+        nodes.push(Green::leaf(SyntaxKind::Text, &part[..lead]));
+    }
+    let core_end = part.len() - trail;
+    let core = &part[lead..core_end];
+    if let Some(field) = field_children(core) {
+        nodes.push(Green::branch(SyntaxKind::Field, field));
+    } else if !core.is_empty() {
+        nodes.push(Green::leaf(SyntaxKind::Text, core));
+    }
+    if trail > 0 {
+        nodes.push(Green::leaf(SyntaxKind::Text, &part[core_end..]));
+    }
+    nodes
+}
+
+fn fence_table(body: &str, lines: &[Line]) -> Green {
+    Green::branch(
+        SyntaxKind::Table,
+        lines
+            .iter()
+            .map(|line| fence_table_row(body, line))
+            .collect(),
+    )
+}
+
+fn fence_table_row(body: &str, line: &Line) -> Green {
+    let text = &body[line.start..line.text_end];
+    let mut children = Vec::new();
+    let mut rest = text;
+    if !rest.starts_with('|') {
+        if let Some(at) = rest.find('|') {
+            children.push(Green::leaf(SyntaxKind::Text, &rest[..at]));
+            rest = &rest[at..];
+        }
+    }
+    while let Some(stripped) = rest.strip_prefix('|') {
+        children.push(Green::leaf(SyntaxKind::Pipe, "|"));
+        let end = stripped.find('|').unwrap_or(stripped.len());
+        let cell = &stripped[..end];
+        if !cell.is_empty() {
+            // A leaf cell is not rewritten into inlines. The bytes stay put.
+            children.push(Green::leaf(SyntaxKind::TableCell, cell));
+        }
+        rest = &stripped[end..];
+    }
+    if !rest.is_empty() {
+        children.push(Green::leaf(SyntaxKind::Text, rest));
+    }
+    let nl = &body[line.text_end..line.end];
+    if !nl.is_empty() {
+        children.push(Green::leaf(SyntaxKind::LineEnding, nl));
+    }
+    Green::branch(SyntaxKind::TableRow, children)
 }
 
 fn block_scalar_indicator(value: &str) -> Option<&str> {

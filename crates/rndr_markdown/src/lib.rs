@@ -25,7 +25,9 @@ pub use journal::{hash_bytes, recover, Conflict, Frame, Hash, Journal, JournalEr
 pub use kind::SyntaxKind;
 pub use parse::parse;
 pub use session::{floor_grapheme, EditSpan, Session, ViewMode};
-pub use view::{Field, LiquidFence, TypedBlock, TypedView};
+pub use view::{
+    FenceCell, FencePart, FenceRow, Field, ItemGroup, LiquidFence, TypedBlock, TypedView,
+};
 
 /// Parse `src` and return the red tree as well as the green root.
 pub fn parse_red(src: &str) -> (Green, RedTree) {
