@@ -38,6 +38,8 @@ pub struct MarkdownPlugin;
 impl Plugin for MarkdownPlugin {
     fn build(self, app: &mut App) {
         app.add_plugin(rndr_ui::UiPlugin);
+        // Nested markdown inside a Liquid widget syncs through the core view.
+        app.add_plugin(rndr_core::MarkdownPlugin);
         if !app.world().has_resource::<MarkdownDocuments>() {
             app.world_mut()
                 .insert_resource(MarkdownDocuments::default());

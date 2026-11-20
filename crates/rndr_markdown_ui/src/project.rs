@@ -72,6 +72,12 @@ pub enum DisplayKind {
         canonical: String,
         /// The body parsed.
         valid: bool,
+        /// Absolute byte range of the body, between the fence lines.
+        ///
+        /// The caret is inside the fence when it lies in this range. The
+        /// surface then shows the structured fields. Outside it, a valid
+        /// fence is the `rndr_liquid_ui` widget.
+        body: std::ops::Range<usize>,
     },
     /// A thematic break.
     Rule,
@@ -256,12 +262,11 @@ pub fn present(
 
 fn find_span(node: &Green, at: usize, start: usize, end: usize) -> Option<&Green> {
     let node_end = at + node.width();
-    if at == start && node_end == end {
-        return Some(node);
-    }
     if start < at || end > node_end {
         return None;
     }
+    // A one-block document has the same span as that block. Descend first so
+    // the node that was projected (the fence, the paragraph) is the one shown.
     let mut child_at = at;
     for child in node.children() {
         if let Some(found) = find_span(child, child_at, start, end) {
@@ -269,7 +274,7 @@ fn find_span(node: &Green, at: usize, start: usize, end: usize) -> Option<&Green
         }
         child_at += child.width();
     }
-    None
+    (at == start && node_end == end).then_some(node)
 }
 
 /// Project every block of `root`.
@@ -704,12 +709,13 @@ fn project_fence(bytes: &str, node: &Green, at: usize, liquid: bool) -> DisplayB
             .is_some()
             || rndr_liquid::parse_fence(&info, body.trim_end_matches(['\n', '\r'])).is_some();
         if valid {
-            return project_liquid_fields(bytes, node, at, &canonical);
+            return project_liquid_fields(bytes, node, at, &canonical, body_start..body_end);
         }
         let mut block = project_raw_range(bytes, body_start..body_end, span);
         block.kind = DisplayKind::Liquid {
             canonical,
             valid: false,
+            body: body_start..body_end,
         };
         return block;
     }
@@ -743,19 +749,26 @@ fn project_raw_range(bytes: &str, body: Range<usize>, span: Range<usize>) -> Dis
     block
 }
 
-fn project_liquid_fields(bytes: &str, node: &Green, at: usize, canonical: &str) -> DisplayBlock {
+fn project_liquid_fields(
+    bytes: &str,
+    node: &Green,
+    at: usize,
+    canonical: &str,
+    body: Range<usize>,
+) -> DisplayBlock {
     let span = at..at + node.width();
     let mut block = empty_paragraph(span);
     block.kind = DisplayKind::Liquid {
         canonical: canonical.to_string(),
         valid: true,
+        body,
     };
     block.chrome = format!("{canonical}\n");
     let mut child_at = at;
     for child in node.children() {
         let end = child_at + child.width();
         if child.kind() != SyntaxKind::FenceLine {
-            append_field(bytes, child, child_at, at, &mut block);
+            append_liquid(bytes, child, child_at, at, &mut block);
         }
         child_at = end;
     }
@@ -766,69 +779,188 @@ fn project_liquid_fields(bytes: &str, node: &Green, at: usize, canonical: &str) 
     block
 }
 
-fn append_field(bytes: &str, node: &Green, at: usize, base: usize, block: &mut DisplayBlock) {
+fn append_liquid(bytes: &str, node: &Green, at: usize, base: usize, block: &mut DisplayBlock) {
     match node.kind() {
-        SyntaxKind::Field => {
-            let mut cursor = at;
-            let mut key = "";
-            let mut value: Option<Range<usize>> = None;
-            for child in node.children() {
-                let end = cursor + child.width();
-                if child.kind() == SyntaxKind::FieldKey {
-                    key = child.text();
-                }
-                if child.kind() == SyntaxKind::FieldValue {
-                    value = Some(cursor..end);
-                }
-                cursor = end;
-            }
-            let line_start = block.text.len();
-            block.text.push_str(key.trim());
-            block.text.push_str("  ");
-            if let Some(value) = value {
-                let shown = bytes.get(value.clone()).unwrap_or("");
-                let display_start = block.text.len();
-                block.text.push_str(shown);
-                block.segments.push(Segment {
-                    display_start,
-                    display_end: block.text.len(),
-                    source_start: value.start - base,
-                    source_end: value.end - base,
-                });
-            }
-            let mut span = TextSpan::new(
-                line_start,
-                line_start + key.trim().len(),
-                Color::rgb(0.62, 0.64, 0.68),
-            );
-            span.weight = Some(FONT_WEIGHT_BOLD);
-            block.spans.push(span);
-            block.text.push('\n');
-        }
+        SyntaxKind::Field => append_field_node(bytes, node, at, base, block),
         SyntaxKind::FieldComment => {
             let shown = node.concat();
-            let display_start = block.text.len();
             let text = shown.trim_end_matches(['\n', '\r']);
-            block.text.push_str(text);
-            block.segments.push(Segment {
-                display_start,
-                display_end: block.text.len(),
-                source_start: at - base,
-                source_end: at - base + text.len(),
-            });
-            block.spans.push(
-                TextSpan::new(display_start, block.text.len(), Color::rgb(0.5, 0.55, 0.5)).italic(),
-            );
+            push_mapped(block, base, at, text, Color::rgb(0.5, 0.55, 0.5), true);
             block.text.push('\n');
         }
+        SyntaxKind::FieldSeparator | SyntaxKind::OpaqueInline => {
+            let shown = bytes
+                .get(at..at + node.width())
+                .unwrap_or("")
+                .trim_end_matches(['\n', '\r']);
+            push_mapped(block, base, at, shown, Color::rgb(0.62, 0.64, 0.68), false);
+            block.text.push('\n');
+        }
+        SyntaxKind::BlockGap => block.text.push('\n'),
+        SyntaxKind::PipeRow => append_pipe_row(bytes, node, at, base, block),
+        SyntaxKind::Table => append_fence_table(bytes, node, at, base, block),
         _ => {
-            let mut cursor = at;
-            for child in node.children() {
-                append_field(bytes, child, cursor, base, block);
-                cursor += child.width();
+            // Nested markdown (`report`, `section`, `block`) stays source text
+            // so a caret inside it still splices those bytes.
+            let shown = bytes
+                .get(at..at + node.width())
+                .unwrap_or("")
+                .trim_end_matches(['\n', '\r']);
+            if !shown.is_empty() {
+                push_mapped(block, base, at, shown, Color::rgb(0.93, 0.94, 0.95), false);
+                block.text.push('\n');
             }
         }
     }
+}
+
+fn append_field_node(bytes: &str, node: &Green, at: usize, base: usize, block: &mut DisplayBlock) {
+    let mut cursor = at;
+    let mut key = "";
+    let mut scalar = false;
+    let mut after_indicator = false;
+    let mut value: Option<Range<usize>> = None;
+    let mut value_end = at;
+    for child in node.children() {
+        let end = cursor + child.width();
+        match child.kind() {
+            SyntaxKind::FieldKey => key = child.text(),
+            SyntaxKind::BlockScalar => scalar = true,
+            SyntaxKind::FieldValue if !scalar => value = Some(cursor..end),
+            SyntaxKind::LineEnding if scalar && !after_indicator => {
+                after_indicator = true;
+                value = Some(end..end);
+                value_end = end;
+            }
+            _ if scalar && after_indicator => {
+                if value.is_none() {
+                    value = Some(cursor..end);
+                }
+                value_end = end;
+            }
+            _ => {}
+        }
+        cursor = end;
+    }
+    if scalar {
+        if let Some(start) = value {
+            value = Some(start.start..value_end);
+        }
+    }
+    let line_start = block.text.len();
+    block.text.push_str(key.trim());
+    block.text.push_str("  ");
+    if let Some(value) = value {
+        let shown = bytes
+            .get(value.clone())
+            .unwrap_or("")
+            .trim_end_matches(['\n', '\r']);
+        if !shown.is_empty() {
+            let display_start = block.text.len();
+            block.text.push_str(shown);
+            block.segments.push(Segment {
+                display_start,
+                display_end: block.text.len(),
+                source_start: value.start - base,
+                source_end: value.start - base + shown.len(),
+            });
+        }
+    }
+    let mut span = TextSpan::new(
+        line_start,
+        line_start + key.trim().len(),
+        Color::rgb(0.62, 0.64, 0.68),
+    );
+    span.weight = Some(FONT_WEIGHT_BOLD);
+    block.spans.push(span);
+    block.text.push('\n');
+}
+
+fn append_pipe_row(bytes: &str, node: &Green, at: usize, base: usize, block: &mut DisplayBlock) {
+    let mut cursor = at;
+    let mut first = true;
+    for child in node.children() {
+        let end = cursor + child.width();
+        if child.kind() == SyntaxKind::Field {
+            if !first {
+                block.text.push_str(" | ");
+            }
+            first = false;
+            append_field_node(bytes, child, cursor, base, block);
+            if block.text.ends_with('\n') {
+                block.text.pop();
+            }
+        }
+        cursor = end;
+    }
+    block.text.push('\n');
+}
+
+fn append_fence_table(bytes: &str, node: &Green, at: usize, base: usize, block: &mut DisplayBlock) {
+    let mut cursor = at;
+    for child in node.children() {
+        let end = cursor + child.width();
+        if child.kind() == SyntaxKind::TableRow {
+            append_table_row(bytes, child, cursor, base, block);
+        }
+        cursor = end;
+    }
+}
+
+fn append_table_row(bytes: &str, node: &Green, at: usize, base: usize, block: &mut DisplayBlock) {
+    let mut cursor = at;
+    let mut first = true;
+    for child in node.children() {
+        let end = cursor + child.width();
+        if child.kind() == SyntaxKind::TableCell {
+            if !first {
+                block.text.push_str(" | ");
+            }
+            first = false;
+            let raw = bytes.get(cursor..end).unwrap_or("");
+            let lead = raw.len() - raw.trim_start().len();
+            let shown = raw.trim();
+            if !shown.is_empty() {
+                let source = cursor + lead;
+                push_mapped(
+                    block,
+                    base,
+                    source,
+                    shown,
+                    Color::rgb(0.93, 0.94, 0.95),
+                    false,
+                );
+            }
+        }
+        cursor = end;
+    }
+    block.text.push('\n');
+}
+
+fn push_mapped(
+    block: &mut DisplayBlock,
+    base: usize,
+    source: usize,
+    shown: &str,
+    color: Color,
+    italic: bool,
+) {
+    if shown.is_empty() {
+        return;
+    }
+    let display_start = block.text.len();
+    block.text.push_str(shown);
+    block.segments.push(Segment {
+        display_start,
+        display_end: block.text.len(),
+        source_start: source - base,
+        source_end: source - base + shown.len(),
+    });
+    let mut span = TextSpan::new(display_start, block.text.len(), color);
+    if italic {
+        span = span.italic();
+    }
+    block.spans.push(span);
 }
 
 fn project_table(bytes: &str, node: &Green, at: usize, palette: &Palette) -> DisplayBlock {
@@ -1595,7 +1727,7 @@ fn project_callout(bytes: &str, node: &Green, at: usize, focus: Option<usize>) -
             }
             first = false;
         }
-        push_mapped(&mut text, &mut segments, &raw[content..line_end], content);
+        push_source_run(&mut text, &mut segments, &raw[content..line_end], content);
         if nl_end > line_end && nl_end < raw.len() {
             text.push('\n');
         }
@@ -1776,7 +1908,12 @@ fn callout_marker_len(rest: &str) -> Option<usize> {
     Some(len)
 }
 
-fn push_mapped(text: &mut String, segments: &mut Vec<Segment>, shown: &str, source_start: usize) {
+fn push_source_run(
+    text: &mut String,
+    segments: &mut Vec<Segment>,
+    shown: &str,
+    source_start: usize,
+) {
     if shown.is_empty() {
         return;
     }

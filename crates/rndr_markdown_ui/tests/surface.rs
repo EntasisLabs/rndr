@@ -402,6 +402,162 @@ fn projection_hides_markers_and_matches_after_an_edit() {
     }
 }
 
+fn labels_under(app: &App, root: Entity) -> String {
+    fn walk(world: &World, entity: Entity, out: &mut String) {
+        if let Some(label) = world.get::<Label>(entity) {
+            out.push_str(&label.text);
+            out.push('\n');
+        }
+        for child in children_of(world, entity) {
+            walk(world, child, out);
+        }
+    }
+    let mut out = String::new();
+    walk(app.world(), root, &mut out);
+    out
+}
+
+fn caret_at(app: &mut App, id: MarkdownId, at: usize) {
+    app.world_mut()
+        .resource_mut::<MarkdownDocuments>()
+        .unwrap()
+        .get_mut(id)
+        .unwrap()
+        .move_caret(at, at)
+        .unwrap();
+}
+
+#[test]
+fn liquid_widget_when_caret_is_outside_and_fields_when_inside() {
+    let src = "```callout\ntone: tip\ntitle: Hello\nbody: Body text\n```\n";
+    let (mut app, handle, id) = boot(src);
+    // The widget's nested markdown syncs on the frame after it is mounted.
+    app.update();
+    let outside = labels_under(&app, handle.root);
+    assert!(outside.contains("Hello"), "{outside}");
+    assert!(outside.contains("Body text"), "{outside}");
+    assert!(
+        !outside.contains("tone  tip"),
+        "widget collapsed the field into key/value text:\n{outside}"
+    );
+
+    let at = bytes(&app, id).find("Body text").unwrap();
+    caret_at(&mut app, id, at);
+    app.update();
+    let inside = labels_under(&app, handle.root);
+    assert!(inside.contains("tone"), "{inside}");
+    assert!(inside.contains("Hello"), "{inside}");
+    assert!(inside.contains("Body text"), "{inside}");
+    assert!(
+        inside.contains("tone  tip"),
+        "editing view should show the field:\n{inside}"
+    );
+}
+
+#[test]
+fn timeline_separators_and_compare_cells_are_visible_while_editing() {
+    let timeline = "```timeline\ntitle: Road\n---\nlabel: One\nts: Monday\nlane: product\n---\nlabel: Two\nts: Tuesday\n```\n";
+    let (mut app, handle, id) = boot(timeline);
+    let widget = labels_under(&app, handle.root);
+    assert!(widget.contains("One") && widget.contains("Two"), "{widget}");
+    assert!(widget.contains("product"), "{widget}");
+    let at = bytes(&app, id).find("One").unwrap();
+    caret_at(&mut app, id, at);
+    app.update();
+    let editing = labels_under(&app, handle.root);
+    assert!(
+        editing.contains("---"),
+        "item separator missing:\n{editing}"
+    );
+    assert!(
+        editing.contains("One") && editing.contains("Two"),
+        "{editing}"
+    );
+
+    let compare = "```compare\ntitle: Pick\n| | A | B |\n|---|---|\n| Cost | 1 | 2 |\n```\n";
+    let (mut app, handle, id) = boot(compare);
+    let at = bytes(&app, id).find("Cost").unwrap();
+    caret_at(&mut app, id, at);
+    app.update();
+    let editing = labels_under(&app, handle.root);
+    assert!(editing.contains("Cost"), "{editing}");
+    assert!(editing.contains('1') && editing.contains('2'), "{editing}");
+    assert!(editing.contains("---"), "table rule missing:\n{editing}");
+}
+
+#[test]
+fn multiline_field_edit_is_a_single_character_splice() {
+    let src = "```callout\ntone: tip\nbody: |\n  Hello\n  there\n```\n";
+    let (mut app, handle, id) = boot(src);
+    let original = bytes(&app, id);
+    let at = original.find("there").unwrap();
+    caret_at(&mut app, id, at);
+    app.world_mut().resource_mut::<Focus>().unwrap().entity = Some(handle.root);
+    let mut input = Input::default();
+    input.push_key(
+        KeyEvent::character('X', Modifiers::default()),
+        Platform::host(),
+    );
+    *app.world_mut().resource_mut::<Input>().unwrap() = input;
+    app.update();
+    let next = bytes(&app, id);
+    let mut expected = original.clone();
+    expected.insert(at, 'X');
+    assert_eq!(next, expected);
+    assert!(next.contains("body: |"));
+    assert!(next.contains("tone: tip"));
+    assert!(next.contains("Hello"));
+    assert!(next.contains("Xthere"));
+}
+
+#[test]
+fn liquid_widget_and_field_paint_snapshots_differ_and_hold_still() {
+    let src = "```callout\ntone: tip\ntitle: Hello\nbody: Body text\n```\n";
+    let (mut app, handle, id) = boot(src);
+    app.world_mut().insert_resource(Viewport::new(640.0, 480.0));
+    // The first frames mount the widget and sync its nested markdown.
+    rndr_paint::frame(&mut app);
+    rndr_paint::frame(&mut app);
+    let widget = rndr_paint::frame(&mut app);
+    let widget_again = rndr_paint::frame(&mut app);
+    let widget_snap = rndr_paint::quads_snapshot(&widget);
+    assert_eq!(widget_snap, rndr_paint::quads_snapshot(&widget_again));
+    assert!(
+        widget
+            .quads
+            .iter()
+            .any(|quad| quad.uv != rndr_paint::solid_uv()),
+        "widget painted no glyphs"
+    );
+    assert!(
+        widget
+            .quads
+            .iter()
+            .any(|quad| quad.uv == rndr_paint::solid_uv()),
+        "widget painted no chrome"
+    );
+    assert!(
+        labels_under(&app, handle.root).contains("Body text"),
+        "widget snapshot is missing the callout body"
+    );
+
+    let at = bytes(&app, id).find("Body text").unwrap();
+    caret_at(&mut app, id, at);
+    let editing = rndr_paint::frame(&mut app);
+    let editing_again = rndr_paint::frame(&mut app);
+    let editing_snap = rndr_paint::quads_snapshot(&editing);
+    assert_eq!(editing_snap, rndr_paint::quads_snapshot(&editing_again));
+    assert_ne!(
+        widget_snap, editing_snap,
+        "caret inside the fence still painted the outside widget"
+    );
+    assert!(editing
+        .quads
+        .iter()
+        .any(|quad| quad.uv != rndr_paint::solid_uv()));
+    let _ = handle;
+}
+
 #[test]
 fn images_callouts_and_marks_display_without_their_markers() {
     let image = "![alt](pic.png \"t\")\n";
