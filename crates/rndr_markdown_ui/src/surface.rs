@@ -7,6 +7,8 @@
 //! source-session mount.
 
 use rndr_core::*;
+use rndr_liquid::parse_fence;
+use rndr_liquid_ui::{release_editor_block, render_editor_block};
 use rndr_markdown::{Command, EditError, Session};
 use rndr_ui::{UiError, UiId, UiTheme};
 
@@ -26,6 +28,9 @@ struct Node {
     readonly: bool,
     blocks: Vec<DisplayBlock>,
     seen: u64,
+    /// Revision the slots were built for. A matching revision reuses a widget
+    /// so a nested markdown body can sync on the following frame.
+    painted: u64,
     slots: Vec<Entity>,
     top: Entity,
     bottom: Entity,
@@ -215,6 +220,7 @@ impl MarkdownSurface {
                 readonly: props.readonly,
                 blocks: Vec::new(),
                 seen: u64::MAX,
+                painted: u64::MAX,
                 slots: Vec::new(),
                 top,
                 bottom,
@@ -514,6 +520,9 @@ fn place_hit(world: &mut World, root: Entity, hit: Entity, at: [f32; 2], extend:
             return;
         }
     }
+    let Some(hit) = slot_of(world, hit) else {
+        return;
+    };
     let Some(slot) = world.get::<Slot>(hit).copied() else {
         return;
     };
@@ -1497,14 +1506,24 @@ fn rebuild_slots(world: &mut World, entity: Entity) -> bool {
             layout.height = Size::Px(rest);
         }
     }
-    // Rebuild slot entities to match `visible`.
+    // Rebuild slot entities to match `visible`. A widget is kept while the
+    // bytes and the caret mode are unchanged, so its nested markdown can sync.
+    let revision = root_document(world, entity)
+        .and_then(|id| {
+            world
+                .resource::<crate::MarkdownDocuments>()?
+                .get(id)
+                .map(|session| session.revision())
+        })
+        .unwrap_or(0);
+    let reuse_ok = world
+        .get::<Node>(entity)
+        .is_some_and(|node| node.painted == revision);
     let old = world
         .get::<Node>(entity)
         .map(|node| node.slots.clone())
         .unwrap_or_default();
-    for slot in &old {
-        despawn(world, *slot);
-    }
+    let mut used = vec![false; old.len()];
     let mut slots = Vec::new();
     for index in visible {
         let Some(block) = world
@@ -1517,8 +1536,32 @@ fn rebuild_slots(world: &mut World, entity: Entity) -> bool {
         let block = document
             .map(|document| presented(world, document, &block))
             .unwrap_or(block);
-        let slot = spawn_block(world, entity, &block, caret, anchor, &preedit, width);
-        slots.push(slot);
+        let widget = shows_widget(&block, caret);
+        let reused = reuse_ok
+            .then(|| {
+                old.iter().enumerate().find_map(|(pos, slot)| {
+                    (!used[pos] && slot_reusable(world, *slot, &block, widget))
+                        .then_some((pos, *slot))
+                })
+            })
+            .flatten();
+        if let Some((pos, slot)) = reused {
+            used[pos] = true;
+            if !widget {
+                place_caret(world, slot, &block, caret, anchor, &preedit);
+            }
+            slots.push(slot);
+        } else {
+            slots.push(spawn_block(
+                world, entity, &block, caret, anchor, &preedit, width,
+            ));
+        }
+    }
+    for (pos, slot) in old.iter().enumerate() {
+        if !used[pos] {
+            release_editor_block(world, *slot);
+            despawn(world, *slot);
+        }
     }
     // Slots sit between the spacers.
     if let Some(node) = world
@@ -1541,8 +1584,22 @@ fn rebuild_slots(world: &mut World, entity: Entity) -> bool {
     }
     if let Some(node) = world.get_mut::<Node>(entity) {
         node.slots = slots;
+        node.painted = revision;
     }
     true
+}
+
+fn shows_widget(block: &DisplayBlock, caret: usize) -> bool {
+    !liquid_editing(block, caret) && matches!(block.kind, DisplayKind::Liquid { valid: true, .. })
+}
+
+fn slot_reusable(world: &World, slot: Entity, block: &DisplayBlock, widget: bool) -> bool {
+    let Some(existing) = world.get::<Slot>(slot) else {
+        return false;
+    };
+    existing.start == block.span.start
+        && existing.end == block.span.end
+        && world.has::<Label>(slot) != widget
 }
 
 fn y_of(world: &World, entity: Entity, index: Option<usize>) -> f32 {
@@ -1570,6 +1627,50 @@ fn y_after(world: &World, entity: Entity, index: Option<usize>) -> f32 {
     y_of(world, entity, Some(index + 1))
 }
 
+fn slot_of(world: &World, mut hit: Entity) -> Option<Entity> {
+    for _ in 0..64 {
+        if world.has::<Slot>(hit) {
+            return Some(hit);
+        }
+        hit = world.get::<Parent>(hit)?.entity;
+    }
+    None
+}
+
+/// The caret is editing this fence when it sits in the body. The fence lines
+/// themselves stay on the widget, so a caret parked on the opening fence still
+/// shows the rendered block.
+fn liquid_editing(block: &DisplayBlock, caret: usize) -> bool {
+    match &block.kind {
+        DisplayKind::Liquid {
+            valid: true, body, ..
+        } => body.start <= caret && caret < body.end,
+        _ => false,
+    }
+}
+
+fn liquid_widget(
+    world: &World,
+    parent: Entity,
+    block: &DisplayBlock,
+) -> Option<rndr_liquid::LiquidBlock> {
+    let DisplayKind::Liquid {
+        canonical,
+        valid: true,
+        body,
+    } = &block.kind
+    else {
+        return None;
+    };
+    let document = world.get::<Node>(parent)?.document;
+    let bytes = world
+        .resource::<crate::MarkdownDocuments>()?
+        .get(document)?
+        .bytes();
+    let raw = bytes.get(body.clone())?.trim_end_matches(['\n', '\r']);
+    parse_fence(canonical, raw)
+}
+
 fn spawn_block(
     world: &mut World,
     parent: Entity,
@@ -1579,6 +1680,8 @@ fn spawn_block(
     preedit: &str,
     width: f32,
 ) -> Entity {
+    let pad =
+        12.0 + f32::from(block.quote) * 14.0 + f32::from(block.depth.saturating_sub(1)) * 18.0;
     if block.grid.is_some() {
         let bytes = document_bytes_of_parent(world, parent);
         let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
@@ -1605,11 +1708,30 @@ fn spawn_block(
         );
         return entity;
     }
+    if !liquid_editing(block, caret) {
+        if let Some(parsed) = liquid_widget(world, parent, block) {
+            let entity = world.spawn((
+                Layout {
+                    width: Size::Fill,
+                    height: Size::Hug,
+                    padding: pad,
+                    gap: 8.0,
+                    ..Layout::column()
+                },
+                Slot {
+                    start: block.span.start,
+                    end: block.span.end,
+                },
+            ));
+            render_editor_block(world, entity, &parsed);
+            set_parent(world, entity, parent);
+            let _ = width;
+            return entity;
+        }
+    }
     let text = block.label_text();
     let mut label = Label::new(&text);
     label.overflow = TextOverflow::Wrap;
-    let pad =
-        12.0 + f32::from(block.quote) * 14.0 + f32::from(block.depth.saturating_sub(1)) * 18.0;
     let height = block.height.max(20.0);
     let entity = world.spawn((
         Layout {
@@ -1628,14 +1750,30 @@ fn spawn_block(
             end: block.span.end,
         },
     ));
+    place_caret(world, entity, block, caret, anchor, preedit);
+    let _ = width;
+    set_parent(world, entity, parent);
+    entity
+}
+
+fn place_caret(
+    world: &mut World,
+    entity: Entity,
+    block: &DisplayBlock,
+    caret: usize,
+    anchor: usize,
+    preedit: &str,
+) {
+    world.remove::<Caret>(entity);
+    world.remove::<TextSelection>(entity);
+    world.remove::<ImePreview>(entity);
     let contains =
         block.span.start <= caret && caret <= block.span.end && block.kind != DisplayKind::Gap;
     if contains {
-        let index = block.source_to_label(caret);
         world.insert(
             entity,
             Caret {
-                index,
+                index: block.source_to_label(caret),
                 anchor: block.source_to_label(anchor),
             },
         );
@@ -1662,9 +1800,6 @@ fn spawn_block(
             );
         }
     }
-    let _ = width;
-    set_parent(world, entity, parent);
-    entity
 }
 
 fn label_spans(block: &DisplayBlock) -> Vec<TextSpan> {

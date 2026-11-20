@@ -213,6 +213,47 @@ pub(crate) fn rebuild(world: &mut World, root: Entity) {
     world.insert(root, state);
 }
 
+/// Paint `block` into `root` for the markdown editor.
+///
+/// This is the widget shown while the caret is outside the fence. `root` is
+/// not a [`crate::LiquidView`] mount, so reader state lives only on `root`.
+/// Call [`release_editor_block`] before despawning `root`: a chart registers
+/// a paint slot that would otherwise outlive it.
+pub fn render_editor_block(world: &mut World, root: Entity, block: &LiquidBlock) {
+    chart::release(world, root);
+    let blocks = Arc::new(vec![block.clone()]);
+    let mut state = world.remove::<BlockState>(root).unwrap_or_default();
+    state.init(block);
+    if let Some(layout) = world.get_mut::<Layout>(root) {
+        layout.gap = 8.0;
+    }
+    let mut cx = Cx {
+        world,
+        blocks: Arc::clone(&blocks),
+        root,
+        actions: Actions::default(),
+        state,
+        next: 1,
+    };
+    cx.block(root, block);
+    let Cx {
+        actions,
+        state,
+        world,
+        ..
+    } = cx;
+    if !world.is_alive(root) {
+        return;
+    }
+    world.insert(root, actions);
+    world.insert(root, state);
+}
+
+/// Return a chart paint slot registered by [`render_editor_block`].
+pub fn release_editor_block(world: &mut World, root: Entity) {
+    chart::release(world, root);
+}
+
 /// Marker on the stand-in for an unclosed Liquid fence.
 pub(crate) struct PendingMark;
 
@@ -319,9 +360,14 @@ fn icon_for(id: &str) -> Option<rndr_core::Icon> {
     rndr_core::Icon::from_name(&canonical)
 }
 
-fn lead(icon: &Option<String>, text: &str) -> String {
-    match icon.as_deref().and_then(icon_for) {
-        Some(icon) => format!("{} {text}", icon.scalar()),
+fn lead(icon: &Option<String>, emoji: &Option<String>, text: &str) -> String {
+    let mark = icon
+        .as_deref()
+        .and_then(icon_for)
+        .map(|icon| icon.scalar().to_string())
+        .or_else(|| filled(emoji).map(str::to_string));
+    match mark {
+        Some(mark) => format!("{mark} {text}"),
         None => text.to_string(),
     }
 }
@@ -671,8 +717,8 @@ impl Cx<'_> {
                     }
                     let col = self.column(row);
                     let label = match filled(&seg.badge) {
-                        Some(b) => format!("{} · {b}", lead(&seg.icon, &seg.label)),
-                        None => lead(&seg.icon, &seg.label),
+                        Some(b) => format!("{} · {b}", lead(&seg.icon, &seg.emoji, &seg.label)),
+                        None => lead(&seg.icon, &seg.emoji, &seg.label),
                     };
                     self.text(col, &label, Typography::Emphasis);
                     self.opt(col, &seg.subtitle, Typography::Secondary);
@@ -685,27 +731,58 @@ impl Cx<'_> {
             }
             LiquidBlock::Timeline(p) => {
                 self.heading(parent, &p.title, &p.subtitle);
+                let scale = match (filled(&p.granularity), filled(&p.layout)) {
+                    (Some(granularity), Some(layout)) => Some(format!("{granularity} · {layout}")),
+                    (Some(granularity), None) => Some(granularity.to_string()),
+                    (None, Some(layout)) => Some(layout.to_string()),
+                    (None, None) => None,
+                };
+                if let Some(scale) = scale {
+                    self.text(parent, &scale, Typography::Label);
+                }
+                let stacked = p.layout.as_deref() == Some("snapshot");
                 for event in &p.events {
-                    let row = self.row(parent);
+                    let row = if stacked {
+                        self.column(parent)
+                    } else {
+                        self.row(parent)
+                    };
                     let ts = filled(&event.ts).unwrap_or("-").to_string();
                     self.text(row, &ts, Typography::Secondary);
-                    let col = self.column(row);
-                    self.text(col, &lead(&event.icon, &event.label), Typography::Emphasis);
+                    let col = if stacked { row } else { self.column(row) };
+                    self.text(
+                        col,
+                        &lead(&event.icon, &event.emoji, &event.label),
+                        Typography::Emphasis,
+                    );
+                    self.opt(col, &event.lane, Typography::Label);
                     self.opt(col, &event.detail, Typography::Reading);
                     self.opt(col, &event.body, Typography::Reading);
                     self.opt(col, &event.meta, Typography::Secondary);
                 }
             }
             LiquidBlock::Shortlist(p) => {
-                self.heading(parent, &p.title, &p.subtitle);
-                self.opt(parent, &p.criteria, Typography::Secondary);
+                let gap = if p.density.as_deref() == Some("compact") {
+                    2.0
+                } else {
+                    8.0
+                };
+                let body = self.stack(parent, Axis::Column, gap);
+                self.heading(body, &p.title, &p.subtitle);
+                self.opt(body, &p.criteria, Typography::Secondary);
                 for (n, item) in p.items.iter().enumerate() {
-                    let s = self.surface(parent);
+                    let s = self.surface(body);
                     let label = match filled(&item.score) {
                         Some(score) => {
-                            format!("{}. {} — {score}", n + 1, lead(&item.icon, &item.label))
+                            format!(
+                                "{}. {} — {score}",
+                                n + 1,
+                                lead(&item.icon, &item.emoji, &item.label)
+                            )
                         }
-                        None => format!("{}. {}", n + 1, lead(&item.icon, &item.label)),
+                        None => {
+                            format!("{}. {}", n + 1, lead(&item.icon, &item.emoji, &item.label))
+                        }
                     };
                     self.text(s, &label, Typography::Emphasis);
                     self.opt(s, &item.summary, Typography::Reading);
@@ -790,7 +867,7 @@ impl Cx<'_> {
                     let col = self.column(row);
                     self.text(
                         col,
-                        &format!("{}. {}", n + 1, lead(&step.icon, &step.label)),
+                        &format!("{}. {}", n + 1, lead(&step.icon, &step.emoji, &step.label)),
                         Typography::Emphasis,
                     );
                     self.opt(col, &step.body, Typography::Reading);
@@ -804,7 +881,7 @@ impl Cx<'_> {
                     let label = format!(
                         "{} {}",
                         if open { "−" } else { "+" },
-                        lead(&item.icon, &item.label)
+                        lead(&item.icon, &item.emoji, &item.label)
                     );
                     self.button(parent, &label, ButtonVariant::Quiet, Act::Toggle(n));
                     if open {
@@ -918,7 +995,7 @@ impl Cx<'_> {
     }
 
     fn card_block(&mut self, parent: Entity, p: &CardProps) {
-        let title = lead(&p.icon, &p.title);
+        let title = lead(&p.icon, &p.emoji, &p.title);
         let c = self.card(parent, &title);
         self.opt(c, &p.subtitle, Typography::Secondary);
         if let Some(src) = filled(&p.image) {
@@ -930,7 +1007,11 @@ impl Cx<'_> {
         for point in p.points.iter().flatten() {
             self.text(
                 c,
-                &format!("{} — {}", lead(&point.icon, &point.label), point.body),
+                &format!(
+                    "{} — {}",
+                    lead(&point.icon, &point.emoji, &point.label),
+                    point.body
+                ),
                 Typography::Reading,
             );
         }
@@ -953,7 +1034,7 @@ impl Cx<'_> {
                 label: plain(&a.label),
                 intent: a.intent.clone(),
             });
-            self.button(row, &lead(&a.icon, &a.label), variant, act);
+            self.button(row, &lead(&a.icon, &a.emoji, &a.label), variant, act);
         }
     }
 
@@ -998,7 +1079,11 @@ impl Cx<'_> {
             for (column_index, tile) in chunk.iter().enumerate() {
                 let instance = &instances[row_index * columns + column_index];
                 let s = self.surface(row);
-                self.text(s, &lead(&tile.icon, &tile.label), Typography::Secondary);
+                self.text(
+                    s,
+                    &lead(&tile.icon, &tile.emoji, &tile.label),
+                    Typography::Secondary,
+                );
                 let value = if let Some(feed) = tile.feed.as_deref() {
                     let spec = crate::feed::Spec {
                         instance: instance.clone(),
@@ -1064,7 +1149,7 @@ impl Cx<'_> {
             .iter()
             .enumerate()
             .map(|(n, t)| {
-                let l = with_icons(&lead(&t.icon, &t.label));
+                let l = with_icons(&lead(&t.icon, &t.emoji, &t.label));
                 if l.is_empty() {
                     format!("Tab {}", n + 1)
                 } else {

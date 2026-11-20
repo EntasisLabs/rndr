@@ -11,6 +11,7 @@ rndr_core = { workspace = true }
 rndr_ui = { workspace = true }
 rndr_markdown = { path = "../rndr_markdown" }
 rndr_liquid = { workspace = true }
+rndr_liquid_ui = { workspace = true }
 unicode-segmentation = "1.13"
 
 [dev-dependencies]

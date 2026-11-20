@@ -3939,6 +3939,7 @@ name = "rndr_markdown"
 version = "0.6.0"
 dependencies = [
  "rndr_liquid",
+ "serde_json",
  "sha2",
  "unicode-general-category",
  "unicode-segmentation",
@@ -3950,6 +3951,7 @@ version = "0.6.0"
 dependencies = [
  "rndr_core",
  "rndr_liquid",
+ "rndr_liquid_ui",
  "rndr_markdown",
  "rndr_paint",
  "rndr_render",
