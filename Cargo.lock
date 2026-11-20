@@ -3954,6 +3954,7 @@ dependencies = [
  "rndr_liquid_ui",
  "rndr_markdown",
  "rndr_paint",
+ "rndr_render",
  "rndr_ui",
  "unicode-segmentation",
 ]
