@@ -1067,10 +1067,16 @@ fn focused_cell_wraps_like_an_unfocused_cell() {
 
 #[test]
 fn unchecked_and_checked_task_boxes_share_a_gap() {
-    let (app, _, _) = boot("- [ ] open\n- [x] done\n");
+    let (mut app, _, _) =
+        boot("- [ ] Page on-call\n- [x] Confirm the retry budget\n- [ ] Write the postmortem\n");
+    let frame = rndr_paint::frame(&mut app);
     let world = app.world();
     let mut gaps = Vec::new();
-    for name in ["open", "done"] {
+    for name in [
+        "Page on-call",
+        "Confirm the retry budget",
+        "Write the postmortem",
+    ] {
         let label = label_with(world, name);
         let label_rect = *world.get::<Rect>(label).unwrap();
         let row = world.get::<Parent>(label).unwrap().entity;
@@ -1083,17 +1089,62 @@ fn unchecked_and_checked_task_boxes_share_a_gap() {
             })
             .unwrap_or_else(|| panic!("{name} has no box"));
         let box_rect = *world.get::<Rect>(box_entity).unwrap();
-        gaps.push(label_rect.x - (box_rect.x + box_rect.w));
+        let gap = label_rect.x - (box_rect.x + box_rect.w);
+        gaps.push(gap);
+        let layout = world
+            .get::<TextLayout>(label)
+            .unwrap_or_else(|| panic!("{name} has no text layout"));
+        let first = layout
+            .glyphs
+            .iter()
+            .find(|glyph| glyph.start == 0)
+            .unwrap_or_else(|| panic!("{name} paints no first letter"));
+        let ink = first.color.unwrap_or_else(|| {
+            world
+                .get::<Label>(label)
+                .and_then(|label| label.color)
+                .unwrap_or(Color::rgb(0.0, 0.0, 0.0))
+        });
+        assert!(
+            ink.a > 0.4,
+            "{name} hides its first letter (alpha {})",
+            ink.a
+        );
+        let metrics = label_box(world, label);
+        let painted_x = label_rect.x + metrics.inset_x + first.x;
+        assert!(
+            painted_x + 2.0 >= box_rect.x + box_rect.w + gap,
+            "{name} first glyph at {painted_x} is left of the box {} plus the gap {gap}",
+            box_rect.x + box_rect.w
+        );
+        let last = layout.glyphs.last().expect("glyphs");
+        let text_right = label_rect.x + metrics.inset_x + last.x + last.w;
+        let clip = frame
+            .quads
+            .iter()
+            .find(|quad| {
+                quad.uv != rndr_paint::solid_uv()
+                    && quad.color.a > 0.2
+                    && quad.rect.x < painted_x + first.w
+                    && quad.rect.x + quad.rect.w > painted_x
+                    && quad.rect.y < label_rect.y + label_rect.h
+                    && quad.rect.y + quad.rect.h > label_rect.y
+            })
+            .unwrap_or_else(|| panic!("{name} first letter was not painted"))
+            .clip;
+        assert!(
+            clip.x <= painted_x + 1.0 && clip.x + clip.w + 1.0 >= text_right,
+            "{name} clip {:?} does not hold {painted_x}..={text_right}",
+            (clip.x, clip.w)
+        );
     }
     assert!(
-        gaps[0] > 4.0 && gaps[1] > 4.0,
+        gaps.iter().all(|gap| *gap > 4.0),
         "gaps should clear the box: {gaps:?}"
     );
     assert!(
-        (gaps[0] - gaps[1]).abs() < 1.0,
-        "unchecked gap {} checked gap {}",
-        gaps[0],
-        gaps[1]
+        (gaps[0] - gaps[1]).abs() < 1.0 && (gaps[1] - gaps[2]).abs() < 1.0,
+        "unchecked and checked gaps differ: {gaps:?}"
     );
 }
 
@@ -1132,6 +1183,60 @@ fn scroll_extent_reaches_past_the_first_viewport() {
         "offset {} content {} port {port}",
         after.offset[1],
         after.content[1]
+    );
+}
+
+#[test]
+fn reveal_after_the_caret_moves_scrolls_within_one_frame() {
+    let mut src = String::new();
+    for index in 0..30 {
+        src.push_str(&format!(
+            "Paragraph {index} of the note is long enough to occupy its own line.\n\n"
+        ));
+    }
+    src.push_str("```callout\ntone: tip\ntitle: Below\nbody: Hidden fence\n```\n");
+    let (mut app, handle, id) = boot(&src);
+    let parent = app.world().get::<Parent>(handle.root).unwrap().entity;
+    app.world_mut().get_mut::<Layout>(parent).unwrap().height = Size::Px(220.0);
+    app.world_mut().insert_resource(Viewport::new(900.0, 260.0));
+    app.update();
+    app.update();
+    assert!(
+        !labels_under(&app, handle.root).contains("Hidden fence"),
+        "the fence is already in the first window"
+    );
+    let at = bytes(&app, id).find("Hidden fence").unwrap();
+    caret_at(&mut app, id, at);
+    let frame = rndr_paint::frame(&mut app);
+    assert_fence_in_view(&app, handle.root, &frame);
+    let again = rndr_paint::frame(&mut app);
+    assert_fence_in_view(&app, handle.root, &again);
+}
+
+fn assert_fence_in_view(app: &App, root: Entity, frame: &rndr_paint::Frame) {
+    let world = app.world();
+    let port = *world.get::<Rect>(root).unwrap();
+    let label = label_with(world, "Hidden fence");
+    let rect = *world.get::<Rect>(label).unwrap();
+    assert!(
+        rect.y + 1.0 >= port.y && rect.y < port.y + port.h,
+        "label y {} is outside the viewport {}..{}",
+        rect.y,
+        port.y,
+        port.y + port.h
+    );
+    assert!(
+        frame.quads.iter().any(|quad| {
+            quad.uv != rndr_paint::solid_uv()
+                && quad.color.a > 0.2
+                && quad.rect.y >= port.y - 1.0
+                && quad.rect.y < port.y + port.h
+                && quad.rect.x < rect.x + rect.w
+                && quad.rect.x + quad.rect.w > rect.x
+                && quad.rect.y < rect.y + rect.h
+                && quad.rect.y + quad.rect.h > rect.y
+        }),
+        "the fence body was not painted inside the viewport"
     );
 }
 

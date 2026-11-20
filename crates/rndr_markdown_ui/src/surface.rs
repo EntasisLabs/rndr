@@ -42,6 +42,9 @@ struct Node {
     dragging: bool,
     /// Theme colors baked into the projected spans.
     theme: u64,
+    /// Caret the scrollport last brought into view. A later caret move reveals
+    /// again; a wheel scroll with the same caret does not jump back.
+    revealed: Option<usize>,
 }
 
 impl Component for Node {}
@@ -260,6 +263,7 @@ impl MarkdownSurface {
                 bottom,
                 dragging: false,
                 theme: 0,
+                revealed: None,
             },
         );
         world.insert(
@@ -1537,15 +1541,12 @@ fn rebuild_slots(world: &mut World, entity: Entity) -> bool {
         w: 640.0,
         h: 480.0,
     });
-    let scroll = world
+    let mut scroll = world
         .get::<Scroll>(entity)
         .map(|scroll| scroll.offset[1])
         .unwrap_or(0.0);
     let width = if rect.w > 1.0 { rect.w } else { 640.0 };
     let view = if rect.h > 1.0 { rect.h } else { 480.0 };
-    let top_y = -scroll;
-    let bottom_y = top_y + view + OVERSCAN;
-    let start_y = (top_y - OVERSCAN).max(0.0);
     let document = root_document(world, entity);
     let (caret, anchor, preedit) = document
         .and_then(|id| world.resource::<crate::MarkdownDocuments>()?.get(id))
@@ -1559,7 +1560,7 @@ fn rebuild_slots(world: &mut World, entity: Entity) -> bool {
         .unwrap_or((0, 0, String::new()));
     let engine = text_engine(world);
     let mut y = LEAD;
-    let mut visible: Vec<usize> = Vec::new();
+    let mut placed: Vec<(usize, f32, f32)> = Vec::new();
     let block_count = world
         .get::<Node>(entity)
         .map(|node| node.blocks.len())
@@ -1619,15 +1620,63 @@ fn rebuild_slots(world: &mut World, entity: Entity) -> bool {
             }
         }
         let bottom = y + advance(&kind, height);
-        if bottom >= start_y && y <= bottom_y && kind != DisplayKind::Gap {
-            visible.push(index);
-        }
-        if kind == DisplayKind::Gap {
-            // Gaps still occupy space. They are not slots.
-        }
+        placed.push((index, y, bottom));
         y = bottom;
     }
     let content_h = y + LEAD;
+    // A caret move reveals in this same layout pass, before place and paint.
+    // The host's next frame then draws the block inside the viewport.
+    let already = world.get::<Node>(entity).and_then(|node| node.revealed);
+    if already != Some(caret) {
+        if let Some((_, top, bottom)) = placed.iter().copied().find(|(index, _, _)| {
+            world.get::<Node>(entity).is_some_and(|node| {
+                node.blocks.get(*index).is_some_and(|block| {
+                    block.kind != DisplayKind::Gap
+                        && block.span.start <= caret
+                        && caret <= block.span.end
+                })
+            })
+        }) {
+            let view_top = -scroll;
+            let view_bottom = view_top + view;
+            let block_h = bottom - top;
+            if block_h > view {
+                if top >= view_bottom || bottom <= view_top {
+                    scroll = -top;
+                }
+            } else if top < view_top {
+                scroll = -top;
+            } else if bottom > view_bottom {
+                scroll = view - bottom;
+            }
+            let min_y = (view - content_h).min(0.0);
+            scroll = scroll.clamp(min_y, 0.0);
+        }
+        if let Some(node) = world.get_mut::<Node>(entity) {
+            node.revealed = Some(caret);
+        }
+        if let Some(port) = world.get_mut::<Scroll>(entity) {
+            port.offset[1] = scroll;
+        }
+    }
+    let top_y = -scroll;
+    let bottom_y = top_y + view + OVERSCAN;
+    // Rows above the viewport would be the first label a focus reveal sees,
+    // and that reveal would walk the offset back toward the top every frame.
+    let start_y = top_y.max(0.0);
+    let visible: Vec<usize> = placed
+        .into_iter()
+        .filter(|(index, y, bottom)| {
+            *bottom >= start_y
+                && *y <= bottom_y
+                && world.get::<Node>(entity).is_some_and(|node| {
+                    node.blocks
+                        .get(*index)
+                        .is_some_and(|block| block.kind != DisplayKind::Gap)
+                })
+        })
+        .map(|(index, _, _)| index)
+        .collect();
     let first_y = y_of(world, entity, visible.first().copied());
     let rest = (content_h - y_after(world, entity, visible.last().copied())).max(0.0);
     if let Some(node) = world.get::<Node>(entity) {
@@ -1730,7 +1779,26 @@ fn rebuild_slots(world: &mut World, entity: Entity) -> bool {
             .unwrap_or(0);
         crate::grid::sync_handles(world, entity, caret);
     }
+    // The scrollport is the focus target. Revealing its first row fights a
+    // caret that was just brought into view.
+    if focus_is_inside(world, entity) {
+        pause_focus_reveal(world);
+    }
     true
+}
+
+fn focus_is_inside(world: &World, root: Entity) -> bool {
+    let Some(focus) = world.resource::<Focus>().and_then(|focus| focus.entity) else {
+        return false;
+    };
+    let mut at = Some(focus);
+    while let Some(entity) = at {
+        if entity == root {
+            return true;
+        }
+        at = world.get::<Parent>(entity).map(|parent| parent.entity);
+    }
+    false
 }
 
 fn shows_widget(block: &DisplayBlock, caret: usize) -> bool {
@@ -1911,8 +1979,7 @@ fn spawn_block(
     label.color = Some(theme_palette(world).text);
     label.overflow = TextOverflow::Wrap;
     let height = block.height.max(20.0);
-    let mut runs = if task { Vec::new() } else { label_spans(block) };
-    hide_task_glyph(block, &mut runs);
+    let runs = if task { Vec::new() } else { label_spans(block) };
     let mut layout = Layout {
         width: Size::Fill,
         height: Size::Px(advance(&block.kind, height)),
@@ -1949,8 +2016,12 @@ fn spawn_block(
             label,
             Spans { runs },
             style_for_kind(&block.kind),
+            LabelBox::CONTENT,
             TaskText,
         ));
+        // A caret would otherwise switch this label to the legacy 12-point
+        // origin, so the first letters draw under the box.
+        world.insert(text_entity, RetainLabelBox);
         set_parent(world, text_entity, entity);
     } else {
         world.insert(entity, label);
@@ -2097,22 +2168,6 @@ fn place_caret(
             );
         }
     }
-}
-
-fn hide_task_glyph(block: &DisplayBlock, runs: &mut Vec<TextSpan>) {
-    if !matches!(block.kind, DisplayKind::Task(_)) {
-        return;
-    }
-    let hide = block
-        .chrome
-        .chars()
-        .next()
-        .map(|ch| ch.len_utf8())
-        .unwrap_or(0);
-    if hide == 0 {
-        return;
-    }
-    runs.insert(0, TextSpan::new(0, hide, Color::rgba(0.0, 0.0, 0.0, 0.0)));
 }
 
 fn paint_task_box(world: &mut World, parent: Entity, block: &DisplayBlock) {
