@@ -6,12 +6,13 @@
 
 - Bold, inline code, math, and `{{font}}` / `{{size}}` spans take their ink from the theme text token. The previous palette was a light-on-dark default, so those runs were faint on a light surface. Named color spans still use the color written in the note.
 - Inline `$...$` math is italic serif in the markdown editor and in the core markdown view. There is no math layout engine, so the expression is not typeset. The editor hides the dollars until the caret is inside the span. The core view now turns math parsing on; it previously left the dollars in the text.
-- Task checkboxes are a 14-point box with a 1.5-point strong stroke in both themes. A checked item keeps a filled mark inside that box. The font ballot glyph is not the checkbox.
+- Task checkboxes are a 14-point box with a 1.5-point strong stroke in both themes. A checked item keeps a filled mark inside that box. Unchecked and checked boxes share an 8-point gap before the label. The font ballot glyph is not the checkbox.
 - The markdown scrollport keeps a lead above the first block and below the last. Heading line boxes and block slots include the text origin, and a table's outer height includes its padding and the caret text origin, so the title and the last table row are not clipped.
 - GitHub and Obsidian callouts (`note`, `tip`, `important`, `warning`, `caution`, and the aliases already recognized) paint a tinted fill, a left accent bar, and a bold kind label from the theme tone tokens.
 - Tabs size to their label between 72 and 240 points. A label that still does not fit ends in an ellipsis and reuses the truncation tooltip.
-- Table column and row handles are a 6-point strip in the control-hover token. They paint only while the pointer is over the table, focus is inside it, or the caret is in it.
-- A Liquid fence with the caret in its body paints every field (tone, title, body, and the rest) as a labeled row, not only the kind name.
+- Table column and row handles are a 6-point strip in a visible strong-stroke wash. They paint only while the pointer is over the table, focus is inside it, or the caret is in it. A focused cell keeps the same text insets as its neighbors (`RetainLabelBox`), so a value such as `241 ms` does not wrap only when the caret is in it.
+- A Liquid fence with the caret in its body paints every field (tone, title, body, and the rest) as a labeled row inside the measured form height. A caret reproject keeps that height, so the kind line is not the only thing inside the clip. The host widget uses the fence tone: `tip` reads as Tip on the success tokens, not Info.
+- The scrollport's content height is the measured block stack, so a block below the fold is not clamped back to the lead.
 
 ### Interaction polish
 
