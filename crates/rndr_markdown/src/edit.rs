@@ -11,6 +11,7 @@ use crate::green::Green;
 use crate::inline::{self, Defs};
 use crate::kind::SyntaxKind;
 use crate::parse::{self, parse};
+use crate::table::{self, Alignment};
 
 /// A single UTF-8 scalar-aligned replacement.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -122,6 +123,65 @@ pub enum Command {
         /// Byte offset.
         at: usize,
         /// Printer output.
+        text: String,
+    },
+    /// Insert a body row. `at` is any byte offset inside the table. `index`
+    /// is the body-row index; `index == body_len` appends after the last row.
+    ///
+    /// The new row copies a neighboring row's pipes, indent, and cell padding.
+    /// A tight row with no outer pipe gains the pipes an empty cell needs so
+    /// the column count stays put. The delimiter row is not copied.
+    InsertTableRow {
+        /// Byte offset inside the table.
+        at: usize,
+        /// Body row index, or the body length to append.
+        index: usize,
+    },
+    /// Delete a body row, including its line ending. The header and the
+    /// delimiter stay.
+    DeleteTableRow {
+        /// Byte offset inside the table.
+        at: usize,
+        /// Body row index.
+        index: usize,
+    },
+    /// Insert a column at `index`. `index == columns` appends. Each row gains
+    /// one cell. A short row is padded with empty cells out to `index` so the
+    /// new cell lands in that column. Padding is copied from the neighbor cell.
+    /// The delimiter cell is a hyphen run of the neighbor's length, unmarked.
+    InsertTableColumn {
+        /// Byte offset inside the table.
+        at: usize,
+        /// Column index, or the column count to append.
+        index: usize,
+    },
+    /// Delete column `index` from the header, the delimiter, and every body
+    /// row that has that cell. A shorter row is left alone.
+    DeleteTableColumn {
+        /// Byte offset inside the table.
+        at: usize,
+        /// Column index.
+        index: usize,
+    },
+    /// Set one delimiter cell's alignment. The dash run and the surrounding
+    /// padding stay; only the colons change.
+    SetTableAlignment {
+        /// Byte offset inside the table.
+        at: usize,
+        /// Column index.
+        index: usize,
+        /// Alignment written into the delimiter cell.
+        alignment: Alignment,
+    },
+    /// Replace a cell's text. `start..end` is the cell's range or its trimmed
+    /// content range. Padding outside the trimmed content stays. `|` is
+    /// written as `\|` so the column does not split. A newline is refused.
+    SetTableCell {
+        /// Start of the cell, or of its trimmed content.
+        start: usize,
+        /// End of that same span.
+        end: usize,
+        /// Replacement text. `|` is escaped. Newlines are refused.
         text: String,
     },
     /// Replace a source range with bytes that are already markdown.
@@ -369,7 +429,83 @@ fn compile(bytes: &str, tree: &Green, cmd: &Command) -> Result<Vec<Splice>, Edit
                 replacement: text.clone(),
             }])
         }
+        Command::InsertTableRow { at, index } => table_edits(
+            bytes,
+            tree,
+            &table::TableEdit::InsertRow {
+                at: *at,
+                index: *index,
+            },
+        ),
+        Command::DeleteTableRow { at, index } => table_edits(
+            bytes,
+            tree,
+            &table::TableEdit::DeleteRow {
+                at: *at,
+                index: *index,
+            },
+        ),
+        Command::InsertTableColumn { at, index } => table_edits(
+            bytes,
+            tree,
+            &table::TableEdit::InsertColumn {
+                at: *at,
+                index: *index,
+            },
+        ),
+        Command::DeleteTableColumn { at, index } => table_edits(
+            bytes,
+            tree,
+            &table::TableEdit::DeleteColumn {
+                at: *at,
+                index: *index,
+            },
+        ),
+        Command::SetTableAlignment {
+            at,
+            index,
+            alignment,
+        } => table_edits(
+            bytes,
+            tree,
+            &table::TableEdit::SetAlignment {
+                at: *at,
+                index: *index,
+                alignment: *alignment,
+            },
+        ),
+        Command::SetTableCell { start, end, text } => table_edits(
+            bytes,
+            tree,
+            &table::TableEdit::SetCell {
+                start: *start,
+                end: *end,
+                text: text.clone(),
+            },
+        ),
     }
+}
+
+fn table_edits(
+    bytes: &str,
+    tree: &Green,
+    edit: &table::TableEdit,
+) -> Result<Vec<Splice>, EditError> {
+    table::plan(bytes, tree, edit)
+        .map(|edits| {
+            edits
+                .into_iter()
+                .map(|edit| Splice {
+                    start: edit.start,
+                    end: edit.end,
+                    replacement: edit.replacement,
+                })
+                .collect()
+        })
+        .map_err(|fault| match fault {
+            table::TableFault::Range => EditError::InvalidRange,
+            table::TableFault::Refused => EditError::Refused,
+        })
 }
 
 fn boundary(bytes: &str, at: usize) -> Result<(), EditError> {
