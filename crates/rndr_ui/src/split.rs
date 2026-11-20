@@ -37,7 +37,7 @@
 //! assert!((ratio - 0.5).abs() < 0.02);
 //! ```
 use crate::lifecycle::{find_keyed_child, require_layout_parent};
-use crate::{Token, UiError, UiId, UiTheme};
+use crate::{Surface, Token, UiColor, UiError, UiId, UiRecipe, UiStyle, UiTheme};
 use rndr_core::*;
 use std::time::Duration;
 
@@ -69,6 +69,31 @@ pub struct SplitSashProps {
     pub enabled: bool,
     /// Readonly handles can focus. Keys, drags, and double-click do not resize.
     pub readonly: bool,
+    /// Fill for the leading pane. The default is [`PaneFill::Theme`] of
+    /// [`Surface::Content`].
+    pub leading_fill: PaneFill,
+    /// Fill for the trailing pane. The default is [`PaneFill::Theme`] of
+    /// [`Surface::Content`].
+    pub trailing_fill: PaneFill,
+}
+
+/// How one split pane is filled.
+///
+/// [`Self::Theme`] is resolved from the current [`UiTheme`] on each layout,
+/// including the translucent glass, material, and panel tokens. [`Self::Transparent`]
+/// leaves the parent showing through.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PaneFill {
+    /// No fill.
+    Transparent,
+    /// A theme surface.
+    Theme(Surface),
+}
+
+impl Default for PaneFill {
+    fn default() -> Self {
+        Self::Theme(Surface::Content)
+    }
 }
 
 impl SplitSashProps {
@@ -88,6 +113,8 @@ impl SplitSashProps {
             default_ratio: 0.5,
             enabled: true,
             readonly: false,
+            leading_fill: PaneFill::default(),
+            trailing_fill: PaneFill::default(),
         }
     }
 }
@@ -216,8 +243,8 @@ impl SplitSash {
                 },
             );
             write_chrome(world, sash, &props);
-            paint(world, leading, Token::Content);
-            paint(world, trailing, Token::Content);
+            paint_fill(world, leading, props.leading_fill);
+            paint_fill(world, trailing, props.trailing_fill);
             paint(world, sash, Token::StrongStroke);
             Ok(SplitSashHandle {
                 root,
@@ -316,6 +343,10 @@ pub(crate) fn styles(world: &mut World) {
     let focus = world.resource::<Focus>().and_then(|focus| focus.entity);
     let drag = world.resource::<Drag>().and_then(|drag| drag.entity);
     for sash in world.entities_with::<SashState>() {
+        if let Some(state) = world.get::<SashState>(sash).cloned() {
+            paint_fill(world, state.leading, state.props.leading_fill);
+            paint_fill(world, state.trailing, state.props.trailing_fill);
+        }
         let disabled = world.has::<ControlDisabled>(sash);
         let token = if disabled {
             Token::SubtleStroke
@@ -406,6 +437,20 @@ fn pane(axis: Axis, main: Size) -> Layout {
 fn paint(world: &mut World, entity: Entity, token: Token) {
     let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
     world.insert(entity, theme.color(token));
+}
+
+fn paint_fill(world: &mut World, entity: Entity, fill: PaneFill) {
+    let background = match fill {
+        PaneFill::Transparent => UiColor::Explicit(Color::rgba(0.0, 0.0, 0.0, 0.0)),
+        PaneFill::Theme(surface) => surface.fill(),
+    };
+    world.insert(
+        entity,
+        UiRecipe(UiStyle {
+            background: Some(background),
+            ..UiStyle::default()
+        }),
+    );
 }
 
 fn note_pointer(world: &mut World) {

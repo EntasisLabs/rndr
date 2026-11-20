@@ -17,6 +17,7 @@ mod journal;
 mod kind;
 mod parse;
 mod session;
+mod table;
 mod view;
 
 pub use edit::{apply_text, apply_view, print_liquid, Applied, Command, EditError, Splice};
@@ -25,8 +26,10 @@ pub use journal::{hash_bytes, recover, Conflict, Frame, Hash, Journal, JournalEr
 pub use kind::SyntaxKind;
 pub use parse::parse;
 pub use session::{floor_grapheme, EditSpan, Session, ViewMode};
+pub use table::Alignment;
 pub use view::{
-    FenceCell, FencePart, FenceRow, Field, ItemGroup, LiquidFence, TypedBlock, TypedView,
+    FenceCell, FencePart, FenceRow, Field, Inline, ItemGroup, LiquidFence, Table, TableCell,
+    TableRow, TypedBlock, TypedView,
 };
 
 /// Parse `src` and return the red tree as well as the green root.

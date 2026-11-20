@@ -12,6 +12,8 @@ These checks are headless. They do not certify a platform screen reader, a physi
 
 `min_leading` and `min_trailing` are logical points, finite and at least zero. The defaults are 48 and 48, not the core handle's 120 and 160. The ratio is the leading pane's share of the length the two panes share, after the handle, gaps, and padding. Mount clamps the requested ratio into `0..=1`, then into the range those minimums still allow. When the parent is smaller than both minimums, the leading side stays at `min_leading`, which is the existing `Splitter` rule.
 
+`leading_fill` and `trailing_fill` choose each pane. `PaneFill::Theme` follows a `Surface`, including `Glass`, `Material`, and `Panel`, and is resolved again when the theme changes. `PaneFill::Transparent` leaves the parent showing through. The default is `Surface::Content`. A nested split that should show the backdrop puts `Transparent` on the outer pane that only exists to hold the inner split.
+
 `step` is the ratio added or removed by one arrow key. `page` is the ratio for Page Up, Page Down, and Shift+arrow. `default_ratio` is what a double-click restores. The defaults are `0.05`, `0.2`, and `0.5`.
 
 ## Keyboard and pointer

@@ -2,9 +2,11 @@
 //!
 //! The window is transparent and requests [`Backdrop::Window`](rndr_core::Backdrop):
 //! Mica on Windows 11, and a behind-window `NSVisualEffectView` on macOS.
-//! Linux and the browser ignore `Backdrop`. The panes are dark translucent
-//! fills over that material. `BackdropBlur` blurs pixels the app has already
-//! drawn; it does not blur the desktop, and this example does not use it.
+//! Linux and the browser ignore `Backdrop`. The sidebar, conversation, and
+//! audit panes follow the theme's glass, material, and panel colors, and the
+//! nested split's parent pane is clear so those fills composite over the
+//! backdrop. `BackdropBlur` blurs pixels the app has already drawn; it does
+//! not blur the desktop. The status menu uses it. The panes do not.
 //!
 //! Investigations, closed cases, and agents are virtual lists. Groups are a
 //! [`VirtualTree`](rndr_ui::tree::VirtualTree). The panes are nested
@@ -26,8 +28,8 @@
 //! - Real behind-window blur is macOS vibrancy and Windows 11 Mica / Acrylic /
 //!   Tabbed. Linux and the browser draw the translucent fills over whatever
 //!   the transparent surface shows, which is often the clear color.
-//! - Virtual list rows can be translucent. `VirtualTree` paints opaque row
-//!   colors itself, so group rows do not show the material.
+//! - Virtual list rows and `VirtualTree` rows can be translucent. Group rows
+//!   use a theme wash, so the material shows through in light and dark.
 //! - The sash hit target is 8 points. A 1-point line is drawn in that slot.
 //! - Outer shadows on a full-bleed window are clipped by the window. macOS
 //!   still supplies the native window shadow.
@@ -39,10 +41,10 @@
 
 use rndr_core::*;
 use rndr_ui::collections::{Item, ItemId, ListView, RowSlot, ViewProps, VirtualViewHandle};
-use rndr_ui::menu::{open_menu, MenuAt, MenuEntry, MenuItem, MenuPicked};
-use rndr_ui::split::{SplitSash, SplitSashProps};
+use rndr_ui::menu::{open_menu_with, MenuAt, MenuEntry, MenuItem, MenuPicked};
+use rndr_ui::split::{PaneFill, SplitSash, SplitSashProps};
 use rndr_ui::tree::{NodeId, TreeHandle, TreeNode, TreeProps, VirtualTree};
-use rndr_ui::{Appearance, UiColor, UiId, UiPlugin, UiStyle, UiTheme};
+use rndr_ui::{Appearance, OverlayChrome, Surface, UiColor, UiId, UiPlugin, UiStyle, UiTheme};
 
 /// Window width in logical points.
 pub const WIDTH: f32 = 1280.0;
@@ -50,9 +52,6 @@ pub const WIDTH: f32 = 1280.0;
 pub const HEIGHT: f32 = 800.0;
 const BAND: f32 = 52.0;
 
-const GLASS_SIDE: Color = Color::rgba(0.07, 0.08, 0.10, 0.78);
-const GLASS_CENTER: Color = Color::rgba(0.11, 0.12, 0.14, 0.60);
-const GLASS_RIGHT: Color = Color::rgba(0.08, 0.09, 0.11, 0.72);
 const GLASS_SASH: Color = Color::rgba(0.12, 0.13, 0.15, 0.72);
 const HAIRLINE: Color = Color::rgba(1.0, 1.0, 1.0, 0.14);
 const INK: Color = Color::rgba(0.93, 0.94, 0.96, 1.0);
@@ -233,6 +232,12 @@ struct Console {
 /// Call this before [`rndr_render::run`](rndr_render::run). The window config
 /// is transparent, with a custom titlebar and [`Backdrop::Window`].
 pub fn install(app: &mut App) {
+    install_with(app, Appearance::Dark);
+}
+
+/// [`install`] with an explicit appearance. Light and dark both use the
+/// translucent glass, material, and panel surfaces.
+pub fn install_with(app: &mut App, appearance: Appearance) {
     app.world_mut().insert_resource(WindowConfig {
         title: "Investigation".into(),
         size: LogicalSize::new(WIDTH, HEIGHT),
@@ -243,7 +248,7 @@ pub fn install(app: &mut App) {
         ..WindowConfig::default()
     });
     app.world_mut().insert_resource(UiTheme {
-        appearance: Appearance::Dark,
+        appearance,
         density: rndr_ui::Density::Compact,
         ..UiTheme::default()
     });
@@ -265,18 +270,11 @@ pub fn install(app: &mut App) {
     world.insert(root, Corners::all(14.0));
     world.insert(root, BorderSides::uniform(HAIRLINE, 1.0));
 
-    let mut side = SplitSashProps::new("Sidebar and case");
-    side.min_leading = 220.0;
-    side.min_trailing = 520.0;
-    let mut main = SplitSashProps::new("Conversation and audit");
-    main.min_leading = 340.0;
-    main.min_trailing = 240.0;
     // At 1280: sidebar ~300, audit ~280, center the rest. Minimums fit that width.
-    let outer = SplitSash::mount(world, root, UiId(1), side, 0.24).unwrap();
-    let inner = SplitSash::mount(world, outer.trailing, UiId(2), main, 0.70).unwrap();
-    paint_glass(world, outer.leading, GLASS_SIDE);
-    paint_glass(world, inner.leading, GLASS_CENTER);
-    paint_glass(world, inner.trailing, GLASS_RIGHT);
+    // The outer trailing pane stays clear. An opaque parent would composite the
+    // inner glass fills to alpha 255.
+    let outer = SplitSash::mount(world, root, UiId(1), sidebar_split(), 0.24).unwrap();
+    let inner = SplitSash::mount(world, outer.trailing, UiId(2), main_split(), 0.70).unwrap();
 
     let outer_line = hairline_in_sash(world, outer.sash);
     let inner_line = hairline_in_sash(world, inner.sash);
@@ -331,8 +329,22 @@ pub fn install(app: &mut App) {
     app.add_system(Schedule::Layout, hold_panes);
 }
 
-fn paint_glass(world: &mut World, entity: Entity, color: Color) {
-    world.insert(entity, color);
+fn sidebar_split() -> SplitSashProps {
+    let mut side = SplitSashProps::new("Sidebar and case");
+    side.min_leading = 220.0;
+    side.min_trailing = 520.0;
+    side.leading_fill = PaneFill::Theme(Surface::Glass);
+    side.trailing_fill = PaneFill::Transparent;
+    side
+}
+
+fn main_split() -> SplitSashProps {
+    let mut main = SplitSashProps::new("Conversation and audit");
+    main.min_leading = 340.0;
+    main.min_trailing = 240.0;
+    main.leading_fill = PaneFill::Theme(Surface::Material);
+    main.trailing_fill = PaneFill::Theme(Surface::Panel);
+    main
 }
 
 fn hairline_in_sash(world: &mut World, sash: Entity) -> Entity {
@@ -408,8 +420,9 @@ fn sidebar(world: &mut World, pane: Entity) -> (Entity, Entity) {
         // Six visible group rows at 26 points (Endpoints and its three
         // members, then Identity and Network). Investigations scroll, so
         // that list gives up the height Network was missing.
-        open: labeled_slot(world, body, "INVESTIGATIONS", 134.0),
-        closed: labeled_slot(world, body, "CLOSED", 124.0),
+        // Shorter lists keep the last agent above the window's corner radius.
+        open: labeled_slot(world, body, "INVESTIGATIONS", 118.0),
+        closed: labeled_slot(world, body, "CLOSED", 112.0),
         groups: labeled_slot(world, body, "GROUPS", 164.0),
         agents: labeled_slot(world, body, "AGENTS", 188.0),
     };
@@ -547,16 +560,23 @@ fn header(world: &mut World, pane: Entity) -> (Entity, Entity) {
 }
 
 fn conversation(world: &mut World, parent: Entity) {
-    let user = "The IIS worker is spawning w3wp.exe and still serving help.aspx. @Mara Chen can you pull the process tree?";
+    let (user, user_marks) = protect(
+        "The IIS worker is spawning w3wp.exe and still serving help.aspx. @Mara Chen can you pull the process tree?",
+        &["w3wp.exe", "help.aspx", "@Mara Chen"],
+    );
     user_bubble(
         world,
         parent,
-        user,
+        &user,
         vec![
-            code_span(user, "w3wp.exe"),
-            code_span(user, "help.aspx"),
-            mention_span(user, "@Mara Chen"),
+            code_span(&user, &user_marks[0]),
+            code_span(&user, &user_marks[1]),
+            mention_span(&user, &user_marks[2]),
         ],
+    );
+    let (confirmed, confirmed_marks) = protect(
+        "Confirmed. w3wp.exe pid 4188 loaded a module that is not on the image baseline. Isolating SRV-APP-02.",
+        &["w3wp.exe", "4188", "SRV-APP-02"],
     );
     agent_message(
         world,
@@ -564,8 +584,11 @@ fn conversation(world: &mut World, parent: Entity) {
         &AGENTS[0],
         "Endpoints and EDR",
         "09:12",
-        "Confirmed. w3wp.exe pid 4188 loaded a module that is not on the image baseline. Isolating SRV-APP-02.",
-        &["w3wp.exe", "4188", "SRV-APP-02"],
+        &confirmed,
+        &confirmed_marks
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
     );
     let lead = "Status is now Contained. Keep the host online for evidence, and do not reboot until the image is copied.";
     agent_message(
@@ -793,9 +816,18 @@ fn timeline(world: &mut World, parent: Entity, moment: &Moment, last: bool) {
             ..Layout::column()
         },
     );
-    text(world, body, moment.title, 13.0, 650, INK, Size::Fill);
-    paragraph(world, body, moment.detail, 12.0, 400, MUTED);
-    text(world, line, moment.actor, 11.0, 400, FAINT, Size::Hug);
+    one_line(world, body, moment.title, 13.0, 650, INK);
+    // The actor sits under the detail so a short detail stays one line.
+    // Ellipsis is the fallback when the pane is narrower than the words.
+    one_line(
+        world,
+        body,
+        &protect(moment.detail, &["SRV-APP-02", "w3wp.exe"]).0,
+        12.0,
+        400,
+        MUTED,
+    );
+    one_line(world, body, moment.actor, 11.0, 400, FAINT);
 }
 
 fn mount_cases(
@@ -1006,11 +1038,15 @@ fn build_case(world: &mut World, parent: Entity) -> BuiltCase {
             items: Items::Center,
         },
     );
-    let code = text(world, top, "", 11.0, 600, FAINT, Size::Hug);
-    let time = text(world, top, "", 11.0, 400, FAINT, Size::Hug);
+    // The code truncates. The time keeps a reserved slot so "2h" is not clipped
+    // by the row edge or the scroll indicator.
+    let code = text(world, top, "", 11.0, 600, FAINT, Size::Fill);
+    let time = text(world, top, "", 11.0, 400, FAINT, Size::Px(36.0));
     let title = text(world, column, "", 13.0, 600, INK, Size::Fill);
-    if let Some(label) = world.get_mut::<Label>(title) {
-        label.overflow = TextOverflow::Ellipsis;
+    for entity in [code, title, time] {
+        if let Some(label) = world.get_mut::<Label>(entity) {
+            label.overflow = TextOverflow::Ellipsis;
+        }
     }
     let status = text(world, column, "", 11.0, 400, MUTED, Size::Fill);
     for entity in [code, title, status, time] {
@@ -1074,6 +1110,11 @@ fn agent_row(world: &mut World, slot: RowSlot, item: &Item) {
     };
     set_text(world, built.name, agent.name);
     set_text(world, built.status, agent.status);
+    for entity in [built.name, built.status] {
+        if let Some(label) = world.get_mut::<Label>(entity) {
+            label.overflow = TextOverflow::Ellipsis;
+        }
+    }
     if let Some(label) = world.get_mut::<Label>(built.status) {
         label.color = Some(if agent.paused { RED } else { MUTED });
     }
@@ -1103,7 +1144,7 @@ fn prepare_slot(world: &mut World, slot: RowSlot) {
         slot.content,
         Padding {
             top: 6.0,
-            right: 10.0,
+            right: 18.0,
             bottom: 4.0,
             left: 2.0,
         },
@@ -1310,10 +1351,18 @@ fn status_button(world: &mut World, parent: Entity) -> (Entity, Entity) {
         Layout {
             height: Size::Px(28.0),
             gap: 6.0,
-            padding: 8.0,
             ..Layout::row()
         },
         CHIP,
+    );
+    world.insert(
+        button,
+        Padding {
+            top: 4.0,
+            right: 10.0,
+            bottom: 4.0,
+            left: 10.0,
+        },
     );
     world.insert(button, Radius(8.0));
     world.insert(button, Align::center());
@@ -1329,7 +1378,14 @@ fn status_button(world: &mut World, parent: Entity) -> (Entity, Entity) {
     );
     half_circle(world, button);
     let label = text(world, button, "Contained", 13.0, 600, INK, Size::Hug);
-    glyph(world, button, Icon::ChevronDown, 12.0, MUTED);
+    let chevron = glyph(world, button, Icon::ChevronDown, 14.0, MUTED);
+    if let Some(layout) = world.get_mut::<Layout>(chevron) {
+        layout.width = Size::Px(16.0);
+        layout.height = Size::Px(16.0);
+    }
+    if let Some(style) = world.get_mut::<TextStyle>(chevron) {
+        style.line_height = Some(1.0);
+    }
     (button, label)
 }
 
@@ -1594,6 +1650,43 @@ fn text(
     entity
 }
 
+fn one_line(
+    world: &mut World,
+    parent: Entity,
+    value: &str,
+    size: f32,
+    weight: u16,
+    color: Color,
+) -> Entity {
+    let entity = text(world, parent, value, size, weight, color, Size::Fill);
+    if let Some(label) = world.get_mut::<Label>(entity) {
+        label.overflow = TextOverflow::Ellipsis;
+    }
+    entity
+}
+
+/// Keep a code token on one line. Hyphens become non-breaking hyphens and
+/// word joiners glue the token so a wrap happens before it, not inside it.
+fn protect(text: &str, tokens: &[&str]) -> (String, Vec<String>) {
+    let mut text = text.to_string();
+    let mut atoms = Vec::new();
+    for token in tokens {
+        let glued = glue(token);
+        text = text.replace(token, &glued);
+        atoms.push(glued);
+    }
+    (text, atoms)
+}
+
+fn glue(token: &str) -> String {
+    let mut out = String::from("\u{2060}");
+    for ch in token.chars() {
+        out.push(if ch == '-' { '\u{2011}' } else { ch });
+    }
+    out.push('\u{2060}');
+    out
+}
+
 fn paragraph(
     world: &mut World,
     parent: Entity,
@@ -1701,7 +1794,13 @@ fn on_status(world: &mut World) {
                 MenuEntry::Item(MenuItem::new(index as u64 + 1, label).checked(label == current))
             })
             .collect::<Vec<_>>();
-        let _ = open_menu(world, anchor, MenuAt::Below, &entries);
+        let _ = open_menu_with(
+            world,
+            anchor,
+            MenuAt::Below,
+            &entries,
+            OverlayChrome::frost(),
+        );
     }
     let picks: Vec<u64> = events::<MenuPicked>(world)
         .iter()
@@ -1808,14 +1907,69 @@ fn hold_panes(world: &mut World) {
     let Some(window) = world.get::<Parent>(split_root).map(|parent| parent.entity) else {
         return;
     };
-    let mut side = SplitSashProps::new("Sidebar and case");
-    side.min_leading = 220.0;
-    side.min_trailing = 520.0;
-    let mut main = SplitSashProps::new("Conversation and audit");
-    main.min_leading = 340.0;
-    main.min_trailing = 240.0;
-    if let Ok(outer) = SplitSash::mount(world, window, UiId(1), side, 0.24) {
-        let _ = SplitSash::mount(world, outer.trailing, UiId(2), main, 0.70);
+    if let Ok(outer) = SplitSash::mount(world, window, UiId(1), sidebar_split(), 0.24) {
+        let _ = SplitSash::mount(world, outer.trailing, UiId(2), main_split(), 0.70);
+    }
+}
+
+fn tint_light(world: &mut World, theme: &UiTheme) {
+    let ink = theme.color(rndr_ui::Token::Text);
+    let muted = theme.color(rndr_ui::Token::Secondary);
+    let faint = theme.color(rndr_ui::Token::Disabled);
+    let accent = theme.color(rndr_ui::Token::Accent);
+    let map_ink = |color: Color| -> Color {
+        if color == INK {
+            ink
+        } else if color == MUTED {
+            muted
+        } else if color == FAINT {
+            faint
+        } else if color == ACCENT || color == CODE_INK {
+            if color == ACCENT {
+                accent
+            } else {
+                ink
+            }
+        } else {
+            color
+        }
+    };
+    let map_wash = |color: Color| -> Color {
+        if color == HAIRLINE {
+            Color::rgba(0.08, 0.10, 0.14, 0.16)
+        } else if color == CHIP {
+            Color::rgba(0.08, 0.10, 0.16, 0.06)
+        } else if color == FIELD {
+            Color::rgba(1.0, 1.0, 1.0, 0.72)
+        } else if color == SELECTED_ROW {
+            Color::rgba(0.08, 0.12, 0.20, 0.12)
+        } else if color == CODE_BG {
+            Color::rgba(0.08, 0.10, 0.16, 0.08)
+        } else {
+            color
+        }
+    };
+    for entity in world.entities_with::<Label>() {
+        if let Some(label) = world.get_mut::<Label>(entity) {
+            if let Some(color) = label.color {
+                label.color = Some(map_ink(color));
+            }
+        }
+        if let Some(spans) = world.get_mut::<Spans>(entity) {
+            for run in &mut spans.runs {
+                run.color = map_ink(run.color);
+                if let Some(highlight) = run.highlight {
+                    run.highlight = Some(map_wash(highlight));
+                }
+            }
+        }
+    }
+    for entity in world.entities_with::<Color>() {
+        let color = world.get::<Color>(entity).copied().unwrap_or(CLEAR);
+        let next = map_wash(color);
+        if next != color {
+            world.insert(entity, next);
+        }
     }
 }
 
@@ -1823,13 +1977,22 @@ fn polish(world: &mut World) {
     let Some(console) = world.resource::<Console>().cloned() else {
         return;
     };
-    world.insert(console.sidebar, GLASS_SIDE);
-    world.insert(console.center, GLASS_CENTER);
-    world.insert(console.right, GLASS_RIGHT);
-    world.insert(console.outer_sash, GLASS_SASH);
-    world.insert(console.inner_sash, GLASS_SASH);
-    world.insert(console.outer_line, HAIRLINE);
-    world.insert(console.inner_line, HAIRLINE);
+    let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
+    let (sash, hairline) = if theme.appearance == Appearance::Light {
+        (
+            Color::rgba(0.12, 0.14, 0.18, 0.28),
+            Color::rgba(0.08, 0.10, 0.14, 0.16),
+        )
+    } else {
+        (GLASS_SASH, HAIRLINE)
+    };
+    world.insert(console.outer_sash, sash);
+    world.insert(console.inner_sash, sash);
+    world.insert(console.outer_line, hairline);
+    world.insert(console.inner_line, hairline);
+    if theme.appearance == Appearance::Light {
+        tint_light(world, &theme);
+    }
     let chrome = world
         .resource::<WindowChrome>()
         .copied()
@@ -1933,6 +2096,183 @@ mod tests {
             agents_list,
             side
         );
+    }
+
+    #[test]
+    fn exported_panes_are_translucent_and_rows_stay_intact() {
+        for appearance in [Appearance::Dark, Appearance::Light] {
+            let mut app = App::new();
+            rndr_paint::install_icons();
+            app.world_mut()
+                .insert_resource(std::sync::Arc::new(rndr_render::ParleyText::new())
+                    as std::sync::Arc<dyn TextEngine>);
+            install_with(&mut app, appearance);
+            app.world_mut().insert_resource(Viewport {
+                scale: 2.0,
+                ..Viewport::new(WIDTH, HEIGHT)
+            });
+            for _ in 0..4 {
+                app.update();
+            }
+            let panes = {
+                let world = app.world();
+                let console = world.resource::<Console>().unwrap();
+                for pane in [console.sidebar, console.center, console.right] {
+                    let alpha = world.get::<Color>(pane).unwrap().a;
+                    assert!(alpha < 1.0, "{appearance:?} pane alpha {alpha} is opaque");
+                }
+                let inner = world.get::<Parent>(console.center).unwrap().entity;
+                let clear = world.get::<Parent>(inner).unwrap().entity;
+                assert_eq!(
+                    world.get::<Color>(clear).map(|color| color.a),
+                    Some(0.0),
+                    "nested split parent must stay clear"
+                );
+                let list = *world.get::<Rect>(console.open_list.root).unwrap();
+                let time = label_rect(world, "2h");
+                assert!(
+                    time.x + time.w <= list.x + list.w - 4.0,
+                    "INV-0063 time {:?} is clipped by the list {:?}",
+                    time,
+                    list
+                );
+                let button = *world.get::<Rect>(console.status_button).unwrap();
+                let chevron = label_under(
+                    world,
+                    console.status_button,
+                    &Icon::ChevronDown.scalar().to_string(),
+                );
+                assert!(
+                    chevron.x + 0.5 >= button.x
+                        && chevron.y + 0.5 >= button.y
+                        && chevron.x + chevron.w <= button.x + button.w + 0.5
+                        && chevron.y + chevron.h <= button.y + button.h + 0.5,
+                    "chevron {:?} is clipped by the status button {:?}",
+                    chevron,
+                    button
+                );
+                let side = *world.get::<Rect>(console.sidebar).unwrap();
+                let priya = label_rect(world, "Priya Shah");
+                assert!(
+                    priya.y + priya.h <= side.y + side.h - 8.0,
+                    "Priya Shah {:?} is cut off by the sidebar {:?}",
+                    priya,
+                    side
+                );
+                for needle in [
+                    "Web shell in help.aspx",
+                    "Process tree",
+                    "added",
+                    "Investigation INV-0063",
+                ] {
+                    let entity = label_containing(world, needle);
+                    let lines = world.get::<TextLayout>(entity).unwrap().lines.len();
+                    assert_eq!(lines, 1, "{needle} wraps");
+                }
+                let message = label_containing(world, "Isolating");
+                let text = world.get::<Label>(message).unwrap().text.clone();
+                let layout = world.get::<TextLayout>(message).unwrap();
+                let start = text.find("SRV").expect("code token");
+                let end = text[start..].find("02").expect("token end") + start + 2;
+                assert!(
+                    layout
+                        .lines
+                        .iter()
+                        .any(|line| line.start <= start && line.end >= end),
+                    "SRV-APP-02 breaks across lines in {text:?}"
+                );
+                if appearance == Appearance::Light {
+                    let title = world
+                        .get::<Label>(label_containing(world, "Web shell on"))
+                        .unwrap();
+                    assert!(
+                        title.color.unwrap().r < 0.5,
+                        "light theme still uses light ink"
+                    );
+                }
+                let console = world.resource::<Console>().unwrap();
+                [
+                    ("sidebar", *world.get::<Rect>(console.sidebar).unwrap()),
+                    ("center", *world.get::<Rect>(console.center).unwrap()),
+                    ("right", *world.get::<Rect>(console.right).unwrap()),
+                ]
+            };
+            let frame = rndr_paint::frame(&mut app);
+            let image = rndr_render::Exporter::new()
+                .expect("offscreen device")
+                .render_frame(
+                    Some(app.world()),
+                    &frame,
+                    (WIDTH * 2.0) as u32,
+                    (HEIGHT * 2.0) as u32,
+                    2.0,
+                )
+                .expect("export");
+            for (name, rect) in panes {
+                let share = translucent_share(&image, rect);
+                assert!(
+                    share > 0.2,
+                    "{appearance:?} {name} translucent share {share} (rect {rect:?})"
+                );
+            }
+        }
+    }
+
+    fn translucent_share(image: &rndr_render::RgbaImage, rect: Rect) -> f32 {
+        let scale = 2.0f32;
+        let x0 = (rect.x * scale).max(0.0) as u32;
+        let y0 = (rect.y * scale).max(0.0) as u32;
+        let x1 = ((rect.x + rect.w) * scale).min(image.width as f32) as u32;
+        let y1 = ((rect.y + rect.h) * scale).min(image.height as f32) as u32;
+        let mut samples = 0u32;
+        let mut translucent = 0u32;
+        let mut y = y0;
+        while y < y1 {
+            let mut x = x0;
+            while x < x1 {
+                let index = ((y * image.width + x) * 4) as usize;
+                if image.rgba[index + 3] < 250 {
+                    translucent += 1;
+                }
+                samples += 1;
+                x += 4;
+            }
+            y += 4;
+        }
+        translucent as f32 / samples.max(1) as f32
+    }
+
+    fn label_under(world: &rndr_core::World, ancestor: Entity, text: &str) -> Rect {
+        let entity = world
+            .entities_with::<Label>()
+            .into_iter()
+            .find(|entity| {
+                world.get::<Label>(*entity).unwrap().text == text
+                    && inside(world, *entity, ancestor)
+            })
+            .unwrap_or_else(|| panic!("missing {text} under {ancestor:?}"));
+        world.get::<Rect>(entity).copied().unwrap()
+    }
+
+    fn inside(world: &rndr_core::World, mut entity: Entity, ancestor: Entity) -> bool {
+        for _ in 0..16 {
+            if entity == ancestor {
+                return true;
+            }
+            entity = match world.get::<Parent>(entity) {
+                Some(parent) => parent.entity,
+                None => return false,
+            };
+        }
+        false
+    }
+
+    fn label_containing(world: &rndr_core::World, needle: &str) -> Entity {
+        world
+            .entities_with::<Label>()
+            .into_iter()
+            .find(|entity| world.get::<Label>(*entity).unwrap().text.contains(needle))
+            .unwrap_or_else(|| panic!("missing label containing {needle}"))
     }
 
     fn label_rect(world: &rndr_core::World, text: &str) -> Rect {

@@ -74,6 +74,7 @@ fn sample(rng: &mut Rng) -> String {
         "<script>\nfoo\n\nbar\n</script>\n\nafter\n",
         "[foo]: /url\n\n[foo]\n\nmore\n",
         "```callout\ntone: tip\n# keep\nbody: Hi\n```\n\nafter\n",
+        "| a | b |\n| --- | --- |\n| c \\| d | e |\n\nafter\n",
         "$$\nx\n$$\n\nplain\n",
         "",
         "é\n",
