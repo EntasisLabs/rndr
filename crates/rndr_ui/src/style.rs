@@ -176,7 +176,7 @@ impl UiTheme {
 }
 
 /// Turns on the hover and press color ease. Absent, or with a zero duration,
-/// those fills settle on the same frame. [`UiPlugin`] installs the default.
+/// those fills settle on the same frame. [`crate::UiPlugin`] installs the default.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct InteractionMotion {
     /// Ease length. Zero snaps.
