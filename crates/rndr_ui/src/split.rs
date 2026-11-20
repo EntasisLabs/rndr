@@ -338,10 +338,15 @@ pub(crate) fn drive(world: &mut World) {
     }
 }
 
-/// Focus and drag color. Direct [`Color`] on the handle.
+/// Focus, drag, and hover on a line thinner than the handle's hit area.
 pub(crate) fn styles(world: &mut World) {
     let focus = world.resource::<Focus>().and_then(|focus| focus.entity);
     let drag = world.resource::<Drag>().and_then(|drag| drag.entity);
+    let hovered = world
+        .resource::<Input>()
+        .map(|input| input.pointer.position)
+        .and_then(|point| sash_at(world, point));
+    let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
     for sash in world.entities_with::<SashState>() {
         if let Some(state) = world.get::<SashState>(sash).cloned() {
             paint_fill(world, state.leading, state.props.leading_fill);
@@ -352,11 +357,76 @@ pub(crate) fn styles(world: &mut World) {
             Token::SubtleStroke
         } else if focus == Some(sash) || drag == Some(sash) {
             Token::Focus
+        } else if hovered == Some(sash) {
+            Token::Text
         } else {
             Token::StrongStroke
         };
-        paint(world, sash, token);
+        // The handle stays the full hit target. Only the centered line is ink.
+        world.insert(sash, Color::rgba(0.0, 0.0, 0.0, 0.0));
+        let line = ensure_line(world, sash);
+        world.insert(
+            line,
+            UiRecipe(UiStyle {
+                background: Some(token.into()),
+                ..UiStyle::default()
+            }),
+        );
+        let axis = axis_of(world, sash);
+        let span = world
+            .get::<Layout>(sash)
+            .map(|layout| match axis {
+                Axis::Row => match layout.width {
+                    Size::Px(px) => px,
+                    _ => 8.0,
+                },
+                Axis::Column => match layout.height {
+                    Size::Px(px) => px,
+                    _ => 8.0,
+                },
+            })
+            .unwrap_or(8.0);
+        let inset = ((span - theme.focus_width()) * 0.5).max(0.0);
+        world.insert(
+            line,
+            match axis {
+                Axis::Row => Absolute {
+                    left: Some(inset),
+                    right: Some(inset),
+                    top: Some(0.0),
+                    bottom: Some(0.0),
+                },
+                Axis::Column => Absolute {
+                    left: Some(0.0),
+                    right: Some(0.0),
+                    top: Some(inset),
+                    bottom: Some(inset),
+                },
+            },
+        );
     }
+}
+
+struct SashLine;
+impl Component for SashLine {}
+
+fn ensure_line(world: &mut World, sash: Entity) -> Entity {
+    if let Some(line) = children_of(world, sash)
+        .into_iter()
+        .find(|child| world.has::<SashLine>(*child))
+    {
+        return line;
+    }
+    let line = world.spawn((
+        Layout {
+            width: Size::Fill,
+            height: Size::Fill,
+            ..Layout::column()
+        },
+        SashLine,
+    ));
+    set_parent(world, line, sash);
+    line
 }
 
 fn admit(props: &SplitSashProps, ratio: f64) -> Result<(SplitSashProps, f64), UiError> {

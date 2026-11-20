@@ -679,11 +679,24 @@ impl Cx<'_> {
                 let row = self.row(parent);
                 for chip in &p.chips {
                     let s = self.surface(row);
+                    if let Some(face) = self.world.get::<Parent>(s).map(|parent| parent.entity) {
+                        self.world.insert(
+                            face,
+                            rndr_ui::UiStyle {
+                                corner: Some(rndr_ui::Corner::Compact),
+                                ..rndr_ui::UiStyle::default()
+                            },
+                        );
+                    }
                     let label = match filled(&chip.value) {
                         Some(v) => format!("{} · {v}", chip.label),
                         None => chip.label.clone(),
                     };
-                    self.text(s, &label, Typography::Label);
+                    if let Ok(node) = text(self.world, s, &label, Typography::Label) {
+                        if let Some(label) = self.world.get_mut::<Label>(node) {
+                            label.overflow = TextOverflow::Ellipsis;
+                        }
+                    }
                 }
             }
             LiquidBlock::Media(p) => {

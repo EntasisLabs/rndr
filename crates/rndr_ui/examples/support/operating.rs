@@ -33,6 +33,7 @@ pub struct Demo {
 pub fn create(width: f32, height: f32, theme: UiTheme, long: bool) -> App {
     let mut app = App::new();
     app.add_plugin(UiPlugin);
+    app.world_mut().insert_resource(InteractionMotion::snap());
     app.world_mut()
         .insert_resource(Viewport::new(width, height));
     app.world_mut().insert_resource(theme);

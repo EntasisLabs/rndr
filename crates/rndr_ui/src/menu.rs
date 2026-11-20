@@ -658,11 +658,19 @@ pub(crate) fn styles(world: &mut World) {
         let r = world.get::<MenuRow>(e).cloned().unwrap();
         let available = access_details(world, e).activate;
         let open_sub = r.submenu.is_some_and(|s| !world.has::<Hidden>(s));
+        let pressed = interaction_pressed(world, e);
         let lit = available && (focus == Some(e) || open_sub);
+        let background = if available && pressed {
+            Some(Token::Pressed.into())
+        } else if lit {
+            Some(Token::Accent.into())
+        } else {
+            None
+        };
         world.insert(
             e,
             UiStyle {
-                background: lit.then_some(Token::Accent.into()),
+                background,
                 corner: Some(Corner::Compact),
                 ..UiStyle::default()
             },

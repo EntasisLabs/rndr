@@ -7,6 +7,7 @@ use rndr_ui::{
 fn app(width: f32, theme: UiTheme) -> (App, Entity) {
     let mut a = App::new();
     a.add_plugin(UiPlugin);
+    a.world_mut().insert_resource(InteractionMotion::snap());
     a.world_mut().insert_resource(Viewport::new(width, 5000.));
     a.world_mut().insert_resource(theme);
     let root = a.world_mut().spawn((Layout {

@@ -305,7 +305,10 @@ fn mount_control(
         let border = primitive(world, gap, root, 1.0);
         let face = primitive(world, border, root, 0.0);
         let label = primitive(world, face, root, 0.0);
-        world.insert(label, Label::new(&props.label).overflow(TextOverflow::Wrap));
+        world.insert(
+            label,
+            Label::new(&props.label).overflow(TextOverflow::Ellipsis),
+        );
         world.insert(
             label,
             LabelBox {
@@ -316,7 +319,7 @@ fn mount_control(
         );
         let secondary = if kind == Kind::Navigation {
             let entity = primitive(world, face, root, 0.0);
-            world.insert(entity, Label::new("").overflow(TextOverflow::Wrap));
+            world.insert(entity, Label::new("").overflow(TextOverflow::Ellipsis));
             world.insert(
                 entity,
                 LabelBox {
@@ -1076,7 +1079,11 @@ pub(crate) fn resolve_controls(world: &mut World) {
             } else {
                 world.remove::<Hidden>(secondary);
             }
-            world.get_mut::<Label>(secondary).unwrap().text = metadata;
+            {
+                let shown = world.get_mut::<Label>(secondary).unwrap();
+                shown.text = metadata;
+                shown.overflow = TextOverflow::Ellipsis;
+            }
             let secondary_ink = if !c.props.enabled {
                 Token::Disabled
             } else if pressed && theme.contrast == crate::Contrast::High {
@@ -1104,7 +1111,16 @@ pub(crate) fn resolve_controls(world: &mut World) {
         if c.props.readonly {
             label.push_str(" (read only)");
         }
-        world.get_mut::<Label>(c.label).unwrap().text = label;
+        {
+            let shown = world.get_mut::<Label>(c.label).unwrap();
+            shown.text = label;
+            shown.overflow = TextOverflow::Ellipsis;
+        }
+        let shown = world
+            .get::<Label>(c.label)
+            .map(|label| label.text.clone())
+            .unwrap_or_default();
+        crate::inputs::sync_truncation_tooltip(world, root, c.label, &shown);
         world.insert(
             c.label,
             UiRecipe(UiStyle {

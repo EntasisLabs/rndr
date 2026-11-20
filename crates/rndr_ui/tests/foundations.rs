@@ -8,6 +8,7 @@ fn base() -> (App, Entity) {
     app.add_plugin(Chrome)
         .add_plugin(UiPlugin)
         .add_plugin(UiPlugin);
+    app.world_mut().insert_resource(InteractionMotion::snap());
     app.world_mut()
         .insert_resource(Viewport::new(800.0, 6000.0));
     let root = app.world_mut().spawn((Layout {

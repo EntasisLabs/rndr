@@ -10,6 +10,7 @@ use rndr_ui::*;
 fn document_and_retained_child_defaults_follow_light_dark_and_high_contrast() {
     let mut app = App::new();
     app.add_plugin(UiPlugin);
+    app.world_mut().insert_resource(InteractionMotion::snap());
     app.world_mut().insert_resource(Viewport::new(640.0, 600.0));
     let mut docs = StructuredDocuments::default();
     let document = docs.insert(StructuredDocument::new("before\nafter"));

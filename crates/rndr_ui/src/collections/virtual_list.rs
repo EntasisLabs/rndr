@@ -824,17 +824,11 @@ fn compose_realized_rows(w: &mut World, root: Entity, v: &VirtualView, wanted: &
             TabStop(v.active == Some(id) && !external_focus_owner(w, root)),
         );
         w.insert(slot.root, SelectedState(row_selected(v, id)));
-        let focused = w
-            .resource::<Focus>()
-            .and_then(|f| f.entity)
-            .is_some_and(|f| owner(w, f).is_some_and(|o| o.view == root && o.id == id));
         w.insert(
             slot.root,
             crate::UiRecipe(crate::UiStyle {
                 background: Some(
-                    if focused {
-                        crate::Token::Focus
-                    } else if row_selected(v, id) {
+                    if row_selected(v, id) {
                         crate::Token::Selected
                     } else {
                         crate::Token::Content
@@ -1236,6 +1230,78 @@ fn navigate_impl(w: &mut World, e: Entity, key: &KeyEvent, external: bool) -> bo
     true
 }
 /// Report canonical focus changes once per Input, not every layout refresh.
+pub(super) fn chrome(world: &mut World) {
+    let theme = world
+        .resource::<crate::UiTheme>()
+        .cloned()
+        .unwrap_or_default();
+    let focus = world.resource::<Focus>().and_then(|focus| focus.entity);
+    let hovered = world
+        .resource::<Input>()
+        .and_then(|input| hit_test(world, input.pointer.position[0], input.pointer.position[1]));
+    for root in world.entities_with::<VirtualView>() {
+        let Some(view) = world.get::<VirtualView>(root).cloned() else {
+            continue;
+        };
+        for (id, slot) in &view.rows {
+            let Some(item) = view.indices.get(id).map(|index| &view.items[*index]) else {
+                continue;
+            };
+            let enabled = item.enabled && view.props.enabled;
+            let selected = row_selected(&view, *id);
+            let hover = hovered.is_some_and(|hit| {
+                hit == slot.root || ancestor_with::<Owner>(world, hit) == Some(slot.root)
+            });
+            let pressed = interaction_pressed(world, slot.root);
+            let row_focus = focus.is_some_and(|focus| {
+                focus == slot.root || ancestor_with::<Owner>(world, focus) == Some(slot.root)
+            });
+            let fill = if !enabled {
+                crate::Token::Content
+            } else if pressed {
+                crate::Token::ControlPressed
+            } else if hover && !selected {
+                crate::Token::ControlHover
+            } else if selected {
+                crate::Token::Selected
+            } else {
+                crate::Token::Content
+            };
+            world.insert(
+                slot.root,
+                crate::UiRecipe(crate::UiStyle {
+                    background: Some(fill.into()),
+                    corner: Some(crate::Corner::Compact),
+                    ..crate::UiStyle::default()
+                }),
+            );
+            if row_focus && enabled {
+                world.insert(slot.root, crate::style::keyboard_focus_ring(&theme));
+            } else {
+                world.remove::<Border>(slot.root);
+            }
+            let mut labels = vec![slot.content];
+            let mut index = 0;
+            while index < labels.len() {
+                labels.extend(children_of(world, labels[index]));
+                index += 1;
+            }
+            let mut tip = None;
+            for entity in labels {
+                if let Some(label) = world.get_mut::<Label>(entity) {
+                    if !label.text.contains('\n') {
+                        label.overflow = TextOverflow::Ellipsis;
+                    }
+                    tip.get_or_insert(entity);
+                }
+            }
+            if let Some(label) = tip {
+                crate::inputs::sync_truncation_tooltip(world, slot.root, label, &item.name);
+            }
+        }
+    }
+}
+
 pub(super) fn requests(w: &mut World) {
     for root in w.entities_with::<VirtualView>() {
         let mut v = w.get::<VirtualView>(root).unwrap().clone();

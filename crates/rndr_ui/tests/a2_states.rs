@@ -36,6 +36,7 @@ fn actual_resolved_control_states_contrast_focus_geometry_and_glyph_scale() {
                     };
                     let mut a = App::new();
                     a.add_plugin(UiPlugin);
+                    a.world_mut().insert_resource(InteractionMotion::snap());
                     a.world_mut().insert_resource(theme.clone());
                     let root = a.world_mut().spawn((Layout {
                         width: Size::Px(240.0),
@@ -105,6 +106,7 @@ fn actual_resolved_control_states_contrast_focus_geometry_and_glyph_scale() {
     for scale in [1.0, 2.0] {
         let mut a = App::new();
         a.add_plugin(UiPlugin);
+        a.world_mut().insert_resource(InteractionMotion::snap());
         a.world_mut().insert_resource(UiTheme {
             text_scale: scale,
             ..UiTheme::default()
@@ -136,6 +138,7 @@ fn actual_resolved_control_states_contrast_focus_geometry_and_glyph_scale() {
 fn style_override_detach_and_theme_changes_do_not_reconstruct_controls() {
     let mut a = App::new();
     a.add_plugin(UiPlugin);
+    a.world_mut().insert_resource(InteractionMotion::snap());
     let root = a.world_mut().spawn((Layout {
         width: Size::Px(320.0),
         ..Layout::column()
