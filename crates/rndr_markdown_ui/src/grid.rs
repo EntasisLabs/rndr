@@ -47,7 +47,13 @@ impl Chrome {
             muted: theme.color(Token::Secondary),
             link: theme.color(Token::InfoText),
             code,
-            grip: theme.color(Token::ControlHover),
+            grip: {
+                // Opaque enough to read as a strip on white and on a dark pane.
+                // Control-hover alone disappears into the content fill.
+                let mut grip = theme.color(Token::StrongStroke);
+                grip.a = 0.55;
+                grip
+            },
             pad_x: theme.space(Space::X8),
             pad_y: theme.space(Space::X4),
             handle: theme.space(Space::X4).max(6.0),
@@ -1023,6 +1029,7 @@ fn spawn_cell(
         },
     );
     world.insert(entity, ContextTarget);
+    world.insert(entity, RetainLabelBox);
     world.insert(entity, hit.clone());
     paint_caret(
         world,
@@ -1105,6 +1112,7 @@ fn spawn_raw_line(
         },
     ));
     world.insert(entity, ContextTarget);
+    world.insert(entity, RetainLabelBox);
     world.insert(entity, hit.clone());
     paint_caret(world, entity, &hit, caret, anchor, "");
     set_parent(world, entity, parent);

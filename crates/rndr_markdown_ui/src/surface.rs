@@ -23,6 +23,7 @@ const GAP: f32 = 8.0;
 /// is not flush with the scroll clip.
 const LEAD: f32 = 10.0;
 const TASK_BOX: f32 = 14.0;
+const TASK_GAP: f32 = 8.0;
 
 struct Node {
     id: UiId,
@@ -57,6 +58,11 @@ impl Component for Slot {}
 struct TaskBox;
 
 impl Component for TaskBox {}
+
+/// The task item's text, beside the checkbox. The chrome glyph is not in it.
+struct TaskText;
+
+impl Component for TaskText {}
 
 /// One editable Liquid field value. `text_start` indexes [`DisplayBlock::text`].
 #[derive(Clone, Copy)]
@@ -584,6 +590,20 @@ fn place_hit(world: &mut World, root: Entity, hit: Entity, at: [f32; 2], extend:
             }
             return;
         }
+    }
+    if let Some(source) = task_text_source(world, hit, &block, at) {
+        if let Some(session) = world
+            .resource_mut::<crate::MarkdownDocuments>()
+            .and_then(|docs| docs.get_mut(document))
+        {
+            if extend {
+                let anchor = session.anchor();
+                let _ = session.move_caret(anchor, source);
+            } else {
+                let _ = session.move_caret(source, source);
+            }
+        }
+        return;
     }
     if let Some(source) = field_source(world, hit, &block, at) {
         if let Some(session) = world
@@ -1577,7 +1597,19 @@ fn rebuild_slots(world: &mut World, entity: Entity) -> bool {
                         crate::grid::outer_pad(&block),
                     )
                 } else {
-                    project::measure_block(engine.as_ref(), &block, (width - 24.0).max(1.0), &style)
+                    let measured = project::measure_block(
+                        engine.as_ref(),
+                        &block,
+                        (width - 24.0).max(1.0),
+                        &style,
+                    );
+                    // The field form's padding is outside the row stack. Count it
+                    // in the stored height so the slot is not a one-line kind bar.
+                    if matches!(kind, DisplayKind::Liquid { valid: true, .. }) {
+                        measured + crate::grid::outer_pad(&block) * 2.0
+                    } else {
+                        measured
+                    }
                 };
                 if let Some(node) = world.get_mut::<Node>(entity) {
                     if let Some(block) = node.blocks.get_mut(index) {
@@ -1688,6 +1720,16 @@ fn rebuild_slots(world: &mut World, entity: Entity) -> bool {
         node.slots = slots;
         node.painted = revision;
     }
+    // Handles are spawned in this pass. Color them before paint; an earlier
+    // update would be wiped by the rebuild.
+    if let Some(document) = root_document(world, entity) {
+        let caret = world
+            .resource::<crate::MarkdownDocuments>()
+            .and_then(|docs| docs.get(document))
+            .map(|session| session.caret())
+            .unwrap_or(0);
+        crate::grid::sync_handles(world, entity, caret);
+    }
     true
 }
 
@@ -1712,7 +1754,8 @@ fn slot_reusable(world: &World, slot: Entity, block: &DisplayBlock, widget: bool
         let form = !field_value_entities(world, slot).is_empty();
         return form != widget;
     }
-    world.has::<Label>(slot) != widget
+    let labeled = world.has::<Label>(slot) || task_text_entity(world, slot).is_some();
+    labeled != widget
 }
 
 fn advance(kind: &DisplayKind, height: f32) -> f32 {
@@ -1725,6 +1768,8 @@ fn advance(kind: &DisplayKind, height: f32) -> f32 {
     };
     let slack = match kind {
         DisplayKind::Gap | DisplayKind::Table => 0.0,
+        // The stored height already includes the form padding.
+        DisplayKind::Liquid { valid: true, .. } => 0.0,
         _ => TEXT_ORIGIN_Y * 2.0,
     };
     body + slack + GAP
@@ -1856,34 +1901,72 @@ fn spawn_block(
     if liquid_editing(block, caret) {
         return spawn_liquid_fields(world, parent, block, caret, anchor, preedit, pad);
     }
-    let text = block.label_text();
+    let task = matches!(block.kind, DisplayKind::Task(_));
+    let text = if task {
+        block.text.clone()
+    } else {
+        block.label_text()
+    };
     let mut label = Label::new(&text);
     label.color = Some(theme_palette(world).text);
     label.overflow = TextOverflow::Wrap;
     let height = block.height.max(20.0);
-    let mut runs = label_spans(block);
+    let mut runs = if task { Vec::new() } else { label_spans(block) };
     hide_task_glyph(block, &mut runs);
+    let mut layout = Layout {
+        width: Size::Fill,
+        height: Size::Px(advance(&block.kind, height)),
+        padding: pad,
+        ..Layout::column()
+    };
+    if task {
+        layout.axis = Axis::Row;
+        layout.gap = TASK_GAP;
+    }
     let entity = world.spawn((
-        Layout {
-            width: Size::Fill,
-            height: Size::Px(advance(&block.kind, height)),
-            padding: pad,
-            ..Layout::column()
-        },
-        label,
-        Spans { runs },
+        layout,
         style_for_kind(&block.kind),
         Slot {
             start: block.span.start,
             end: block.span.end,
         },
     ));
+    if task {
+        world.insert(
+            entity,
+            Align {
+                items: Items::Center,
+                ..Align::default()
+            },
+        );
+        paint_task_box(world, entity, block);
+        let text_entity = world.spawn((
+            Layout {
+                width: Size::Fill,
+                height: Size::Hug,
+                ..Layout::column()
+            },
+            label,
+            Spans { runs },
+            style_for_kind(&block.kind),
+            TaskText,
+        ));
+        set_parent(world, text_entity, entity);
+    } else {
+        world.insert(entity, label);
+        world.insert(entity, Spans { runs });
+    }
     paint_callout(world, entity, block);
-    paint_task_box(world, entity, block);
     place_caret(world, entity, block, caret, anchor, preedit);
     let _ = width;
     set_parent(world, entity, parent);
     entity
+}
+
+fn task_text_entity(world: &World, slot: Entity) -> Option<Entity> {
+    children_of(world, slot)
+        .into_iter()
+        .find(|child| world.has::<TaskText>(*child))
 }
 
 fn task_box_hit(world: &World, mut hit: Entity) -> bool {
@@ -1900,6 +1983,35 @@ fn task_box_hit(world: &World, mut hit: Entity) -> bool {
         hit = parent.entity;
     }
     false
+}
+
+fn task_text_source(
+    world: &World,
+    mut hit: Entity,
+    block: &DisplayBlock,
+    at: [f32; 2],
+) -> Option<usize> {
+    if !matches!(block.kind, DisplayKind::Task(_)) {
+        return None;
+    }
+    for _ in 0..8 {
+        if world.has::<TaskText>(hit) {
+            let rect = world.get::<Rect>(hit).copied()?;
+            let text = world.get::<Label>(hit).map(|label| label.text.clone())?;
+            let style = world
+                .get::<TextStyle>(hit)
+                .cloned()
+                .unwrap_or_else(|| style_for_kind(&block.kind));
+            let layout = text_engine(world).layout(&text, &style, &[], rect.w.max(1.0));
+            let index = layout.index_at(at[0] - rect.x, at[1] - rect.y);
+            return Some(block.display_to_source(block.chrome.len() + index));
+        }
+        if world.has::<Slot>(hit) {
+            return None;
+        }
+        hit = world.get::<Parent>(hit)?.entity;
+    }
+    None
 }
 
 fn field_source(
@@ -1943,6 +2055,10 @@ fn place_caret(
 ) {
     clear_carets(world, entity);
     if place_field_carets(world, entity, block, caret, anchor, preedit) {
+        return;
+    }
+    if let Some(text_entity) = task_text_entity(world, entity) {
+        place_task_caret(world, text_entity, block, caret, anchor, preedit);
         return;
     }
     world.remove::<Caret>(entity);
@@ -2004,9 +2120,6 @@ fn paint_task_box(world: &mut World, parent: Entity, block: &DisplayBlock) {
         return;
     };
     let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
-    let style = style_for_kind(&block.kind);
-    let line = text_engine(world).line_height(&style);
-    let top = TEXT_ORIGIN_Y + (line - TASK_BOX).max(0.0) * 0.5;
     let mut fill = theme.color(Token::Content);
     if checked {
         fill = theme.color(Token::Accent);
@@ -2016,11 +2129,6 @@ fn paint_task_box(world: &mut World, parent: Entity, block: &DisplayBlock) {
             width: Size::Px(TASK_BOX),
             height: Size::Px(TASK_BOX),
             ..Layout::column()
-        },
-        Absolute {
-            left: Some(TEXT_ORIGIN_X),
-            top: Some(top),
-            ..Absolute::default()
         },
         fill,
         Border {
@@ -2170,7 +2278,23 @@ fn spawn_liquid_fields(
 ) -> Entity {
     let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
     let palette = theme_palette(world);
-    let height = advance(&block.kind, block.height.max(20.0));
+    let content = if block.height > pad * 2.0 + 24.0 {
+        block.height
+    } else {
+        let style = style_for_kind(&block.kind);
+        project::measure_block(
+            text_engine(world).as_ref(),
+            block,
+            (world
+                .get::<Rect>(parent)
+                .map(|rect| rect.w)
+                .unwrap_or(640.0)
+                - pad * 2.0)
+                .max(1.0),
+            &style,
+        ) + pad * 2.0
+    };
+    let height = advance(&block.kind, content);
     let entity = world.spawn((
         Layout {
             width: Size::Fill,
@@ -2252,6 +2376,59 @@ fn spawn_liquid_fields(
     place_caret(world, entity, block, caret, anchor, preedit);
     set_parent(world, entity, parent);
     entity
+}
+
+fn place_task_caret(
+    world: &mut World,
+    entity: Entity,
+    block: &DisplayBlock,
+    caret: usize,
+    anchor: usize,
+    preedit: &str,
+) {
+    let contains =
+        block.span.start <= caret && caret <= block.span.end && block.kind != DisplayKind::Gap;
+    if contains {
+        let index = block
+            .source_to_label(caret)
+            .saturating_sub(block.chrome.len());
+        let anchor_index = block
+            .source_to_label(anchor)
+            .saturating_sub(block.chrome.len());
+        world.insert(
+            entity,
+            Caret {
+                index,
+                anchor: anchor_index,
+            },
+        );
+        if !preedit.is_empty() {
+            world.insert(
+                entity,
+                ImePreview {
+                    text: preedit.to_string(),
+                    cursor: Some((preedit.len(), preedit.len())),
+                },
+            );
+        }
+    }
+    if anchor != caret && block.kind != DisplayKind::Gap {
+        let start = anchor.min(caret);
+        let end = anchor.max(caret);
+        if block.span.end > start && block.span.start < end {
+            world.insert(
+                entity,
+                TextSelection {
+                    anchor: block
+                        .source_to_label(start.max(block.span.start))
+                        .saturating_sub(block.chrome.len()),
+                    head: block
+                        .source_to_label(end.min(block.span.end))
+                        .saturating_sub(block.chrome.len()),
+                },
+            );
+        }
+    }
 }
 
 fn clear_carets(world: &mut World, entity: Entity) {

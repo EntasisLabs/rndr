@@ -16,6 +16,28 @@ use std::sync::Arc;
 const SLIDE_W: f32 = 640.0;
 const SLIDE_H: f32 = 360.0;
 
+fn tone_word(tone: &str) -> &'static str {
+    match tone {
+        "tip" | "hint" => "Tip",
+        "note" => "Note",
+        "info" => "Info",
+        "important" => "Important",
+        "warning" | "warn" | "caution" | "attention" => "Warning",
+        "success" | "ok" | "done" | "good" | "positive" | "check" => "Success",
+        "danger" | "error" | "critical" | "negative" | "bad" | "failure" | "bug" => "Danger",
+        _ => "Info",
+    }
+}
+
+fn meaning_name(meaning: Feedback) -> &'static str {
+    match meaning {
+        Feedback::Info => "Info",
+        Feedback::Success => "Success",
+        Feedback::Warning => "Warning",
+        Feedback::Danger => "Danger",
+    }
+}
+
 /// What activating one control inside a block does.
 #[derive(Clone, Debug)]
 pub(crate) enum Act {
@@ -452,21 +474,39 @@ impl Cx<'_> {
 
     fn callout(&mut self, parent: Entity, tone: Option<&str>, title: &str) -> Entity {
         let id = self.id();
-        let meaning = match tone.unwrap_or("info").to_ascii_lowercase().as_str() {
-            "success" | "ok" | "done" | "good" | "positive" => Feedback::Success,
-            "warn" | "warning" | "caution" | "important" => Feedback::Warning,
-            "danger" | "error" | "critical" | "negative" | "bad" => Feedback::Danger,
-            _ => Feedback::Info,
+        let tone = tone.unwrap_or("info").to_ascii_lowercase();
+        let (meaning, word) = match tone.as_str() {
+            "tip" | "hint" | "success" | "ok" | "done" | "good" | "positive" | "check" => {
+                (Feedback::Success, tone_word(&tone))
+            }
+            "warn" | "warning" | "caution" | "attention" => (Feedback::Warning, tone_word(&tone)),
+            "important" => (Feedback::Warning, "Important"),
+            "danger" | "error" | "critical" | "negative" | "bad" | "failure" | "bug" => {
+                (Feedback::Danger, tone_word(&tone))
+            }
+            "note" | "info" => (Feedback::Info, tone_word(&tone)),
+            _ => (Feedback::Info, tone_word(&tone)),
         };
         let title = with_icons(title);
         let title = if title.is_empty() {
-            "Note".to_string()
+            word.to_string()
         } else {
             title
         };
         match Callout::mount(self.world, parent, id, meaning, &title) {
             Ok(h) => {
                 crate::lifecycle::own_created(self.world, parent, h.root);
+                // Callout prefixes its feedback name ("Info:"). The fence tone
+                // is the label the reader should see.
+                let prefix = format!("{}:", meaning_name(meaning));
+                let shown = format!("{word}: {title}");
+                for child in children_of(self.world, h.root) {
+                    if let Some(label) = self.world.get_mut::<Label>(child) {
+                        if label.text.starts_with(&prefix) {
+                            label.text = shown.clone();
+                        }
+                    }
+                }
                 h.content
             }
             Err(_) => self.surface(parent),

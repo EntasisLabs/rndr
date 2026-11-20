@@ -364,6 +364,8 @@ pub fn present(
         shown.depth = block.depth;
         shown.quote = block.quote;
     }
+    // A fresh projection starts at height 0. The measured slot height stays.
+    shown.height = block.height;
     shown
 }
 

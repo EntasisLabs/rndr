@@ -456,10 +456,78 @@ fn liquid_widget_when_caret_is_outside_and_fields_when_inside() {
         inside.lines().filter(|line| line.trim() == "tone").count() >= 1,
         "tone should be its own field label:\n{inside}"
     );
+    let world = app.world();
+    let slot = field_slot(world, "callout");
+    let slot_rect = *world.get::<Rect>(slot).unwrap();
+    for name in ["tone", "tip", "title", "Hello", "body", "Body text"] {
+        let label = label_with(world, name);
+        let rect = *world.get::<Rect>(label).unwrap();
+        assert!(
+            rect.h > 8.0 && rect.w > 8.0,
+            "{name} was not laid out: {rect:?}"
+        );
+        assert!(
+            rect.y + 1.0 >= slot_rect.y && rect.y + rect.h <= slot_rect.y + slot_rect.h + 1.0,
+            "{name} {rect:?} is clipped by the kind slot {slot_rect:?}"
+        );
+    }
+    let frame = rndr_paint::frame(&mut app);
+    let tone = *app
+        .world()
+        .get::<Rect>(label_with(app.world(), "tone"))
+        .unwrap();
+    let body = *app
+        .world()
+        .get::<Rect>(label_with(app.world(), "Body text"))
+        .unwrap();
     assert!(
-        inside.contains("tip"),
-        "editing view should show the field value:\n{inside}"
+        painted_in(&frame, tone),
+        "tone label has no glyphs inside {tone:?}"
     );
+    assert!(
+        painted_in(&frame, body),
+        "body value has no glyphs inside {body:?}"
+    );
+}
+
+fn label_with(world: &World, text: &str) -> Entity {
+    world
+        .entities_with::<Label>()
+        .into_iter()
+        .find(|entity| {
+            world
+                .get::<Label>(*entity)
+                .is_some_and(|label| label.text == text)
+        })
+        .unwrap_or_else(|| panic!("missing label {text}"))
+}
+
+fn field_slot(world: &World, kind: &str) -> Entity {
+    let header = label_with(world, kind);
+    let mut at = header;
+    for _ in 0..8 {
+        let Some(parent) = world.get::<Parent>(at).map(|parent| parent.entity) else {
+            break;
+        };
+        at = parent;
+        if world.get::<Layout>(at).is_some_and(|layout| {
+            matches!(layout.height, Size::Px(height) if height > 80.0)
+                && matches!(layout.axis, Axis::Column)
+        }) {
+            return at;
+        }
+    }
+    at
+}
+
+fn painted_in(frame: &rndr_paint::Frame, rect: Rect) -> bool {
+    frame.quads.iter().any(|quad| {
+        quad.uv != rndr_paint::solid_uv()
+            && quad.rect.x < rect.x + rect.w
+            && quad.rect.x + quad.rect.w > rect.x
+            && quad.rect.y < rect.y + rect.h
+            && quad.rect.y + quad.rect.h > rect.y
+    })
 }
 
 #[test]
@@ -662,18 +730,18 @@ fn clicking_the_task_checkbox_writes_one_byte() {
     assert!(before.contains("[ ]"), "{before}");
     let slot = app
         .world()
-        .entities_with::<Label>()
+        .entities_with::<Border>()
         .into_iter()
         .find(|entity| {
-            app.world()
-                .get::<Label>(*entity)
-                .is_some_and(|label| label.text.starts_with('☐'))
+            app.world().get::<Layout>(*entity).is_some_and(
+                |layout| matches!(layout.width, Size::Px(width) if (width - 14.0).abs() < 0.5),
+            )
         })
-        .expect("task label");
+        .expect("task checkbox");
     let rect = *app.world().get::<Rect>(slot).unwrap();
     let mut toggled = false;
-    for dx in [2.0, 6.0, 10.0, 14.0, 18.0, 24.0, 32.0] {
-        let at = [rect.x + dx, rect.y + 10.0];
+    for dx in [2.0, 7.0] {
+        let at = [rect.x + dx, rect.y + rect.h * 0.5];
         let input = app.world_mut().resource_mut::<Input>().unwrap();
         input.pointer.position = at;
         input.pointer.press_at = Some(at);
@@ -919,6 +987,151 @@ fn first_block_and_last_table_row_sit_inside_their_slots() {
     assert!(
         cell.y + cell.h <= table_rect.y + table_rect.h + 0.5,
         "cell {cell:?} table {table_rect:?}"
+    );
+}
+
+#[test]
+fn table_handles_show_when_the_caret_is_in_the_table() {
+    let src = "Before\n\n| Left | Right |\n| --- | --- |\n| 241 ms | 2 |\n";
+    let (mut app, _, id) = boot(src);
+    let idle = grip_alpha(&app);
+    assert!(
+        idle.iter().all(|alpha| *alpha < 0.05),
+        "handles should be clear until the caret enters: {idle:?}"
+    );
+    let at = bytes(&app, id).find("241").unwrap();
+    caret_at(&mut app, id, at);
+    app.update();
+    let live = grip_alpha(&app);
+    assert!(
+        live.iter().any(|alpha| *alpha > 0.4),
+        "caret-in-table grip was transparent: {live:?}"
+    );
+}
+
+fn grip_alpha(app: &App) -> Vec<f32> {
+    app.world()
+        .entities_with::<Layout>()
+        .into_iter()
+        .filter(|entity| {
+            app.world().get::<Layout>(*entity).is_some_and(|layout| {
+                matches!(layout.height, Size::Px(height) if (height - 6.0).abs() < 0.6)
+                    && matches!(layout.width, Size::Px(width) if width > 20.0)
+            }) && !app.world().has::<Label>(*entity)
+        })
+        .filter_map(|entity| app.world().get::<Color>(entity).map(|color| color.a))
+        .collect()
+}
+
+#[test]
+fn focused_cell_wraps_like_an_unfocused_cell() {
+    let src = "| 241 ms | 241 ms |\n| --- | --- |\n| keep | here |\n";
+    let (mut app, _, id) = boot(src);
+    let at = bytes(&app, id).find("241").unwrap();
+    caret_at(&mut app, id, at);
+    app.update();
+    let world = app.world();
+    let cells: Vec<_> = world
+        .entities_with::<Label>()
+        .into_iter()
+        .filter(|entity| {
+            world
+                .get::<Label>(*entity)
+                .is_some_and(|label| label.text == "241 ms")
+        })
+        .collect();
+    assert_eq!(cells.len(), 2, "both cells");
+    let engine = text_engine(world);
+    let mut lines = Vec::new();
+    let mut insets = Vec::new();
+    for entity in &cells {
+        let box_metrics = label_box(world, *entity);
+        insets.push(box_metrics.inset_x);
+        let rect = world.get::<Rect>(*entity).unwrap();
+        let style = world
+            .get::<TextStyle>(*entity)
+            .cloned()
+            .unwrap_or_else(TextStyle::default);
+        let spans = world
+            .get::<Spans>(*entity)
+            .map(|spans| spans.runs.clone())
+            .unwrap_or_default();
+        let width = box_metrics.text_width(rect.w, engine.unit_advance(&style));
+        let layout = engine.layout("241 ms", &style, &spans, width);
+        lines.push(layout.lines.len());
+    }
+    assert_eq!(insets[0], insets[1], "insets {insets:?}");
+    assert_eq!(lines[0], lines[1], "wrap {lines:?} insets {insets:?}");
+    assert_eq!(lines[0], 1, "241 ms should stay on one line");
+}
+
+#[test]
+fn unchecked_and_checked_task_boxes_share_a_gap() {
+    let (app, _, _) = boot("- [ ] open\n- [x] done\n");
+    let world = app.world();
+    let mut gaps = Vec::new();
+    for name in ["open", "done"] {
+        let label = label_with(world, name);
+        let label_rect = *world.get::<Rect>(label).unwrap();
+        let row = world.get::<Parent>(label).unwrap().entity;
+        let box_entity = children_of(world, row)
+            .into_iter()
+            .find(|child| {
+                world.get::<Layout>(*child).is_some_and(
+                    |layout| matches!(layout.width, Size::Px(width) if (width - 14.0).abs() < 0.5),
+                )
+            })
+            .unwrap_or_else(|| panic!("{name} has no box"));
+        let box_rect = *world.get::<Rect>(box_entity).unwrap();
+        gaps.push(label_rect.x - (box_rect.x + box_rect.w));
+    }
+    assert!(
+        gaps[0] > 4.0 && gaps[1] > 4.0,
+        "gaps should clear the box: {gaps:?}"
+    );
+    assert!(
+        (gaps[0] - gaps[1]).abs() < 1.0,
+        "unchecked gap {} checked gap {}",
+        gaps[0],
+        gaps[1]
+    );
+}
+
+#[test]
+fn scroll_extent_reaches_past_the_first_viewport() {
+    let mut src = String::new();
+    for index in 0..28 {
+        src.push_str(&format!(
+            "Paragraph {index} of the note is long enough to occupy its own line.\n\n"
+        ));
+    }
+    let (mut app, handle, id) = boot(&src);
+    let parent = app.world().get::<Parent>(handle.root).unwrap().entity;
+    app.world_mut().get_mut::<Layout>(parent).unwrap().height = Size::Px(220.0);
+    app.world_mut().insert_resource(Viewport::new(640.0, 260.0));
+    app.update();
+    app.update();
+    let at = bytes(&app, id).find("Paragraph 18").unwrap();
+    caret_at(&mut app, id, at);
+    app.update();
+    let before = app.world().get::<Scroll>(handle.root).copied().unwrap();
+    let port = app.world().get::<Rect>(handle.root).unwrap().h;
+    assert!(
+        before.content[1] > port + 80.0,
+        "content {} port {port}",
+        before.content[1]
+    );
+    app.world_mut()
+        .get_mut::<Scroll>(handle.root)
+        .unwrap()
+        .offset[1] = -240.0;
+    app.update();
+    let after = app.world().get::<Scroll>(handle.root).copied().unwrap();
+    assert!(
+        after.offset[1] < -80.0,
+        "offset {} content {} port {port}",
+        after.offset[1],
+        after.content[1]
     );
 }
 
