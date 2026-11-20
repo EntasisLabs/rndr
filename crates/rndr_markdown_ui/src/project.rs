@@ -464,6 +464,7 @@ pub fn measure_block(
             .as_ref()
             .map(|grid| crate::grid::measure_height(engine, grid, width, style))
             .unwrap_or(style.size.max(20.0)),
+        DisplayKind::Liquid { valid: true, .. } => liquid_form_height(engine, block, width, style),
         _ => {
             let text = block.label_text();
             let mut spans = block.spans.clone();
@@ -478,6 +479,36 @@ pub fn measure_block(
                 .max(style.size)
         }
     }
+}
+
+/// Header plus one row per field line, tall enough that a wrapped value is not
+/// clipped when the caret opens the structured field view.
+fn liquid_form_height(
+    engine: &dyn TextEngine,
+    block: &DisplayBlock,
+    width: f32,
+    style: &TextStyle,
+) -> f32 {
+    let line = engine.line_height(style).max(style.size);
+    let value_width = (width - 132.0).max(48.0);
+    let mut height = line + 12.0;
+    if block.text.trim().is_empty() && block.chrome.trim().is_empty() {
+        return (line + 12.0).max(style.size);
+    }
+    let body = if block.text.is_empty() {
+        block.chrome.as_str()
+    } else {
+        block.text.as_str()
+    };
+    for line_text in body.lines() {
+        let measured = engine
+            .measure(line_text, style, &[], value_width)
+            .height
+            .max(line);
+        height += measured + 10.0;
+    }
+    // The slot's uniform padding sits outside this estimate.
+    height.max(line + 12.0) + 12.0
 }
 
 fn stale_flags(blocks: &[DisplayBlock], span: EditSpan) -> Vec<bool> {
@@ -689,8 +720,8 @@ fn project_node(
             rule
         }
         SyntaxKind::Heading => project_heading(bytes, node, at, palette, focus),
-        SyntaxKind::FencedCode => project_fence(bytes, node, at, false),
-        SyntaxKind::LiquidFence => project_fence(bytes, node, at, true),
+        SyntaxKind::FencedCode => project_fence(bytes, node, at, false, palette),
+        SyntaxKind::LiquidFence => project_fence(bytes, node, at, true, palette),
         SyntaxKind::Table => project_table(bytes, node, at, palette, focus),
         SyntaxKind::Callout => project_callout(bytes, node, at, focus),
         SyntaxKind::FootnoteDef => project_footnote(bytes, node, at, focus),
@@ -698,7 +729,7 @@ fn project_node(
         SyntaxKind::HtmlBlock
         | SyntaxKind::IndentedCode
         | SyntaxKind::OpaqueBlock
-        | SyntaxKind::LinkRefDef => project_raw(bytes, node, at),
+        | SyntaxKind::LinkRefDef => project_raw(bytes, node, at, palette),
         _ => project_flow(bytes, node, at, palette, focus),
     };
     block.depth = ctx.depth;
@@ -792,7 +823,7 @@ fn project_flow(
     block
 }
 
-fn project_raw(bytes: &str, node: &Green, at: usize) -> DisplayBlock {
+fn project_raw(bytes: &str, node: &Green, at: usize, palette: &Palette) -> DisplayBlock {
     let span = at..at + node.width();
     let text = bytes
         .get(span.clone())
@@ -810,7 +841,7 @@ fn project_raw(bytes: &str, node: &Green, at: usize) -> DisplayBlock {
         });
     }
     block.caret_end = text.len();
-    let mut code = TextSpan::new(0, text.len(), Color::rgb(0.75, 0.78, 0.82));
+    let mut code = TextSpan::new(0, text.len(), palette.text);
     code.family = Some("monospace".into());
     if !text.is_empty() {
         block.spans.push(code);
@@ -818,7 +849,13 @@ fn project_raw(bytes: &str, node: &Green, at: usize) -> DisplayBlock {
     block
 }
 
-fn project_fence(bytes: &str, node: &Green, at: usize, liquid: bool) -> DisplayBlock {
+fn project_fence(
+    bytes: &str,
+    node: &Green,
+    at: usize,
+    liquid: bool,
+    palette: &Palette,
+) -> DisplayBlock {
     let span = at..at + node.width();
     let mut child_at = at;
     let mut info = String::new();
@@ -843,9 +880,16 @@ fn project_fence(bytes: &str, node: &Green, at: usize, liquid: bool) -> DisplayB
             .is_some()
             || rndr_liquid::parse_fence(&info, body.trim_end_matches(['\n', '\r'])).is_some();
         if valid {
-            return project_liquid_fields(bytes, node, at, &canonical, body_start..body_end);
+            return project_liquid_fields(
+                bytes,
+                node,
+                at,
+                &canonical,
+                body_start..body_end,
+                palette,
+            );
         }
-        let mut block = project_raw_range(bytes, body_start..body_end, span);
+        let mut block = project_raw_range(bytes, body_start..body_end, span, palette);
         block.kind = DisplayKind::Liquid {
             canonical,
             valid: false,
@@ -853,12 +897,17 @@ fn project_fence(bytes: &str, node: &Green, at: usize, liquid: bool) -> DisplayB
         };
         return block;
     }
-    let mut block = project_raw_range(bytes, body_start..body_end, span);
+    let mut block = project_raw_range(bytes, body_start..body_end, span, palette);
     block.kind = DisplayKind::Code { info };
     block
 }
 
-fn project_raw_range(bytes: &str, body: Range<usize>, span: Range<usize>) -> DisplayBlock {
+fn project_raw_range(
+    bytes: &str,
+    body: Range<usize>,
+    span: Range<usize>,
+    palette: &Palette,
+) -> DisplayBlock {
     let text = bytes
         .get(body.clone())
         .unwrap_or("")
@@ -875,8 +924,9 @@ fn project_raw_range(bytes: &str, body: Range<usize>, span: Range<usize>) -> Dis
         });
     }
     block.caret_end = source_start + text.len();
-    let mut code = TextSpan::new(0, text.len(), Color::rgb(0.75, 0.78, 0.82));
+    let mut code = TextSpan::new(0, text.len(), palette.text);
     code.family = Some("monospace".into());
+    code.highlight = Some(palette.code);
     if !text.is_empty() {
         block.spans.push(code);
     }
@@ -889,6 +939,7 @@ fn project_liquid_fields(
     at: usize,
     canonical: &str,
     body: Range<usize>,
+    palette: &Palette,
 ) -> DisplayBlock {
     let span = at..at + node.width();
     let mut block = empty_paragraph(span);
@@ -902,7 +953,7 @@ fn project_liquid_fields(
     for child in node.children() {
         let end = child_at + child.width();
         if child.kind() != SyntaxKind::FenceLine {
-            append_liquid(bytes, child, child_at, at, &mut block);
+            append_liquid(bytes, child, child_at, at, &mut block, palette);
         }
         child_at = end;
     }
@@ -913,13 +964,20 @@ fn project_liquid_fields(
     block
 }
 
-fn append_liquid(bytes: &str, node: &Green, at: usize, base: usize, block: &mut DisplayBlock) {
+fn append_liquid(
+    bytes: &str,
+    node: &Green,
+    at: usize,
+    base: usize,
+    block: &mut DisplayBlock,
+    palette: &Palette,
+) {
     match node.kind() {
-        SyntaxKind::Field => append_field_node(bytes, node, at, base, block),
+        SyntaxKind::Field => append_field_node(bytes, node, at, base, block, palette),
         SyntaxKind::FieldComment => {
             let shown = node.concat();
             let text = shown.trim_end_matches(['\n', '\r']);
-            push_mapped(block, base, at, text, Color::rgb(0.5, 0.55, 0.5), true);
+            push_mapped(block, base, at, text, palette.muted, true);
             block.text.push('\n');
         }
         SyntaxKind::FieldSeparator | SyntaxKind::OpaqueInline => {
@@ -927,12 +985,12 @@ fn append_liquid(bytes: &str, node: &Green, at: usize, base: usize, block: &mut 
                 .get(at..at + node.width())
                 .unwrap_or("")
                 .trim_end_matches(['\n', '\r']);
-            push_mapped(block, base, at, shown, Color::rgb(0.62, 0.64, 0.68), false);
+            push_mapped(block, base, at, shown, palette.muted, false);
             block.text.push('\n');
         }
         SyntaxKind::BlockGap => block.text.push('\n'),
-        SyntaxKind::PipeRow => append_pipe_row(bytes, node, at, base, block),
-        SyntaxKind::Table => append_fence_table(bytes, node, at, base, block),
+        SyntaxKind::PipeRow => append_pipe_row(bytes, node, at, base, block, palette),
+        SyntaxKind::Table => append_fence_table(bytes, node, at, base, block, palette),
         _ => {
             // Nested markdown (`report`, `section`, `block`) stays source text
             // so a caret inside it still splices those bytes.
@@ -941,14 +999,21 @@ fn append_liquid(bytes: &str, node: &Green, at: usize, base: usize, block: &mut 
                 .unwrap_or("")
                 .trim_end_matches(['\n', '\r']);
             if !shown.is_empty() {
-                push_mapped(block, base, at, shown, Color::rgb(0.93, 0.94, 0.95), false);
+                push_mapped(block, base, at, shown, palette.text, false);
                 block.text.push('\n');
             }
         }
     }
 }
 
-fn append_field_node(bytes: &str, node: &Green, at: usize, base: usize, block: &mut DisplayBlock) {
+fn append_field_node(
+    bytes: &str,
+    node: &Green,
+    at: usize,
+    base: usize,
+    block: &mut DisplayBlock,
+    palette: &Palette,
+) {
     let mut cursor = at;
     let mut key = "";
     let mut scalar = false;
@@ -984,6 +1049,7 @@ fn append_field_node(bytes: &str, node: &Green, at: usize, base: usize, block: &
     let line_start = block.text.len();
     block.text.push_str(key.trim());
     block.text.push_str("  ");
+    let mut value_span = None;
     if let Some(value) = value {
         let shown = bytes
             .get(value.clone())
@@ -998,19 +1064,28 @@ fn append_field_node(bytes: &str, node: &Green, at: usize, base: usize, block: &
                 source_start: value.start - base,
                 source_end: value.start - base + shown.len(),
             });
+            value_span = Some(display_start..block.text.len());
         }
     }
-    let mut span = TextSpan::new(
-        line_start,
-        line_start + key.trim().len(),
-        Color::rgb(0.62, 0.64, 0.68),
-    );
+    let mut span = TextSpan::new(line_start, line_start + key.trim().len(), palette.muted);
     span.weight = Some(FONT_WEIGHT_BOLD);
     block.spans.push(span);
+    if let Some(range) = value_span {
+        block
+            .spans
+            .push(TextSpan::new(range.start, range.end, palette.text));
+    }
     block.text.push('\n');
 }
 
-fn append_pipe_row(bytes: &str, node: &Green, at: usize, base: usize, block: &mut DisplayBlock) {
+fn append_pipe_row(
+    bytes: &str,
+    node: &Green,
+    at: usize,
+    base: usize,
+    block: &mut DisplayBlock,
+    palette: &Palette,
+) {
     let mut cursor = at;
     let mut first = true;
     for child in node.children() {
@@ -1020,7 +1095,7 @@ fn append_pipe_row(bytes: &str, node: &Green, at: usize, base: usize, block: &mu
                 block.text.push_str(" | ");
             }
             first = false;
-            append_field_node(bytes, child, cursor, base, block);
+            append_field_node(bytes, child, cursor, base, block, palette);
             if block.text.ends_with('\n') {
                 block.text.pop();
             }
@@ -1030,18 +1105,32 @@ fn append_pipe_row(bytes: &str, node: &Green, at: usize, base: usize, block: &mu
     block.text.push('\n');
 }
 
-fn append_fence_table(bytes: &str, node: &Green, at: usize, base: usize, block: &mut DisplayBlock) {
+fn append_fence_table(
+    bytes: &str,
+    node: &Green,
+    at: usize,
+    base: usize,
+    block: &mut DisplayBlock,
+    palette: &Palette,
+) {
     let mut cursor = at;
     for child in node.children() {
         let end = cursor + child.width();
         if child.kind() == SyntaxKind::TableRow {
-            append_table_row(bytes, child, cursor, base, block);
+            append_table_row(bytes, child, cursor, base, block, palette);
         }
         cursor = end;
     }
 }
 
-fn append_table_row(bytes: &str, node: &Green, at: usize, base: usize, block: &mut DisplayBlock) {
+fn append_table_row(
+    bytes: &str,
+    node: &Green,
+    at: usize,
+    base: usize,
+    block: &mut DisplayBlock,
+    palette: &Palette,
+) {
     let mut cursor = at;
     let mut first = true;
     for child in node.children() {
@@ -1056,14 +1145,7 @@ fn append_table_row(bytes: &str, node: &Green, at: usize, base: usize, block: &m
             let shown = raw.trim();
             if !shown.is_empty() {
                 let source = cursor + lead;
-                push_mapped(
-                    block,
-                    base,
-                    source,
-                    shown,
-                    Color::rgb(0.93, 0.94, 0.95),
-                    false,
-                );
+                push_mapped(block, base, source, shown, palette.text, false);
             }
         }
         cursor = end;
@@ -1648,7 +1730,10 @@ fn walk_inline(_bytes: &str, node: &Green, acc: &mut Acc, ink: &Ink, reveal: boo
             next.custom = true;
         }
         SyntaxKind::Math => {
-            next.family = Some("monospace".into());
+            // No math layout is linked into this crate. Italic serif is the
+            // distinct math face; a host without a serif falls through the
+            // shaper's generic list.
+            next.family = Some("serif".into());
             next.italic = true;
             next.custom = true;
         }

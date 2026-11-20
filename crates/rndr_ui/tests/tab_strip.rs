@@ -795,6 +795,57 @@ fn dropping_on_another_strip_requests_a_move() {
     assert_eq!(announcement(sim.world()), "Moved Alpha to Right.");
 }
 
+#[test]
+fn tab_width_follows_the_label_between_min_and_max() {
+    let (mut sim, root) = boot(900.0, 220.0);
+    let long = "A".repeat(80);
+    let tabs = [
+        TabSpec::new(1, "A"),
+        TabSpec::new(2, "Documentation"),
+        TabSpec::new(3, long.clone()),
+    ];
+    let strip = TabStrip::mount(
+        sim.world(),
+        root,
+        UiId(4),
+        TabStripProps::new("Documents"),
+        &tabs,
+        TabId(1),
+    )
+    .unwrap();
+    settle(&mut sim);
+    let mut width = |id: u64| {
+        let tab = strip.tab(sim.world(), TabId(id)).unwrap();
+        sim.world().get::<Rect>(tab).unwrap().w
+    };
+    let short = width(1);
+    let medium = width(2);
+    let capped = width(3);
+    assert!(short + 8.0 < medium, "short {short} medium {medium}");
+    assert!((short - 72.0).abs() < 1.0 || short > 72.0);
+    assert!(short >= 72.0 - 0.5, "short {short}");
+    assert!(medium <= 240.0 + 0.5, "medium {medium}");
+    assert!(
+        (capped - 240.0).abs() < 1.0,
+        "a long label should stop at the max, got {capped}"
+    );
+    let title = {
+        let tab = strip.tab(sim.world(), TabId(3)).unwrap();
+        children_of(sim.world(), tab)
+            .into_iter()
+            .find(|child| {
+                sim.world()
+                    .get::<Label>(*child)
+                    .is_some_and(|label| label.text == long)
+            })
+            .expect("title")
+    };
+    assert_eq!(
+        sim.world().get::<Label>(title).unwrap().overflow,
+        TextOverflow::Ellipsis
+    );
+}
+
 fn menu_row(world: &World, label: &str) -> Entity {
     world
         .entities_with::<Label>()

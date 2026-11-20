@@ -99,7 +99,7 @@ use crate::hierarchy::{children_of, despawn, set_parent, Children, Parent};
 use crate::input::{CursorStyle, Input, MotionWatch, PointerButton};
 use crate::keys::{platform_of, standard_action, EditAction, Key};
 use crate::layout::{hit_test, Axis, Layout, Rect, Scroll, Size, SCROLL_DRAG_SLOP};
-use crate::style::{Color, Label, TextOverflow, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
+use crate::style::{Border, Color, Label, TextOverflow, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
 use crate::text::{
     style_for, style_of, text_engine, FontStyle, TextStyle, FONT_WEIGHT_BOLD, FONT_WEIGHT_REGULAR,
 };
@@ -116,11 +116,13 @@ const BAR_W: f32 = 3.0;
 const QUOTE_STEP: f32 = 12.0;
 const BULLET: f32 = 6.0;
 const CHECK: f32 = 14.0;
-const CHECK_PAD: f32 = 2.0;
 const CODE_FAMILY: &str = "monospace";
 
 fn parser_options() -> Options {
-    Options::ENABLE_TABLES | Options::ENABLE_STRIKETHROUGH | Options::ENABLE_TASKLISTS
+    Options::ENABLE_TABLES
+        | Options::ENABLE_STRIKETHROUGH
+        | Options::ENABLE_TASKLISTS
+        | Options::ENABLE_MATH
 }
 
 /// One styled range of a [`MarkdownBlock::text`].
@@ -1537,19 +1539,24 @@ fn spawn_check(world: &mut World, checked: bool, theme: &MarkdownTheme, line_h: 
         Layout {
             axis: Axis::Column,
             gap: 0.0,
-            padding: CHECK_PAD,
+            padding: if checked { 4.0 } else { 0.0 },
             width: Size::Px(CHECK),
             height: Size::Px(CHECK),
-            min_width: 0.0,
-            min_height: 0.0,
+            min_width: CHECK,
+            min_height: CHECK,
         },
-        theme.muted,
+        theme.surface,
+        Border {
+            color: theme.muted,
+            width: 1.5,
+        },
+        Radius(2.0),
     ));
     set_parent(world, border, column);
-    // A hollow center matches the page. A checked item fills that center.
-    let hole = if checked { theme.text } else { theme.surface };
-    let mark = world.spawn((box_layout(Axis::Column, Size::Fill, Size::Fill), hole));
-    set_parent(world, mark, border);
+    if checked {
+        let mark = world.spawn((box_layout(Axis::Column, Size::Fill, Size::Fill), theme.text));
+        set_parent(world, mark, border);
+    }
     column
 }
 
@@ -3300,10 +3307,15 @@ impl<'a> Builder<'a> {
                 self.ensure_text(start);
                 self.push_code(&text);
             }
-            Event::InlineMath(text)
-            | Event::DisplayMath(text)
-            | Event::Html(text)
-            | Event::InlineHtml(text) => {
+            Event::InlineMath(text) | Event::DisplayMath(text) => {
+                self.ensure_text(start);
+                if matches!(self.mode, Mode::Code | Mode::Html) {
+                    self.buf.push_str(&text);
+                } else {
+                    self.push_math(&text);
+                }
+            }
+            Event::Html(text) | Event::InlineHtml(text) => {
                 self.ensure_text(start);
                 if matches!(self.mode, Mode::Code | Mode::Html) {
                     self.buf.push_str(&text);
@@ -3512,6 +3524,14 @@ impl<'a> Builder<'a> {
         style.weight = (self.strong > 0).then_some(FONT_WEIGHT_BOLD);
         style.italic = self.emphasis > 0;
         style.underline = !self.link_stack.is_empty();
+        self.push_style(text, style);
+    }
+
+    fn push_math(&mut self, text: &str) {
+        // This crate has no math layout. Italic serif is the distinct face.
+        let mut style = InlineStyle::of(self.theme.text);
+        style.italic = true;
+        style.family = Some("serif");
         self.push_style(text, style);
     }
 

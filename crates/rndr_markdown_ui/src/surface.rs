@@ -10,7 +10,7 @@ use rndr_core::*;
 use rndr_liquid::parse_fence;
 use rndr_liquid_ui::{release_editor_block, render_editor_block};
 use rndr_markdown::{Command, EditError, Session};
-use rndr_ui::{UiError, UiId, UiTheme};
+use rndr_ui::{Token, UiError, UiId, UiTheme};
 
 use crate::access::build_overlay;
 use crate::document::MarkdownId;
@@ -19,6 +19,10 @@ use crate::project::{self, block_index, DisplayBlock, DisplayKind, Palette};
 
 const OVERSCAN: f32 = 240.0;
 const GAP: f32 = 8.0;
+/// Air above the first block and below the last, so a heading or a table row
+/// is not flush with the scroll clip.
+const LEAD: f32 = 10.0;
+const TASK_BOX: f32 = 14.0;
 
 struct Node {
     id: UiId,
@@ -35,6 +39,8 @@ struct Node {
     top: Entity,
     bottom: Entity,
     dragging: bool,
+    /// Theme colors baked into the projected spans.
+    theme: u64,
 }
 
 impl Component for Node {}
@@ -46,6 +52,28 @@ struct Slot {
 }
 
 impl Component for Slot {}
+
+/// Drawn task checkbox. The font's ballot box is a hairline; this is the box.
+struct TaskBox;
+
+impl Component for TaskBox {}
+
+/// One editable Liquid field value. `text_start` indexes [`DisplayBlock::text`].
+#[derive(Clone, Copy)]
+struct FieldValue {
+    text_start: usize,
+    text_len: usize,
+}
+
+impl Component for FieldValue {}
+
+/// Key label for a field. A press puts the caret at the value.
+#[derive(Clone, Copy)]
+struct FieldKey {
+    text_start: usize,
+}
+
+impl Component for FieldKey {}
 
 /// Properties. The document id does not change for an existing mount.
 #[derive(Clone, Debug)]
@@ -225,6 +253,7 @@ impl MarkdownSurface {
                 top,
                 bottom,
                 dragging: false,
+                theme: 0,
             },
         );
         world.insert(
@@ -546,6 +575,30 @@ fn place_hit(world: &mut World, root: Entity, hit: Entity, at: [f32; 2], extend:
     }
     let readonly = world.get::<Node>(root).is_some_and(|node| node.readonly);
     let block = presented(world, document, stored);
+    if !extend && !readonly && task_box_hit(world, hit) {
+        if let Some(command) = intent::toggle_task(document_bytes(world, document).as_str(), &block)
+        {
+            let now = now_ms(world);
+            if let Some(session) = session_mut(world, document) {
+                let _ = session.edit(command, now);
+            }
+            return;
+        }
+    }
+    if let Some(source) = field_source(world, hit, &block, at) {
+        if let Some(session) = world
+            .resource_mut::<crate::MarkdownDocuments>()
+            .and_then(|docs| docs.get_mut(document))
+        {
+            if extend {
+                let anchor = session.anchor();
+                let _ = session.move_caret(anchor, source);
+            } else {
+                let _ = session.move_caret(source, source);
+            }
+        }
+        return;
+    }
     let width = rect.w.max(1.0);
     let style = style_for_kind(&block.kind);
     let engine = text_engine(world);
@@ -618,8 +671,35 @@ fn presented(world: &World, document: MarkdownId, block: &DisplayBlock) -> Displ
         session.bytes(),
         session.tree(),
         session.caret(),
-        &Palette::default(),
+        &theme_palette(world),
     )
+}
+
+fn theme_palette(world: &World) -> Palette {
+    let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
+    crate::grid::palette_of(&crate::grid::Chrome::from_theme(&theme))
+}
+
+fn theme_stamp(world: &World) -> u64 {
+    let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
+    let text = theme.color(Token::Text);
+    let muted = theme.color(Token::Secondary);
+    let link = theme.color(Token::InfoText);
+    let pack = |color: Color, shift: u32| -> u64 {
+        let channel = |value: f32| (value.clamp(0.0, 1.0) * 255.0) as u64;
+        (channel(color.r) | (channel(color.g) << 8) | (channel(color.b) << 16)) << shift
+    };
+    pack(text, 0)
+        ^ pack(muted, 24)
+        ^ pack(link, 40)
+        ^ match theme.appearance {
+            rndr_ui::Appearance::Light => 0,
+            rndr_ui::Appearance::Dark => 1 << 62,
+        }
+        ^ match theme.contrast {
+            rndr_ui::Contrast::Standard => 0,
+            rndr_ui::Contrast::High => 1 << 63,
+        }
 }
 
 fn edit_keys(world: &mut World, root: Entity) {
@@ -1331,6 +1411,12 @@ pub(crate) fn poll(world: &mut World) {
     let roots: Vec<Entity> = world.entities_with::<Node>();
     for root in roots {
         if let Some(document) = root_document(world, root) {
+            let caret = world
+                .resource::<crate::MarkdownDocuments>()
+                .and_then(|docs| docs.get(document))
+                .map(|session| session.caret())
+                .unwrap_or(0);
+            crate::grid::sync_handles(world, root, caret);
             crate::grid::on_update(world, root, document, now);
         }
     }
@@ -1363,11 +1449,19 @@ fn realize(world: &mut World, entity: Entity) -> bool {
         else {
             return false;
         };
-        let palette = Palette::default();
-        let seen = world
+        let palette = theme_palette(world);
+        let stamp = theme_stamp(world);
+        let theme_changed = world
             .get::<Node>(entity)
-            .map(|node| node.seen)
-            .unwrap_or(u64::MAX);
+            .is_some_and(|node| node.theme != stamp);
+        let seen = if theme_changed {
+            u64::MAX
+        } else {
+            world
+                .get::<Node>(entity)
+                .map(|node| node.seen)
+                .unwrap_or(u64::MAX)
+        };
         let mut blocks = world
             .get::<Node>(entity)
             .map(|node| node.blocks.clone())
@@ -1397,8 +1491,16 @@ fn realize(world: &mut World, entity: Entity) -> bool {
         .resource::<crate::MarkdownDocuments>()
         .and_then(|docs| docs.get(document))
         .map(|session| session.revision());
+    let stamp = theme_stamp(world);
+    let theme_changed = world
+        .get::<Node>(entity)
+        .is_some_and(|node| node.theme != stamp);
     if let Some(node) = world.get_mut::<Node>(entity) {
         node.blocks = projected;
+        node.theme = stamp;
+        if theme_changed {
+            node.painted = u64::MAX;
+        }
         if let Some(seen) = seen {
             node.seen = seen;
         }
@@ -1436,7 +1538,7 @@ fn rebuild_slots(world: &mut World, entity: Entity) -> bool {
         })
         .unwrap_or((0, 0, String::new()));
     let engine = text_engine(world);
-    let mut y = 0.0;
+    let mut y = LEAD;
     let mut visible: Vec<usize> = Vec::new();
     let block_count = world
         .get::<Node>(entity)
@@ -1484,7 +1586,7 @@ fn rebuild_slots(world: &mut World, entity: Entity) -> bool {
                 }
             }
         }
-        let bottom = y + height + GAP;
+        let bottom = y + advance(&kind, height);
         if bottom >= start_y && y <= bottom_y && kind != DisplayKind::Gap {
             visible.push(index);
         }
@@ -1493,7 +1595,7 @@ fn rebuild_slots(world: &mut World, entity: Entity) -> bool {
         }
         y = bottom;
     }
-    let content_h = y;
+    let content_h = y + LEAD;
     let first_y = y_of(world, entity, visible.first().copied());
     let rest = (content_h - y_after(world, entity, visible.last().copied())).max(0.0);
     if let Some(node) = world.get::<Node>(entity) {
@@ -1597,25 +1699,47 @@ fn slot_reusable(world: &World, slot: Entity, block: &DisplayBlock, widget: bool
     let Some(existing) = world.get::<Slot>(slot) else {
         return false;
     };
-    existing.start == block.span.start
-        && existing.end == block.span.end
-        && world.has::<Label>(slot) != widget
+    if existing.start != block.span.start || existing.end != block.span.end {
+        return false;
+    }
+    // A widget needs the next frame to sync. Keep it while the caret stays
+    // outside. A field form and a callout rebuild when that mode changes.
+    if matches!(block.kind, DisplayKind::Callout { .. }) {
+        let rendered = !block.text.contains("[!");
+        return rendered == world.has::<Color>(slot);
+    }
+    if matches!(block.kind, DisplayKind::Liquid { valid: true, .. }) {
+        let form = !field_value_entities(world, slot).is_empty();
+        return form != widget;
+    }
+    world.has::<Label>(slot) != widget
+}
+
+fn advance(kind: &DisplayKind, height: f32) -> f32 {
+    let body = if height > 0.0 {
+        height
+    } else if matches!(kind, DisplayKind::Gap) {
+        8.0
+    } else {
+        20.0
+    };
+    let slack = match kind {
+        DisplayKind::Gap | DisplayKind::Table => 0.0,
+        _ => TEXT_ORIGIN_Y * 2.0,
+    };
+    body + slack + GAP
 }
 
 fn y_of(world: &World, entity: Entity, index: Option<usize>) -> f32 {
     let Some(index) = index else {
-        return 0.0;
+        return LEAD;
     };
     let Some(node) = world.get::<Node>(entity) else {
-        return 0.0;
+        return LEAD;
     };
-    let mut y = 0.0;
+    let mut y = LEAD;
     for block in node.blocks.iter().take(index) {
-        y += block.height.max(if block.kind == DisplayKind::Gap {
-            8.0
-        } else {
-            20.0
-        }) + GAP;
+        y += advance(&block.kind, block.height);
     }
     y
 }
@@ -1729,31 +1853,84 @@ fn spawn_block(
             return entity;
         }
     }
+    if liquid_editing(block, caret) {
+        return spawn_liquid_fields(world, parent, block, caret, anchor, preedit, pad);
+    }
     let text = block.label_text();
     let mut label = Label::new(&text);
+    label.color = Some(theme_palette(world).text);
     label.overflow = TextOverflow::Wrap;
     let height = block.height.max(20.0);
+    let mut runs = label_spans(block);
+    hide_task_glyph(block, &mut runs);
     let entity = world.spawn((
         Layout {
             width: Size::Fill,
-            height: Size::Px(height + GAP),
+            height: Size::Px(advance(&block.kind, height)),
             padding: pad,
             ..Layout::column()
         },
         label,
-        Spans {
-            runs: label_spans(block),
-        },
+        Spans { runs },
         style_for_kind(&block.kind),
         Slot {
             start: block.span.start,
             end: block.span.end,
         },
     ));
+    paint_callout(world, entity, block);
+    paint_task_box(world, entity, block);
     place_caret(world, entity, block, caret, anchor, preedit);
     let _ = width;
     set_parent(world, entity, parent);
     entity
+}
+
+fn task_box_hit(world: &World, mut hit: Entity) -> bool {
+    for _ in 0..16 {
+        if world.has::<TaskBox>(hit) {
+            return true;
+        }
+        let Some(parent) = world.get::<Parent>(hit) else {
+            return false;
+        };
+        if world.has::<Slot>(hit) {
+            return false;
+        }
+        hit = parent.entity;
+    }
+    false
+}
+
+fn field_source(
+    world: &World,
+    mut hit: Entity,
+    block: &DisplayBlock,
+    at: [f32; 2],
+) -> Option<usize> {
+    for _ in 0..16 {
+        if let Some(key) = world.get::<FieldKey>(hit).copied() {
+            return Some(block.display_to_source(block.chrome.len() + key.text_start));
+        }
+        if let Some(value) = world.get::<FieldValue>(hit).copied() {
+            let rect = world.get::<Rect>(hit).copied()?;
+            let text = world.get::<Label>(hit).map(|label| label.text.clone())?;
+            let style = world
+                .get::<TextStyle>(hit)
+                .cloned()
+                .unwrap_or_else(TextStyle::default);
+            let layout = text_engine(world).layout(&text, &style, &[], rect.w.max(1.0));
+            let index = layout
+                .index_at(at[0] - rect.x, at[1] - rect.y)
+                .min(value.text_len);
+            return Some(block.display_to_source(block.chrome.len() + value.text_start + index));
+        }
+        if world.has::<Slot>(hit) {
+            return None;
+        }
+        hit = world.get::<Parent>(hit)?.entity;
+    }
+    None
 }
 
 fn place_caret(
@@ -1764,6 +1941,10 @@ fn place_caret(
     anchor: usize,
     preedit: &str,
 ) {
+    clear_carets(world, entity);
+    if place_field_carets(world, entity, block, caret, anchor, preedit) {
+        return;
+    }
     world.remove::<Caret>(entity);
     world.remove::<TextSelection>(entity);
     world.remove::<ImePreview>(entity);
@@ -1802,6 +1983,355 @@ fn place_caret(
     }
 }
 
+fn hide_task_glyph(block: &DisplayBlock, runs: &mut Vec<TextSpan>) {
+    if !matches!(block.kind, DisplayKind::Task(_)) {
+        return;
+    }
+    let hide = block
+        .chrome
+        .chars()
+        .next()
+        .map(|ch| ch.len_utf8())
+        .unwrap_or(0);
+    if hide == 0 {
+        return;
+    }
+    runs.insert(0, TextSpan::new(0, hide, Color::rgba(0.0, 0.0, 0.0, 0.0)));
+}
+
+fn paint_task_box(world: &mut World, parent: Entity, block: &DisplayBlock) {
+    let DisplayKind::Task(checked) = block.kind else {
+        return;
+    };
+    let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
+    let style = style_for_kind(&block.kind);
+    let line = text_engine(world).line_height(&style);
+    let top = TEXT_ORIGIN_Y + (line - TASK_BOX).max(0.0) * 0.5;
+    let mut fill = theme.color(Token::Content);
+    if checked {
+        fill = theme.color(Token::Accent);
+    }
+    let checkbox = world.spawn((
+        Layout {
+            width: Size::Px(TASK_BOX),
+            height: Size::Px(TASK_BOX),
+            ..Layout::column()
+        },
+        Absolute {
+            left: Some(TEXT_ORIGIN_X),
+            top: Some(top),
+            ..Absolute::default()
+        },
+        fill,
+        Border {
+            color: theme.color(Token::StrongStroke),
+            width: 1.5,
+        },
+        Radius(3.0),
+        TaskBox,
+    ));
+    set_parent(world, checkbox, parent);
+    if checked {
+        let mark = world.spawn((
+            Layout {
+                width: Size::Fill,
+                height: Size::Fill,
+                ..Layout::column()
+            },
+            theme.color(Token::OnAccent),
+        ));
+        set_parent(world, mark, checkbox);
+        if let Some(layout) = world.get_mut::<Layout>(checkbox) {
+            layout.padding = 4.0;
+        }
+    }
+}
+
+fn paint_callout(world: &mut World, entity: Entity, block: &DisplayBlock) {
+    let DisplayKind::Callout { tone } = &block.kind else {
+        return;
+    };
+    if block.text.contains("[!") {
+        return;
+    }
+    let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
+    let (fill, accent, ink) = callout_tone(&theme, tone);
+    world.insert(entity, fill);
+    let bar = world.spawn((
+        Layout {
+            width: Size::Px(4.0),
+            height: Size::Fill,
+            ..Layout::column()
+        },
+        Absolute {
+            left: Some(0.0),
+            top: Some(0.0),
+            bottom: Some(0.0),
+            ..Absolute::default()
+        },
+        accent,
+    ));
+    set_parent(world, bar, entity);
+    if block.chrome.is_empty() {
+        return;
+    }
+    if let Some(spans) = world.get_mut::<Spans>(entity) {
+        let mut header = TextSpan::new(0, block.chrome.len(), ink);
+        header.weight = Some(FONT_WEIGHT_BOLD);
+        spans.runs.insert(0, header);
+    }
+}
+
+fn callout_tone(theme: &UiTheme, tone: &str) -> (Color, Color, Color) {
+    let paint = |fill: Token, accent: Token, ink: Token| {
+        (theme.color(fill), theme.color(accent), theme.color(ink))
+    };
+    match tone {
+        "warning" | "caution" | "attention" => {
+            paint(Token::WarningFill, Token::WarningStroke, Token::WarningText)
+        }
+        "danger" | "error" | "failure" | "fail" | "missing" | "bug" => {
+            paint(Token::DangerFill, Token::DangerStroke, Token::DangerText)
+        }
+        "tip" | "hint" | "success" | "check" | "done" => {
+            paint(Token::SuccessFill, Token::SuccessStroke, Token::SuccessText)
+        }
+        "important" => {
+            let mut fill = theme.color(Token::Accent);
+            fill.a = 0.18;
+            (fill, theme.color(Token::Accent), theme.color(Token::Text))
+        }
+        _ => paint(Token::InfoFill, Token::InfoStroke, Token::InfoText),
+    }
+}
+
+struct FieldLine {
+    key: String,
+    value: String,
+    value_at: usize,
+    value_len: usize,
+    keyed: bool,
+}
+
+fn field_lines(block: &DisplayBlock) -> Vec<FieldLine> {
+    let mut lines = Vec::new();
+    let mut at = 0usize;
+    for line in block.text.split_inclusive('\n') {
+        let start = at;
+        at += line.len();
+        let trimmed = line.trim_end_matches(['\n', '\r']);
+        let key_len = block
+            .spans
+            .iter()
+            .find(|span| span.start == start && span.weight == Some(FONT_WEIGHT_BOLD))
+            .map(|span| span.end.saturating_sub(span.start))
+            .unwrap_or(0);
+        if key_len == 0 || key_len > trimmed.len() {
+            lines.push(FieldLine {
+                key: String::new(),
+                value: trimmed.to_string(),
+                value_at: start,
+                value_len: trimmed.len(),
+                keyed: false,
+            });
+            continue;
+        }
+        let key = trimmed[..key_len].to_string();
+        let mut value_at = start + key_len;
+        if block.text[value_at..].starts_with("  ") {
+            value_at += 2;
+        }
+        let value_end = start + trimmed.len();
+        let value_len = value_end.saturating_sub(value_at);
+        let value = block
+            .text
+            .get(value_at..value_at + value_len)
+            .unwrap_or("")
+            .to_string();
+        lines.push(FieldLine {
+            key,
+            value,
+            value_at,
+            value_len,
+            keyed: true,
+        });
+    }
+    lines
+}
+
+fn spawn_liquid_fields(
+    world: &mut World,
+    parent: Entity,
+    block: &DisplayBlock,
+    caret: usize,
+    anchor: usize,
+    preedit: &str,
+    pad: f32,
+) -> Entity {
+    let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
+    let palette = theme_palette(world);
+    let height = advance(&block.kind, block.height.max(20.0));
+    let entity = world.spawn((
+        Layout {
+            width: Size::Fill,
+            height: Size::Px(height),
+            padding: pad,
+            gap: 4.0,
+            ..Layout::column()
+        },
+        theme.color(Token::Raised),
+        Radius(6.0),
+        Slot {
+            start: block.span.start,
+            end: block.span.end,
+        },
+    ));
+    let kind = block.chrome.trim();
+    if !kind.is_empty() {
+        let style = TextStyle {
+            size: 13.0,
+            weight: FONT_WEIGHT_BOLD,
+            ..TextStyle::default()
+        };
+        let mut label = Label::new(kind).with_color(palette.text);
+        label.overflow = TextOverflow::Ellipsis;
+        let header = world.spawn((
+            Layout {
+                width: Size::Fill,
+                height: Size::Hug,
+                ..Layout::column()
+            },
+            label,
+            style,
+        ));
+        set_parent(world, header, entity);
+    }
+    let style = style_for_kind(&block.kind);
+    for line in field_lines(block) {
+        let row = world.spawn((Layout {
+            width: Size::Fill,
+            height: Size::Hug,
+            gap: 8.0,
+            ..Layout::row()
+        },));
+        set_parent(world, row, entity);
+        if line.keyed {
+            let mut key = Label::new(&line.key).with_color(palette.muted);
+            key.overflow = TextOverflow::Ellipsis;
+            let key_entity = world.spawn((
+                Layout {
+                    width: Size::Px(96.0),
+                    height: Size::Hug,
+                    ..Layout::column()
+                },
+                key,
+                style.clone(),
+                FieldKey {
+                    text_start: line.value_at,
+                },
+            ));
+            set_parent(world, key_entity, row);
+        }
+        let mut value = Label::new(&line.value).with_color(palette.text);
+        value.overflow = TextOverflow::Wrap;
+        let value_entity = world.spawn((
+            Layout {
+                width: Size::Fill,
+                height: Size::Hug,
+                ..Layout::column()
+            },
+            value,
+            style.clone(),
+            FieldValue {
+                text_start: line.value_at,
+                text_len: line.value_len,
+            },
+        ));
+        set_parent(world, value_entity, row);
+    }
+    place_caret(world, entity, block, caret, anchor, preedit);
+    set_parent(world, entity, parent);
+    entity
+}
+
+fn clear_carets(world: &mut World, entity: Entity) {
+    let mut stack = vec![entity];
+    while let Some(current) = stack.pop() {
+        world.remove::<Caret>(current);
+        world.remove::<TextSelection>(current);
+        world.remove::<ImePreview>(current);
+        stack.extend(children_of(world, current));
+    }
+}
+
+fn place_field_carets(
+    world: &mut World,
+    entity: Entity,
+    block: &DisplayBlock,
+    caret: usize,
+    anchor: usize,
+    preedit: &str,
+) -> bool {
+    let values = field_value_entities(world, entity);
+    if values.is_empty() {
+        return false;
+    }
+    let text_at = |source: usize| {
+        block
+            .source_to_label(source)
+            .saturating_sub(block.chrome.len())
+    };
+    let head = text_at(caret);
+    let anchor_at = text_at(anchor);
+    let (sel_from, sel_to) = (head.min(anchor_at), head.max(anchor_at));
+    for value_entity in values {
+        let Some(value) = world.get::<FieldValue>(value_entity).copied() else {
+            continue;
+        };
+        let end = value.text_start + value.text_len;
+        if head >= value.text_start && head <= end {
+            world.insert(
+                value_entity,
+                Caret {
+                    index: head - value.text_start,
+                    anchor: anchor_at.clamp(value.text_start, end) - value.text_start,
+                },
+            );
+            if !preedit.is_empty() {
+                world.insert(
+                    value_entity,
+                    ImePreview {
+                        text: preedit.to_string(),
+                        cursor: Some((preedit.len(), preedit.len())),
+                    },
+                );
+            }
+        }
+        if anchor != caret && sel_to > value.text_start && sel_from < end {
+            world.insert(
+                value_entity,
+                TextSelection {
+                    anchor: sel_from.clamp(value.text_start, end) - value.text_start,
+                    head: sel_to.clamp(value.text_start, end) - value.text_start,
+                },
+            );
+        }
+    }
+    true
+}
+
+fn field_value_entities(world: &World, entity: Entity) -> Vec<Entity> {
+    let mut out = Vec::new();
+    let mut stack = vec![entity];
+    while let Some(current) = stack.pop() {
+        if world.has::<FieldValue>(current) {
+            out.push(current);
+        }
+        stack.extend(children_of(world, current));
+    }
+    out
+}
+
 fn label_spans(block: &DisplayBlock) -> Vec<TextSpan> {
     let chrome = block.chrome.len();
     block
@@ -1827,6 +2357,8 @@ fn style_for_kind(kind: &DisplayKind) -> TextStyle {
                 _ => 18.0,
             };
             style.weight = FONT_WEIGHT_BOLD;
+            // Extra line box so a large heading's bearings stay inside the slot.
+            style.line_height = Some(1.7);
         }
         DisplayKind::Code { .. }
         | DisplayKind::Opaque
@@ -1834,7 +2366,10 @@ fn style_for_kind(kind: &DisplayKind) -> TextStyle {
             style.family = "monospace".into();
             style.size = 14.0;
         }
-        _ => style.size = 16.0,
+        _ => {
+            style.size = 16.0;
+            style.line_height = Some(1.45);
+        }
     }
     style
 }

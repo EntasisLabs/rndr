@@ -1,9 +1,9 @@
 //! Scroll pin, link clicks, copy, and stable block entities.
 
 use rndr_core::{
-    children_of, events, platform_of, App, Clipboard, Entity, Input, KeyEvent, Label,
-    LinkActivated, MarkdownPlugin, MarkdownView, Modifiers, Platform, PointerButton, Rect,
-    TextLayout, TextSelection, Viewport, World, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
+    children_of, events, platform_of, App, Border, Clipboard, Entity, Input, KeyEvent, Label,
+    Layout, LinkActivated, MarkdownPlugin, MarkdownView, Modifiers, Platform, PointerButton, Rect,
+    Size, TextLayout, TextSelection, Viewport, World, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
 
 fn boot(source: &str, width: f32, height: f32) -> (App, Entity) {
@@ -14,6 +14,50 @@ fn boot(source: &str, width: f32, height: f32) -> (App, Entity) {
     let view = rndr_core::markdown_view(app.world_mut(), source);
     app.update();
     (app, view)
+}
+
+#[test]
+fn inline_math_is_italic_serif_without_the_delimiters() {
+    let (app, view) = boot("Energy $E=mc^2$ here\n", 480.0, 180.0);
+    let doc = app.world().get::<MarkdownView>(view).unwrap();
+    let block = doc
+        .blocks()
+        .iter()
+        .find(|block| block.text.contains("E="))
+        .expect("math block");
+    assert!(!block.text.contains('$'), "{}", block.text);
+    let span = block
+        .spans
+        .iter()
+        .find(|span| block.text[span.start..span.end].contains('E'))
+        .expect("math span");
+    assert!(span.italic);
+    assert_eq!(span.family.as_deref(), Some("serif"));
+}
+
+#[test]
+fn unchecked_task_box_keeps_a_visible_border() {
+    let (app, _view) = boot("- [ ] buy\n- [x] done\n", 420.0, 200.0);
+    let boxes: Vec<_> = app
+        .world()
+        .entities_with::<Border>()
+        .into_iter()
+        .filter(|entity| {
+            app.world().get::<Layout>(*entity).is_some_and(
+                |layout| matches!(layout.width, Size::Px(width) if (width - 14.0).abs() < 0.5),
+            )
+        })
+        .collect();
+    assert!(boxes.len() >= 2, "boxes {}", boxes.len());
+    for entity in &boxes {
+        assert!(app.world().get::<Border>(*entity).unwrap().width >= 1.5);
+        let height = app.world().get::<Rect>(*entity).unwrap().h;
+        assert!(height >= 12.0, "box height {height}");
+    }
+    let checked = boxes
+        .iter()
+        .any(|entity| !children_of(app.world(), *entity).is_empty());
+    assert!(checked, "checked box should keep an inner mark");
 }
 
 fn long_answer() -> String {
@@ -546,25 +590,36 @@ fn list_markers_share_a_column_and_checks_read_apart() {
     assert!(nested_one > xs[0] + 8.0);
 
     let theme = rndr_core::MarkdownTheme::default();
-    let mut holes: Vec<(f32, rndr_core::Color)> = app
+    let boxes: Vec<_> = app
         .world()
-        .entities_with::<rndr_core::Color>()
+        .entities_with::<Border>()
         .into_iter()
-        .filter_map(|entity| {
-            let rect = app.world().get::<Rect>(entity).copied()?;
-            if (rect.w - 10.0).abs() > 0.5 || (rect.h - 10.0).abs() > 0.5 {
-                return None;
-            }
-            Some((
-                rect.y,
-                app.world().get::<rndr_core::Color>(entity).copied()?,
-            ))
+        .filter(|entity| {
+            app.world().get::<Layout>(*entity).is_some_and(|layout| {
+                matches!(layout.width, Size::Px(width) if (width - 14.0).abs() < 0.5)
+                    && matches!(layout.height, Size::Px(height) if (height - 14.0).abs() < 0.5)
+            })
         })
         .collect();
-    holes.sort_by(|a, b| a.0.total_cmp(&b.0));
-    assert_eq!(holes.len(), 2, "holes {holes:?}");
-    assert_eq!(holes[0].1, theme.text);
-    assert_eq!(holes[1].1, theme.surface);
+    assert_eq!(boxes.len(), 2, "task boxes {boxes:?}");
+    for entity in &boxes {
+        let border = app.world().get::<Border>(*entity).unwrap();
+        assert!(border.width >= 1.5, "border {}", border.width);
+        assert_eq!(border.color, theme.muted);
+        let rect = app.world().get::<Rect>(*entity).unwrap();
+        assert!(rect.w >= 12.0 && rect.h >= 12.0, "box {rect:?}");
+    }
+    let marks: Vec<_> = boxes
+        .iter()
+        .filter_map(|entity| {
+            children_of(app.world(), *entity).into_iter().find(|child| {
+                app.world()
+                    .get::<rndr_core::Color>(*child)
+                    .is_some_and(|color| *color == theme.text)
+            })
+        })
+        .collect();
+    assert_eq!(marks.len(), 1, "checked mark stays filled");
     let _ = view;
 }
 

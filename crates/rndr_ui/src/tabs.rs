@@ -44,7 +44,8 @@ use crate::{Token, UiError, UiId, UiTheme};
 use rndr_core::*;
 use std::collections::BTreeSet;
 
-const TAB_WIDTH: f32 = 120.0;
+const TAB_MIN: f32 = 72.0;
+const TAB_MAX: f32 = 240.0;
 const BAR_HEIGHT: f32 = 32.0;
 const CHEVRON: f32 = 28.0;
 const SCROLL_STEP: f32 = 120.0;
@@ -652,10 +653,11 @@ fn create_tab(
 ) -> Result<Entity, UiError> {
     let tab = world.spawn((
         Layout {
-            width: Size::Px(TAB_WIDTH),
+            width: Size::Px(tab_width(world, spec)),
             height: Size::Px(BAR_HEIGHT),
             padding: 4.0,
             gap: 4.0,
+            min_width: TAB_MIN,
             ..Layout::row()
         },
         Align {
@@ -677,6 +679,7 @@ fn create_tab(
             ..Layout::column()
         },
         Label::new(&spec.label).overflow(TextOverflow::Ellipsis),
+        LabelBox::CONTENT,
         ResolvedColor,
     ));
     set_parent(world, title, tab);
@@ -762,7 +765,40 @@ fn update_tab(
         },
     );
     sync_drag(world, root, tab, enabled);
+    let width = tab_width(world, spec);
+    if let Some(layout) = world.get_mut::<Layout>(tab) {
+        layout.width = Size::Px(width);
+        layout.min_width = TAB_MIN;
+    }
+    world.insert(tab, MaxSize::width(TAB_MAX));
     Ok(())
+}
+
+/// Width follows the label, between [`TAB_MIN`] and [`TAB_MAX`].
+fn tab_width(world: &World, spec: &TabSpec) -> f32 {
+    let text = text_engine(world)
+        .measure(&spec.label, &TextStyle::default(), &[], f32::INFINITY)
+        .width;
+    let mut fixed = 0.0f32;
+    let mut count = 1usize;
+    if spec.icon.is_some() {
+        fixed += 16.0;
+        count += 1;
+    }
+    if spec.pinned {
+        fixed += 16.0;
+        count += 1;
+    }
+    if spec.dirty {
+        fixed += 8.0;
+        count += 1;
+    }
+    if spec.closable {
+        fixed += 16.0;
+        count += 1;
+    }
+    let gaps = 4.0 * count.saturating_sub(1) as f32;
+    (text + fixed + gaps + 8.0).clamp(TAB_MIN, TAB_MAX)
 }
 
 fn sync_drag(world: &mut World, root: Entity, tab: Entity, enabled: bool) {
@@ -1069,6 +1105,31 @@ fn open_overflow(world: &mut World, strip: Entity, anchor: Entity) {
     }
 }
 
+fn tab_span(world: &World, state: &StripState, index: usize) -> (f32, f32) {
+    let mut x = 0.0;
+    for (i, (tab, slot)) in tabs_of(world, state.list).into_iter().enumerate() {
+        let width = world
+            .get::<Layout>(tab)
+            .and_then(|layout| match layout.width {
+                Size::Px(width) => Some(width),
+                _ => None,
+            })
+            .unwrap_or_else(|| {
+                state
+                    .specs
+                    .iter()
+                    .find(|spec| spec.id == slot.id)
+                    .map(|spec| tab_width(world, spec))
+                    .unwrap_or(TAB_MIN)
+            });
+        if i == index {
+            return (x, width);
+        }
+        x += width;
+    }
+    (x, TAB_MIN)
+}
+
 fn scroll_by(world: &mut World, strip: Entity, delta: f32) {
     let Some(port) = world.get::<StripState>(strip).map(|state| state.scroll) else {
         return;
@@ -1089,13 +1150,13 @@ fn reveal_index(world: &mut World, state: &StripState, index: usize) {
         .get::<Scroll>(state.scroll)
         .copied()
         .unwrap_or_default();
-    let tab_x = index as f32 * TAB_WIDTH;
+    let (tab_x, tab_w) = tab_span(world, state, index);
     let start = -scroll.offset[0];
     let end = start + rect.w;
     if tab_x < start {
         scroll.offset[0] = -tab_x;
-    } else if tab_x + TAB_WIDTH > end {
-        scroll.offset[0] = -(tab_x + TAB_WIDTH - rect.w);
+    } else if tab_x + tab_w > end {
+        scroll.offset[0] = -(tab_x + tab_w - rect.w);
     }
     scroll.clamp_to(rect.w, rect.h);
     world.insert(state.scroll, scroll);

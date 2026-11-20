@@ -3,7 +3,7 @@
 use rndr_core::*;
 use rndr_markdown::Session;
 use rndr_markdown_ui::*;
-use rndr_ui::UiId;
+use rndr_ui::{Appearance, Token, UiId, UiTheme};
 
 const SAMPLE: &str = "\
 # Hello
@@ -448,9 +448,17 @@ fn liquid_widget_when_caret_is_outside_and_fields_when_inside() {
     assert!(inside.contains("tone"), "{inside}");
     assert!(inside.contains("Hello"), "{inside}");
     assert!(inside.contains("Body text"), "{inside}");
+    assert!(inside.contains("tone"), "{inside}");
+    assert!(inside.contains("tip"), "{inside}");
+    assert!(inside.contains("Hello"), "{inside}");
+    assert!(inside.contains("Body text"), "{inside}");
     assert!(
-        inside.contains("tone  tip"),
-        "editing view should show the field:\n{inside}"
+        inside.lines().filter(|line| line.trim() == "tone").count() >= 1,
+        "tone should be its own field label:\n{inside}"
+    );
+    assert!(
+        inside.contains("tip"),
+        "editing view should show the field value:\n{inside}"
     );
 }
 
@@ -691,6 +699,227 @@ fn clicking_the_task_checkbox_writes_one_byte() {
     );
     assert_eq!(next, before.replacen("[ ]", "[x]", 1));
     assert_eq!(next.matches("[x]").count(), 1);
+}
+
+#[test]
+fn light_theme_marks_use_text_token_and_math_is_italic_serif() {
+    let src =
+        "Say **bold** and `code` and $E=mc^2$ plus {{font:serif|words}} and {{size:lg|big}}.\n";
+    let (mut app, handle, _) = boot(src);
+    let theme = UiTheme {
+        appearance: Appearance::Light,
+        ..UiTheme::default()
+    };
+    app.world_mut().insert_resource(theme.clone());
+    app.update();
+    let ink = theme.color(Token::Text);
+    let world = app.world();
+    let label = world
+        .entities_with::<Label>()
+        .into_iter()
+        .find(|entity| {
+            world
+                .get::<Label>(*entity)
+                .is_some_and(|label| label.text.contains("bold"))
+        })
+        .expect("paragraph");
+    let spans = world.get::<Spans>(label).unwrap();
+    let slice = |span: &TextSpan| {
+        world
+            .get::<Label>(label)
+            .unwrap()
+            .text
+            .get(span.start..span.end)
+            .unwrap_or("")
+    };
+    let bold = spans
+        .runs
+        .iter()
+        .find(|span| slice(span) == "bold")
+        .expect("bold span");
+    assert!(
+        (bold.color.r - ink.r).abs() < 0.02 && bold.weight == Some(FONT_WEIGHT_BOLD),
+        "bold ink {:?} theme {:?}",
+        bold.color,
+        ink
+    );
+    let code = spans
+        .runs
+        .iter()
+        .find(|span| slice(span) == "code")
+        .expect("code span");
+    assert!(
+        (code.color.r - ink.r).abs() < 0.02,
+        "code ink {:?}",
+        code.color
+    );
+    assert!(code.highlight.is_some());
+    let math = spans
+        .runs
+        .iter()
+        .find(|span| slice(span).contains('E'))
+        .expect("math span");
+    assert!(math.italic, "math should be italic");
+    assert_eq!(math.family.as_deref(), Some("serif"));
+    assert!(
+        (math.color.r - ink.r).abs() < 0.02,
+        "math ink {:?}",
+        math.color
+    );
+    let styled = spans
+        .runs
+        .iter()
+        .find(|span| slice(span) == "words" || slice(span) == "big")
+        .expect("styled span");
+    assert!(
+        (styled.color.r - ink.r).abs() < 0.02,
+        "styled ink {:?}",
+        styled.color
+    );
+    assert!(styled.color.r < 0.4, "light theme ink should be dark");
+    let _ = handle;
+}
+
+#[test]
+fn task_checkbox_is_a_bordered_box_in_both_themes() {
+    for appearance in [Appearance::Light, Appearance::Dark] {
+        let (mut app, _, _) = boot("- [ ] buy\n- [x] done\n");
+        app.world_mut().insert_resource(UiTheme {
+            appearance,
+            ..UiTheme::default()
+        });
+        app.update();
+        let world = app.world();
+        let boxes: Vec<_> = world
+            .entities_with::<Border>()
+            .into_iter()
+            .filter(|entity| {
+                world.get::<Layout>(*entity).is_some_and(|layout| {
+                    matches!(layout.width, Size::Px(width) if (width - 14.0).abs() < 0.5)
+                        && matches!(layout.height, Size::Px(height) if (height - 14.0).abs() < 0.5)
+                })
+            })
+            .collect();
+        assert!(
+            boxes.len() >= 2,
+            "{appearance:?} painted {} boxes",
+            boxes.len()
+        );
+        for entity in boxes {
+            let border = world.get::<Border>(entity).unwrap();
+            assert!(
+                border.width >= 1.5,
+                "{appearance:?} border {}",
+                border.width
+            );
+            let stroke = app
+                .world()
+                .resource::<UiTheme>()
+                .unwrap()
+                .color(Token::StrongStroke);
+            assert!(
+                (border.color.r - stroke.r).abs() < 0.02
+                    && (border.color.g - stroke.g).abs() < 0.02
+                    && (border.color.b - stroke.b).abs() < 0.02,
+                "{appearance:?} border {:?} stroke {:?}",
+                border.color,
+                stroke
+            );
+        }
+    }
+}
+
+#[test]
+fn callout_paints_tone_fill_and_accent() {
+    let (mut app, handle, id) = boot("> [!tip] Keep\n> the trail\n\nAfter\n");
+    let at = bytes(&app, id).find("After").unwrap();
+    caret_at(&mut app, id, at);
+    app.update();
+    let theme = app
+        .world()
+        .resource::<UiTheme>()
+        .cloned()
+        .unwrap_or_default();
+    let fill = theme.color(Token::SuccessFill);
+    let world = app.world();
+    let slot = world
+        .entities_with::<Label>()
+        .into_iter()
+        .find(|entity| {
+            world
+                .get::<Label>(*entity)
+                .is_some_and(|label| label.text.contains("Keep"))
+        })
+        .expect("callout");
+    let color = world.get::<Color>(slot).copied().expect("callout fill");
+    assert!(
+        (color.r - fill.r).abs() < 0.02 && (color.g - fill.g).abs() < 0.02,
+        "fill {color:?} token {fill:?}"
+    );
+    let accent = theme.color(Token::SuccessStroke);
+    let bar = children_of(world, slot)
+        .into_iter()
+        .find(|child| {
+            world.get::<Layout>(*child).is_some_and(
+                |layout| matches!(layout.width, Size::Px(width) if (width - 4.0).abs() < 0.5),
+            )
+        })
+        .expect("accent bar");
+    let bar_color = world.get::<Color>(bar).copied().unwrap();
+    assert!((bar_color.r - accent.r).abs() < 0.02);
+    let _ = handle;
+}
+
+#[test]
+fn first_block_and_last_table_row_sit_inside_their_slots() {
+    let src = "# Title\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n";
+    let (mut app, handle, id) = boot(src);
+    let at = bytes(&app, id).find('2').unwrap();
+    caret_at(&mut app, id, at);
+    app.update();
+    let world = app.world();
+    let surface = *world.get::<Rect>(handle.root).unwrap();
+    let title = world
+        .entities_with::<Label>()
+        .into_iter()
+        .find(|entity| {
+            world
+                .get::<Label>(*entity)
+                .is_some_and(|label| label.text.contains("Title"))
+        })
+        .expect("title");
+    let title_rect = *world.get::<Rect>(title).unwrap();
+    assert!(
+        title_rect.y >= surface.y + 8.0,
+        "title {title_rect:?} surface {surface:?}"
+    );
+    let last = world
+        .entities_with::<Label>()
+        .into_iter()
+        .find(|entity| {
+            world
+                .get::<Label>(*entity)
+                .is_some_and(|label| label.text == "2")
+        })
+        .expect("last cell");
+    let cell = *world.get::<Rect>(last).unwrap();
+    let mut table = world.get::<Parent>(last).unwrap().entity;
+    for _ in 0..8 {
+        if world.get::<Layout>(table).is_some_and(
+            |layout| matches!(layout.height, Size::Px(height) if height > cell.h * 2.0),
+        ) {
+            break;
+        }
+        table = world
+            .get::<Parent>(table)
+            .map(|parent| parent.entity)
+            .unwrap_or(table);
+    }
+    let table_rect = *world.get::<Rect>(table).unwrap();
+    assert!(
+        cell.y + cell.h <= table_rect.y + table_rect.h + 0.5,
+        "cell {cell:?} table {table_rect:?}"
+    );
 }
 
 #[test]
