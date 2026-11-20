@@ -250,12 +250,14 @@ pub fn frame_with_snapshot_frame<T>(
 ) -> (Frame, T) {
     install_icons();
     app.update();
+    let paint_start = rndr_core::timing::start(app.world());
     let (quads, draws) = paint_parts(app.world());
     let frame = Frame {
         quads,
         draws,
         slots: surface_slots(app.world()),
     };
+    rndr_core::timing::finish(app.world(), rndr_core::FrameStage::Paint, paint_start);
     let snapshot = snapshot(app.world(), &frame);
     app.render();
     (frame, snapshot)
@@ -274,12 +276,14 @@ pub fn frame_live_with_snapshot<T>(
 ) -> (Frame, T) {
     install_icons();
     app.update_live();
+    let paint_start = rndr_core::timing::start(app.world());
     let (quads, draws) = paint_parts(app.world());
     let frame = Frame {
         quads,
         draws,
         slots: surface_slots(app.world()),
     };
+    rndr_core::timing::finish(app.world(), rndr_core::FrameStage::Paint, paint_start);
     let snapshot = snapshot(app.world());
     app.render();
     (frame, snapshot)
@@ -398,6 +402,7 @@ fn paint_visited(
     secondary: &[rndr_core::source_presentation::SecondarySelectionMark],
     chrome: &[rndr_core::structured_chrome::StructuredChromePaint],
     decor: &Decor,
+    caret_on: bool,
 ) {
     let text_clip = if clip_text {
         clip.intersect(Clip {
@@ -625,7 +630,7 @@ fn paint_visited(
             0,
         );
     }
-    for mark in secondary.iter().filter(|m| m.caret) {
+    for mark in secondary.iter().filter(|m| m.caret && caret_on) {
         push(
             out,
             snap_box(
@@ -642,7 +647,8 @@ fn paint_visited(
             0,
         );
     }
-    if let Some(caret) = caret {
+    // The blink hides only an insertion point; a selection head stays drawn.
+    if let Some(caret) = caret.filter(|c| caret_on || c.index != c.anchor) {
         push_caret(
             out,
             rect,
@@ -799,6 +805,22 @@ fn group_layer(world: &World, entity: rndr_core::Entity) -> Option<SceneLayer> {
     Some(layer)
 }
 
+// Only skip the entity's ordinary fill/text work, never its subtree or display
+// operations. An empty layout clip proves those quads cannot survive `push`,
+// unlike a box outside the viewport (text and children can overflow the box).
+// Decorations may emit quads directly or use the parent's clip; structured
+// chrome also owns a sibling gutter with an independent clip. Keep these paths
+// intact, including their otherwise invisible quads and operation ordering.
+fn own_paint_is_clipped(world: &World, entity: rndr_core::Entity) -> bool {
+    world
+        .get::<Clip>(entity)
+        .is_some_and(|clip| clip.w <= 0.0 || clip.h <= 0.0)
+        && !world.has::<rndr_core::Gradient>(entity)
+        && !world.has::<rndr_core::Shadows>(entity)
+        && !world.has::<rndr_core::BackdropBlur>(entity)
+        && !world.has::<rndr_core::structured_chrome::StructuredChromeGutter>(entity)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn walk_entity(
     world: &World,
@@ -831,7 +853,10 @@ fn walk_entity(
         }
         return;
     }
-    if let Some(rect) = world.get::<Rect>(entity) {
+    if let Some(rect) = world
+        .get::<Rect>(entity)
+        .filter(|_| !own_paint_is_clipped(world, entity))
+    {
         let clip = world
             .get::<Clip>(entity)
             .copied()
@@ -918,6 +943,7 @@ fn walk_entity(
                 &rndr_core::source_presentation::secondary_selection_marks(world, entity),
                 &rndr_core::structured_chrome::chrome_paint(world, entity),
                 &decor,
+                rndr_core::caret_visible(world),
             );
             // Structural markers occupy a host-reserved sibling gutter, not editable bytes.
             for mark in rndr_core::structured_chrome::structured_marks(world, entity) {

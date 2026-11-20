@@ -103,6 +103,7 @@ mod web_input;
 #[cfg(feature = "parley")]
 pub use text::ParleyText;
 
+use rndr_core::timing::{self, FrameStage};
 use std::hash::{Hash, Hasher};
 use std::sync::mpsc;
 use std::sync::Arc;
@@ -898,7 +899,12 @@ impl Handler {
     /// Write the window into [`Viewport`], step the world, paint, and present.
     /// Returns whether the surface presented, so input edges survive a lost frame.
     /// Hiding does not drop the surface created on resume.
-    fn redraw_frame(&mut self, event_loop: &dyn ActiveEventLoop) -> bool {
+    fn redraw_frame(
+        &mut self,
+        event_loop: &dyn ActiveEventLoop,
+        ran_live: &mut bool,
+        presented_at: &mut Option<Instant>,
+    ) -> bool {
         let Some((raw_width, raw_height, scale)) = self.gpu.as_ref().map(|gpu| {
             let size = gpu.shell().inner_size();
             (
@@ -948,6 +954,7 @@ impl Handler {
             }
         }
         self.full_pending = false;
+        *ran_live = live_only;
         #[cfg(not(feature = "observe"))]
         let painted = if live_only {
             rndr_paint::frame_live(&mut self.app)
@@ -994,8 +1001,10 @@ impl Handler {
         } else {
             None
         };
+        let ingest_timing = timing::start(self.app.world());
         self.upload_atlases();
         crate::images::ingest(self.app.world_mut());
+        timing::finish(self.app.world(), FrameStage::Ingest, ingest_timing);
         let images = crate::images::pending(self.app.world());
         let budget = crate::images::budget_of(self.app.world());
         let scale = self
@@ -1015,6 +1024,9 @@ impl Handler {
             let world = self.app.world();
             gpu.present_frame(&painted, &images, budget, width, height, scale, Some(world))
         };
+        if presented {
+            *presented_at = timing::start(self.app.world());
+        }
         #[cfg(feature = "observe")]
         if let Some(capture) = observation {
             let gpu = self.gpu.as_mut().expect("surface");
@@ -1973,7 +1985,10 @@ impl Handler {
     }
 
     fn on_redraw(&mut self, event_loop: &dyn ActiveEventLoop) {
-        if self.redraw_frame(event_loop) {
+        let redraw_timing = timing::start(self.app.world());
+        let mut live_only = false;
+        let mut presented_at = None;
+        if self.redraw_frame(event_loop, &mut live_only, &mut presented_at) {
             if let Some(input) = self.app.world_mut().resource_mut::<Input>() {
                 input.pointer.pressed = false;
                 input.scroll = [0.0, 0.0];
@@ -1986,6 +2001,7 @@ impl Handler {
         self.apply_effects();
         self.apply_tray();
         self.apply_app_menu();
+        timing::finish_native(self.app.world(), redraw_timing, live_only, presented_at);
     }
 
     fn pump_shell(&mut self, event_loop: &dyn ActiveEventLoop) -> bool {
@@ -2010,6 +2026,15 @@ impl Handler {
     }
 
     fn apply_shell_event(&mut self, event: shell::ShellEvent) -> bool {
+        if matches!(
+            &event,
+            shell::ShellEvent::Cursor { .. }
+                | shell::ShellEvent::Button { .. }
+                | shell::ShellEvent::Scroll { .. }
+                | shell::ShellEvent::Key { .. }
+        ) {
+            timing::input_received(self.app.world());
+        }
         self.full_pending = true;
         use shell::ShellEvent;
         match event {
@@ -2431,6 +2456,25 @@ impl ApplicationHandler for Handler {
         _window_id: WindowId,
         event: WindowEvent,
     ) {
+        if matches!(
+            &event,
+            WindowEvent::KeyboardInput { .. }
+                | WindowEvent::Ime(_)
+                | WindowEvent::ModifiersChanged(_)
+                | WindowEvent::PointerMoved { .. }
+                | WindowEvent::PointerButton { .. }
+                | WindowEvent::PointerLeft { .. }
+                | WindowEvent::PinchGesture { .. }
+                | WindowEvent::RotationGesture { .. }
+                | WindowEvent::MouseWheel { .. }
+                | WindowEvent::DragEntered { .. }
+                | WindowEvent::DragPosition { .. }
+                | WindowEvent::DragDropped { .. }
+                | WindowEvent::DragLeft { .. }
+                | WindowEvent::DataTransferReceived { .. }
+        ) {
+            timing::input_received(self.app.world());
+        }
         #[cfg(feature = "accesskit")]
         self.process_access(&event);
         self.drain_web_input();

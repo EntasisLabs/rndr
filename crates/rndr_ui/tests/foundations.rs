@@ -374,3 +374,50 @@ fn density_does_not_shrink_type_scaling_and_invalid_preferences_are_bounded() {
     assert_eq!(invalid.typography(Typography::Label).size, 14.0);
     assert_eq!(reading_layout(-50.0, &invalid).width, Size::Px(0.0));
 }
+
+#[test]
+fn application_type_ramp_replaces_metrics_and_keeps_scale_semantics() {
+    let default = UiTheme::default();
+    assert_eq!(default.typography(Typography::Label).size, 14.0);
+    assert_eq!(default.typography(Typography::Label).letter_spacing, 0.0);
+    let ramp = TypeRamp {
+        label: TypeMetrics::new(13.0, 18.0, 400).tracking(-0.1),
+        ..TypeRamp::default()
+    };
+    let theme = UiTheme {
+        ramp,
+        text_scale: 2.0,
+        reading_scale: 0.5,
+        ..UiTheme::default()
+    };
+    let label = theme.typography(Typography::Label);
+    assert_eq!(label.size, 26.0);
+    assert_eq!(label.line_height, Some(18.0 / 13.0));
+    assert_eq!(label.letter_spacing, -0.2);
+    // Reading roles follow the reading scale, chrome roles the UI scale.
+    assert_eq!(theme.typography(Typography::Code).size, 6.5);
+    assert_eq!(theme.typography(Typography::Caption).size, 22.0);
+    let overline = theme.typography(Typography::Overline);
+    assert_eq!((overline.weight, overline.letter_spacing), (600, 1.2));
+    assert_eq!(overline.family, theme.ui_family);
+}
+
+#[test]
+fn caption_and_overline_text_use_secondary_ink() {
+    let (mut app, card) = base();
+    let theme = app
+        .world()
+        .resource::<UiTheme>()
+        .cloned()
+        .unwrap_or_default();
+    let w = app.world_mut();
+    let caption = text(w, card, "2m", Typography::Caption).unwrap();
+    let overline = text(w, card, "TODAY", Typography::Overline).unwrap();
+    app.update();
+    for e in [caption, overline] {
+        assert_eq!(
+            app.world().get::<Label>(e).unwrap().color,
+            Some(theme.color(Token::Secondary))
+        );
+    }
+}

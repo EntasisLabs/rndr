@@ -11,6 +11,7 @@ use crate::mono::apply_mono_grid;
 use crate::pointers::Pointers;
 use crate::runtime::{self, Executor, Wake};
 use crate::text::ensure_text_engine;
+use crate::timing::{self, FrameStage};
 use crate::tray;
 use crate::window;
 use crate::world::World;
@@ -194,8 +195,10 @@ impl App {
     /// values into their components. Input, Update, PostUpdate and Layout do
     /// not run, so layout and text are untouched.
     pub fn update_live(&mut self) {
+        let timing = timing::start(&self.world);
         runtime::tick_time(&mut self.world);
         crate::live::apply(&mut self.world);
+        timing::finish(&self.world, FrameStage::LiveUpdate, timing);
     }
 
     /// Send live wakes to `wake` instead of the frame wake, so a runner can
@@ -225,6 +228,7 @@ impl App {
     /// that, so the runner can show or hide on this frame; those focus events
     /// stay queued until the next frame.
     pub fn update(&mut self) {
+        let timing = timing::start(&self.world);
         ensure_text_engine(&mut self.world);
         let scale = self
             .world
@@ -267,6 +271,7 @@ impl App {
         for system in self.post_update.clone() {
             system(&mut self.world);
         }
+        let layout_timing = timing::start(&self.world);
         for system in self.layout.clone() {
             system(&mut self.world);
         }
@@ -286,13 +291,17 @@ impl App {
         if crate::markdown::sync_widths(&mut self.world) {
             layout_propagate(&mut self.world);
         }
+        timing::finish(&self.world, FrameStage::Layout, layout_timing);
+        let text_timing = timing::start(&self.world);
         apply_text_layout(&mut self.world);
         apply_mono_grid(&mut self.world);
+        timing::finish(&self.world, FrameStage::Text, text_timing);
         crate::prompt::reveal_prompts(&mut self.world);
         crate::editor::apply_decorations(&mut self.world);
         crate::motion::step(&mut self.world);
         crate::live::apply(&mut self.world);
         window::drive(&mut self.world);
+        timing::finish(&self.world, FrameStage::Update, timing);
     }
 
     /// Extra render-schedule systems. The surface runs these after paint and before present.

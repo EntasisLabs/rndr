@@ -65,58 +65,76 @@ fn shape_once(
                 .map(|family| (start, end, state.family_css(family)))
         })
         .collect();
-    let mut builder = state
-        .layout_cx
-        .ranged_builder(&mut state.font_cx, text, scale, false);
-    builder.push_default(StyleProperty::FontFamily(FontFamily::Source(
-        std::borrow::Cow::Owned(css),
-    )));
-    builder.push_default(StyleProperty::FontSize(style.size));
-    builder.push_default(StyleProperty::FontWeight(parley::FontWeight::new(
-        style.weight as f32,
-    )));
-    builder.push_default(StyleProperty::FontStyle(match style.style {
-        FontStyle::Italic => parley::FontStyle::Italic,
-        FontStyle::Normal => parley::FontStyle::Normal,
-    }));
-    if style.letter_spacing != 0.0 {
-        builder.push_default(StyleProperty::LetterSpacing(style.letter_spacing));
-    }
-    push_line_height(&mut builder, style);
-    push_font_settings(&mut builder, &style.features, &style.axes, None);
-    for run in runs {
-        let end = run.end.min(text.len());
-        let start = run.start.min(end);
-        if start >= end {
-            continue;
-        }
-        if let Some(weight) = run.weight {
-            builder.push(
-                StyleProperty::FontWeight(parley::FontWeight::new(weight as f32)),
-                start..end,
-            );
-        }
-        if run.italic {
-            builder.push(
-                StyleProperty::FontStyle(parley::FontStyle::Italic),
-                start..end,
-            );
-        }
-    }
-    push_span_settings(&mut builder, text.len(), style, runs);
-    for (start, end, family) in family_runs {
-        builder.push(
-            StyleProperty::FontFamily(FontFamily::Source(std::borrow::Cow::Owned(family))),
-            start..end,
-        );
-    }
-    let mut parley_layout = builder.build(text);
     let max_px = if max_width.is_finite() && max_width > 0.0 {
         Some(max_width * scale)
     } else {
         None
     };
-    parley_layout.break_all_lines(max_px);
+    // Icon scalars shape as the fallback face's notdef, usually narrower than
+    // the one-em sprite drawn for them. A second pass reserves the full em so
+    // the sprite never overlaps its neighbours and carets match the ink.
+    let mut icon_room: Vec<(std::ops::Range<usize>, f32)> = Vec::new();
+    let mut parley_layout = loop {
+        let mut builder = state
+            .layout_cx
+            .ranged_builder(&mut state.font_cx, text, scale, false);
+        builder.push_default(StyleProperty::FontFamily(FontFamily::Source(
+            std::borrow::Cow::Owned(css.clone()),
+        )));
+        builder.push_default(StyleProperty::FontSize(style.size));
+        builder.push_default(StyleProperty::FontWeight(parley::FontWeight::new(
+            style.weight as f32,
+        )));
+        builder.push_default(StyleProperty::FontStyle(match style.style {
+            FontStyle::Italic => parley::FontStyle::Italic,
+            FontStyle::Normal => parley::FontStyle::Normal,
+        }));
+        if style.letter_spacing != 0.0 {
+            builder.push_default(StyleProperty::LetterSpacing(style.letter_spacing));
+        }
+        push_line_height(&mut builder, style);
+        push_font_settings(&mut builder, &style.features, &style.axes, None);
+        for run in runs {
+            let end = run.end.min(text.len());
+            let start = run.start.min(end);
+            if start >= end {
+                continue;
+            }
+            if let Some(weight) = run.weight {
+                builder.push(
+                    StyleProperty::FontWeight(parley::FontWeight::new(weight as f32)),
+                    start..end,
+                );
+            }
+            if run.italic {
+                builder.push(
+                    StyleProperty::FontStyle(parley::FontStyle::Italic),
+                    start..end,
+                );
+            }
+        }
+        push_span_settings(&mut builder, text.len(), style, runs);
+        for (start, end, family) in &family_runs {
+            builder.push(
+                StyleProperty::FontFamily(FontFamily::Source(std::borrow::Cow::Owned(
+                    family.clone(),
+                ))),
+                *start..*end,
+            );
+        }
+        for (range, spacing) in &icon_room {
+            builder.push(StyleProperty::LetterSpacing(*spacing), range.clone());
+        }
+        let mut layout = builder.build(text);
+        layout.break_all_lines(max_px);
+        if !icon_room.is_empty() || !text.chars().any(rndr_core::is_icon_scalar) {
+            break layout;
+        }
+        icon_room = icon_deficits(&layout, text, style.letter_spacing, scale);
+        if icon_room.is_empty() {
+            break layout;
+        }
+    };
     let align = if max_px.is_some() {
         match style.align {
             TextAlign::Start => Alignment::Start,
@@ -181,6 +199,7 @@ fn shape_once(
             let font = run.font().clone();
             let px_size = run.font_size();
             let synth = ink_synth(run.synthesis(), px_size);
+            let mut icon_drop = None;
             if decoration.is_none() {
                 let metrics = run.font_metrics();
                 decoration = Some((metrics.underline_size, metrics.underline_offset));
@@ -238,12 +257,14 @@ fn shape_once(
                     }
                 }
                 if let Some((x_px, baseline_px)) = icon_pen {
+                    let drop =
+                        *icon_drop.get_or_insert_with(|| icon_cap_drop(&font, &coords, px_size));
                     if let Some(placed) = raster_icon(
                         state,
                         ch,
                         px_size,
                         x_px,
-                        baseline_px,
+                        baseline_px + drop,
                         scale,
                         text_range.start,
                         text_range.end,
@@ -290,8 +311,8 @@ fn shape_once(
         });
     }
     let width = parley_layout.width() / scale;
-    let height = parley_layout
-        .height()
+    // Parley reports device pixels; TextLayout and its line boxes use points.
+    let height = (parley_layout.height() / scale)
         .max(lines.iter().map(|line| line.y + line.h).fold(0.0, f32::max));
     let mut layout = TextLayout::shaped(glyphs, lines, width, height);
     apply_paragraph_spacing(&mut layout, text, style.paragraph_spacing);
@@ -451,6 +472,49 @@ struct PlacedInk {
 }
 
 const ICON_FONT_KEY: u64 = 0xA11C_E100;
+
+/// Extra letter spacing, in points, that widens each icon cluster to one em.
+fn icon_deficits(
+    layout: &parley::Layout<()>,
+    text: &str,
+    letter_spacing: f32,
+    scale: f32,
+) -> Vec<(std::ops::Range<usize>, f32)> {
+    let mut out = Vec::new();
+    for line in layout.lines() {
+        for item in line.items() {
+            let PositionedLayoutItem::GlyphRun(glyph_run) = item else {
+                continue;
+            };
+            let run = glyph_run.run();
+            let em = run.font_size();
+            for cluster in run.visual_clusters() {
+                let range = cluster.text_range();
+                let icon = text.get(range.clone()).is_some_and(|s| {
+                    s.chars().count() == 1 && s.chars().all(rndr_core::is_icon_scalar)
+                });
+                let deficit = (em + letter_spacing * scale - cluster.advance()) / scale;
+                if icon && deficit > 0.01 {
+                    out.push((range, letter_spacing + deficit));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Downward shift, in pixels, that centres a one-em icon sprite on the cap
+/// height instead of hanging it from the em top.
+fn icon_cap_drop(font: &parley::FontData, coords: &[i16], px_size: f32) -> f32 {
+    let cap = FontRef::from_index(font.data.as_ref(), font.index as usize)
+        .map(|f| {
+            let m = f.metrics(coords);
+            m.cap_height / f32::from(m.units_per_em.max(1))
+        })
+        .filter(|cap| *cap > 0.2 && *cap < 1.0)
+        .unwrap_or(0.7);
+    (px_size * (0.5 - cap / 2.0)).round()
+}
 
 #[allow(clippy::too_many_arguments)]
 fn raster_icon(
