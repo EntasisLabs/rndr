@@ -8,7 +8,7 @@
 
 use rndr_core::*;
 use rndr_markdown::{Command, EditError, Session};
-use rndr_ui::{UiError, UiId};
+use rndr_ui::{UiError, UiId, UiTheme};
 
 use crate::access::build_overlay;
 use crate::document::MarkdownId;
@@ -492,6 +492,28 @@ fn place_pointer(world: &mut World) {
 }
 
 fn place_hit(world: &mut World, root: Entity, hit: Entity, at: [f32; 2], extend: bool) {
+    if let Some(document) = root_document(world, root) {
+        if crate::grid::is_handle(world, hit) {
+            if !extend {
+                let _ = crate::grid::open_for(world, root, document, hit, at);
+            }
+            return;
+        }
+        if let Some(source) = crate::grid::source_at(world, hit, at) {
+            if let Some(session) = world
+                .resource_mut::<crate::MarkdownDocuments>()
+                .and_then(|docs| docs.get_mut(document))
+            {
+                if extend {
+                    let anchor = session.anchor();
+                    let _ = session.move_caret(anchor, source);
+                } else {
+                    let _ = session.move_caret(source, source);
+                }
+            }
+            return;
+        }
+    }
     let Some(slot) = world.get::<Slot>(hit).copied() else {
         return;
     };
@@ -510,6 +532,9 @@ fn place_hit(world: &mut World, root: Entity, hit: Entity, at: [f32; 2], extend:
     else {
         return;
     };
+    if stored.grid.is_some() {
+        return;
+    }
     let readonly = world.get::<Node>(root).is_some_and(|node| node.readonly);
     let block = presented(world, document, stored);
     let width = rect.w.max(1.0);
@@ -547,6 +572,12 @@ fn place_hit(world: &mut World, root: Entity, hit: Entity, at: [f32; 2], extend:
     }
 }
 
+fn document_bytes_of_parent(world: &World, parent: Entity) -> String {
+    root_document(world, parent)
+        .map(|document| document_bytes(world, document))
+        .unwrap_or_default()
+}
+
 fn document_bytes(world: &World, document: MarkdownId) -> String {
     world
         .resource::<crate::MarkdownDocuments>()
@@ -562,6 +593,17 @@ fn presented(world: &World, document: MarkdownId, block: &DisplayBlock) -> Displ
     else {
         return block.clone();
     };
+    if matches!(block.kind, DisplayKind::Table) {
+        let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
+        let chrome = crate::grid::Chrome::from_theme(&theme);
+        return project::show(
+            block,
+            session.bytes(),
+            session.tree(),
+            session.caret(),
+            &crate::grid::palette_of(&chrome),
+        );
+    }
     project::present(
         block,
         session.bytes(),
@@ -606,6 +648,13 @@ fn edit_keys(world: &mut World, root: Entity) {
             }
         }
         match event.logical {
+            LogicalKey::Named(NamedKey::Tab)
+                if !event.modifiers.alt && !event.modifiers.command() =>
+            {
+                if !readonly {
+                    table_tab(world, root, document, event.modifiers.shift || shift, now);
+                }
+            }
             LogicalKey::Named(NamedKey::Enter) if !event.modifiers.command() => {
                 if !readonly {
                     structural_key(world, root, document, now, KeyKind::Enter);
@@ -640,7 +689,7 @@ fn edit_keys(world: &mut World, root: Entity) {
                 }
                 if let Some(text) = event.text.as_deref() {
                     if !text.is_empty() && !event.modifiers.command() {
-                        type_str(world, document, text, now);
+                        type_str(world, root, document, text, now);
                     }
                 }
             }
@@ -663,6 +712,7 @@ fn handle_ime(
     now: u64,
     readonly: bool,
 ) {
+    let in_table = caret_in_table(world, root, document);
     let action = {
         let Some(session) = session_mut(world, document) else {
             return;
@@ -682,7 +732,10 @@ fn handle_ime(
             let _ = session.composition_update(&frame.preedit);
             ImeStep::Paint
         } else if session.is_composing() {
-            if !frame.commit.is_empty() {
+            if !frame.commit.is_empty() && in_table {
+                session.composition_cancel();
+                ImeStep::Type(frame.commit.clone())
+            } else if !frame.commit.is_empty() {
                 let _ = session.composition_update(&frame.commit);
                 if session.composition_commit(now).is_ok() {
                     if let Some(span) = session.last_edit() {
@@ -690,13 +743,18 @@ fn handle_ime(
                         session.note_caret(caret, caret);
                     }
                 }
+                ImeStep::Clear
             } else {
                 session.composition_cancel();
+                ImeStep::Clear
             }
-            ImeStep::Clear
         } else if !frame.commit.is_empty() {
-            type_in(session, &frame.commit, now);
-            ImeStep::None
+            if in_table {
+                ImeStep::Type(frame.commit.clone())
+            } else {
+                type_in(session, &frame.commit, now);
+                ImeStep::None
+            }
         } else {
             ImeStep::None
         }
@@ -704,13 +762,40 @@ fn handle_ime(
     match action {
         ImeStep::Paint => paint_preedit(world, root, &frame.preedit, frame_cursor(&frame.preedit)),
         ImeStep::Clear => clear_preedit(world, root),
+        ImeStep::Type(text) => {
+            clear_preedit(world, root);
+            if !table_type(world, root, document, &text, now) {
+                if let Some(session) = session_mut(world, document) {
+                    type_in(session, &text, now);
+                }
+            }
+        }
         ImeStep::None => {}
     }
+}
+
+fn caret_in_table(world: &World, root: Entity, document: MarkdownId) -> bool {
+    let blocks = world
+        .get::<Node>(root)
+        .map(|node| node.blocks.clone())
+        .unwrap_or_default();
+    let Some(session) = world
+        .resource::<crate::MarkdownDocuments>()
+        .and_then(|docs| docs.get(document))
+    else {
+        return false;
+    };
+    let head = session.caret();
+    let Some(index) = block_index(&blocks, head) else {
+        return false;
+    };
+    presented(world, document, &blocks[index]).grid.is_some()
 }
 
 enum ImeStep {
     Paint,
     Clear,
+    Type(String),
     None,
 }
 
@@ -720,30 +805,41 @@ fn frame_cursor(preedit: &str) -> Option<(usize, usize)> {
 }
 
 fn paint_preedit(world: &mut World, root: Entity, text: &str, cursor: Option<(usize, usize)>) {
-    let slots = world
-        .get::<Node>(root)
-        .map(|node| node.slots.clone())
-        .unwrap_or_default();
-    for slot in slots {
-        if world.has::<Caret>(slot) {
-            world.insert(
-                slot,
-                ImePreview {
-                    text: text.to_string(),
-                    cursor,
-                },
-            );
-        }
+    for slot in caret_entities(world, root) {
+        world.insert(
+            slot,
+            ImePreview {
+                text: text.to_string(),
+                cursor,
+            },
+        );
     }
 }
 
 fn clear_preedit(world: &mut World, root: Entity) {
+    for slot in caret_entities(world, root) {
+        world.remove::<ImePreview>(slot);
+    }
+}
+
+fn caret_entities(world: &World, root: Entity) -> Vec<Entity> {
     let slots = world
         .get::<Node>(root)
         .map(|node| node.slots.clone())
         .unwrap_or_default();
+    let mut out = Vec::new();
     for slot in slots {
-        world.remove::<ImePreview>(slot);
+        collect_carets(world, slot, &mut out);
+    }
+    out
+}
+
+fn collect_carets(world: &World, entity: Entity, out: &mut Vec<Entity>) {
+    if world.has::<Caret>(entity) {
+        out.push(entity);
+    }
+    for child in children_of(world, entity) {
+        collect_carets(world, child, out);
     }
 }
 
@@ -794,9 +890,9 @@ fn apply_action(
                 let _ = session.move_caret(0, end);
             }
         }
-        EditAction::Copy => copy_selection(world, document, false, now, readonly),
-        EditAction::Cut if !readonly => copy_selection(world, document, true, now, false),
-        EditAction::Paste if !readonly => paste(world, document, now),
+        EditAction::Copy => copy_selection(world, root, document, false, now, readonly),
+        EditAction::Cut if !readonly => copy_selection(world, root, document, true, now, false),
+        EditAction::Paste if !readonly => paste(world, root, document, now),
         EditAction::WordLeft | EditAction::WordRight => {
             let forward = action == EditAction::WordRight;
             word_move(world, root, document, forward);
@@ -805,7 +901,14 @@ fn apply_action(
     }
 }
 
-fn copy_selection(world: &mut World, document: MarkdownId, cut: bool, now: u64, readonly: bool) {
+fn copy_selection(
+    world: &mut World,
+    root: Entity,
+    document: MarkdownId,
+    cut: bool,
+    now: u64,
+    readonly: bool,
+) {
     let text = {
         let Some(session) = session_mut(world, document) else {
             return;
@@ -815,14 +918,17 @@ fn copy_selection(world: &mut World, document: MarkdownId, cut: bool, now: u64, 
         if start == end {
             return;
         }
-        let text = session.bytes().get(start..end).unwrap_or("").to_string();
-        if cut && !readonly {
+        session.bytes().get(start..end).unwrap_or("").to_string()
+    };
+    if cut && !readonly && !table_type(world, root, document, "", now) {
+        if let Some(session) = session_mut(world, document) {
+            let start = session.anchor().min(session.caret());
+            let end = session.anchor().max(session.caret());
             let _ = session.edit(Command::Delete { start, end }, now);
             let caret = start.min(session.bytes().len());
             session.note_caret(caret, caret);
         }
-        text
-    };
+    }
     if let Some(clip) = world.resource_mut::<Clipboard>() {
         clip.text = text;
         clip.html.clear();
@@ -831,12 +937,15 @@ fn copy_selection(world: &mut World, document: MarkdownId, cut: bool, now: u64, 
     }
 }
 
-fn paste(world: &mut World, document: MarkdownId, now: u64) {
+fn paste(world: &mut World, root: Entity, document: MarkdownId, now: u64) {
     let text = world
         .resource::<Clipboard>()
         .map(|clip| clip.text.clone())
         .unwrap_or_default();
     if text.is_empty() {
+        return;
+    }
+    if table_type(world, root, document, &text, now) {
         return;
     }
     let Some(session) = session_mut(world, document) else {
@@ -863,9 +972,82 @@ fn paste(world: &mut World, document: MarkdownId, now: u64) {
     }
 }
 
-fn type_str(world: &mut World, document: MarkdownId, text: &str, now: u64) {
+fn type_str(world: &mut World, root: Entity, document: MarkdownId, text: &str, now: u64) {
+    if table_type(world, root, document, text, now) {
+        return;
+    }
     if let Some(session) = session_mut(world, document) {
         type_in(session, text, now);
+    }
+}
+
+fn table_type(world: &mut World, root: Entity, document: MarkdownId, text: &str, now: u64) -> bool {
+    let blocks = world
+        .get::<Node>(root)
+        .map(|node| node.blocks.clone())
+        .unwrap_or_default();
+    let (head, anchor) = {
+        let Some(session) = world
+            .resource::<crate::MarkdownDocuments>()
+            .and_then(|docs| docs.get(document))
+        else {
+            return false;
+        };
+        (session.caret(), session.anchor())
+    };
+    let Some(index) = block_index(&blocks, head).or_else(|| block_index(&blocks, anchor)) else {
+        return false;
+    };
+    let block = presented(world, document, &blocks[index]);
+    if block.grid.is_none() {
+        return false;
+    }
+    let bytes = document_bytes(world, document);
+    let Some(plans) = crate::grid::plan_type(&block, &bytes, anchor, head, text) else {
+        return false;
+    };
+    if let Some(session) = session_mut(world, document) {
+        let _ = crate::grid::apply_plans(session, &plans, now);
+    }
+    true
+}
+
+fn table_tab(world: &mut World, root: Entity, document: MarkdownId, shift: bool, now: u64) {
+    let blocks = world
+        .get::<Node>(root)
+        .map(|node| node.blocks.clone())
+        .unwrap_or_default();
+    let head = world
+        .resource::<crate::MarkdownDocuments>()
+        .and_then(|docs| docs.get(document))
+        .map(|session| session.caret())
+        .unwrap_or(0);
+    let Some(index) = block_index(&blocks, head) else {
+        return;
+    };
+    let block = presented(world, document, &blocks[index]);
+    let Some(tab) = crate::grid::tab(&block, head, shift) else {
+        return;
+    };
+    let Some(session) = session_mut(world, document) else {
+        return;
+    };
+    match tab {
+        crate::grid::Tab::Move(at) => {
+            let _ = session.move_caret(at, at);
+        }
+        crate::grid::Tab::Append { at, index } => {
+            let revision = session.revision();
+            if session
+                .edit(rndr_markdown::Command::InsertTableRow { at, index }, now)
+                .is_ok()
+                && session.revision() != revision
+            {
+                if let Some(caret) = crate::grid::caret_after_append(session, at, index) {
+                    session.note_caret(caret, caret);
+                }
+            }
+        }
     }
 }
 
@@ -923,6 +1105,27 @@ fn structural_key(world: &mut World, root: Entity, document: MarkdownId, now: u6
     };
     let block = presented(world, document, &blocks[index]);
     let bytes = document_bytes(world, document);
+    if block.grid.is_some() {
+        match kind {
+            KeyKind::Enter => {
+                if let Some(next) = crate::grid::enter(&block, head) {
+                    if let Some(session) = session_mut(world, document) {
+                        let _ = session.move_caret(next, next);
+                    }
+                }
+                return;
+            }
+            KeyKind::Backspace | KeyKind::Delete => {
+                let back = matches!(kind, KeyKind::Backspace);
+                if let Some(plans) = crate::grid::plan_delete(&block, &bytes, anchor, head, back) {
+                    if let Some(session) = session_mut(world, document) {
+                        let _ = crate::grid::apply_plans(session, &plans, now);
+                    }
+                }
+                return;
+            }
+        }
+    }
     let command = match kind {
         KeyKind::Enter => intent::split(&bytes, &block, head),
         KeyKind::Backspace => intent::backspace(&bytes, &block, anchor, head),
@@ -965,6 +1168,21 @@ fn move_key(world: &mut World, root: Entity, document: MarkdownId, key: NamedKey
         return;
     };
     let block = presented(world, document, &blocks[index]);
+    if let Some(motion) = crate::grid::move_key(&block, head, anchor, key, shift) {
+        if let Some(session) = session_mut(world, document) {
+            match motion {
+                crate::grid::Motion::Inside(anchor, source) => {
+                    let _ = session.move_caret(anchor, source);
+                }
+                crate::grid::Motion::Leave { forward } => {
+                    let source = neighbor_block(&blocks, index, head, forward);
+                    let anchor = if shift { anchor } else { source };
+                    let _ = session.move_caret(anchor, source);
+                }
+            }
+        }
+        return;
+    }
     let source = match key {
         NamedKey::ArrowLeft => intent::move_by(&block, head, false),
         NamedKey::ArrowRight => intent::move_by(&block, head, true),
@@ -997,7 +1215,7 @@ fn neighbor_block(blocks: &[DisplayBlock], index: usize, head: usize, forward: b
     head
 }
 
-fn word_move(world: &mut World, _root: Entity, document: MarkdownId, forward: bool) {
+fn word_move(world: &mut World, root: Entity, document: MarkdownId, forward: bool) {
     let Some(session) = session_mut(world, document) else {
         return;
     };
@@ -1055,7 +1273,18 @@ fn word_move(world: &mut World, _root: Entity, document: MarkdownId, forward: bo
             }
         }
     }
-    let _ = session.move_caret(anchor, at);
+    let head = session.caret();
+    let blocks = world
+        .get::<Node>(root)
+        .map(|node| node.blocks.clone())
+        .unwrap_or_default();
+    let at = block_index(&blocks, head)
+        .map(|index| presented(world, document, &blocks[index]))
+        .map(|block| crate::grid::clamp_word(&block, head, at))
+        .unwrap_or(at);
+    if let Some(session) = session_mut(world, document) {
+        let _ = session.move_caret(anchor, at);
+    }
 }
 
 fn prev_char(text: &str, index: usize) -> usize {
@@ -1090,6 +1319,12 @@ fn now_ms(world: &World) -> u64 {
 
 pub(crate) fn poll(world: &mut World) {
     let now = now_ms(world);
+    let roots: Vec<Entity> = world.entities_with::<Node>();
+    for root in roots {
+        if let Some(document) = root_document(world, root) {
+            crate::grid::on_update(world, root, document, now);
+        }
+    }
     let Some(docs) = world.resource_mut::<crate::MarkdownDocuments>() else {
         return;
     };
@@ -1209,18 +1444,30 @@ fn rebuild_slots(world: &mut World, entity: Entity) -> bool {
             .get::<Node>(entity)
             .and_then(|node| node.blocks.get(index).map(|block| block.height))
             .unwrap_or(0.0);
-        if height <= 0.0 {
+        if height <= 0.0 || matches!(kind, DisplayKind::Table) {
             if let Some(block) = world
                 .get::<Node>(entity)
                 .and_then(|node| node.blocks.get(index).cloned())
             {
                 let style = style_for_kind(&kind);
-                height = project::measure_block(
-                    engine.as_ref(),
-                    &block,
-                    (width - 24.0).max(1.0),
-                    &style,
-                );
+                let document = root_document(world, entity);
+                let block = document
+                    .map(|document| presented(world, document, &block))
+                    .unwrap_or(block);
+                height = if let Some(grid) = block.grid.as_ref() {
+                    let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
+                    let chrome = crate::grid::Chrome::from_theme(&theme);
+                    crate::grid::height_for(
+                        engine.as_ref(),
+                        grid,
+                        width,
+                        &style,
+                        &chrome,
+                        crate::grid::outer_pad(&block),
+                    )
+                } else {
+                    project::measure_block(engine.as_ref(), &block, (width - 24.0).max(1.0), &style)
+                };
                 if let Some(node) = world.get_mut::<Node>(entity) {
                     if let Some(block) = node.blocks.get_mut(index) {
                         block.height = height;
@@ -1332,6 +1579,32 @@ fn spawn_block(
     preedit: &str,
     width: f32,
 ) -> Entity {
+    if block.grid.is_some() {
+        let bytes = document_bytes_of_parent(world, parent);
+        let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
+        let chrome = crate::grid::Chrome::from_theme(&theme);
+        let entity = crate::grid::spawn(
+            world,
+            parent,
+            crate::grid::Paint {
+                block,
+                bytes: &bytes,
+                caret,
+                anchor,
+                preedit,
+                width,
+                chrome: &chrome,
+            },
+        );
+        world.insert(
+            entity,
+            Slot {
+                start: block.span.start,
+                end: block.span.end,
+            },
+        );
+        return entity;
+    }
     let text = block.label_text();
     let mut label = Label::new(&text);
     label.overflow = TextOverflow::Wrap;

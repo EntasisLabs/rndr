@@ -15,6 +15,7 @@ unicode-segmentation = "1.13"
 
 [dev-dependencies]
 rndr_paint = { workspace = true }
+rndr_render = { path = "../rndr_render", default-features = false, features = ["parley"] }
 
 [[bench]]
 name = "keystroke"

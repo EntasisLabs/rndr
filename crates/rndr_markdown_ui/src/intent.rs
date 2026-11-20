@@ -285,7 +285,7 @@ fn strip_quote(line: &str) -> &str {
     }
 }
 
-fn prev_boundary(text: &str, index: usize) -> usize {
+pub(crate) fn prev_boundary(text: &str, index: usize) -> usize {
     let index = index.min(text.len());
     text.grapheme_indices(true)
         .map(|(offset, _)| offset)
@@ -294,7 +294,7 @@ fn prev_boundary(text: &str, index: usize) -> usize {
         .unwrap_or(0)
 }
 
-fn next_boundary(text: &str, index: usize) -> usize {
+pub(crate) fn next_boundary(text: &str, index: usize) -> usize {
     let index = index.min(text.len());
     text.grapheme_indices(true)
         .map(|(offset, grapheme)| offset + grapheme.len())
