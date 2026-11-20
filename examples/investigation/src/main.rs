@@ -20,6 +20,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut export: Option<PathBuf> = None;
     let mut observe = false;
     let mut exit_after = false;
+    let mut light = false;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -28,11 +29,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     args.next().ok_or("--export needs a png path")?,
                 ));
             }
+            "--light" => light = true,
             "--observe" => observe = true,
             "--observe-exit-after-15s" => exit_after = true,
             "-h" | "--help" => {
                 println!(
-                    "investigation [--export PATH.png] [--observe] [--observe-exit-after-15s]"
+                    "investigation [--export PATH.png] [--light] [--observe] [--observe-exit-after-15s]"
                 );
                 return Ok(());
             }
@@ -47,7 +49,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         app.world_mut()
             .insert_resource(Arc::new(rndr_render::ParleyText::new()) as Arc<dyn TextEngine>);
     }
-    investigation::install(&mut app);
+    if light {
+        investigation::install_with(&mut app, rndr_ui::Appearance::Light);
+    } else {
+        investigation::install(&mut app);
+    }
     if let Some(path) = export {
         return write_export(&mut app, &path);
     }

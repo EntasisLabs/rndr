@@ -898,7 +898,10 @@ fn host_plane(world: &World, root: Entity, theme: &UiTheme) -> UiColor {
     let mut parent = world.get::<Parent>(root).map(|p| p.entity);
     while let Some(entity) = parent {
         if let Some(color) = crate::style::background_at(world, entity, theme) {
-            if color.a == 1.0 {
+            // A clear ancestor is not a surface. A translucent one is: quiet
+            // controls and the focus gap follow it instead of falling through
+            // to an opaque canvas tile.
+            if color.a > 0.0 {
                 return UiColor::Explicit(color);
             }
         }
@@ -1014,7 +1017,7 @@ pub(crate) fn resolve_controls(world: &mut World) {
             world,
             c.gap,
             if focused == Some(root) {
-                Token::Canvas.into()
+                host_plane(world, root, &theme)
             } else {
                 transparent
             },

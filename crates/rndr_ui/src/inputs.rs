@@ -138,6 +138,9 @@ pub struct ToastProps {
     pub undo: Option<String>,
     /// Time until automatic dismiss. Zero stays until Undo, Dismiss, or Escape.
     pub duration: Duration,
+    /// Backdrop blur and shadow. The default is flat. The corner stays
+    /// [`crate::Corner::Overlay`].
+    pub chrome: crate::style::OverlayChrome,
 }
 
 impl ToastProps {
@@ -147,6 +150,7 @@ impl ToastProps {
             message: message.into(),
             undo: None,
             duration: Duration::ZERO,
+            chrome: crate::style::OverlayChrome::default(),
         }
     }
 
@@ -156,6 +160,7 @@ impl ToastProps {
             message: message.into(),
             undo: None,
             duration,
+            chrome: crate::style::OverlayChrome::default(),
         }
     }
 }
@@ -388,6 +393,7 @@ struct Tip {
     popup: Entity,
     text: String,
     suppressed: bool,
+    chrome: crate::style::OverlayChrome,
 }
 impl Component for Tip {}
 
@@ -863,6 +869,7 @@ impl Tooltip {
                 popup,
                 text: text.to_string(),
                 suppressed: false,
+                chrome: crate::style::OverlayChrome::default(),
             },
         );
         link(world, target, popup);
@@ -870,6 +877,16 @@ impl Tooltip {
             root: popup,
             target,
         })
+    }
+}
+
+impl TooltipHandle {
+    /// Backdrop blur and shadow for this tooltip. The next layout applies it.
+    /// [`crate::OverlayChrome::default`] clears both.
+    pub fn chrome(self, world: &mut World, chrome: crate::OverlayChrome) {
+        if let Some(tip) = world.get_mut::<Tip>(self.target) {
+            tip.chrome = chrome;
+        }
     }
 }
 
@@ -2159,6 +2176,7 @@ fn style_toasts(world: &mut World, theme: &UiTheme) {
             continue;
         };
         recipe(world, toast, Token::Overlay, Corner::Overlay);
+        crate::style::paint_overlay(world, toast, state.props.chrome);
         if let Some(layout) = world.get_mut::<Layout>(toast) {
             layout.padding = theme.space(crate::Space::X12);
             layout.gap = theme.space(crate::Space::X8);
@@ -2182,6 +2200,7 @@ fn style_tips(world: &mut World, _theme: &UiTheme) {
         };
         if world.is_alive(tip.popup) {
             recipe(world, tip.popup, Token::Overlay, Corner::Overlay);
+            crate::style::paint_overlay(world, tip.popup, tip.chrome);
         }
     }
 }

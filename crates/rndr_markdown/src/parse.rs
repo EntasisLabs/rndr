@@ -1031,6 +1031,13 @@ fn take_paragraph(src: &str, lines: &[Line], i: usize, end: usize) -> (Green, us
         {
             break;
         }
+        // A delimiter row turns the previous line into a header and ends the
+        // paragraph before it. The line the loop started on is tried as a
+        // table by `parse_seq` before this paragraph is taken.
+        if j > i + 1 && table_end(src, lines, j - 1, end).is_some() {
+            j -= 1;
+            break;
+        }
         j += 1;
     }
     if j < end && setext_underline(&src[lines[j].start..lines[j].text_end]) {
@@ -1222,102 +1229,59 @@ fn try_ref(src: &str, lines: &[Line], i: usize, end: usize) -> Option<(Green, us
 }
 
 fn try_table(src: &str, lines: &[Line], i: usize, end: usize) -> Option<(Green, usize)> {
-    if i + 1 >= end {
-        return None;
-    }
-    let header = &src[lines[i].start..lines[i].text_end];
-    if !header.contains('|') {
-        return None;
-    }
-    let delim = &src[lines[i + 1].start..lines[i + 1].text_end];
-    if !is_delim_row(delim) {
-        return None;
-    }
-    let mut j = i + 2;
-    while j < end && !is_blank(src, &lines[j]) {
-        let text = &src[lines[j].start..lines[j].text_end];
-        if !text.contains('|') || interrupts(src, &lines[j], true) {
-            break;
+    let j = table_end(src, lines, i, end)?;
+    let mut rows = Vec::with_capacity(j - i);
+    for line in &lines[i..j] {
+        let mut children = crate::table::row_nodes(&src[line.start..line.text_end]);
+        if line.end > line.text_end {
+            children.push(Green::leaf(
+                SyntaxKind::LineEnding,
+                &src[line.text_end..line.end],
+            ));
         }
-        j += 1;
-    }
-    let mut rows = Vec::new();
-    for line in lines.iter().take(j).skip(i) {
-        rows.push(table_row(src, line));
+        rows.push(Green::branch(SyntaxKind::TableRow, children));
     }
     Some((Green::branch(SyntaxKind::Table, rows), j))
 }
 
-fn is_delim_row(text: &str) -> bool {
-    let mut cells = 0;
-    for cell in split_row(text) {
-        let t = cell.trim().trim_matches('|').trim();
-        if t.is_empty() {
-            continue;
-        }
-        let bytes = t.as_bytes();
-        let mut i = 0;
-        if bytes.first() == Some(&b':') {
-            i += 1;
-        }
-        let dashes = bytes[i..].iter().take_while(|b| **b == b'-').count();
-        if dashes < 3 {
-            return false;
-        }
-        i += dashes;
-        if i < bytes.len() && bytes[i] == b':' {
-            i += 1;
-        }
-        if i != bytes.len() {
-            return false;
-        }
-        cells += 1;
+/// Line index after a GFM table that starts at `i`, if the header and the
+/// delimiter row have the same positive cell count.
+///
+/// A setext underline is not a delimiter: `Foo\n---` stays a heading. A line
+/// indented four or more columns is not part of the table. Body rows may omit
+/// pipes; they end at a blank line or at a block that can interrupt a paragraph.
+fn table_end(src: &str, lines: &[Line], i: usize, end: usize) -> Option<usize> {
+    if i + 1 >= end {
+        return None;
     }
-    cells >= 1
-}
-
-fn split_row(text: &str) -> Vec<&str> {
-    let trimmed = text.trim();
-    let trimmed = trimmed.strip_prefix('|').unwrap_or(trimmed);
-    let trimmed = trimmed.strip_suffix('|').unwrap_or(trimmed);
-    trimmed.split('|').collect()
-}
-
-fn table_row(src: &str, line: &Line) -> Green {
-    let text = &src[line.start..line.text_end];
-    let mut children = Vec::new();
-    let bytes = text.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'|' {
-            children.push(Green::leaf(SyntaxKind::Pipe, "|"));
-            i += 1;
-            continue;
-        }
-        if bytes[i] == b'\\' && i + 1 < bytes.len() && bytes[i + 1] == b'|' {
-            children.push(Green::leaf(SyntaxKind::Text, &text[i..i + 2]));
-            i += 2;
-            continue;
-        }
-        let start = i;
-        while i < bytes.len() && bytes[i] != b'|' {
-            if bytes[i] == b'\\' && i + 1 < bytes.len() && bytes[i + 1] == b'|' {
-                break;
-            }
-            i += 1;
-        }
-        children.push(Green::branch(
-            SyntaxKind::TableCell,
-            vec![Green::leaf(SyntaxKind::Text, &text[start..i])],
-        ));
+    let header = &src[lines[i].start..lines[i].text_end];
+    let delim = &src[lines[i + 1].start..lines[i + 1].text_end];
+    if indent_of(header).0 >= 4 || indent_of(delim).0 >= 4 {
+        return None;
     }
-    if line.end > line.text_end {
-        children.push(Green::leaf(
-            SyntaxKind::LineEnding,
-            &src[line.text_end..line.end],
-        ));
+    if setext_underline(delim) {
+        return None;
     }
-    Green::branch(SyntaxKind::TableRow, children)
+    let delim_cols = crate::table::delimiter_columns(delim)?;
+    let header_cols = crate::table::cell_count(header);
+    if header_cols == 0 || header_cols != delim_cols {
+        return None;
+    }
+    let mut j = i + 2;
+    while j < end {
+        if is_blank(src, &lines[j]) {
+            break;
+        }
+        let text = &src[lines[j].start..lines[j].text_end];
+        if indent_of(text).0 >= 4 || interrupts(src, &lines[j], true) {
+            break;
+        }
+        if crate::table::cell_count(text) == 0 {
+            break;
+        }
+        j += 1;
+    }
+    Some(j)
 }
 
 fn try_opaque(src: &str, lines: &[Line], i: usize, end: usize) -> Option<(Green, usize)> {

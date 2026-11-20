@@ -21,6 +21,7 @@ use crate::{
         CollectionEvent, CollectionEventKind, Item, ItemId, ListView, ViewProps, VirtualListPolicy,
         VirtualViewHandle,
     },
+    style::{paint_overlay, OverlayChrome},
     Corner, Token, Typography, UiError, UiId, UiStyle, UiTheme,
 };
 use rndr_core::{
@@ -185,6 +186,8 @@ pub struct PaletteProps {
     pub list_height: f32,
     /// Uniform row height in points, including section headers.
     pub row_height: f32,
+    /// Backdrop blur and shadow. The default is flat.
+    pub chrome: OverlayChrome,
 }
 
 impl PaletteProps {
@@ -198,6 +201,7 @@ impl PaletteProps {
             width: 560.0,
             list_height: 320.0,
             row_height: 32.0,
+            chrome: OverlayChrome::default(),
         }
     }
 }
@@ -308,10 +312,11 @@ impl CommandPalette {
             PopupPlacement::At([0.0, 0.0]),
             UiStyle {
                 background: Some(Token::Overlay.into()),
-                corner: Some(Corner::Group),
+                corner: Some(Corner::Overlay),
                 ..UiStyle::default()
             },
         ));
+        paint_overlay(world, root, props.chrome);
         let field = world.spawn((
             Layout {
                 width: Size::Fill,
@@ -669,10 +674,15 @@ pub(crate) fn place(world: &mut World) {
         };
         let anchor = state.anchor;
         let width = state.props.width;
+        let chrome = state.props.chrome;
         let rect = world.get::<Rect>(anchor).copied().unwrap_or_default();
         world.insert(root, PopupPlacement::At([rect.x, rect.y + rect.h]));
         if let Some(layout) = world.get_mut::<Layout>(root) {
             layout.width = Size::Px(width);
+        }
+        paint_overlay(world, root, chrome);
+        if let Some(style) = world.get_mut::<UiStyle>(root) {
+            style.corner = Some(Corner::Overlay);
         }
     }
 }

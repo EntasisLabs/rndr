@@ -81,6 +81,12 @@ pub enum Token {
     Raised,
     /// Overlay plane.
     Overlay,
+    /// Frosted navigation or sidebar. Translucent in standard contrast.
+    Glass,
+    /// Frosted reading surface. More transparent than [`Self::Glass`].
+    Material,
+    /// Frosted inspector or side panel.
+    Panel,
     /// Main text.
     Text,
     /// Secondary text.
@@ -152,14 +158,20 @@ impl UiTheme {
         }
         self
     }
-    /// Resolve to opaque color. Explicit transparent colors never pass through this resolver.
+    /// Resolve a semantic color.
+    ///
+    /// [`Token::Glass`], [`Token::Material`], and [`Token::Panel`] are
+    /// translucent in standard contrast and opaque in high contrast. Every
+    /// other token is opaque. An explicit [`crate::UiColor::Explicit`] is not
+    /// rewritten here.
     pub fn color(&self, token: Token) -> Color {
         use Token::*;
         let dark = self.appearance == Appearance::Dark;
         if self.contrast == Contrast::High {
             return hex(match token {
-                Canvas | Navigation | Content | Raised | Overlay | Selected | InfoFill
-                | SuccessFill | WarningFill | DangerFill | ControlHover | ControlPressed => {
+                Canvas | Navigation | Content | Raised | Overlay | Glass | Material | Panel
+                | Selected | InfoFill | SuccessFill | WarningFill | DangerFill | ControlHover
+                | ControlPressed => {
                     if dark {
                         0x000000
                     } else {
@@ -196,15 +208,21 @@ impl UiTheme {
                 }
             });
         }
-        hex(match (dark, token) {
+        let mut color = hex(match (dark, token) {
             (false, Canvas) => 0xf4f5f7,
             (true, Canvas) => 0x17191d,
             (false, Navigation) => 0xecedf0,
             (true, Navigation) => 0x1c1e23,
             (false, Content | Raised | Overlay) => 0xffffff,
+            (false, Glass) => 0xf4f6f8,
+            (false, Material) => 0xffffff,
+            (false, Panel) => 0xf7f8fa,
             (true, Content) => 0x202227,
             (true, Raised) => 0x272a30,
             (true, Overlay) => 0x2d3037,
+            (true, Glass) => 0x12141a,
+            (true, Material) => 0x1c1f24,
+            (true, Panel) => 0x14171c,
             (false, Text) => 0x24272e,
             (true, Text) => 0xedeef2,
             (false, Secondary | Disabled) => 0x60616a,
@@ -253,7 +271,26 @@ impl UiTheme {
             (true, DangerText) => 0xffc3c8,
             (true, DangerFill) => 0x391c23,
             (true, DangerStroke) => 0xf3949e,
-        })
+        });
+        color.a = match token {
+            Token::Glass => 0.78,
+            Token::Material => {
+                if dark {
+                    0.60
+                } else {
+                    0.62
+                }
+            }
+            Token::Panel => {
+                if dark {
+                    0.72
+                } else {
+                    0.74
+                }
+            }
+            _ => 1.0,
+        };
+        color
     }
     /// Density-adjusted spacing; text sizes are unaffected by density.
     pub fn space(&self, space: Space) -> f32 {

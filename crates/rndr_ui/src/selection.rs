@@ -1,5 +1,6 @@
 //! Host-owned two-state checkbox and stable-ID popup selectors.
 //! See docs/selection-controls.md for acknowledgement, dismissal and limits.
+use crate::style::{paint_overlay, OverlayChrome};
 use crate::{controls, text, Corner, Token, Typography, UiError, UiId, UiStyle};
 use rndr_core::*;
 use std::collections::{BTreeMap, BTreeSet};
@@ -42,6 +43,9 @@ pub struct SelectionProps {
     pub readonly: bool,
     /// Empty/no-results content, must not be blank.
     pub empty: String,
+    /// Backdrop blur and shadow on the options popup. The default is flat.
+    /// Checkboxes ignore this.
+    pub chrome: OverlayChrome,
 }
 impl SelectionProps {
     /// Enabled mutable control.
@@ -52,6 +56,7 @@ impl SelectionProps {
             enabled: true,
             readonly: false,
             empty: "No options available".into(),
+            chrome: OverlayChrome::default(),
         }
     }
 }
@@ -406,10 +411,11 @@ fn resolve_selection(
                 p,
                 UiStyle {
                     background: Some(Token::Overlay.into()),
-                    corner: Some(Corner::Compact),
+                    corner: Some(Corner::Overlay),
                     ..UiStyle::default()
                 },
             );
+            paint_overlay(w, p, props.chrome);
             Some(p)
         } else {
             None
@@ -562,6 +568,12 @@ fn refresh(w: &mut World, root: Entity) {
     let Some(s) = w.get::<Selection>(root).cloned() else {
         return;
     };
+    if let Some(popup) = s.popup {
+        paint_overlay(w, popup, s.props.chrome);
+        if let Some(style) = w.get_mut::<UiStyle>(popup) {
+            style.corner = Some(Corner::Overlay);
+        }
+    }
     if s.kind == Kind::Check {
         let checked = s.value == SelectionValue::Checked(true);
         w.get_mut::<Label>(s.label).unwrap().text = s.props.label.clone();

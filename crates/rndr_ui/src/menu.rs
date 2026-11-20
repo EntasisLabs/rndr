@@ -7,6 +7,7 @@
 //! drive the menu from the keyboard; hovering moves the highlight and opens
 //! submenus. Picking an item sends [`MenuPicked`]; any other close sends
 //! [`MenuDismissed`]. A closed menu is despawned during the next Layout.
+use crate::style::{paint_overlay, OverlayChrome};
 use crate::{separator, text, Corner, Token, Typography, UiError, UiStyle};
 use rndr_core::*;
 
@@ -167,6 +168,7 @@ struct MenuRoot {
     top: Entity,
     picked: bool,
     retired: bool,
+    chrome: OverlayChrome,
 }
 impl Component for MenuRoot {}
 
@@ -195,6 +197,21 @@ pub fn open_menu(
     at: MenuAt,
     entries: &[MenuEntry],
 ) -> Result<MenuHandle, UiError> {
+    open_menu_with(world, anchor, at, entries, OverlayChrome::default())
+}
+
+/// [`open_menu`] with backdrop blur and a shadow when `chrome` asks for them.
+///
+/// The menu still uses [`Corner::Overlay`]. [`OverlayChrome::default`] draws
+/// a flat menu. [`OverlayChrome::frost`] blurs what this app has already
+/// drawn behind the menu; it does not blur the desktop.
+pub fn open_menu_with(
+    world: &mut World,
+    anchor: Entity,
+    at: MenuAt,
+    entries: &[MenuEntry],
+    chrome: OverlayChrome,
+) -> Result<MenuHandle, UiError> {
     if !world.is_alive(anchor) {
         return Err(UiError::Stale);
     }
@@ -206,7 +223,7 @@ pub fn open_menu(
         MenuAt::Point(p) => PopupPlacement::At(p),
         MenuAt::Below => PopupPlacement::Below,
     };
-    let root = popup(world, anchor, placement, None);
+    let root = popup(world, anchor, placement, None, chrome);
     build(world, root, root, entries)?;
     if !open_popup(world, root) {
         retire(world, root);
@@ -238,6 +255,7 @@ fn popup(
     anchor: Entity,
     placement: PopupPlacement,
     top: Option<Entity>,
+    chrome: OverlayChrome,
 ) -> Entity {
     let p = world.spawn((Layout {
         width: Size::Hug,
@@ -265,16 +283,18 @@ fn popup(
         p,
         UiStyle {
             background: Some(Token::Overlay.into()),
-            corner: Some(Corner::Compact),
+            corner: Some(Corner::Overlay),
             ..UiStyle::default()
         },
     );
+    paint_overlay(world, p, chrome);
     world.insert(
         p,
         MenuRoot {
             top: top.unwrap_or(p),
             picked: false,
             retired: false,
+            chrome,
         },
     );
     p
@@ -352,7 +372,11 @@ fn build(
                 world.get_mut::<Children>(r).unwrap().list.rotate_right(1);
                 spacer(world, r);
                 let arrow = hug(world, r, "›", Typography::Label)?;
-                let sub = popup(world, r, PopupPlacement::Beside, Some(top));
+                let chrome = world
+                    .get::<MenuRoot>(top)
+                    .map(|menu| menu.chrome)
+                    .unwrap_or_default();
+                let sub = popup(world, r, PopupPlacement::Beside, Some(top), chrome);
                 build(world, top, sub, entries)?;
                 let row = world.get_mut::<MenuRow>(r).unwrap();
                 row.submenu = Some(sub);
@@ -620,6 +644,13 @@ pub(crate) fn styles(world: &mut World) {
             .is_some_and(|m| m.retired && m.top == e)
         {
             retire(world, e);
+        }
+    }
+    for e in world.entities_with::<MenuRoot>() {
+        if let Some(menu) = world.get::<MenuRoot>(e).copied() {
+            if menu.top == e && !menu.retired {
+                paint_overlay(world, e, menu.chrome);
+            }
         }
     }
     let focus = world.resource::<Focus>().and_then(|f| f.entity);
