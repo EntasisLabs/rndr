@@ -60,7 +60,11 @@ pub(super) fn shape_piece(
     use std::hash::{Hash, Hasher};
     let mut hash = std::collections::hash_map::DefaultHasher::new();
     part.hash(&mut hash);
-    let key = hash.finish() ^ crate::font::layout_cache_key(font, "", width, local, "", 0);
+    // Size, weight and tracking change wrapping; a style change must not
+    // reuse rows shaped at the previous size.
+    let key = hash.finish()
+        ^ crate::font::layout_cache_key(font, "", width, local, "", 0)
+        ^ crate::text::style_key(style).rotate_left(29);
     if let Some(found) = previous
         .and_then(|c| c.entries.get(&key))
         .and_then(|items| items.iter().find(|p| p.text == part && p.spans == local))

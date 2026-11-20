@@ -954,7 +954,11 @@ pub fn field_text_width(field_width: f32, unit: f32) -> f32 {
     (field_width - 2.0 * crate::style::TEXT_ORIGIN_X).max(unit)
 }
 
-/// Write a [`TextLayout`] onto every [`Label`] after rects are final.
+/// Write a [`TextLayout`] onto every visible [`Label`] after rects are final.
+///
+/// Hidden labels (including descendants of hidden ancestors) defer presentation
+/// work. Their old layout is discarded so unhiding also rebuilds any evicted
+/// engine/atlas resources. Document synchronization continues independently.
 ///
 /// A label whose text, wrap width, spans, face, and IME preview are unchanged
 /// keeps the layout it already has. Idle frames, and scrolls that leave those
@@ -971,7 +975,19 @@ pub(crate) fn shape_labels(world: &mut World, labels: Vec<crate::Entity>) {
     }
     let engine = crate::text::text_engine(world);
     let font = text_face(world);
+    let has_hidden = world.has_components::<crate::Hidden>();
     for entity in labels {
+        if has_hidden && crate::layout::hidden_in_tree(world, entity) {
+            // An engine may evict untouched lines while this tree is hidden.
+            // A matching source key on unhide must not reuse those stale IDs.
+            if world.has::<TextLayout>(entity) {
+                world.remove::<TextLayout>(entity);
+            }
+            if world.has::<LayoutEngine>(entity) {
+                world.remove::<LayoutEngine>(entity);
+            }
+            continue;
+        }
         let style = crate::text::style_for(world, entity);
         let unit = engine.unit_advance(&style);
         let metrics = crate::label_box(world, entity);

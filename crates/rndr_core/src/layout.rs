@@ -251,7 +251,7 @@ fn reconcile_viewports(world: &mut World) -> bool {
 fn layout_once(world: &mut World) {
     let viewport = world.resource::<Viewport>().copied().unwrap_or_default();
     let root_ids: Vec<Entity> = roots::<Layout>(world);
-    for root in root_ids {
+    for &root in &root_ids {
         measure(world, root);
     }
     let parent_clip = Clip {
@@ -260,7 +260,7 @@ fn layout_once(world: &mut World) {
         w: viewport.width,
         h: viewport.height,
     };
-    let mut ordered = roots::<Layout>(world);
+    let mut ordered = root_ids;
     // Popups after ordinary roots, and submenus after the popup they open from.
     ordered.sort_by_key(|e| popup_depth(world, *e));
     for root in ordered {
@@ -373,7 +373,7 @@ fn hit_walk(world: &World, entity: Entity, point: [f32; 2], hit: &mut Option<Ent
             *hit = Some(entity);
         }
     }
-    for child in flex::paint_order(world, entity) {
+    for child in flex::paint_children(world, entity) {
         hit_walk(world, child, point, hit);
     }
 }
@@ -1313,7 +1313,7 @@ fn place_grid(
     }
 }
 
-fn hidden_in_tree(world: &World, entity: Entity) -> bool {
+pub(crate) fn hidden_in_tree(world: &World, entity: Entity) -> bool {
     let mut at = Some(entity);
     while let Some(e) = at {
         if world.has::<crate::tabs::Hidden>(e) {

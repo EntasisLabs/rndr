@@ -232,6 +232,21 @@ pub fn paint_order(world: &World, entity: Entity) -> Vec<Entity> {
     kids
 }
 
+// Borrow ordinary insertion order; materialize the established stable ordering
+// only for containers with sticky/absolute children. Public paint_order keeps
+// its owned snapshot contract, including when callers subsequently mutate.
+pub(crate) fn paint_children(world: &World, entity: Entity) -> impl Iterator<Item = Entity> + '_ {
+    let special = crate::hierarchy::live_children(world, entity)
+        .any(|child| world.has::<Absolute>(child) || world.has::<Sticky>(child));
+    let ordered = special.then(|| paint_order(world, entity));
+    let mut borrowed = crate::hierarchy::live_children(world, entity);
+    let mut owned = ordered.map(Vec::into_iter);
+    std::iter::from_fn(move || match &mut owned {
+        Some(ordered) => ordered.next(),
+        None => borrowed.next(),
+    })
+}
+
 /// `[top, right, bottom, left]` padding.
 pub(crate) fn insets(world: &World, entity: Entity, layout: &Layout) -> [f32; 4] {
     match world.get::<Padding>(entity) {
@@ -389,5 +404,43 @@ mod tests {
         );
         assert_eq!(break_lines(&[200.0, 10.0], 0.0, 100.0), vec![0..1, 1..2]);
         assert!(break_lines(&[], 0.0, 100.0).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod paint_children_tests {
+    use super::*;
+    use crate::{set_parent, Hidden};
+
+    #[test]
+    fn borrowed_order_matches_owned_snapshot_through_special_and_dead_children() {
+        let mut world = World::new();
+        let parent = world.spawn(Layout::column());
+        let children: Vec<_> = (0..6)
+            .map(|_| {
+                let child = world.spawn(Layout::column());
+                set_parent(&mut world, child, parent);
+                child
+            })
+            .collect();
+        let check = |world: &World| {
+            assert_eq!(
+                paint_children(world, parent).collect::<Vec<_>>(),
+                paint_order(world, parent)
+            );
+        };
+        check(&world);
+        world.insert(children[0], Sticky::default());
+        world.insert(children[1], Absolute::default());
+        world.insert(children[2], Hidden);
+        world.insert(children[3], Sticky::default());
+        check(&world);
+        world.despawn_entity(children[4]); // Stale child-list ID must not be visited.
+        let replacement = world.spawn(Layout::column());
+        assert_ne!(replacement, children[4]);
+        check(&world);
+        assert!(!paint_children(&world, parent)
+            .any(|child| child == children[4] || child == replacement));
+        assert_eq!(paint_children(&world, children[5]).count(), 0);
     }
 }

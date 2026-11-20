@@ -1,3 +1,4 @@
+use rndr_core::timing::{self, FrameStage};
 use rndr_paint::Quad;
 use winit::dpi::PhysicalSize;
 use winit::event_loop::OwnedDisplayHandle;
@@ -945,10 +946,18 @@ impl Gpu {
     /// Upload quads in points and present them at a physical pixel size.
     /// Returns false when the surface was not presented, so the caller can keep
     /// this frame's input edges for the next redraw.
-    pub fn present(&mut self, quads: &[Quad], width: u32, height: u32, scale: f32) -> bool {
+    fn present(
+        &mut self,
+        quads: &[Quad],
+        width: u32,
+        height: u32,
+        scale: f32,
+        world: Option<&rndr_core::World>,
+    ) -> bool {
         if !self.shell.accepts_frames() {
             return false;
         }
+        let encode_timing = world.and_then(timing::start);
         encode_instances(quads, scale, self.config.format, &mut self.staging);
         let needed = self.staging.len() as u64 / INSTANCE_STRIDE;
         if needed > self.instance_capacity {
@@ -970,7 +979,15 @@ impl Gpu {
             self.queue.write_buffer(&self.instances, 0, &self.staging);
         }
 
-        let texture = match self.surface.get_current_texture() {
+        if let Some(world) = world {
+            timing::finish(world, FrameStage::QuadUpload, encode_timing);
+        }
+        let acquire_timing = world.and_then(timing::start);
+        let acquired = self.surface.get_current_texture();
+        if let Some(world) = world {
+            timing::finish(world, FrameStage::Acquire, acquire_timing);
+        }
+        let texture = match acquired {
             wgpu::CurrentSurfaceTexture::Success(t)
             | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
             wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
@@ -981,6 +998,7 @@ impl Gpu {
             | wgpu::CurrentSurfaceTexture::Occluded
             | wgpu::CurrentSurfaceTexture::Validation => return false,
         };
+        let encode_timing = world.and_then(timing::start);
         let view = texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -1021,10 +1039,18 @@ impl Gpu {
         }
         #[cfg(feature = "observe")]
         let readback = self.observation_copy(&mut encoder, &texture.texture, width, height);
-        self.queue.submit(Some(encoder.finish()));
+        let command = encoder.finish();
+        if let Some(world) = world {
+            timing::finish(world, FrameStage::Encode, encode_timing);
+        }
+        let submit_timing = world.and_then(timing::start);
+        self.queue.submit(Some(command));
         #[cfg(feature = "observe")]
         self.observation_read(readback, width, height);
         self.queue.present(texture);
+        if let Some(world) = world {
+            timing::finish(world, FrameStage::SubmitPresent, submit_timing);
+        }
         self.shell.note_presented();
         true
     }
@@ -1045,12 +1071,20 @@ impl Gpu {
         world: Option<&rndr_core::World>,
     ) -> (bool, Vec<u64>) {
         if frame.draws.is_empty() {
-            return (self.present(&frame.quads, width, height, scale), Vec::new());
+            return (
+                self.present(&frame.quads, width, height, scale, world),
+                Vec::new(),
+            );
         }
         if !self.shell.accepts_frames() {
             return (false, Vec::new());
         }
-        let texture = match self.surface.get_current_texture() {
+        let acquire_timing = world.and_then(timing::start);
+        let acquired = self.surface.get_current_texture();
+        if let Some(world) = world {
+            timing::finish(world, FrameStage::Acquire, acquire_timing);
+        }
+        let texture = match acquired {
             wgpu::CurrentSurfaceTexture::Success(texture)
             | wgpu::CurrentSurfaceTexture::Suboptimal(texture) => texture,
             wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
@@ -1061,6 +1095,7 @@ impl Gpu {
             | wgpu::CurrentSurfaceTexture::Occluded
             | wgpu::CurrentSurfaceTexture::Validation => return (false, Vec::new()),
         };
+        let encode_timing = world.and_then(timing::start);
         let view = texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -1091,10 +1126,18 @@ impl Gpu {
         );
         #[cfg(feature = "observe")]
         let readback = self.observation_copy(&mut encoder, &texture.texture, width, height);
-        self.queue.submit(Some(encoder.finish()));
+        let command = encoder.finish();
+        if let Some(world) = world {
+            timing::finish(world, FrameStage::Encode, encode_timing);
+        }
+        let submit_timing = world.and_then(timing::start);
+        self.queue.submit(Some(command));
         #[cfg(feature = "observe")]
         self.observation_read(readback, width, height);
         self.queue.present(texture);
+        if let Some(world) = world {
+            timing::finish(world, FrameStage::SubmitPresent, submit_timing);
+        }
         self.shell.note_presented();
         (true, uploaded)
     }

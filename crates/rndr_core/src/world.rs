@@ -249,6 +249,10 @@ impl World {
             .unwrap_or_default()
     }
 
+    pub(crate) fn has_components<T: Component>(&self) -> bool {
+        self.store::<T>().is_some_and(|store| !store.map.is_empty())
+    }
+
     /// Each live entity that stores `T`, paired with a borrow of that value.
     ///
     /// Order is arbitrary. Empty when no `T` has been inserted. Despawned

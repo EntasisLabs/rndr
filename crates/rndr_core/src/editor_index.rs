@@ -461,10 +461,14 @@ pub(super) fn update_text(
     let first_dirty = if unchanged {
         index.paras.len()
     } else {
-        // Paragraph starts increase, so the first paragraph that meets the edit
-        // is a binary search rather than a walk of the document.
+        // At an edit boundary only a nonempty, newline-terminated paragraph
+        // is complete. An append extends the final unterminated paragraph (or
+        // fills the trailing empty one), so its row geometry must be reshaped.
         index.paras.partition_point(|para| {
-            para.end <= old_lo && !(para.start == para.end && para.start == old_lo)
+            para.end < old_lo
+                || (para.end == old_lo
+                    && para.start < para.end
+                    && old.as_bytes().get(para.end - 1) == Some(&b'\n'))
         })
     };
     let mut suffix_from = index.paras.partition_point(|para| para.start < old_hi);
@@ -671,4 +675,123 @@ pub(super) fn window_layout(
     let height = lines.last().map_or(0.0, |line| line.y + line.h);
     let widest = lines.iter().map(|line| line.width).fold(0.0f32, f32::max);
     TextLayout::shaped(Vec::new(), lines, widest, height)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{BitmapFont, BuiltinText};
+
+    fn assert_same_index(actual: &RowIndex, expected: &RowIndex, text: &str) {
+        assert_eq!(actual.paras.len(), expected.paras.len(), "{text:?}");
+        assert_eq!(actual.visual_lines, expected.visual_lines, "{text:?}");
+        assert_eq!(actual.max_top, expected.max_top, "{text:?}");
+        for (a, b) in actual.paras.iter().zip(&expected.paras) {
+            assert_eq!((a.start, a.end), (b.start, b.end), "{text:?}");
+        }
+        for row in 0..expected.line_count() {
+            let a = actual.line(row);
+            let b = expected.line(row);
+            assert_eq!((a.start, a.end, a.y, a.h), (b.start, b.end, b.y, b.h));
+        }
+        for byte in (0..=text.len()).filter(|&byte| text.is_char_boundary(byte)) {
+            assert_eq!(actual.row_at_byte(byte), expected.row_at_byte(byte));
+        }
+    }
+
+    #[test]
+    fn eof_edits_match_full_rebuild_with_inferred_and_exact_spans() {
+        let engine = BuiltinText::new();
+        let font = BitmapFont;
+        let style = TextStyle::default();
+        let width = 90.0;
+        for exact in [false, true] {
+            for initial in ["", "prefix\n", "prefix\ntail", "\n\n"] {
+                let mut text = initial.to_string();
+                let mut built = build(&engine, &font, &style, width, &text, &[], &[], None);
+                // Single keystrokes, long appends, newlines, multi-byte scalars,
+                // combining marks, and a ZWJ sequence extending the last cluster.
+                for insert in [
+                    "a",
+                    "b",
+                    " alpha beta gamma delta ",
+                    "é",
+                    "e",
+                    "\u{301}",
+                    "👩",
+                    "\u{200d}💻",
+                    "\n",
+                    "after newline",
+                    "\n\n",
+                ] {
+                    let old = text.clone();
+                    text.push_str(insert);
+                    built = update_text(
+                        built.index,
+                        built.cache,
+                        &engine,
+                        &font,
+                        &style,
+                        width,
+                        &old,
+                        &text,
+                        &[],
+                        &[],
+                        exact.then_some((old.len(), old.len(), text.len())),
+                    );
+                    let fresh = build(&engine, &font, &style, width, &text, &[], &[], None);
+                    assert_same_index(&built.index, &fresh.index, &text);
+                }
+                // Delete through trailing empty paragraphs, joins, UTF-8, and
+                // finally the empty document, checking every resulting index.
+                while !text.is_empty() {
+                    let old = text.clone();
+                    text.pop();
+                    built = update_text(
+                        built.index,
+                        built.cache,
+                        &engine,
+                        &font,
+                        &style,
+                        width,
+                        &old,
+                        &text,
+                        &[],
+                        &[],
+                        exact.then_some((text.len(), old.len(), text.len())),
+                    );
+                    let fresh = build(&engine, &font, &style, width, &text, &[], &[], None);
+                    assert_same_index(&built.index, &fresh.index, &text);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn eof_append_reshapes_only_unterminated_tail() {
+        let engine = BuiltinText::new();
+        let font = BitmapFont;
+        let style = TextStyle::default();
+        for old in ["first\nsecond\ntail", "first\nsecond\n"] {
+            let built = build(&engine, &font, &style, 90.0, old, &[], &[], None);
+            let new = format!("{old} more words to wrap the tail");
+            let updated = update_text(
+                built.index,
+                built.cache,
+                &engine,
+                &font,
+                &style,
+                90.0,
+                old,
+                &new,
+                &[],
+                &[],
+                None,
+            );
+            assert_eq!(updated.work.paragraphs, 1);
+            assert_eq!(updated.work.reused, 2);
+            let fresh = build(&engine, &font, &style, 90.0, &new, &[], &[], None);
+            assert_same_index(&updated.index, &fresh.index, &new);
+        }
+    }
 }

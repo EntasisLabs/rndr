@@ -94,6 +94,8 @@ struct Control {
     face: Entity,
     label: Entity,
     secondary: Option<Entity>,
+    /// Navigation selection bar: a shape cue, not color alone.
+    indicator: Option<Entity>,
 }
 impl Component for Control {}
 #[derive(Clone, Copy)]
@@ -327,6 +329,28 @@ fn mount_control(
         } else {
             None
         };
+        let indicator = (kind == Kind::Navigation).then(|| {
+            let bar = world.spawn((
+                Layout {
+                    width: Size::Px(3.0),
+                    height: Size::Fill,
+                    ..Layout::column()
+                },
+                // On the row's outer edge, clear of the label inset.
+                Absolute {
+                    left: Some(0.0),
+                    top: Some(7.0),
+                    bottom: Some(7.0),
+                    right: None,
+                },
+                Radius(1.5),
+                OwnedBy(root),
+                ResolvedColor,
+                Hidden,
+            ));
+            set_parent(world, bar, root);
+            bar
+        });
         world.insert(
             root,
             Control {
@@ -339,6 +363,7 @@ fn mount_control(
                 face,
                 label,
                 secondary,
+                indicator,
             },
         );
         ControlHandle { root, label }
@@ -1065,8 +1090,13 @@ pub(crate) fn resolve_controls(world: &mut World) {
                 }),
             );
         }
-        if selected {
-            label = format!("| {label}");
+        if let Some(bar) = c.indicator {
+            if selected {
+                world.remove::<Hidden>(bar);
+                background(world, bar, Token::Accent, Corner::Compact);
+            } else {
+                world.insert(bar, Hidden);
+            }
         }
         if c.props.readonly {
             label.push_str(" (read only)");

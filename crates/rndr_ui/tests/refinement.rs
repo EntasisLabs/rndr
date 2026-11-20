@@ -264,9 +264,26 @@ fn navigation_metadata_is_secondary_visible_named_and_owned() {
     )
     .unwrap();
     a.update();
+    // Selection is a visible accent bar, not text glued onto the label.
     assert_eq!(
         a.world().get::<Label>(row.label).unwrap().text,
-        "| Project notes"
+        "Project notes"
+    );
+    let bar = children_of(a.world(), row.root)
+        .into_iter()
+        .find(|e| a.world().has::<Absolute>(*e))
+        .unwrap();
+    assert!(!a.world().has::<Hidden>(bar));
+    let bar_rect = *a.world().get::<Rect>(bar).unwrap();
+    let root_rect = *a.world().get::<Rect>(row.root).unwrap();
+    let text = a.world().get::<Rect>(row.label).unwrap().x + 6.;
+    assert_eq!(bar_rect.w, 3.);
+    assert_eq!(bar_rect.x, root_rect.x);
+    assert!(bar_rect.x + bar_rect.w + 4. <= text, "bar clears the text");
+    assert!(bar_rect.h > 0. && bar_rect.h < root_rect.h);
+    assert_eq!(
+        a.world().get::<Color>(bar).copied(),
+        Some(UiTheme::default().color(Token::Accent))
     );
     let secondary = children_of(a.world(), face(&a, row))
         .into_iter()

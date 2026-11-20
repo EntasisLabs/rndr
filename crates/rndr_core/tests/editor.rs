@@ -163,3 +163,34 @@ fn backspace_removes_one_precomposed_scalar() {
     assert_eq!(app.world().get::<Buffer>(body).unwrap().text(), "");
     assert_eq!(app.world().get::<Buffer>(body).unwrap().caret, 0);
 }
+
+#[test]
+fn a_text_size_change_rewraps_the_row_index_with_the_painted_text() {
+    let text = "alpha beta gamma delta epsilon zeta eta theta\nnext\n";
+    // Tall enough that every row is inside the visible window at both sizes.
+    let (mut app, body, gutter) = boot(text, 2000.0);
+    let rows = |app: &App| {
+        let painted = app.world().get::<TextLayout>(body).unwrap().lines.len();
+        let numbered = app
+            .world()
+            .get::<Label>(gutter)
+            .unwrap()
+            .text
+            .split('\n')
+            .count();
+        (painted, numbered)
+    };
+    let (before, numbered) = rows(&app);
+    assert_eq!(before, numbered);
+    let mut style = rndr_core::TextStyle::default();
+    style.size *= 2.0;
+    app.world_mut().insert(body, style);
+    app.update();
+    app.update();
+    let (after, numbered) = rows(&app);
+    assert!(
+        after > before,
+        "larger text wraps more: {before} -> {after}"
+    );
+    assert_eq!(after, numbered, "gutter rows follow the painted wrap");
+}
