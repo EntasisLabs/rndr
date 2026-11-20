@@ -15,6 +15,7 @@
 
 mod access;
 mod document;
+mod grid;
 mod intent;
 mod project;
 mod surface;

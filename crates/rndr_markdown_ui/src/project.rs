@@ -9,7 +9,7 @@ use std::collections::VecDeque;
 use std::ops::Range;
 
 use rndr_core::{Color, TextEngine, TextSpan, TextStyle, FONT_WEIGHT_BOLD};
-use rndr_markdown::{EditSpan, Green, SyntaxKind};
+use rndr_markdown::{Alignment, EditSpan, Green, SyntaxKind};
 
 /// Colors for marks. The label color paints bytes that have no span.
 #[derive(Clone, Copy, Debug)]
@@ -83,7 +83,7 @@ pub enum DisplayKind {
     Rule,
     /// A blank line owned by the parent. Not a caret target.
     Gap,
-    /// A GFM table, cells joined for display.
+    /// A GFM table drawn as a grid. [`DisplayBlock::grid`] holds the cells.
     Table,
     /// An image whose alt is the text. The picture itself is not loaded.
     Image {
@@ -132,6 +132,113 @@ pub struct DisplayBlock {
     pub height: f32,
     /// Relative source offset where a caret at the end of [`Self::text`] sits.
     pub caret_end: usize,
+    /// Cell grid for [`DisplayKind::Table`]. Absent on every other block.
+    pub(crate) grid: Option<TableGrid>,
+}
+
+/// One painted GFM table. The delimiter row is not a body row.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct TableGrid {
+    /// One alignment per delimiter column.
+    pub alignments: Vec<Alignment>,
+    /// Header first, then body rows. A short row has fewer cells.
+    pub rows: Vec<GridRow>,
+    /// Source range of the delimiter row, including its line ending.
+    pub delimiter: Range<usize>,
+    /// Delimiter source, without the line ending, when the caret is in that row.
+    pub delimiter_raw: Option<Range<usize>>,
+}
+
+/// One header or body row.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct GridRow {
+    /// Source range of the row, including pipes and the line ending.
+    pub range: Range<usize>,
+    /// Cells in source order.
+    pub cells: Vec<GridCell>,
+    /// The header row.
+    pub header: bool,
+    /// Row source without the line ending, when the caret sits on a pipe.
+    pub raw: Option<Range<usize>>,
+}
+
+/// One cell. Padding around the content is not part of [`Self::text`].
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct GridCell {
+    /// Source range of the cell, padding included.
+    pub range: Range<usize>,
+    /// Trimmed content. Empty when the cell is blank; start equals end.
+    pub content: Range<usize>,
+    /// Visible text. Inline markers follow the caret, the same as other blocks.
+    pub text: String,
+    /// Map from [`Self::text`] onto the source, relative to the block span.
+    pub segments: Vec<Segment>,
+    /// Inline styles. Ranges are bytes of [`Self::text`].
+    pub spans: Vec<TextSpan>,
+}
+
+impl GridCell {
+    /// Source offset for a byte index into [`Self::text`].
+    pub(crate) fn display_to_source(&self, index: usize, block_start: usize) -> usize {
+        let fallback = self.content.end.saturating_sub(block_start);
+        if self.text.is_empty() {
+            return self.content.start;
+        }
+        block_start + map_display_to_rel(&self.segments, index.min(self.text.len()), fallback)
+    }
+
+    /// Byte index into [`Self::text`] for a source offset.
+    pub(crate) fn source_to_display(&self, source: usize, block_start: usize) -> usize {
+        if self.text.is_empty() {
+            return 0;
+        }
+        let rel = source.saturating_sub(block_start);
+        let end = self.content.end.saturating_sub(block_start);
+        if rel >= end {
+            return self.text.len();
+        }
+        map_rel_to_display(&self.segments, rel, self.text.len())
+    }
+}
+
+fn map_display_to_rel(segments: &[Segment], display: usize, fallback: usize) -> usize {
+    for seg in segments {
+        if display < seg.display_start {
+            return seg.source_start;
+        }
+        if display <= seg.display_end {
+            let shown = seg.display_end - seg.display_start;
+            let src = seg.source_end - seg.source_start;
+            if shown == src {
+                return seg.source_start + (display - seg.display_start);
+            }
+            if display == seg.display_end {
+                return seg.source_end;
+            }
+            return seg.source_start;
+        }
+    }
+    fallback
+}
+
+fn map_rel_to_display(segments: &[Segment], rel: usize, text_len: usize) -> usize {
+    for seg in segments {
+        if rel < seg.source_start {
+            return seg.display_start;
+        }
+        if rel <= seg.source_end {
+            let shown = seg.display_end - seg.display_start;
+            let src = seg.source_end - seg.source_start;
+            if shown == src {
+                return seg.display_start + (rel - seg.source_start);
+            }
+            if rel == seg.source_end {
+                return seg.display_end;
+            }
+            return seg.display_start;
+        }
+    }
+    text_len
 }
 
 impl DisplayBlock {
@@ -266,7 +373,8 @@ fn find_span(node: &Green, at: usize, start: usize, end: usize) -> Option<&Green
         return None;
     }
     // A one-block document has the same span as that block. Descend first so
-    // the node that was projected (the fence, the paragraph) is the one shown.
+    // the node that was projected (the fence, the paragraph, the table) is
+    // the one shown.
     let mut child_at = at;
     for child in node.children() {
         if let Some(found) = find_span(child, child_at, start, end) {
@@ -319,6 +427,9 @@ pub fn update_projection(
             if let Some(marker) = block.marker.as_mut() {
                 slide(marker, delta);
             }
+            if let Some(grid) = block.grid.as_mut() {
+                slide_grid(grid, delta);
+            }
         }
         pool.push_back(block);
     }
@@ -348,6 +459,11 @@ pub fn measure_block(
     match block.kind {
         DisplayKind::Gap => 8.0,
         DisplayKind::Rule => 16.0,
+        DisplayKind::Table => block
+            .grid
+            .as_ref()
+            .map(|grid| crate::grid::measure_height(engine, grid, width, style))
+            .unwrap_or(style.size.max(20.0)),
         _ => {
             let text = block.label_text();
             let mut spans = block.spans.clone();
@@ -401,6 +517,23 @@ fn slide(range: &mut Range<usize>, delta: isize) {
     let start = start.max(0) as usize;
     let end = end.max(start as isize) as usize;
     *range = start..end;
+}
+
+fn slide_grid(grid: &mut TableGrid, delta: isize) {
+    slide(&mut grid.delimiter, delta);
+    if let Some(raw) = grid.delimiter_raw.as_mut() {
+        slide(raw, delta);
+    }
+    for row in &mut grid.rows {
+        slide(&mut row.range, delta);
+        if let Some(raw) = row.raw.as_mut() {
+            slide(raw, delta);
+        }
+        for cell in &mut row.cells {
+            slide(&mut cell.range, delta);
+            slide(&mut cell.content, delta);
+        }
+    }
 }
 
 struct Walk<'a> {
@@ -558,7 +691,7 @@ fn project_node(
         SyntaxKind::Heading => project_heading(bytes, node, at, palette, focus),
         SyntaxKind::FencedCode => project_fence(bytes, node, at, false),
         SyntaxKind::LiquidFence => project_fence(bytes, node, at, true),
-        SyntaxKind::Table => project_table(bytes, node, at, palette),
+        SyntaxKind::Table => project_table(bytes, node, at, palette, focus),
         SyntaxKind::Callout => project_callout(bytes, node, at, focus),
         SyntaxKind::FootnoteDef => project_footnote(bytes, node, at, focus),
         SyntaxKind::StyledBlock => project_styled(bytes, node, at, palette, focus),
@@ -586,6 +719,7 @@ fn empty_paragraph(span: Range<usize>) -> DisplayBlock {
         depth: 0,
         quote: 0,
         height: 0.0,
+        grid: None,
     }
 }
 
@@ -963,34 +1097,258 @@ fn push_mapped(
     block.spans.push(span);
 }
 
-fn project_table(bytes: &str, node: &Green, at: usize, palette: &Palette) -> DisplayBlock {
-    let mut acc = Acc::new(at, palette, None);
-    let mut child_at = at;
-    for child in node.children() {
-        if child.kind() == SyntaxKind::TableRow {
-            let mut cell_at = child_at;
-            let mut first = true;
-            for cell in child.children() {
-                let cell_end = cell_at + cell.width();
-                if cell.kind() == SyntaxKind::TableCell {
-                    if !first {
-                        acc.push_chrome(" | ");
-                    }
-                    first = false;
-                    flow_child(bytes, cell, &mut acc);
-                }
-                cell_at = cell_end;
-            }
-            acc.push_shown("\n", 0);
-        }
-        child_at += child.width();
-    }
-    if acc.text.ends_with('\n') {
-        acc.text.pop();
-    }
-    let mut block = acc.finish(SyntaxKind::Table, at..at + node.width());
+fn project_table(
+    bytes: &str,
+    node: &Green,
+    at: usize,
+    palette: &Palette,
+    focus: Option<usize>,
+) -> DisplayBlock {
+    let span = at..at + node.width();
+    let mut block = empty_paragraph(span.clone());
     block.kind = DisplayKind::Table;
+    block.caret_end = node.width();
+    let mut cursor = at;
+    let mut raw_rows = Vec::new();
+    for child in node.children() {
+        let end = cursor + child.width();
+        if child.kind() == SyntaxKind::TableRow {
+            raw_rows.push((child, cursor..end));
+        }
+        cursor = end;
+    }
+    if raw_rows.len() < 2 {
+        return block;
+    }
+    let delimiter = raw_rows[1].1.clone();
+    let alignments = row_alignments(bytes, raw_rows[1].0, raw_rows[1].1.start);
+    let caret = focus.filter(|caret| span.start <= *caret && *caret < span.end);
+    let mut rows = Vec::new();
+    rows.push(project_grid_row(
+        bytes,
+        raw_rows[0].0,
+        raw_rows[0].1.clone(),
+        at,
+        true,
+        palette,
+        caret,
+    ));
+    for (row, range) in raw_rows.into_iter().skip(2) {
+        rows.push(project_grid_row(
+            bytes, row, range, at, false, palette, caret,
+        ));
+    }
+    let delimiter_raw = caret.and_then(|caret| {
+        (delimiter.start <= caret && caret < delimiter.end).then(|| line_body(bytes, &delimiter))
+    });
+    block.grid = Some(TableGrid {
+        alignments,
+        rows,
+        delimiter,
+        delimiter_raw,
+    });
     block
+}
+
+fn project_grid_row(
+    bytes: &str,
+    node: &Green,
+    range: Range<usize>,
+    block_at: usize,
+    header: bool,
+    palette: &Palette,
+    caret: Option<usize>,
+) -> GridRow {
+    let mut cells = Vec::new();
+    let mut cursor = range.start;
+    let mut pipe_at = None;
+    for child in node.children() {
+        let end = cursor + child.width();
+        if child.kind() == SyntaxKind::Pipe
+            && caret.is_some_and(|caret| cursor <= caret && caret < end)
+            && !pipe_belongs_to_cell(&cells, caret.unwrap_or(cursor))
+        {
+            pipe_at = Some(cursor);
+        }
+        if child.kind() == SyntaxKind::TableCell {
+            cells.push(project_grid_cell(
+                bytes,
+                child,
+                cursor..end,
+                block_at,
+                palette,
+                caret,
+            ));
+        }
+        cursor = end;
+    }
+    let raw = pipe_at.map(|_| line_body(bytes, &range));
+    GridRow {
+        range,
+        cells,
+        header,
+        raw,
+    }
+}
+
+/// A caret at a cell's content edge shares its offset with the following pipe
+/// when the cell has no trailing padding. That caret still belongs to the cell.
+fn pipe_belongs_to_cell(cells: &[GridCell], caret: usize) -> bool {
+    cells.iter().any(|cell| {
+        caret == cell.content.end
+            && (caret == cell.range.end || (cell.range.start <= caret && caret <= cell.range.end))
+    })
+}
+
+fn project_grid_cell(
+    bytes: &str,
+    node: &Green,
+    range: Range<usize>,
+    block_at: usize,
+    palette: &Palette,
+    caret: Option<usize>,
+) -> GridCell {
+    let raw = bytes.get(range.clone()).unwrap_or("");
+    let content = content_bounds(raw, range.start);
+    let mut acc = Acc::new(block_at, palette, caret);
+    if range.start > block_at {
+        acc.skip(range.start - block_at);
+    }
+    flow_within(bytes, node, &mut acc, content.clone());
+    GridCell {
+        range,
+        content,
+        text: acc.text,
+        segments: acc.segments,
+        spans: acc.spans,
+    }
+}
+
+fn flow_within(bytes: &str, node: &Green, acc: &mut Acc, content: Range<usize>) {
+    let start = acc.cursor;
+    let end = start + node.width();
+    if end <= content.start || start >= content.end {
+        acc.skip(node.width());
+        return;
+    }
+    if start >= content.start && end <= content.end {
+        flow_child(bytes, node, acc);
+        return;
+    }
+    if node.children().is_empty() {
+        flow_leaf_slice(node, acc, content);
+        return;
+    }
+    for child in node.children() {
+        flow_within(bytes, child, acc, content.clone());
+    }
+}
+
+fn flow_leaf_slice(node: &Green, acc: &mut Acc, content: Range<usize>) {
+    let start = acc.cursor;
+    let end = start + node.width();
+    let from = start.max(content.start);
+    let to = end.min(content.end);
+    if from > start {
+        acc.skip(from - start);
+    }
+    let raw = node.text();
+    let rel_from = from - start;
+    let rel_to = to - start;
+    let slice = raw.get(rel_from..rel_to).unwrap_or("");
+    let shown = if from == start && to == end {
+        shown_leaf(node.kind(), raw)
+    } else {
+        slice.to_string()
+    };
+    let ink = Ink::plain(acc.palette.text);
+    acc.push_styled(&shown, to.saturating_sub(from), &ink);
+    if end > to {
+        acc.skip(end - to);
+    }
+}
+
+fn row_alignments(bytes: &str, node: &Green, at: usize) -> Vec<Alignment> {
+    let mut cursor = at;
+    let mut out = Vec::new();
+    for child in node.children() {
+        let end = cursor + child.width();
+        if child.kind() == SyntaxKind::TableCell {
+            out.push(alignment_of(bytes.get(cursor..end).unwrap_or("")));
+        }
+        cursor = end;
+    }
+    out
+}
+
+fn alignment_of(cell: &str) -> Alignment {
+    let trimmed = cell.trim_matches([' ', '\t']);
+    let left = trimmed.as_bytes().first() == Some(&b':');
+    let right = trimmed.as_bytes().last() == Some(&b':');
+    match (left, right) {
+        (true, true) => Alignment::Center,
+        (true, false) => Alignment::Left,
+        (false, true) => Alignment::Right,
+        (false, false) => Alignment::None,
+    }
+}
+
+fn content_bounds(cell: &str, base: usize) -> Range<usize> {
+    let bytes = cell.as_bytes();
+    let mut start = 0;
+    while start < bytes.len() && matches!(bytes[start], b' ' | b'\t') {
+        start += 1;
+    }
+    let mut end = bytes.len();
+    while end > start && matches!(bytes[end - 1], b' ' | b'\t') {
+        end -= 1;
+    }
+    if start == end {
+        let mid = cell.len() / 2;
+        return (base + mid)..(base + mid);
+    }
+    (base + start)..(base + end)
+}
+
+fn line_body(bytes: &str, range: &Range<usize>) -> Range<usize> {
+    let raw = bytes.get(range.clone()).unwrap_or("");
+    let trimmed = raw.trim_end_matches(['\n', '\r']);
+    range.start..range.start + trimmed.len()
+}
+
+/// Project `block` again, including a table whose caret is outside the span.
+///
+/// [`present`] leaves a table alone until the caret enters it. Painting uses
+/// this so a table keeps the caller's palette and still reveals the span under
+/// the caret.
+pub(crate) fn show(
+    block: &DisplayBlock,
+    bytes: &str,
+    root: &Green,
+    caret: usize,
+    palette: &Palette,
+) -> DisplayBlock {
+    if !matches!(block.kind, DisplayKind::Table) {
+        return present(block, bytes, root, caret, palette);
+    }
+    let Some(node) = find_span(root, 0, block.span.start, block.span.end) else {
+        return block.clone();
+    };
+    let focus = (block.span.start <= caret && caret < block.span.end).then_some(caret);
+    let mut out = Vec::new();
+    project_node(
+        bytes,
+        node,
+        block.span.start,
+        Ctx {
+            depth: block.depth,
+            quote: block.quote,
+        },
+        palette,
+        focus,
+        &mut out,
+    );
+    out.into_iter().next().unwrap_or_else(|| block.clone())
 }
 
 fn fence_info(line: &str) -> String {
@@ -1204,6 +1562,7 @@ impl Acc {
             quote: 0,
             height: 0.0,
             caret_end,
+            grid: None,
         }
     }
 }
@@ -1833,6 +2192,7 @@ fn raw_block(span: Range<usize>, raw: &str, kind: DisplayKind) -> DisplayBlock {
         });
     }
     block.caret_end = text.len();
+    block.grid = None;
     block
 }
 
