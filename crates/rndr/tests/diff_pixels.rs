@@ -17,11 +17,13 @@ fn fixture(width: f32, scale: f32, light: bool) -> (App, rndr_ui::diff::DiffHand
     app.world_mut().insert_resource(viewport);
     let engine: Arc<dyn TextEngine> = Arc::new(rndr_render::ParleyText::bundled());
     app.world_mut().insert_resource(engine);
-    let mut theme = UiTheme::default();
-    theme.appearance = if light {
-        Appearance::Light
-    } else {
-        Appearance::Dark
+    let theme = UiTheme {
+        appearance: if light {
+            Appearance::Light
+        } else {
+            Appearance::Dark
+        },
+        ..Default::default()
     };
     let background = theme.color(rndr_ui::Token::Content);
     app.world_mut().insert_resource(theme);
