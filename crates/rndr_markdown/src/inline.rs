@@ -1,10 +1,11 @@
 //! Inline grammar. The concatenation of the result equals the input.
 //!
-//! Code spans, autolinks, HTML, entities, escapes, and icon shortcodes are
-//! recognized before emphasis. Emphasis uses the CommonMark flanking and
-//! multiple-of-three rules. A link is a link only when its destination is
-//! written inline or a reference definition resolves it; the bytes either way
-//! are the bytes in the file.
+//! Code spans, autolinks, HTML, entities, escapes, icon shortcodes, highlights,
+//! math, wikilinks, style spans, and footnotes are recognized before emphasis.
+//! Emphasis uses the CommonMark flanking and multiple-of-three rules. A link
+//! is a link only when its destination is written inline or a reference
+//! definition resolves it; a title in quotes is part of that destination.
+//! The bytes either way are the bytes in the file.
 
 use unicode_general_category::{get_general_category, GeneralCategory};
 
@@ -69,7 +70,7 @@ pub fn normalize_label(label: &str) -> String {
 
 /// Parse `src` into inline nodes that concatenate back to `src`.
 pub fn parse_inlines(src: &str, defs: &Defs) -> Vec<Green> {
-    let pieces = scan(src);
+    let pieces = scan(src, defs);
     let pieces = resolve_links(pieces, src, defs);
     let pieces = resolve_emphasis(pieces);
     let nodes = pieces_to_nodes(pieces);
@@ -115,7 +116,7 @@ impl Piece {
     }
 }
 
-fn scan(src: &str) -> Vec<Piece> {
+fn scan(src: &str, defs: &Defs) -> Vec<Piece> {
     let bytes = src.as_bytes();
     let mut i = 0;
     let mut out = Vec::new();
@@ -203,6 +204,14 @@ fn scan(src: &str) -> Vec<Piece> {
                 text_start = i;
                 continue;
             }
+        }
+        if let Some(node) = try_extension(src, i, defs) {
+            flush(&mut out, src, &mut text_start, i);
+            let end = i + node.width();
+            out.push(Piece::Node(node));
+            i = end;
+            text_start = i;
+            continue;
         }
         if bytes[i] == b'\n' || bytes[i] == b'\r' {
             flush(&mut out, src, &mut text_start, i);
@@ -478,6 +487,404 @@ fn icon_end(src: &str, start: usize) -> Option<usize> {
         .then_some(start + "{{icon:".len() + len + 2)
 }
 
+/// Highlights, math, Medousa spans, footnotes, and bare autolinks.
+///
+/// The node, when returned, is exactly `src[i..i + width]`.
+fn try_extension(src: &str, i: usize, defs: &Defs) -> Option<Green> {
+    let bytes = src.as_bytes();
+    if i >= bytes.len() {
+        return None;
+    }
+    match bytes[i] {
+        b'=' => highlight_span(src, i, defs),
+        b'$' => math_span(src, i, defs),
+        b'{' => style_span(src, i, defs),
+        b'!' => wiki_embed(src, i),
+        b'[' => wiki_link(src, i).or_else(|| footnote_ref(src, i)),
+        b'^' => footnote_inline(src, i),
+        _ => bare_autolink(src, i),
+    }
+}
+
+fn wrapped(kind: SyntaxKind, open: &str, body: &str, close: &str, defs: &Defs) -> Green {
+    let mut children = vec![Green::leaf(SyntaxKind::Delimiter, open)];
+    children.extend(parse_inlines(body, defs));
+    children.push(Green::leaf(SyntaxKind::Delimiter, close));
+    Green::branch(kind, children)
+}
+
+fn highlight_span(src: &str, i: usize, defs: &Defs) -> Option<Green> {
+    let bytes = src.as_bytes();
+    if i + 4 > bytes.len() || bytes[i] != b'=' || bytes[i + 1] != b'=' {
+        return None;
+    }
+    if bytes[i + 2] == b'=' || bytes[i + 2] == b'\n' || bytes[i + 2] == b'\r' {
+        return None;
+    }
+    let mut j = i + 3;
+    while j + 1 < bytes.len() {
+        if bytes[j] == b'\n' || bytes[j] == b'\r' {
+            return None;
+        }
+        if bytes[j] == b'=' && bytes[j + 1] == b'=' {
+            let body = &src[i + 2..j];
+            return Some(wrapped(SyntaxKind::Highlight, "==", body, "==", defs));
+        }
+        if bytes[j] == b'=' {
+            return None;
+        }
+        j += 1;
+    }
+    None
+}
+
+fn math_span(src: &str, i: usize, defs: &Defs) -> Option<Green> {
+    let bytes = src.as_bytes();
+    if i + 2 >= bytes.len() || bytes[i] != b'$' || bytes[i + 1] == b'$' {
+        return None;
+    }
+    if bytes[i + 1].is_ascii_whitespace() {
+        return None;
+    }
+    let mut j = i + 1;
+    while j < bytes.len() && bytes[j] != b'$' && bytes[j] != b'\n' && bytes[j] != b'\r' {
+        j += 1;
+    }
+    if j >= bytes.len() || bytes[j] != b'$' || j == i + 1 {
+        return None;
+    }
+    if bytes[j - 1].is_ascii_whitespace() {
+        return None;
+    }
+    let body = &src[i + 1..j];
+    Some(wrapped(SyntaxKind::Math, "$", body, "$", defs))
+}
+
+fn style_span(src: &str, i: usize, defs: &Defs) -> Option<Green> {
+    if !src[i..].starts_with("{{") {
+        return None;
+    }
+    let rest = &src[i + 2..];
+    let pipe = rest.find('|')?;
+    let token = &rest[..pipe];
+    if token.is_empty() || token.contains('\n') || token.contains('\r') || !is_style_token(token) {
+        return None;
+    }
+    let after = &rest[pipe + 1..];
+    let close = after.find("}}")?;
+    if after[..close].contains('\n') || after[..close].contains('\r') {
+        return None;
+    }
+    let open = &src[i..i + 2 + pipe + 1];
+    let body = &after[..close];
+    Some(wrapped(SyntaxKind::StyleSpan, open, body, "}}", defs))
+}
+
+fn is_style_token(token: &str) -> bool {
+    let lower = token.to_ascii_lowercase();
+    if matches!(
+        lower.as_str(),
+        "red" | "orange" | "yellow" | "green" | "blue" | "purple" | "pink"
+    ) {
+        return true;
+    }
+    if is_hex_color(&lower) {
+        return true;
+    }
+    if let Some(font) = lower.strip_prefix("font:") {
+        return matches!(font, "sans" | "serif" | "mono");
+    }
+    if let Some(size) = lower.strip_prefix("size:") {
+        return is_size_style(size);
+    }
+    false
+}
+
+fn is_hex_color(token: &str) -> bool {
+    let Some(hex) = token.strip_prefix('#') else {
+        return false;
+    };
+    matches!(hex.len(), 3 | 6 | 8) && hex.bytes().all(|b| b.is_ascii_hexdigit())
+}
+
+fn is_size_style(token: &str) -> bool {
+    if matches!(token, "sm" | "md" | "lg" | "xl") {
+        return true;
+    }
+    let digits = token
+        .strip_suffix("px")
+        .or_else(|| token.strip_suffix("rem"))
+        .or_else(|| token.strip_suffix("em"))
+        .unwrap_or(token);
+    if digits.is_empty() {
+        return false;
+    }
+    let mut dot = false;
+    for c in digits.chars() {
+        if c == '.' {
+            if dot {
+                return false;
+            }
+            dot = true;
+            continue;
+        }
+        if !c.is_ascii_digit() {
+            return false;
+        }
+    }
+    !digits.starts_with('.') && !digits.ends_with('.')
+}
+
+fn wiki_embed(src: &str, i: usize) -> Option<Green> {
+    if !src[i..].starts_with("![[") {
+        return None;
+    }
+    let rest = &src[i + 3..];
+    let close = rest.find("]]")?;
+    let inner = &rest[..close];
+    if inner.is_empty() || inner.contains('\n') || inner.contains('\r') || inner.contains('#') {
+        return None;
+    }
+    let (target, extra) = split_pipe(inner);
+    if target.trim().is_empty() {
+        return None;
+    }
+    Some(wiki_node(SyntaxKind::WikiEmbed, "![[", target, extra))
+}
+
+fn wiki_link(src: &str, i: usize) -> Option<Green> {
+    if !src[i..].starts_with("[[") {
+        return None;
+    }
+    let rest = &src[i + 2..];
+    let close = rest.find("]]")?;
+    let inner = &rest[..close];
+    if inner.contains('\n') || inner.contains('\r') || inner.contains(']') {
+        return None;
+    }
+    let (head, alias) = split_pipe(inner);
+    let (path, heading) = split_heading(head);
+    if path.trim().is_empty() && heading.trim().is_empty() {
+        return None;
+    }
+    if !heading.is_empty() && heading.contains(']') {
+        return None;
+    }
+    Some(wiki_node(SyntaxKind::WikiLink, "[[", head, alias))
+}
+
+fn wiki_node(kind: SyntaxKind, open: &str, head: &str, extra: Option<&str>) -> Green {
+    let mut children = vec![
+        Green::leaf(SyntaxKind::Delimiter, open),
+        Green::leaf(SyntaxKind::Text, head),
+    ];
+    if let Some(extra) = extra {
+        children.push(Green::leaf(SyntaxKind::Delimiter, "|"));
+        children.push(Green::leaf(SyntaxKind::Text, extra));
+    }
+    children.push(Green::leaf(SyntaxKind::Delimiter, "]]"));
+    Green::branch(kind, children)
+}
+
+fn split_pipe(inner: &str) -> (&str, Option<&str>) {
+    match inner.split_once('|') {
+        Some((head, extra)) => (head, Some(extra)),
+        None => (inner, None),
+    }
+}
+
+fn split_heading(head: &str) -> (&str, &str) {
+    match head.split_once('#') {
+        Some((path, heading)) => (path, heading),
+        None => (head, ""),
+    }
+}
+
+fn footnote_ref(src: &str, i: usize) -> Option<Green> {
+    if !src[i..].starts_with("[^") {
+        return None;
+    }
+    let rest = &src[i + 2..];
+    let close = rest.find(']')?;
+    let id = &rest[..close];
+    if id.is_empty() || id.contains('[') || id.contains('\n') || id.contains('\r') {
+        return None;
+    }
+    let end = i + 2 + close + 1;
+    if src[end..].starts_with(':') {
+        return None;
+    }
+    Some(Green::branch(
+        SyntaxKind::FootnoteRef,
+        vec![
+            Green::leaf(SyntaxKind::Delimiter, "[^"),
+            Green::leaf(SyntaxKind::Text, id),
+            Green::leaf(SyntaxKind::Delimiter, "]"),
+        ],
+    ))
+}
+
+fn footnote_inline(src: &str, i: usize) -> Option<Green> {
+    if !src[i..].starts_with("^[") {
+        return None;
+    }
+    let rest = &src[i + 2..];
+    let close = rest.find(']')?;
+    let body = &rest[..close];
+    if body.is_empty() || body.contains('\n') || body.contains('\r') || body.contains(']') {
+        return None;
+    }
+    Some(Green::branch(
+        SyntaxKind::FootnoteInline,
+        vec![
+            Green::leaf(SyntaxKind::Delimiter, "^["),
+            Green::leaf(SyntaxKind::Text, body),
+            Green::leaf(SyntaxKind::Delimiter, "]"),
+        ],
+    ))
+}
+
+fn bare_autolink(src: &str, i: usize) -> Option<Green> {
+    if !autolink_boundary(src, i) {
+        return None;
+    }
+    let rest = &src[i..];
+    let end = url_autolink(rest)
+        .or_else(|| www_autolink(rest))
+        .or_else(|| email_autolink(rest))?;
+    if end == 0 {
+        return None;
+    }
+    Some(Green::leaf(SyntaxKind::Autolink, &rest[..end]))
+}
+
+fn autolink_boundary(src: &str, i: usize) -> bool {
+    let Some(prev) = prev_char(src, i) else {
+        return true;
+    };
+    !prev.is_ascii_alphanumeric() && prev != '_'
+}
+
+fn url_autolink(rest: &str) -> Option<usize> {
+    let scheme = ["https://", "http://", "ftp://"]
+        .into_iter()
+        .find(|scheme| starts_with_ignore(rest, scheme))?;
+    let bytes = rest.as_bytes();
+    let mut i = scheme.len();
+    if i >= bytes.len() || bytes[i].is_ascii_whitespace() {
+        return None;
+    }
+    while i < bytes.len() && !bytes[i].is_ascii_whitespace() && bytes[i] != b'<' {
+        i += 1;
+    }
+    let end = trim_autolink(rest, i);
+    (end > scheme.len()).then_some(end)
+}
+
+fn www_autolink(rest: &str) -> Option<usize> {
+    if !starts_with_ignore(rest, "www.") {
+        return None;
+    }
+    let bytes = rest.as_bytes();
+    let mut i = 4;
+    let mut dots = 0;
+    let mut label = 0;
+    while i < bytes.len() {
+        let c = bytes[i];
+        if c.is_ascii_alphanumeric() || c == b'-' {
+            label += 1;
+            i += 1;
+            continue;
+        }
+        if c == b'.' && label > 0 {
+            dots += 1;
+            label = 0;
+            i += 1;
+            continue;
+        }
+        break;
+    }
+    if dots < 1 || label == 0 {
+        return None;
+    }
+    if i < bytes.len() && matches!(bytes[i], b'/' | b'?' | b'#') {
+        i += 1;
+        while i < bytes.len() && !bytes[i].is_ascii_whitespace() && bytes[i] != b'<' {
+            i += 1;
+        }
+    }
+    let end = trim_autolink(rest, i);
+    (end > 4).then_some(end)
+}
+
+fn email_autolink(rest: &str) -> Option<usize> {
+    let bytes = rest.as_bytes();
+    if bytes.first().is_none_or(|b| !b.is_ascii_alphanumeric()) {
+        return None;
+    }
+    let mut i = 0;
+    while i < bytes.len() && is_email_local(bytes[i]) {
+        i += 1;
+    }
+    if i == 0 || i >= bytes.len() || bytes[i] != b'@' {
+        return None;
+    }
+    i += 1;
+    let domain_start = i;
+    while i < bytes.len()
+        && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'.' || bytes[i] == b'-')
+    {
+        i += 1;
+    }
+    let domain = &rest[domain_start..i];
+    if domain.starts_with('.')
+        || domain.ends_with('.')
+        || domain.ends_with('-')
+        || domain.contains("..")
+        || !domain.contains('.')
+    {
+        return None;
+    }
+    let tld = domain.rsplit('.').next().unwrap_or("");
+    if tld.len() < 2 || !tld.bytes().all(|b| b.is_ascii_alphabetic()) {
+        return None;
+    }
+    Some(i)
+}
+
+fn is_email_local(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'+' | b'-')
+}
+
+fn starts_with_ignore(rest: &str, prefix: &str) -> bool {
+    rest.len() >= prefix.len()
+        && rest.as_bytes()[..prefix.len()].eq_ignore_ascii_case(prefix.as_bytes())
+}
+
+fn trim_autolink(rest: &str, mut end: usize) -> usize {
+    let bytes = rest.as_bytes();
+    loop {
+        if end == 0 {
+            break;
+        }
+        let c = bytes[end - 1];
+        if matches!(c, b'.' | b',' | b';' | b':' | b'!' | b'?' | b'\'' | b'"') {
+            end -= 1;
+            continue;
+        }
+        if c == b')' {
+            let open = bytes[..end].iter().filter(|b| **b == b'(').count();
+            let close = bytes[..end].iter().filter(|b| **b == b')').count();
+            if close > open {
+                end -= 1;
+                continue;
+            }
+        }
+        break;
+    }
+    end
+}
+
 fn flanking(src: &str, start: usize, end: usize, ch: char) -> (bool, bool) {
     let before = prev_char(src, start);
     let after = src[end..].chars().next();
@@ -589,7 +996,7 @@ fn resolve_links(mut pieces: Vec<Piece>, src: &str, defs: &Defs) -> Vec<Piece> {
                 after += 1;
             }
             // Re-scan is safer: rebuild the tail from dest_end.
-            let tail = scan(&src[dest_end..]);
+            let tail = scan(&src[dest_end..], defs);
             let tail = shift_pieces(tail, dest_end);
             let mut next = pieces[..open_at].to_vec();
             next.push(Piece::Node(node));
@@ -623,7 +1030,7 @@ fn resolve_links(mut pieces: Vec<Piece>, src: &str, defs: &Defs) -> Vec<Piece> {
                     },
                     children,
                 );
-                let tail = shift_pieces(scan(&src[label_span.1..]), label_span.1);
+                let tail = shift_pieces(scan(&src[label_span.1..], defs), label_span.1);
                 let mut next = pieces[..open_at].to_vec();
                 next.push(Piece::Node(node));
                 next.extend(tail);
@@ -713,21 +1120,23 @@ fn find_open_bracket(pieces: &[Piece], close: usize) -> Option<usize> {
 }
 
 fn inline_destination(src: &str, at: usize) -> Option<usize> {
-    let rest = &src[at..];
-    if !rest.starts_with('(') {
+    let bytes = src.as_bytes();
+    if at >= bytes.len() || bytes[at] != b'(' {
         return None;
     }
-    let bytes = rest.as_bytes();
-    let mut i = 1;
+    let mut i = at + 1;
     while i < bytes.len() && bytes[i].is_ascii_whitespace() {
         i += 1;
     }
     if i < bytes.len() && bytes[i] == b'<' {
-        let close = rest[i + 1..].find('>')?;
+        let close = src[i + 1..].find('>')?;
+        let inner = &src[i + 1..i + 1 + close];
+        if inner.contains('\n') || inner.contains('\r') {
+            return None;
+        }
         i = i + 1 + close + 1;
-    } else {
+    } else if i < bytes.len() && bytes[i] != b')' {
         let mut depth = 0;
-        let start = i;
         while i < bytes.len() {
             let c = bytes[i];
             if c == b'\\' && i + 1 < bytes.len() {
@@ -745,39 +1154,64 @@ fn inline_destination(src: &str, at: usize) -> Option<usize> {
             }
             i += 1;
         }
-        if i == start && i < bytes.len() && bytes[i] == b')' {
-            // empty destination
-        }
     }
-    while i < bytes.len() && bytes[i].is_ascii_whitespace() {
-        if bytes[i] == b'\n' || bytes[i] == b'\r' {
-            break;
-        }
-        // title
-        if bytes[i] == b'"' || bytes[i] == b'\'' || bytes[i] == b'(' {
-            let quote = bytes[i];
-            let end_quote = if quote == b'(' { b')' } else { quote };
-            i += 1;
-            while i < bytes.len() && bytes[i] != end_quote {
-                if bytes[i] == b'\\' && i + 1 < bytes.len() {
-                    i += 2;
-                    continue;
-                }
-                i += 1;
-            }
-            if i >= bytes.len() {
-                return None;
-            }
-            i += 1;
+    if i < bytes.len() && bytes[i].is_ascii_whitespace() {
+        let saved = i;
+        let after = skip_title_separator(bytes, i);
+        if after < bytes.len() && matches!(bytes[after], b'"' | b'\'' | b'(') {
+            let end_title = scan_title(bytes, after)?;
+            i = end_title;
             while i < bytes.len() && (bytes[i] == b' ' || bytes[i] == b'\t') {
                 i += 1;
             }
-            break;
+        } else {
+            i = saved;
+            while i < bytes.len() && (bytes[i] == b' ' || bytes[i] == b'\t') {
+                i += 1;
+            }
+        }
+    }
+    if i < bytes.len() && bytes[i] == b')' {
+        Some(i + 1)
+    } else {
+        None
+    }
+}
+
+/// Spaces or tabs, plus one line ending, between a destination and a title.
+fn skip_title_separator(bytes: &[u8], mut i: usize) -> usize {
+    while i < bytes.len() && (bytes[i] == b' ' || bytes[i] == b'\t') {
+        i += 1;
+    }
+    if i < bytes.len() && (bytes[i] == b'\n' || bytes[i] == b'\r') {
+        let nl = newline_len(bytes, i);
+        let mut after = i + nl;
+        while after < bytes.len() && (bytes[after] == b' ' || bytes[after] == b'\t') {
+            after += 1;
+        }
+        if after < bytes.len() && matches!(bytes[after], b'"' | b'\'' | b'(') {
+            return after;
+        }
+    }
+    i
+}
+
+fn scan_title(bytes: &[u8], start: usize) -> Option<usize> {
+    let quote = bytes[start];
+    let end_quote = if quote == b'(' { b')' } else { quote };
+    let mut i = start + 1;
+    while i < bytes.len() && bytes[i] != end_quote {
+        if bytes[i] == b'\n' || bytes[i] == b'\r' {
+            return None;
+        }
+        if bytes[i] == b'\\' && i + 1 < bytes.len() {
+            i += 2;
+            continue;
         }
         i += 1;
     }
-    if i < bytes.len() && bytes[i] == b')' {
-        Some(at + i + 1)
+    if i < bytes.len() && bytes[i] == end_quote {
+        Some(i + 1)
     } else {
         None
     }

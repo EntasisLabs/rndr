@@ -225,6 +225,45 @@ impl Builder<'_> {
                     children,
                 ))
             }
+            SyntaxKind::Callout => {
+                let tone = text
+                    .split("[!")
+                    .nth(1)
+                    .and_then(|rest| rest.split(']').next())
+                    .unwrap_or("note");
+                let mut child_at = at;
+                let mut children = Vec::new();
+                for child in node.children() {
+                    if let Some(id) = self.block(child, child_at) {
+                        children.push(id);
+                    }
+                    child_at += child.width();
+                }
+                Some(self.push(
+                    AccessRole::Group,
+                    format!("Callout {tone}"),
+                    String::new(),
+                    None,
+                    span,
+                    children,
+                ))
+            }
+            SyntaxKind::FootnoteDef => Some(self.push(
+                AccessRole::Group,
+                "Footnote".into(),
+                text,
+                None,
+                span,
+                Vec::new(),
+            )),
+            SyntaxKind::StyledBlock => Some(self.push(
+                AccessRole::Group,
+                "Styled block".into(),
+                text,
+                None,
+                span,
+                Vec::new(),
+            )),
             SyntaxKind::BlockQuote => {
                 let mut child_at = at;
                 let mut children = Vec::new();
@@ -284,9 +323,19 @@ impl Builder<'_> {
         let mut child_at = at;
         let mut ids = Vec::new();
         for child in node.children() {
-            if child.kind() == SyntaxKind::Link {
+            if matches!(
+                child.kind(),
+                SyntaxKind::Link
+                    | SyntaxKind::WikiLink
+                    | SyntaxKind::Autolink
+                    | SyntaxKind::FootnoteRef
+            ) {
                 let label = plain(self.bytes, child, child_at);
-                let dest = link_dest(child);
+                let dest = if child.kind() == SyntaxKind::Link {
+                    link_dest(child)
+                } else {
+                    String::new()
+                };
                 ids.push(self.push(
                     AccessRole::Link,
                     label,
@@ -295,7 +344,7 @@ impl Builder<'_> {
                     child_at..child_at + child.width(),
                     Vec::new(),
                 ));
-            } else if child.kind() == SyntaxKind::Image {
+            } else if matches!(child.kind(), SyntaxKind::Image | SyntaxKind::WikiEmbed) {
                 ids.push(self.push(
                     AccessRole::Image,
                     plain(self.bytes, child, child_at),
