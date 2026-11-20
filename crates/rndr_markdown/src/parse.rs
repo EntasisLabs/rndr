@@ -114,6 +114,11 @@ fn parse_seq(src: &str, lines: &[Line], mut i: usize, end: usize) -> (Vec<Green>
             i = next;
             continue;
         }
+        if let Some((node, next)) = try_styled_block(src, lines, i, end) {
+            out.push(node);
+            i = next;
+            continue;
+        }
         if let Some((node, next)) = try_opaque(src, lines, i, end) {
             out.push(node);
             i = next;
@@ -143,6 +148,11 @@ fn parse_seq(src: &str, lines: &[Line], mut i: usize, end: usize) -> (Vec<Green>
             continue;
         }
         if let Some((node, next)) = try_list(src, lines, i, end) {
+            out.push(node);
+            i = next;
+            continue;
+        }
+        if let Some((node, next)) = try_footnote(src, lines, i, end) {
             out.push(node);
             i = next;
             continue;
@@ -596,9 +606,31 @@ fn try_quote(src: &str, lines: &[Line], i: usize, end: usize) -> Option<(Green, 
     }
     let inner_doc = parse_raw(&inner);
     let injected = inject_prefixes(inner_doc.children(), &prefixes);
-    let node = Green::branch(SyntaxKind::BlockQuote, injected);
+    let kind = if is_callout_inner(&inner) {
+        SyntaxKind::Callout
+    } else {
+        SyntaxKind::BlockQuote
+    };
+    let node = Green::branch(kind, injected);
     debug_assert_eq!(node.concat(), &src[lines[i].start..lines[j - 1].end]);
     Some((node, j))
+}
+
+fn is_callout_inner(inner: &str) -> bool {
+    let line = inner.lines().next().unwrap_or("");
+    let line = line.trim_start();
+    let bytes = line.as_bytes();
+    if bytes.len() < 4 || bytes[0] != b'[' || bytes[1] != b'!' {
+        return false;
+    }
+    let Some(end) = line.find(']') else {
+        return false;
+    };
+    let word = &line[2..end];
+    !word.is_empty()
+        && word
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
 fn quote_prefix_len(src: &str, line: &Line) -> Option<usize> {
@@ -749,16 +781,16 @@ fn list_marker(src: &str, line: &Line) -> Option<Marker> {
         if bytes.len() > 1 && bytes[1] != b' ' && bytes[1] != b'\t' {
             return None;
         }
-        let task = bytes.len() >= 5
-            && bytes[1] == b' '
-            && bytes[2] == b'['
-            && (bytes[3] == b' ' || bytes[3] == b'x' || bytes[3] == b'X')
-            && bytes[4] == b']';
+        let after = if bytes.len() > 1 && (bytes[1] == b' ' || bytes[1] == b'\t') {
+            2
+        } else {
+            1
+        };
         return Some(Marker {
             indent_cols: cols,
             bullet: true,
             paren: false,
-            task,
+            task: is_task_box(&rest[after..]),
         });
     }
     let mut n = 0;
@@ -811,14 +843,13 @@ fn marker_bytes(src: &str, line: &Line) -> usize {
             i += 1;
         }
     }
-    if i < bytes.len() && bytes[i] == b' ' {
+    let bullet = matches!(bytes.first(), Some(b'-' | b'+' | b'*'));
+    if i < bytes.len() && (bytes[i] == b' ' || bytes[i] == b'\t') {
         i += 1;
-        if rest[i..].starts_with('[') {
-            if let Some(rel) = rest[i..].find(']') {
-                let after = i + rel + 1;
-                if after < rest.len() && rest.as_bytes()[after] == b' ' {
-                    i = after + 1;
-                }
+        if bullet && is_task_box(&rest[i..]) {
+            i += 3;
+            if i < bytes.len() && (bytes[i] == b' ' || bytes[i] == b'\t') {
+                i += 1;
             }
         }
     }
@@ -862,6 +893,18 @@ fn take_item(src: &str, lines: &[Line], i: usize, end: usize, marker: &Marker) -
     }
     let (children, _) = build_item(src, lines, i, j, marker_len);
     (Green::branch(SyntaxKind::ListItem, children), j)
+}
+
+/// `[ ]`, `[x]`, or `[X]`, ended by whitespace or the end of the line.
+fn is_task_box(rest: &str) -> bool {
+    let bytes = rest.as_bytes();
+    if bytes.len() < 3 || bytes[0] != b'[' || bytes[2] != b']' {
+        return false;
+    }
+    if !matches!(bytes[1], b' ' | b'x' | b'X') {
+        return false;
+    }
+    bytes.len() == 3 || bytes[3] == b' ' || bytes[3] == b'\t'
 }
 
 fn column_width(s: &str) -> usize {
@@ -955,6 +998,8 @@ fn interrupts(src: &str, line: &Line, in_paragraph: bool) -> bool {
         || try_atx(src, std::slice::from_ref(line), 0).is_some()
         || html_start(src, line).is_some()
         || thematic(src, line).is_some()
+        || is_turbo_open_line(src, line)
+        || footnote_marker(src, line).is_some()
     {
         return true;
     }
@@ -1040,6 +1085,111 @@ fn try_indented_code(src: &str, lines: &[Line], i: usize, end: usize) -> Option<
         ),
         j,
     ))
+}
+
+fn is_turbo_open_line(src: &str, line: &Line) -> bool {
+    src[line.start..line.text_end]
+        .trim()
+        .eq_ignore_ascii_case("::block::")
+}
+
+fn is_turbo_close(trimmed: &str) -> bool {
+    let lower = trimmed.to_ascii_lowercase();
+    let Some(inner) = lower.strip_prefix("::").and_then(|s| s.strip_suffix("::")) else {
+        return false;
+    };
+    let words: Vec<&str> = inner.split_whitespace().collect();
+    words == ["end"] || words == ["end", "block"]
+}
+
+fn try_styled_block(src: &str, lines: &[Line], i: usize, end: usize) -> Option<(Green, usize)> {
+    if !is_turbo_open_line(src, &lines[i]) {
+        return None;
+    }
+    let mut j = i + 1;
+    let mut closed = false;
+    while j < end {
+        let trimmed = src[lines[j].start..lines[j].text_end].trim();
+        if trimmed.starts_with("```") {
+            break;
+        }
+        if is_turbo_close(trimmed) {
+            closed = true;
+            j += 1;
+            break;
+        }
+        j += 1;
+    }
+    if !closed {
+        return None;
+    }
+    let mut children = vec![Green::leaf(
+        SyntaxKind::FenceLine,
+        &src[lines[i].start..lines[i].end],
+    )];
+    let body_start = lines[i].end;
+    let body_end = lines[j - 1].start;
+    if body_end > body_start {
+        let nested = parse_raw(&src[body_start..body_end]);
+        if nested.kind() == SyntaxKind::Document {
+            children.extend(nested.children().to_vec());
+        } else {
+            children.push(nested);
+        }
+    }
+    children.push(Green::leaf(
+        SyntaxKind::FenceLine,
+        &src[lines[j - 1].start..lines[j - 1].end],
+    ));
+    Some((Green::branch(SyntaxKind::StyledBlock, children), j))
+}
+
+fn footnote_marker(src: &str, line: &Line) -> Option<usize> {
+    let text = &src[line.start..line.text_end];
+    let (cols, indent) = indent_of(text);
+    if cols > 3 {
+        return None;
+    }
+    let rest = &text[indent..];
+    if !rest.starts_with("[^") {
+        return None;
+    }
+    let end_br = rest.find(']')?;
+    if end_br <= 2 {
+        return None;
+    }
+    let id = &rest[2..end_br];
+    if id.is_empty() || id.contains('[') || id.contains('\n') {
+        return None;
+    }
+    let after = &rest[end_br + 1..];
+    if !after.starts_with(':') {
+        return None;
+    }
+    Some(indent + end_br + 2)
+}
+
+fn is_footnote_cont(src: &str, line: &Line) -> bool {
+    if is_blank(src, line) || footnote_marker(src, line).is_some() {
+        return false;
+    }
+    let text = &src[line.start..line.text_end];
+    text.starts_with("  ") || text.starts_with('\t')
+}
+
+fn try_footnote(src: &str, lines: &[Line], i: usize, end: usize) -> Option<(Green, usize)> {
+    let marker_len = footnote_marker(src, &lines[i])?;
+    let mut j = i + 1;
+    while j < end && is_footnote_cont(src, &lines[j]) {
+        j += 1;
+    }
+    let marker = &src[lines[i].start..lines[i].start + marker_len];
+    let mut children = vec![Green::leaf(SyntaxKind::Delimiter, marker)];
+    let body = &src[lines[i].start + marker_len..lines[j - 1].end];
+    if !body.is_empty() {
+        children.push(Green::leaf(SyntaxKind::Text, body));
+    }
+    Some((Green::branch(SyntaxKind::FootnoteDef, children), j))
 }
 
 fn try_ref(src: &str, lines: &[Line], i: usize, end: usize) -> Option<(Green, usize)> {
@@ -1362,6 +1512,7 @@ fn finish_node(node: &Green, defs: &Defs) -> Green {
     match node.kind() {
         SyntaxKind::Paragraph if is_raw_paragraph(&children) => refill_paragraph(&children, defs),
         SyntaxKind::Heading => refill_heading(&children, defs),
+        SyntaxKind::FootnoteDef => refill_footnote(&children, defs),
         SyntaxKind::TableCell if is_raw_paragraph(&children) => {
             let text = concat_children(&children);
             Green::branch(SyntaxKind::TableCell, inline::parse_inlines(&text, defs))
@@ -1445,6 +1596,27 @@ fn logical_source(children: &[Green]) -> (String, Vec<String>) {
     (logical, prefixes)
 }
 
+fn refill_footnote(children: &[Green], defs: &Defs) -> Green {
+    let mut out = Vec::new();
+    let mut body = String::new();
+    let mut past = false;
+    for child in children {
+        if !past && child.kind() == SyntaxKind::Delimiter {
+            out.push(child.clone());
+            past = true;
+            continue;
+        }
+        body.push_str(&child.concat());
+    }
+    if !past {
+        body = concat_children(children);
+    }
+    if !body.is_empty() {
+        out.extend(inline::parse_inlines(&body, defs));
+    }
+    Green::branch(SyntaxKind::FootnoteDef, out)
+}
+
 fn refill_heading(children: &[Green], defs: &Defs) -> Green {
     if let Some(pos) = children
         .iter()
@@ -1505,6 +1677,7 @@ fn reresolve_node(node: &Green, defs: &Defs) -> Green {
     match node.kind() {
         SyntaxKind::Paragraph => refill_paragraph_from_finished(node, defs),
         SyntaxKind::Heading => refill_heading(node.children(), defs),
+        SyntaxKind::FootnoteDef => refill_footnote(node.children(), defs),
         SyntaxKind::TableCell => Green::branch(
             SyntaxKind::TableCell,
             inline::parse_inlines(&node.concat(), defs),

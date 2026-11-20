@@ -27,7 +27,9 @@ pub use kind::SyntaxKind;
 pub use parse::parse;
 pub use session::{floor_grapheme, EditSpan, Session, ViewMode};
 pub use table::Alignment;
-pub use view::{Field, Inline, LiquidFence, Table, TableCell, TableRow, TypedBlock, TypedView};
+pub use view::{
+    Field, Inline, InlineMark, LiquidFence, Table, TableCell, TableRow, TypedBlock, TypedView,
+};
 
 /// Parse `src` and return the red tree as well as the green root.
 pub fn parse_red(src: &str) -> (Green, RedTree) {

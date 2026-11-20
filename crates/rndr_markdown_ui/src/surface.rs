@@ -504,19 +504,35 @@ fn place_hit(world: &mut World, root: Entity, hit: Entity, at: [f32; 2], extend:
         };
         (node.document, node.blocks.clone())
     };
-    let Some(block) = blocks
+    let Some(stored) = blocks
         .iter()
         .find(|block| block.span.start == slot.start && block.span.end == slot.end)
     else {
         return;
     };
+    let readonly = world.get::<Node>(root).is_some_and(|node| node.readonly);
+    let block = presented(world, document, stored);
     let width = rect.w.max(1.0);
     let style = style_for_kind(&block.kind);
     let engine = text_engine(world);
     let label = block.label_text();
-    let spans = label_spans(block);
+    let spans = label_spans(&block);
     let layout = engine.layout(&label, &style, &spans, (width - 8.0).max(1.0));
     let index = layout.index_at(at[0] - rect.x, at[1] - rect.y);
+    if !extend
+        && !readonly
+        && matches!(block.kind, DisplayKind::Task(_))
+        && index < block.chrome.len()
+    {
+        if let Some(command) = intent::toggle_task(document_bytes(world, document).as_str(), &block)
+        {
+            let now = now_ms(world);
+            if let Some(session) = session_mut(world, document) {
+                let _ = session.edit(command, now);
+            }
+            return;
+        }
+    }
     let source = block.display_to_source(index);
     if let Some(session) = world
         .resource_mut::<crate::MarkdownDocuments>()
@@ -529,6 +545,30 @@ fn place_hit(world: &mut World, root: Entity, hit: Entity, at: [f32; 2], extend:
             let _ = session.move_caret(source, source);
         }
     }
+}
+
+fn document_bytes(world: &World, document: MarkdownId) -> String {
+    world
+        .resource::<crate::MarkdownDocuments>()
+        .and_then(|docs| docs.get(document))
+        .map(|session| session.bytes().to_string())
+        .unwrap_or_default()
+}
+
+fn presented(world: &World, document: MarkdownId, block: &DisplayBlock) -> DisplayBlock {
+    let Some(session) = world
+        .resource::<crate::MarkdownDocuments>()
+        .and_then(|docs| docs.get(document))
+    else {
+        return block.clone();
+    };
+    project::present(
+        block,
+        session.bytes(),
+        session.tree(),
+        session.caret(),
+        &Palette::default(),
+    )
 }
 
 fn edit_keys(world: &mut World, root: Entity) {
@@ -869,19 +909,27 @@ fn structural_key(world: &mut World, root: Entity, document: MarkdownId, now: u6
         .get::<Node>(root)
         .map(|node| node.blocks.clone())
         .unwrap_or_default();
-    let Some(session) = session_mut(world, document) else {
-        return;
+    let (head, anchor) = {
+        let Some(session) = world
+            .resource::<crate::MarkdownDocuments>()
+            .and_then(|docs| docs.get(document))
+        else {
+            return;
+        };
+        (session.caret(), session.anchor())
     };
-    let head = session.caret();
-    let anchor = session.anchor();
     let Some(index) = block_index(&blocks, head) else {
         return;
     };
-    let block = &blocks[index];
+    let block = presented(world, document, &blocks[index]);
+    let bytes = document_bytes(world, document);
     let command = match kind {
-        KeyKind::Enter => intent::split(session.bytes(), block, head),
-        KeyKind::Backspace => intent::backspace(session.bytes(), block, anchor, head),
-        KeyKind::Delete => intent::delete_forward(block, anchor, head),
+        KeyKind::Enter => intent::split(&bytes, &block, head),
+        KeyKind::Backspace => intent::backspace(&bytes, &block, anchor, head),
+        KeyKind::Delete => intent::delete_forward(&block, anchor, head),
+    };
+    let Some(session) = session_mut(world, document) else {
+        return;
     };
     let revision = session.revision();
     if session.edit(command, now).is_ok() && session.revision() != revision {
@@ -900,19 +948,26 @@ fn move_key(world: &mut World, root: Entity, document: MarkdownId, key: NamedKey
         .get::<Node>(root)
         .map(|node| node.blocks.clone())
         .unwrap_or_default();
-    let Some(session) = session_mut(world, document) else {
-        return;
+    let (head, stored_anchor) = {
+        let Some(session) = world
+            .resource::<crate::MarkdownDocuments>()
+            .and_then(|docs| docs.get(document))
+        else {
+            return;
+        };
+        (session.caret(), session.anchor())
     };
-    let head = session.caret();
-    let anchor = if shift { session.anchor() } else { head };
+    let anchor = if shift { stored_anchor } else { head };
     let Some(index) = block_index(&blocks, head) else {
-        let _ = session.move_caret(anchor, head);
+        if let Some(session) = session_mut(world, document) {
+            let _ = session.move_caret(anchor, head);
+        }
         return;
     };
-    let block = &blocks[index];
+    let block = presented(world, document, &blocks[index]);
     let source = match key {
-        NamedKey::ArrowLeft => intent::move_by(block, head, false),
-        NamedKey::ArrowRight => intent::move_by(block, head, true),
+        NamedKey::ArrowLeft => intent::move_by(&block, head, false),
+        NamedKey::ArrowRight => intent::move_by(&block, head, true),
         NamedKey::ArrowUp => neighbor_block(&blocks, index, head, false),
         NamedKey::ArrowDown => neighbor_block(&blocks, index, head, true),
         NamedKey::Home => block.display_to_source(block.chrome.len()),
@@ -920,7 +975,9 @@ fn move_key(world: &mut World, root: Entity, document: MarkdownId, key: NamedKey
         _ => head,
     };
     let anchor = if shift { anchor } else { source };
-    let _ = session.move_caret(anchor, source);
+    if let Some(session) = session_mut(world, document) {
+        let _ = session.move_caret(anchor, source);
+    }
 }
 
 fn neighbor_block(blocks: &[DisplayBlock], index: usize, head: usize, forward: bool) -> usize {
@@ -1209,6 +1266,10 @@ fn rebuild_slots(world: &mut World, entity: Entity) -> bool {
         else {
             continue;
         };
+        let document = root_document(world, entity);
+        let block = document
+            .map(|document| presented(world, document, &block))
+            .unwrap_or(block);
         let slot = spawn_block(world, entity, &block, caret, anchor, &preedit, width);
         slots.push(slot);
     }

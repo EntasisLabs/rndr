@@ -403,6 +403,141 @@ fn projection_hides_markers_and_matches_after_an_edit() {
 }
 
 #[test]
+fn images_callouts_and_marks_display_without_their_markers() {
+    let image = "![alt](pic.png \"t\")\n";
+    let tree = rndr_markdown::parse(image);
+    let blocks = project(image, &tree, &Palette::default());
+    assert!(
+        matches!(blocks[0].kind, DisplayKind::Image { ref alt } if alt == "alt"),
+        "{:?}",
+        blocks[0].kind
+    );
+    assert!(blocks[0].text.contains("alt"), "{}", blocks[0].text);
+    assert!(!blocks[0].text.contains("pic.png"), "{}", blocks[0].text);
+
+    let embed = "![[shot.png|400]]\n";
+    let tree = rndr_markdown::parse(embed);
+    let blocks = project(embed, &tree, &Palette::default());
+    assert!(
+        matches!(blocks[0].kind, DisplayKind::Image { .. }),
+        "{:?}",
+        blocks[0]
+    );
+    assert!(!blocks[0].text.contains("400"), "{}", blocks[0].text);
+
+    let note = "- [Note] keep\n";
+    let tree = rndr_markdown::parse(note);
+    let blocks = project(note, &tree, &Palette::default());
+    let item = blocks
+        .iter()
+        .find(|block| block.kind != DisplayKind::Gap)
+        .unwrap();
+    assert!(matches!(item.kind, DisplayKind::Bullet), "{:?}", item.kind);
+    assert!(item.text.contains("[Note]"), "{}", item.text);
+
+    let ordered = "1. [ ] buy\n";
+    let tree = rndr_markdown::parse(ordered);
+    let blocks = project(ordered, &tree, &Palette::default());
+    let item = blocks
+        .iter()
+        .find(|block| block.kind != DisplayKind::Gap)
+        .unwrap();
+    assert!(
+        matches!(item.kind, DisplayKind::Ordered(1)),
+        "{:?}",
+        item.kind
+    );
+    assert!(item.text.contains("[ ]"), "{}", item.text);
+
+    let task = "- [ ] buy\n";
+    let tree = rndr_markdown::parse(task);
+    let blocks = project(task, &tree, &Palette::default());
+    let item = blocks
+        .iter()
+        .find(|block| matches!(block.kind, DisplayKind::Task(false)))
+        .unwrap();
+    assert_eq!(item.chrome, "☐ ");
+    assert_eq!(item.text, "buy");
+
+    let highlight = "A ==hi== word\n";
+    let tree = rndr_markdown::parse(highlight);
+    let blocks = project(highlight, &tree, &Palette::default());
+    assert_eq!(blocks[0].text, "A hi word");
+    assert!(blocks[0].spans.iter().any(|span| span.highlight.is_some()));
+    let inside = highlight.find("hi").unwrap();
+    let shown = present(&blocks[0], highlight, &tree, inside, &Palette::default());
+    assert!(shown.text.contains("=="), "{}", shown.text);
+
+    let link = "[l](u \"t\")\n";
+    let tree = rndr_markdown::parse(link);
+    let blocks = project(link, &tree, &Palette::default());
+    assert_eq!(blocks[0].text, "l");
+    let shown = present(&blocks[0], link, &tree, 1, &Palette::default());
+    assert!(shown.text.contains("(u"), "{}", shown.text);
+
+    let callout = "> [!note] Title\n> Body\n";
+    let tree = rndr_markdown::parse(callout);
+    let blocks = project(callout, &tree, &Palette::default());
+    assert!(
+        matches!(blocks[0].kind, DisplayKind::Callout { ref tone } if tone == "note"),
+        "{:?}",
+        blocks[0].kind
+    );
+    assert!(blocks[0].chrome.contains("Note"), "{}", blocks[0].chrome);
+    assert!(blocks[0].text.contains("Title"), "{}", blocks[0].text);
+    assert!(blocks[0].text.contains("Body"), "{}", blocks[0].text);
+    assert!(!blocks[0].text.contains("[!note]"), "{}", blocks[0].text);
+    let shown = present(&blocks[0], callout, &tree, 0, &Palette::default());
+    assert!(shown.text.contains("[!note]"), "{}", shown.text);
+}
+
+#[test]
+fn clicking_the_task_checkbox_writes_one_byte() {
+    let (mut app, handle, id) = boot("- [ ] buy milk\n");
+    let before = bytes(&app, id);
+    assert!(before.contains("[ ]"), "{before}");
+    let slot = app
+        .world()
+        .entities_with::<Label>()
+        .into_iter()
+        .find(|entity| {
+            app.world()
+                .get::<Label>(*entity)
+                .is_some_and(|label| label.text.starts_with('☐'))
+        })
+        .expect("task label");
+    let rect = *app.world().get::<Rect>(slot).unwrap();
+    let mut toggled = false;
+    for dx in [2.0, 6.0, 10.0, 14.0, 18.0, 24.0, 32.0] {
+        let at = [rect.x + dx, rect.y + 10.0];
+        let input = app.world_mut().resource_mut::<Input>().unwrap();
+        input.pointer.position = at;
+        input.pointer.press_at = Some(at);
+        input.pointer.pressed = true;
+        input.pointer.down = true;
+        input.pointer.button = PointerButton::Left;
+        app.world_mut().resource_mut::<Focus>().unwrap().entity = Some(handle.root);
+        app.update();
+        let input = app.world_mut().resource_mut::<Input>().unwrap();
+        input.pointer.pressed = false;
+        input.pointer.down = false;
+        input.pointer.released = true;
+        app.update();
+        if bytes(&app, id).contains("[x]") {
+            toggled = true;
+            break;
+        }
+    }
+    let next = bytes(&app, id);
+    assert!(
+        toggled,
+        "checkbox click did not toggle, rect={rect:?} text={next}"
+    );
+    assert_eq!(next, before.replacen("[ ]", "[x]", 1));
+    assert_eq!(next.matches("[x]").count(), 1);
+}
+
+#[test]
 fn editor_surface_is_not_this_mount() {
     // The source editor stays a different type. This test only checks the
     // markdown mount does not require SourceDocuments.
