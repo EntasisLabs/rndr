@@ -10,6 +10,7 @@ fn content_width_releases_owned_width_on_marker_or_parent_detach() {
         for takeover in [false, true] {
             let mut app = App::new();
             app.add_plugin(UiPlugin);
+            app.world_mut().insert_resource(InteractionMotion::snap());
             let host = app.world_mut().spawn((Layout::column(),));
             let toolbar = Toolbar::mount(app.world_mut(), host, UiId(1), 800.).unwrap();
             let h = controls::Button::mount(
@@ -77,6 +78,8 @@ fn content_sized_actions_survive_reflow_scale_density_focus_and_activation() {
             for text_scale in [1.0, 2.0] {
                 let mut app = App::new();
                 app.add_plugin(UiPlugin);
+                app.world_mut().insert_resource(InteractionMotion::snap());
+                app.world_mut().insert_resource(InteractionMotion::snap());
                 app.world_mut().insert_resource(Viewport {
                     scale,
                     ..Viewport::new(1800., 2400.)
@@ -210,6 +213,7 @@ fn semantic_type_and_editor_recipe_resolve_readably_in_every_palette() {
             }
             let mut app = App::new();
             app.add_plugin(UiPlugin);
+            app.world_mut().insert_resource(InteractionMotion::snap());
             app.world_mut().insert_resource(theme.clone());
             let root = app.world_mut().spawn((Layout {
                 width: Size::Px(600.),
@@ -262,6 +266,7 @@ fn semantic_type_and_editor_recipe_resolve_readably_in_every_palette() {
 fn hover_is_neutral_focus_is_reserved_and_selection_remains_distinct() {
     let mut app = App::new();
     app.add_plugin(UiPlugin);
+    app.world_mut().insert_resource(InteractionMotion::snap());
     let theme = UiTheme::default();
     let root = app.world_mut().spawn((Layout {
         width: Size::Px(300.),

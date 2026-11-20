@@ -1,6 +1,8 @@
 //! Opt-in style ownership. Only attached UiStyle entities are resolved.
 use crate::tokens::*;
+use rndr_core::motion::MotionSettings;
 use rndr_core::*;
+use std::time::Duration;
 
 /// Explicit colors, including transparent, are distinct from semantic tokens.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -78,6 +80,146 @@ impl OverlayChrome {
             blur: Some(20.0),
             shadow: true,
         }
+    }
+}
+
+/// Which corner radius a control should take from the theme.
+///
+/// The numbers are [`Corner`]'s. [`RadiusScale`] can replace them for one app
+/// without inventing a second scale.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RadiusRole {
+    /// Buttons and other controls. [`Corner::Control`].
+    Control,
+    /// Text fields and steppers. [`Corner::Control`] unless a scale says otherwise.
+    Input,
+    /// Menus, palettes, tooltips, toasts, and other popovers. 12 points.
+    Overlay,
+    /// Cards and grouped surfaces. [`Corner::Group`].
+    Card,
+    /// Chips and other compact tags. [`Corner::Compact`].
+    Chip,
+}
+
+/// Corner radii in logical points. Absent from the world, [`Corner`] is used.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RadiusScale {
+    /// [`RadiusRole::Control`].
+    pub control: f32,
+    /// [`RadiusRole::Input`].
+    pub input: f32,
+    /// [`RadiusRole::Overlay`].
+    pub overlay: f32,
+    /// [`RadiusRole::Card`].
+    pub card: f32,
+    /// [`RadiusRole::Chip`].
+    pub chip: f32,
+}
+
+impl Default for RadiusScale {
+    fn default() -> Self {
+        Self {
+            control: Corner::Control.points(),
+            input: Corner::Control.points(),
+            overlay: Corner::Overlay.points(),
+            card: Corner::Group.points(),
+            chip: Corner::Compact.points(),
+        }
+    }
+}
+
+impl RadiusScale {
+    /// Points for one role. Non-finite values fall back to the built-in corner.
+    pub fn of(self, role: RadiusRole) -> f32 {
+        let value = match role {
+            RadiusRole::Control => self.control,
+            RadiusRole::Input => self.input,
+            RadiusRole::Overlay => self.overlay,
+            RadiusRole::Card => self.card,
+            RadiusRole::Chip => self.chip,
+        };
+        if value.is_finite() && value >= 0.0 {
+            value
+        } else {
+            RadiusScale::default().of(role)
+        }
+    }
+
+    fn corner(self, corner: Corner, focus_width: f32, input: bool) -> f32 {
+        let control = if input {
+            self.of(RadiusRole::Input)
+        } else {
+            self.of(RadiusRole::Control)
+        };
+        match corner {
+            Corner::Square => 0.0,
+            Corner::Compact => self.of(RadiusRole::Chip),
+            Corner::Control => control,
+            Corner::ControlFace => (control - 1.0).max(0.0),
+            Corner::FocusGap => (self.of(RadiusRole::Card) - focus_width).max(0.0),
+            Corner::Group => self.of(RadiusRole::Card),
+            Corner::Overlay => self.of(RadiusRole::Overlay),
+        }
+    }
+}
+
+impl UiTheme {
+    /// Radius for `role`, before a [`RadiusScale`] resource replaces it.
+    pub fn radius(&self, role: RadiusRole) -> f32 {
+        RadiusScale::default().of(role)
+    }
+
+    /// Hover and press color ease. Reduced motion snaps this to zero.
+    pub fn interaction_duration(&self) -> Duration {
+        Duration::from_millis(120)
+    }
+}
+
+/// Turns on the hover and press color ease. Absent, or with a zero duration,
+/// those fills settle on the same frame. [`crate::UiPlugin`] installs the default.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct InteractionMotion {
+    /// Ease length. Zero snaps.
+    pub duration: Duration,
+}
+
+impl Default for InteractionMotion {
+    fn default() -> Self {
+        Self {
+            duration: Duration::from_millis(120),
+        }
+    }
+}
+
+impl InteractionMotion {
+    /// Settled color on the frame the state changes.
+    pub const fn snap() -> Self {
+        Self {
+            duration: Duration::ZERO,
+        }
+    }
+}
+
+/// Marks a field whose [`Corner::Control`] radius is [`RadiusRole::Input`].
+pub(crate) struct UseInputRadius;
+impl Component for UseInputRadius {}
+
+#[derive(Clone, Copy)]
+struct FillFade {
+    from: Color,
+    to: Color,
+    start: Duration,
+}
+impl Component for FillFade {}
+
+struct ManagedRound;
+impl Component for ManagedRound {}
+
+/// Keyboard focus ring. Width is [`UiTheme::focus_width`]; ink is [`Token::Focus`].
+pub(crate) fn keyboard_focus_ring(theme: &UiTheme) -> Border {
+    Border {
+        color: theme.color(Token::Focus),
+        width: theme.focus_width(),
     }
 }
 
@@ -299,16 +441,25 @@ fn resolve_entities(world: &mut World, theme: &UiTheme, entities: Vec<Entity>) {
             .unwrap_or_default()
             .over(recipe);
         let mut managed = world.get::<Managed>(entity).cloned().unwrap_or_default();
-        if let Some(value) = managed.background.resolve(
-            world.get::<Color>(entity).copied(),
-            style.background.map(|v| v.resolve(theme)),
-            true,
-        ) {
-            if let Some(value) = value {
-                world.insert(entity, value);
-            } else {
-                world.remove::<Color>(entity);
+        let presented = world.get::<Color>(entity).copied();
+        let current = world
+            .get::<FillFade>(entity)
+            .map(|fade| fade.to)
+            .or(presented);
+        if let Some(value) =
+            managed
+                .background
+                .resolve(current, style.background.map(|v| v.resolve(theme)), true)
+        {
+            match value {
+                Some(target) => present_fill(world, entity, presented, target),
+                None => {
+                    world.remove::<FillFade>(entity);
+                    world.remove::<Color>(entity);
+                }
             }
+        } else {
+            advance_fill(world, entity);
         }
         if world.has::<Label>(entity) {
             if let Some(value) = managed.foreground.resolve(
@@ -355,15 +506,21 @@ fn resolve_entities(world: &mut World, theme: &UiTheme, entities: Vec<Entity>) {
                 world.get_mut::<Layout>(entity).unwrap().gap = value.unwrap_or(0.0);
             }
         }
+        let scale = world.resource::<RadiusScale>().copied().unwrap_or_default();
+        let input = world.has::<UseInputRadius>(entity);
         if let Some(value) = managed.corner.resolve(
             world.get::<Radius>(entity).map(|r| r.0),
-            style.corner.map(|c| c.points()),
+            style
+                .corner
+                .map(|corner| scale.corner(corner, theme.focus_width(), input)),
             true,
         ) {
             if let Some(value) = value {
                 world.insert(entity, Radius(value));
+                mask_round(world, entity, value);
             } else {
                 world.remove::<Radius>(entity);
+                clear_mask(world, entity);
             }
         }
         if attached {
@@ -387,6 +544,7 @@ pub fn detach_style(world: &mut World, entity: Entity) {
         .background
         .resolve(world.get::<Color>(entity).copied(), None, true)
     {
+        world.remove::<FillFade>(entity);
         if let Some(v) = v {
             world.insert(entity, v);
         } else {
@@ -417,8 +575,10 @@ pub fn detach_style(world: &mut World, entity: Entity) {
     {
         if let Some(v) = v {
             world.insert(entity, Radius(v));
+            mask_round(world, entity, v);
         } else {
             world.remove::<Radius>(entity);
+            clear_mask(world, entity);
         }
     }
     if let Some(layout) = world.get::<Layout>(entity).copied() {
@@ -430,4 +590,140 @@ pub fn detach_style(world: &mut World, entity: Entity) {
         }
     }
     world.remove::<Managed>(entity);
+}
+
+fn radii_duration(world: &World) -> Duration {
+    world
+        .resource::<InteractionMotion>()
+        .map(|motion| motion.duration)
+        .or_else(|| {
+            world
+                .resource::<UiTheme>()
+                .map(|theme| theme.interaction_duration())
+        })
+        .unwrap_or_else(|| UiTheme::default().interaction_duration())
+}
+
+fn snaps_motion(world: &World) -> bool {
+    let reduced = world
+        .resource::<MotionSettings>()
+        .is_some_and(|settings| settings.reduced_motion)
+        || system_appearance(world).reduced_motion;
+    let eased = world
+        .resource::<InteractionMotion>()
+        .is_some_and(|motion| !motion.duration.is_zero());
+    reduced
+        || !eased
+        || world
+            .resource::<Time>()
+            .map(|time| time.delta.is_zero())
+            .unwrap_or(true)
+}
+
+fn present_fill(world: &mut World, entity: Entity, presented: Option<Color>, target: Color) {
+    let Some(from) = presented.filter(|color| *color != target) else {
+        world.remove::<FillFade>(entity);
+        world.insert(entity, target);
+        return;
+    };
+    if snaps_motion(world) {
+        world.remove::<FillFade>(entity);
+        world.insert(entity, target);
+        return;
+    }
+    let time = world.resource::<Time>().copied().unwrap_or_default();
+    let start = time.now.saturating_sub(time.delta);
+    let color = sample_fill(from, target, start, time.now, radii_duration(world));
+    if color == target {
+        world.remove::<FillFade>(entity);
+        world.insert(entity, target);
+    } else {
+        world.insert(
+            entity,
+            FillFade {
+                from,
+                to: target,
+                start,
+            },
+        );
+        world.insert(entity, color);
+    }
+}
+
+fn advance_fill(world: &mut World, entity: Entity) {
+    let Some(fade) = world.get::<FillFade>(entity).copied() else {
+        return;
+    };
+    if snaps_motion(world) {
+        world.remove::<FillFade>(entity);
+        world.insert(entity, fade.to);
+        return;
+    }
+    let time = world.resource::<Time>().copied().unwrap_or_default();
+    let color = sample_fill(
+        fade.from,
+        fade.to,
+        fade.start,
+        time.now,
+        radii_duration(world),
+    );
+    if color == fade.to {
+        world.remove::<FillFade>(entity);
+        world.insert(entity, fade.to);
+    } else {
+        world.insert(entity, color);
+    }
+}
+
+fn sample_fill(
+    from: Color,
+    to: Color,
+    start: Duration,
+    now: Duration,
+    duration: Duration,
+) -> Color {
+    if duration.is_zero() {
+        return to;
+    }
+    let elapsed = now.saturating_sub(start).as_secs_f32();
+    let t = ease_out_cubic(elapsed / duration.as_secs_f32());
+    if t >= 1.0 {
+        to
+    } else {
+        mix_color(from, to, t)
+    }
+}
+
+fn ease_out_cubic(t: f32) -> f32 {
+    let t = if t.is_finite() {
+        t.clamp(0.0, 1.0)
+    } else {
+        1.0
+    };
+    1.0 - (1.0 - t).powi(3)
+}
+
+fn mix_color(from: Color, to: Color, t: f32) -> Color {
+    Color::rgba(
+        from.r + (to.r - from.r) * t,
+        from.g + (to.g - from.g) * t,
+        from.b + (to.b - from.b) * t,
+        from.a + (to.a - from.a) * t,
+    )
+}
+
+fn mask_round(world: &mut World, entity: Entity, radius: f32) {
+    if radius > 0.0 && (!world.has::<ClipRounded>(entity) || world.has::<ManagedRound>(entity)) {
+        world.insert(entity, ClipRounded::radius(radius));
+        world.insert(entity, ManagedRound);
+    } else if radius <= 0.0 {
+        clear_mask(world, entity);
+    }
+}
+
+fn clear_mask(world: &mut World, entity: Entity) {
+    if world.has::<ManagedRound>(entity) {
+        world.remove::<ClipRounded>(entity);
+        world.remove::<ManagedRound>(entity);
+    }
 }

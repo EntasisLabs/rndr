@@ -77,6 +77,7 @@ fn table_column_boundaries_share_one_grid_in_both_densities_and_after_scroll() {
                             a.world()
                                 .get::<Label>(*e)
                                 .is_some_and(|l| l.text == c.label)
+                                && a.world().has::<TextStyle>(*e)
                         })
                         .unwrap();
                     assert_eq!(

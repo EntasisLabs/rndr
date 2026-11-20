@@ -698,13 +698,7 @@ pub(crate) fn styles(world: &mut World) {
             }),
         );
         if focus == Some(root) && state.props.enabled {
-            world.insert(
-                root,
-                Border {
-                    color: theme.color(Token::Focus),
-                    width: 2.0,
-                },
-            );
+            world.insert(root, crate::style::keyboard_focus_ring(&theme));
         } else {
             world.remove::<Border>(root);
         }
@@ -2076,14 +2070,13 @@ fn paint_row(
     } else {
         Token::Content
     };
-    let (color, recipe) = row_color(
+    let (_color, recipe) = row_color(
         &theme,
         state.props.row_fill,
         fill,
         selected,
         pressed || (hovered && live && !loading),
     );
-    world.insert(slot.root, color);
     world.insert(
         slot.root,
         UiRecipe(UiStyle {
@@ -2093,16 +2086,15 @@ fn paint_row(
         }),
     );
     if focused && live && !loading && state.props.enabled {
-        world.insert(
-            slot.root,
-            Border {
-                color: theme.color(Token::Focus),
-                width: 2.0,
-            },
-        );
+        world.insert(slot.root, crate::style::keyboard_focus_ring(&theme));
     } else {
         world.remove::<Border>(slot.root);
     }
+    let title = world
+        .get::<Label>(slot.label)
+        .map(|label| label.text.clone())
+        .unwrap_or_default();
+    crate::inputs::sync_truncation_tooltip(world, slot.root, slot.label, &title);
 }
 
 fn set_label(world: &mut World, entity: Entity, text: &str, secondary: bool) {

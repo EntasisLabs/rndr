@@ -1,5 +1,5 @@
 use rndr_core::*;
-use rndr_ui::{window_controls, UiPlugin};
+use rndr_ui::{window_controls, InteractionMotion, UiPlugin};
 
 fn boot(platform: Platform) -> (App, Entity) {
     let mut app = App::new();
@@ -9,6 +9,7 @@ fn boot(platform: Platform) -> (App, Entity) {
         ..WindowConfig::default()
     });
     app.add_plugin(UiPlugin);
+    app.world_mut().insert_resource(InteractionMotion::snap());
     app.world_mut().insert_resource(Viewport::new(400.0, 300.0));
     let root = app.world_mut().spawn((Layout {
         width: Size::Fill,

@@ -48,6 +48,7 @@ use rndr_ui::selection::{
     Checkbox, MultiSelect, OptionId, SelectOption, SelectionHandle, SelectionProps, SingleSelect,
 };
 use rndr_ui::source_tools::{apply_find_bars, FindBar};
+use rndr_ui::split::{SplitSash, SplitSashHandle, SplitSashProps};
 use rndr_ui::structured::{StructuredCommand, StructuredSurface, StructuredSurfaceProps};
 use rndr_ui::structured_embeds::AtomicPanelHandle;
 use rndr_ui::{
@@ -243,6 +244,8 @@ enum SceneBody {
         controls: Vec<ControlHandle>,
         modes: ModeHandle,
         toolbar: ToolbarHandle,
+        split_host: Entity,
+        split: SplitSashHandle,
     },
     Collections(Vec<ViewHandle>),
     Virtual(Vec<VirtualViewHandle>),
@@ -666,10 +669,47 @@ impl Harness {
         )
         .expect("modes");
         let _ = modes.fit(world, 420.0);
+        let mut narrow = ButtonProps::new(
+            "Truncated label that does not fit this control",
+            HostIntent::Command(40),
+        );
+        narrow.variant = ButtonVariant::Quiet;
+        let narrow = UiButton::mount(world, column, UiId(40), narrow).expect("narrow");
+        world.get_mut::<Layout>(narrow.root).unwrap().width = Size::Px(72.0);
+        controls.push(narrow);
+        let nav = NavigationRow::mount(
+            world,
+            column,
+            UiId(41),
+            ButtonProps::new(
+                "Sidebar destination with a long name",
+                HostIntent::Command(41),
+            ),
+            NavigationMeta::default(),
+        )
+        .expect("sidebar");
+        world.get_mut::<Layout>(nav.root).unwrap().width = Size::Px(96.0);
+        controls.push(nav);
+        let split_host = world.spawn((Layout {
+            width: Size::Px(420.0),
+            height: Size::Px(96.0),
+            ..Layout::row()
+        },));
+        set_parent(world, split_host, column);
+        let split = SplitSash::mount(
+            world,
+            split_host,
+            UiId(42),
+            SplitSashProps::new("Panes"),
+            0.5,
+        )
+        .expect("sash");
         SceneBody::Controls {
             controls,
             modes,
             toolbar,
+            split_host,
+            split,
         }
     }
 
@@ -1654,12 +1694,18 @@ impl Harness {
                 controls,
                 modes,
                 toolbar,
+                split_host,
+                split,
             } => {
                 for control in controls {
                     control.destroy(world).expect("destroy control");
                 }
                 modes.destroy(world).expect("destroy modes");
                 toolbar.destroy(world).expect("destroy toolbar");
+                split.unmount(world).expect("unmount sash");
+                if world.is_alive(split_host) {
+                    despawn(world, split_host);
+                }
             }
             SceneBody::Collections(handles) => {
                 for handle in handles {

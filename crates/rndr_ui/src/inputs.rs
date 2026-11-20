@@ -840,7 +840,7 @@ impl Tooltip {
                 padding: 8.0,
                 ..Layout::column()
             },
-            Label::new(text).overflow(TextOverflow::Wrap),
+            Label::new(text).overflow(TextOverflow::Ellipsis),
             Hidden,
             PassivePopup,
             Layer(12),
@@ -862,6 +862,8 @@ impl Tooltip {
             },
         );
         world.insert(popup, PopupPlacement::Beside);
+        world.insert(popup, MaxSize::width(tooltip_measure(world)));
+        world.insert(popup, IgnorePointer);
         own(world, popup);
         world.insert(
             target,
@@ -2015,9 +2017,12 @@ fn style_sliders(world: &mut World, theme: &UiTheme) {
             world,
             state.thumb,
             state.face,
-            focused == Some(root),
-            hovered(world, root),
-            state.props.enabled,
+            ThumbChrome {
+                focused: focused == Some(root),
+                hovered: hovered(world, root),
+                pressed: interaction_pressed(world, root),
+                enabled: state.props.enabled,
+            },
             theme,
         );
         paint_fill(world, state.fill, state.props.enabled);
@@ -2069,9 +2074,12 @@ fn style_ranges(world: &mut World, theme: &UiTheme) {
                 world,
                 thumb_entity,
                 face,
-                focused == Some(thumb_entity),
-                hovered(world, thumb_entity),
-                state.props.enabled,
+                ThumbChrome {
+                    focused: focused == Some(thumb_entity),
+                    hovered: hovered(world, thumb_entity),
+                    pressed: interaction_pressed(world, thumb_entity),
+                    enabled: state.props.enabled,
+                },
                 theme,
             );
             let name = format!("{} {name_suffix}", state.props.label);
@@ -2096,6 +2104,7 @@ fn style_ranges(world: &mut World, theme: &UiTheme) {
 }
 
 fn style_numbers(world: &mut World, theme: &UiTheme) {
+    let focused = world.resource::<Focus>().and_then(|focus| focus.entity);
     let numbers: Vec<Entity> = world.entities_with::<NumberState>();
     for root in numbers {
         let Some(state) = world.get::<NumberState>(root).cloned() else {
@@ -2156,6 +2165,7 @@ fn style_numbers(world: &mut World, theme: &UiTheme) {
             }
             recipe(world, entity, Token::Content, Corner::Control);
         }
+        world.insert(state.field, crate::style::UseInputRadius);
         recipe(
             world,
             state.field,
@@ -2166,6 +2176,11 @@ fn style_numbers(world: &mut World, theme: &UiTheme) {
             },
             Corner::Control,
         );
+        if focused == Some(state.field) && state.props.enabled {
+            world.insert(state.field, crate::style::keyboard_focus_ring(theme));
+        } else {
+            world.remove::<Border>(state.field);
+        }
     }
 }
 
@@ -2200,8 +2215,99 @@ fn style_tips(world: &mut World, _theme: &UiTheme) {
         };
         if world.is_alive(tip.popup) {
             recipe(world, tip.popup, Token::Overlay, Corner::Overlay);
+            world.insert(tip.popup, MaxSize::width(tooltip_measure(world)));
+            let wraps = world.has::<AutoTip>(tip.popup);
+            if let Some(label) = world.get_mut::<Label>(tip.popup) {
+                label.overflow = if wraps {
+                    TextOverflow::Wrap
+                } else {
+                    TextOverflow::Ellipsis
+                };
+            }
             crate::style::paint_overlay(world, tip.popup, tip.chrome);
         }
+    }
+}
+
+fn tooltip_measure(world: &World) -> f32 {
+    let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
+    theme.space(crate::Space::X24) * 12.0
+}
+
+/// Popup spawned because a single-line label did not fit. A caller tooltip wins.
+struct AutoTip;
+impl Component for AutoTip {}
+
+pub(crate) fn sync_truncation_tooltip(
+    world: &mut World,
+    target: Entity,
+    label: Entity,
+    text: &str,
+) {
+    if !world.is_alive(target) || text.trim().is_empty() {
+        return;
+    }
+    let truncated = label_truncated(world, label);
+    if let Some(tip) = world.get::<Tip>(target).cloned() {
+        if !world.has::<AutoTip>(tip.popup) {
+            return;
+        }
+        if !truncated || !world.is_alive(tip.popup) {
+            clear_tip(world, target, tip.popup);
+            return;
+        }
+        if tip.text != text {
+            let _ = Tooltip::attach(world, target, text);
+        }
+        world.insert(tip.popup, AutoTip);
+        if let Some(label) = world.get_mut::<Label>(tip.popup) {
+            label.overflow = TextOverflow::Wrap;
+        }
+        return;
+    }
+    if !truncated {
+        return;
+    }
+    if let Ok(handle) = Tooltip::attach(world, target, text) {
+        world.insert(handle.root, AutoTip);
+        if let Some(label) = world.get_mut::<Label>(handle.root) {
+            label.overflow = TextOverflow::Wrap;
+        }
+    }
+}
+
+pub(crate) fn label_truncated(world: &World, entity: Entity) -> bool {
+    let Some(label) = world.get::<Label>(entity) else {
+        return false;
+    };
+    if label.overflow != TextOverflow::Ellipsis || label.text.trim().is_empty() {
+        return false;
+    }
+    let Some(rect) = world.get::<Rect>(entity).copied() else {
+        return false;
+    };
+    if rect.w < 1.0 {
+        return false;
+    }
+    let style = style_for(world, entity);
+    let engine = text_engine(world);
+    let available = label_box(world, entity).text_width(rect.w, engine.unit_advance(&style));
+    if !available.is_finite() {
+        return false;
+    }
+    let natural = engine
+        .measure(&label.text, &style, &[], f32::INFINITY)
+        .width;
+    natural > available + 0.5
+}
+
+fn clear_tip(world: &mut World, target: Entity, popup: Entity) {
+    unlink(world, target, popup);
+    if world.is_alive(target) {
+        world.remove::<Tip>(target);
+    }
+    if world.is_alive(popup) {
+        despawn(world, popup);
     }
 }
 
@@ -2264,22 +2370,33 @@ fn paint_fill(world: &mut World, entity: Entity, enabled: bool) {
     );
 }
 
+struct ThumbChrome {
+    focused: bool,
+    hovered: bool,
+    pressed: bool,
+    enabled: bool,
+}
+
 fn paint_thumb(
     world: &mut World,
     thumb: Entity,
     face: Entity,
-    focused: bool,
-    hovered: bool,
-    enabled: bool,
-    _theme: &UiTheme,
+    chrome: ThumbChrome,
+    theme: &UiTheme,
 ) {
+    let ThumbChrome {
+        focused,
+        hovered,
+        pressed,
+        enabled,
+    } = chrome;
     recipe(
         world,
         thumb,
         if !enabled {
             Token::Disabled
-        } else if focused {
-            Token::Focus
+        } else if pressed {
+            Token::ControlPressed
         } else {
             Token::StrongStroke
         },
@@ -2290,6 +2407,8 @@ fn paint_thumb(
         face,
         if !enabled {
             Token::Navigation
+        } else if pressed {
+            Token::ControlPressed
         } else if hovered {
             Token::ControlHover
         } else {
@@ -2297,6 +2416,11 @@ fn paint_thumb(
         },
         Corner::Compact,
     );
+    if focused && enabled {
+        world.insert(thumb, crate::style::keyboard_focus_ring(theme));
+    } else {
+        world.remove::<Border>(thumb);
+    }
 }
 
 fn paint_availability(world: &mut World, root: Entity, enabled: bool) {

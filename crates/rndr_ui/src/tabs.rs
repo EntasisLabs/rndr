@@ -1171,15 +1171,19 @@ pub(crate) fn styles(world: &mut World) {
             });
             tint_labels(world, tab, ink);
             if state.props.enabled && focus == Some(tab) {
-                world.insert(
-                    tab,
-                    Border {
-                        color: theme.color(Token::Focus),
-                        width: 2.0,
-                    },
-                );
+                world.insert(tab, crate::style::keyboard_focus_ring(&theme));
             } else {
                 world.remove::<Border>(tab);
+            }
+            if let Some(slot) = world.get::<TabSlot>(tab).copied() {
+                if let Some(label) = world.get_mut::<Label>(slot.title) {
+                    label.overflow = TextOverflow::Ellipsis;
+                }
+                let title = world
+                    .get::<Label>(slot.title)
+                    .map(|label| label.text.clone())
+                    .unwrap_or_default();
+                crate::inputs::sync_truncation_tooltip(world, tab, slot.title, &title);
             }
             if let Some(slot) = world.get::<TabSlot>(tab).copied() {
                 paint(world, slot.dirty, &theme, Token::WarningFill);
@@ -1661,8 +1665,14 @@ fn set_button_enabled(world: &mut World, entity: Entity, enabled: bool) {
     }
 }
 
-fn paint(world: &mut World, entity: Entity, theme: &UiTheme, token: Token) {
-    world.insert(entity, theme.color(token));
+fn paint(world: &mut World, entity: Entity, _theme: &UiTheme, token: Token) {
+    world.insert(
+        entity,
+        crate::UiRecipe(crate::UiStyle {
+            background: Some(token.into()),
+            ..crate::UiStyle::default()
+        }),
+    );
 }
 
 fn tint_labels(world: &mut World, tab: Entity, color: Color) {

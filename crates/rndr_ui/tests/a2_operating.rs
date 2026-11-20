@@ -8,6 +8,7 @@ mod operating;
 fn fixture(width: f32) -> (App, Entity) {
     let mut a = App::new();
     a.add_plugin(UiPlugin);
+    a.world_mut().insert_resource(InteractionMotion::snap());
     a.world_mut().insert_resource(Viewport::new(width, 1000.0));
     let root = a.world_mut().spawn((Layout {
         width: Size::Px(width),
@@ -435,10 +436,27 @@ fn actual_gallery_matrix_has_real_glyphs_wrap_targets_and_narrow_reflow() {
                                 .map(|g| g.ch)
                                 .filter(|c| c.is_ascii_graphic())
                                 .collect();
-                            assert_eq!(
-                                actual, expected,
-                                "complete ASCII glyph coverage, not just World text"
-                            );
+                            if actual != expected {
+                                assert!(
+                                    expected.starts_with(&actual) && !actual.is_empty(),
+                                    "ellipsis kept {actual:?} of {expected:?}"
+                                );
+                                assert_eq!(t.lines.len(), 1);
+                                let style = style_for(a.world(), h.label);
+                                let natural = text_engine(a.world())
+                                    .measure(
+                                        &a.world().get::<Label>(h.label).unwrap().text,
+                                        &style,
+                                        &[],
+                                        f32::INFINITY,
+                                    )
+                                    .width;
+                                assert!(
+                                    t.width + 0.5 < natural,
+                                    "truncated layout {} still measures {natural}",
+                                    t.width
+                                );
+                            }
                             assert!(f.quads.iter().any(|q|q.uv!=rndr_paint::solid_uv()&&contains(lr,q.rect)),"no actual glyph in target");
                         }
                         let nav = d.nav[0];

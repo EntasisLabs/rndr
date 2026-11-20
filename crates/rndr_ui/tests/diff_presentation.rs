@@ -3,7 +3,7 @@ use rndr_core::*;
 use rndr_ui::{
     collections::{ItemId, VariableAnchor, VirtualViewHandle},
     diff::{DiffAnnotation, DiffHandle, DiffMarker, DiffProps, DiffRow, DiffView, HunkId},
-    UiId, UiPlugin,
+    InteractionMotion, UiId, UiPlugin,
 };
 
 fn row(id: u64, hunk: u64, text: &str, marker: DiffMarker, height: f32) -> DiffRow {
@@ -19,6 +19,7 @@ fn row(id: u64, hunk: u64, text: &str, marker: DiffMarker, height: f32) -> DiffR
 fn setup(rows: &[DiffRow], height: f32) -> (App, Entity, DiffHandle) {
     let mut app = App::new();
     app.add_plugin(UiPlugin);
+    app.world_mut().insert_resource(InteractionMotion::snap());
     app.world_mut().insert_resource(Viewport::new(400., 400.));
     let parent = app.world_mut().spawn((Layout {
         width: Size::Fill,

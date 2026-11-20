@@ -35,7 +35,10 @@ pub mod tree;
 pub mod window_controls;
 pub use composition::{section_layout, WorkspaceLayout};
 use rndr_core::{App, Layout, Plugin, Schedule, Size};
-pub use style::{detach_style, resolve_styles, Corner, OverlayChrome, UiColor, UiRecipe, UiStyle};
+pub use style::{
+    detach_style, resolve_styles, Corner, InteractionMotion, OverlayChrome, RadiusRole,
+    RadiusScale, UiColor, UiRecipe, UiStyle,
+};
 pub use surfaces::{separator, text, Callout, Card, Feedback, Surface, UiError, UiHandle, UiId};
 pub use theme_bridge::apply_theme_bridge;
 pub use tokens::{
@@ -82,6 +85,10 @@ impl Plugin for UiPlugin {
         app.add_system_front(Schedule::Input, rndr_core::apply_window_chrome);
         if !app.world().has_resource::<UiTheme>() {
             app.world_mut().insert_resource(UiTheme::default());
+        }
+        if !app.world().has_resource::<InteractionMotion>() {
+            app.world_mut()
+                .insert_resource(InteractionMotion::default());
         }
         app.world_mut().insert_resource(Installed);
         app.add_system(Schedule::Input, collections::requests);

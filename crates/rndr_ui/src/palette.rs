@@ -25,8 +25,8 @@ use crate::{
     Corner, Token, Typography, UiError, UiId, UiStyle, UiTheme,
 };
 use rndr_core::{
-    replace_field_text, AccessMark, AccessRole, Align, AnchoredPopup, CapturesKeys, Entity,
-    Focusable, Hidden, Icon, Input, Items, Justify, KeyEvent, KeyNavigation, Label, Layout,
+    replace_field_text, AccessMark, AccessRole, Align, AnchoredPopup, Border, CapturesKeys, Entity,
+    Focus, Focusable, Hidden, Icon, Input, Items, Justify, KeyEvent, KeyNavigation, Label, Layout,
     LivePoliteness, LiveRegion, LogicalKey, NamedKey, Placeholder, PopupEscape, PopupPlacement,
     Rect, SelectionAccess, Semantics, Size, Spans, TextChanged, TextField, TextOverflow, TextSpan,
     World, TEXT_ORIGIN_X,
@@ -339,6 +339,7 @@ impl CommandPalette {
                 ..UiStyle::default()
             },
         );
+        world.insert(field, crate::style::UseInputRadius);
         rndr_core::set_parent(world, field, root);
         let list = ListView::mount_virtual(
             world,
@@ -675,6 +676,7 @@ pub(crate) fn place(world: &mut World) {
         let anchor = state.anchor;
         let width = state.props.width;
         let chrome = state.props.chrome;
+        let field = state.field;
         let rect = world.get::<Rect>(anchor).copied().unwrap_or_default();
         world.insert(root, PopupPlacement::At([rect.x, rect.y + rect.h]));
         if let Some(layout) = world.get_mut::<Layout>(root) {
@@ -683,6 +685,13 @@ pub(crate) fn place(world: &mut World) {
         paint_overlay(world, root, chrome);
         if let Some(style) = world.get_mut::<UiStyle>(root) {
             style.corner = Some(Corner::Overlay);
+        }
+        let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
+        let focused = world.resource::<Focus>().and_then(|focus| focus.entity) == Some(field);
+        if focused {
+            world.insert(field, crate::style::keyboard_focus_ring(&theme));
+        } else {
+            world.remove::<Border>(field);
         }
     }
 }
@@ -1206,7 +1215,9 @@ fn compose_row(world: &mut World, slot: crate::collections::RowSlot, item: &Item
     world.remove::<Hidden>(parts.title);
     if let Some(label) = world.get_mut::<Label>(parts.title) {
         label.text = shown.title.clone();
+        label.overflow = TextOverflow::Ellipsis;
     }
+    crate::inputs::sync_truncation_tooltip(world, slot.root, parts.title, &shown.title);
     if shown.shortcut.is_empty() {
         world.insert(parts.shortcut, Hidden);
     } else {

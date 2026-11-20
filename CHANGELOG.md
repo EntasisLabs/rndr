@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Interaction polish
+
+- Single-line labels on buttons, navigation rows, tab titles, virtual-list and tree rows, command palette items, and tooltips end in an ellipsis when they do not fit. A truncated label grows a tooltip with the full text unless the control already has one. The tooltip itself stays on one line; the truncation tooltip wraps so the full string can be read.
+- Hover and press fills ease over 120 ms. `UiPlugin` installs `InteractionMotion`; `InteractionMotion::snap` or a zero duration settles on the same frame. A press is a different token from hover. `SystemAppearance::reduced_motion`, `MotionSettings::reduced_motion`, and a clock that has not moved also snap.
+- `SplitSash` keeps its hit target and draws a centered line. Hover, drag, and keyboard focus each use their own token, and the pointer is the resize cursor.
+- `RadiusRole` and `RadiusScale` name control, input, overlay (12), card, and chip radii. A rounded style clips its children to that radius. Focus rings use `Token::Focus` at `UiTheme::focus_width`.
+
 ### Frosted surfaces
 
 - `Token::Glass`, `Token::Material`, and `Token::Panel` are translucent in light and dark standard contrast, and opaque in high contrast. `Surface::Transparent`, `Surface::Glass`, `Surface::Material`, and `Surface::Panel` mount those fills. `SplitSashProps::leading_fill` and `trailing_fill` follow a theme surface or stay clear, and the fill is resolved again when the theme changes. The default is still an opaque content pane.

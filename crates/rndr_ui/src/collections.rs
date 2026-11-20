@@ -1534,6 +1534,7 @@ fn depth_of(map: &BTreeMap<ItemId, Option<ItemId>>, id: ItemId) -> Option<usize>
     None
 }
 pub(crate) fn styles(world: &mut World) {
+    virtual_list::chrome(world);
     let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
     for viewport in world.entities_with::<Scroll>() {
         let mut color = theme.color(Token::Secondary);
@@ -1558,13 +1559,7 @@ pub(crate) fn styles(world: &mut World) {
             }),
         );
         if focus == Some(root) && v.props.enabled {
-            world.insert(
-                root,
-                Border {
-                    color: theme.color(Token::Focus),
-                    width: 2.,
-                },
-            );
+            world.insert(root, crate::style::keyboard_focus_ring(&theme));
         } else {
             world.remove::<Border>(root);
         }
@@ -1612,13 +1607,7 @@ pub(crate) fn styles(world: &mut World) {
             // One row surface owns fill, including its disclosure/indent. Focus
             // is a bounded outline, never a filled ancestor viewport or gutter.
             if focused && enabled {
-                world.insert(
-                    row.slot.root,
-                    Border {
-                        color: theme.color(Token::Focus),
-                        width: 2.,
-                    },
-                );
+                world.insert(row.slot.root, crate::style::keyboard_focus_ring(&theme));
             } else {
                 world.remove::<Border>(row.slot.root);
             }
@@ -1648,8 +1637,15 @@ pub(crate) fn styles(world: &mut World) {
                 };
             let mut entities = vec![row.slot.content];
             descendants(world, row.slot.content, &mut entities);
+            let mut tip_label = None;
             for e in entities {
                 if world.has::<Label>(e) {
+                    if let Some(label) = world.get_mut::<Label>(e) {
+                        if !label.text.contains('\n') {
+                            label.overflow = TextOverflow::Ellipsis;
+                        }
+                    }
+                    tip_label.get_or_insert(e);
                     let mut recipe = world.get::<UiRecipe>(e).cloned().unwrap_or_default();
                     recipe.0.foreground = Some(
                         if !enabled {
@@ -1663,6 +1659,9 @@ pub(crate) fn styles(world: &mut World) {
                     );
                     world.insert(e, recipe);
                 }
+            }
+            if let Some(label) = tip_label {
+                crate::inputs::sync_truncation_tooltip(world, row.slot.root, label, &row.item.name);
             }
             world.insert(
                 row.chevron,

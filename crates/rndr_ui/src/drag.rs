@@ -859,7 +859,7 @@ fn spawn_ghost(world: &mut World, live: &Live) -> Entity {
             ..Label::new(&live.name)
         },
         Color::rgba(0.16, 0.2, 0.28, 0.94),
-        Radius(8.0),
+        Radius(crate::Corner::FocusGap.points()),
         Opacity(0.94),
         Layer(24),
     ));
