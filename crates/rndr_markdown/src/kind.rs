@@ -38,6 +38,12 @@ pub enum SyntaxKind {
     TableCell,
     /// A link reference definition, in place.
     LinkRefDef,
+    /// A footnote definition `[^id]: body`, including indented continuations.
+    FootnoteDef,
+    /// An Obsidian callout. The `>` prefixes stay, and `[!type]` is in the first line.
+    Callout,
+    /// A `::block::` … `::end::` region. Fence lines keep their spelling.
+    StyledBlock,
     /// One blank line owned by the parent block container.
     BlockGap,
     /// Bytes the grammar does not structure.
@@ -56,8 +62,22 @@ pub enum SyntaxKind {
     Link,
     /// An image, including its marker and destination.
     Image,
-    /// An autolink `<...>`.
+    /// An autolink `<...>`, or a bare GFM autolink (`https://…`, `www.…`, email).
     Autolink,
+    /// A `==highlight==` span. The markers are delimiter children.
+    Highlight,
+    /// Inline math `$…$`. The dollars are delimiter children.
+    Math,
+    /// A footnote reference `[^id]`.
+    FootnoteRef,
+    /// An inline footnote `^[text]`.
+    FootnoteInline,
+    /// A `[[target|label]]` wikilink, including an optional `#heading`.
+    WikiLink,
+    /// An `![[target|extra]]` embed. Image targets are a display concern.
+    WikiEmbed,
+    /// A `{{red|…}}`, `{{#hex|…}}`, `{{font:…}}`, or `{{size:…}}` span.
+    StyleSpan,
     /// A hard line break: two spaces or a backslash, plus the line ending.
     HardBreak,
     /// A soft line break inside a paragraph.
@@ -125,6 +145,9 @@ impl SyntaxKind {
                 | Self::Table
                 | Self::TableRow
                 | Self::LinkRefDef
+                | Self::FootnoteDef
+                | Self::Callout
+                | Self::StyledBlock
                 | Self::BlockGap
                 | Self::OpaqueBlock
         )

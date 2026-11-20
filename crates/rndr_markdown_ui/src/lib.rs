@@ -21,7 +21,9 @@ mod surface;
 
 pub use access::{access_snapshot, set_access_selection, MarkdownAccessSnapshot};
 pub use document::{MarkdownDocuments, MarkdownId};
-pub use project::{measure_block, project, update_projection, DisplayBlock, DisplayKind, Palette};
+pub use project::{
+    measure_block, present, project, update_projection, DisplayBlock, DisplayKind, Palette,
+};
 pub use surface::{
     document_of, MarkdownCommand, MarkdownSurface, MarkdownSurfaceError, MarkdownSurfaceHandle,
     MarkdownSurfaceProps,

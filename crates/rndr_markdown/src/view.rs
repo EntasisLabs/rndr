@@ -46,6 +46,13 @@ impl<'source, 'tree> TypedView<'source, 'tree> {
         out
     }
 
+    /// Inline marks in source order. Delimiters stay in the tree; this is the lens.
+    pub fn marks(&self) -> Vec<InlineMark<'source>> {
+        let mut out = Vec::new();
+        walk_marks(self.source, self.root, 0, &mut out);
+        out
+    }
+
     /// Every GFM table in the tree, including tables nested in a list or quote.
     pub fn tables(&self) -> Vec<Table<'source>> {
         let mut out = Vec::new();
@@ -78,6 +85,27 @@ pub enum TypedBlock<'a> {
     },
     /// A Liquid fence.
     Liquid(LiquidFence<'a>),
+    /// An Obsidian callout. `tone` is the bracket word as written.
+    Callout {
+        /// The word inside `[!…]`.
+        tone: &'a str,
+        /// The rest of the opening line, trimmed.
+        title: &'a str,
+        /// Byte range of the whole callout.
+        range: Range<usize>,
+    },
+    /// A footnote definition.
+    Footnote {
+        /// The id inside `[^…]`.
+        id: &'a str,
+        /// Byte range of the definition, continuations included.
+        range: Range<usize>,
+    },
+    /// A `::block::` region.
+    StyledBlock {
+        /// Byte range, including the fence lines.
+        range: Range<usize>,
+    },
     /// A GFM table. Alignment is read from the delimiter row.
     Table(Table<'a>),
     /// Any other block. Unknown constructs arrive here as opaque blocks.
@@ -270,6 +298,80 @@ pub struct ItemGroup<'a> {
     pub parts: Vec<FencePart<'a>>,
 }
 
+/// One inline construct the editor can name.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum InlineMark<'a> {
+    /// An inline or reference link. `destination` is the written target.
+    Link {
+        /// Destination bytes, without surrounding `<` `>` or parentheses.
+        destination: &'a str,
+        /// Title bytes, without the quote characters.
+        title: Option<&'a str>,
+        /// Byte range of the whole link.
+        range: Range<usize>,
+    },
+    /// An image. `destination` is the written target.
+    Image {
+        /// Alt bytes.
+        alt: &'a str,
+        /// Destination bytes.
+        destination: &'a str,
+        /// Title bytes, without the quote characters.
+        title: Option<&'a str>,
+        /// Byte range of the whole image.
+        range: Range<usize>,
+    },
+    /// `<…>` or a bare autolink. `target` is the address without angle brackets.
+    Autolink {
+        /// The address.
+        target: &'a str,
+        /// Byte range.
+        range: Range<usize>,
+    },
+    /// `[^id]` or an inline `^[text]`.
+    Footnote {
+        /// The id, or the inline body.
+        id: &'a str,
+        /// Byte range.
+        range: Range<usize>,
+    },
+    /// `[[target|label]]`.
+    WikiLink {
+        /// Path and optional `#heading`, as written before `|`.
+        target: &'a str,
+        /// The alias after `|`.
+        label: Option<&'a str>,
+        /// Byte range.
+        range: Range<usize>,
+    },
+    /// `![[target|extra]]`.
+    WikiEmbed {
+        /// Path before `|`.
+        target: &'a str,
+        /// Size token or caption after `|`.
+        extra: Option<&'a str>,
+        /// Byte range.
+        range: Range<usize>,
+    },
+    /// `==…==`.
+    Highlight {
+        /// Byte range.
+        range: Range<usize>,
+    },
+    /// `$…$`.
+    Math {
+        /// Byte range.
+        range: Range<usize>,
+    },
+    /// `{{token|…}}`.
+    Style {
+        /// The token before `|`, as written.
+        token: &'a str,
+        /// Byte range.
+        range: Range<usize>,
+    },
+}
+
 /// One field or comment inside a fence.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Field<'a> {
@@ -314,6 +416,15 @@ fn block_at<'a>(source: &'a str, node: &Green, at: usize) -> TypedBlock<'a> {
             range,
         },
         SyntaxKind::LiquidFence => TypedBlock::Liquid(liquid_at(source, node, at)),
+        SyntaxKind::Callout => {
+            let (tone, title) = callout_title(&source[range.clone()]);
+            TypedBlock::Callout { tone, title, range }
+        }
+        SyntaxKind::FootnoteDef => TypedBlock::Footnote {
+            id: footnote_id(source, node, at),
+            range,
+        },
+        SyntaxKind::StyledBlock => TypedBlock::StyledBlock { range },
         SyntaxKind::Table => match table_from(source, node, at) {
             Some(table) => TypedBlock::Table(table),
             None => TypedBlock::Other {
@@ -698,6 +809,241 @@ fn table_row<'a>(source: &'a str, node: &Green, at: usize) -> FenceRow<'a> {
         separator,
         cells,
     }
+}
+
+fn callout_title(src: &str) -> (&str, &str) {
+    let line = src.lines().next().unwrap_or("");
+    let rest = line.trim_start();
+    let rest = rest.strip_prefix('>').unwrap_or(rest).trim_start();
+    if !rest.starts_with("[!") {
+        return ("", "");
+    }
+    let Some(end) = rest.find(']') else {
+        return ("", "");
+    };
+    if end < 2 {
+        return ("", "");
+    }
+    let tone = &rest[2..end];
+    let title = rest[end + 1..].trim();
+    (tone, title)
+}
+
+fn footnote_id<'a>(source: &'a str, node: &Green, at: usize) -> &'a str {
+    let mut cursor = at;
+    for child in node.children() {
+        let end = cursor + child.width();
+        if child.kind() == SyntaxKind::Delimiter {
+            let marker = &source[cursor..end];
+            let inner = marker.strip_prefix("[^").unwrap_or(marker);
+            let inner = inner.strip_suffix(':').unwrap_or(inner);
+            return inner.strip_suffix(']').unwrap_or(inner);
+        }
+        cursor = end;
+    }
+    ""
+}
+
+fn walk_marks<'a>(source: &'a str, node: &Green, at: usize, out: &mut Vec<InlineMark<'a>>) {
+    let range = at..at + node.width();
+    let leaf = matches!(
+        node.kind(),
+        SyntaxKind::Link
+            | SyntaxKind::Image
+            | SyntaxKind::Autolink
+            | SyntaxKind::FootnoteRef
+            | SyntaxKind::FootnoteInline
+            | SyntaxKind::WikiLink
+            | SyntaxKind::WikiEmbed
+    );
+    match node.kind() {
+        SyntaxKind::Link => out.push(link_mark(source, node, range.clone(), false)),
+        SyntaxKind::Image => out.push(link_mark(source, node, range.clone(), true)),
+        SyntaxKind::Autolink => {
+            let raw = &source[range.clone()];
+            out.push(InlineMark::Autolink {
+                target: raw.trim_start_matches('<').trim_end_matches('>'),
+                range,
+            });
+        }
+        SyntaxKind::FootnoteRef | SyntaxKind::FootnoteInline => {
+            out.push(InlineMark::Footnote {
+                id: child_text(source, node, at, SyntaxKind::Text),
+                range,
+            });
+        }
+        SyntaxKind::WikiLink => {
+            let (target, label) = wiki_parts(source, node, at);
+            out.push(InlineMark::WikiLink {
+                target,
+                label,
+                range,
+            });
+        }
+        SyntaxKind::WikiEmbed => {
+            let (target, extra) = wiki_parts(source, node, at);
+            out.push(InlineMark::WikiEmbed {
+                target,
+                extra,
+                range,
+            });
+        }
+        SyntaxKind::Highlight => out.push(InlineMark::Highlight {
+            range: range.clone(),
+        }),
+        SyntaxKind::Math => out.push(InlineMark::Math {
+            range: range.clone(),
+        }),
+        SyntaxKind::StyleSpan => out.push(InlineMark::Style {
+            token: style_token(source, node, at),
+            range: range.clone(),
+        }),
+        _ => {}
+    }
+    if leaf {
+        return;
+    }
+    let mut child_at = at;
+    for child in node.children() {
+        walk_marks(source, child, child_at, out);
+        child_at += child.width();
+    }
+}
+
+fn child_text<'a>(source: &'a str, node: &Green, at: usize, kind: SyntaxKind) -> &'a str {
+    let mut cursor = at;
+    for child in node.children() {
+        let end = cursor + child.width();
+        if child.kind() == kind {
+            return &source[cursor..end];
+        }
+        cursor = end;
+    }
+    ""
+}
+
+fn wiki_parts<'a>(source: &'a str, node: &Green, at: usize) -> (&'a str, Option<&'a str>) {
+    let mut cursor = at;
+    let mut texts = Vec::new();
+    for child in node.children() {
+        let end = cursor + child.width();
+        if child.kind() == SyntaxKind::Text {
+            texts.push(&source[cursor..end]);
+        }
+        cursor = end;
+    }
+    let target = texts.first().copied().unwrap_or("");
+    let extra = texts.get(1).copied();
+    (target, extra)
+}
+
+fn style_token<'a>(source: &'a str, node: &Green, at: usize) -> &'a str {
+    let mut cursor = at;
+    for child in node.children() {
+        let end = cursor + child.width();
+        if child.kind() == SyntaxKind::Delimiter {
+            let open = &source[cursor..end];
+            if let Some(token) = open.strip_prefix("{{").and_then(|s| s.strip_suffix('|')) {
+                return token;
+            }
+        }
+        cursor = end;
+    }
+    ""
+}
+
+fn link_mark<'a>(
+    source: &'a str,
+    node: &Green,
+    range: Range<usize>,
+    image: bool,
+) -> InlineMark<'a> {
+    let mut cursor = range.start;
+    let mut label: Option<Range<usize>> = None;
+    let mut tail: Option<Range<usize>> = None;
+    let mut after = false;
+    for child in node.children() {
+        let end = cursor + child.width();
+        if child.kind() == SyntaxKind::Delimiter && &source[cursor..end] == "]" {
+            after = true;
+        } else if !after && child.kind() != SyntaxKind::Delimiter {
+            match &mut label {
+                Some(span) => span.end = end,
+                None => label = Some(cursor..end),
+            }
+        } else if after {
+            match &mut tail {
+                Some(span) => span.end = end,
+                None => tail = Some(cursor..end),
+            }
+        }
+        cursor = end;
+    }
+    let alt = label.map(|span| &source[span]).unwrap_or("");
+    let tail = tail.map(|span| &source[span]).unwrap_or("");
+    let (destination, title) = split_link_tail(tail);
+    if image {
+        InlineMark::Image {
+            alt,
+            destination,
+            title,
+            range,
+        }
+    } else {
+        InlineMark::Link {
+            destination,
+            title,
+            range,
+        }
+    }
+}
+
+fn split_link_tail(tail: &str) -> (&str, Option<&str>) {
+    if let Some(inner) = tail.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
+        return (inner, None);
+    }
+    let Some(inner) = tail.strip_prefix('(').and_then(|s| s.strip_suffix(')')) else {
+        return (tail, None);
+    };
+    let inner = inner.trim();
+    if let Some(stripped) = inner.strip_prefix('<') {
+        if let Some(end) = stripped.find('>') {
+            let dest = &stripped[..end];
+            return (dest, title_of(stripped[end + 1..].trim()));
+        }
+    }
+    let bytes = inner.as_bytes();
+    let mut i = 0;
+    let mut depth = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'\\' && i + 1 < bytes.len() {
+            i += 2;
+            continue;
+        }
+        if bytes[i] == b'(' {
+            depth += 1;
+        } else if bytes[i] == b')' && depth > 0 {
+            depth -= 1;
+        } else if bytes[i].is_ascii_whitespace() && depth == 0 {
+            break;
+        }
+        i += 1;
+    }
+    (inner[..i].trim(), title_of(inner[i..].trim()))
+}
+
+fn title_of(rest: &str) -> Option<&str> {
+    let bytes = rest.as_bytes();
+    if bytes.is_empty() {
+        return None;
+    }
+    let quote = bytes[0];
+    if !matches!(quote, b'"' | b'\'' | b'(') {
+        return None;
+    }
+    let end_quote = if quote == b'(' { ')' } else { quote as char };
+    let close = rest[1..].find(end_quote)?;
+    Some(&rest[1..1 + close])
 }
 
 fn is_markdown_field(kind: &str, key: &str) -> bool {

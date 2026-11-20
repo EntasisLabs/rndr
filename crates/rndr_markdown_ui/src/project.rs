@@ -85,11 +85,23 @@ pub enum DisplayKind {
     Gap,
     /// A GFM table, cells joined for display.
     Table,
-    /// An image whose alt is the text.
+    /// An image whose alt is the text. The picture itself is not loaded.
     Image {
-        /// Alt bytes.
+        /// Alt bytes, or the embed name when the alt is empty.
         alt: String,
     },
+    /// An Obsidian callout. `tone` is the bracket word, lowercased.
+    Callout {
+        /// `[!tone]`.
+        tone: String,
+    },
+    /// A footnote definition.
+    Footnote {
+        /// The id as written.
+        id: String,
+    },
+    /// A `::block::` region. Fence lines stay hidden until the caret is inside.
+    Styled,
     /// HTML, indented code, a link reference, or bytes the view does not structure.
     Opaque,
 }
@@ -203,6 +215,66 @@ impl DisplayBlock {
 struct Ctx {
     depth: u8,
     quote: u8,
+}
+
+/// The block as the caret sees it.
+///
+/// Markers of the inline span under `caret` are shown. Every other block is
+/// the same projection [`project`] builds, with those markers hidden.
+pub fn present(
+    block: &DisplayBlock,
+    bytes: &str,
+    root: &Green,
+    caret: usize,
+    palette: &Palette,
+) -> DisplayBlock {
+    if caret < block.span.start || caret >= block.span.end {
+        return block.clone();
+    }
+    let Some(node) = find_span(root, 0, block.span.start, block.span.end) else {
+        return block.clone();
+    };
+    let mut out = Vec::new();
+    project_node(
+        bytes,
+        node,
+        block.span.start,
+        Ctx {
+            depth: block.depth,
+            quote: block.quote,
+        },
+        palette,
+        Some(caret),
+        &mut out,
+    );
+    let Some(mut shown) = out.into_iter().next() else {
+        return block.clone();
+    };
+    if block.marker.is_some() {
+        shown.kind = block.kind.clone();
+        shown.chrome.clone_from(&block.chrome);
+        shown.marker.clone_from(&block.marker);
+        shown.depth = block.depth;
+        shown.quote = block.quote;
+    }
+    shown
+}
+
+fn find_span(node: &Green, at: usize, start: usize, end: usize) -> Option<&Green> {
+    let node_end = at + node.width();
+    if start < at || end > node_end {
+        return None;
+    }
+    // A one-block document has the same span as that block. Descend first so
+    // the node that was projected (the fence, the paragraph) is the one shown.
+    let mut child_at = at;
+    for child in node.children() {
+        if let Some(found) = find_span(child, child_at, start, end) {
+            return Some(found);
+        }
+        child_at += child.width();
+    }
+    (at == start && node_end == end).then_some(node)
 }
 
 /// Project every block of `root`.
@@ -371,7 +443,7 @@ impl Walk<'_> {
             self.out.push(self.pool.pop_front().unwrap());
             return;
         }
-        project_node(self.bytes, node, at, ctx, self.palette, self.out);
+        project_node(self.bytes, node, at, ctx, self.palette, None, self.out);
     }
 
     fn item(&mut self, node: &Green, at: usize, ctx: Ctx) {
@@ -466,6 +538,7 @@ fn project_node(
     at: usize,
     ctx: Ctx,
     palette: &Palette,
+    focus: Option<usize>,
     out: &mut Vec<DisplayBlock>,
 ) {
     let span = at..at + node.width();
@@ -482,15 +555,18 @@ fn project_node(
             rule.chrome = "—".into();
             rule
         }
-        SyntaxKind::Heading => project_heading(bytes, node, at, palette),
+        SyntaxKind::Heading => project_heading(bytes, node, at, palette, focus),
         SyntaxKind::FencedCode => project_fence(bytes, node, at, false),
         SyntaxKind::LiquidFence => project_fence(bytes, node, at, true),
         SyntaxKind::Table => project_table(bytes, node, at, palette),
+        SyntaxKind::Callout => project_callout(bytes, node, at, focus),
+        SyntaxKind::FootnoteDef => project_footnote(bytes, node, at, focus),
+        SyntaxKind::StyledBlock => project_styled(bytes, node, at, palette, focus),
         SyntaxKind::HtmlBlock
         | SyntaxKind::IndentedCode
         | SyntaxKind::OpaqueBlock
         | SyntaxKind::LinkRefDef => project_raw(bytes, node, at),
-        _ => project_flow(bytes, node, at, palette),
+        _ => project_flow(bytes, node, at, palette, focus),
     };
     block.depth = ctx.depth;
     block.quote = ctx.quote;
@@ -513,8 +589,14 @@ fn empty_paragraph(span: Range<usize>) -> DisplayBlock {
     }
 }
 
-fn project_heading(bytes: &str, node: &Green, at: usize, palette: &Palette) -> DisplayBlock {
-    let mut block = project_flow(bytes, node, at, palette);
+fn project_heading(
+    bytes: &str,
+    node: &Green,
+    at: usize,
+    palette: &Palette,
+    focus: Option<usize>,
+) -> DisplayBlock {
+    let mut block = project_flow(bytes, node, at, palette, focus);
     block.kind = DisplayKind::Heading(heading_level(node));
     let mut child_at = at;
     for child in node.children() {
@@ -549,8 +631,14 @@ fn heading_level(node: &Green) -> u8 {
     }
 }
 
-fn project_flow(bytes: &str, node: &Green, at: usize, palette: &Palette) -> DisplayBlock {
-    let mut acc = Acc::new(at, palette);
+fn project_flow(
+    bytes: &str,
+    node: &Green,
+    at: usize,
+    palette: &Palette,
+    focus: Option<usize>,
+) -> DisplayBlock {
+    let mut acc = Acc::new(at, palette, focus);
     let children = node.children();
     for (index, child) in children.iter().enumerate() {
         let last = index + 1 == children.len();
@@ -560,7 +648,14 @@ fn project_flow(bytes: &str, node: &Green, at: usize, palette: &Palette) -> Disp
         }
         flow_child(bytes, child, &mut acc);
     }
-    acc.finish(node.kind(), at..at + node.width())
+    let mut block = acc.finish(node.kind(), at..at + node.width());
+    let focused = focus.is_some_and(|caret| at <= caret && caret < at + node.width());
+    if !focused {
+        if let Some(alt) = lone_image_alt(node) {
+            block.kind = DisplayKind::Image { alt };
+        }
+    }
+    block
 }
 
 fn project_raw(bytes: &str, node: &Green, at: usize) -> DisplayBlock {
@@ -869,7 +964,7 @@ fn push_mapped(
 }
 
 fn project_table(bytes: &str, node: &Green, at: usize, palette: &Palette) -> DisplayBlock {
-    let mut acc = Acc::new(at, palette);
+    let mut acc = Acc::new(at, palette, None);
     let mut child_at = at;
     for child in node.children() {
         if child.kind() == SyntaxKind::TableRow {
@@ -919,11 +1014,9 @@ fn canonical_kind(info: &str) -> String {
 
 fn marker_chrome(text: &str) -> (DisplayKind, String) {
     let trimmed = text.trim();
-    if trimmed.contains("[x]") || trimmed.contains("[X]") {
-        return (DisplayKind::Task(true), "☑ ".into());
-    }
-    if trimmed.contains("[ ]") {
-        return (DisplayKind::Task(false), "☐ ".into());
+    if let Some(checked) = task_checked(trimmed) {
+        let chrome = if checked { "☑ " } else { "☐ " };
+        return (DisplayKind::Task(checked), chrome.into());
     }
     let digits: String = trimmed.chars().take_while(|c| c.is_ascii_digit()).collect();
     if let Ok(number) = digits.parse::<u64>() {
@@ -934,6 +1027,30 @@ fn marker_chrome(text: &str) -> (DisplayKind, String) {
     (DisplayKind::Bullet, "• ".into())
 }
 
+/// A bullet marker whose checkbox is exactly `[ ]`, `[x]`, or `[X]`.
+fn task_checked(trimmed: &str) -> Option<bool> {
+    let bytes = trimmed.as_bytes();
+    if bytes
+        .first()
+        .is_none_or(|b| !matches!(b, b'-' | b'+' | b'*'))
+    {
+        return None;
+    }
+    let rest = trimmed[1..].trim_start();
+    let box_bytes = rest.as_bytes();
+    if box_bytes.len() < 3 || box_bytes[0] != b'[' || box_bytes[2] != b']' {
+        return None;
+    }
+    if !matches!(box_bytes[1], b' ' | b'x' | b'X') {
+        return None;
+    }
+    let after = &rest[3..];
+    if !(after.is_empty() || after.starts_with([' ', '\t'])) {
+        return None;
+    }
+    Some(box_bytes[1] == b'x' || box_bytes[1] == b'X')
+}
+
 #[derive(Clone)]
 struct Ink {
     italic: bool,
@@ -942,6 +1059,9 @@ struct Ink {
     code: bool,
     link: bool,
     color: Color,
+    highlight: Option<Color>,
+    family: Option<String>,
+    custom: bool,
 }
 
 impl Ink {
@@ -953,11 +1073,21 @@ impl Ink {
             code: false,
             link: false,
             color,
+            highlight: None,
+            family: None,
+            custom: false,
         }
     }
 
     fn marked(&self) -> bool {
-        self.italic || self.weight.is_some() || self.strike || self.code || self.link
+        self.italic
+            || self.weight.is_some()
+            || self.strike
+            || self.code
+            || self.link
+            || self.custom
+            || self.highlight.is_some()
+            || self.family.is_some()
     }
 }
 
@@ -968,10 +1098,11 @@ struct Acc {
     spans: Vec<TextSpan>,
     palette: Palette,
     cursor: usize,
+    focus: Option<usize>,
 }
 
 impl Acc {
-    fn new(base: usize, palette: &Palette) -> Self {
+    fn new(base: usize, palette: &Palette, focus: Option<usize>) -> Self {
         Self {
             base,
             text: String::new(),
@@ -979,6 +1110,7 @@ impl Acc {
             spans: Vec::new(),
             palette: *palette,
             cursor: base,
+            focus,
         }
     }
 
@@ -1022,6 +1154,12 @@ impl Acc {
         if ink.code {
             span.family = Some("monospace".into());
             span.highlight = Some(self.palette.code);
+        }
+        if let Some(family) = &ink.family {
+            span.family = Some(family.clone());
+        }
+        if let Some(highlight) = ink.highlight {
+            span.highlight = Some(highlight);
         }
         if ink.link {
             span.color = self.palette.link;
@@ -1071,63 +1209,136 @@ impl Acc {
 }
 
 fn flow_child(bytes: &str, node: &Green, acc: &mut Acc) {
-    walk_inline(bytes, node, acc, &Ink::plain(acc.palette.text));
+    walk_inline(bytes, node, acc, &Ink::plain(acc.palette.text), false);
 }
 
-fn walk_inline(bytes: &str, node: &Green, acc: &mut Acc, ink: &Ink) {
+fn walk_inline(_bytes: &str, node: &Green, acc: &mut Acc, ink: &Ink, reveal: bool) {
+    let start = acc.cursor;
+    let width = node.width();
+    let active = acc
+        .focus
+        .is_some_and(|caret| caret >= start && caret < start + width);
+    if node.kind() == SyntaxKind::Delimiter {
+        if reveal {
+            let mut muted = ink.clone();
+            muted.color = acc.palette.muted;
+            muted.link = false;
+            muted.custom = true;
+            acc.push_styled(node.text(), width, &muted);
+        } else {
+            acc.skip(width);
+        }
+        return;
+    }
     if hide_inline(node) {
-        acc.skip(node.width());
+        acc.skip(width);
         return;
     }
     if node.children().is_empty() {
-        let shown = shown_leaf(node.kind(), node.text());
-        acc.push_styled(&shown, node.width(), ink);
+        let shown = if active && node.kind() == SyntaxKind::Autolink {
+            node.text().to_string()
+        } else {
+            shown_leaf(node.kind(), node.text())
+        };
+        let paint = if node.kind() == SyntaxKind::Autolink {
+            let mut link = ink.clone();
+            link.link = true;
+            link
+        } else {
+            ink.clone()
+        };
+        acc.push_styled(&shown, width, &paint);
         return;
     }
     let mut next = ink.clone();
     match node.kind() {
+        SyntaxKind::Image if !active => {
+            emit_image_chip(node, acc);
+            return;
+        }
+        SyntaxKind::WikiEmbed if !active => {
+            emit_embed_chip(node, acc);
+            return;
+        }
+        SyntaxKind::WikiLink if !active => {
+            next.link = true;
+            emit_named_chip(node, acc, &next, wiki_visible(node));
+            return;
+        }
+        SyntaxKind::FootnoteRef if !active => {
+            next.link = true;
+            emit_named_chip(node, acc, &next, footnote_visible(node));
+            return;
+        }
+        SyntaxKind::FootnoteInline if !active => {
+            next.link = true;
+            emit_named_chip(node, acc, &next, text_child(node));
+            return;
+        }
         SyntaxKind::Emphasis => next.italic = true,
         SyntaxKind::Strong => next.weight = Some(FONT_WEIGHT_BOLD),
         SyntaxKind::Strikethrough => next.strike = true,
         SyntaxKind::InlineCode => next.code = true,
-        SyntaxKind::Link | SyntaxKind::Autolink => next.link = true,
-        SyntaxKind::Image => {
-            let alt = image_alt(bytes, node, acc.cursor);
-            acc.push_styled(&alt, 0, &{
-                let mut ink = next.clone();
-                ink.italic = true;
-                ink
-            });
-            // The destination and markers stay in the source. Skip the node.
-            acc.skip(node.width());
-            return;
+        SyntaxKind::Link
+        | SyntaxKind::Autolink
+        | SyntaxKind::WikiLink
+        | SyntaxKind::FootnoteRef
+        | SyntaxKind::FootnoteInline => next.link = true,
+        SyntaxKind::Highlight => {
+            next.highlight = Some(Color::rgba(0.93, 0.78, 0.18, 0.45));
+            next.custom = true;
         }
+        SyntaxKind::Math => {
+            next.family = Some("monospace".into());
+            next.italic = true;
+            next.custom = true;
+        }
+        SyntaxKind::StyleSpan => apply_style(&mut next, style_token(node)),
         _ => {}
     }
-    let mut child_at_skip_dest = false;
-    if matches!(node.kind(), SyntaxKind::Link | SyntaxKind::Autolink) {
-        child_at_skip_dest = true;
-    }
+    let skip_dest = matches!(node.kind(), SyntaxKind::Link | SyntaxKind::Image) && !active;
     let mut seen_close = false;
     for child in node.children() {
-        if child_at_skip_dest && seen_close {
+        if skip_dest && seen_close {
+            acc.skip(child.width());
+            continue;
+        }
+        if child.kind() == SyntaxKind::Delimiter && child.text() == "]" && !active {
+            seen_close = true;
             acc.skip(child.width());
             continue;
         }
         if child.kind() == SyntaxKind::Delimiter && child.text() == "]" {
             seen_close = true;
-            acc.skip(child.width());
-            continue;
         }
-        walk_inline(bytes, child, acc, &next);
+        let child_reveal = active && child.kind() == SyntaxKind::Delimiter && is_mark(node.kind());
+        walk_inline(_bytes, child, acc, &next, child_reveal);
     }
+}
+
+fn is_mark(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::Emphasis
+            | SyntaxKind::Strong
+            | SyntaxKind::Strikethrough
+            | SyntaxKind::InlineCode
+            | SyntaxKind::Link
+            | SyntaxKind::Image
+            | SyntaxKind::Highlight
+            | SyntaxKind::Math
+            | SyntaxKind::StyleSpan
+            | SyntaxKind::WikiLink
+            | SyntaxKind::WikiEmbed
+            | SyntaxKind::FootnoteRef
+            | SyntaxKind::FootnoteInline
+    )
 }
 
 fn hide_inline(node: &Green) -> bool {
     matches!(
         node.kind(),
-        SyntaxKind::Delimiter
-            | SyntaxKind::AtxMarker
+        SyntaxKind::AtxMarker
             | SyntaxKind::SetextUnderline
             | SyntaxKind::LinePrefix
             | SyntaxKind::ListMarker
@@ -1175,28 +1386,545 @@ fn decode_entity(raw: &str) -> String {
         .unwrap_or_else(|| raw.to_string())
 }
 
-fn image_alt(bytes: &str, node: &Green, at: usize) -> String {
+fn emit_image_chip(node: &Green, acc: &mut Acc) {
+    let (skip, len, alt) = image_alt_span(node);
+    acc.skip(skip);
+    acc.push_chrome("🖼 ");
+    let mut ink = Ink::plain(acc.palette.text);
+    ink.highlight = Some(acc.palette.code);
+    ink.custom = true;
+    let empty = alt.is_empty();
+    let shown = if empty { "Image".to_string() } else { alt };
+    let source_len = if empty { 0 } else { len };
+    acc.push_styled(&shown, source_len, &ink);
+    let rest = node.width().saturating_sub(skip + source_len);
+    acc.skip(rest);
+}
+
+fn image_alt_span(node: &Green) -> (usize, usize, String) {
+    let mut at = 0;
+    let mut start = None;
+    let mut end = 0;
     let mut alt = String::new();
-    let mut cursor = at;
     let mut open = true;
     for child in node.children() {
-        let end = cursor + child.width();
+        let child_end = at + child.width();
         if child.kind() == SyntaxKind::Delimiter && child.text() == "]" {
             open = false;
         } else if open && child.kind() != SyntaxKind::Delimiter {
+            if start.is_none() {
+                start = Some(at);
+            }
+            end = child_end;
             if child.children().is_empty() {
                 alt.push_str(&shown_leaf(child.kind(), child.text()));
-            } else if let Some(slice) = bytes.get(cursor..end) {
-                alt.push_str(slice);
+            } else {
+                alt.push_str(&child.concat());
             }
         }
-        cursor = end;
+        at = child_end;
     }
-    if alt.is_empty() {
-        "image".into()
-    } else {
-        alt
+    let start = start.unwrap_or(0);
+    (start, end.saturating_sub(start), alt)
+}
+
+fn emit_embed_chip(node: &Green, acc: &mut Acc) {
+    let image = embed_is_image(node);
+    let (label, skip, len) = embed_visible(node);
+    if image {
+        acc.skip(skip);
+        acc.push_chrome("🖼 ");
+        let mut ink = Ink::plain(acc.palette.text);
+        ink.highlight = Some(acc.palette.code);
+        ink.custom = true;
+        let shown = if label.is_empty() {
+            "Image".into()
+        } else {
+            label
+        };
+        acc.push_styled(&shown, len, &ink);
+        acc.skip(node.width().saturating_sub(skip + len));
+        return;
     }
+    let mut ink = Ink::plain(acc.palette.link);
+    ink.link = true;
+    emit_named_chip(node, acc, &ink, label);
+}
+
+fn emit_named_chip(node: &Green, acc: &mut Acc, ink: &Ink, label: String) {
+    let (skip, len, shown) = matching_text(node, &label);
+    acc.skip(skip);
+    acc.push_styled(&shown, len, ink);
+    acc.skip(node.width().saturating_sub(skip + len));
+}
+
+fn matching_text(node: &Green, label: &str) -> (usize, usize, String) {
+    let mut at = 0;
+    let mut first = None;
+    for child in node.children() {
+        let end = at + child.width();
+        if child.kind() == SyntaxKind::Text {
+            if child.text() == label {
+                return (at, child.width(), label.to_string());
+            }
+            if first.is_none() {
+                first = Some((at, child.width(), child.text().to_string()));
+            }
+        }
+        at = end;
+    }
+    first.unwrap_or_else(|| (0, 0, label.to_string()))
+}
+
+fn text_child(node: &Green) -> String {
+    node.children()
+        .iter()
+        .find(|child| child.kind() == SyntaxKind::Text)
+        .map(|child| child.text().to_string())
+        .unwrap_or_default()
+}
+
+fn wiki_visible(node: &Green) -> String {
+    let texts: Vec<&str> = node
+        .children()
+        .iter()
+        .filter(|child| child.kind() == SyntaxKind::Text)
+        .map(Green::text)
+        .collect();
+    texts
+        .get(1)
+        .copied()
+        .filter(|label| !label.is_empty())
+        .unwrap_or_else(|| texts.first().copied().unwrap_or(""))
+        .to_string()
+}
+
+fn footnote_visible(node: &Green) -> String {
+    text_child(node)
+}
+
+fn embed_visible(node: &Green) -> (String, usize, usize) {
+    let mut at = 0;
+    let mut texts = Vec::new();
+    for child in node.children() {
+        let end = at + child.width();
+        if child.kind() == SyntaxKind::Text {
+            texts.push((at, child.width(), child.text().to_string()));
+        }
+        at = end;
+    }
+    let target = texts.first().cloned().unwrap_or((0, 0, String::new()));
+    if let Some(extra) = texts.get(1) {
+        if !extra.2.is_empty() && !is_image_size(&extra.2) {
+            return (extra.2.clone(), extra.0, extra.1);
+        }
+    }
+    let name = target
+        .2
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or(&target.2)
+        .to_string();
+    (name, target.0, target.1)
+}
+
+fn embed_is_image(node: &Green) -> bool {
+    node.children()
+        .iter()
+        .find(|child| child.kind() == SyntaxKind::Text)
+        .is_some_and(|child| is_image_target(child.text()))
+}
+
+fn is_image_target(target: &str) -> bool {
+    let path = target.split(['?', '#']).next().unwrap_or(target);
+    let lower = path.to_ascii_lowercase();
+    [
+        ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".ico", ".heic", ".heif", ".avif",
+    ]
+    .iter()
+    .any(|ext| lower.ends_with(ext))
+}
+
+fn is_image_size(raw: &str) -> bool {
+    let token = raw.trim();
+    let lower = token.to_ascii_lowercase();
+    let (width, height) = match lower.split_once('x') {
+        Some((width, height)) => (width, Some(height)),
+        None => (lower.as_str(), None),
+    };
+    positive_dim(width) && height.is_none_or(positive_dim)
+}
+
+fn positive_dim(raw: &str) -> bool {
+    !raw.is_empty()
+        && raw.len() <= 4
+        && raw.bytes().all(|b| b.is_ascii_digit())
+        && raw.bytes().any(|b| b != b'0')
+}
+
+fn style_token(node: &Green) -> &str {
+    node.children()
+        .iter()
+        .find(|child| child.kind() == SyntaxKind::Delimiter && child.text().starts_with("{{"))
+        .and_then(|child| {
+            child
+                .text()
+                .strip_prefix("{{")
+                .and_then(|token| token.strip_suffix('|'))
+        })
+        .unwrap_or("")
+}
+
+fn apply_style(ink: &mut Ink, token: &str) {
+    let lower = token.to_ascii_lowercase();
+    if let Some(color) = named_color(&lower) {
+        ink.color = color;
+        ink.custom = true;
+        return;
+    }
+    if let Some(color) = hex_color(&lower) {
+        ink.color = color;
+        ink.custom = true;
+        return;
+    }
+    if let Some(font) = lower.strip_prefix("font:") {
+        ink.family = Some(
+            match font {
+                "serif" => "serif",
+                "mono" => "monospace",
+                _ => "sans-serif",
+            }
+            .to_string(),
+        );
+        ink.custom = true;
+        return;
+    }
+    if let Some(size) = lower.strip_prefix("size:") {
+        ink.weight = Some(size_weight(size));
+        ink.custom = true;
+    }
+}
+
+fn named_color(name: &str) -> Option<Color> {
+    Some(match name {
+        "red" => Color::rgb(0.97, 0.44, 0.44),
+        "orange" => Color::rgb(0.98, 0.57, 0.24),
+        "yellow" => Color::rgb(0.98, 0.80, 0.08),
+        "green" => Color::rgb(0.29, 0.87, 0.50),
+        "blue" => Color::rgb(0.38, 0.65, 0.98),
+        "purple" => Color::rgb(0.75, 0.52, 0.99),
+        "pink" => Color::rgb(0.96, 0.45, 0.71),
+        _ => return None,
+    })
+}
+
+fn hex_color(token: &str) -> Option<Color> {
+    let hex = token.strip_prefix('#')?;
+    let expanded = match hex.len() {
+        3 | 4 => hex
+            .chars()
+            .take(3)
+            .flat_map(|ch| [ch, ch])
+            .collect::<String>(),
+        6 | 8 => hex.chars().take(6).collect(),
+        _ => return None,
+    };
+    if expanded.len() != 6 || !expanded.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return None;
+    }
+    let r = u8::from_str_radix(&expanded[0..2], 16).ok()?;
+    let g = u8::from_str_radix(&expanded[2..4], 16).ok()?;
+    let b = u8::from_str_radix(&expanded[4..6], 16).ok()?;
+    Some(Color::rgb(
+        f32::from(r) / 255.0,
+        f32::from(g) / 255.0,
+        f32::from(b) / 255.0,
+    ))
+}
+
+fn size_weight(token: &str) -> u16 {
+    match token {
+        "sm" => 400,
+        "md" => 500,
+        "lg" | "xl" => FONT_WEIGHT_BOLD,
+        _ => {
+            let digits: String = token.chars().take_while(|c| c.is_ascii_digit()).collect();
+            let value: f32 = digits.parse().unwrap_or(16.0);
+            if value >= 20.0 {
+                FONT_WEIGHT_BOLD
+            } else {
+                500
+            }
+        }
+    }
+}
+
+fn lone_image_alt(node: &Green) -> Option<String> {
+    let mut alt = None;
+    for child in node.children() {
+        match child.kind() {
+            SyntaxKind::LineEnding | SyntaxKind::SoftBreak => {}
+            SyntaxKind::Text if child.text().trim().is_empty() => {}
+            SyntaxKind::Image => {
+                if alt.is_some() {
+                    return None;
+                }
+                let (_, _, text) = image_alt_span(child);
+                alt = Some(if text.is_empty() {
+                    "Image".into()
+                } else {
+                    text
+                });
+            }
+            SyntaxKind::WikiEmbed if embed_is_image(child) => {
+                if alt.is_some() {
+                    return None;
+                }
+                alt = Some(embed_visible(child).0);
+            }
+            _ => return None,
+        }
+    }
+    alt
+}
+
+fn project_callout(bytes: &str, node: &Green, at: usize, focus: Option<usize>) -> DisplayBlock {
+    let span = at..at + node.width();
+    let raw = bytes.get(span.clone()).unwrap_or("");
+    let (tone, title) = callout_parts(raw);
+    let active = focus.is_some_and(|caret| span.start <= caret && caret < span.end);
+    if active {
+        return raw_block(span, raw, DisplayKind::Callout { tone });
+    }
+    let mut text = String::new();
+    let mut segments = Vec::new();
+    let mut offset = 0;
+    let raw_bytes = raw.as_bytes();
+    let mut first = true;
+    while offset < raw.len() {
+        let line_start = offset;
+        let mut line_end = offset;
+        while line_end < raw.len() && raw_bytes[line_end] != b'\n' && raw_bytes[line_end] != b'\r' {
+            line_end += 1;
+        }
+        let nl_end = if line_end < raw.len() {
+            if raw_bytes[line_end] == b'\r'
+                && line_end + 1 < raw.len()
+                && raw_bytes[line_end + 1] == b'\n'
+            {
+                line_end + 2
+            } else {
+                line_end + 1
+            }
+        } else {
+            line_end
+        };
+        let line = &raw[line_start..line_end];
+        let mut content = line_start + quote_content_offset(line);
+        if first {
+            if let Some(skip) = callout_marker_len(&raw[content..line_end]) {
+                content += skip;
+            }
+            first = false;
+        }
+        push_source_run(&mut text, &mut segments, &raw[content..line_end], content);
+        if nl_end > line_end && nl_end < raw.len() {
+            text.push('\n');
+        }
+        offset = nl_end;
+    }
+    if text.ends_with('\n') {
+        text.pop();
+    }
+    let mut block = empty_paragraph(span);
+    block.kind = DisplayKind::Callout { tone: tone.clone() };
+    block.chrome = format!("{}  ", callout_label(&tone));
+    block.text = if text.is_empty() { title } else { text };
+    block.segments = segments;
+    block.caret_end = raw.trim_end_matches(['\n', '\r']).len();
+    block
+}
+
+fn project_footnote(bytes: &str, node: &Green, at: usize, focus: Option<usize>) -> DisplayBlock {
+    let span = at..at + node.width();
+    let raw = bytes.get(span.clone()).unwrap_or("");
+    let id = node
+        .children()
+        .iter()
+        .find(|child| child.kind() == SyntaxKind::Delimiter)
+        .map(Green::text)
+        .unwrap_or("")
+        .trim_start_matches("[^")
+        .trim_end_matches(':')
+        .trim_end_matches(']')
+        .to_string();
+    let active = focus.is_some_and(|caret| span.start <= caret && caret < span.end);
+    if active {
+        return raw_block(span, raw, DisplayKind::Footnote { id: id.clone() });
+    }
+    let marker = node
+        .children()
+        .iter()
+        .find(|child| child.kind() == SyntaxKind::Delimiter)
+        .map(Green::width)
+        .unwrap_or(0);
+    let after = raw.get(marker..).unwrap_or("");
+    let lead = after.len() - after.trim_start_matches([' ', '\t']).len();
+    let body = after[lead..].trim_end_matches(['\n', '\r']);
+    let source_start = marker + lead;
+    let source_end = source_start + body.len();
+    let mut block = empty_paragraph(span);
+    block.kind = DisplayKind::Footnote { id: id.clone() };
+    block.chrome = format!("{id}. ");
+    block.text = body.to_string();
+    if !body.is_empty() {
+        block.segments.push(Segment {
+            display_start: 0,
+            display_end: body.len(),
+            source_start,
+            source_end,
+        });
+    }
+    block.caret_end = source_end;
+    block
+}
+
+fn project_styled(
+    bytes: &str,
+    node: &Green,
+    at: usize,
+    palette: &Palette,
+    focus: Option<usize>,
+) -> DisplayBlock {
+    let span = at..at + node.width();
+    let raw = bytes.get(span.clone()).unwrap_or("");
+    let active = focus.is_some_and(|caret| span.start <= caret && caret < span.end);
+    if active {
+        return raw_block(span, raw, DisplayKind::Styled);
+    }
+    let mut acc = Acc::new(at, palette, None);
+    for child in node.children() {
+        if child.kind() == SyntaxKind::FenceLine {
+            acc.skip(child.width());
+            continue;
+        }
+        flow_child(bytes, child, &mut acc);
+        if !acc.text.ends_with('\n') {
+            acc.push_shown("\n", 0);
+        }
+    }
+    let mut block = acc.finish(SyntaxKind::StyledBlock, span);
+    block.kind = DisplayKind::Styled;
+    block.chrome = "Block  ".into();
+    block
+}
+
+fn raw_block(span: Range<usize>, raw: &str, kind: DisplayKind) -> DisplayBlock {
+    let text = raw.trim_end_matches(['\n', '\r']).to_string();
+    let mut block = empty_paragraph(span);
+    block.kind = kind;
+    block.text.clone_from(&text);
+    if !text.is_empty() {
+        block.segments.push(Segment {
+            display_start: 0,
+            display_end: text.len(),
+            source_start: 0,
+            source_end: text.len(),
+        });
+    }
+    block.caret_end = text.len();
+    block
+}
+
+fn callout_parts(raw: &str) -> (String, String) {
+    let line = raw.lines().next().unwrap_or("");
+    let rest = line.trim_start();
+    let rest = rest.strip_prefix('>').unwrap_or(rest).trim_start();
+    let Some(end) = rest.find(']') else {
+        return ("note".into(), String::new());
+    };
+    if !rest.starts_with("[!") || end < 2 {
+        return ("note".into(), String::new());
+    }
+    let tone = rest[2..end].to_ascii_lowercase();
+    let title = rest[end + 1..].trim().to_string();
+    (tone, title)
+}
+
+fn callout_label(tone: &str) -> String {
+    let known = match tone {
+        "note" => "Note",
+        "abstract" | "summary" | "tldr" => "Abstract",
+        "info" => "Info",
+        "todo" => "Todo",
+        "tip" | "hint" | "important" => "Tip",
+        "success" | "check" | "done" => "Success",
+        "question" | "help" | "faq" => "Question",
+        "warning" | "caution" | "attention" => "Warning",
+        "failure" | "fail" | "missing" => "Failure",
+        "danger" | "error" => "Danger",
+        "bug" => "Bug",
+        "example" => "Example",
+        "quote" | "cite" => "Quote",
+        _ => "",
+    };
+    if !known.is_empty() {
+        return known.to_string();
+    }
+    let mut chars = tone.chars();
+    let Some(first) = chars.next() else {
+        return "Note".into();
+    };
+    first.to_uppercase().collect::<String>() + chars.as_str()
+}
+
+fn quote_content_offset(line: &str) -> usize {
+    let bytes = line.as_bytes();
+    let mut i = 0;
+    let mut spaces = 0;
+    while i < bytes.len() && bytes[i] == b' ' && spaces < 3 {
+        i += 1;
+        spaces += 1;
+    }
+    if i < bytes.len() && bytes[i] == b'>' {
+        i += 1;
+        if i < bytes.len() && bytes[i] == b' ' {
+            i += 1;
+        }
+    }
+    i
+}
+
+fn callout_marker_len(rest: &str) -> Option<usize> {
+    let bytes = rest.as_bytes();
+    if bytes.len() < 4 || bytes[0] != b'[' || bytes[1] != b'!' {
+        return None;
+    }
+    let end = rest.find(']')?;
+    let mut len = end + 1;
+    if rest.as_bytes().get(len) == Some(&b' ') {
+        len += 1;
+    }
+    Some(len)
+}
+
+fn push_source_run(
+    text: &mut String,
+    segments: &mut Vec<Segment>,
+    shown: &str,
+    source_start: usize,
+) {
+    if shown.is_empty() {
+        return;
+    }
+    let display_start = text.len();
+    text.push_str(shown);
+    segments.push(Segment {
+        display_start,
+        display_end: text.len(),
+        source_start,
+        source_end: source_start + shown.len(),
+    });
 }
 
 /// Index of the block whose span contains `source`, or the nearest later block.

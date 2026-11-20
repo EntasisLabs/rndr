@@ -139,6 +139,29 @@ pub fn toggle_bullet(block: &DisplayBlock) -> Command {
     }
 }
 
+/// Flip a task checkbox between `[ ]` and `[x]`. One source byte changes.
+///
+/// An uppercase `[X]` becomes `[ ]`. A space becomes lowercase `x`.
+pub fn toggle_task(bytes: &str, block: &DisplayBlock) -> Option<Command> {
+    if !matches!(block.kind, DisplayKind::Task(_)) {
+        return None;
+    }
+    let marker = block.marker.clone()?;
+    let text = bytes.get(marker.clone())?;
+    let rel = text.find('[')?;
+    let at = marker.start + rel + 1;
+    let current = bytes.as_bytes().get(at).copied()?;
+    if !matches!(current, b' ' | b'x' | b'X') || bytes.as_bytes().get(at + 1) != Some(&b']') {
+        return None;
+    }
+    let next = if current == b' ' { "x" } else { " " };
+    Some(Command::Replace {
+        start: at,
+        end: at + 1,
+        text: next.into(),
+    })
+}
+
 /// Prefix the block with an ordered marker.
 pub fn toggle_ordered(block: &DisplayBlock) -> Command {
     if matches!(block.kind, DisplayKind::Ordered(_)) {
