@@ -925,8 +925,6 @@ impl Handler {
         // Publish before `frame` so this update's layout sees the new scale and
         // the resize events that flip at the start of `App::update`.
         rndr_core::window::publish_metrics(self.app.world_mut(), raw_width, raw_height, scale);
-        let width = raw_width.max(1);
-        let height = raw_height.max(1);
         {
             #[cfg(target_arch = "wasm32")]
             let pasted = self
@@ -1022,7 +1020,15 @@ impl Handler {
         let (presented, uploaded) = {
             let gpu = self.gpu.as_mut().expect("surface");
             let world = self.app.world();
-            gpu.present_frame(&painted, &images, budget, width, height, scale, Some(world))
+            gpu.present_frame(
+                &painted,
+                &images,
+                budget,
+                raw_width,
+                raw_height,
+                scale,
+                Some(world),
+            )
         };
         if presented {
             *presented_at = timing::start(self.app.world());
@@ -1883,8 +1889,7 @@ impl Handler {
             .pending_shell
             .take()
             .expect("shell kept for background device init");
-        let mut gpu = Gpu::from_parts(shell, parts);
-        gpu.fit_shell();
+        let gpu = Gpu::from_parts(shell, parts);
         if let Some(window) = gpu.shell().winit_arc() {
             system::follow(&window);
         }
@@ -2055,13 +2060,7 @@ impl Handler {
                 }
                 true
             }
-            ShellEvent::Resized | ShellEvent::Scale(_) => {
-                if let Some(gpu) = self.gpu.as_mut() {
-                    let size = gpu.shell().inner_size();
-                    gpu.resize(size);
-                }
-                true
-            }
+            ShellEvent::Resized | ShellEvent::Scale(_) => true,
             ShellEvent::Cursor { x, y } => {
                 self.cursor_px = [x as f32, y as f32];
                 self.accepts_pen = true;
@@ -2563,12 +2562,7 @@ impl ApplicationHandler for Handler {
                     self.request_redraw();
                 }
             }
-            WindowEvent::SurfaceResized(size) => {
-                if let Some(gpu) = &mut self.gpu {
-                    gpu.resize(size);
-                    gpu.shell().request_redraw();
-                }
-            }
+            WindowEvent::SurfaceResized(_) => self.request_redraw(),
             WindowEvent::PointerMoved {
                 position, source, ..
             } => {

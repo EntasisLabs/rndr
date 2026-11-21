@@ -570,3 +570,10 @@ fn ns_window(window: &dyn Window) -> Option<objc2::rc::Retained<objc2_app_kit::N
     let view = unsafe { Retained::<NSView>::retain(appkit.ns_view.as_ptr().cast()) }?;
     view.window()
 }
+
+/// Whether AppKit is tracking a live resize of this window.
+#[cfg(target_os = "macos")]
+pub(crate) fn in_live_resize(window: &dyn Window) -> bool {
+    // Safety: `inLiveResize` is a plain property read on the main thread.
+    ns_window(window).is_some_and(|ns| unsafe { ns.inLiveResize() })
+}
