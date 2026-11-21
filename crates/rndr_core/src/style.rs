@@ -184,9 +184,26 @@ impl LabelBox {
     }
 }
 
+/// Keep an explicit [`LabelBox`] when a caret is also present.
+///
+/// Table cells set their own insets. A caret would otherwise switch them to
+/// the legacy text origin, so a focused cell wraps in a narrower measure than
+/// its neighbors.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RetainLabelBox;
+
+impl Component for RetainLabelBox {}
+
 /// Effective display label metrics. Invalid/negative values fall back as a
 /// whole to legacy metrics; editable/selectable fields never opt in implicitly.
+///
+/// [`RetainLabelBox`] is the explicit exception: the stored box wins.
 pub fn label_box(world: &crate::World, entity: crate::Entity) -> LabelBox {
+    if world.has::<RetainLabelBox>(entity) {
+        if let Some(explicit) = stored_label_box(world, entity) {
+            return explicit;
+        }
+    }
     if world.has::<crate::Field>(entity)
         || world.has::<crate::Editor>(entity)
         || world.has::<crate::Caret>(entity)
@@ -195,13 +212,13 @@ pub fn label_box(world: &crate::World, entity: crate::Entity) -> LabelBox {
     {
         return LabelBox::default();
     }
-    world
-        .get::<LabelBox>(entity)
-        .copied()
-        .filter(|b| {
-            [b.inset_x, b.inset_y, b.min_height]
-                .iter()
-                .all(|v| v.is_finite() && *v >= 0.0)
-        })
-        .unwrap_or_default()
+    stored_label_box(world, entity).unwrap_or_default()
+}
+
+fn stored_label_box(world: &crate::World, entity: crate::Entity) -> Option<LabelBox> {
+    world.get::<LabelBox>(entity).copied().filter(|b| {
+        [b.inset_x, b.inset_y, b.min_height]
+            .iter()
+            .all(|v| v.is_finite() && *v >= 0.0)
+    })
 }

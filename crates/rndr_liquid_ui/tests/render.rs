@@ -535,3 +535,19 @@ title: Weekly
         "{tip}"
     );
 }
+
+#[test]
+fn callout_widget_uses_the_fence_tone() {
+    let (mut app, view) = setup(
+        "```callout\ntone: tip\ntitle: Hello\nbody: Body\n```\n",
+        Recorder::default(),
+    );
+    rndr_paint::frame(&mut app);
+    rndr_paint::frame(&mut app);
+    let all = texts(app.world(), view);
+    assert!(all.iter().any(|text| text.starts_with("Tip:")), "{all:?}");
+    assert!(
+        !all.iter().any(|text| text.starts_with("Info:")),
+        "tip rendered as info: {all:?}"
+    );
+}

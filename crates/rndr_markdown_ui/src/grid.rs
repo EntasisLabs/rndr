@@ -26,8 +26,11 @@ pub(crate) struct Chrome {
     pub muted: Color,
     pub link: Color,
     pub code: Color,
+    /// Low-emphasis column and row handle fill. Not the header fill.
+    pub grip: Color,
     pub pad_x: f32,
     pub pad_y: f32,
+    /// Slim handle strip. It is not a second header row.
     pub handle: f32,
     pub border_w: f32,
 }
@@ -44,9 +47,16 @@ impl Chrome {
             muted: theme.color(Token::Secondary),
             link: theme.color(Token::InfoText),
             code,
+            grip: {
+                // Opaque enough to read as a strip on white and on a dark pane.
+                // Control-hover alone disappears into the content fill.
+                let mut grip = theme.color(Token::StrongStroke);
+                grip.a = 0.55;
+                grip
+            },
             pad_x: theme.space(Space::X8),
             pad_y: theme.space(Space::X4),
-            handle: theme.space(Space::X16),
+            handle: theme.space(Space::X4).max(6.0),
             border_w: 1.0,
         }
     }
@@ -83,7 +93,9 @@ pub(crate) fn height_for(
     chrome: &Chrome,
     pad: f32,
 ) -> f32 {
-    layout_of(engine, grid, (width - pad * 2.0).max(1.0), style, chrome).height
+    let metrics = layout_of(engine, grid, (width - pad * 2.0).max(1.0), style, chrome);
+    // Children sit inside the padding. The outer box has to contain them.
+    metrics.height + pad * 2.0
 }
 
 struct GridMetrics {
@@ -121,17 +133,20 @@ fn layout_of(
     fit_columns(&mut columns, budget);
     let mut rows = Vec::with_capacity(grid.rows.len());
     for row in &grid.rows {
+        // A cell that holds the caret paints with the text origin, which is
+        // taller than the theme's cell padding. Size every row for that.
+        let inset_y = chrome.pad_y.max(TEXT_ORIGIN_Y);
         let height = if row.raw.is_some() {
-            engine.line_height(style) + chrome.pad_y * 2.0
+            engine.line_height(style) + inset_y * 2.0
         } else {
-            let mut height = engine.line_height(if row.header { &header_style } else { style })
-                + chrome.pad_y * 2.0;
+            let mut height =
+                engine.line_height(if row.header { &header_style } else { style }) + inset_y * 2.0;
             for (index, cell) in row.cells.iter().enumerate() {
                 let inner =
                     (columns.get(index).copied().unwrap_or(COL_MIN) - chrome.pad_x * 2.0).max(1.0);
                 let style = if row.header { &header_style } else { style };
                 let measured = engine.measure(&cell.text, style, &cell.spans, inner);
-                height = height.max(measured.height + chrome.pad_y * 2.0);
+                height = height.max(measured.height + inset_y * 2.0);
             }
             height
         };
@@ -701,6 +716,17 @@ struct Hit {
 
 impl Component for Hit {}
 
+/// The table entity. Handle visibility is decided against this span.
+#[derive(Clone, Copy)]
+pub(crate) struct GridFrame {
+    /// Source start of the table block.
+    pub start: usize,
+    /// Source end of the table block.
+    pub end: usize,
+}
+
+impl Component for GridFrame {}
+
 #[derive(Clone)]
 struct Handle {
     row: Option<usize>,
@@ -768,7 +794,7 @@ pub(crate) fn spawn(world: &mut World, parent: Entity, paint: Paint<'_>) -> Enti
     });
     let height = metrics
         .as_ref()
-        .map(|metrics| metrics.height)
+        .map(|metrics| metrics.height + pad * 2.0)
         .unwrap_or(style.size);
     let entity = world.spawn((Layout {
         width: Size::Fill,
@@ -777,6 +803,13 @@ pub(crate) fn spawn(world: &mut World, parent: Entity, paint: Paint<'_>) -> Enti
         ..Layout::column()
     },));
     set_parent(world, entity, parent);
+    world.insert(
+        entity,
+        GridFrame {
+            start: block.span.start,
+            end: block.span.end,
+        },
+    );
     let Some(grid) = grid else {
         return entity;
     };
@@ -838,11 +871,7 @@ fn spawn_column_handles(world: &mut World, parent: Entity, frame: &Frame<'_>, gr
                 height: Size::Px(chrome.handle),
                 ..Layout::column()
             },
-            chrome.header,
-            Border {
-                color: chrome.border,
-                width: chrome.border_w,
-            },
+            Color::rgba(0.0, 0.0, 0.0, 0.0),
             ContextTarget,
             Handle {
                 row: None,
@@ -872,11 +901,7 @@ fn spawn_row(world: &mut World, parent: Entity, frame: &Frame<'_>, row: &GridRow
             height: Size::Px(height),
             ..Layout::column()
         },
-        chrome.header,
-        Border {
-            color: chrome.border,
-            width: chrome.border_w,
-        },
+        Color::rgba(0.0, 0.0, 0.0, 0.0),
         ContextTarget,
         Handle {
             row: Some(index),
@@ -1004,6 +1029,7 @@ fn spawn_cell(
         },
     );
     world.insert(entity, ContextTarget);
+    world.insert(entity, RetainLabelBox);
     world.insert(entity, hit.clone());
     paint_caret(
         world,
@@ -1086,6 +1112,7 @@ fn spawn_raw_line(
         },
     ));
     world.insert(entity, ContextTarget);
+    world.insert(entity, RetainLabelBox);
     world.insert(entity, hit.clone());
     paint_caret(world, entity, &hit, caret, anchor, "");
     set_parent(world, entity, parent);
@@ -1520,6 +1547,51 @@ pub(crate) fn on_update(
         }
     }
     take_menu(world, root, now);
+}
+
+/// Column and row handles are a slim strip. They take their grip color only
+/// while the pointer is over the table, focus is inside it, or the caret is.
+pub(crate) fn sync_handles(world: &mut World, root: Entity, caret: usize) {
+    let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
+    let chrome = Chrome::from_theme(&theme);
+    let hover = world
+        .resource::<Input>()
+        .map(|input| input.pointer.position)
+        .and_then(|point| hit_test(world, point[0], point[1]));
+    let focus = world.resource::<Focus>().and_then(|focus| focus.entity);
+    let handles = world.entities_with::<Handle>();
+    for entity in handles {
+        if !owns(world, entity, root) {
+            continue;
+        }
+        let Some(handle) = world.get::<Handle>(entity).cloned() else {
+            continue;
+        };
+        let table = ancestor_frame(world, entity);
+        let range = table.and_then(|table| world.get::<GridFrame>(table).copied());
+        let in_caret = range.is_some_and(|frame| {
+            frame.start == handle.block_start && frame.start <= caret && caret <= frame.end
+        });
+        let hovered = table.is_some_and(|table| hover.is_some_and(|hit| owns(world, hit, table)));
+        let focused = table
+            .is_some_and(|table| focus.is_some_and(|hit| hit == table || owns(world, hit, table)));
+        let color = if in_caret || hovered || focused {
+            chrome.grip
+        } else {
+            Color::rgba(0.0, 0.0, 0.0, 0.0)
+        };
+        world.insert(entity, color);
+    }
+}
+
+fn ancestor_frame(world: &World, mut entity: Entity) -> Option<Entity> {
+    for _ in 0..48 {
+        if world.has::<GridFrame>(entity) {
+            return Some(entity);
+        }
+        entity = world.get::<Parent>(entity)?.entity;
+    }
+    None
 }
 
 fn owns(world: &World, mut entity: Entity, root: Entity) -> bool {

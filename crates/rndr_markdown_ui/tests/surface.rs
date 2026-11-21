@@ -3,7 +3,7 @@
 use rndr_core::*;
 use rndr_markdown::Session;
 use rndr_markdown_ui::*;
-use rndr_ui::UiId;
+use rndr_ui::{Appearance, Token, UiId, UiTheme};
 
 const SAMPLE: &str = "\
 # Hello
@@ -448,10 +448,86 @@ fn liquid_widget_when_caret_is_outside_and_fields_when_inside() {
     assert!(inside.contains("tone"), "{inside}");
     assert!(inside.contains("Hello"), "{inside}");
     assert!(inside.contains("Body text"), "{inside}");
+    assert!(inside.contains("tone"), "{inside}");
+    assert!(inside.contains("tip"), "{inside}");
+    assert!(inside.contains("Hello"), "{inside}");
+    assert!(inside.contains("Body text"), "{inside}");
     assert!(
-        inside.contains("tone  tip"),
-        "editing view should show the field:\n{inside}"
+        inside.lines().filter(|line| line.trim() == "tone").count() >= 1,
+        "tone should be its own field label:\n{inside}"
     );
+    let world = app.world();
+    let slot = field_slot(world, "callout");
+    let slot_rect = *world.get::<Rect>(slot).unwrap();
+    for name in ["tone", "tip", "title", "Hello", "body", "Body text"] {
+        let label = label_with(world, name);
+        let rect = *world.get::<Rect>(label).unwrap();
+        assert!(
+            rect.h > 8.0 && rect.w > 8.0,
+            "{name} was not laid out: {rect:?}"
+        );
+        assert!(
+            rect.y + 1.0 >= slot_rect.y && rect.y + rect.h <= slot_rect.y + slot_rect.h + 1.0,
+            "{name} {rect:?} is clipped by the kind slot {slot_rect:?}"
+        );
+    }
+    let frame = rndr_paint::frame(&mut app);
+    let tone = *app
+        .world()
+        .get::<Rect>(label_with(app.world(), "tone"))
+        .unwrap();
+    let body = *app
+        .world()
+        .get::<Rect>(label_with(app.world(), "Body text"))
+        .unwrap();
+    assert!(
+        painted_in(&frame, tone),
+        "tone label has no glyphs inside {tone:?}"
+    );
+    assert!(
+        painted_in(&frame, body),
+        "body value has no glyphs inside {body:?}"
+    );
+}
+
+fn label_with(world: &World, text: &str) -> Entity {
+    world
+        .entities_with::<Label>()
+        .into_iter()
+        .find(|entity| {
+            world
+                .get::<Label>(*entity)
+                .is_some_and(|label| label.text == text)
+        })
+        .unwrap_or_else(|| panic!("missing label {text}"))
+}
+
+fn field_slot(world: &World, kind: &str) -> Entity {
+    let header = label_with(world, kind);
+    let mut at = header;
+    for _ in 0..8 {
+        let Some(parent) = world.get::<Parent>(at).map(|parent| parent.entity) else {
+            break;
+        };
+        at = parent;
+        if world.get::<Layout>(at).is_some_and(|layout| {
+            matches!(layout.height, Size::Px(height) if height > 80.0)
+                && matches!(layout.axis, Axis::Column)
+        }) {
+            return at;
+        }
+    }
+    at
+}
+
+fn painted_in(frame: &rndr_paint::Frame, rect: Rect) -> bool {
+    frame.quads.iter().any(|quad| {
+        quad.uv != rndr_paint::solid_uv()
+            && quad.rect.x < rect.x + rect.w
+            && quad.rect.x + quad.rect.w > rect.x
+            && quad.rect.y < rect.y + rect.h
+            && quad.rect.y + quad.rect.h > rect.y
+    })
 }
 
 #[test]
@@ -654,18 +730,18 @@ fn clicking_the_task_checkbox_writes_one_byte() {
     assert!(before.contains("[ ]"), "{before}");
     let slot = app
         .world()
-        .entities_with::<Label>()
+        .entities_with::<Border>()
         .into_iter()
         .find(|entity| {
-            app.world()
-                .get::<Label>(*entity)
-                .is_some_and(|label| label.text.starts_with('☐'))
+            app.world().get::<Layout>(*entity).is_some_and(
+                |layout| matches!(layout.width, Size::Px(width) if (width - 14.0).abs() < 0.5),
+            )
         })
-        .expect("task label");
+        .expect("task checkbox");
     let rect = *app.world().get::<Rect>(slot).unwrap();
     let mut toggled = false;
-    for dx in [2.0, 6.0, 10.0, 14.0, 18.0, 24.0, 32.0] {
-        let at = [rect.x + dx, rect.y + 10.0];
+    for dx in [2.0, 7.0] {
+        let at = [rect.x + dx, rect.y + rect.h * 0.5];
         let input = app.world_mut().resource_mut::<Input>().unwrap();
         input.pointer.position = at;
         input.pointer.press_at = Some(at);
@@ -691,6 +767,477 @@ fn clicking_the_task_checkbox_writes_one_byte() {
     );
     assert_eq!(next, before.replacen("[ ]", "[x]", 1));
     assert_eq!(next.matches("[x]").count(), 1);
+}
+
+#[test]
+fn light_theme_marks_use_text_token_and_math_is_italic_serif() {
+    let src =
+        "Say **bold** and `code` and $E=mc^2$ plus {{font:serif|words}} and {{size:lg|big}}.\n";
+    let (mut app, handle, _) = boot(src);
+    let theme = UiTheme {
+        appearance: Appearance::Light,
+        ..UiTheme::default()
+    };
+    app.world_mut().insert_resource(theme.clone());
+    app.update();
+    let ink = theme.color(Token::Text);
+    let world = app.world();
+    let label = world
+        .entities_with::<Label>()
+        .into_iter()
+        .find(|entity| {
+            world
+                .get::<Label>(*entity)
+                .is_some_and(|label| label.text.contains("bold"))
+        })
+        .expect("paragraph");
+    let spans = world.get::<Spans>(label).unwrap();
+    let slice = |span: &TextSpan| {
+        world
+            .get::<Label>(label)
+            .unwrap()
+            .text
+            .get(span.start..span.end)
+            .unwrap_or("")
+    };
+    let bold = spans
+        .runs
+        .iter()
+        .find(|span| slice(span) == "bold")
+        .expect("bold span");
+    assert!(
+        (bold.color.r - ink.r).abs() < 0.02 && bold.weight == Some(FONT_WEIGHT_BOLD),
+        "bold ink {:?} theme {:?}",
+        bold.color,
+        ink
+    );
+    let code = spans
+        .runs
+        .iter()
+        .find(|span| slice(span) == "code")
+        .expect("code span");
+    assert!(
+        (code.color.r - ink.r).abs() < 0.02,
+        "code ink {:?}",
+        code.color
+    );
+    assert!(code.highlight.is_some());
+    let math = spans
+        .runs
+        .iter()
+        .find(|span| slice(span).contains('E'))
+        .expect("math span");
+    assert!(math.italic, "math should be italic");
+    assert_eq!(math.family.as_deref(), Some("serif"));
+    assert!(
+        (math.color.r - ink.r).abs() < 0.02,
+        "math ink {:?}",
+        math.color
+    );
+    let styled = spans
+        .runs
+        .iter()
+        .find(|span| slice(span) == "words" || slice(span) == "big")
+        .expect("styled span");
+    assert!(
+        (styled.color.r - ink.r).abs() < 0.02,
+        "styled ink {:?}",
+        styled.color
+    );
+    assert!(styled.color.r < 0.4, "light theme ink should be dark");
+    let _ = handle;
+}
+
+#[test]
+fn task_checkbox_is_a_bordered_box_in_both_themes() {
+    for appearance in [Appearance::Light, Appearance::Dark] {
+        let (mut app, _, _) = boot("- [ ] buy\n- [x] done\n");
+        app.world_mut().insert_resource(UiTheme {
+            appearance,
+            ..UiTheme::default()
+        });
+        app.update();
+        let world = app.world();
+        let boxes: Vec<_> = world
+            .entities_with::<Border>()
+            .into_iter()
+            .filter(|entity| {
+                world.get::<Layout>(*entity).is_some_and(|layout| {
+                    matches!(layout.width, Size::Px(width) if (width - 14.0).abs() < 0.5)
+                        && matches!(layout.height, Size::Px(height) if (height - 14.0).abs() < 0.5)
+                })
+            })
+            .collect();
+        assert!(
+            boxes.len() >= 2,
+            "{appearance:?} painted {} boxes",
+            boxes.len()
+        );
+        for entity in boxes {
+            let border = world.get::<Border>(entity).unwrap();
+            assert!(
+                border.width >= 1.5,
+                "{appearance:?} border {}",
+                border.width
+            );
+            let stroke = app
+                .world()
+                .resource::<UiTheme>()
+                .unwrap()
+                .color(Token::StrongStroke);
+            assert!(
+                (border.color.r - stroke.r).abs() < 0.02
+                    && (border.color.g - stroke.g).abs() < 0.02
+                    && (border.color.b - stroke.b).abs() < 0.02,
+                "{appearance:?} border {:?} stroke {:?}",
+                border.color,
+                stroke
+            );
+        }
+    }
+}
+
+#[test]
+fn callout_paints_tone_fill_and_accent() {
+    let (mut app, handle, id) = boot("> [!tip] Keep\n> the trail\n\nAfter\n");
+    let at = bytes(&app, id).find("After").unwrap();
+    caret_at(&mut app, id, at);
+    app.update();
+    let theme = app
+        .world()
+        .resource::<UiTheme>()
+        .cloned()
+        .unwrap_or_default();
+    let fill = theme.color(Token::SuccessFill);
+    let world = app.world();
+    let slot = world
+        .entities_with::<Label>()
+        .into_iter()
+        .find(|entity| {
+            world
+                .get::<Label>(*entity)
+                .is_some_and(|label| label.text.contains("Keep"))
+        })
+        .expect("callout");
+    let color = world.get::<Color>(slot).copied().expect("callout fill");
+    assert!(
+        (color.r - fill.r).abs() < 0.02 && (color.g - fill.g).abs() < 0.02,
+        "fill {color:?} token {fill:?}"
+    );
+    let accent = theme.color(Token::SuccessStroke);
+    let bar = children_of(world, slot)
+        .into_iter()
+        .find(|child| {
+            world.get::<Layout>(*child).is_some_and(
+                |layout| matches!(layout.width, Size::Px(width) if (width - 4.0).abs() < 0.5),
+            )
+        })
+        .expect("accent bar");
+    let bar_color = world.get::<Color>(bar).copied().unwrap();
+    assert!((bar_color.r - accent.r).abs() < 0.02);
+    let _ = handle;
+}
+
+#[test]
+fn first_block_and_last_table_row_sit_inside_their_slots() {
+    let src = "# Title\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n";
+    let (mut app, handle, id) = boot(src);
+    let at = bytes(&app, id).find('2').unwrap();
+    caret_at(&mut app, id, at);
+    app.update();
+    let world = app.world();
+    let surface = *world.get::<Rect>(handle.root).unwrap();
+    let title = world
+        .entities_with::<Label>()
+        .into_iter()
+        .find(|entity| {
+            world
+                .get::<Label>(*entity)
+                .is_some_and(|label| label.text.contains("Title"))
+        })
+        .expect("title");
+    let title_rect = *world.get::<Rect>(title).unwrap();
+    assert!(
+        title_rect.y >= surface.y + 8.0,
+        "title {title_rect:?} surface {surface:?}"
+    );
+    let last = world
+        .entities_with::<Label>()
+        .into_iter()
+        .find(|entity| {
+            world
+                .get::<Label>(*entity)
+                .is_some_and(|label| label.text == "2")
+        })
+        .expect("last cell");
+    let cell = *world.get::<Rect>(last).unwrap();
+    let mut table = world.get::<Parent>(last).unwrap().entity;
+    for _ in 0..8 {
+        if world.get::<Layout>(table).is_some_and(
+            |layout| matches!(layout.height, Size::Px(height) if height > cell.h * 2.0),
+        ) {
+            break;
+        }
+        table = world
+            .get::<Parent>(table)
+            .map(|parent| parent.entity)
+            .unwrap_or(table);
+    }
+    let table_rect = *world.get::<Rect>(table).unwrap();
+    assert!(
+        cell.y + cell.h <= table_rect.y + table_rect.h + 0.5,
+        "cell {cell:?} table {table_rect:?}"
+    );
+}
+
+#[test]
+fn table_handles_show_when_the_caret_is_in_the_table() {
+    let src = "Before\n\n| Left | Right |\n| --- | --- |\n| 241 ms | 2 |\n";
+    let (mut app, _, id) = boot(src);
+    let idle = grip_alpha(&app);
+    assert!(
+        idle.iter().all(|alpha| *alpha < 0.05),
+        "handles should be clear until the caret enters: {idle:?}"
+    );
+    let at = bytes(&app, id).find("241").unwrap();
+    caret_at(&mut app, id, at);
+    app.update();
+    let live = grip_alpha(&app);
+    assert!(
+        live.iter().any(|alpha| *alpha > 0.4),
+        "caret-in-table grip was transparent: {live:?}"
+    );
+}
+
+fn grip_alpha(app: &App) -> Vec<f32> {
+    app.world()
+        .entities_with::<Layout>()
+        .into_iter()
+        .filter(|entity| {
+            app.world().get::<Layout>(*entity).is_some_and(|layout| {
+                matches!(layout.height, Size::Px(height) if (height - 6.0).abs() < 0.6)
+                    && matches!(layout.width, Size::Px(width) if width > 20.0)
+            }) && !app.world().has::<Label>(*entity)
+        })
+        .filter_map(|entity| app.world().get::<Color>(entity).map(|color| color.a))
+        .collect()
+}
+
+#[test]
+fn focused_cell_wraps_like_an_unfocused_cell() {
+    let src = "| 241 ms | 241 ms |\n| --- | --- |\n| keep | here |\n";
+    let (mut app, _, id) = boot(src);
+    let at = bytes(&app, id).find("241").unwrap();
+    caret_at(&mut app, id, at);
+    app.update();
+    let world = app.world();
+    let cells: Vec<_> = world
+        .entities_with::<Label>()
+        .into_iter()
+        .filter(|entity| {
+            world
+                .get::<Label>(*entity)
+                .is_some_and(|label| label.text == "241 ms")
+        })
+        .collect();
+    assert_eq!(cells.len(), 2, "both cells");
+    let engine = text_engine(world);
+    let mut lines = Vec::new();
+    let mut insets = Vec::new();
+    for entity in &cells {
+        let box_metrics = label_box(world, *entity);
+        insets.push(box_metrics.inset_x);
+        let rect = world.get::<Rect>(*entity).unwrap();
+        let style = world
+            .get::<TextStyle>(*entity)
+            .cloned()
+            .unwrap_or_else(TextStyle::default);
+        let spans = world
+            .get::<Spans>(*entity)
+            .map(|spans| spans.runs.clone())
+            .unwrap_or_default();
+        let width = box_metrics.text_width(rect.w, engine.unit_advance(&style));
+        let layout = engine.layout("241 ms", &style, &spans, width);
+        lines.push(layout.lines.len());
+    }
+    assert_eq!(insets[0], insets[1], "insets {insets:?}");
+    assert_eq!(lines[0], lines[1], "wrap {lines:?} insets {insets:?}");
+    assert_eq!(lines[0], 1, "241 ms should stay on one line");
+}
+
+#[test]
+fn unchecked_and_checked_task_boxes_share_a_gap() {
+    let (mut app, _, _) =
+        boot("- [ ] Page on-call\n- [x] Confirm the retry budget\n- [ ] Write the postmortem\n");
+    let frame = rndr_paint::frame(&mut app);
+    let world = app.world();
+    let mut gaps = Vec::new();
+    for name in [
+        "Page on-call",
+        "Confirm the retry budget",
+        "Write the postmortem",
+    ] {
+        let label = label_with(world, name);
+        let label_rect = *world.get::<Rect>(label).unwrap();
+        let row = world.get::<Parent>(label).unwrap().entity;
+        let box_entity = children_of(world, row)
+            .into_iter()
+            .find(|child| {
+                world.get::<Layout>(*child).is_some_and(
+                    |layout| matches!(layout.width, Size::Px(width) if (width - 14.0).abs() < 0.5),
+                )
+            })
+            .unwrap_or_else(|| panic!("{name} has no box"));
+        let box_rect = *world.get::<Rect>(box_entity).unwrap();
+        let gap = label_rect.x - (box_rect.x + box_rect.w);
+        gaps.push(gap);
+        let layout = world
+            .get::<TextLayout>(label)
+            .unwrap_or_else(|| panic!("{name} has no text layout"));
+        let first = layout
+            .glyphs
+            .iter()
+            .find(|glyph| glyph.start == 0)
+            .unwrap_or_else(|| panic!("{name} paints no first letter"));
+        let ink = first.color.unwrap_or_else(|| {
+            world
+                .get::<Label>(label)
+                .and_then(|label| label.color)
+                .unwrap_or(Color::rgb(0.0, 0.0, 0.0))
+        });
+        assert!(
+            ink.a > 0.4,
+            "{name} hides its first letter (alpha {})",
+            ink.a
+        );
+        let metrics = label_box(world, label);
+        let painted_x = label_rect.x + metrics.inset_x + first.x;
+        assert!(
+            painted_x + 2.0 >= box_rect.x + box_rect.w + gap,
+            "{name} first glyph at {painted_x} is left of the box {} plus the gap {gap}",
+            box_rect.x + box_rect.w
+        );
+        let last = layout.glyphs.last().expect("glyphs");
+        let text_right = label_rect.x + metrics.inset_x + last.x + last.w;
+        let clip = frame
+            .quads
+            .iter()
+            .find(|quad| {
+                quad.uv != rndr_paint::solid_uv()
+                    && quad.color.a > 0.2
+                    && quad.rect.x < painted_x + first.w
+                    && quad.rect.x + quad.rect.w > painted_x
+                    && quad.rect.y < label_rect.y + label_rect.h
+                    && quad.rect.y + quad.rect.h > label_rect.y
+            })
+            .unwrap_or_else(|| panic!("{name} first letter was not painted"))
+            .clip;
+        assert!(
+            clip.x <= painted_x + 1.0 && clip.x + clip.w + 1.0 >= text_right,
+            "{name} clip {:?} does not hold {painted_x}..={text_right}",
+            (clip.x, clip.w)
+        );
+    }
+    assert!(
+        gaps.iter().all(|gap| *gap > 4.0),
+        "gaps should clear the box: {gaps:?}"
+    );
+    assert!(
+        (gaps[0] - gaps[1]).abs() < 1.0 && (gaps[1] - gaps[2]).abs() < 1.0,
+        "unchecked and checked gaps differ: {gaps:?}"
+    );
+}
+
+#[test]
+fn scroll_extent_reaches_past_the_first_viewport() {
+    let mut src = String::new();
+    for index in 0..28 {
+        src.push_str(&format!(
+            "Paragraph {index} of the note is long enough to occupy its own line.\n\n"
+        ));
+    }
+    let (mut app, handle, id) = boot(&src);
+    let parent = app.world().get::<Parent>(handle.root).unwrap().entity;
+    app.world_mut().get_mut::<Layout>(parent).unwrap().height = Size::Px(220.0);
+    app.world_mut().insert_resource(Viewport::new(640.0, 260.0));
+    app.update();
+    app.update();
+    let at = bytes(&app, id).find("Paragraph 18").unwrap();
+    caret_at(&mut app, id, at);
+    app.update();
+    let before = app.world().get::<Scroll>(handle.root).copied().unwrap();
+    let port = app.world().get::<Rect>(handle.root).unwrap().h;
+    assert!(
+        before.content[1] > port + 80.0,
+        "content {} port {port}",
+        before.content[1]
+    );
+    app.world_mut()
+        .get_mut::<Scroll>(handle.root)
+        .unwrap()
+        .offset[1] = -240.0;
+    app.update();
+    let after = app.world().get::<Scroll>(handle.root).copied().unwrap();
+    assert!(
+        after.offset[1] < -80.0,
+        "offset {} content {} port {port}",
+        after.offset[1],
+        after.content[1]
+    );
+}
+
+#[test]
+fn reveal_after_the_caret_moves_scrolls_within_one_frame() {
+    let mut src = String::new();
+    for index in 0..30 {
+        src.push_str(&format!(
+            "Paragraph {index} of the note is long enough to occupy its own line.\n\n"
+        ));
+    }
+    src.push_str("```callout\ntone: tip\ntitle: Below\nbody: Hidden fence\n```\n");
+    let (mut app, handle, id) = boot(&src);
+    let parent = app.world().get::<Parent>(handle.root).unwrap().entity;
+    app.world_mut().get_mut::<Layout>(parent).unwrap().height = Size::Px(220.0);
+    app.world_mut().insert_resource(Viewport::new(900.0, 260.0));
+    app.update();
+    app.update();
+    assert!(
+        !labels_under(&app, handle.root).contains("Hidden fence"),
+        "the fence is already in the first window"
+    );
+    let at = bytes(&app, id).find("Hidden fence").unwrap();
+    caret_at(&mut app, id, at);
+    let frame = rndr_paint::frame(&mut app);
+    assert_fence_in_view(&app, handle.root, &frame);
+    let again = rndr_paint::frame(&mut app);
+    assert_fence_in_view(&app, handle.root, &again);
+}
+
+fn assert_fence_in_view(app: &App, root: Entity, frame: &rndr_paint::Frame) {
+    let world = app.world();
+    let port = *world.get::<Rect>(root).unwrap();
+    let label = label_with(world, "Hidden fence");
+    let rect = *world.get::<Rect>(label).unwrap();
+    assert!(
+        rect.y + 1.0 >= port.y && rect.y < port.y + port.h,
+        "label y {} is outside the viewport {}..{}",
+        rect.y,
+        port.y,
+        port.y + port.h
+    );
+    assert!(
+        frame.quads.iter().any(|quad| {
+            quad.uv != rndr_paint::solid_uv()
+                && quad.color.a > 0.2
+                && quad.rect.y >= port.y - 1.0
+                && quad.rect.y < port.y + port.h
+                && quad.rect.x < rect.x + rect.w
+                && quad.rect.x + quad.rect.w > rect.x
+                && quad.rect.y < rect.y + rect.h
+                && quad.rect.y + quad.rect.h > rect.y
+        }),
+        "the fence body was not painted inside the viewport"
+    );
 }
 
 #[test]
