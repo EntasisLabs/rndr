@@ -41,26 +41,26 @@ impl FindBar {
         let document = attached_source(world, editor).ok_or(UiError::InvalidProps)?;
         let root = world.spawn((Layout {
             width: Size::Fill,
-            gap: 4.0,
+            gap: crate::Space::X4.points(),
             ..Layout::column()
         },));
         set_parent(world, root, parent);
         let fields = world.spawn((Layout {
             width: Size::Fill,
-            gap: 6.0,
+            gap: crate::Space::X8.points(),
             ..Layout::row()
         },));
         set_parent(world, fields, root);
         let commands = world.spawn((Layout {
             width: Size::Fill,
-            gap: 4.0,
+            gap: crate::Space::X4.points(),
             ..Layout::row()
         },));
         set_parent(world, commands, root);
         fn field(world: &mut World, root: Entity, name: &str) -> Entity {
             let group = world.spawn((Layout {
                 width: Size::Fill,
-                gap: 2.0,
+                gap: crate::Space::X2.points(),
                 ..Layout::column()
             },));
             set_parent(world, group, root);

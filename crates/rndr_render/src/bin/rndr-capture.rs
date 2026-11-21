@@ -139,8 +139,8 @@ fn scene(value: &Value) -> Result<(App, Vec<Entity>), String> {
         let mut layout = Layout {
             width: Size::Px(w),
             height: Size::Px(h),
-            padding: 0.0,
-            gap: 0.0,
+            padding: rndr_core::tokens::space::ZERO,
+            gap: rndr_core::tokens::space::ZERO,
             ..Layout::column()
         };
         for (name, to) in [("padding", &mut layout.padding), ("gap", &mut layout.gap)] {

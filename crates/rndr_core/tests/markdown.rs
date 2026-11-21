@@ -801,3 +801,34 @@ fn warning_uses_card_paint_without_decorating_plain_quotes() {
     assert_eq!(blocks[0].spans[0].color, ink);
     assert!(!w.has::<Border>(block_label(w, view, 1)));
 }
+
+#[test]
+fn reader_fence_fits_wrapped_lines_after_resize_with_local_typography() {
+    let body = "route → fallback → premium → final\n  max_request_size_mb: 12";
+    let (mut app, view) = boot(&format!("```yaml\n{body}\n```\n\nAfter"), 800., 720.);
+    app.world_mut().insert(
+        view,
+        rndr_core::TextStyle {
+            size: 24.,
+            ..Default::default()
+        },
+    );
+    app.world_mut()
+        .insert(view, rndr_core::Padding::symmetric(16., 40.));
+    for width in [310., 620., 290.] {
+        app.world_mut().insert_resource(Viewport::new(width, 720.));
+        app.update();
+        let world = app.world();
+        let label = block_label(world, view, 0);
+        let style = world.get::<rndr_core::TextStyle>(label).unwrap();
+        assert_eq!(style.size, 24.);
+        let rect = label_rect(world, body);
+        let shaped = world.get::<TextLayout>(label).unwrap();
+        assert!(
+            rect.h + 0.01 >= shaped.height + 2. * TEXT_ORIGIN_Y,
+            "{width}: {rect:?} vs {}",
+            shaped.height
+        );
+        assert!(label_rect(world, "After").y >= rect.y + rect.h - 0.01);
+    }
+}

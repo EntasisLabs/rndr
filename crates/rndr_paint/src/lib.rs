@@ -612,7 +612,7 @@ fn paint_visited(
     for mark in marks {
         let color = match mark.kind {
             rndr_core::DecorationKind::Find => theme.selection,
-            rndr_core::DecorationKind::Diagnostic => Color::rgb(0.86, 0.28, 0.24),
+            rndr_core::DecorationKind::Diagnostic => rndr_core::tokens::DIAGNOSTIC_ERROR,
         };
         push(
             out,
@@ -1168,7 +1168,9 @@ fn record_geometry(
 ) {
     if (outline
         && (!world.has::<rndr_core::Border>(entity) || world.has::<rndr_core::BorderSides>(entity)))
-        || (!outline && !world.has::<rndr_core::CrossMark>(entity))
+        || (!outline
+            && !world.has::<rndr_core::CrossMark>(entity)
+            && !world.has::<rndr_core::CheckMark>(entity))
     {
         return;
     }
@@ -1230,6 +1232,27 @@ fn record_geometry(
         path.move_to([center[0] + half, center[1] - half])
             .line_to([center[0] - half, center[1] + half]);
         canvas.stroke(path.build(), mark.color, stroke);
+    }
+    if let Some(mark) = world
+        .get::<rndr_core::CheckMark>(entity)
+        .filter(|_| !outline)
+    {
+        let size = rect.w.min(rect.h);
+        let left = rect.x + (rect.w - size) * 0.5;
+        let top = rect.y + (rect.h - size) * 0.5;
+        let mut path = Path::builder();
+        path.move_to([left + size * 0.22, top + size * 0.50])
+            .line_to([left + size * 0.43, top + size * 0.70])
+            .line_to([left + size * 0.78, top + size * 0.29]);
+        canvas.stroke(
+            path.build(),
+            mark.color,
+            Stroke {
+                width: 1.75,
+                cap: Cap::Round,
+                ..Stroke::default()
+            },
+        );
     }
     for op in canvas.finish_clipped(Rect {
         x: clip.x,
@@ -1843,6 +1866,7 @@ fn push_border_ring(
 
 fn lighten(color: Color) -> Color {
     Color::rgba(
+        // design-lint: Blend a supplied paint color with white, preserving alpha.
         color.r + (1.0 - color.r) * 0.25,
         color.g + (1.0 - color.g) * 0.25,
         color.b + (1.0 - color.b) * 0.25,

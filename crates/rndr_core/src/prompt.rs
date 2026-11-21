@@ -223,7 +223,7 @@ pub(crate) fn placeholder_text(world: &World, entity: Entity) -> Option<String> 
 /// Dim color for a placeholder run. The hint is not the label color at full strength.
 pub(crate) fn placeholder_color(world: &World) -> Color {
     let color = theme_of(world).text;
-    Color::rgba(color.r, color.g, color.b, (color.a * 0.45).clamp(0.0, 1.0))
+    color.with_alpha((color.a * 0.45).clamp(0.0, 1.0))
 }
 
 /// Cap used by hug measurement. At least one line.

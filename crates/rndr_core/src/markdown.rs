@@ -102,7 +102,7 @@ use crate::keys::{platform_of, standard_action, EditAction, Key};
 use crate::layout::{hit_test, Axis, Layout, Rect, Scroll, Size, SCROLL_DRAG_SLOP};
 use crate::style::{Border, Color, Label, TextOverflow, TEXT_ORIGIN_X, TEXT_ORIGIN_Y};
 use crate::text::{
-    style_for, style_of, text_engine, FontStyle, TextStyle, FONT_WEIGHT_BOLD, FONT_WEIGHT_REGULAR,
+    style_for, text_engine, FontStyle, TextStyle, FONT_WEIGHT_BOLD, FONT_WEIGHT_REGULAR,
 };
 use crate::theme::{theme_of, Radius, Theme};
 use crate::world::{Component, World};
@@ -257,41 +257,6 @@ pub struct MarkdownTheme {
     pub number: Color,
     /// Comment tokens. Used when the `highlight` feature is on.
     pub comment: Color,
-}
-
-impl Default for MarkdownTheme {
-    fn default() -> Self {
-        Self {
-            card_radius: 8.0,
-            callouts: [
-                ((0.16, 0.17, 0.21), (0.5, 0.55, 0.6)),
-                ((0.12, 0.17, 0.24), (0.6, 0.75, 0.95)),
-                ((0.10, 0.19, 0.15), (0.6, 0.85, 0.68)),
-                ((0.22, 0.16, 0.08), (0.95, 0.78, 0.48)),
-                ((0.23, 0.12, 0.12), (0.98, 0.65, 0.65)),
-            ]
-            .map(|((r, g, b), (x, y, z))| {
-                (
-                    Color::rgb(r, g, b),
-                    Color::rgb(x, y, z),
-                    Color::rgb(x, y, z),
-                )
-            }),
-            surface: Color::rgb(0.10, 0.11, 0.13),
-            text: Color::rgb(0.93, 0.94, 0.96),
-            muted: Color::rgb(0.62, 0.66, 0.72),
-            link: Color::rgb(0.45, 0.68, 0.95),
-            code: Color::rgb(0.86, 0.89, 0.93),
-            code_bg: Color::rgb(0.16, 0.17, 0.21),
-            inline_bg: Color::rgb(0.20, 0.24, 0.30),
-            quote: Color::rgb(0.45, 0.55, 0.68),
-            rule: Color::rgb(0.30, 0.33, 0.38),
-            keyword: Color::rgb(0.55, 0.62, 0.95),
-            string: Color::rgb(0.62, 0.80, 0.55),
-            number: Color::rgb(0.86, 0.70, 0.42),
-            comment: Color::rgb(0.55, 0.58, 0.62),
-        }
-    }
 }
 
 impl MarkdownTheme {
@@ -609,7 +574,7 @@ pub fn markdown_view(world: &mut World, markdown: impl Into<String>) -> Entity {
     world.spawn((
         Layout {
             axis: Axis::Column,
-            gap: 0.0,
+            gap: crate::tokens::space::ZERO,
             padding: PAD,
             width: Size::Fill,
             height: Size::Fill,
@@ -690,7 +655,7 @@ pub(crate) fn sync_widths(world: &mut World) -> bool {
         if (stored - width).abs() <= 0.5 {
             continue;
         }
-        let base = style_of(world);
+        let base = style_for(world, entity);
         let Some(mut view) = world.remove::<MarkdownView>(entity) else {
             continue;
         };
@@ -836,7 +801,7 @@ fn estimate_outer(
             (chars / per).ceil().max(1.0)
         })
         .sum();
-    TEXT_ORIGIN_Y + lines.max(1.0) * line + trail
+    block_vertical_insets(block) + lines.max(1.0) * line + trail
 }
 
 fn block_outer(doc: &MarkdownView, index: usize) -> f32 {
@@ -941,7 +906,11 @@ fn inner_width(world: &World, entity: Entity) -> f32 {
                 .map(|viewport| viewport.content_width())
                 .unwrap_or(800.0)
         });
-    (outer - PAD * 2.0).max(32.0)
+    let [_, right, _, left] = world
+        .get::<Layout>(entity)
+        .map(|layout| crate::flex::insets(world, entity, layout))
+        .unwrap_or([PAD; 4]);
+    (outer - left - right).max(1.0)
 }
 
 fn reconcile(
@@ -1069,13 +1038,16 @@ fn reconcile(
                 index: index as u32,
             }
         };
-        let alive = world.is_alive(slot.entity) && slot.shape == shape;
-        if !alive
+        // Only patch a retained subtree built for the same block structure.
+        // A plain label, for example, has no marker children to update.
+        let compatible = world.is_alive(slot.entity) && slot.shape == shape;
+        if !compatible
             || slot.fingerprint != fingerprint
             || slot.width_bits != width.to_bits()
             || slot.index != index as u32
         {
-            if !block.cells.is_empty()
+            if !compatible
+                || !block.cells.is_empty()
                 || world.has::<table_view::TableRow>(slot.entity)
                 || !update_block(
                     world,
@@ -1168,7 +1140,8 @@ fn shape_of(block: &MarkdownBlock, columns: &ListColumns) -> u16 {
     match block.kind {
         MarkdownKind::Bullet => shape |= 16,
         MarkdownKind::Numbered(_) => shape |= 32,
-        MarkdownKind::Task(_) => shape |= 64,
+        MarkdownKind::Task(false) => shape |= 64,
+        MarkdownKind::Task(true) => shape |= 64 | 256,
         _ => {}
     }
     shape
@@ -1263,8 +1236,16 @@ fn block_height(
     let engine = text_engine(world);
     let wrap = field_text_width(width, engine.unit_advance(&style));
     let measured = engine.measure(&block.text, &style, &block.spans, wrap);
-    let lines = measured.line_count.max(1) as f32;
-    TEXT_ORIGIN_Y + lines * engine.line_height(&style)
+    block_vertical_insets(block) + measured.height.max(engine.line_height(&style))
+}
+
+fn block_vertical_insets(block: &MarkdownBlock) -> f32 {
+    // Fences own a filled card; prose keeps its compact inter-block spacing.
+    if matches!(block.kind, MarkdownKind::Code) {
+        2.0 * TEXT_ORIGIN_Y
+    } else {
+        TEXT_ORIGIN_Y
+    }
 }
 
 fn label_width(inner: f32, block: &MarkdownBlock, columns: &ListColumns) -> f32 {
@@ -1314,10 +1295,19 @@ fn marker_outer(world: &World, base: &TextStyle, block: &MarkdownBlock) -> f32 {
     }
 }
 
+fn number_label_style(base: &TextStyle) -> TextStyle {
+    base.clone().feature(crate::FontFeature::on(b"tnum"))
+}
+
 fn number_label_width(world: &World, base: &TextStyle, n: u64) -> f32 {
     let engine = text_engine(world);
-    let measured = engine.measure(&format!("{n}."), base, &[], f32::INFINITY);
-    measured.width + 2.0 * TEXT_ORIGIN_X
+    let measured = engine.measure(
+        &format!("{n}."),
+        &number_label_style(base),
+        &[],
+        f32::INFINITY,
+    );
+    measured.width.ceil() + 2.0 * TEXT_ORIGIN_X
 }
 
 fn column_of(columns: &ListColumns, block: &MarkdownBlock) -> f32 {
@@ -1419,8 +1409,8 @@ fn glyph_color(theme: &MarkdownTheme, block: &MarkdownBlock) -> Color {
 fn box_layout(axis: Axis, width: Size, height: Size) -> Layout {
     Layout {
         axis,
-        gap: 0.0,
-        padding: 0.0,
+        gap: crate::tokens::space::ZERO,
+        padding: crate::tokens::space::ZERO,
         width,
         height,
         min_width: 0.0,
@@ -1506,7 +1496,7 @@ fn spawn_block_inner(
         Layout {
             axis: Axis::Row,
             gap: ROW_GAP,
-            padding: 0.0,
+            padding: crate::tokens::space::ZERO,
             width: Size::Fill,
             height: Size::Px(outer),
             min_width: 0.0,
@@ -1551,8 +1541,8 @@ fn spawn_marker(
         Marker,
         Layout {
             axis: Axis::Row,
-            gap: 0.0,
-            padding: 0.0,
+            gap: crate::tokens::space::ZERO,
+            padding: crate::tokens::space::ZERO,
             width: Size::Px(column),
             height: Size::Hug,
             min_width: 0.0,
@@ -1566,7 +1556,7 @@ fn spawn_marker(
         box_layout(Axis::Column, Size::Px(gap_w), Size::Px(1.0)),
     ));
     set_parent(world, gap, row);
-    let inner = spawn_marker_inner(world, block, theme, base);
+    let inner = spawn_marker_inner(world, block, theme, base, box_w);
     set_parent(world, inner, row);
     row
 }
@@ -1576,14 +1566,15 @@ fn spawn_marker_inner(
     block: &MarkdownBlock,
     theme: &MarkdownTheme,
     base: &TextStyle,
+    box_w: f32,
 ) -> Entity {
     let line_h = text_engine(world).line_height(base);
     match block.kind {
         MarkdownKind::Numbered(n) => world.spawn((
-            box_layout(Axis::Column, Size::Hug, Size::Hug),
+            box_layout(Axis::Column, Size::Px(box_w), Size::Hug),
             Label::new(format!("{n}.")).with_color(theme.muted),
-            Color::rgba(0.0, 0.0, 0.0, 0.0),
-            base.clone(),
+            Color::TRANSPARENT,
+            number_label_style(base),
         )),
         MarkdownKind::Task(checked) => spawn_check(world, checked, theme, line_h),
         _ => spawn_bullet(world, theme, line_h),
@@ -1618,8 +1609,12 @@ fn spawn_check(world: &mut World, checked: bool, theme: &MarkdownTheme, line_h: 
     let border = world.spawn((
         Layout {
             axis: Axis::Column,
-            gap: 0.0,
-            padding: if checked { 4.0 } else { 0.0 },
+            gap: crate::tokens::space::ZERO,
+            padding: if checked {
+                crate::tokens::space::X4
+            } else {
+                crate::tokens::space::ZERO
+            },
             width: Size::Px(CHECK),
             height: Size::Px(CHECK),
             min_width: CHECK,
@@ -1630,7 +1625,7 @@ fn spawn_check(world: &mut World, checked: bool, theme: &MarkdownTheme, line_h: 
             color: theme.muted,
             width: 1.5,
         },
-        Radius(2.0),
+        Radius(crate::tokens::TASK_CORNER),
     ));
     set_parent(world, border, column);
     if checked {
@@ -1745,7 +1740,7 @@ fn update_block(
         Layout {
             axis: Axis::Row,
             gap: ROW_GAP,
-            padding: 0.0,
+            padding: crate::tokens::space::ZERO,
             width: Size::Fill,
             height: Size::Px(outer),
             min_width: 0.0,
@@ -1856,8 +1851,9 @@ fn sync_marker(
             if !world.has::<Label>(inner) {
                 return false;
             }
+            world.insert(inner, box_layout(Axis::Column, Size::Px(box_w), Size::Hug));
             world.insert(inner, Label::new(format!("{n}.")).with_color(theme.muted));
-            world.insert(inner, base.clone());
+            world.insert(inner, number_label_style(base));
             true
         }
         MarkdownKind::Task(checked) => sync_check(world, inner, checked, theme),
@@ -1881,12 +1877,20 @@ fn sync_check(world: &mut World, inner: Entity, checked: bool, theme: &MarkdownT
     else {
         return false;
     };
-    world.insert(border, theme.muted);
-    let Some(hole) = children_of(world, border).into_iter().next() else {
-        return false;
-    };
-    let color = if checked { theme.text } else { theme.surface };
-    world.insert(hole, color);
+    world.insert(border, theme.surface);
+    world.insert(
+        border,
+        Border {
+            color: theme.muted,
+            width: 1.5,
+        },
+    );
+    if checked {
+        let Some(mark) = children_of(world, border).into_iter().next() else {
+            return false;
+        };
+        world.insert(mark, theme.text);
+    }
     true
 }
 

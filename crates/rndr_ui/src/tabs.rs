@@ -40,13 +40,20 @@ use crate::drag::{
 };
 use crate::lifecycle::{find_keyed_child, require_layout_parent};
 use crate::menu::{open_menu, MenuAt, MenuEntry, MenuItem, MenuPicked};
+use crate::tokens::TabMetrics;
 use crate::{Token, UiError, UiId, UiTheme};
 use rndr_core::*;
 use std::collections::BTreeSet;
 
-const TAB_MIN: f32 = 72.0;
-const TAB_MAX: f32 = 240.0;
-const BAR_HEIGHT: f32 = 32.0;
+const TAB_MIN: f32 = 96.0;
+const TAB_MAX: f32 = 200.0;
+fn bar_height(world: &World) -> f32 {
+    let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
+    let label = theme.typography(crate::Typography::Label);
+    theme
+        .target_min()
+        .max(label.size * label.line_height.unwrap_or(1.) + theme.space(crate::Space::X4))
+}
 const CHEVRON: f32 = 28.0;
 const SCROLL_STEP: f32 = 120.0;
 /// Cross-axis and along-axis bands of a pane body. The interior is one inside place.
@@ -390,7 +397,7 @@ impl TabStrip {
             let bar = world.spawn((
                 Layout {
                     width: Size::Fill,
-                    height: Size::Px(BAR_HEIGHT),
+                    height: Size::Px(bar_height(world)),
                     ..Layout::row()
                 },
                 Align {
@@ -411,7 +418,7 @@ impl TabStrip {
             let scroll = world.spawn((
                 Layout {
                     width: Size::Fill,
-                    height: Size::Px(BAR_HEIGHT),
+                    height: Size::Px(bar_height(world)),
                     ..Layout::row()
                 },
                 Scroll::default(),
@@ -422,7 +429,7 @@ impl TabStrip {
                 Layout {
                     axis: Axis::Row,
                     width: Size::Hug,
-                    height: Size::Px(BAR_HEIGHT),
+                    height: Size::Px(bar_height(world)),
                     ..Layout::row()
                 },
                 Tabs {
@@ -461,6 +468,7 @@ impl TabStrip {
                 key: id,
                 props: props.clone(),
                 specs: Vec::new(),
+                metric_theme: world.resource::<UiTheme>().cloned().unwrap_or_default(),
                 list,
                 scroll,
                 body,
@@ -654,10 +662,14 @@ fn create_tab(
     let tab = world.spawn((
         Layout {
             width: Size::Px(tab_width(world, spec)),
-            height: Size::Px(BAR_HEIGHT),
-            padding: 4.0,
-            gap: 4.0,
-            min_width: TAB_MIN,
+            height: Size::Px(bar_height(world)),
+            padding: crate::Space::X4.points(),
+            gap: crate::Space::X4.points(),
+            min_width: if spec.pinned {
+                TabMetrics::PINNED
+            } else {
+                TAB_MIN
+            },
             ..Layout::row()
         },
         Align {
@@ -675,7 +687,7 @@ fn create_tab(
     let title = world.spawn((
         Layout {
             width: Size::Fill,
-            height: Size::Px(BAR_HEIGHT),
+            height: Size::Px(bar_height(world)),
             ..Layout::column()
         },
         Label::new(&spec.label).overflow(TextOverflow::Ellipsis),
@@ -683,15 +695,43 @@ fn create_tab(
         ResolvedColor,
     ));
     set_parent(world, title, tab);
+    let accessory = world.spawn((
+        Layout {
+            width: Size::Px(TabMetrics::ACCESSORY),
+            height: Size::Px(TabMetrics::ACCESSORY),
+            ..Layout::row()
+        },
+        Align {
+            items: Items::Center,
+            justify: Justify::Center,
+        },
+    ));
+    set_parent(world, accessory, tab);
     let dirty = world.spawn((
         Layout {
-            width: Size::Px(8.0),
-            height: Size::Px(8.0),
+            width: Size::Px(TabMetrics::DOT),
+            height: Size::Px(TabMetrics::DOT),
             ..Layout::column()
+        },
+        Radius(TabMetrics::DOT / 2.),
+        ResolvedColor,
+    ));
+    set_parent(world, dirty, accessory);
+    let indicator = world.spawn((
+        Layout {
+            width: Size::Fill,
+            height: Size::Px(2.),
+            ..Layout::row()
+        },
+        Absolute {
+            left: Some(0.),
+            right: Some(0.),
+            bottom: Some(0.),
+            ..Default::default()
         },
         ResolvedColor,
     ));
-    set_parent(world, dirty, tab);
+    set_parent(world, indicator, tab);
     let close = close_button(world, tab, root, spec);
     let panel = world.spawn((
         Layout {
@@ -713,6 +753,9 @@ fn create_tab(
             pin,
             title,
             dirty,
+            accessory,
+            ideal: tab_width(world, spec),
+            indicator,
             close,
             closable: spec.closable,
         },
@@ -742,10 +785,19 @@ fn update_tab(
             label.text = icon.scalar().to_string();
         }
     }
+    world.insert(
+        slot.title,
+        world
+            .resource::<UiTheme>()
+            .cloned()
+            .unwrap_or_default()
+            .typography(crate::Typography::Label),
+    );
+    set_shown(world, slot.title, !spec.pinned);
     set_shown(world, slot.icon, spec.icon.is_some());
-    set_shown(world, slot.pin, spec.pinned);
-    set_shown(world, slot.dirty, spec.dirty);
-    set_shown(world, slot.close, spec.closable);
+    set_shown(world, slot.pin, spec.pinned && spec.icon.is_none());
+    set_shown(world, slot.dirty, spec.dirty && !spec.pinned);
+    set_shown(world, slot.close, spec.closable && !spec.pinned);
     if let Some(button) = world.get_mut::<Button>(slot.close) {
         button.enabled = spec.closable && enabled;
     }
@@ -766,9 +818,34 @@ fn update_tab(
     );
     sync_drag(world, root, tab, enabled);
     let width = tab_width(world, spec);
+    world.get_mut::<TabSlot>(tab).unwrap().ideal = width;
+    let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
+    world.insert(
+        tab,
+        Padding::symmetric(
+            0.,
+            if spec.pinned {
+                0.
+            } else {
+                theme.space(crate::Space::X12)
+            },
+        ),
+    );
+    world.insert(
+        tab,
+        Align {
+            items: Items::Center,
+            justify: Justify::Center,
+        },
+    );
     if let Some(layout) = world.get_mut::<Layout>(tab) {
         layout.width = Size::Px(width);
-        layout.min_width = TAB_MIN;
+        layout.gap = theme.space(crate::Space::X8);
+        layout.min_width = if spec.pinned {
+            TabMetrics::PINNED
+        } else {
+            TAB_MIN
+        };
     }
     world.insert(tab, MaxSize::width(TAB_MAX));
     Ok(())
@@ -776,29 +853,26 @@ fn update_tab(
 
 /// Width follows the label, between [`TAB_MIN`] and [`TAB_MAX`].
 fn tab_width(world: &World, spec: &TabSpec) -> f32 {
-    let text = text_engine(world)
-        .measure(&spec.label, &TextStyle::default(), &[], f32::INFINITY)
-        .width;
-    let mut fixed = 0.0f32;
-    let mut count = 1usize;
-    if spec.icon.is_some() {
-        fixed += 16.0;
-        count += 1;
-    }
     if spec.pinned {
-        fixed += 16.0;
-        count += 1;
+        return TabMetrics::PINNED;
     }
-    if spec.dirty {
-        fixed += 8.0;
-        count += 1;
-    }
-    if spec.closable {
-        fixed += 16.0;
-        count += 1;
-    }
-    let gaps = 4.0 * count.saturating_sub(1) as f32;
-    (text + fixed + gaps + 8.0).clamp(TAB_MIN, TAB_MAX)
+    let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
+    let text = text_engine(world)
+        .measure(
+            &spec.label,
+            &theme.typography(crate::Typography::Label),
+            &[],
+            f32::INFINITY,
+        )
+        .width;
+    let gap = theme.space(crate::Space::X8);
+    let icon = if spec.icon.is_some() {
+        crate::Space::X16.points() + gap
+    } else {
+        0.
+    };
+    (text + icon + TabMetrics::ACCESSORY + gap + 2. * theme.space(crate::Space::X12))
+        .clamp(TAB_MIN, TAB_MAX)
 }
 
 fn sync_drag(world: &mut World, root: Entity, tab: Entity, enabled: bool) {
@@ -970,8 +1044,8 @@ fn glyph(world: &mut World, parent: Entity, icon: Icon) -> Entity {
 fn close_button(world: &mut World, tab: Entity, strip: Entity, spec: &TabSpec) -> Entity {
     let entity = world.spawn((
         Layout {
-            width: Size::Px(16.0),
-            height: Size::Px(16.0),
+            width: Size::Px(TabMetrics::ACCESSORY),
+            height: Size::Px(TabMetrics::ACCESSORY),
             ..Layout::column()
         },
         Button::new("tab-close"),
@@ -1010,7 +1084,7 @@ fn chrome_button(
     let entity = world.spawn((
         Layout {
             width: Size::Px(CHEVRON),
-            height: Size::Px(BAR_HEIGHT),
+            height: Size::Px(bar_height(world)),
             ..Layout::column()
         },
         Button::new(action),
@@ -1200,6 +1274,73 @@ pub(crate) fn styles(world: &mut World) {
         let Some(state) = world.get::<StripState>(strip).cloned() else {
             continue;
         };
+        let headers = tabs_of(world, state.list);
+        let theme_changed = state.metric_theme != theme;
+        if theme_changed {
+            let height = bar_height(world);
+            let bar = world.get::<Parent>(state.scroll).unwrap().entity;
+            for entity in [
+                bar,
+                state.scroll,
+                state.list,
+                state.leading,
+                state.trailing,
+                state.overflow,
+            ] {
+                if let Some(layout) = world.get_mut::<Layout>(entity) {
+                    layout.height = Size::Px(height);
+                }
+            }
+            for ((tab, slot), spec) in headers.iter().zip(&state.specs) {
+                let ideal = tab_width(world, spec);
+                world.get_mut::<TabSlot>(*tab).unwrap().ideal = ideal;
+                world.insert(slot.title, theme.typography(crate::Typography::Label));
+                world.insert(
+                    *tab,
+                    Padding::symmetric(
+                        0.,
+                        if spec.pinned {
+                            0.
+                        } else {
+                            theme.space(crate::Space::X12)
+                        },
+                    ),
+                );
+                world.get_mut::<Layout>(*tab).unwrap().gap = theme.space(crate::Space::X8);
+                for entity in [*tab, slot.title] {
+                    world.get_mut::<Layout>(entity).unwrap().height = Size::Px(height);
+                }
+            }
+            world.get_mut::<StripState>(strip).unwrap().metric_theme = theme.clone();
+        }
+        // Reserve scroll controls only when the minimum widths no longer fit.
+        // Base this decision on the whole strip, never the port the controls resized.
+        if let Some(available) = world.get::<Rect>(strip).map(|r| r.w).filter(|w| *w > 0.) {
+            let floor: f32 = headers
+                .iter()
+                .map(|(tab, _)| world.get::<Layout>(*tab).unwrap().min_width)
+                .sum();
+            let extra: f32 = headers
+                .iter()
+                .map(|(tab, _)| {
+                    world.get::<TabSlot>(*tab).unwrap().ideal
+                        - world.get::<Layout>(*tab).unwrap().min_width
+                })
+                .sum();
+            let fraction = if extra > 0. {
+                ((available - floor) / extra).clamp(0., 1.)
+            } else {
+                0.
+            };
+            for (tab, _) in &headers {
+                let ideal = world.get::<TabSlot>(*tab).unwrap().ideal;
+                let l = world.get_mut::<Layout>(*tab).unwrap();
+                l.width = Size::Px(l.min_width + fraction * (ideal - l.min_width));
+            }
+            for button in [state.leading, state.trailing, state.overflow] {
+                set_shown(world, button, available < floor);
+            }
+        }
         paint(world, strip, &theme, Token::Canvas);
         paint(world, state.body, &theme, Token::Content);
         let engaged = state.props.active || contains_focus(world, strip, focus);
@@ -1225,10 +1366,12 @@ pub(crate) fn styles(world: &mut World) {
                 Token::Navigation
             };
             paint(world, tab, &theme, token);
-            let ink = theme.color(if state.props.enabled {
+            let ink = theme.color(if !state.props.enabled {
+                Token::Disabled
+            } else if is_selected {
                 Token::Text
             } else {
-                Token::Disabled
+                Token::Secondary
             });
             tint_labels(world, tab, ink);
             if state.props.enabled && focus == Some(tab) {
@@ -1247,7 +1390,20 @@ pub(crate) fn styles(world: &mut World) {
                 crate::inputs::sync_truncation_tooltip(world, tab, slot.title, &title);
             }
             if let Some(slot) = world.get::<TabSlot>(tab).copied() {
-                paint(world, slot.dirty, &theme, Token::WarningFill);
+                set_shown(
+                    world,
+                    slot.indicator,
+                    is_selected && engaged && state.props.enabled,
+                );
+                paint(world, slot.indicator, &theme, Token::Accent);
+                if let Some(spec) = state.specs.iter().find(|s| s.id == slot.id) {
+                    let reveal = hovered == Some(tab) || contains_focus(world, tab, focus);
+                    let close = !spec.pinned && spec.closable && (!spec.dirty || reveal);
+                    set_shown(world, slot.close, close);
+                    set_shown(world, slot.accessory, !spec.pinned && !close);
+                    set_shown(world, slot.dirty, spec.dirty && !close && !spec.pinned);
+                }
+                paint(world, slot.dirty, &theme, Token::Accent);
             }
         }
         for button in [state.leading, state.trailing, state.overflow] {
@@ -1788,6 +1944,7 @@ struct StripState {
     key: UiId,
     props: TabStripProps,
     specs: Vec<TabSpec>,
+    metric_theme: UiTheme,
     list: Entity,
     scroll: Entity,
     body: Entity,
@@ -1811,6 +1968,9 @@ struct TabSlot {
     pin: Entity,
     title: Entity,
     dirty: Entity,
+    accessory: Entity,
+    ideal: f32,
+    indicator: Entity,
     close: Entity,
     closable: bool,
 }

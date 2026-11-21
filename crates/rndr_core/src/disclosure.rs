@@ -81,7 +81,7 @@ impl Disclosure {
 /// Returns the column.
 pub fn spawn_node(world: &mut World, spec: NodeSpec) -> Entity {
     let mut layout = Layout::column();
-    layout.gap = 4.0;
+    layout.gap = crate::tokens::space::X4;
     layout.width = Size::Fill;
     layout.height = Size::Hug;
 
@@ -98,7 +98,7 @@ pub fn spawn_node(world: &mut World, spec: NodeSpec) -> Entity {
     };
 
     let mut header = Layout::row();
-    header.padding = 8.0;
+    header.padding = crate::tokens::space::X8;
     header.width = Size::Fill;
     header.height = Size::Px(36.0);
     let header_entity = world.spawn((header, spec.color, Label::new(spec.label)));
@@ -176,8 +176,8 @@ pub fn toggle_disclosure(world: &mut World, target: Entity) {
 pub fn page_layout() -> Layout {
     Layout {
         axis: Axis::Column,
-        gap: 8.0,
-        padding: 16.0,
+        gap: crate::tokens::space::X8,
+        padding: crate::tokens::space::X16,
         width: Size::Fill,
         height: Size::Hug,
         min_width: 0.0,
@@ -193,8 +193,8 @@ pub fn scroll_page() -> (Layout, Scroll) {
     (
         Layout {
             axis: Axis::Column,
-            gap: 8.0,
-            padding: 16.0,
+            gap: crate::tokens::space::X8,
+            padding: crate::tokens::space::X16,
             width: Size::Fill,
             height: Size::Fill,
             min_width: 0.0,

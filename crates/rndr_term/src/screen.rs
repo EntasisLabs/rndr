@@ -365,6 +365,7 @@ fn from_rgb(rgb: Rgb) -> Color {
 
 fn from_channels(channels: [u8; 3]) -> Color {
     Color::rgb(
+        // design-lint: Project terminal palette channels driven by the PTY.
         channels[0] as f32 / 255.0,
         channels[1] as f32 / 255.0,
         channels[2] as f32 / 255.0,
@@ -373,6 +374,7 @@ fn from_channels(channels: [u8; 3]) -> Color {
 
 fn scale(color: Color, factor: f32) -> Color {
     Color::rgba(
+        // design-lint: Project terminal palette channels driven by the PTY.
         color.r * factor,
         color.g * factor,
         color.b * factor,
@@ -381,9 +383,9 @@ fn scale(color: Color, factor: f32) -> Color {
 }
 
 pub fn default_fg() -> Color {
-    Color::rgb(0.83, 0.83, 0.84)
+    rndr_core::tokens::MONO_TEXT
 }
 
 pub fn default_bg() -> Color {
-    Color::rgb(0.05, 0.05, 0.06)
+    rndr_core::tokens::MONO_SURFACE
 }

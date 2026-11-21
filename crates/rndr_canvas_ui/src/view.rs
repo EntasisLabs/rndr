@@ -37,7 +37,7 @@ impl CanvasView {
             editor,
             images: ImageIds::new(),
             overlay: OverlayTheme::default(),
-            backdrop: Color::rgb(0.976, 0.98, 0.984),
+            backdrop: rndr_ui::UiTheme::default().color(rndr_ui::Token::Canvas),
             slot,
             captured: false,
             wheel: [0.0, 0.0],

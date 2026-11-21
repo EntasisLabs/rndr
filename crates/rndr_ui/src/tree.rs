@@ -43,7 +43,7 @@ use crate::drag::{
     self, committed, DragKeyboard, DragPayload, DragSource, DropGeometry, DropPlace, DropTarget,
 };
 use crate::lifecycle::{find_keyed_child, require_layout_parent};
-use crate::{Token, Typography, UiColor, UiError, UiId, UiRecipe, UiStyle, UiTheme};
+use crate::{Token, Typography, UiError, UiId, UiRecipe, UiStyle, UiTheme};
 use rndr_core::*;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
@@ -685,7 +685,7 @@ pub(crate) fn styles(world: &mut World) {
             continue;
         };
         let background = if state.props.row_fill == TreeRowFill::Translucent {
-            UiColor::Explicit(Color::rgba(0.0, 0.0, 0.0, 0.0))
+            crate::Surface::Transparent.fill()
         } else {
             Token::Content.into()
         };
@@ -1754,7 +1754,7 @@ fn create_slot(world: &mut World, parent: Entity) -> Slot {
         Layout {
             width: Size::Fill,
             height: Size::Px(ROW_HEIGHT),
-            gap: 4.0,
+            gap: crate::Space::X4.points(),
             ..Layout::row()
         },
         Align {
@@ -1775,7 +1775,7 @@ fn create_slot(world: &mut World, parent: Entity) -> Slot {
     set_parent(world, root, parent);
     let guides = world.spawn((Layout {
         height: Size::Fill,
-        gap: 0.0,
+        gap: crate::Space::Zero.points(),
         ..Layout::row()
     },));
     set_parent(world, guides, root);
@@ -2030,18 +2030,14 @@ fn row_color(
     } else if hot {
         wash(theme, 0.06)
     } else {
-        Color::rgba(0.0, 0.0, 0.0, 0.0)
+        Color::TRANSPARENT
     };
-    (color, crate::UiColor::Explicit(color))
+    (color, crate::UiColor::Explicit(color)) // design-lint: Use the selected theme wash with computed coverage.
 }
 
 /// White over a dark theme, ink over a light theme.
 fn wash(theme: &crate::UiTheme, alpha: f32) -> Color {
-    if theme.appearance == crate::Appearance::Dark {
-        Color::rgba(1.0, 1.0, 1.0, alpha)
-    } else {
-        Color::rgba(0.10, 0.12, 0.16, alpha)
-    }
+    theme.color(Token::Text).with_alpha(alpha)
 }
 
 fn paint_row(
@@ -2142,7 +2138,7 @@ fn theme_ink(world: &World) -> Color {
     world
         .resource::<UiTheme>()
         .map(|theme| theme.color(Token::Secondary))
-        .unwrap_or(Color::rgba(0.7, 0.72, 0.76, 1.0))
+        .unwrap_or_else(|| UiTheme::default().color(Token::Secondary))
 }
 
 struct Chevron<'a> {

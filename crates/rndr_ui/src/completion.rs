@@ -18,13 +18,17 @@ impl CompletionPopup {
         let root = world.spawn((
             Layout {
                 width: Size::Px(320.0),
-                padding: 8.0,
+                padding: crate::Space::X8.points(),
                 ..Layout::column()
             },
             Hidden,
             PassivePopup,
             Layer(10),
-            Color::rgb(0.12, 0.15, 0.20),
+            crate::UiStyle {
+                background: Some(crate::Token::Overlay.into()),
+                foreground: Some(crate::Token::Text.into()),
+                ..Default::default()
+            },
             Label::new(""),
         ));
         world.insert(

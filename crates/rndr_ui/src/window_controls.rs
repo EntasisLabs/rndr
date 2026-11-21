@@ -78,7 +78,7 @@ fn glyph(world: &mut World, button: Entity, kind: WindowButton) -> Vec<Entity> {
         WindowButton::Minimize => vec![bar(world, button, 10.0, 1.0)],
         WindowButton::Maximize => {
             let square = bar(world, button, 10.0, 10.0);
-            world.insert(square, Color::rgba(0.0, 0.0, 0.0, 0.0));
+            world.insert(square, Color::TRANSPARENT);
             vec![square]
         }
         WindowButton::Close => {
@@ -107,8 +107,8 @@ fn glyph(world: &mut World, button: Entity, kind: WindowButton) -> Vec<Entity> {
     }
 }
 
-const CLOSE_HOVER: Color = Color::rgba(0.769, 0.169, 0.110, 1.0);
-const CLOSE_PRESSED: Color = Color::rgba(0.698, 0.180, 0.129, 1.0);
+mod tokens;
+use tokens::{CLOSE_HOVER, CLOSE_PRESSED};
 
 /// Layout: hide the row where the system draws controls, and style hover and
 /// press from [`WindowChrome::hovered`].
@@ -137,9 +137,9 @@ pub(crate) fn styles(world: &mut World) {
         let lit = chrome.hovered == Some(button);
         let close = kind == WindowButton::Close;
         let background: UiColor = match (lit, down, close) {
-            (false, ..) => UiColor::Explicit(Color::rgba(0.0, 0.0, 0.0, 0.0)),
-            (true, false, true) => UiColor::Explicit(CLOSE_HOVER),
-            (true, true, true) => UiColor::Explicit(CLOSE_PRESSED),
+            (false, ..) => crate::Surface::Transparent.fill(),
+            (true, false, true) => UiColor::Explicit(CLOSE_HOVER), // design-lint: Use the native caption token for the system close button.
+            (true, true, true) => UiColor::Explicit(CLOSE_PRESSED), // design-lint: Use the native caption token for the system close button.
             (true, false, false) => Token::ControlHover.into(),
             (true, true, false) => Token::ControlPressed.into(),
         };
@@ -151,7 +151,7 @@ pub(crate) fn styles(world: &mut World) {
             },
         );
         let ink = if lit && close {
-            Color::rgba(1.0, 1.0, 1.0, 1.0)
+            Color::WHITE
         } else {
             theme.color(Token::Text)
         };

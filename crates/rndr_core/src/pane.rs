@@ -61,8 +61,8 @@ pub struct Pane {
 pub fn shell() -> Layout {
     Layout {
         axis: Axis::Row,
-        gap: 0.0,
-        padding: 0.0,
+        gap: crate::tokens::space::ZERO,
+        padding: crate::tokens::space::ZERO,
         width: Size::Fill,
         height: Size::Fill,
         min_width: 0.0,
@@ -75,8 +75,8 @@ pub fn splitter() -> (Layout, Splitter) {
     (
         Layout {
             axis: Axis::Column,
-            gap: 0.0,
-            padding: 0.0,
+            gap: crate::tokens::space::ZERO,
+            padding: crate::tokens::space::ZERO,
             width: Size::Px(8.0),
             height: Size::Fill,
             min_width: 0.0,
@@ -91,8 +91,8 @@ pub fn tree_column() -> (Layout, Scroll) {
     (
         Layout {
             axis: Axis::Column,
-            gap: 8.0,
-            padding: 16.0,
+            gap: crate::tokens::space::X8,
+            padding: crate::tokens::space::X16,
             width: Size::Px(280.0),
             height: Size::Fill,
             min_width: 0.0,
@@ -107,8 +107,8 @@ pub fn detail_pane() -> (Layout, Scroll, Pane) {
     (
         Layout {
             axis: Axis::Column,
-            gap: 8.0,
-            padding: 16.0,
+            gap: crate::tokens::space::X8,
+            padding: crate::tokens::space::X16,
             width: Size::Fill,
             height: Size::Fill,
             min_width: 0.0,
@@ -276,7 +276,7 @@ fn field_row(
     height: f32,
 ) -> Entity {
     let mut layout = Layout::row();
-    layout.padding = 8.0;
+    layout.padding = crate::tokens::space::X8;
     layout.width = Size::Fill;
     if field == Some(crate::caret::EditField::Body) {
         layout.height = Size::Hug;

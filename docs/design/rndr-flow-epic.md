@@ -31,7 +31,7 @@ Applications can opt into a small coordination layer to own UI work, retain hidd
 ### Non-goals
 
 - A second UI/component tree, competing application/domain state store, new editor authority or undo stack.
-- A wholesale Rake clone, GPUI adoption, dependency on Rake, mandatory Tokio/executor, service locator or remote-control server.
+- A wholesale Rake clone, dependency on Rake, mandatory Tokio/executor, service locator or remote-control server.
 - Implementing canvas caret/selection/IME, full Live Markdown + Liquid, renderer reconciliation via scope metadata, icons/effects/detail sheets, or artifact script security inside flow.
 - Medousa approval/security policy, persistence/recovery, transport, credentials, backend job orchestration, business logic, OS packaging/signing/updaters or mobile/browser support promises.
 - A disconnected demo, a big-bang port, publication/deployment/push, or changing rndr's primary-window/quit behavior to Rake's behavior.

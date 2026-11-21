@@ -37,7 +37,7 @@
 //! assert!((ratio - 0.5).abs() < 0.02);
 //! ```
 use crate::lifecycle::{find_keyed_child, require_layout_parent};
-use crate::{Surface, Token, UiColor, UiError, UiId, UiRecipe, UiStyle, UiTheme};
+use crate::{Surface, Token, UiError, UiId, UiRecipe, UiStyle, UiTheme};
 use rndr_core::*;
 use std::time::Duration;
 
@@ -370,7 +370,7 @@ pub(crate) fn styles(world: &mut World) {
             Token::StrongStroke
         };
         // The handle stays the full hit target. Only the centered line is ink.
-        world.insert(sash, Color::rgba(0.0, 0.0, 0.0, 0.0));
+        world.insert(sash, Color::TRANSPARENT);
         let line = ensure_line(world, sash);
         world.insert(
             line,
@@ -518,7 +518,7 @@ fn paint(world: &mut World, entity: Entity, token: Token) {
 
 fn paint_fill(world: &mut World, entity: Entity, fill: PaneFill) {
     let background = match fill {
-        PaneFill::Transparent => UiColor::Explicit(Color::rgba(0.0, 0.0, 0.0, 0.0)),
+        PaneFill::Transparent => crate::Surface::Transparent.fill(),
         PaneFill::Theme(surface) => surface.fill(),
     };
     world.insert(

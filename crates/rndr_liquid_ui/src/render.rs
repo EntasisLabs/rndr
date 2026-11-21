@@ -216,7 +216,7 @@ pub(crate) fn rebuild(world: &mut World, root: Entity) {
     let mut state = world.remove::<BlockState>(root).unwrap_or_default();
     state.init(&block);
     if let Some(layout) = world.get_mut::<Layout>(root) {
-        layout.gap = 8.0;
+        layout.gap = rndr_ui::Space::X8.points();
     }
     let mut cx = Cx {
         world,
@@ -247,7 +247,7 @@ pub fn render_editor_block(world: &mut World, root: Entity, block: &LiquidBlock)
     let mut state = world.remove::<BlockState>(root).unwrap_or_default();
     state.init(block);
     if let Some(layout) = world.get_mut::<Layout>(root) {
-        layout.gap = 8.0;
+        layout.gap = rndr_ui::Space::X8.points();
     }
     let mut cx = Cx {
         world,
@@ -308,7 +308,7 @@ pub(crate) fn sync_pending(
                 Layout {
                     width: Size::Fill,
                     height: Size::Hug,
-                    gap: 4.0,
+                    gap: rndr_ui::Space::X4.points(),
                     ..Layout::column()
                 },
                 PendingMark,

@@ -1,6 +1,6 @@
 //! Opt-in theme conversion at the UI -> core dependency boundary.
 use crate::{Contrast, Token, Typography, UiTheme};
-use rndr_core::{Color, MarkdownTheme, Theme, World};
+use rndr_core::{MarkdownTheme, Theme, World};
 
 impl UiTheme {
     /// Map semantic tokens to every legacy core chrome color. Pure conversion:
@@ -25,12 +25,12 @@ impl UiTheme {
             caret: c(Token::Focus),
             selection: if self.contrast == Contrast::High {
                 let focus = c(Token::Focus);
-                Color::rgba(focus.r, focus.g, focus.b, 0.35)
+                focus.with_alpha(0.35)
             } else {
                 c(Token::Selected)
             },
             dirty: c(Token::WarningText),
-            radius: 8.0,
+            radius: crate::Corner::FocusGap.points(),
         }
     }
     /// Default document chrome tokens. High-contrast themes keep structural
@@ -47,7 +47,7 @@ impl UiTheme {
             header: Some(self.color(Token::ControlHover)),
             muted: Some(self.color(Token::Secondary)),
             accent: Some(self.color(Token::Focus)),
-            radius: Some(6.0),
+            radius: Some(self.radius(crate::RadiusRole::Control)),
         }
     }
     /// Map markdown accents as well as surfaces. Unlike the legacy default,

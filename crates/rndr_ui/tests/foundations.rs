@@ -240,39 +240,113 @@ fn contrast(a: Color, b: Color) -> f32 {
     let b = lum(rgb(b));
     (a.max(b) + 0.05) / (a.min(b) + 0.05)
 }
+/// Registry indexed by the surface/fill. Exhaustive matching forces a decision for new roles.
+fn role_pairs(bg: Token) -> (&'static [Token], &'static [Token]) {
+    use Token::*;
+    const DOC: &[Token] = &[
+        Text, Secondary, Accent, HueRed, HueOrange, HueYellow, HueGreen, HueBlue, HuePurple,
+        HuePink,
+    ];
+    match bg {
+        Canvas | Content => (DOC, &[StrongStroke, Focus]),
+        Navigation | Raised | Overlay | Selected => (&[Text, Secondary], &[Focus, Accent]),
+        ControlHover | ControlPressed => (&[Text, Secondary], &[Focus]),
+        Glass | Panel | Material => (&[Text, Secondary], &[]),
+        CodeFill | Highlight => (&[Text], &[]),
+        InfoFill => (&[Text, InfoText], &[InfoStroke]),
+        DangerFill => (&[Text, DangerText], &[DangerStroke]),
+        WarningFill => (&[Text, WarningText], &[WarningStroke]),
+        SuccessFill => (&[Text, SuccessText], &[SuccessStroke]),
+        Accent | Hover | Pressed => (&[OnAccent], &[]),
+        // Ink is tested on its intended fills, not as a background. Decorative separators
+        // and disabled controls must not be the sole carrier of actionable information.
+        Text | Secondary | Disabled | OnAccent | SubtleStroke | StrongStroke | Focus | HueRed
+        | HueOrange | HueYellow | HueGreen | HueBlue | HuePurple | HuePink | InfoText
+        | DangerText | WarningText | SuccessText | InfoStroke | DangerStroke | WarningStroke
+        | SuccessStroke => (&[], &[]),
+    }
+}
 #[test]
-fn resolved_documented_pairs_have_required_contrast() {
+fn registered_role_pairs_hold_over_both_backdrops() {
     use Token::*;
     for appearance in [Appearance::Light, Appearance::Dark] {
         for mode in [Contrast::Standard, Contrast::High] {
-            let theme = UiTheme {
-                appearance,
-                contrast: mode,
-                ..UiTheme::default()
-            };
-            for foreground in [Text, Secondary] {
-                for background in [Canvas, Navigation, Content, Raised, Overlay, Selected] {
-                    assert!(
-                        contrast(theme.color(foreground), theme.color(background)) >= 4.5,
-                        "{appearance:?}/{mode:?}: {foreground:?}/{background:?}"
-                    );
+            for density in [Density::Comfortable, Density::Compact] {
+                let theme = UiTheme {
+                    appearance,
+                    contrast: mode,
+                    density,
+                    ..UiTheme::default()
+                };
+                for bg in [
+                    Canvas,
+                    Content,
+                    Navigation,
+                    Raised,
+                    Overlay,
+                    Selected,
+                    ControlHover,
+                    ControlPressed,
+                    Glass,
+                    Panel,
+                    Material,
+                    CodeFill,
+                    Highlight,
+                    InfoFill,
+                    DangerFill,
+                    WarningFill,
+                    SuccessFill,
+                    Accent,
+                    Hover,
+                    Pressed,
+                ] {
+                    let c = theme.color(bg);
+                    for base in [0., 1.] {
+                        let mix = |v| v * c.a + base * (1. - c.a);
+                        let surface = Color::rgb(mix(c.r), mix(c.g), mix(c.b));
+                        let (text, strokes) = role_pairs(bg);
+                        for (inks, min) in [(text, 4.5), (strokes, 3.0)] {
+                            for &fg in inks {
+                                let ratio = contrast(theme.color(fg), surface);
+                                assert!(ratio >= min, "{appearance:?}/{mode:?}/{density:?}: {fg:?} on {bg:?} over {base}: {ratio} < {min}");
+                            }
+                        }
+                    }
                 }
             }
-            for background in [Accent, Hover, Pressed] {
-                assert!(contrast(theme.color(OnAccent), theme.color(background)) >= 4.5);
+        }
+    }
+}
+#[test]
+fn elevations_reserve_shadow_for_floating_surfaces() {
+    for appearance in [Appearance::Light, Appearance::Dark] {
+        let theme = UiTheme {
+            appearance,
+            ..UiTheme::default()
+        };
+        let dark = appearance == Appearance::Dark;
+        for level in [
+            Elevation::Canvas,
+            Elevation::Content,
+            Elevation::Overlay,
+            Elevation::Dialog,
+        ] {
+            let floating = matches!(level, Elevation::Overlay | Elevation::Dialog);
+            assert_eq!(level.shadow(&theme).is_some(), floating);
+            if let Some(shadow) = level.shadow(&theme) {
+                assert_eq!(
+                    (shadow.offset, shadow.blur, shadow.color.a),
+                    ([0., 4.], 12., if dark { 0.28 } else { 0.08 })
+                );
             }
-            for (fg, bg, stroke) in [
-                (InfoText, InfoFill, InfoStroke),
-                (SuccessText, SuccessFill, SuccessStroke),
-                (WarningText, WarningFill, WarningStroke),
-                (DangerText, DangerFill, DangerStroke),
-            ] {
-                assert!(contrast(theme.color(fg), theme.color(bg)) >= 4.5);
-                assert!(contrast(theme.color(stroke), theme.color(bg)) >= 3.0);
-            }
-            for bg in [Canvas, Navigation, Content, Raised, Overlay, Selected] {
-                assert!(contrast(theme.color(Focus), theme.color(bg)) >= 3.0);
-            }
+            assert_eq!(
+                level.border(&theme).map(|edge| edge.width),
+                (level != Elevation::Canvas).then_some(1.)
+            );
+            assert_eq!(
+                level.scrim(&theme).map(|c| c.a),
+                (level == Elevation::Dialog).then_some(if dark { 0.40 } else { 0.16 })
+            );
         }
     }
 }
@@ -365,7 +439,19 @@ fn density_does_not_shrink_type_scaling_and_invalid_preferences_are_bounded() {
         normal.typography(Typography::Label),
         compact.typography(Typography::Label)
     );
-    assert!(compact.space(Space::X16) < normal.space(Space::X16));
+    use Space::*;
+    for (role, roomy, dense) in [
+        (X2, 2., 2.),
+        (X4, 4., 4.),
+        (X8, 8., 6.),
+        (X12, 12., 8.),
+        (X16, 16., 12.),
+        (X24, 24., 16.),
+        (X32, 32., 24.),
+        (X48, 48., 32.),
+    ] {
+        assert_eq!((normal.space(role), compact.space(role)), (roomy, dense));
+    }
     assert_eq!(compact.target_min(), 28.0);
     let invalid = UiTheme {
         text_scale: f32::NAN,

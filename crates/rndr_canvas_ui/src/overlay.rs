@@ -22,12 +22,14 @@ pub struct OverlayTheme {
 
 impl Default for OverlayTheme {
     fn default() -> Self {
+        use rndr_ui::{Token, UiTheme};
+        let theme = UiTheme::default();
         Self {
-            accent: Color::rgba(0.23, 0.51, 0.96, 1.0),
-            handle_fill: Color::rgba(1.0, 1.0, 1.0, 1.0),
-            guide: Color::rgba(0.93, 0.27, 0.53, 1.0),
-            marquee_fill: Color::rgba(0.23, 0.51, 0.96, 0.08),
-            eraser: Color::rgba(0.5, 0.5, 0.5, 0.35),
+            accent: theme.color(Token::Accent),
+            handle_fill: theme.color(Token::OnAccent),
+            guide: theme.color(Token::HuePink),
+            marquee_fill: theme.color(Token::Accent).with_alpha(0.08),
+            eraser: theme.color(Token::Secondary).with_alpha(0.35),
         }
     }
 }

@@ -60,8 +60,8 @@ impl Layout {
     pub fn column() -> Self {
         Self {
             axis: Axis::Column,
-            gap: 0.0,
-            padding: 0.0,
+            gap: crate::tokens::space::ZERO,
+            padding: crate::tokens::space::ZERO,
             width: Size::Hug,
             height: Size::Hug,
             min_width: 0.0,
@@ -73,8 +73,8 @@ impl Layout {
     pub fn row() -> Self {
         Self {
             axis: Axis::Row,
-            gap: 0.0,
-            padding: 0.0,
+            gap: crate::tokens::space::ZERO,
+            padding: crate::tokens::space::ZERO,
             width: Size::Hug,
             height: Size::Hug,
             min_width: 0.0,

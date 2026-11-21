@@ -688,8 +688,8 @@ impl PropertyInspector {
                 Layout {
                     width: Size::Fill,
                     height: Size::Fill,
-                    padding: 8.0,
-                    gap: 8.0,
+                    padding: crate::Space::X8.points(),
+                    gap: crate::Space::X8.points(),
                     ..Layout::column()
                 },
             );
@@ -798,7 +798,7 @@ impl PropertyInspector {
                     root,
                     Layout {
                         width: Size::Fill,
-                        gap: 8.0,
+                        gap: crate::Space::X8.points(),
                         ..Layout::column()
                     },
                 );
@@ -915,8 +915,8 @@ impl PropertyInspector {
                 i.groups[&p.group],
                 Layout {
                     width: Size::Fill,
-                    gap: 4.0,
-                    padding: 8.0,
+                    gap: crate::Space::X4.points(),
+                    padding: crate::Space::X8.points(),
                     ..Layout::column()
                 },
             );
@@ -965,7 +965,7 @@ impl PropertyInspector {
                 r,
                 Layout {
                     width: Size::Fill,
-                    gap: 4.0,
+                    gap: crate::Space::X4.points(),
                     ..Layout::row()
                 },
             );

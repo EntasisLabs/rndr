@@ -203,10 +203,10 @@ pub fn provider_marks(world: &World, view: Entity) -> Vec<ProviderMark> {
     }
     for (provider, diagnostic) in extensions.diagnostics(world, view) {
         let color = match diagnostic.severity {
-            DiagnosticSeverity::Error => Color::rgb(0.86, 0.28, 0.24),
-            DiagnosticSeverity::Warning => Color::rgb(0.85, 0.62, 0.18),
-            DiagnosticSeverity::Information => Color::rgb(0.30, 0.60, 0.90),
-            DiagnosticSeverity::Hint => Color::rgb(0.45, 0.65, 0.55),
+            DiagnosticSeverity::Error => crate::tokens::DIAGNOSTIC_ERROR,
+            DiagnosticSeverity::Warning => crate::tokens::DIAGNOSTIC_WARNING,
+            DiagnosticSeverity::Information => crate::tokens::DIAGNOSTIC_INFO,
+            DiagnosticSeverity::Hint => crate::tokens::DIAGNOSTIC_HINT,
         };
         range(
             provider,
@@ -237,7 +237,7 @@ pub fn provider_marks(world: &World, view: Entity) -> Vec<ProviderMark> {
                 y: line.y,
                 w: 3.0,
                 h: line.h,
-                color: Color::rgb(0.40, 0.65, 0.90),
+                color: crate::tokens::GUTTER_MARK,
                 gutter: true,
                 label: marker.label.clone(),
             });

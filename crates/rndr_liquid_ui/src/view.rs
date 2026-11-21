@@ -550,7 +550,7 @@ pub(crate) fn nested(
     world.remove::<Color>(view);
     if let Some(layout) = world.get_mut::<Layout>(view) {
         layout.height = Size::Hug;
-        layout.padding = 0.0;
+        layout.padding = rndr_ui::Space::Zero.points();
     }
     if let Some(md) = world.get_mut::<MarkdownView>(view) {
         md.set_follow(false);

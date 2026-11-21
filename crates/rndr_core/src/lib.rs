@@ -170,6 +170,7 @@ mod style;
 mod tabs;
 mod text;
 mod theme;
+pub mod tokens;
 pub mod tray;
 mod typing;
 pub mod window;
@@ -335,8 +336,8 @@ pub use sim::Sim;
 pub use slot::{effects_animating, EffectSlot, SurfaceSlot};
 pub use split::{apply_split, split_budget, Drag, SplitLayout, Splitter};
 pub use style::{
-    label_box, Body, Border, Color, CrossMark, Label, LabelBox, RetainLabelBox, ScrollIndicator,
-    TextOverflow, CELL_H, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
+    label_box, Body, Border, CheckMark, Color, CrossMark, Label, LabelBox, RetainLabelBox,
+    ScrollIndicator, TextOverflow, CELL_H, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
 pub use tabs::{Hidden, Tab, TabPanel, Tabs};
 pub use text::{

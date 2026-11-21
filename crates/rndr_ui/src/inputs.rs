@@ -138,7 +138,7 @@ pub struct ToastProps {
     pub undo: Option<String>,
     /// Time until automatic dismiss. Zero stays until Undo, Dismiss, or Escape.
     pub duration: Duration,
-    /// Backdrop blur and shadow. The default is flat. The corner stays
+    /// Backdrop blur and shadow. The default is opaque with a small shadow. The corner stays
     /// [`crate::Corner::Overlay`].
     pub chrome: crate::style::OverlayChrome,
 }
@@ -750,7 +750,7 @@ impl NumberField {
             let label = text(world, root, &props.label, Typography::Label)?;
             let row = world.spawn((Layout {
                 width: Size::Fill,
-                gap: 4.0,
+                gap: crate::Space::X4.points(),
                 ..Layout::row()
             },));
             own(world, row);
@@ -760,7 +760,7 @@ impl NumberField {
                 Layout {
                     width: Size::Fill,
                     min_height: 32.0,
-                    padding: 8.0,
+                    padding: crate::Space::X8.points(),
                     ..Layout::column()
                 },
                 Label::new(NumericAccess::text(value)),
@@ -837,7 +837,7 @@ impl Tooltip {
         let popup = world.spawn((
             Layout {
                 width: Size::Hug,
-                padding: 8.0,
+                padding: crate::Space::X8.points(),
                 ..Layout::column()
             },
             Label::new(text).overflow(TextOverflow::Ellipsis),
@@ -884,7 +884,7 @@ impl Tooltip {
 
 impl TooltipHandle {
     /// Backdrop blur and shadow for this tooltip. The next layout applies it.
-    /// [`crate::OverlayChrome::default`] clears both.
+    /// [`crate::OverlayChrome::default`] restores the opaque overlay with its small shadow.
     pub fn chrome(self, world: &mut World, chrome: crate::OverlayChrome) {
         if let Some(tip) = world.get_mut::<Tip>(self.target) {
             tip.chrome = chrome;
@@ -944,8 +944,8 @@ impl Toast {
             let root = world.spawn((
                 Layout {
                     width: Size::Fill,
-                    padding: 12.0,
-                    gap: 8.0,
+                    padding: crate::Space::X12.points(),
+                    gap: crate::Space::X8.points(),
                     ..Layout::column()
                 },
                 Label::new(&props.message).overflow(TextOverflow::Wrap),
@@ -1087,7 +1087,7 @@ fn own(world: &mut World, entity: Entity) {
 fn column(world: &mut World, parent: Option<Entity>) -> Entity {
     let entity = world.spawn((Layout {
         width: Size::Fill,
-        gap: 4.0,
+        gap: crate::Space::X4.points(),
         ..Layout::column()
     },));
     own(world, entity);
@@ -1137,7 +1137,7 @@ fn thumb(world: &mut World, parent: Entity) -> (Entity, Entity) {
     let entity = world.spawn((Layout {
         width: Size::Px(20.0),
         height: Size::Px(20.0),
-        padding: 2.0,
+        padding: crate::Space::X2.points(),
         ..Layout::column()
     },));
     own(world, entity);
@@ -1157,7 +1157,7 @@ fn step_button(world: &mut World, parent: Entity, glyph: &str) -> Entity {
         Layout {
             width: Size::Px(32.0),
             min_height: 32.0,
-            padding: 4.0,
+            padding: crate::Space::X4.points(),
             ..Layout::column()
         },
         Label::new(glyph),
@@ -1209,7 +1209,7 @@ fn toast_button(world: &mut World, toast: Entity, label: &str, notice: ToastNoti
         Layout {
             width: Size::Hug,
             min_height: 32.0,
-            padding: 8.0,
+            padding: crate::Space::X8.points(),
             ..Layout::row()
         },
         Label::new(label),

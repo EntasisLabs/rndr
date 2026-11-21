@@ -261,8 +261,10 @@ impl UiTheme {
             (true, HuePink) => 0xff9cc6,
             (false, Text) => 0x24272e,
             (true, Text) => 0xedeef2,
-            (false, Secondary | Disabled) => 0x60616a,
-            (true, Secondary | Disabled) => 0xb5b7c1,
+            (false, Disabled) => 0x9a9ca5,
+            (true, Disabled) => 0x6b6f7a,
+            (false, Secondary) => 0x60616a,
+            (true, Secondary) => 0xb5b7c1,
             (false, OnAccent) => 0xffffff,
             (true, OnAccent) => 0x111216,
             (false, SubtleStroke) => 0xdfe1e6,
@@ -309,32 +311,29 @@ impl UiTheme {
             (true, DangerStroke) => 0xf3949e,
         });
         color.a = match token {
-            Token::Glass => 0.78,
-            Token::Material => {
-                if dark {
-                    0.60
-                } else {
-                    0.62
-                }
-            }
-            Token::Panel => {
-                if dark {
-                    0.72
-                } else {
-                    0.74
-                }
-            }
+            Token::Glass => 0.94,
+            Token::Material => 0.89,
+            Token::Panel => 0.92,
             _ => 1.0,
         };
         color
     }
     /// Density-adjusted spacing; text sizes are unaffected by density.
     pub fn space(&self, space: Space) -> f32 {
-        let value = space.points();
-        if self.density == Density::Compact && value >= 8.0 {
-            value * 0.75
-        } else {
-            value
+        if self.density == Density::Comfortable {
+            return space.points();
+        }
+        use Space::*;
+        match space {
+            Zero => 0.,
+            X2 => 2.,
+            X4 => 4.,
+            X8 => 6.,
+            X12 => 8.,
+            X16 => 12.,
+            X24 => 16.,
+            X32 => 24.,
+            X48 => 32.,
         }
     }
     /// Minimum target dimensions for future controls; grow further to fit content.
@@ -441,8 +440,8 @@ impl Default for TypeRamp {
             caption: TypeMetrics::new(11.0, 14.0, 400),
             overline: TypeMetrics::new(11.0, 14.0, 600).tracking(0.6),
             reading: TypeMetrics::new(14.0, 22.0, 400),
-            heading: TypeMetrics::new(20.0, 28.0, 600),
-            title: TypeMetrics::new(26.0, 34.0, 600),
+            heading: TypeMetrics::new(18.0, 26.0, 600),
+            title: TypeMetrics::new(22.0, 28.0, 600),
             code: TypeMetrics::new(13.0, 20.0, 400),
         }
     }
@@ -500,6 +499,14 @@ impl Space {
             Self::X48 => 48.0,
         }
     }
+}
+/// Logical geometry of a document tab's trailing accessory.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct TabMetrics;
+impl TabMetrics {
+    pub const ACCESSORY: f32 = 20.;
+    pub const DOT: f32 = 6.;
+    pub const PINNED: f32 = 36.;
 }
 /// Semantic type roles, not claims of platform heading accessibility support.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

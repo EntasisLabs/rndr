@@ -30,7 +30,7 @@ pub enum Surface {
 impl Surface {
     pub(crate) fn fill(self) -> crate::UiColor {
         match self {
-            Self::Transparent => crate::UiColor::Explicit(Color::rgba(0.0, 0.0, 0.0, 0.0)),
+            Self::Transparent => crate::UiColor::Explicit(Color::TRANSPARENT), // design-lint: Explicit transparency reveals the parent; an absent fill inherits a recipe.
             Self::Canvas => Token::Canvas.into(),
             Self::Navigation => Token::Navigation.into(),
             Self::Content => Token::Content.into(),

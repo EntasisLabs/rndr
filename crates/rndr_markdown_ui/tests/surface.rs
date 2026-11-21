@@ -688,7 +688,7 @@ fn images_callouts_and_marks_display_without_their_markers() {
         .iter()
         .find(|block| matches!(block.kind, DisplayKind::Task(false)))
         .unwrap();
-    assert_eq!(item.chrome, "☐ ");
+    assert!(item.chrome.is_empty());
     assert_eq!(item.text, "buy");
 
     let highlight = "A ==hi== word\n";
@@ -734,7 +734,7 @@ fn clicking_the_task_checkbox_writes_one_byte() {
         .into_iter()
         .find(|entity| {
             app.world().get::<Layout>(*entity).is_some_and(
-                |layout| matches!(layout.width, Size::Px(width) if (width - 14.0).abs() < 0.5),
+                |layout| matches!(layout.width, Size::Px(width) if (width - 16.0).abs() < 0.5),
             )
         })
         .expect("task checkbox");
@@ -863,8 +863,8 @@ fn task_checkbox_is_a_bordered_box_in_both_themes() {
             .into_iter()
             .filter(|entity| {
                 world.get::<Layout>(*entity).is_some_and(|layout| {
-                    matches!(layout.width, Size::Px(width) if (width - 14.0).abs() < 0.5)
-                        && matches!(layout.height, Size::Px(height) if (height - 14.0).abs() < 0.5)
+                    matches!(layout.width, Size::Px(width) if (width - 16.0).abs() < 0.5)
+                        && matches!(layout.height, Size::Px(height) if (height - 16.0).abs() < 0.5)
                 })
             })
             .collect();
@@ -880,11 +880,13 @@ fn task_checkbox_is_a_bordered_box_in_both_themes() {
                 "{appearance:?} border {}",
                 border.width
             );
-            let stroke = app
-                .world()
-                .resource::<UiTheme>()
-                .unwrap()
-                .color(Token::StrongStroke);
+            let stroke = app.world().resource::<UiTheme>().unwrap().color(
+                if world.has::<CheckMark>(entity) {
+                    Token::Accent
+                } else {
+                    Token::StrongStroke
+                },
+            );
             assert!(
                 (border.color.r - stroke.r).abs() < 0.02
                     && (border.color.g - stroke.g).abs() < 0.02
@@ -1084,7 +1086,7 @@ fn unchecked_and_checked_task_boxes_share_a_gap() {
             .into_iter()
             .find(|child| {
                 world.get::<Layout>(*child).is_some_and(
-                    |layout| matches!(layout.width, Size::Px(width) if (width - 14.0).abs() < 0.5),
+                    |layout| matches!(layout.width, Size::Px(width) if (width - 24.0).abs() < 0.5),
                 )
             })
             .unwrap_or_else(|| panic!("{name} has no box"));

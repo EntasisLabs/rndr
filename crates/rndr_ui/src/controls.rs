@@ -292,7 +292,7 @@ fn mount_control(
         let root = world.spawn((
             Layout {
                 width: Size::Fill,
-                padding: 2.0,
+                padding: crate::Space::X2.points(),
                 ..Layout::column()
             },
             Focusable,
@@ -333,9 +333,10 @@ fn mount_control(
             None
         };
         let indicator = (kind == Kind::Navigation).then(|| {
+            const BAR_WIDTH: f32 = 3.0;
             let bar = world.spawn((
                 Layout {
-                    width: Size::Px(3.0),
+                    width: Size::Px(BAR_WIDTH),
                     height: Size::Fill,
                     ..Layout::column()
                 },
@@ -346,7 +347,7 @@ fn mount_control(
                     bottom: Some(7.0),
                     right: None,
                 },
-                Radius(1.5),
+                Radius(BAR_WIDTH / 2.0),
                 OwnedBy(root),
                 ResolvedColor,
                 Hidden,
@@ -564,7 +565,7 @@ impl ModeSelector {
         } else {
             let root = world.spawn((Layout {
                 width: Size::Fill,
-                gap: 8.0,
+                gap: crate::Space::X8.points(),
                 ..Layout::column()
             },));
             world.insert(root, OwnedBy(root));
@@ -624,7 +625,7 @@ impl ModeSelector {
         } else {
             Axis::Column
         };
-        layout.gap = 4.0;
+        layout.gap = crate::Space::X4.points();
         for (i, label) in labels.iter().enumerate() {
             let previous = world.get::<Control>(h.tabs[i].root).unwrap().props.clone();
             let props = ButtonProps {
@@ -905,7 +906,7 @@ fn host_plane(world: &World, root: Entity, theme: &UiTheme) -> UiColor {
             // controls and the focus gap follow it instead of falling through
             // to an opaque canvas tile.
             if color.a > 0.0 {
-                return UiColor::Explicit(color);
+                return UiColor::Explicit(color); // design-lint: Preserve the resolved parent plane, including authored alpha.
             }
         }
         parent = world.get::<Parent>(entity).map(|p| p.entity);
@@ -1005,7 +1006,7 @@ pub(crate) fn resolve_controls(world: &mut World) {
         };
         // Reserve the two-color outer ring for focus. Transparent inactive
         // rings let controls sit on any host surface without canvas seams.
-        let transparent = UiColor::Explicit(Color::rgba(0.0, 0.0, 0.0, 0.0));
+        let transparent = crate::Surface::Transparent.fill();
         background(
             world,
             root,
@@ -1266,13 +1267,13 @@ pub(crate) fn resolve_toolbars(world: &mut World) {
                 }
             }
             owned.last_width = Some(Size::Px(node.available));
-            owned.last_gap = Some(8.0);
+            owned.last_gap = Some(crate::Space::X8.points());
             world.insert(root, owned);
         }
         if let Some(l) = world.get_mut::<Layout>(root) {
             l.width = Size::Px(node.available);
             l.axis = if row { Axis::Row } else { Axis::Column };
-            l.gap = 8.0;
+            l.gap = crate::Space::X8.points();
             if l.axis == Axis::Row && !children.is_empty() {
                 candidates.push((root, children));
             }

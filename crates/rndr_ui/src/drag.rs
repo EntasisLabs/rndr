@@ -847,18 +847,22 @@ fn sync_ghost(world: &mut World) {
 }
 
 fn spawn_ghost(world: &mut World, live: &Live) -> Entity {
+    let theme = world
+        .resource::<crate::UiTheme>()
+        .cloned()
+        .unwrap_or_default();
     let ghost = world.spawn((
         Layout {
             width: Size::Hug,
             height: Size::Hug,
-            padding: 8.0,
+            padding: crate::Space::X8.points(),
             ..Layout::column()
         },
         Label {
-            color: Some(Color::rgb(1.0, 1.0, 1.0)),
+            color: Some(theme.color(crate::Token::Text)),
             ..Label::new(&live.name)
         },
-        Color::rgba(0.16, 0.2, 0.28, 0.94),
+        theme.color(crate::Token::Overlay),
         Radius(crate::Corner::FocusGap.points()),
         Opacity(0.94),
         Layer(24),
@@ -940,11 +944,13 @@ fn spawn_bar(
     fill: bool,
 ) -> Entity {
     let (pin, layout) = bar_shape(place, axis);
-    let color = if fill {
-        Color::rgba(0.2, 0.45, 0.95, 0.28)
-    } else {
-        Color::rgba(0.2, 0.45, 0.95, 0.95)
-    };
+    let theme = world
+        .resource::<crate::UiTheme>()
+        .cloned()
+        .unwrap_or_default();
+    let color = theme
+        .color(crate::Token::Accent)
+        .with_alpha(if fill { 0.28 } else { 0.95 });
     let bar = world.spawn((layout, pin, color, IgnorePointer));
     set_parent(world, bar, parent);
     bar

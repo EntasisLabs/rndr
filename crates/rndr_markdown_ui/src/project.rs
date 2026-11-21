@@ -1480,8 +1480,7 @@ fn canonical_kind(info: &str) -> String {
 fn marker_chrome(text: &str) -> (DisplayKind, String) {
     let trimmed = text.trim();
     if let Some(checked) = task_checked(trimmed) {
-        let chrome = if checked { "☑ " } else { "☐ " };
-        return (DisplayKind::Task(checked), chrome.into());
+        return (DisplayKind::Task(checked), String::new());
     }
     let digits: String = trimmed.chars().take_while(|c| c.is_ascii_digit()).collect();
     if let Ok(number) = digits.parse::<u64>() {
@@ -2051,11 +2050,6 @@ fn apply_style(ink: &mut Ink, token: &str, palette: &Palette) {
         ink.custom = true;
         return;
     }
-    if let Some(color) = hex_color(&lower) {
-        ink.color = color;
-        ink.custom = true;
-        return;
-    }
     if let Some(font) = lower.strip_prefix("font:") {
         ink.family = Some(
             match font {
@@ -2079,30 +2073,6 @@ fn named_color(name: &str, palette: &Palette) -> Option<Color> {
         .iter()
         .position(|candidate| *candidate == name)?;
     Some(palette.hues[index])
-}
-
-fn hex_color(token: &str) -> Option<Color> {
-    let hex = token.strip_prefix('#')?;
-    let expanded = match hex.len() {
-        3 | 4 => hex
-            .chars()
-            .take(3)
-            .flat_map(|ch| [ch, ch])
-            .collect::<String>(),
-        6 | 8 => hex.chars().take(6).collect(),
-        _ => return None,
-    };
-    if expanded.len() != 6 || !expanded.bytes().all(|b| b.is_ascii_hexdigit()) {
-        return None;
-    }
-    let r = u8::from_str_radix(&expanded[0..2], 16).ok()?;
-    let g = u8::from_str_radix(&expanded[2..4], 16).ok()?;
-    let b = u8::from_str_radix(&expanded[4..6], 16).ok()?;
-    Some(Color::rgb(
-        f32::from(r) / 255.0,
-        f32::from(g) / 255.0,
-        f32::from(b) / 255.0,
-    ))
 }
 
 fn size_weight(token: &str) -> u16 {

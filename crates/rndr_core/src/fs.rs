@@ -199,7 +199,7 @@ pub fn spawn_fs_node(world: &mut World, path: impl Into<PathBuf>) -> Entity {
         .unwrap_or_else(|| path.to_string_lossy().into_owned());
 
     let mut layout = Layout::column();
-    layout.gap = 4.0;
+    layout.gap = crate::tokens::space::X4;
     layout.width = Size::Fill;
     layout.height = Size::Hug;
 
@@ -223,7 +223,7 @@ pub fn spawn_fs_node(world: &mut World, path: impl Into<PathBuf>) -> Entity {
     };
 
     let mut header = Layout::row();
-    header.padding = 8.0;
+    header.padding = crate::tokens::space::X8;
     header.width = Size::Fill;
     header.height = Size::Px(36.0);
     let header_entity = world.spawn((header, color, Label::new(name)));

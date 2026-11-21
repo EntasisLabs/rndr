@@ -293,7 +293,7 @@ impl SourceLanguageHooks for BraceSourceHooks {
                 }
                 result
                     .syntax
-                    .push(TextSpan::new(start, i, crate::Color::rgb(0.4, 0.6, 0.4)));
+                    .push(TextSpan::new(start, i, crate::tokens::SYNTAX_COMMENT));
                 continue;
             } else if b == b'"' {
                 let start = i;
@@ -314,7 +314,7 @@ impl SourceLanguageHooks for BraceSourceHooks {
                 }
                 result
                     .syntax
-                    .push(TextSpan::new(start, i, crate::Color::rgb(0.7, 0.5, 0.3)));
+                    .push(TextSpan::new(start, i, crate::tokens::SYNTAX_STRING));
                 continue;
             } else if b.is_ascii_digit() {
                 let start = i;
@@ -323,7 +323,7 @@ impl SourceLanguageHooks for BraceSourceHooks {
                 }
                 result
                     .syntax
-                    .push(TextSpan::new(start, i, crate::Color::rgb(0.4, 0.5, 0.8)));
+                    .push(TextSpan::new(start, i, crate::tokens::SYNTAX_NUMBER));
                 continue;
             } else if b"{([".contains(&b) {
                 stack.push((b, i));

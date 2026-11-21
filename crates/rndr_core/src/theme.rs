@@ -47,27 +47,6 @@ pub struct Theme {
     pub radius: f32,
 }
 
-impl Default for Theme {
-    fn default() -> Self {
-        Self {
-            canvas: Color::rgb(0.08, 0.09, 0.10),
-            tree: Color::rgb(0.10, 0.11, 0.13),
-            seam: Color::rgb(0.06, 0.07, 0.08),
-            pane: Color::rgb(0.12, 0.13, 0.15),
-            title: Color::rgb(0.22, 0.34, 0.48),
-            body: Color::rgb(0.14, 0.16, 0.20),
-            status: Color::rgb(0.18, 0.22, 0.26),
-            child: Color::rgb(0.20, 0.28, 0.30),
-            empty: Color::rgb(0.16, 0.17, 0.19),
-            text: Color::rgb(0.94, 0.95, 0.97),
-            caret: Color::rgb(0.94, 0.95, 0.97),
-            selection: Color::rgba(0.36, 0.62, 0.98, 0.88),
-            dirty: Color::rgb(0.86, 0.62, 0.20),
-            radius: 8.0,
-        }
-    }
-}
-
 /// [`Theme`] stored on `world`, or [`Theme::default`] when it is absent.
 pub fn theme_of(world: &World) -> Theme {
     world.resource::<Theme>().copied().unwrap_or_default()
