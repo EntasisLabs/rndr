@@ -1837,6 +1837,9 @@ fn advance(kind: &DisplayKind, height: f32) -> f32 {
     } else {
         20.0
     };
+    if matches!(kind, DisplayKind::Bullet | DisplayKind::Ordered(_)) {
+        return body + TEXT_ORIGIN_Y;
+    }
     let slack = match kind {
         DisplayKind::Gap | DisplayKind::Table => 0.0,
         // The stored height already includes the form padding.
@@ -2221,15 +2224,21 @@ fn paint_callout(world: &mut World, entity: Entity, block: &DisplayBlock) {
     let DisplayKind::Callout { tone } = &block.kind else {
         return;
     };
-    if block.text.contains("[!") {
-        return;
-    }
+
     let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
     let (fill, accent, ink) = callout_tone(&theme, tone);
     world.insert(entity, fill);
+    world.insert(entity, Radius(theme.radius(rndr_ui::RadiusRole::Card)));
+    world.insert(
+        entity,
+        Border {
+            color: accent,
+            width: 1.,
+        },
+    );
     let bar = world.spawn((
         Layout {
-            width: Size::Px(4.0),
+            width: Size::Px(2.0),
             height: Size::Fill,
             ..Layout::column()
         },
@@ -2253,26 +2262,7 @@ fn paint_callout(world: &mut World, entity: Entity, block: &DisplayBlock) {
 }
 
 fn callout_tone(theme: &UiTheme, tone: &str) -> (Color, Color, Color) {
-    let paint = |fill: Token, accent: Token, ink: Token| {
-        (theme.color(fill), theme.color(accent), theme.color(ink))
-    };
-    match tone {
-        "warning" | "caution" | "attention" => {
-            paint(Token::WarningFill, Token::WarningStroke, Token::WarningText)
-        }
-        "danger" | "error" | "failure" | "fail" | "missing" | "bug" => {
-            paint(Token::DangerFill, Token::DangerStroke, Token::DangerText)
-        }
-        "tip" | "hint" | "success" | "check" | "done" => {
-            paint(Token::SuccessFill, Token::SuccessStroke, Token::SuccessText)
-        }
-        "important" => {
-            let mut fill = theme.color(Token::Accent);
-            fill.a = 0.18;
-            (fill, theme.color(Token::Accent), theme.color(Token::Text))
-        }
-        _ => paint(Token::InfoFill, Token::InfoStroke, Token::InfoText),
-    }
+    theme.markdown_theme().callouts[rndr_core::CalloutTone::from_marker(tone) as usize]
 }
 
 struct FieldLine {
@@ -2590,21 +2580,12 @@ fn style_for_kind(kind: &DisplayKind, world: &World) -> TextStyle {
     let mut style = theme.typography(rndr_ui::Typography::Reading);
     match kind {
         DisplayKind::Heading(level) => {
-            style.size = match level {
-                1 => 28.0,
-                2 => 24.0,
-                3 => 20.0,
-                _ => 18.0,
-            };
-            style.weight = FONT_WEIGHT_BOLD;
-            // Extra line box so a large heading's bearings stay inside the slot.
-            style.line_height = Some(1.7);
+            style = rndr_core::markdown_heading_style(&style, *level);
         }
         DisplayKind::Code { .. }
         | DisplayKind::Opaque
         | DisplayKind::Liquid { valid: false, .. } => {
-            style.family = "monospace".into();
-            style.size = 14.0;
+            style = theme.typography(rndr_ui::Typography::Code);
         }
         _ => {
             // Preserve the token's 14/22 reading metrics.

@@ -2201,7 +2201,14 @@ fn project_callout(bytes: &str, node: &Green, at: usize, focus: Option<usize>) -
     }
     let mut block = empty_paragraph(span);
     block.kind = DisplayKind::Callout { tone: tone.clone() };
-    block.chrome = format!("{}  ", callout_label(&tone));
+    let icon = match tone.as_str() {
+        "warning" | "caution" | "attention" => rndr_core::Icon::AlertTriangle,
+        "danger" | "error" | "failure" | "bug" => rndr_core::Icon::CircleX,
+        "success" | "tip" | "hint" | "done" => rndr_core::Icon::CircleCheck,
+        "note" | "quote" => rndr_core::Icon::Book,
+        _ => rndr_core::Icon::Info,
+    };
+    block.chrome = format!("{}  {}  ", icon.scalar(), callout_label(&tone));
     block.text = if text.is_empty() { title } else { text };
     block.segments = segments;
     block.caret_end = raw.trim_end_matches(['\n', '\r']).len();

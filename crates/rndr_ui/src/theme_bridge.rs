@@ -61,6 +61,15 @@ impl UiTheme {
             code: self.color(Token::Text),
             code_bg: self.color(Token::Raised),
             inline_bg: self.color(Token::Raised),
+            card_radius: self.radius(crate::RadiusRole::Card),
+            callouts: [
+                (Token::Raised, Token::StrongStroke, Token::Text),
+                (Token::InfoFill, Token::InfoStroke, Token::InfoText),
+                (Token::SuccessFill, Token::SuccessStroke, Token::SuccessText),
+                (Token::WarningFill, Token::WarningStroke, Token::WarningText),
+                (Token::DangerFill, Token::DangerStroke, Token::DangerText),
+            ]
+            .map(|(f, s, i)| (self.color(f), self.color(s), self.color(i))),
             quote: self.color(Token::StrongStroke),
             rule: self.color(Token::SubtleStroke),
             keyword: self.color(Token::InfoText),

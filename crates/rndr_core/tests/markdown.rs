@@ -761,3 +761,43 @@ fn block_label(world: &World, view: Entity, index: usize) -> Entity {
         })
         .expect("block label")
 }
+
+#[test]
+fn vault_index_reading_layout() {
+    let src = "- [[notes/first|First]]\n- [[notes/second|Second]]\n\n| Name | Address | Role |\n|---|---:|:---:|\n| `Alpha` | 123 | Coordinator |\n| | 456 | Worker |\n\n> [!info] Status\n> Ready\n";
+    let (app, view) = boot(src, 540., 640.);
+    let w = app.world();
+    let blocks = w.get::<MarkdownView>(view).unwrap().blocks();
+    assert_eq!(blocks[0].links[0].href, "notes/first");
+    let pitch = label_rect(w, "Second").y - label_rect(w, "First").y;
+    assert!(pitch > 0. && pitch < 36., "tight pitch {pitch}");
+    let a = label_rect(w, "Address");
+    let b = label_rect(w, "123");
+    let c = label_rect(w, "456");
+    assert!(a.x > label_rect(w, "Name").x && a.x == b.x && b.x == c.x);
+    assert!(a.y < b.y && b.y < c.y);
+    assert_eq!(blocks[2].cells[1].1, rndr_core::TextAlign::End);
+    assert_eq!(blocks[2].cells[2].1, rndr_core::TextAlign::Center);
+    assert_eq!(blocks.last().unwrap().text, "Info Status\nReady");
+}
+
+#[test]
+fn warning_uses_card_paint_without_decorating_plain_quotes() {
+    use rndr_core::{CalloutTone, Color, MarkdownTheme, Radius};
+    let (app, view) = boot(
+        "> [!warning]\n> Keep secrets out.\n\n> Ordinary quote.\n",
+        400.,
+        300.,
+    );
+    let w = app.world();
+    let blocks = w.get::<MarkdownView>(view).unwrap().blocks();
+    assert_eq!(blocks[0].callout, Some(CalloutTone::Warning));
+    assert_eq!(blocks[1].callout, None);
+    let (fill, stroke, ink) = MarkdownTheme::default().callouts[CalloutTone::Warning as usize];
+    let card = block_label(w, view, 0);
+    assert_eq!(w.get::<Color>(card), Some(&fill));
+    assert_eq!(w.get::<Border>(card).unwrap().color, stroke);
+    assert!(w.has::<Radius>(card));
+    assert_eq!(blocks[0].spans[0].color, ink);
+    assert!(!w.has::<Border>(block_label(w, view, 1)));
+}

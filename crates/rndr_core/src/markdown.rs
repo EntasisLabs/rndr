@@ -78,6 +78,7 @@
 //! it, a code block is one color.
 
 mod host;
+mod table_view;
 pub use host::{
     clear_markdown_slots, mount_markdown_slot, set_markdown_slot_host, MarkdownSlot,
     MarkdownSlotError, MarkdownSlotHost, MarkdownSlotHosts, MarkdownSlotId,
@@ -110,7 +111,7 @@ impl Component for MarkdownView {}
 
 const PAD: f32 = 16.0;
 const BLOCK_GAP: f32 = 12.0;
-const TIGHT_GAP: f32 = 4.0;
+const TIGHT_GAP: f32 = 0.0;
 const ROW_GAP: f32 = 8.0;
 const BAR_W: f32 = 3.0;
 const QUOTE_STEP: f32 = 12.0;
@@ -121,6 +122,7 @@ const CODE_FAMILY: &str = "monospace";
 fn parser_options() -> Options {
     Options::ENABLE_TABLES
         | Options::ENABLE_STRIKETHROUGH
+        | Options::ENABLE_WIKILINKS
         | Options::ENABLE_TASKLISTS
         | Options::ENABLE_MATH
 }
@@ -169,6 +171,8 @@ pub struct MarkdownBlock {
     pub depth: u8,
     /// Quote nesting. `0` is not a quote.
     pub quote: u8,
+    /// Semantic card treatment, absent for ordinary quotes.
+    pub callout: Option<CalloutTone>,
     /// `true` when this list item contains no paragraph.
     ///
     /// Two adjacent tight items share a small gap and a single newline when
@@ -177,12 +181,43 @@ pub struct MarkdownBlock {
     pub tight: bool,
     /// Visible text. List markers are not included. A rule is empty.
     pub text: String,
+    /// Cell ranges in the copyable row text, and their column alignments.
+    pub cells: Vec<(std::ops::Range<usize>, crate::text::TextAlign)>,
+    /// Whether this row contains column headings.
+    pub table_header: bool,
     /// Fence info string. Empty for every block that is not fenced code.
     pub language: String,
     /// Inline ranges. Empty means the whole block uses the label color.
     pub spans: Vec<TextSpan>,
     /// Clickable ranges inside [`Self::text`].
     pub links: Vec<MarkdownLink>,
+}
+
+/// Semantic color family for Markdown callout cards in either document mode.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum CalloutTone {
+    /// Notes and quotations.
+    Neutral,
+    /// Informational messages.
+    Info,
+    /// Tips and positive outcomes.
+    Success,
+    /// Cautions and warnings.
+    Warning,
+    /// Failures and errors.
+    Danger,
+}
+impl CalloutTone {
+    /// Map a lowercase Markdown marker to its color family.
+    pub fn from_marker(marker: &str) -> Self {
+        match marker {
+            "warning" | "caution" | "attention" => Self::Warning,
+            "danger" | "error" | "failure" | "fail" | "missing" | "bug" => Self::Danger,
+            "tip" | "hint" | "success" | "check" | "done" => Self::Success,
+            "note" | "quote" | "cite" => Self::Neutral,
+            _ => Self::Info,
+        }
+    }
 }
 
 /// Colors for a markdown view.
@@ -208,6 +243,10 @@ pub struct MarkdownTheme {
     pub inline_bg: Color,
     /// Quote bar.
     pub quote: Color,
+    /// Fill, stroke and title ink indexed by `CalloutTone`.
+    pub callouts: [(Color, Color, Color); 5],
+    /// Callout card corner radius.
+    pub card_radius: f32,
     /// Thematic break.
     pub rule: Color,
     /// Keyword tokens. Used when the `highlight` feature is on.
@@ -223,6 +262,21 @@ pub struct MarkdownTheme {
 impl Default for MarkdownTheme {
     fn default() -> Self {
         Self {
+            card_radius: 8.0,
+            callouts: [
+                ((0.16, 0.17, 0.21), (0.5, 0.55, 0.6)),
+                ((0.12, 0.17, 0.24), (0.6, 0.75, 0.95)),
+                ((0.10, 0.19, 0.15), (0.6, 0.85, 0.68)),
+                ((0.22, 0.16, 0.08), (0.95, 0.78, 0.48)),
+                ((0.23, 0.12, 0.12), (0.98, 0.65, 0.65)),
+            ]
+            .map(|((r, g, b), (x, y, z))| {
+                (
+                    Color::rgb(r, g, b),
+                    Color::rgb(x, y, z),
+                    Color::rgb(x, y, z),
+                )
+            }),
             surface: Color::rgb(0.10, 0.11, 0.13),
             text: Color::rgb(0.93, 0.94, 0.96),
             muted: Color::rgb(0.62, 0.66, 0.72),
@@ -782,7 +836,7 @@ fn estimate_outer(
             (chars / per).ceil().max(1.0)
         })
         .sum();
-    (TEXT_ORIGIN_Y + lines.max(1.0) * line + TEXT_ORIGIN_Y).max(36.0) + trail
+    TEXT_ORIGIN_Y + lines.max(1.0) * line + trail
 }
 
 fn block_outer(doc: &MarkdownView, index: usize) -> f32 {
@@ -1021,18 +1075,21 @@ fn reconcile(
             || slot.width_bits != width.to_bits()
             || slot.index != index as u32
         {
-            if !update_block(
-                world,
-                view,
-                slot.entity,
-                index,
-                block,
-                content,
-                outer,
-                &theme,
-                base,
-                columns,
-            ) {
+            if !block.cells.is_empty()
+                || world.has::<table_view::TableRow>(slot.entity)
+                || !update_block(
+                    world,
+                    view,
+                    slot.entity,
+                    index,
+                    block,
+                    content,
+                    outer,
+                    &theme,
+                    base,
+                    columns,
+                )
+            {
                 if world.is_alive(slot.entity) {
                     despawn(world, slot.entity);
                 }
@@ -1095,6 +1152,9 @@ fn shape_of(block: &MarkdownBlock, columns: &ListColumns) -> u16 {
     if matches!(block.kind, MarkdownKind::Rule) {
         return 0;
     }
+    if block.callout.is_some() {
+        return 128;
+    }
     let mut shape = 1u16;
     if block.quote > 0 {
         shape |= 2;
@@ -1120,7 +1180,13 @@ fn fingerprint(block: &MarkdownBlock, columns: &ListColumns) -> u64 {
     column_of(columns, block).to_bits().hash(&mut hasher);
     spacer_width(columns, block).to_bits().hash(&mut hasher);
     block.depth.hash(&mut hasher);
+    block.callout.hash(&mut hasher);
     block.quote.hash(&mut hasher);
+    block.table_header.hash(&mut hasher);
+    for (range, align) in &block.cells {
+        range.hash(&mut hasher);
+        (*align as u8).hash(&mut hasher);
+    }
     block.tight.hash(&mut hasher);
     block.text.hash(&mut hasher);
     block.language.hash(&mut hasher);
@@ -1170,7 +1236,9 @@ fn trail_after(blocks: &[MarkdownBlock], index: usize) -> f32 {
     let Some(next) = blocks.get(index + 1) else {
         return 0.0;
     };
-    if blocks[index].tight && next.tight {
+    if (blocks[index].tight && next.tight)
+        || (!blocks[index].cells.is_empty() && !next.cells.is_empty())
+    {
         TIGHT_GAP
     } else {
         BLOCK_GAP
@@ -1188,15 +1256,21 @@ fn block_height(
         return 2.0;
     }
     let style = block_style(base, block);
+    if !block.cells.is_empty() {
+        return table_view::height(world, base, block, inner);
+    }
     let width = label_width(inner, block, columns);
     let engine = text_engine(world);
     let wrap = field_text_width(width, engine.unit_advance(&style));
     let measured = engine.measure(&block.text, &style, &block.spans, wrap);
     let lines = measured.line_count.max(1) as f32;
-    (TEXT_ORIGIN_Y + lines * engine.line_height(&style) + TEXT_ORIGIN_Y).max(36.0)
+    TEXT_ORIGIN_Y + lines * engine.line_height(&style)
 }
 
 fn label_width(inner: f32, block: &MarkdownBlock, columns: &ListColumns) -> f32 {
+    if block.callout.is_some() {
+        return inner;
+    }
     let mut width = inner;
     let mut gaps = 0.0;
     if block.quote > 0 {
@@ -1289,7 +1363,7 @@ fn marker_top(line_h: f32, size: f32) -> f32 {
 }
 
 fn is_row(block: &MarkdownBlock) -> bool {
-    block.quote > 0 || marker_kind(block.kind)
+    block.callout.is_none() && (block.quote > 0 || marker_kind(block.kind))
 }
 
 fn marker_kind(kind: MarkdownKind) -> bool {
@@ -1299,20 +1373,23 @@ fn marker_kind(kind: MarkdownKind) -> bool {
     )
 }
 
+/// Resolve a Markdown heading relative to the document reading style.
+pub fn markdown_heading_style(base: &TextStyle, level: u8) -> TextStyle {
+    let mut style = base.clone();
+    let scale = match level {
+        1 => 1.75,
+        2 => 1.5,
+        3 => 1.25,
+        _ => 1.05,
+    };
+    style.size = base.size * scale;
+    style.weight = FONT_WEIGHT_BOLD;
+    style
+}
+
 fn block_style(base: &TextStyle, block: &MarkdownBlock) -> TextStyle {
     match block.kind {
-        MarkdownKind::Heading(level) => {
-            let mut style = base.clone();
-            let scale = match level {
-                1 => 1.75,
-                2 => 1.5,
-                3 => 1.25,
-                _ => 1.05,
-            };
-            style.size = base.size * scale;
-            style.weight = FONT_WEIGHT_BOLD;
-            style
-        }
+        MarkdownKind::Heading(level) => markdown_heading_style(base, level),
         MarkdownKind::Code => TextStyle {
             family: CODE_FAMILY.into(),
             size: base.size,
@@ -1388,6 +1465,9 @@ fn spawn_block_inner(
     base: &TextStyle,
     columns: &ListColumns,
 ) -> Entity {
+    if !block.cells.is_empty() {
+        return table_view::spawn(world, view, index, block, outer, theme, base);
+    }
     if matches!(block.kind, MarkdownKind::Rule) {
         let column = world.spawn((
             box_layout(Axis::Column, Size::Fill, Size::Px(outer)),
@@ -1571,7 +1651,7 @@ fn spawn_label(
     theme: &MarkdownTheme,
     base: &TextStyle,
 ) -> Entity {
-    world.spawn((
+    let entity = world.spawn((
         box_layout(Axis::Column, width, Size::Px(height)),
         fill_color(theme, block),
         Label::new(&block.text)
@@ -1585,7 +1665,18 @@ fn spawn_label(
             view,
             index: index as u32,
         },
-    ))
+    ));
+    decorate_card(world, entity, block, theme);
+    entity
+}
+
+fn decorate_card(world: &mut World, entity: Entity, block: &MarkdownBlock, theme: &MarkdownTheme) {
+    if let Some(tone) = block.callout {
+        let (fill, color, _) = theme.callouts[tone as usize];
+        world.insert(entity, fill);
+        world.insert(entity, Border { color, width: 1.0 });
+        world.insert(entity, Radius(theme.card_radius));
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1805,6 +1896,9 @@ fn apply_height(world: &mut World, entity: Entity, content: f32, outer: f32) {
         return;
     }
     set_px_height(world, entity, outer);
+    if world.has::<table_view::TableRow>(entity) {
+        return;
+    }
     if let Some(label) = label_entity(world, entity) {
         set_px_height(world, label, content);
     }
@@ -1827,6 +1921,7 @@ fn write_label(
 ) {
     world.insert(entity, box_layout(Axis::Column, width, Size::Px(height)));
     world.insert(entity, fill_color(theme, block));
+    decorate_card(world, entity, block, theme);
     world.insert(
         entity,
         Label::new(&block.text)
@@ -1844,7 +1939,7 @@ fn write_label(
 
 fn apply_selection(world: &mut World, view: &MarkdownView) {
     for slot in &view.slots {
-        if let Some(label) = label_entity(world, slot.entity) {
+        for label in table_view::labels(world, slot.entity) {
             world.remove::<crate::caret::Caret>(label);
             world.remove::<TextSelection>(label);
         }
@@ -1860,33 +1955,33 @@ fn apply_selection(world: &mut World, view: &MarkdownView) {
         if index < start.block || index > end.block {
             continue;
         }
-        let Some(label) = label_entity(world, slot.entity) else {
-            continue;
-        };
-        let len = world
-            .get::<Label>(label)
-            .map(|text| text.text.len())
-            .unwrap_or(0);
-        let from = if index == start.block {
-            start.byte.min(len)
-        } else {
-            0
-        };
-        let to = if index == end.block {
-            end.byte.min(len)
-        } else {
-            len
-        };
-        if from == to {
-            continue;
+        for label in table_view::labels(world, slot.entity) {
+            let offset = table_view::offset(world, label);
+            let len = world
+                .get::<Label>(label)
+                .map(|text| text.text.len())
+                .unwrap_or(0);
+            let from = if index == start.block {
+                start.byte.saturating_sub(offset).min(len)
+            } else {
+                0
+            };
+            let to = if index == end.block {
+                end.byte.saturating_sub(offset).min(len)
+            } else {
+                len
+            };
+            if from == to {
+                continue;
+            }
+            world.insert(
+                label,
+                TextSelection {
+                    anchor: from,
+                    head: to,
+                },
+            );
         }
-        world.insert(
-            label,
-            TextSelection {
-                anchor: from,
-                head: to,
-            },
-        );
     }
 }
 
@@ -2242,7 +2337,7 @@ fn byte_at(world: &World, label: Entity, x: f32, y: f32) -> Option<usize> {
     let text_len = world.get::<Label>(label)?.text.len();
     let local_x = x - rect.x - TEXT_ORIGIN_X;
     let local_y = y - rect.y - TEXT_ORIGIN_Y;
-    Some(layout.index_at(local_x, local_y).min(text_len))
+    Some(table_view::offset(world, label) + layout.index_at(local_x, local_y).min(text_len))
 }
 
 fn link_href(world: &World, view: Entity, index: usize, byte: usize) -> Option<String> {
@@ -2671,7 +2766,47 @@ fn parse_range(source: &str, origin: usize, theme: &MarkdownTheme) -> Parsed {
     let prepared = prepare_partial(slice);
     let limit = slice.len();
     let mut builder = Builder::new(theme, origin);
+    let mut quote_start = false;
+    let mut marker_end = None;
+    let mut title_line = false;
     for (event, range) in Parser::new_ext(prepared.as_ref(), parser_options()).into_offset_iter() {
+        // Recognize the raw first paragraph of a quote, never an escaped
+        // marker, a code span, or bracket text elsewhere in the quote.
+        if quote_start && matches!(event, Event::Start(Tag::Paragraph)) {
+            if let Some((title, end)) = callout_marker(slice.get(range.start..).unwrap_or_default())
+            {
+                builder.push(event, origin + range.start, origin + range.end.min(limit));
+                let tone = CalloutTone::from_marker(&title.to_ascii_lowercase());
+                builder.callout = Some(tone);
+                let mut style = InlineStyle::of(theme.callouts[tone as usize].2);
+                style.weight = Some(FONT_WEIGHT_BOLD);
+                builder.push_style(title, style);
+                marker_end = Some(range.start + end);
+                title_line = true;
+                quote_start = false;
+                continue;
+            }
+        }
+        quote_start = matches!(event, Event::Start(Tag::BlockQuote(_)));
+        let mut event = event;
+        if let Some(end) = marker_end {
+            if matches!(event, Event::Text(_)) && range.end <= end {
+                continue;
+            }
+            if range.start < end && matches!(event, Event::Text(_)) {
+                if let Some(rest) = slice.get(end..range.end) {
+                    event = Event::Text(rest.into());
+                }
+            }
+            marker_end = None;
+        }
+        if title_line && matches!(event, Event::SoftBreak) {
+            event = Event::HardBreak;
+            title_line = false;
+        }
+        if matches!(event, Event::End(TagEnd::Paragraph)) {
+            title_line = false;
+        }
         let Some(event) = clip_event(event, range.start, range.end, limit) else {
             continue;
         };
@@ -2685,6 +2820,18 @@ fn parse_range(source: &str, origin: usize, theme: &MarkdownTheme) -> Parsed {
         starts: builder.starts,
         ends: builder.ends,
     }
+}
+
+fn callout_marker(line: &str) -> Option<(&'static str, usize)> {
+    let kind = line.strip_prefix("[!")?.split_once(']')?.0;
+    let end = kind.len() + 3;
+    if line[end..].starts_with(|c: char| !c.is_whitespace()) {
+        return None;
+    }
+    ["Note", "Info", "Tip", "Important", "Warning", "Caution"]
+        .into_iter()
+        .find(|name| name.eq_ignore_ascii_case(kind))
+        .map(|name| (name, end))
 }
 
 fn clip_event<'a>(event: Event<'a>, start: usize, end: usize, limit: usize) -> Option<Event<'a>> {
@@ -3228,6 +3375,7 @@ struct Builder<'a> {
     starts: Vec<usize>,
     ends: Vec<usize>,
     quote: u8,
+    callout: Option<CalloutTone>,
     lists: Vec<ListFrame>,
     mode: Mode,
     buf: String,
@@ -3241,7 +3389,9 @@ struct Builder<'a> {
     block_start: usize,
     item_kind: Option<ItemKind>,
     item_loose: bool,
-    cell_sep: bool,
+    alignments: Vec<crate::text::TextAlign>,
+    cells: Vec<(std::ops::Range<usize>, crate::text::TextAlign)>,
+    table_header: bool,
 }
 
 struct ListFrame {
@@ -3274,6 +3424,7 @@ impl<'a> Builder<'a> {
             starts: Vec::new(),
             ends: Vec::new(),
             quote: 0,
+            callout: None,
             lists: Vec::new(),
             mode: Mode::Idle,
             buf: String::new(),
@@ -3287,7 +3438,9 @@ impl<'a> Builder<'a> {
             block_start: origin,
             item_kind: None,
             item_loose: false,
-            cell_sep: false,
+            alignments: Vec::new(),
+            cells: Vec::new(),
+            table_header: false,
         }
     }
 
@@ -3414,16 +3567,32 @@ impl<'a> Builder<'a> {
                 self.emit(start);
                 self.mode = Mode::Paragraph;
                 self.block_start = start;
-                self.cell_sep = false;
+                self.table_header = matches!(tag, Tag::TableHead);
             }
             Tag::TableCell => {
-                if self.cell_sep && !self.buf.is_empty() {
+                if !self.cells.is_empty() {
                     self.push_styled(" | ");
                 }
-                self.cell_sep = true;
+                let pos = self.buf.len();
+                self.cells.push((
+                    pos..pos,
+                    self.alignments
+                        .get(self.cells.len())
+                        .copied()
+                        .unwrap_or_default(),
+                ));
+            }
+            Tag::Table(cols) => {
+                self.alignments = cols
+                    .into_iter()
+                    .map(|col| match col {
+                        pulldown_cmark::Alignment::Right => crate::text::TextAlign::End,
+                        pulldown_cmark::Alignment::Center => crate::text::TextAlign::Center,
+                        _ => crate::text::TextAlign::Start,
+                    })
+                    .collect()
             }
             Tag::FootnoteDefinition(_)
-            | Tag::Table(_)
             | Tag::DefinitionList
             | Tag::DefinitionListTitle
             | Tag::DefinitionListDefinition
@@ -3479,8 +3648,12 @@ impl<'a> Builder<'a> {
                     self.emit(end);
                 }
             }
-            TagEnd::TableCell
-            | TagEnd::Table
+            TagEnd::TableCell => {
+                if let Some((range, _)) = self.cells.last_mut() {
+                    range.end = self.buf.len();
+                }
+            }
+            TagEnd::Table
             | TagEnd::FootnoteDefinition
             | TagEnd::DefinitionList
             | TagEnd::DefinitionListTitle
@@ -3591,13 +3764,16 @@ impl<'a> Builder<'a> {
             self.buf.pop();
         }
         let tight = matches!(mode, Mode::Item) && !self.item_loose;
-        let keep = match kind {
-            MarkdownKind::Code | MarkdownKind::Task(_) => true,
-            MarkdownKind::Paragraph | MarkdownKind::Heading(_) if self.buf.trim().is_empty() => {
-                false
-            }
-            _ => !self.buf.is_empty(),
-        };
+        let keep = !self.cells.is_empty()
+            || match kind {
+                MarkdownKind::Code | MarkdownKind::Task(_) => true,
+                MarkdownKind::Paragraph | MarkdownKind::Heading(_)
+                    if self.buf.trim().is_empty() =>
+                {
+                    false
+                }
+                _ => !self.buf.is_empty(),
+            };
         if keep {
             let spans = if matches!(kind, MarkdownKind::Code) {
                 code_spans(&self.buf, self.theme)
@@ -3607,11 +3783,14 @@ impl<'a> Builder<'a> {
             let depth = u8::try_from(self.lists.len()).unwrap_or(u8::MAX);
             self.blocks.push(MarkdownBlock {
                 kind,
+                cells: std::mem::take(&mut self.cells),
+                table_header: self.table_header,
                 depth: if matches!(kind, MarkdownKind::Rule) {
                     0
                 } else {
                     depth
                 },
+                callout: self.callout.take(),
                 quote: self.quote,
                 tight,
                 text: std::mem::take(&mut self.buf),
@@ -3636,14 +3815,18 @@ impl<'a> Builder<'a> {
         self.strike = 0;
         self.item_kind = None;
         self.item_loose = false;
-        self.cell_sep = false;
+        self.table_header = false;
+        self.cells.clear();
     }
 
     fn push_rule(&mut self, start: usize, end: usize) {
         self.blocks.push(MarkdownBlock {
             kind: MarkdownKind::Rule,
+            cells: Vec::new(),
+            table_header: false,
             depth: 0,
             quote: self.quote,
+            callout: None,
             tight: false,
             text: String::new(),
             language: String::new(),
