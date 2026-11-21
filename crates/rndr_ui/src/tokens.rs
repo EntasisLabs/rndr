@@ -87,6 +87,24 @@ pub enum Token {
     Material,
     /// Frosted inspector or side panel.
     Panel,
+    /// Quiet inline code background; use Text ink.
+    CodeFill,
+    /// Low-chroma document highlight; use Text ink.
+    Highlight,
+    /// Writer-selected red ink.
+    HueRed,
+    /// Writer-selected orange ink.
+    HueOrange,
+    /// Writer-selected yellow ink.
+    HueYellow,
+    /// Writer-selected green ink.
+    HueGreen,
+    /// Writer-selected blue ink (not the application accent).
+    HueBlue,
+    /// Writer-selected purple ink.
+    HuePurple,
+    /// Writer-selected pink ink.
+    HuePink,
     /// Main text.
     Text,
     /// Secondary text.
@@ -171,7 +189,7 @@ impl UiTheme {
             return hex(match token {
                 Canvas | Navigation | Content | Raised | Overlay | Glass | Material | Panel
                 | Selected | InfoFill | SuccessFill | WarningFill | DangerFill | ControlHover
-                | ControlPressed => {
+                | ControlPressed | CodeFill | Highlight => {
                     if dark {
                         0x000000
                     } else {
@@ -223,6 +241,24 @@ impl UiTheme {
             (true, Glass) => 0x12141a,
             (true, Material) => 0x1c1f24,
             (true, Panel) => 0x14171c,
+            (false, CodeFill) => 0xe8ebf0,
+            (true, CodeFill) => 0x30343d,
+            (false, Highlight) => 0xefe8c8,
+            (true, Highlight) => 0x3d3618,
+            (false, HueRed) => 0xb3261e,
+            (true, HueRed) => 0xff9a94,
+            (false, HueOrange) => 0xa3470a,
+            (true, HueOrange) => 0xffb27a,
+            (false, HueYellow) => 0x7a5a00,
+            (true, HueYellow) => 0xf2cf55,
+            (false, HueGreen) => 0x1f6b36,
+            (true, HueGreen) => 0x7fd69a,
+            (false, HueBlue) => 0x1d5bb8,
+            (true, HueBlue) => 0x8fbaff,
+            (false, HuePurple) => 0x6b3fb3,
+            (true, HuePurple) => 0xc6a4ff,
+            (false, HuePink) => 0xb02a68,
+            (true, HuePink) => 0xff9cc6,
             (false, Text) => 0x24272e,
             (true, Text) => 0xedeef2,
             (false, Secondary | Disabled) => 0x60616a,
@@ -404,7 +440,7 @@ impl Default for TypeRamp {
             secondary: TypeMetrics::new(12.0, 16.0, 400),
             caption: TypeMetrics::new(11.0, 14.0, 400),
             overline: TypeMetrics::new(11.0, 14.0, 600).tracking(0.6),
-            reading: TypeMetrics::new(16.0, 24.0, 400),
+            reading: TypeMetrics::new(14.0, 22.0, 400),
             heading: TypeMetrics::new(20.0, 28.0, 600),
             title: TypeMetrics::new(26.0, 34.0, 600),
             code: TypeMetrics::new(13.0, 20.0, 400),

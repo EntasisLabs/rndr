@@ -22,16 +22,39 @@ pub struct Palette {
     pub link: Color,
     /// Inline code and fence fill.
     pub code: Color,
+    /// Quiet marker background.
+    pub highlight: Color,
+    /// Writer-selected red, orange, yellow, green, blue, purple and pink ink.
+    pub hues: [Color; 7],
+}
+
+impl Palette {
+    /// Resolve document ink from the same theme as its surrounding controls.
+    pub fn from_theme(theme: &rndr_ui::UiTheme) -> Self {
+        use rndr_ui::Token;
+        Self {
+            text: theme.color(Token::Text),
+            muted: theme.color(Token::Secondary),
+            link: theme.color(Token::Accent),
+            code: theme.color(Token::CodeFill),
+            highlight: theme.color(Token::Highlight),
+            hues: [
+                Token::HueRed,
+                Token::HueOrange,
+                Token::HueYellow,
+                Token::HueGreen,
+                Token::HueBlue,
+                Token::HuePurple,
+                Token::HuePink,
+            ]
+            .map(|role| theme.color(role)),
+        }
+    }
 }
 
 impl Default for Palette {
     fn default() -> Self {
-        Self {
-            text: Color::rgb(0.93, 0.94, 0.95),
-            muted: Color::rgb(0.62, 0.64, 0.68),
-            link: Color::rgb(0.45, 0.68, 0.95),
-            code: Color::rgba(0.55, 0.58, 0.62, 0.22),
-        }
+        Self::from_theme(&rndr_ui::UiTheme::default())
     }
 }
 
@@ -1728,7 +1751,7 @@ fn walk_inline(_bytes: &str, node: &Green, acc: &mut Acc, ink: &Ink, reveal: boo
         | SyntaxKind::FootnoteRef
         | SyntaxKind::FootnoteInline => next.link = true,
         SyntaxKind::Highlight => {
-            next.highlight = Some(Color::rgba(0.93, 0.78, 0.18, 0.45));
+            next.highlight = Some(acc.palette.highlight);
             next.custom = true;
         }
         SyntaxKind::Math => {
@@ -1739,7 +1762,7 @@ fn walk_inline(_bytes: &str, node: &Green, acc: &mut Acc, ink: &Ink, reveal: boo
             next.italic = true;
             next.custom = true;
         }
-        SyntaxKind::StyleSpan => apply_style(&mut next, style_token(node)),
+        SyntaxKind::StyleSpan => apply_style(&mut next, style_token(node), &acc.palette),
         _ => {}
     }
     let skip_dest = matches!(node.kind(), SyntaxKind::Link | SyntaxKind::Image) && !active;
@@ -2021,9 +2044,9 @@ fn style_token(node: &Green) -> &str {
         .unwrap_or("")
 }
 
-fn apply_style(ink: &mut Ink, token: &str) {
+fn apply_style(ink: &mut Ink, token: &str, palette: &Palette) {
     let lower = token.to_ascii_lowercase();
-    if let Some(color) = named_color(&lower) {
+    if let Some(color) = named_color(&lower, palette) {
         ink.color = color;
         ink.custom = true;
         return;
@@ -2051,17 +2074,11 @@ fn apply_style(ink: &mut Ink, token: &str) {
     }
 }
 
-fn named_color(name: &str) -> Option<Color> {
-    Some(match name {
-        "red" => Color::rgb(0.97, 0.44, 0.44),
-        "orange" => Color::rgb(0.98, 0.57, 0.24),
-        "yellow" => Color::rgb(0.98, 0.80, 0.08),
-        "green" => Color::rgb(0.29, 0.87, 0.50),
-        "blue" => Color::rgb(0.38, 0.65, 0.98),
-        "purple" => Color::rgb(0.75, 0.52, 0.99),
-        "pink" => Color::rgb(0.96, 0.45, 0.71),
-        _ => return None,
-    })
+fn named_color(name: &str, palette: &Palette) -> Option<Color> {
+    let index = ["red", "orange", "yellow", "green", "blue", "purple", "pink"]
+        .iter()
+        .position(|candidate| *candidate == name)?;
+    Some(palette.hues[index])
 }
 
 fn hex_color(token: &str) -> Option<Color> {

@@ -624,7 +624,7 @@ fn place_hit(world: &mut World, root: Entity, hit: Entity, at: [f32; 2], extend:
         return;
     }
     let width = rect.w.max(1.0);
-    let style = style_for_kind(&block.kind);
+    let style = style_for_kind(&block.kind, world);
     let engine = text_engine(world);
     let label = block.label_text();
     let spans = label_spans(&block);
@@ -701,19 +701,22 @@ fn presented(world: &World, document: MarkdownId, block: &DisplayBlock) -> Displ
 
 fn theme_palette(world: &World) -> Palette {
     let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
-    crate::grid::palette_of(&crate::grid::Chrome::from_theme(&theme))
+    Palette::from_theme(&theme)
 }
 
 fn theme_stamp(world: &World) -> u64 {
     let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
     let text = theme.color(Token::Text);
     let muted = theme.color(Token::Secondary);
-    let link = theme.color(Token::InfoText);
+    let link = theme.color(Token::Accent);
     let pack = |color: Color, shift: u32| -> u64 {
         let channel = |value: f32| (value.clamp(0.0, 1.0) * 255.0) as u64;
         (channel(color.r) | (channel(color.g) << 8) | (channel(color.b) << 16)) << shift
     };
     pack(text, 0)
+        ^ (theme.reading_scale.to_bits() as u64).rotate_left(11)
+        ^ (theme.text_scale.to_bits() as u64).rotate_left(31)
+        ^ (u64::from(theme.density == rndr_ui::Density::Compact) << 61)
         ^ pack(muted, 24)
         ^ pack(link, 40)
         ^ match theme.appearance {
@@ -1581,7 +1584,7 @@ fn rebuild_slots(world: &mut World, entity: Entity) -> bool {
                 .get::<Node>(entity)
                 .and_then(|node| node.blocks.get(index).cloned())
             {
-                let style = style_for_kind(&kind);
+                let style = style_for_kind(&kind, world);
                 let document = root_document(world, entity);
                 let block = document
                     .map(|document| presented(world, document, &block))
@@ -1979,7 +1982,11 @@ fn spawn_block(
     label.color = Some(theme_palette(world).text);
     label.overflow = TextOverflow::Wrap;
     let height = block.height.max(20.0);
-    let runs = if task { Vec::new() } else { label_spans(block) };
+    let runs = if task {
+        block.spans.clone()
+    } else {
+        label_spans(block)
+    };
     let mut layout = Layout {
         width: Size::Fill,
         height: Size::Px(advance(&block.kind, height)),
@@ -1992,7 +1999,7 @@ fn spawn_block(
     }
     let entity = world.spawn((
         layout,
-        style_for_kind(&block.kind),
+        style_for_kind(&block.kind, world),
         Slot {
             start: block.span.start,
             end: block.span.end,
@@ -2015,7 +2022,7 @@ fn spawn_block(
             },
             label,
             Spans { runs },
-            style_for_kind(&block.kind),
+            style_for_kind(&block.kind, world),
             LabelBox::CONTENT,
             TaskText,
         ));
@@ -2072,7 +2079,7 @@ fn task_text_source(
             let style = world
                 .get::<TextStyle>(hit)
                 .cloned()
-                .unwrap_or_else(|| style_for_kind(&block.kind));
+                .unwrap_or_else(|| style_for_kind(&block.kind, world));
             let layout = text_engine(world).layout(&text, &style, &[], rect.w.max(1.0));
             let index = layout.index_at(at[0] - rect.x, at[1] - rect.y);
             return Some(block.display_to_source(block.chrome.len() + index));
@@ -2336,7 +2343,7 @@ fn spawn_liquid_fields(
     let content = if block.height > pad * 2.0 + 24.0 {
         block.height
     } else {
-        let style = style_for_kind(&block.kind);
+        let style = style_for_kind(&block.kind, world);
         project::measure_block(
             text_engine(world).as_ref(),
             block,
@@ -2385,7 +2392,7 @@ fn spawn_liquid_fields(
         ));
         set_parent(world, header, entity);
     }
-    let style = style_for_kind(&block.kind);
+    let style = style_for_kind(&block.kind, world);
     for line in field_lines(block) {
         let row = world.spawn((Layout {
             width: Size::Fill,
@@ -2578,8 +2585,9 @@ fn label_spans(block: &DisplayBlock) -> Vec<TextSpan> {
         .collect()
 }
 
-fn style_for_kind(kind: &DisplayKind) -> TextStyle {
-    let mut style = TextStyle::default();
+fn style_for_kind(kind: &DisplayKind, world: &World) -> TextStyle {
+    let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
+    let mut style = theme.typography(rndr_ui::Typography::Reading);
     match kind {
         DisplayKind::Heading(level) => {
             style.size = match level {
@@ -2599,8 +2607,7 @@ fn style_for_kind(kind: &DisplayKind) -> TextStyle {
             style.size = 14.0;
         }
         _ => {
-            style.size = 16.0;
-            style.line_height = Some(1.45);
+            // Preserve the token's 14/22 reading metrics.
         }
     }
     style

@@ -24,8 +24,7 @@ pub(crate) struct Chrome {
     pub body: Color,
     pub text: Color,
     pub muted: Color,
-    pub link: Color,
-    pub code: Color,
+    pub palette: Palette,
     /// Low-emphasis column and row handle fill. Not the header fill.
     pub grip: Color,
     pub pad_x: f32,
@@ -37,16 +36,13 @@ pub(crate) struct Chrome {
 
 impl Chrome {
     pub(crate) fn from_theme(theme: &UiTheme) -> Self {
-        let mut code = theme.color(Token::ControlHover);
-        code.a = 0.55;
         Self {
             border: theme.color(Token::StrongStroke),
             header: theme.color(Token::Raised),
             body: theme.color(Token::Content),
             text: theme.color(Token::Text),
             muted: theme.color(Token::Secondary),
-            link: theme.color(Token::InfoText),
-            code,
+            palette: Palette::from_theme(theme),
             grip: {
                 // Opaque enough to read as a strip on white and on a dark pane.
                 // Control-hover alone disappears into the content fill.
@@ -63,12 +59,7 @@ impl Chrome {
 }
 
 pub(crate) fn palette_of(chrome: &Chrome) -> Palette {
-    Palette {
-        text: chrome.text,
-        muted: chrome.muted,
-        link: chrome.link,
-        code: chrome.code,
-    }
+    chrome.palette
 }
 
 pub(crate) fn measure_height(
