@@ -140,6 +140,8 @@ impl EditorSurface {
                 CapturesKeys,
                 Focusable,
             ));
+            // The caret indicates focus; keep the canvas at its authored color.
+            world.insert(editor, ResolvedColor);
             world.insert(editor, UiRecipe(UiStyle::editor()));
             set_parent(world, editor, root);
             if let Err(error) = attach_source(world, editor, props.document) {

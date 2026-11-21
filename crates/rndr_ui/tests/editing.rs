@@ -44,6 +44,42 @@ fn append(app: &mut App, document: DocumentId) {
         .unwrap();
 }
 #[test]
+fn focused_editor_paints_its_configured_canvas_color() {
+    let (mut app, parent, doc) = boot();
+    app.world_mut().insert(
+        parent,
+        Layout {
+            width: Size::Px(640.0),
+            height: Size::Px(320.0),
+            ..Layout::column()
+        },
+    );
+    let editor = mount(&mut app, parent, doc).editor;
+    let canvas = Color::rgb(0.12, 0.13, 0.15);
+    app.world_mut().insert(
+        editor,
+        rndr_ui::UiRecipe(rndr_ui::UiStyle {
+            background: Some(rndr_ui::UiColor::Explicit(canvas)),
+            ..Default::default()
+        }),
+    );
+    app.update();
+    request_focus(app.world_mut(), editor);
+    let frame = rndr_paint::frame(&mut app);
+    assert_eq!(
+        app.world().resource::<Focus>().unwrap().entity,
+        Some(editor)
+    );
+    let rect = *app.world().get::<Rect>(editor).unwrap();
+    assert_eq!(*app.world().get::<Color>(editor).unwrap(), canvas);
+    let background = frame
+        .quads
+        .iter()
+        .find(|q| q.rect == rect && q.uv == rndr_paint::solid_uv())
+        .unwrap();
+    assert_eq!(background.color, canvas);
+}
+#[test]
 fn retained_update_preserves_identity_buffer_viewport_and_history() {
     let (mut app, parent, doc) = boot();
     let handle = mount(&mut app, parent, doc);
