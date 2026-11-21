@@ -49,6 +49,11 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 use std::time::Duration;
 
+// Center the text with room for rasterized ink outside its nominal line box.
+const ROW_TEXT_BOX: LabelBox = LabelBox {
+    inset_y: 2.0,
+    ..LabelBox::CONTENT
+};
 const ROW_HEIGHT: f32 = 32.0;
 const INDENT: f32 = 16.0;
 const TYPEAHEAD: Duration = Duration::from_millis(500);
@@ -1811,7 +1816,7 @@ fn create_slot(world: &mut World, parent: Entity) -> Slot {
             ..Layout::column()
         },
         Label::new("").overflow(TextOverflow::Ellipsis),
-        LabelBox::CONTENT,
+        ROW_TEXT_BOX,
         row_type(13.0, 500),
     ));
     set_parent(world, label, root);
@@ -1822,7 +1827,7 @@ fn create_slot(world: &mut World, parent: Entity) -> Slot {
         },
         MaxSize::width(180.0),
         Label::new("").overflow(TextOverflow::Ellipsis),
-        LabelBox::CONTENT,
+        ROW_TEXT_BOX,
         row_type(12.0, 400),
     ));
     set_parent(world, secondary, root);
@@ -1833,7 +1838,7 @@ fn create_slot(world: &mut World, parent: Entity) -> Slot {
         },
         MaxSize::width(72.0),
         Label::new("").overflow(TextOverflow::Ellipsis),
-        LabelBox::CONTENT,
+        ROW_TEXT_BOX,
         row_type(12.0, 500),
     ));
     set_parent(world, badge, root);
@@ -2100,7 +2105,7 @@ fn set_label(world: &mut World, entity: Entity, text: &str, secondary: bool) {
     } else {
         Token::Text
     };
-    world.insert(entity, LabelBox::CONTENT);
+    world.insert(entity, ROW_TEXT_BOX);
     world.insert(entity, row_type(if secondary { 12.0 } else { 13.0 }, 500));
     if let Some(label) = world.get_mut::<Label>(entity) {
         label.text = text.to_string();
