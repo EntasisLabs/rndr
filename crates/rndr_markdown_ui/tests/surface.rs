@@ -929,7 +929,7 @@ fn callout_paints_tone_fill_and_accent() {
         .into_iter()
         .find(|child| {
             world.get::<Layout>(*child).is_some_and(
-                |layout| matches!(layout.width, Size::Px(width) if (width - 4.0).abs() < 0.5),
+                |layout| matches!(layout.width, Size::Px(width) if (width - 2.0).abs() < 0.5),
             )
         })
         .expect("accent bar");
