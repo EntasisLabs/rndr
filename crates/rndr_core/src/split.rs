@@ -30,6 +30,70 @@ impl Default for Splitter {
     }
 }
 
+/// Proportional pane sizing for a stack containing a leading pane, sash and
+/// trailing pane. Unlike a bare pixel splitter this is resolved as the parent
+/// is laid out, including when that parent is itself inside another split.
+#[derive(Clone, Copy, Debug)]
+pub struct SplitLayout {
+    /// First pane in stack order.
+    pub leading: Entity,
+    /// Handle carrying the minimum pane sizes.
+    pub sash: Entity,
+    /// Second pane in stack order.
+    pub trailing: Entity,
+    /// Requested leading fraction of the shared space, between zero and one.
+    pub ratio: f64,
+}
+impl Component for SplitLayout {}
+
+pub(crate) fn size_split(
+    world: &mut World,
+    parent: Entity,
+    layout: &Layout,
+    flow: &[Entity],
+    span: f32,
+) {
+    let Some(split) = world.get::<SplitLayout>(parent).copied() else {
+        return;
+    };
+    if !flow.contains(&split.leading) {
+        return;
+    }
+    let Some(spec) = world.get::<Splitter>(split.sash).copied() else {
+        return;
+    };
+    let other: f32 = flow
+        .iter()
+        .filter(|&&child| child != split.leading && child != split.trailing)
+        .filter_map(|&child| world.get::<Rect>(child))
+        .map(|r| match layout.axis {
+            Axis::Row => r.w,
+            Axis::Column => r.h,
+        })
+        .sum();
+    let pair = (span - other - layout.gap * flow.len().saturating_sub(1) as f32).max(0.0);
+    let px = if flow.contains(&split.trailing) {
+        ((f64::from(pair) * split.ratio) as f32).clamp(
+            spec.min_leading,
+            (pair - spec.min_trailing).max(spec.min_leading),
+        )
+    } else {
+        pair
+    };
+    if let Some(rect) = world.get_mut::<Rect>(split.leading) {
+        match layout.axis {
+            Axis::Row => rect.w = px,
+            Axis::Column => rect.h = px,
+        }
+    }
+    if let Some(l) = world.get_mut::<Layout>(split.leading) {
+        match layout.axis {
+            Axis::Row => l.width = Size::Px(px),
+            Axis::Column => l.height = Size::Px(px),
+        }
+    }
+}
+
 /// One captured splitter drag. Cleared when the pointer is released.
 ///
 /// [`crate::Shell`] inserts this resource. [`apply_split`] ignores the

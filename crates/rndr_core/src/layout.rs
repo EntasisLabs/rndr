@@ -677,6 +677,9 @@ fn refine_wrapped_heights(world: &mut World, entity: Entity, available_w: f32, x
         kids.into_iter().partition(|c| flex::in_flow(world, *c));
     let wrap = flex::wraps(world, entity, &layout);
     let gaps = layout.gap * flow.len().saturating_sub(1) as f32;
+    if layout.axis == Axis::Row && wrap.is_none() {
+        crate::split::size_split(world, entity, &layout, &flow, inner_w);
+    }
     let mut fixed_w = gaps;
     let mut fills = 0;
     if layout.axis == Axis::Row && wrap.is_none() {
@@ -1053,6 +1056,11 @@ fn place_stack(
     rect: Rect,
     clip: Clip,
 ) {
+    let span = match layout.axis {
+        Axis::Row => inner_w,
+        Axis::Column => inner_h,
+    };
+    crate::split::size_split(world, entity, layout, kids, span);
     let mut fixed = 0.0f32;
     let mut fill_count = 0usize;
     for child in kids {
