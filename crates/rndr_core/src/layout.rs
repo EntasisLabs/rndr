@@ -1488,7 +1488,18 @@ fn label_hug_width(
     }
     let line_h = engine.line_height(&style);
     let h = (2.0 * metrics.inset_y + lines as f32 * line_h).max(metrics.min_height);
-    let w = width + 2.0 * metrics.inset_x;
+    // Shaped advances are fractional. Round up to a whole device pixel so
+    // placement snapping cannot make the box narrower than its own text,
+    // which would ellipsize a label that fits.
+    let scale = world
+        .resource::<Viewport>()
+        .map(|viewport| viewport.scale)
+        .filter(|scale| scale.is_finite() && *scale > 0.0)
+        .unwrap_or(1.0);
+    let w = ((width + 2.0 * metrics.inset_x) * scale - 0.001)
+        .ceil()
+        .max(0.0)
+        / scale;
     Some((w, h))
 }
 

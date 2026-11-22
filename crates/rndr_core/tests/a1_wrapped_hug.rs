@@ -129,3 +129,111 @@ fn row_fill_widths_determine_hug_cross_height_before_clipping() {
     app.update();
     contains_hug_children(app.world());
 }
+
+/// Shaping engines report fractional advances; the builtin one does not.
+struct Fractional(BuiltinText);
+impl TextEngine for Fractional {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+    fn layout(&self, text: &str, style: &TextStyle, runs: &[TextSpan], max: f32) -> TextLayout {
+        self.0.layout(text, style, runs, max)
+    }
+    fn measure(&self, text: &str, style: &TextStyle, runs: &[TextSpan], max: f32) -> TextMeasure {
+        let mut m = self.0.measure(text, style, runs, max);
+        if !text.is_empty() {
+            m.width += 0.23;
+        }
+        m
+    }
+    fn line_height(&self, style: &TextStyle) -> f32 {
+        self.0.line_height(style)
+    }
+    fn unit_advance(&self, style: &TextStyle) -> f32 {
+        self.0.unit_advance(style)
+    }
+    fn solid_uv(&self, style: &TextStyle) -> [f32; 4] {
+        self.0.solid_uv(style)
+    }
+    fn coverage_atlas(&self) -> Option<std::sync::Arc<FontAtlas>> {
+        self.0.coverage_atlas()
+    }
+    fn color_atlas(&self) -> Option<std::sync::Arc<ColorAtlas>> {
+        self.0.color_atlas()
+    }
+    fn fallbacks(&self, family: &str) -> Vec<String> {
+        self.0.fallbacks(family)
+    }
+    fn set_fallbacks(&self, family: &str, faces: &[String]) {
+        self.0.set_fallbacks(family, faces);
+    }
+    fn register_font(&self, name: &str, font: std::sync::Arc<dyn Font>) {
+        self.0.register_font(name, font);
+    }
+    fn begin_frame(&self) {
+        self.0.begin_frame();
+    }
+    fn shape_count(&self) -> u64 {
+        self.0.shape_count()
+    }
+}
+
+/// Pixel snapping must never make a hugging label narrower than its own
+/// text, or an ellipsizing label truncates text that fits.
+#[test]
+fn hug_labels_are_never_snapped_narrower_than_their_text() {
+    for scale in [1.0, 1.5, 2.0] {
+        for offset in [0.0, 13.3, 13.7] {
+            let mut app = App::new();
+            let engine: std::sync::Arc<dyn TextEngine> =
+                std::sync::Arc::new(Fractional(BuiltinText::new()));
+            app.world_mut().insert_resource(engine);
+            app.add_plugin(Chrome);
+            let mut viewport = Viewport::new(600.0, 200.0);
+            viewport.scale = scale;
+            app.world_mut().insert_resource(viewport);
+            // A tree row: padding, gap, a Fill title that must give way, then
+            // hugging metadata.
+            let row = app.world_mut().spawn((Layout {
+                width: Size::Px(328.0 + offset),
+                padding: 4.0,
+                gap: 4.0,
+                ..Layout::row()
+            },));
+            append(
+                app.world_mut(),
+                row,
+                (
+                    Layout {
+                        width: Size::Fill,
+                        min_width: 0.0,
+                        ..Layout::column()
+                    },
+                    Label::new("A long note title that cannot fit inside this row at all")
+                        .overflow(TextOverflow::Ellipsis),
+                    LabelBox::CONTENT,
+                ),
+            );
+            let meta = append(
+                app.world_mut(),
+                row,
+                (
+                    Layout::column(),
+                    Label::new("Jan 1 · note").overflow(TextOverflow::Ellipsis),
+                    LabelBox::CONTENT,
+                ),
+            );
+            app.update();
+            app.update();
+            let world = app.world();
+            let text = text_engine(world)
+                .measure("Jan 1 · note", &style_for(world, meta), &[], f32::INFINITY)
+                .width;
+            let rect = *world.get::<Rect>(meta).unwrap();
+            assert!(
+                rect.w + 0.001 >= text,
+                "scale {scale} offset {offset}: {rect:?} narrower than {text}"
+            );
+        }
+    }
+}
