@@ -170,3 +170,140 @@ fn below_popups_near_the_right_edge_align_to_the_anchor_end() {
     let squeezed = popup_rect(at(10.0), Viewport::new(100.0, 300.0), 120.0, 40.0);
     assert_eq!((squeezed.x, squeezed.w), (0.0, 100.0));
 }
+
+mod reveal {
+    use rndr_core::motion::MotionSettings;
+    use rndr_core::{
+        open_popup, set_parent, AnchoredPopup, Color, Entity, Focus, Focusable, GenericInteraction,
+        Hidden, Layout, Opacity, PopupPlacement, Rect, Sim, Size, Transform, Viewport,
+    };
+    use std::time::Duration;
+
+    fn boot() -> (Sim, Entity, Entity) {
+        let mut sim = Sim::new();
+        sim.app.add_plugin(GenericInteraction);
+        sim.world().insert_resource(Viewport::new(400.0, 300.0));
+        let anchor = sim.world().spawn((
+            Layout {
+                width: Size::Px(100.0),
+                height: Size::Px(30.0),
+                ..Layout::column()
+            },
+            Color::rgb(0.2, 0.2, 0.2),
+            Focusable,
+        ));
+        let root = sim.world().spawn((
+            Layout {
+                width: Size::Px(120.0),
+                ..Layout::column()
+            },
+            Color::rgb(0.1, 0.1, 0.1),
+            Hidden,
+            PopupPlacement::Below,
+            AnchoredPopup {
+                anchor,
+                max_height: 200.0,
+                closed: |_, _| {},
+            },
+        ));
+        let row = sim.world().spawn((
+            Layout {
+                width: Size::Fill,
+                height: Size::Px(40.0),
+                ..Layout::column()
+            },
+            Focusable,
+        ));
+        set_parent(sim.world(), row, root);
+        sim.update();
+        (sim, anchor, root)
+    }
+
+    /// Open with focus inside, as a real trigger does.
+    fn open(sim: &mut Sim, root: Entity) {
+        assert!(open_popup(sim.world(), root));
+        let row = rndr_core::children_of(sim.world(), root)[0];
+        sim.world().resource_mut::<Focus>().unwrap().entity = Some(row);
+    }
+
+    fn step(sim: &mut Sim, ms: u64) {
+        sim.advance(Duration::from_millis(ms));
+        sim.update();
+    }
+
+    fn opacity(sim: &mut Sim, e: Entity) -> f32 {
+        sim.world().get::<Opacity>(e).map_or(1.0, |o| o.0)
+    }
+
+    fn dy(sim: &mut Sim, e: Entity) -> f32 {
+        sim.world()
+            .get::<Transform>(e)
+            .map_or(0.0, |t| t.translate[1])
+    }
+
+    #[test]
+    fn opening_fades_and_slides_from_the_anchor_then_settles() {
+        let (mut sim, anchor, root) = boot();
+        step(&mut sim, 16);
+        open(&mut sim, root);
+        step(&mut sim, 16);
+        // The opening frame presents the hidden end; the next is in flight.
+        assert_eq!(opacity(&mut sim, root), 0.0);
+        step(&mut sim, 40);
+        let popup = *sim.world().get::<Rect>(root).unwrap();
+        let below = popup.y >= sim.world().get::<Rect>(anchor).unwrap().y;
+        assert!(below);
+        let (a, y) = (opacity(&mut sim, root), dy(&mut sim, root));
+        assert!(a > 0.0 && a < 1.0, "fading in: {a}");
+        assert!(
+            y < 0.0 && y > -4.01,
+            "slides down from the anchor side: {y}"
+        );
+        // Layout and hit geometry never move; only the presented layer does.
+        assert_eq!(*sim.world().get::<Rect>(root).unwrap(), popup);
+        step(&mut sim, 400);
+        assert_eq!(opacity(&mut sim, root), 1.0);
+        assert_eq!(dy(&mut sim, root), 0.0);
+    }
+
+    #[test]
+    fn reduced_motion_keeps_position_and_only_fades() {
+        let (mut sim, _, root) = boot();
+        sim.world().insert_resource(MotionSettings {
+            reduced_motion: true,
+            ..Default::default()
+        });
+        step(&mut sim, 16);
+        open(&mut sim, root);
+        step(&mut sim, 16);
+        step(&mut sim, 40);
+        assert_eq!(dy(&mut sim, root), 0.0);
+        assert!(opacity(&mut sim, root) < 1.0);
+    }
+
+    #[test]
+    fn frames_without_a_running_clock_show_popups_settled() {
+        let (mut sim, _, root) = boot();
+        open(&mut sim, root);
+        sim.update();
+        assert_eq!(opacity(&mut sim, root), 1.0);
+        assert_eq!(dy(&mut sim, root), 0.0);
+    }
+
+    #[test]
+    fn reopening_replays_the_entrance() {
+        let (mut sim, _, root) = boot();
+        step(&mut sim, 16);
+        open(&mut sim, root);
+        step(&mut sim, 16);
+        step(&mut sim, 400);
+        assert_eq!(opacity(&mut sim, root), 1.0);
+        rndr_core::close_popup(sim.world(), root, false);
+        step(&mut sim, 16);
+        assert!(sim.world().has::<Hidden>(root), "closing is immediate");
+        open(&mut sim, root);
+        step(&mut sim, 16);
+        step(&mut sim, 40);
+        assert!(opacity(&mut sim, root) < 1.0);
+    }
+}

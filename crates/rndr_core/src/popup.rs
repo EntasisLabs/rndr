@@ -1,4 +1,10 @@
 //! Small retained popup scope integrated with canonical input and layout.
+//!
+//! An [`AnchoredPopup`] that becomes visible eases in: a short fade while it
+//! slides a few points from its anchor's side into place. Layout, hit
+//! geometry and focus are final on the opening frame; only the presented
+//! layer moves. Closing is immediate. Reduced motion keeps the position and
+//! only fades, and frames without a running clock show it settled.
 use crate::*;
 
 /// A detached Layout/Scroll root anchored to a live control. Hidden when closed.
@@ -344,5 +350,61 @@ pub(crate) fn beside_rect(anchor: Rect, viewport: Viewport, width: f32, height: 
         y: (anchor.y - 4.0).clamp(top, (bottom - h).max(top)),
         w,
         h,
+    }
+}
+
+/// The popup was visible on the previous frame.
+struct Revealed;
+impl Component for Revealed {}
+
+/// Distance, in points, an opening popup travels from its anchor's side.
+const REVEAL_TRAVEL: f32 = 4.0;
+/// Seconds an opening popup takes to settle.
+const REVEAL_SECONDS: f32 = 0.14;
+
+/// Start the entrance of popups that became visible this frame. Runs after
+/// layout, so placement relative to the anchor is current.
+pub(crate) fn reveal(world: &mut World) {
+    let clock = world
+        .resource::<crate::Time>()
+        .is_some_and(|time| !time.delta.is_zero());
+    for root in world.entities_with::<AnchoredPopup>() {
+        let shown = !world.has::<Hidden>(root);
+        if shown == world.has::<Revealed>(root) {
+            continue;
+        }
+        if !shown {
+            world.remove::<Revealed>(root);
+            continue;
+        }
+        world.insert(root, Revealed);
+        if !clock {
+            continue;
+        }
+        let anchor = world.get::<AnchoredPopup>(root).map(|p| p.anchor);
+        let (Some(popup), Some(from)) = (
+            world.get::<Rect>(root).copied(),
+            anchor.and_then(|a| world.get::<Rect>(a).copied()),
+        ) else {
+            continue;
+        };
+        // Travel away from the anchor: down when below it, up when above,
+        // sideways for a submenu beside its row.
+        let offset = if popup.x >= from.x + from.w - 0.5 {
+            [-REVEAL_TRAVEL, 0.0]
+        } else if popup.x + popup.w <= from.x + 0.5 {
+            [REVEAL_TRAVEL, 0.0]
+        } else if popup.y >= from.y + from.h * 0.5 {
+            [0.0, -REVEAL_TRAVEL]
+        } else {
+            [0.0, REVEAL_TRAVEL]
+        };
+        crate::motion::enter(
+            world,
+            root,
+            crate::motion::Transition::slide(offset[0], offset[1]).with_anim(
+                crate::motion::Curve::tween(REVEAL_SECONDS, crate::motion::Easing::EaseOut).into(),
+            ),
+        );
     }
 }
