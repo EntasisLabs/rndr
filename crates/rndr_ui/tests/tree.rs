@@ -596,3 +596,57 @@ fn one_hundred_thousand_nodes_stay_outside_the_window() {
     assert!(tree.row(sim.world(), NodeId(100_001)).is_some());
     assert!(tree.row(sim.world(), NodeId(2)).is_none());
 }
+
+fn chevron(sim: &mut Sim, tree: TreeHandle, id: NodeId) -> Entity {
+    let row = tree.row(sim.world(), id).unwrap();
+    let glyph = Icon::ChevronRight.scalar().to_string();
+    let world = sim.world();
+    children_of(world, row)
+        .into_iter()
+        .find(|e| world.get::<Label>(*e).is_some_and(|l| l.text == glyph))
+        .expect("one right-pointing chevron, turned to show state")
+}
+
+fn turn(sim: &mut Sim, e: Entity) -> f32 {
+    sim.world().get::<Transform>(e).map_or(0.0, |t| t.rotate)
+}
+
+#[test]
+fn disclosure_chevrons_turn_instead_of_swapping_glyphs() {
+    use std::f32::consts::FRAC_PI_2;
+    let (mut sim, parent) = boot(320.0, 400.0);
+    let nodes = vec![
+        TreeNode::new(1, "a").expandable(true),
+        TreeNode::new(2, "a-child").child(NodeId(1)),
+    ];
+    let tree = mount(
+        &mut sim,
+        parent,
+        TreeProps::new("Files").row_height(32.0),
+        &nodes,
+        &[],
+    );
+    size(&mut sim, tree.root, 320.0, 400.0);
+    settle(&mut sim);
+    let e = chevron(&mut sim, tree, NodeId(1));
+    assert_eq!(turn(&mut sim, e), 0.0);
+    tree.focus(sim.world(), NodeId(1)).unwrap();
+    // A running clock eases the quarter turn.
+    sim.advance(Duration::from_millis(16));
+    key(&mut sim, named(NamedKey::ArrowRight));
+    assert!(tree.expanded(sim.world(), NodeId(1)));
+    sim.advance(Duration::from_millis(50));
+    sim.update();
+    let c = chevron(&mut sim, tree, NodeId(1));
+    let mid = turn(&mut sim, c);
+    assert!(mid > 0.0 && mid < FRAC_PI_2, "turning: {mid}");
+    sim.advance(Duration::from_millis(400));
+    sim.update();
+    assert!((turn(&mut sim, e) - FRAC_PI_2).abs() < 1e-4);
+    // Without a running clock, state shows at once.
+    key(&mut sim, named(NamedKey::ArrowLeft));
+    sim.update();
+    assert!(!tree.expanded(sim.world(), NodeId(1)));
+    let c = chevron(&mut sim, tree, NodeId(1));
+    assert_eq!(turn(&mut sim, c), 0.0);
+}

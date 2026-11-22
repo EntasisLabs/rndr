@@ -2146,6 +2146,45 @@ fn theme_ink(world: &World) -> Color {
         .unwrap_or_else(|| UiTheme::default().color(Token::Secondary))
 }
 
+/// The node and disclosure state a recycled chevron last showed.
+struct Turned(NodeId, bool);
+impl Component for Turned {}
+
+/// One right-pointing glyph, turned a quarter clockwise when open. A node
+/// toggled under a running clock eases the turn; a rebound slot, the first
+/// bind, and clockless frames show the state at once.
+fn turn_chevron(world: &mut World, chevron: Entity, id: NodeId, open: bool) {
+    let angle = if open {
+        std::f32::consts::FRAC_PI_2
+    } else {
+        0.0
+    };
+    let previous = world.get::<Turned>(chevron).map(|t| (t.0, t.1));
+    if previous == Some((id, open)) {
+        return;
+    }
+    world.insert(chevron, Turned(id, open));
+    let clock = world
+        .resource::<rndr_core::Time>()
+        .is_some_and(|time| !time.delta.is_zero());
+    if clock && previous.is_some_and(|(was, _)| was == id) {
+        motion::animate(
+            world,
+            chevron,
+            motion::Prop::Rotate,
+            angle,
+            motion::Curve::tween(0.15, motion::Easing::EaseOut),
+        );
+        return;
+    }
+    if motion::target(world, chevron, motion::Prop::Rotate).is_some() {
+        motion::set(world, chevron, motion::Prop::Rotate, angle);
+    }
+    let mut transform = world.get::<Transform>(chevron).copied().unwrap_or_default();
+    transform.rotate = angle;
+    world.insert(chevron, transform);
+}
+
 struct Chevron<'a> {
     id: NodeId,
     label: &'a str,
@@ -2166,18 +2205,14 @@ fn bind_chevron(world: &mut World, tree: Entity, slot: &Slot, chevron: Chevron<'
     } = chevron;
     if branch && !loading {
         world.remove::<Hidden>(slot.chevron);
-        let icon = if open {
-            Icon::ChevronDown
-        } else {
-            Icon::ChevronRight
-        };
         world.insert(slot.chevron, LabelBox::CONTENT);
         world.insert(slot.chevron, row_type(12.0, 500));
         let ink = theme_ink(world);
         if let Some(text) = world.get_mut::<Label>(slot.chevron) {
-            text.text = icon.scalar().to_string();
+            text.text = Icon::ChevronRight.scalar().to_string();
             text.color = Some(ink);
         }
+        turn_chevron(world, slot.chevron, id, open);
         world.insert(
             slot.chevron,
             Button {
