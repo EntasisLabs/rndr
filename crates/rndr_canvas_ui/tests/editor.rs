@@ -351,3 +351,53 @@ fn line_arrow_and_frame_preview_follow_the_drag() {
         assert!(bounds.width >= 199.0, "{tool:?}: {bounds:?}");
     }
 }
+
+#[test]
+fn distribute_spaces_three_objects_and_zoom_fits_the_selection() {
+    let mut rig = Rig::new();
+    let shape = |id: &str, x: f64| {
+        Operation::put(Node::new(
+            id,
+            Content::Shape {
+                shape: ShapeKind::Rectangle,
+                fill: "#ffd166".into(),
+                stroke: "transparent".into(),
+                stroke_width: 0.0,
+                line: None,
+            },
+            Transform {
+                x,
+                y: 0.0,
+                width: 20.0,
+                height: 20.0,
+                rotation: 0.0,
+            },
+        ))
+    };
+    rig.editor.commit(
+        "Seed",
+        vec![shape("a", 0.0), shape("b", 30.0), shape("c", 200.0)],
+    );
+    let ids: Vec<String> = ["a", "b", "c"].map(String::from).to_vec();
+    rig.editor.select(&ids[..2]);
+    assert!(!rig.editor.distribute(Axis::X), "needs three");
+    rig.editor.select(&ids);
+    assert!(rig.editor.distribute(Axis::X));
+    let x = |id: &str| {
+        rig.editor
+            .nodes()
+            .into_iter()
+            .find(|n| n.id == id)
+            .unwrap()
+            .transform
+            .x
+    };
+    assert_eq!(x("b"), 100.0);
+
+    rig.editor.select(&["c".to_string()]);
+    rig.editor
+        .zoom_to_selection([400.0, 400.0], &rndr_canvas::EstimateMeasure);
+    let center = rig.editor.camera.scene_to_view(Vec2::new(210.0, 10.0));
+    assert!((center.x - 200.0).abs() < 1.0 && (center.y - 200.0).abs() < 1.0);
+    assert!(rig.editor.camera.zoom > 2.0, "{}", rig.editor.camera.zoom);
+}

@@ -10,8 +10,8 @@ use crate::paint::{affine, paint_scene, EngineMeasure, ImageIds};
 use rndr_canvas::text::{EstimateMeasure, TextMeasure};
 use rndr_canvas::Vec2;
 use rndr_core::{
-    platform_of, Color, CursorStyle, Input, LogicalKey, MotionWatch, NamedKey, PointerButton,
-    PointerKind as CoreKind, Pointers, Rect, SurfaceSlot, World,
+    hit_test, platform_of, Color, CursorStyle, Entity, Input, LogicalKey, MotionWatch, NamedKey,
+    Parent, PointerButton, PointerKind as CoreKind, Pointers, Rect, SurfaceSlot, World,
 };
 use rndr_paint::{Canvas, CanvasPainter, CanvasRegistry, FillRule, Path};
 
@@ -69,11 +69,36 @@ fn measure(world: &World) -> Box<dyn TextMeasure> {
 }
 
 pub(crate) fn slot_rect(world: &World, slot: u64) -> Option<Rect> {
+    slot_entity(world, slot).and_then(|e| world.get::<Rect>(e).copied())
+}
+
+fn slot_entity(world: &World, slot: u64) -> Option<Entity> {
     world
         .entities_with::<SurfaceSlot>()
         .into_iter()
         .find(|e| world.get::<SurfaceSlot>(*e).is_some_and(|s| s.id == slot))
-        .and_then(|e| world.get::<Rect>(e).copied())
+}
+
+/// Something painted above the slot, such as a floating toolbar the host
+/// laid over the canvas, is under `point`. Presses, hover and the wheel
+/// there belong to it, not to the canvas.
+fn covered(world: &World, slot: u64, point: [f32; 2]) -> bool {
+    let Some(slot) = slot_entity(world, slot) else {
+        return false;
+    };
+    let Some(mut hit) = hit_test(world, point[0], point[1]) else {
+        return false;
+    };
+    for _ in 0..256 {
+        if hit == slot {
+            return false;
+        }
+        match world.get::<Parent>(hit) {
+            Some(parent) => hit = parent.entity,
+            None => return true,
+        }
+    }
+    true
 }
 
 fn key(logical: &LogicalKey) -> Option<Key> {
@@ -236,14 +261,23 @@ pub fn take_wheel(world: &mut World) {
     let Some(rect) = slot_rect(world, slot) else {
         return;
     };
+    let Some((position, scroll)) = world
+        .resource::<Input>()
+        .map(|i| (i.pointer.position, i.scroll))
+    else {
+        return;
+    };
+    let [x, y] = position;
+    let inside = x >= rect.x && y >= rect.y && x < rect.x + rect.w && y < rect.y + rect.h;
+    if scroll == [0.0, 0.0] || !(inside || captured) {
+        return;
+    }
+    if !captured && covered(world, slot, [x, y]) {
+        return;
+    }
     let Some(input) = world.resource_mut::<Input>() else {
         return;
     };
-    let [x, y] = input.pointer.position;
-    let inside = x >= rect.x && y >= rect.y && x < rect.x + rect.w && y < rect.y + rect.h;
-    if input.scroll == [0.0, 0.0] || !(inside || captured) {
-        return;
-    }
     let scroll = std::mem::take(&mut input.scroll);
     if let Some(view) = world.resource_mut::<CanvasView>() {
         view.wheel[0] += scroll[0];
@@ -261,6 +295,16 @@ pub fn update(world: &mut World) {
     };
     let captured = world.resource::<CanvasView>().is_some_and(|v| v.captured);
     let mut input = editor_input(world, rect, captured);
+    // A press or hover over controls laid above the canvas is theirs. A drag
+    // that began on the canvas keeps going under them.
+    if !captured
+        && world
+            .resource::<Input>()
+            .is_some_and(|i| covered(world, slot, i.pointer.position))
+    {
+        input.pointer = None;
+        input.scroll = [0.0, 0.0];
+    }
     let measure = measure(world);
     let Some(view) = world.resource_mut::<CanvasView>() else {
         return;

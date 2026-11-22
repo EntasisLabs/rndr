@@ -111,3 +111,53 @@ fn claimed_wheel_survives_the_layout_scroll_pass() {
     view::take_wheel(&mut world);
     assert_eq!(world.resource::<Input>().unwrap().scroll, [0.0, 40.0]);
 }
+
+#[test]
+fn controls_laid_over_the_canvas_keep_their_presses() {
+    let mut world = world();
+    // A floating toolbar the host paints above the slot: a later sibling
+    // under the same parent.
+    let host = world.spawn((Layout::column(),));
+    world.insert(
+        host,
+        Rect {
+            x: 0.0,
+            y: 0.0,
+            w: 800.0,
+            h: 600.0,
+        },
+    );
+    let slot = world.entities_with::<rndr_core::SurfaceSlot>()[0];
+    rndr_core::set_parent(&mut world, slot, host);
+    let bar = world.spawn((Layout::column(),));
+    rndr_core::set_parent(&mut world, bar, host);
+    world.insert(
+        bar,
+        Rect {
+            x: 300.0,
+            y: 380.0,
+            w: 200.0,
+            h: 50.0,
+        },
+    );
+    // Pressing on the bar draws nothing.
+    step(&mut world, [320.0, 400.0], true, true, false);
+    step(&mut world, [420.0, 300.0], false, true, false);
+    step(&mut world, [420.0, 300.0], false, false, true);
+    let nodes = |w: &World| {
+        w.resource::<CanvasView>()
+            .unwrap()
+            .editor
+            .mutation()
+            .document
+            .scene
+            .nodes
+            .len()
+    };
+    assert_eq!(nodes(&world), 0);
+    // A drag that starts on the canvas keeps going under the bar.
+    step(&mut world, [150.0, 100.0], true, true, false);
+    step(&mut world, [350.0, 410.0], false, true, false);
+    step(&mut world, [350.0, 410.0], false, false, true);
+    assert_eq!(nodes(&world), 1);
+}

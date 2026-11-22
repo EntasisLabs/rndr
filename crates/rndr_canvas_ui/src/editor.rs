@@ -349,7 +349,10 @@ impl CanvasEditor {
     /// Edits `document`, read by the host, without a store: saves show at
     /// once and wait in [`CanvasEditor::take_outgoing`] for the host to send.
     pub fn remote(document: Mutation) -> Self {
-        Self::with(Backend::Remote(Box::new(Remote::new(document.clone()))), document)
+        Self::with(
+            Backend::Remote(Box::new(Remote::new(document.clone()))),
+            document,
+        )
     }
 
     fn with(backend: Backend, current: Mutation) -> Self {
@@ -1059,6 +1062,28 @@ impl CanvasEditor {
     pub fn zoom_by(&mut self, factor: f64, viewport: [f32; 2]) {
         let center = Vec2::new(f64::from(viewport[0]) / 2.0, f64::from(viewport[1]) / 2.0);
         self.camera = self.camera.zoom_at(center, self.camera.zoom * factor);
+    }
+
+    /// Spreads three or more selected objects evenly along `axis`.
+    pub fn distribute(&mut self, axis: rndr_canvas::Axis) -> bool {
+        if self.selection.len() < 3 {
+            return false;
+        }
+        let nodes = self.nodes();
+        let ops = SceneIndex::new(&nodes).distribute(&self.selection, axis);
+        self.commit("Distribute", ops)
+    }
+
+    /// Fits the selection in the view, or the whole scene with nothing
+    /// selected.
+    pub fn zoom_to_selection(&mut self, viewport: [f32; 2], measure: &dyn TextMeasure) {
+        let nodes = self.nodes();
+        let index = SceneIndex::with_measure(&nodes, measure);
+        let Some(bounds) = index.selection_bounds(&self.selection) else {
+            return self.zoom_to_fit(viewport, measure);
+        };
+        let (w, h) = (f64::from(viewport[0]), f64::from(viewport[1]));
+        self.camera = Camera::fit(Some(bounds), w, h, (w * 0.1).min(56.0));
     }
 
     /// Fits the visible scene in the view.

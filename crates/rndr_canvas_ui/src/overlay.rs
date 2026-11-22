@@ -22,8 +22,15 @@ pub struct OverlayTheme {
 
 impl Default for OverlayTheme {
     fn default() -> Self {
-        use rndr_ui::{Token, UiTheme};
-        let theme = UiTheme::default();
+        Self::from_theme(&rndr_ui::UiTheme::default())
+    }
+}
+
+impl OverlayTheme {
+    /// Selection, guides and the eraser trail in `theme`'s colors, so an
+    /// application palette reaches the canvas chrome too.
+    pub fn from_theme(theme: &rndr_ui::UiTheme) -> Self {
+        use rndr_ui::Token;
         Self {
             accent: theme.color(Token::Accent),
             handle_fill: theme.color(Token::OnAccent),

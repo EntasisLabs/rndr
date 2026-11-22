@@ -26,6 +26,10 @@
 
 - `CanvasEditor::remote(mutation)` edits a document without a store. Saves show at once, as the confirmed document with unconfirmed edits applied on top, and wait in `take_outgoing()` for the host to send with any client or runtime. The host reports back with `confirm`, `fail`, `replace`, or `fail_get`. One request is in flight at a time, and each edit takes its expected revision from the last confirmed document as it leaves the queue. A storage failure keeps the request and its id until `retry`; a stale revision drops unconfirmed edits and asks for the document; undo and redo go through the store once nothing else is unconfirmed. `CanvasEditor::open` keeps saving through a `CanvasStore` in the same call.
 
+- The canvas view leaves presses, hover and the wheel to anything a host paints above its slot, such as floating toolbars, unless a drag that began on the canvas is still held.
+- `CanvasEditor::distribute(axis)` spaces three or more selected objects evenly, and `zoom_to_selection` fits the selection (or the scene with nothing selected). `OverlayTheme::from_theme` colors selection, guides and the eraser trail from an application palette.
+- The icon set adds Lucide's `mouse-pointer-2`, `hand`, `pen-tool`, `eraser`, `shapes`, `frame`, `image-plus`, `group`, `ungroup`, `copy-plus`, `scan` and `move-up-right`. Icons stay sorted by id, so existing scalars move; use `Icon` rather than stored code points.
+
 ### Interaction polish
 
 - Command palette rows rest on the popup's overlay instead of content-colored slabs: virtual list rows at rest, disabled, or not yet bound show the plane they sit on, and the palette's list is clear. Palette icons fill their 16-point slot, and a row's per-frame label pass no longer cuts an icon-only label to `…` or uses it as the truncation tip.
