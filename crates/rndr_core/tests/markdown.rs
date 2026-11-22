@@ -605,21 +605,30 @@ fn list_markers_share_a_column_and_checks_read_apart() {
     for entity in &boxes {
         let border = app.world().get::<Border>(*entity).unwrap();
         assert!(border.width >= 1.5, "border {}", border.width);
-        assert_eq!(border.color, theme.muted);
         let rect = app.world().get::<Rect>(*entity).unwrap();
         assert!(rect.w >= 12.0 && rect.h >= 12.0, "box {rect:?}");
     }
+    // Open boxes are a quiet well; done ones take the accent and a check.
+    let fill = |e: &Entity| *app.world().get::<rndr_core::Color>(*e).unwrap();
+    let stroke = |e: &Entity| app.world().get::<Border>(*e).unwrap().color;
+    assert!(boxes
+        .iter()
+        .any(|e| fill(e) == theme.code_bg && stroke(e) == theme.muted));
+    assert!(boxes
+        .iter()
+        .any(|e| fill(e) == theme.accent && stroke(e) == theme.accent));
+    let check = rndr_core::Icon::Check.scalar().to_string();
     let marks: Vec<_> = boxes
         .iter()
         .filter_map(|entity| {
             children_of(app.world(), *entity).into_iter().find(|child| {
-                app.world()
-                    .get::<rndr_core::Color>(*child)
-                    .is_some_and(|color| *color == theme.text)
+                app.world().get::<Label>(*child).is_some_and(|label| {
+                    label.text == check && label.color == Some(theme.on_accent)
+                })
             })
         })
         .collect();
-    assert_eq!(marks.len(), 1, "checked mark stays filled");
+    assert_eq!(marks.len(), 1, "one checked mark");
     let _ = view;
 }
 
@@ -673,6 +682,36 @@ A paragraph above the list.
     // Item text still sits one marker column in from the paragraph.
     let item = label_rect(app.world(), "bullet item").x + TEXT_ORIGIN_X;
     assert!(item > text_edge + 16.0, "item text {item} vs {text_edge}");
+    // In a tasks-only list the item label's own inset is the only space
+    // after the box.
+    let mut tasks = App::new();
+    tasks.add_plugin(MarkdownPlugin);
+    tasks
+        .world_mut()
+        .insert_resource(rndr_core::MarkdownTheme::default());
+    tasks
+        .world_mut()
+        .insert_resource(Viewport::new(640.0, 480.0));
+    let _tasks_view = rndr_core::markdown_view(tasks.world_mut(), "- [ ] only task\n");
+    tasks.update();
+    let check = tasks
+        .world()
+        .entities_with::<Border>()
+        .into_iter()
+        .find(|e| {
+            tasks
+                .world()
+                .get::<Layout>(*e)
+                .is_some_and(|layout| matches!(layout.width, Size::Px(w) if (w - 14.0).abs() < 0.5))
+        })
+        .expect("task box");
+    let r = *tasks.world().get::<Rect>(check).unwrap();
+    let text = label_rect(tasks.world(), "only task").x + TEXT_ORIGIN_X;
+    assert!(
+        (text - (r.x + r.w) - TEXT_ORIGIN_X).abs() < 0.5,
+        "check ends {}, text at {text}",
+        r.x + r.w
+    );
     let _ = view;
 }
 
@@ -884,4 +923,116 @@ fn reader_fence_fits_wrapped_lines_after_resize_with_local_typography() {
         );
         assert!(label_rect(world, "After").y >= rect.y + rect.h - 0.01);
     }
+}
+
+#[test]
+fn tables_draw_one_collapsed_grid_with_a_filled_header() {
+    let source = "\
+| Kind | State |
+| --- | --- |
+| Mixed blocks | Retained |
+| Tables | Gridded |
+";
+    let mut app = App::new();
+    app.add_plugin(MarkdownPlugin);
+    let theme = rndr_core::MarkdownTheme::default();
+    app.world_mut().insert_resource(theme);
+    app.world_mut().insert_resource(Viewport::new(640.0, 480.0));
+    let view = rndr_core::markdown_view(app.world_mut(), source);
+    app.update();
+
+    let fill = |text: &str| {
+        let label = app
+            .world()
+            .entities_with::<Label>()
+            .into_iter()
+            .find(|e| app.world().get::<Label>(*e).unwrap().text == text)
+            .unwrap();
+        *app.world().get::<rndr_core::Color>(label).unwrap()
+    };
+    assert_eq!(fill("Kind"), theme.header);
+    assert_eq!(fill("Retained"), theme.surface);
+
+    // Horizontal rules: the header's top and every row's bottom. Rows stack
+    // with no gap, so no two rules sit next to each other.
+    let rules: Vec<Rect> = app
+        .world()
+        .entities_with::<rndr_core::Color>()
+        .into_iter()
+        .filter(|e| {
+            *app.world().get::<rndr_core::Color>(*e).unwrap() == theme.grid
+                && app.world().get::<Label>(*e).is_none()
+        })
+        .map(|e| *app.world().get::<Rect>(e).unwrap())
+        .collect();
+    let mut across: Vec<Rect> = rules.iter().copied().filter(|r| r.h < 1.5).collect();
+    across.sort_by(|a, b| a.y.total_cmp(&b.y));
+    assert_eq!(across.len(), 4, "rules {across:?}");
+    for pair in across.windows(2) {
+        assert!(pair[1].y - pair[0].y > 8.0, "doubled rule {pair:?}");
+    }
+    // Three vertical rules in each of three rows: both sides and the column split.
+    assert_eq!(rules.iter().filter(|r| r.w < 1.5).count(), 9, "{rules:?}");
+    let frames: Vec<Rect> = across
+        .windows(2)
+        .map(|p| Rect {
+            x: p[0].x,
+            y: p[0].y,
+            w: p[0].w,
+            h: p[1].y + p[1].h - p[0].y,
+        })
+        .collect();
+    // Cells sit one rule in from the frame on every side.
+    let header = label_rect(app.world(), "Kind");
+    assert!((header.x - frames[0].x - 1.0).abs() < 0.5, "{header:?}");
+    assert!((header.y - frames[0].y - 1.0).abs() < 0.5, "{header:?}");
+    let body = label_rect(app.world(), "Retained");
+    assert!(
+        (frames[1].x + frames[1].w - (body.x + body.w) - 1.0).abs() < 0.5,
+        "{body:?} in {:?}",
+        frames[1]
+    );
+    assert!(
+        (frames[1].y + frames[1].h - (body.y + body.h) - 1.0).abs() < 0.5,
+        "{body:?} in {:?}",
+        frames[1]
+    );
+    let _ = view;
+}
+
+#[test]
+fn a_quote_bar_ends_with_its_text_unless_the_quote_continues() {
+    let source = "\
+> first quoted paragraph
+
+> second quoted paragraph
+
+```
+code below
+```
+";
+    let mut app = App::new();
+    app.add_plugin(MarkdownPlugin);
+    let theme = rndr_core::MarkdownTheme::default();
+    app.world_mut().insert_resource(theme);
+    app.world_mut().insert_resource(Viewport::new(640.0, 480.0));
+    let view = rndr_core::markdown_view(app.world_mut(), source);
+    app.update();
+
+    let mut bars: Vec<Rect> = app
+        .world()
+        .entities_with::<rndr_core::Color>()
+        .into_iter()
+        .filter(|e| *app.world().get::<rndr_core::Color>(*e).unwrap() == theme.quote)
+        .map(|e| *app.world().get::<Rect>(e).unwrap())
+        .collect();
+    bars.sort_by(|a, b| a.y.total_cmp(&b.y));
+    assert_eq!(bars.len(), 2, "bars {bars:?}");
+    // The first bar runs into the second, so the quote reads as one.
+    assert!((bars[0].y + bars[0].h - bars[1].y).abs() < 0.5, "{bars:?}");
+    // The last bar stops with its text, a block gap above the code.
+    let code = label_rect(app.world(), "code below");
+    let last = bars[1].y + bars[1].h;
+    assert!(code.y - last >= 8.0, "bar ends {last}, code at {}", code.y);
+    let _ = view;
 }

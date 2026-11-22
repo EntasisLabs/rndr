@@ -72,6 +72,12 @@ impl UiTheme {
             .map(|(f, s, i)| (self.color(f), self.color(s), self.color(i))),
             quote: self.color(Token::StrongStroke),
             rule: self.color(Token::SubtleStroke),
+            // Rules carry structure here, unlike the decorative thematic
+            // break, so they take the stroke that holds up on light pages.
+            grid: self.color(Token::StrongStroke),
+            header: self.color(Token::Raised),
+            accent: self.color(Token::Accent),
+            on_accent: self.color(Token::OnAccent),
             keyword: self.color(Token::InfoText),
             string: self.color(Token::SuccessText),
             number: self.color(Token::WarningText),

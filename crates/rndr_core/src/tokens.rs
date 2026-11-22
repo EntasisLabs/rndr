@@ -28,6 +28,10 @@ impl Default for MarkdownTheme {
             inline_bg: Color::rgb(0.20, 0.24, 0.30),
             quote: Color::rgb(0.45, 0.55, 0.68),
             rule: Color::rgb(0.30, 0.33, 0.38),
+            grid: Color::rgb(0.24, 0.26, 0.30),
+            header: Color::rgb(0.14, 0.15, 0.18),
+            accent: Color::rgb(0.45, 0.68, 0.95),
+            on_accent: Color::rgb(0.06, 0.08, 0.12),
             keyword: Color::rgb(0.55, 0.62, 0.95),
             string: Color::rgb(0.62, 0.80, 0.55),
             number: Color::rgb(0.86, 0.70, 0.42),
@@ -95,4 +99,4 @@ pub const CLEAR: Color = Color::rgb(0.06, 0.07, 0.09);
 /// Corner radius of a square primitive.
 pub const SQUARE: f32 = 0.;
 /// Radius for the small headless task marker.
-pub(crate) const TASK_CORNER: f32 = 2.;
+pub(crate) const TASK_CORNER: f32 = 4.;

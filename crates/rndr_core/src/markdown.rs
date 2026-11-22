@@ -112,11 +112,14 @@ impl Component for MarkdownView {}
 const PAD: f32 = 16.0;
 const BLOCK_GAP: f32 = 12.0;
 const TIGHT_GAP: f32 = 0.0;
+/// Space after a quote bar.
 const ROW_GAP: f32 = 8.0;
 const BAR_W: f32 = 3.0;
 const QUOTE_STEP: f32 = 12.0;
 const BULLET: f32 = 6.0;
 const CHECK: f32 = 14.0;
+const CHECK_STROKE: f32 = 1.5;
+const CHECK_GLYPH: f32 = 11.0;
 const CODE_FAMILY: &str = "monospace";
 
 fn parser_options() -> Options {
@@ -249,6 +252,14 @@ pub struct MarkdownTheme {
     pub card_radius: f32,
     /// Thematic break.
     pub rule: Color,
+    /// Table grid rules.
+    pub grid: Color,
+    /// Table header cell fill.
+    pub header: Color,
+    /// Checked task box fill and stroke.
+    pub accent: Color,
+    /// Check mark drawn on [`Self::accent`].
+    pub on_accent: Color,
     /// Keyword tokens. Used when the `highlight` feature is on.
     pub keyword: Color,
     /// String tokens. Used when the `highlight` feature is on.
@@ -1075,6 +1086,13 @@ fn reconcile(
         } else {
             apply_height(world, slot.entity, content, outer);
         }
+        if is_row(block) && block.quote > 0 {
+            // A bar runs through the gap only into a block that continues
+            // the quote; otherwise it ends with its text, so it never butts
+            // into the code block or paragraph below.
+            let continues = doc.blocks.get(index + 1).is_some_and(|next| next.quote > 0);
+            fit_quote_bar(world, slot.entity, if continues { outer } else { content });
+        }
         slot.index = index as u32;
         world.insert(slot.entity, Parent { entity: view });
         column.push(slot.entity);
@@ -1252,23 +1270,11 @@ fn label_width(inner: f32, block: &MarkdownBlock, columns: &ListColumns) -> f32 
     if block.callout.is_some() {
         return inner;
     }
-    let mut width = inner;
-    let mut gaps = 0.0;
+    let mut width = inner - spacer_width(columns, block) - column_of(columns, block);
     if block.quote > 0 {
         width -= BAR_W;
-        gaps += ROW_GAP;
     }
-    let spacer = spacer_width(columns, block);
-    if spacer > 0.0 {
-        width -= spacer;
-        gaps += ROW_GAP;
-    }
-    let marker = column_of(columns, block);
-    if marker > 0.0 {
-        width -= marker;
-        gaps += ROW_GAP;
-    }
-    (width - gaps).max(16.0)
+    width.max(16.0)
 }
 
 /// Marker column shared by every list depth, so a two-digit number and a
@@ -1307,7 +1313,9 @@ fn number_label_width(world: &World, base: &TextStyle, n: u64) -> f32 {
         &[],
         f32::INFINITY,
     );
-    measured.width.ceil() + 2.0 * TEXT_ORIGIN_X
+    // Leading inset only: the item label's own inset is the space after the
+    // period.
+    measured.width.ceil() + TEXT_ORIGIN_X
 }
 
 fn column_of(columns: &ListColumns, block: &MarkdownBlock) -> f32 {
@@ -1318,18 +1326,20 @@ fn column_of(columns: &ListColumns, block: &MarkdownBlock) -> f32 {
     }
 }
 
+/// Lead between the quote bar (if any) and the marker or text. Rows have no
+/// gap of their own: the label's text inset is the space after a marker, so
+/// this carries the gap after a quote bar, quote nesting, and list nesting.
+/// Each list level steps by one marker column, so a nested marker starts on
+/// its parent's text edge.
 fn spacer_width(columns: &ListColumns, block: &MarkdownBlock) -> f32 {
+    let bar = if block.quote > 0 { ROW_GAP } else { 0.0 };
     let quote = f32::from(block.quote.saturating_sub(1)) * QUOTE_STEP;
-    let depth = block.depth;
-    let nest = if depth <= 1 || columns.width <= 0.0 {
+    let nest = if block.depth <= 1 || columns.width <= 0.0 {
         0.0
     } else {
-        // One gap sits between the spacer and the marker. Extra levels fold
-        // that gap into the spacer so each level's text starts one column
-        // further right than the level above it.
-        f32::from(depth - 1) * columns.width + f32::from(depth - 2) * ROW_GAP
+        f32::from(block.depth - 1) * columns.width
     };
-    quote + nest
+    bar + quote + nest
 }
 
 /// Space before a marker inside its column. A bullet or checkbox starts on
@@ -1408,6 +1418,8 @@ fn fill_color(theme: &MarkdownTheme, block: &MarkdownBlock) -> Color {
 fn glyph_color(theme: &MarkdownTheme, block: &MarkdownBlock) -> Color {
     match block.kind {
         MarkdownKind::Code => theme.code,
+        // Done items step back so the open ones lead.
+        MarkdownKind::Task(true) => theme.muted,
         _ => theme.text,
     }
 }
@@ -1462,7 +1474,7 @@ fn spawn_block_inner(
     columns: &ListColumns,
 ) -> Entity {
     if !block.cells.is_empty() {
-        return table_view::spawn(world, view, index, block, outer, theme, base);
+        return table_view::spawn(world, view, index, block, content, outer, theme, base);
     }
     if matches!(block.kind, MarkdownKind::Rule) {
         let column = world.spawn((
@@ -1501,7 +1513,7 @@ fn spawn_block_inner(
     let row = world.spawn((
         Layout {
             axis: Axis::Row,
-            gap: ROW_GAP,
+            gap: crate::tokens::space::ZERO,
             padding: crate::tokens::space::ZERO,
             width: Size::Fill,
             height: Size::Px(outer),
@@ -1582,7 +1594,7 @@ fn spawn_marker_inner(
             Color::TRANSPARENT,
             number_label_style(base),
         )),
-        MarkdownKind::Task(checked) => spawn_check(world, checked, theme, line_h),
+        MarkdownKind::Task(checked) => spawn_check(world, checked, theme, base, line_h),
         _ => spawn_bullet(world, theme, line_h),
     }
 }
@@ -1604,7 +1616,13 @@ fn spawn_bullet(world: &mut World, theme: &MarkdownTheme, line_h: f32) -> Entity
     column
 }
 
-fn spawn_check(world: &mut World, checked: bool, theme: &MarkdownTheme, line_h: f32) -> Entity {
+fn spawn_check(
+    world: &mut World,
+    checked: bool,
+    theme: &MarkdownTheme,
+    base: &TextStyle,
+    line_h: f32,
+) -> Entity {
     let column = world.spawn(box_layout(Axis::Column, Size::Px(CHECK), Size::Hug));
     let top = world.spawn(box_layout(
         Axis::Column,
@@ -1612,33 +1630,44 @@ fn spawn_check(world: &mut World, checked: bool, theme: &MarkdownTheme, line_h: 
         Size::Px(marker_top(line_h, CHECK)),
     ));
     set_parent(world, top, column);
+    let (fill, stroke) = check_colors(checked, theme);
     let border = world.spawn((
-        Layout {
-            axis: Axis::Column,
-            gap: crate::tokens::space::ZERO,
-            padding: if checked {
-                crate::tokens::space::X4
-            } else {
-                crate::tokens::space::ZERO
-            },
-            width: Size::Px(CHECK),
-            height: Size::Px(CHECK),
-            min_width: CHECK,
-            min_height: CHECK,
-        },
-        theme.surface,
+        box_layout(Axis::Column, Size::Px(CHECK), Size::Px(CHECK)),
+        fill,
         Border {
-            color: theme.muted,
-            width: 1.5,
+            color: stroke,
+            width: CHECK_STROKE,
         },
         Radius(crate::tokens::TASK_CORNER),
     ));
     set_parent(world, border, column);
     if checked {
-        let mark = world.spawn((box_layout(Axis::Column, Size::Fill, Size::Fill), theme.text));
+        // The glyph fills the box itself: a label inset would clip it away.
+        let mark = world.spawn((
+            box_layout(Axis::Column, Size::Px(CHECK), Size::Px(CHECK)),
+            Label::new(crate::Icon::Check.scalar().to_string())
+                .with_color(theme.on_accent)
+                .overflow(TextOverflow::Visible),
+            crate::LabelBox::CONTENT,
+            TextStyle {
+                size: CHECK_GLYPH,
+                align: crate::text::TextAlign::Center,
+                line_height: None,
+                ..base.clone()
+            },
+        ));
         set_parent(world, mark, border);
     }
     column
+}
+
+/// Fill and stroke of a task box: a quiet well while open, the accent once done.
+fn check_colors(checked: bool, theme: &MarkdownTheme) -> (Color, Color) {
+    if checked {
+        (theme.accent, theme.accent)
+    } else {
+        (theme.code_bg, theme.muted)
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1745,7 +1774,7 @@ fn update_block(
         entity,
         Layout {
             axis: Axis::Row,
-            gap: ROW_GAP,
+            gap: crate::tokens::space::ZERO,
             padding: crate::tokens::space::ZERO,
             width: Size::Fill,
             height: Size::Px(outer),
@@ -1879,25 +1908,38 @@ fn sync_marker(
 fn sync_check(world: &mut World, inner: Entity, checked: bool, theme: &MarkdownTheme) -> bool {
     let Some(border) = children_of(world, inner)
         .into_iter()
-        .find(|child| world.has::<Color>(*child))
+        .find(|child| world.has::<Border>(*child))
     else {
         return false;
     };
-    world.insert(border, theme.surface);
+    let (fill, stroke) = check_colors(checked, theme);
+    world.insert(border, fill);
     world.insert(
         border,
         Border {
-            color: theme.muted,
-            width: 1.5,
+            color: stroke,
+            width: CHECK_STROKE,
         },
     );
     if checked {
         let Some(mark) = children_of(world, border).into_iter().next() else {
             return false;
         };
-        world.insert(mark, theme.text);
+        let Some(label) = world.get_mut::<Label>(mark) else {
+            return false;
+        };
+        label.color = Some(theme.on_accent);
     }
     true
+}
+
+fn fit_quote_bar(world: &mut World, row: Entity, height: f32) {
+    let bar = children_of(world, row).into_iter().find(|child| {
+        world.has::<Color>(*child) && !world.has::<Label>(*child) && !world.has::<Marker>(*child)
+    });
+    if let Some(bar) = bar {
+        set_px_height(world, bar, height);
+    }
 }
 
 fn apply_height(world: &mut World, entity: Entity, content: f32, outer: f32) {
