@@ -147,3 +147,26 @@ fn opening_a_sibling_submenu_closes_the_other_but_keeps_the_parent() {
     assert!(!visible(&app, first));
     assert!(visible(&app, second));
 }
+
+#[test]
+fn below_popups_near_the_right_edge_align_to_the_anchor_end() {
+    use rndr_core::popup_rect;
+    let viewport = Viewport::new(400.0, 300.0);
+    let at = |x: f32| Rect {
+        x,
+        y: 100.0,
+        w: 60.0,
+        h: 30.0,
+    };
+    // Room to the right: the leading edges align, as before.
+    assert_eq!(popup_rect(at(20.0), viewport, 120.0, 40.0).x, 20.0);
+    // A trigger at the trailing edge keeps its menu under it, not flush
+    // against the window edge.
+    let end = popup_rect(at(330.0), viewport, 120.0, 40.0);
+    assert_eq!(end.x + end.w, 390.0);
+    // Wider than the space left of the anchor end: still inside the window.
+    let wide = popup_rect(at(20.0), viewport, 120.0, 40.0);
+    assert!(wide.x >= 0.0 && wide.x + wide.w <= 400.0);
+    let squeezed = popup_rect(at(10.0), Viewport::new(100.0, 300.0), 120.0, 40.0);
+    assert_eq!((squeezed.x, squeezed.w), (0.0, 100.0));
+}

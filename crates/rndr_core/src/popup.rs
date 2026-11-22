@@ -288,7 +288,8 @@ pub(crate) fn key(world: &mut World, event: &KeyEvent) -> bool {
     }
 }
 
-/// Viewport-aware anchored rectangle. Insets are respected; prefers below then above.
+/// Viewport-aware anchored rectangle. Insets are respected; prefers below then above,
+/// and leading-edge alignment, then trailing-edge alignment with the anchor.
 /// Height is constrained to the larger available side; width never exceeds viewport.
 pub fn popup_rect(anchor: Rect, viewport: Viewport, width: f32, height: f32) -> Rect {
     let left = viewport.insets.left;
@@ -304,8 +305,16 @@ pub fn popup_rect(anchor: Rect, viewport: Viewport, width: f32, height: f32) -> 
     let down = height <= below || below >= above;
     let h = height.max(0.0).min(if down { below } else { above });
     let w = width.max(0.0).min((right - left).max(0.0));
+    // Leading edges align when the popup fits; otherwise a sized anchor's
+    // popup ends at its trailing edge, rather than pressing against the
+    // window edge. A point anchor keeps the plain viewport clamp.
+    let x = if anchor.x + w <= right || anchor.w <= 0.0 {
+        anchor.x
+    } else {
+        anchor.x + anchor.w - w
+    };
     Rect {
-        x: anchor.x.clamp(left, (right - w).max(left)),
+        x: x.clamp(left, (right - w).max(left)),
         y: if down {
             (anchor_bottom + 4.0).clamp(top, (bottom - h).max(top))
         } else {
