@@ -624,6 +624,59 @@ fn list_markers_share_a_column_and_checks_read_apart() {
 }
 
 #[test]
+fn list_markers_start_on_the_paragraph_text_edge() {
+    let source = "\
+A paragraph above the list.
+
+- bullet item
+- [ ] open task
+1. numbered item
+";
+    let mut app = App::new();
+    app.add_plugin(MarkdownPlugin);
+    app.world_mut()
+        .insert_resource(rndr_core::MarkdownTheme::default());
+    app.world_mut().insert_resource(Viewport::new(640.0, 720.0));
+    let view = rndr_core::markdown_view(app.world_mut(), source);
+    app.update();
+
+    let paragraph = label_rect(app.world(), "A paragraph above the list.");
+    let text_edge = paragraph.x + TEXT_ORIGIN_X;
+    let square = |entity: &Entity, side: f32| {
+        app.world().get::<Layout>(*entity).is_some_and(|layout| {
+            matches!(layout.width, Size::Px(w) if (w - side).abs() < 0.5)
+                && matches!(layout.height, Size::Px(h) if (h - side).abs() < 0.5)
+        })
+    };
+    let dot = app
+        .world()
+        .entities_with::<rndr_core::Radius>()
+        .into_iter()
+        .find(|e| square(e, 6.0))
+        .expect("bullet dot");
+    let check = app
+        .world()
+        .entities_with::<Border>()
+        .into_iter()
+        .find(|e| square(e, 14.0))
+        .expect("task box");
+    for (name, x) in [
+        ("bullet", app.world().get::<Rect>(dot).unwrap().x),
+        ("checkbox", app.world().get::<Rect>(check).unwrap().x),
+        ("number", label_rect(app.world(), "1.").x + TEXT_ORIGIN_X),
+    ] {
+        assert!(
+            (x - text_edge).abs() < 0.5,
+            "{name} starts at {x}, paragraph text at {text_edge}"
+        );
+    }
+    // Item text still sits one marker column in from the paragraph.
+    let item = label_rect(app.world(), "bullet item").x + TEXT_ORIGIN_X;
+    assert!(item > text_edge + 16.0, "item text {item} vs {text_edge}");
+    let _ = view;
+}
+
+#[test]
 fn drag_past_the_end_of_a_line_does_not_copy_a_leading_blank_line() {
     let source = "Alpha\n\nSee [the notes](https://example.com) now.";
     let (mut app, view) = boot(source, 420.0, 280.0);

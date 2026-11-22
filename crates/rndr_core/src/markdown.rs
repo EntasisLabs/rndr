@@ -1332,10 +1332,16 @@ fn spacer_width(columns: &ListColumns, block: &MarkdownBlock) -> f32 {
     quote + nest
 }
 
-fn marker_lead(block: &MarkdownBlock) -> f32 {
+/// Space before a marker inside its column. A bullet or checkbox starts on
+/// the paragraph text edge (labels inset text by [`TEXT_ORIGIN_X`]) instead
+/// of hanging into the margin, however wide numbers make the shared column.
+/// Numbers sit flush with the column's end so `9.` and `10.` align on the
+/// period.
+fn marker_gap(block: &MarkdownBlock, column: f32, box_w: f32) -> f32 {
+    let room = (column - box_w).max(0.0);
     match block.kind {
-        MarkdownKind::Bullet | MarkdownKind::Task(_) => TEXT_ORIGIN_X,
-        _ => 0.0,
+        MarkdownKind::Bullet | MarkdownKind::Task(_) => TEXT_ORIGIN_X.min(room),
+        _ => room,
     }
 }
 
@@ -1550,7 +1556,7 @@ fn spawn_marker(
         },
     ));
     let box_w = marker_box(world, base, block);
-    let gap_w = (column - box_w - marker_lead(block)).max(0.0);
+    let gap_w = marker_gap(block, column, box_w);
     let gap = world.spawn((
         MarkerGap,
         box_layout(Axis::Column, Size::Px(gap_w), Size::Px(1.0)),
@@ -1835,7 +1841,7 @@ fn sync_marker(
         return false;
     };
     let box_w = marker_box(world, base, block);
-    let gap_w = (column - box_w - marker_lead(block)).max(0.0);
+    let gap_w = marker_gap(block, column, box_w);
     world.insert(
         gap,
         box_layout(Axis::Column, Size::Px(gap_w), Size::Px(1.0)),

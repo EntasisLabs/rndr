@@ -9,6 +9,7 @@
 
 ### Markdown visual fixes
 
+- List bullets and task checkboxes start on the paragraph text edge instead of hanging 12 points into the margin, however wide numbered items make the shared marker column. Numbers still align on their period, and item text keeps its column.
 - Bold, inline code, math, and `{{font}}` / `{{size}}` spans take their ink from the theme text token. The previous palette was a light-on-dark default, so those runs were faint on a light surface. Named color spans still use the color written in the note.
 - Inline `$...$` math is italic serif in the markdown editor and in the core markdown view. There is no math layout engine, so the expression is not typeset. The editor hides the dollars until the caret is inside the span. The core view now turns math parsing on; it previously left the dollars in the text.
 - Task checkboxes are a 14-point box with a 1.5-point strong stroke in both themes. A checked item keeps a filled mark inside that box. Unchecked and checked boxes share an 8-point gap before the label, and the label's first glyph starts after that gap. The font ballot glyph is not the checkbox.
