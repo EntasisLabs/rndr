@@ -22,6 +22,7 @@
 
 ### Interaction polish
 
+- Command palette rows rest on the popup's overlay instead of content-colored slabs: virtual list rows at rest, disabled, or not yet bound show the plane they sit on, and the palette's list is clear. Palette icons fill their 16-point slot, and a row's per-frame label pass no longer cuts an icon-only label to `…` or uses it as the truncation tip.
 - Single-line labels on buttons, navigation rows, tab titles, virtual-list and tree rows, command palette items, and tooltips end in an ellipsis when they do not fit. A truncated label grows a tooltip with the full text unless the control already has one. The tooltip itself stays on one line; the truncation tooltip wraps so the full string can be read.
 - Hover and press fills ease over 120 ms. `UiPlugin` installs `InteractionMotion`; `InteractionMotion::snap` or a zero duration settles on the same frame. A press is a different token from hover. `SystemAppearance::reduced_motion`, `MotionSettings::reduced_motion`, and a clock that has not moved also snap.
 - `SplitSash` keeps its hit target and draws a centered line. Hover, drag, and keyboard focus each use their own token, and the pointer is the resize cursor.

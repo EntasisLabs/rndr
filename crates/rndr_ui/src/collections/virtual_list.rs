@@ -827,14 +827,12 @@ fn compose_realized_rows(w: &mut World, root: Entity, v: &VirtualView, wanted: &
         w.insert(
             slot.root,
             crate::UiRecipe(crate::UiStyle {
-                background: Some(
-                    if row_selected(v, id) {
-                        crate::Token::Selected
-                    } else {
-                        crate::Token::Content
-                    }
-                    .into(),
-                ),
+                background: Some(if row_selected(v, id) {
+                    crate::Token::Selected.into()
+                } else {
+                    let theme = w.resource::<crate::UiTheme>().cloned().unwrap_or_default();
+                    crate::controls::host_plane(w, slot.root, &theme)
+                }),
                 corner: Some(crate::Corner::Compact),
                 ..Default::default()
             }),
@@ -1256,21 +1254,25 @@ pub(super) fn chrome(world: &mut World) {
             let row_focus = focus.is_some_and(|focus| {
                 focus == slot.root || ancestor_with::<Owner>(world, focus) == Some(slot.root)
             });
-            let fill = if !enabled {
-                crate::Token::Content
+            // At rest (and disabled) a row shows the plane it sits on: the
+            // view's content fill normally, or a host overlay such as a
+            // palette popup when the view itself is clear.
+            let rest = crate::controls::host_plane(world, slot.root, &theme);
+            let fill: crate::UiColor = if !enabled {
+                rest
             } else if pressed {
-                crate::Token::ControlPressed
+                crate::Token::ControlPressed.into()
             } else if hover && !selected {
-                crate::Token::ControlHover
+                crate::Token::ControlHover.into()
             } else if selected {
-                crate::Token::Selected
+                crate::Token::Selected.into()
             } else {
-                crate::Token::Content
+                rest
             };
             world.insert(
                 slot.root,
                 crate::UiRecipe(crate::UiStyle {
-                    background: Some(fill.into()),
+                    background: Some(fill),
                     corner: Some(crate::Corner::Compact),
                     ..crate::UiStyle::default()
                 }),
@@ -1289,6 +1291,11 @@ pub(super) fn chrome(world: &mut World) {
             let mut tip = None;
             for entity in labels {
                 if let Some(label) = world.get_mut::<Label>(entity) {
+                    // An icon glyph is not text: never cut it to `…` or let
+                    // it stand in for the row's truncation tip.
+                    if !label.text.is_empty() && label.text.chars().all(rndr_core::is_icon_scalar) {
+                        continue;
+                    }
                     if !label.text.contains('\n') {
                         label.overflow = TextOverflow::Ellipsis;
                     }

@@ -356,6 +356,15 @@ impl CommandPalette {
             layout.height = Size::Px(props.list_height);
         }
         world.insert(list, PaletteLink(root));
+        // The list sits on the popup's plane; resting rows follow it rather
+        // than painting content-colored slabs inside the overlay.
+        world.insert(
+            list,
+            UiStyle {
+                background: Some(crate::Surface::Transparent.fill()),
+                ..UiStyle::default()
+            },
+        );
         world.insert(
             list,
             VirtualListPolicy {
@@ -1301,13 +1310,16 @@ fn ensure_parts(world: &mut World, content: Entity) -> Parts {
         height: Size::Px(1.0),
         ..Layout::row()
     },));
+    // The glyph fills its own box: the default label inset would push it
+    // past the 16-point slot, where it is clipped away.
     let icon = world.spawn((
         Layout {
             width: Size::Px(ICON_PX),
             height: Size::Px(ICON_PX),
             ..Layout::row()
         },
-        Label::new(""),
+        Label::new("").overflow(TextOverflow::Visible),
+        rndr_core::LabelBox::CONTENT,
     ));
     rndr_core::set_parent(world, spacer, lead);
     rndr_core::set_parent(world, icon, lead);

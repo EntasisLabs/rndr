@@ -350,3 +350,36 @@ fn identity_is_the_popup() {
     );
     assert_eq!(rndr_ui::identity(sim.app.world(), palette.field), None);
 }
+
+#[test]
+fn icons_fit_their_slot_and_resting_rows_sit_on_the_overlay() {
+    let (mut sim, _, palette) = open_palette(&commands());
+    sim.world().insert_resource(rndr_ui::UiTheme {
+        appearance: rndr_ui::Appearance::Dark,
+        ..Default::default()
+    });
+    sim.update();
+    sim.update();
+    let world = sim.app.world();
+    let theme = world.resource::<rndr_ui::UiTheme>().unwrap().clone();
+    let icon = row_label(world, palette.list, &Icon::Search.scalar().to_string())
+        .expect("icon glyph label");
+    assert_eq!(world.get::<LabelBox>(icon).unwrap().inset_x, 0.0);
+    // The list's per-frame label pass must not cut a glyph to `…`.
+    assert_eq!(
+        world.get::<Label>(icon).unwrap().overflow,
+        TextOverflow::Visible
+    );
+    // Nothing inside the list paints the content plane at rest; rows show the
+    // popup's overlay, and only the active row differs.
+    let content = theme.color(rndr_ui::Token::Content);
+    let mut stack = vec![palette.list];
+    while let Some(entity) = stack.pop() {
+        assert_ne!(
+            world.get::<Color>(entity).copied(),
+            Some(content),
+            "{entity:?}"
+        );
+        stack.extend(children_of(world, entity));
+    }
+}

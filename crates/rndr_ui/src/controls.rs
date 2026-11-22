@@ -898,7 +898,7 @@ fn background(world: &mut World, entity: Entity, color: impl Into<UiColor>, corn
 }
 // Resolve the nearest authored/semantic host plane before the style pass.
 // This avoids canvas-colored seams without weakening opaque contrast recipes.
-fn host_plane(world: &World, root: Entity, theme: &UiTheme) -> UiColor {
+pub(crate) fn host_plane(world: &World, root: Entity, theme: &UiTheme) -> UiColor {
     let mut parent = world.get::<Parent>(root).map(|p| p.entity);
     while let Some(entity) = parent {
         if let Some(color) = crate::style::background_at(world, entity, theme) {
