@@ -3,4 +3,5 @@ pub mod editor;
 pub mod overlay;
 pub mod paint;
 pub mod panels;
+pub mod session;
 pub mod view;

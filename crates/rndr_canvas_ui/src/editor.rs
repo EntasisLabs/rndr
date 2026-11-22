@@ -1,10 +1,14 @@
 //! The editing state machine. It reads plain per-frame input in view
 //! coordinates, previews gestures on a draft copy of the nodes, and saves
-//! each finished gesture as one transaction through a [`CanvasStore`].
+//! each finished gesture as one transaction, either through a
+//! [`CanvasStore`] in the same call or, for an editor opened with
+//! [`CanvasEditor::remote`], through the host's outbox in [`crate::session`].
 //!
 //! Nothing here needs a window, so behavior can be driven and checked
 //! headlessly; [`crate::view`] adapts `rndr_core` input to [`EditorInput`].
 
+pub use crate::session::Outgoing;
+use crate::session::Remote;
 use rndr_canvas::geometry::set_line_endpoints;
 use rndr_canvas::layout::SnappedMove;
 use rndr_canvas::selection::{Endpoint, Handle, SelectionFrame};
@@ -296,8 +300,16 @@ pub const HANDLE_SIZE: f32 = 8.0;
 pub const ROTATE_OFFSET: f32 = 24.0;
 
 /// Edits one document in a [`CanvasStore`].
+/// Where saves go.
+enum Backend {
+    /// Each save is answered in the same call.
+    Store(Arc<dyn CanvasStore + Send + Sync>),
+    /// Saves queue for the host; see [`crate::session`].
+    Remote(Box<Remote>),
+}
+
 pub struct CanvasEditor {
-    store: Arc<dyn CanvasStore + Send + Sync>,
+    backend: Backend,
     current: Mutation,
     draft: Option<Vec<Node>>,
     pub camera: Camera,
@@ -328,11 +340,21 @@ fn v(p: [f32; 2]) -> Vec2 {
 }
 
 impl CanvasEditor {
-    /// Opens document `id` in `store`.
+    /// Opens document `id` in `store`. Every save waits for the store.
     pub fn open(store: Arc<dyn CanvasStore + Send + Sync>, id: &str) -> Result<Self, CanvasError> {
         let current = store.get(id)?;
-        Ok(Self {
-            store,
+        Ok(Self::with(Backend::Store(store), current))
+    }
+
+    /// Edits `document`, read by the host, without a store: saves show at
+    /// once and wait in [`CanvasEditor::take_outgoing`] for the host to send.
+    pub fn remote(document: Mutation) -> Self {
+        Self::with(Backend::Remote(Box::new(Remote::new(document.clone()))), document)
+    }
+
+    fn with(backend: Backend, current: Mutation) -> Self {
+        Self {
+            backend,
             current,
             draft: None,
             camera: Camera::default(),
@@ -349,7 +371,7 @@ impl CanvasEditor {
             counter: 0,
             last_click: None,
             erase_path: Vec::new(),
-        })
+        }
     }
 
     /// The saved document and what history allows.
@@ -429,12 +451,113 @@ impl CanvasEditor {
             .collect();
     }
 
-    /// Re-reads the document from the store, dropping any preview.
+    /// Re-reads the document from the store, dropping any preview. A remote
+    /// editor asks the host for it through [`CanvasEditor::take_outgoing`].
     pub fn reload(&mut self) -> Result<(), CanvasError> {
-        self.current = self.store.get(&self.current.document.id)?;
-        self.draft = None;
-        self.prune_selection();
+        match &mut self.backend {
+            Backend::Store(store) => {
+                self.current = store.get(&self.current.document.id)?;
+                self.draft = None;
+                self.prune_selection();
+            }
+            Backend::Remote(remote) => remote.request_get(),
+        }
         Ok(())
+    }
+
+    /// Id of the document being edited.
+    pub fn document_id(&self) -> &str {
+        &self.current.document.id
+    }
+
+    /// Requests a remote editor wants sent now, at most one save at a time.
+    /// Always empty for an editor opened on a store.
+    pub fn take_outgoing(&mut self) -> Vec<Outgoing> {
+        match &mut self.backend {
+            Backend::Remote(remote) => remote.take(),
+            Backend::Store(_) => Vec::new(),
+        }
+    }
+
+    /// Edits not yet confirmed, or a read in progress.
+    pub fn is_saving(&self) -> bool {
+        matches!(&self.backend, Backend::Remote(remote) if remote.busy())
+    }
+
+    /// The last send failed without an answer; [`CanvasEditor::retry`]
+    /// sends it again with the same id.
+    pub fn is_stalled(&self) -> bool {
+        matches!(&self.backend, Backend::Remote(remote) if remote.stalled())
+    }
+
+    /// The store accepted request `id`. Returns `false` for an answer to a
+    /// request no longer in flight.
+    pub fn confirm(&mut self, id: &str, mutation: Mutation) -> bool {
+        let Backend::Remote(remote) = &mut self.backend else {
+            return false;
+        };
+        if !remote.confirm(id, mutation) {
+            return false;
+        }
+        self.last_error = None;
+        self.show();
+        true
+    }
+
+    /// Request `id` failed with `error`. See [`crate::session`] for what
+    /// each error does to unconfirmed edits.
+    pub fn fail(&mut self, id: &str, error: CanvasError) -> bool {
+        let Backend::Remote(remote) = &mut self.backend else {
+            return false;
+        };
+        if !remote.fail(id, &error) {
+            return false;
+        }
+        self.last_error = Some(error);
+        self.show();
+        true
+    }
+
+    /// The host could not read the document for an [`Outgoing::Get`].
+    pub fn fail_get(&mut self, error: CanvasError) {
+        if let Backend::Remote(remote) = &mut self.backend {
+            remote.fail_get();
+            self.last_error = Some(error);
+        }
+    }
+
+    /// Sends a stalled request again.
+    pub fn retry(&mut self) {
+        if let Backend::Remote(remote) = &mut self.backend {
+            remote.retry();
+        }
+    }
+
+    /// Adopts `mutation` read from the store, for an [`Outgoing::Get`] or
+    /// because the document changed elsewhere. Unconfirmed edits stay on
+    /// top. Returns `false` for another document or an older revision.
+    pub fn replace(&mut self, mutation: Mutation) -> bool {
+        let Backend::Remote(remote) = &mut self.backend else {
+            return false;
+        };
+        let wanted = remote.busy();
+        if !wanted && mutation.document.revision < remote.confirmed.document.revision {
+            return false;
+        }
+        if !remote.replace(mutation) {
+            return false;
+        }
+        self.show();
+        true
+    }
+
+    /// Shows the remote session's document, keeping any gesture preview,
+    /// which is rebuilt from it each frame.
+    fn show(&mut self) {
+        if let Backend::Remote(remote) = &self.backend {
+            self.current = remote.shown();
+            self.prune_selection();
+        }
     }
 
     fn prune_selection(&mut self) {
@@ -460,13 +583,22 @@ impl CanvasEditor {
         if operations.is_empty() {
             return false;
         }
+        let id = self.new_id("tx");
+        let store = match &mut self.backend {
+            Backend::Remote(remote) => {
+                remote.push(id, label, operations);
+                self.show();
+                return true;
+            }
+            Backend::Store(store) => store.clone(),
+        };
         let transaction = Transaction {
-            id: self.new_id("tx"),
+            id,
             expected_revision: self.current.document.revision,
             label: label.into(),
             operations,
         };
-        let result = self.store.transact(&self.current.document.id, transaction);
+        let result = store.transact(&self.current.document.id, transaction);
         self.settle(result)
     }
 
@@ -494,12 +626,21 @@ impl CanvasEditor {
         if (redo && !self.current.can_redo) || (!redo && !self.current.can_undo) {
             return false;
         }
+        let id = self.new_id("h");
+        let store = match &mut self.backend {
+            Backend::Remote(remote) => {
+                let queued = remote.history(id, redo);
+                self.show();
+                return queued;
+            }
+            Backend::Store(store) => store.clone(),
+        };
         let request = HistoryRequest {
-            id: self.new_id("h"),
+            id,
             expected_revision: self.current.document.revision,
             redo,
         };
-        let result = self.store.history(&self.current.document.id, request);
+        let result = store.history(&self.current.document.id, request);
         self.settle(result)
     }
 
