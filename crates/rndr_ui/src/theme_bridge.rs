@@ -57,7 +57,7 @@ impl UiTheme {
             surface: self.color(Token::Content),
             text: self.color(Token::Text),
             muted: self.color(Token::Secondary),
-            link: self.color(Token::Accent),
+            link: self.color(Token::Link),
             code: self.color(Token::Text),
             code_bg: self.color(Token::Raised),
             inline_bg: self.color(Token::Raised),

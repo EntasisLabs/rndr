@@ -52,6 +52,9 @@ pub struct UiTheme {
     /// Per-role metrics before text scale. Roles and scale semantics are fixed;
     /// an application may supply its own sizes, line heights and weights.
     pub ramp: TypeRamp,
+    /// Standard-contrast colors per appearance. Token roles are fixed; an
+    /// application may supply its own colors. High contrast ignores it.
+    pub palette: ColorPalette,
 }
 impl Default for UiTheme {
     fn default() -> Self {
@@ -65,6 +68,7 @@ impl Default for UiTheme {
             reading_family: "Inter".into(),
             code_family: "monospace".into(),
             ramp: TypeRamp::default(),
+            palette: ColorPalette::default(),
         }
     }
 }
@@ -109,6 +113,14 @@ pub enum Token {
     Text,
     /// Secondary text.
     Secondary,
+    /// Third text tier, below [`Self::Secondary`]: metadata and captions.
+    Tertiary,
+    /// Fourth text tier: hints and timestamps that should recede.
+    Quiet,
+    /// Faintest text tier, still at least 3:1: decorative glyphs and dividers in text.
+    Faint,
+    /// Hyperlink text on reading surfaces.
+    Link,
     /// Inactive text (not used to convey available action).
     Disabled,
     /// Text on accent/hover/pressed.
@@ -163,6 +175,207 @@ fn hex(v: u32) -> Color {
         (v & 255) as f32 / 255.0,
     )
 }
+/// Every token, in declaration order. Indexes [`ColorPalette`].
+const TOKENS: [Token; 46] = {
+    use Token::*;
+    [
+        Canvas,
+        Navigation,
+        Content,
+        Raised,
+        Overlay,
+        Glass,
+        Material,
+        Panel,
+        CodeFill,
+        Highlight,
+        HueRed,
+        HueOrange,
+        HueYellow,
+        HueGreen,
+        HueBlue,
+        HuePurple,
+        HuePink,
+        Text,
+        Secondary,
+        Tertiary,
+        Quiet,
+        Faint,
+        Link,
+        Disabled,
+        OnAccent,
+        SubtleStroke,
+        StrongStroke,
+        Focus,
+        Accent,
+        Hover,
+        Pressed,
+        ControlHover,
+        ControlPressed,
+        Selected,
+        InfoText,
+        InfoFill,
+        InfoStroke,
+        SuccessText,
+        SuccessFill,
+        SuccessStroke,
+        WarningText,
+        WarningFill,
+        WarningStroke,
+        DangerText,
+        DangerFill,
+        DangerStroke,
+    ]
+};
+/// Standard-contrast colors for every [`Token`] in both appearances.
+///
+/// The default is RNDR's palette. An application replaces colors by starting
+/// from the default and setting the tokens it owns, so a palette is always
+/// complete. Translucency is part of the color: RNDR's own `Glass`, `Material`
+/// and `Panel` are translucent and every other default is opaque. Keep
+/// documented foreground/background pairs readable; nothing here checks them.
+/// [`Contrast::High`] keeps its own opaque palette and ignores this one.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ColorPalette {
+    light: [Color; TOKENS.len()],
+    dark: [Color; TOKENS.len()],
+}
+impl Default for ColorPalette {
+    fn default() -> Self {
+        Self {
+            light: TOKENS.map(|token| standard_color(false, token)),
+            dark: TOKENS.map(|token| standard_color(true, token)),
+        }
+    }
+}
+impl ColorPalette {
+    fn colors(&self, appearance: Appearance) -> &[Color; TOKENS.len()] {
+        match appearance {
+            Appearance::Light => &self.light,
+            Appearance::Dark => &self.dark,
+        }
+    }
+    /// The color for `token` in `appearance`.
+    pub fn color(&self, appearance: Appearance, token: Token) -> Color {
+        self.colors(appearance)[token as usize]
+    }
+    /// Replace the color for `token` in `appearance`.
+    pub fn set(&mut self, appearance: Appearance, token: Token, color: Color) {
+        let colors = match appearance {
+            Appearance::Light => &mut self.light,
+            Appearance::Dark => &mut self.dark,
+        };
+        colors[token as usize] = color;
+    }
+    /// This palette with `token` replaced in `appearance`.
+    pub fn with(mut self, appearance: Appearance, token: Token, color: Color) -> Self {
+        self.set(appearance, token, color);
+        self
+    }
+}
+/// RNDR's standard-contrast color for `token`.
+fn standard_color(dark: bool, token: Token) -> Color {
+    use Token::*;
+    let mut color = hex(match (dark, token) {
+        (false, Canvas) => 0xf4f5f7,
+        (true, Canvas) => 0x17191d,
+        (false, Navigation) => 0xecedf0,
+        (true, Navigation) => 0x1c1e23,
+        (false, Content | Raised | Overlay) => 0xffffff,
+        (false, Glass) => 0xf4f6f8,
+        (false, Material) => 0xffffff,
+        (false, Panel) => 0xf7f8fa,
+        (true, Content) => 0x202227,
+        (true, Raised) => 0x272a30,
+        (true, Overlay) => 0x2d3037,
+        (true, Glass) => 0x12141a,
+        (true, Material) => 0x1c1f24,
+        (true, Panel) => 0x14171c,
+        (false, CodeFill) => 0xe8ebf0,
+        (true, CodeFill) => 0x30343d,
+        (false, Highlight) => 0xefe8c8,
+        (true, Highlight) => 0x3d3618,
+        (false, HueRed) => 0xb3261e,
+        (true, HueRed) => 0xff9a94,
+        (false, HueOrange) => 0xa3470a,
+        (true, HueOrange) => 0xffb27a,
+        (false, HueYellow) => 0x7a5a00,
+        (true, HueYellow) => 0xf2cf55,
+        (false, HueGreen) => 0x1f6b36,
+        (true, HueGreen) => 0x7fd69a,
+        (false, HueBlue) => 0x1d5bb8,
+        (true, HueBlue) => 0x8fbaff,
+        (false, HuePurple) => 0x6b3fb3,
+        (true, HuePurple) => 0xc6a4ff,
+        (false, HuePink) => 0xb02a68,
+        (true, HuePink) => 0xff9cc6,
+        (false, Text) => 0x24272e,
+        (true, Text) => 0xedeef2,
+        (false, Disabled) => 0x9a9ca5,
+        (true, Disabled) => 0x6b6f7a,
+        (false, Secondary) => 0x60616a,
+        (true, Secondary) => 0xb5b7c1,
+        // Each tier stays below the one above it and at least 3:1 on
+        // Canvas, Navigation, Content and Raised in its appearance.
+        (false, Tertiary) => 0x696c70,
+        (true, Tertiary) => 0x9fa0a4,
+        (false, Quiet) => 0x76777c,
+        (true, Quiet) => 0x8f9094,
+        (false, Faint) => 0x87888c,
+        (true, Faint) => 0x75777b,
+        (false, OnAccent) => 0xffffff,
+        (true, OnAccent) => 0x111216,
+        (false, SubtleStroke) => 0xdfe1e6,
+        (true, SubtleStroke) => 0x393d45,
+        (false, StrongStroke) => 0x858993,
+        (true, StrongStroke) => 0x8c929e,
+        (false, Focus) => 0x005fcc,
+        (true, Focus) => 0x91caff,
+        (false, Accent | Link) => 0x345db3,
+        (true, Accent | Link) => 0x9ebcff,
+        (false, Hover) => 0x294e9c,
+        (true, Hover) => 0xb4cbff,
+        (false, Pressed) => 0x203f82,
+        (true, Pressed) => 0xc8d9ff,
+        (false, ControlHover) => 0xe8ebf0,
+        (true, ControlHover) => 0x30343d,
+        (false, ControlPressed) => 0xdce0e8,
+        (true, ControlPressed) => 0x3b414c,
+        (false, Selected) => 0xe7edfa,
+        (true, Selected) => 0x303c55,
+        (false, InfoText) => 0x004a87,
+        (false, InfoFill) => 0xe9f3ff,
+        (false, InfoStroke) => 0x0065a9,
+        (true, InfoText) => 0xb8ddff,
+        (true, InfoFill) => 0x142b40,
+        (true, InfoStroke) => 0x78b9ec,
+        (false, SuccessText) => 0x175c31,
+        (false, SuccessFill) => 0xeaf6ed,
+        (false, SuccessStroke) => 0x327044,
+        (true, SuccessText) => 0xb9ebc7,
+        (true, SuccessFill) => 0x172e21,
+        (true, SuccessStroke) => 0x7dcd96,
+        (false, WarningText) => 0x6b3b00,
+        (false, WarningFill) => 0xfff3d6,
+        (false, WarningStroke) => 0xa15c00,
+        (true, WarningText) => 0xffe0a3,
+        (true, WarningFill) => 0x332613,
+        (true, WarningStroke) => 0xd8a44d,
+        (false, DangerText) => 0x91252d,
+        (false, DangerFill) => 0xffedef,
+        (false, DangerStroke) => 0xb33540,
+        (true, DangerText) => 0xffc3c8,
+        (true, DangerFill) => 0x391c23,
+        (true, DangerStroke) => 0xf3949e,
+    });
+    color.a = match token {
+        Token::Glass => 0.94,
+        Token::Material => 0.89,
+        Token::Panel => 0.92,
+        _ => 1.0,
+    };
+    color
+}
 impl UiTheme {
     /// This theme with the desktop's light/dark preference. A desktop with no
     /// preference keeps the current appearance.
@@ -203,7 +416,7 @@ impl UiTheme {
                         0xffffff
                     }
                 }
-                Accent | Hover | Pressed => {
+                Accent | Hover | Pressed | Link => {
                     if dark {
                         0xffff00
                     } else {
@@ -226,97 +439,7 @@ impl UiTheme {
                 }
             });
         }
-        let mut color = hex(match (dark, token) {
-            (false, Canvas) => 0xf4f5f7,
-            (true, Canvas) => 0x17191d,
-            (false, Navigation) => 0xecedf0,
-            (true, Navigation) => 0x1c1e23,
-            (false, Content | Raised | Overlay) => 0xffffff,
-            (false, Glass) => 0xf4f6f8,
-            (false, Material) => 0xffffff,
-            (false, Panel) => 0xf7f8fa,
-            (true, Content) => 0x202227,
-            (true, Raised) => 0x272a30,
-            (true, Overlay) => 0x2d3037,
-            (true, Glass) => 0x12141a,
-            (true, Material) => 0x1c1f24,
-            (true, Panel) => 0x14171c,
-            (false, CodeFill) => 0xe8ebf0,
-            (true, CodeFill) => 0x30343d,
-            (false, Highlight) => 0xefe8c8,
-            (true, Highlight) => 0x3d3618,
-            (false, HueRed) => 0xb3261e,
-            (true, HueRed) => 0xff9a94,
-            (false, HueOrange) => 0xa3470a,
-            (true, HueOrange) => 0xffb27a,
-            (false, HueYellow) => 0x7a5a00,
-            (true, HueYellow) => 0xf2cf55,
-            (false, HueGreen) => 0x1f6b36,
-            (true, HueGreen) => 0x7fd69a,
-            (false, HueBlue) => 0x1d5bb8,
-            (true, HueBlue) => 0x8fbaff,
-            (false, HuePurple) => 0x6b3fb3,
-            (true, HuePurple) => 0xc6a4ff,
-            (false, HuePink) => 0xb02a68,
-            (true, HuePink) => 0xff9cc6,
-            (false, Text) => 0x24272e,
-            (true, Text) => 0xedeef2,
-            (false, Disabled) => 0x9a9ca5,
-            (true, Disabled) => 0x6b6f7a,
-            (false, Secondary) => 0x60616a,
-            (true, Secondary) => 0xb5b7c1,
-            (false, OnAccent) => 0xffffff,
-            (true, OnAccent) => 0x111216,
-            (false, SubtleStroke) => 0xdfe1e6,
-            (true, SubtleStroke) => 0x393d45,
-            (false, StrongStroke) => 0x858993,
-            (true, StrongStroke) => 0x8c929e,
-            (false, Focus) => 0x005fcc,
-            (true, Focus) => 0x91caff,
-            (false, Accent) => 0x345db3,
-            (true, Accent) => 0x9ebcff,
-            (false, Hover) => 0x294e9c,
-            (true, Hover) => 0xb4cbff,
-            (false, Pressed) => 0x203f82,
-            (true, Pressed) => 0xc8d9ff,
-            (false, ControlHover) => 0xe8ebf0,
-            (true, ControlHover) => 0x30343d,
-            (false, ControlPressed) => 0xdce0e8,
-            (true, ControlPressed) => 0x3b414c,
-            (false, Selected) => 0xe7edfa,
-            (true, Selected) => 0x303c55,
-            (false, InfoText) => 0x004a87,
-            (false, InfoFill) => 0xe9f3ff,
-            (false, InfoStroke) => 0x0065a9,
-            (true, InfoText) => 0xb8ddff,
-            (true, InfoFill) => 0x142b40,
-            (true, InfoStroke) => 0x78b9ec,
-            (false, SuccessText) => 0x175c31,
-            (false, SuccessFill) => 0xeaf6ed,
-            (false, SuccessStroke) => 0x327044,
-            (true, SuccessText) => 0xb9ebc7,
-            (true, SuccessFill) => 0x172e21,
-            (true, SuccessStroke) => 0x7dcd96,
-            (false, WarningText) => 0x6b3b00,
-            (false, WarningFill) => 0xfff3d6,
-            (false, WarningStroke) => 0xa15c00,
-            (true, WarningText) => 0xffe0a3,
-            (true, WarningFill) => 0x332613,
-            (true, WarningStroke) => 0xd8a44d,
-            (false, DangerText) => 0x91252d,
-            (false, DangerFill) => 0xffedef,
-            (false, DangerStroke) => 0xb33540,
-            (true, DangerText) => 0xffc3c8,
-            (true, DangerFill) => 0x391c23,
-            (true, DangerStroke) => 0xf3949e,
-        });
-        color.a = match token {
-            Token::Glass => 0.94,
-            Token::Material => 0.89,
-            Token::Panel => 0.92,
-            _ => 1.0,
-        };
-        color
+        self.palette.color(self.appearance, token)
     }
     /// Density-adjusted spacing; text sizes are unaffected by density.
     pub fn space(&self, space: Space) -> f32 {
@@ -537,5 +660,50 @@ impl Typography {
             self,
             Self::Reading | Self::Heading | Self::Title | Self::Code
         )
+    }
+}
+
+#[cfg(test)]
+mod palette_tests {
+    use super::*;
+
+    /// Breaks the build when a token is added, so `TOKENS` is updated with it.
+    fn declared(token: Token) {
+        use Token::*;
+        match token {
+            Canvas | Navigation | Content | Raised | Overlay | Glass | Material | Panel
+            | CodeFill | Highlight | HueRed | HueOrange | HueYellow | HueGreen | HueBlue
+            | HuePurple | HuePink | Text | Secondary | Tertiary | Quiet | Faint | Link
+            | Disabled | OnAccent | SubtleStroke | StrongStroke | Focus | Accent | Hover
+            | Pressed | ControlHover | ControlPressed | Selected | InfoText | InfoFill
+            | InfoStroke | SuccessText | SuccessFill | SuccessStroke | WarningText
+            | WarningFill | WarningStroke | DangerText | DangerFill | DangerStroke => {}
+        }
+    }
+
+    #[test]
+    fn every_token_owns_its_own_palette_slot() {
+        for (index, token) in TOKENS.into_iter().enumerate() {
+            declared(token);
+            assert_eq!(
+                token as usize, index,
+                "{token:?} is out of declaration order"
+            );
+        }
+        assert_eq!(Token::DangerStroke as usize, TOKENS.len() - 1);
+        let sentinel = Color::rgba(0.1, 0.2, 0.3, 0.4);
+        for token in TOKENS {
+            for appearance in [Appearance::Light, Appearance::Dark] {
+                let palette = ColorPalette::default().with(appearance, token, sentinel);
+                for other in TOKENS {
+                    let expected = if other == token {
+                        sentinel
+                    } else {
+                        standard_color(appearance == Appearance::Dark, other)
+                    };
+                    assert_eq!(palette.color(appearance, other), expected);
+                }
+            }
+        }
     }
 }

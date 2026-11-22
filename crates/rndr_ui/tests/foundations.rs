@@ -244,8 +244,8 @@ fn contrast(a: Color, b: Color) -> f32 {
 fn role_pairs(bg: Token) -> (&'static [Token], &'static [Token]) {
     use Token::*;
     const DOC: &[Token] = &[
-        Text, Secondary, Accent, HueRed, HueOrange, HueYellow, HueGreen, HueBlue, HuePurple,
-        HuePink,
+        Text, Secondary, Tertiary, Link, Accent, HueRed, HueOrange, HueYellow, HueGreen, HueBlue,
+        HuePurple, HuePink,
     ];
     match bg {
         Canvas | Content => (DOC, &[StrongStroke, Focus]),
@@ -260,10 +260,10 @@ fn role_pairs(bg: Token) -> (&'static [Token], &'static [Token]) {
         Accent | Hover | Pressed => (&[OnAccent], &[]),
         // Ink is tested on its intended fills, not as a background. Decorative separators
         // and disabled controls must not be the sole carrier of actionable information.
-        Text | Secondary | Disabled | OnAccent | SubtleStroke | StrongStroke | Focus | HueRed
-        | HueOrange | HueYellow | HueGreen | HueBlue | HuePurple | HuePink | InfoText
-        | DangerText | WarningText | SuccessText | InfoStroke | DangerStroke | WarningStroke
-        | SuccessStroke => (&[], &[]),
+        Text | Secondary | Tertiary | Quiet | Faint | Link | Disabled | OnAccent | SubtleStroke
+        | StrongStroke | Focus | HueRed | HueOrange | HueYellow | HueGreen | HueBlue
+        | HuePurple | HuePink | InfoText | DangerText | WarningText | SuccessText | InfoStroke
+        | DangerStroke | WarningStroke | SuccessStroke => (&[], &[]),
     }
 }
 #[test]

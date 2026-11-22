@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Application palettes
+
+- `UiTheme::palette` holds a `ColorPalette` with a standard-contrast color for every token in light and dark. The default is RNDR's existing palette, so nothing changes unless an application sets it. `ColorPalette::default().with(appearance, token, color)` replaces one token. Built-in controls, `core_theme`, and `markdown_theme` read it. High contrast ignores it.
+- `Token::Tertiary`, `Token::Quiet`, and `Token::Faint` are text tiers below `Secondary`, and `Token::Link` is hyperlink text. In RNDR's palette, `Tertiary` is at least 4.5:1 and `Faint` at least 3:1 on the canvas, navigation, content, and raised surfaces. `Link` defaults to the `Accent` color, and the markdown theme's link color now comes from `Link`. In high contrast, the tiers use the text color and `Link` uses the accent color.
+
 ### Markdown visual fixes
 
 - Bold, inline code, math, and `{{font}}` / `{{size}}` spans take their ink from the theme text token. The previous palette was a light-on-dark default, so those runs were faint on a light surface. Named color spans still use the color written in the note.
