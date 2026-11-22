@@ -30,6 +30,8 @@
 - `CanvasEditor::distribute(axis)` spaces three or more selected objects evenly, and `zoom_to_selection` fits the selection (or the scene with nothing selected). `OverlayTheme::from_theme` colors selection, guides and the eraser trail from an application palette.
 - The icon set adds Lucide's `mouse-pointer-2`, `hand`, `pen-tool`, `eraser`, `shapes`, `frame`, `image-plus`, `group`, `ungroup`, `copy-plus`, `scan` and `move-up-right`. Icons stay sorted by id, so existing scalars move; use `Icon` rather than stored code points.
 
+- `CanvasEditor::set_preview(Some(operations))` shows proposed edits over the document without saving them, for a proposal awaiting a decision; `None` clears it and `previewing()` reports it. Editing and hit testing keep using the saved document.
+
 ### Interaction polish
 
 - Command palette rows rest on the popup's overlay instead of content-colored slabs: virtual list rows at rest, disabled, or not yet bound show the plane they sit on, and the palette's list is clear. Palette icons fill their 16-point slot, and a row's per-frame label pass no longer cuts an icon-only label to `…` or uses it as the truncation tip.

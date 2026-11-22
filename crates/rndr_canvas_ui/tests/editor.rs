@@ -401,3 +401,35 @@ fn distribute_spaces_three_objects_and_zoom_fits_the_selection() {
     assert!((center.x - 200.0).abs() < 1.0 && (center.y - 200.0).abs() < 1.0);
     assert!(rig.editor.camera.zoom > 2.0, "{}", rig.editor.camera.zoom);
 }
+
+#[test]
+fn a_preview_shows_proposed_edits_without_saving_them() {
+    let mut rig = Rig::new();
+    let note = Operation::put(Node::new(
+        "proposed",
+        Content::Shape {
+            shape: ShapeKind::Ellipse,
+            fill: "#8ecae6".into(),
+            stroke: "transparent".into(),
+            stroke_width: 0.0,
+            line: None,
+        },
+        Transform {
+            x: 0.0,
+            y: 0.0,
+            width: 10.0,
+            height: 10.0,
+            rotation: 0.0,
+        },
+    ));
+    rig.editor.set_preview(Some(vec![note]));
+    assert!(rig.editor.previewing());
+    assert_eq!(rig.editor.nodes().len(), 1);
+    assert!(
+        rig.editor.mutation().document.scene.nodes.is_empty(),
+        "nothing saved"
+    );
+    assert_eq!(rig.editor.mutation().document.revision, 0);
+    rig.editor.set_preview(None);
+    assert!(rig.editor.nodes().is_empty());
+}

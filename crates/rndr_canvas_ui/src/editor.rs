@@ -312,6 +312,9 @@ pub struct CanvasEditor {
     backend: Backend,
     current: Mutation,
     draft: Option<Vec<Node>>,
+    /// Operations shown over the document but not saved, such as a proposal
+    /// awaiting a decision.
+    preview: Option<Vec<Operation>>,
     pub camera: Camera,
     tool: Tool,
     selection: Vec<String>,
@@ -360,6 +363,7 @@ impl CanvasEditor {
             backend,
             current,
             draft: None,
+            preview: None,
             camera: Camera::default(),
             tool: Tool::Select,
             selection: Vec::new(),
@@ -385,10 +389,15 @@ impl CanvasEditor {
     /// Nodes to paint: the gesture preview while one is in progress, with
     /// the text being edited.
     pub fn nodes(&self) -> Vec<Node> {
-        let mut nodes = self
-            .draft
-            .clone()
-            .unwrap_or_else(|| self.current.document.scene.nodes.clone());
+        let mut nodes = self.draft.clone().unwrap_or_else(|| {
+            self.preview
+                .as_ref()
+                .and_then(|ops| apply_operations(&self.current.document, ops).ok())
+                .map_or_else(
+                    || self.current.document.scene.nodes.clone(),
+                    |doc| doc.scene.nodes,
+                )
+        });
         if let Some(edit) = &self.text {
             match nodes.iter_mut().find(|n| n.id == edit.id) {
                 Some(slot) => *slot = edit.node.clone(),
@@ -403,6 +412,18 @@ impl CanvasEditor {
         let mut scene = self.current.document.scene.clone();
         scene.nodes = self.nodes();
         scene
+    }
+
+    /// Shows `operations` over the document without saving them, or clears
+    /// the preview with `None`. Operations that no longer apply show the
+    /// document as it is. Editing and hit testing use the saved document.
+    pub fn set_preview(&mut self, operations: Option<Vec<Operation>>) {
+        self.preview = operations.filter(|ops| !ops.is_empty());
+    }
+
+    /// Whether a preview is showing.
+    pub fn previewing(&self) -> bool {
+        self.preview.is_some()
     }
 
     pub fn tool(&self) -> Tool {
