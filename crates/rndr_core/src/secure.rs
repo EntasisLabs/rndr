@@ -18,7 +18,7 @@ impl Component for Secure {}
 /// The character every scalar is shown as.
 pub const MASK: char = '•';
 
-/// One [`MASK`] per character of `text`.
+/// One `•` per character of `text`.
 pub fn mask(text: &str) -> String {
     text.chars().map(|_| MASK).collect()
 }

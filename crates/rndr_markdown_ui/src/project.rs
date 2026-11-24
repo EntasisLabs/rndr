@@ -106,7 +106,7 @@ pub enum DisplayKind {
     Rule,
     /// A blank line owned by the parent. Not a caret target.
     Gap,
-    /// A GFM table drawn as a grid. [`DisplayBlock::grid`] holds the cells.
+    /// A GFM table drawn as a grid. The block's grid field holds the cells.
     Table,
     /// An image whose alt is the text. The picture itself is not loaded.
     Image {
