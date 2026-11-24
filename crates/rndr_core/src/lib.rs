@@ -137,6 +137,7 @@ mod prompt;
 mod runtime;
 mod scrollbar;
 mod secondary;
+mod secure;
 mod selectable;
 /// Owned revision-fenced asynchronous source extension protocols.
 pub mod source_extensions;
@@ -221,6 +222,7 @@ pub use editor::{
 pub use entity::Entity;
 pub use event::{events, send, Event, Events};
 pub use feed::{Epoch, Feed, FeedConfig, FeedError, OnFull};
+pub use secure::{mask as secure_mask, Secure};
 pub use field::{
     replace_field_text, reset_field_draft, CapturesKeys, FieldTransaction, FieldTransactions,
     FocusBoundary, ImePreview, Submitted, TextChanged, TextField,

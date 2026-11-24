@@ -170,6 +170,11 @@ pub(crate) fn with_text_layout<R>(
     } else {
         f32::INFINITY
     };
+    if world.has::<crate::Secure>(entity) && !text.is_empty() {
+        let mut layout = engine.layout(&crate::secure::mask(text), &style, &[], max_width);
+        crate::secure::unmask(text, &mut layout);
+        return f(&layout);
+    }
     let spans = crate::editor::spans_for_text(world, entity, text);
     let layout = engine.layout(text, &style, &spans, max_width);
     f(&layout)

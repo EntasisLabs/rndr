@@ -997,6 +997,12 @@ fn walk_entity(
                 .get::<Label>(entity)
                 .map(|label| label.text.clone())
                 .unwrap_or_default();
+            // A secure value is never painted, even before it is shaped.
+            let text = if world.has::<rndr_core::Secure>(entity) {
+                rndr_core::secure_mask(&text)
+            } else {
+                text
+            };
             let fallback = measured(world, entity, &text, *rect);
             emit(
                 world,
