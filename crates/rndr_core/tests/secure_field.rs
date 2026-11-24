@@ -1,7 +1,7 @@
 use rndr_core::{
     access_id, access_tree, App, Axis, CapturesKeys, Caret, Chrome, Clipboard, Color, Focus,
-    Focusable, Input, KeyEvent, Label, Layout, Modifiers, Platform, Secure, Shell, Size,
-    TextField, TextLayout, Viewport,
+    Focusable, Input, KeyEvent, Label, Layout, Modifiers, Platform, Secure, Shell, Size, TextField,
+    TextLayout, Viewport,
 };
 
 fn boot(secure: bool) -> (App, rndr_core::Entity) {
@@ -55,7 +55,11 @@ fn a_secure_field_edits_its_value_but_shows_and_shares_only_bullets() {
         .push('x');
     app.update();
     let w = app.world();
-    assert_eq!(w.get::<Label>(entity).unwrap().text, "péx", "the value is real");
+    assert_eq!(
+        w.get::<Label>(entity).unwrap().text,
+        "péx",
+        "the value is real"
+    );
     assert_eq!(w.get::<Caret>(entity).unwrap().index, "péx".len());
     // Shaped as three bullets, with caret stops on the real bytes.
     let layout = w.get::<TextLayout>(entity).unwrap();

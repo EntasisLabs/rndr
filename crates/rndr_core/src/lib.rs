@@ -222,7 +222,6 @@ pub use editor::{
 pub use entity::Entity;
 pub use event::{events, send, Event, Events};
 pub use feed::{Epoch, Feed, FeedConfig, FeedError, OnFull};
-pub use secure::{mask as secure_mask, Secure};
 pub use field::{
     replace_field_text, reset_field_draft, CapturesKeys, FieldTransaction, FieldTransactions,
     FocusBoundary, ImePreview, Submitted, TextChanged, TextField,
@@ -297,6 +296,7 @@ pub use panel_place::{
     WIN32_SWP_NOACTIVATE, WIN32_SWP_NOMOVE, WIN32_SWP_NOSIZE, WIN32_SWP_SHOWWINDOW,
     WIN32_SW_SHOWNOACTIVATE,
 };
+pub use secure::{mask as secure_mask, Secure};
 pub use selectable::{
     selectable_input, Selectable, SelectablePlugin, MULTI_PRESS_INTERVAL, MULTI_PRESS_SLOP,
 };
