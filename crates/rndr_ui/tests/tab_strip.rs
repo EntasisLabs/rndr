@@ -223,7 +223,7 @@ fn keyboard_roves_and_enter_or_space_activates() {
         let world = sim.world();
         children_of(world, notes).iter().any(|child| {
             !world.has::<Hidden>(*child)
-                && world.get::<Color>(*child).copied() == Some(theme.color(Token::WarningFill))
+                && world.get::<Color>(*child).copied() == Some(theme.color(Token::Accent))
         })
     };
     assert!(dirty);
@@ -822,11 +822,11 @@ fn tab_width_follows_the_label_between_min_and_max() {
     let medium = width(2);
     let capped = width(3);
     assert!(short + 8.0 < medium, "short {short} medium {medium}");
-    assert!((short - 72.0).abs() < 1.0 || short > 72.0);
-    assert!(short >= 72.0 - 0.5, "short {short}");
-    assert!(medium <= 240.0 + 0.5, "medium {medium}");
+    assert!((short - 96.0).abs() < 1.0 || short > 96.0);
+    assert!(short >= 96.0 - 0.5, "short {short}");
+    assert!(medium <= 200.0 + 0.5, "medium {medium}");
     assert!(
-        (capped - 240.0).abs() < 1.0,
+        (capped - 200.0).abs() < 1.0,
         "a long label should stop at the max, got {capped}"
     );
     let title = {

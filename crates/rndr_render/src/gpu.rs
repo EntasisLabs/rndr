@@ -279,6 +279,9 @@ pub struct Gpu {
     surface: wgpu::Surface<'static>,
     shell: Shell,
     config: wgpu::SurfaceConfiguration,
+    /// Mirrors the Metal layer's `presentsWithTransaction`.
+    #[cfg(target_os = "macos")]
+    transaction_present: bool,
     /// When set, the pass clears to transparent instead of the opaque canvas.
     clear_transparent: bool,
     pipeline: wgpu::RenderPipeline,
@@ -689,6 +692,8 @@ impl Gpu {
             queue: parts.queue,
             surface: parts.surface,
             config: parts.config,
+            #[cfg(target_os = "macos")]
+            transaction_present: false,
             pipeline: parts.pipeline,
             bind_group: parts.bind_group,
             uniform: parts.uniform,
@@ -924,23 +929,30 @@ impl Gpu {
         self.shell.winit_window()
     }
 
-    /// Reconfigure to the shell's current size when it no longer matches.
-    /// A resize that arrives while the device is still being built has no
-    /// surface to apply to, and a browser canvas usually resizes then.
-    pub(crate) fn fit_shell(&mut self) {
-        let size = self.shell().inner_size();
-        if size.width != self.config.width || size.height != self.config.height {
-            self.resize(size);
-        }
-    }
-
-    pub fn resize(&mut self, size: PhysicalSize<u32>) {
-        if size.width == 0 || size.height == 0 {
+    /// AppKit resizes the layer inside its own Core Animation transaction,
+    /// while a queued Metal present lands after that commit. Until it does, the
+    /// compositor stretches the previous frame to the new bounds. During a live
+    /// resize, the new-size drawable commits with the resize transaction instead.
+    #[cfg(target_os = "macos")]
+    fn sync_transaction_present(&mut self) {
+        let live = self
+            .shell
+            .winit_window()
+            .is_some_and(crate::platform::in_live_resize);
+        if live == self.transaction_present {
             return;
         }
-        self.config.width = size.width;
-        self.config.height = size.height;
-        self.surface.configure(&self.device, &self.config);
+        self.transaction_present = live;
+        // Safety: the layer is only messaged on the main thread, and the
+        // guard keeps it alive. wgpu reads the flag when it acquires a drawable.
+        unsafe {
+            let Some(surface) = self.surface.as_hal::<wgpu::hal::api::Metal>() else {
+                return;
+            };
+            let layer = surface.render_layer().lock();
+            let layer = &*(&**layer as *const _ as *const objc2::runtime::AnyObject);
+            let () = objc2::msg_send![layer, setPresentsWithTransaction: live];
+        }
     }
 
     /// Upload quads in points and present them at a physical pixel size.
@@ -1070,14 +1082,23 @@ impl Gpu {
         scale: f32,
         world: Option<&rndr_core::World>,
     ) -> (bool, Vec<u64>) {
+        // Configure from the size sampled for *this frame's layout*, not the
+        // last resize notification. Notifications and redraws can interleave.
+        if width == 0 || height == 0 || !self.shell.accepts_frames() {
+            return (false, Vec::new());
+        }
+        if (width, height) != (self.config.width, self.config.height) {
+            self.config.width = width;
+            self.config.height = height;
+            self.surface.configure(&self.device, &self.config);
+        }
+        #[cfg(target_os = "macos")]
+        self.sync_transaction_present();
         if frame.draws.is_empty() {
             return (
                 self.present(&frame.quads, width, height, scale, world),
                 Vec::new(),
             );
-        }
-        if !self.shell.accepts_frames() {
-            return (false, Vec::new());
         }
         let acquire_timing = world.and_then(timing::start);
         let acquired = self.surface.get_current_texture();

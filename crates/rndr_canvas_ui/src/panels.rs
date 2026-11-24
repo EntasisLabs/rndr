@@ -104,7 +104,7 @@ impl Builder<'_> {
             Ok(handle) => handle.root,
             Err(_) => {
                 let row = self.world.spawn((Layout {
-                    gap: 4.0,
+                    gap: rndr_ui::Space::X4.points(),
                     ..Layout::row()
                 },));
                 set_parent(self.world, row, parent);

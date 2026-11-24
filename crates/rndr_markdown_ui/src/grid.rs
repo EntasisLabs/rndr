@@ -24,8 +24,7 @@ pub(crate) struct Chrome {
     pub body: Color,
     pub text: Color,
     pub muted: Color,
-    pub link: Color,
-    pub code: Color,
+    pub palette: Palette,
     /// Low-emphasis column and row handle fill. Not the header fill.
     pub grip: Color,
     pub pad_x: f32,
@@ -37,16 +36,13 @@ pub(crate) struct Chrome {
 
 impl Chrome {
     pub(crate) fn from_theme(theme: &UiTheme) -> Self {
-        let mut code = theme.color(Token::ControlHover);
-        code.a = 0.55;
         Self {
             border: theme.color(Token::StrongStroke),
             header: theme.color(Token::Raised),
             body: theme.color(Token::Content),
             text: theme.color(Token::Text),
             muted: theme.color(Token::Secondary),
-            link: theme.color(Token::InfoText),
-            code,
+            palette: Palette::from_theme(theme),
             grip: {
                 // Opaque enough to read as a strip on white and on a dark pane.
                 // Control-hover alone disappears into the content fill.
@@ -63,12 +59,7 @@ impl Chrome {
 }
 
 pub(crate) fn palette_of(chrome: &Chrome) -> Palette {
-    Palette {
-        text: chrome.text,
-        muted: chrome.muted,
-        link: chrome.link,
-        code: chrome.code,
-    }
+    chrome.palette
 }
 
 pub(crate) fn measure_height(
@@ -127,7 +118,7 @@ fn layout_of(
                 .width;
             natural = natural.max(measured + chrome.pad_x * 2.0);
         }
-        *column = natural.clamp(COL_MIN, COL_MAX);
+        *column = natural.ceil().clamp(COL_MIN, COL_MAX);
     }
     let budget = (width - chrome.handle).max(1.0);
     fit_columns(&mut columns, budget);
@@ -779,10 +770,11 @@ pub(crate) fn spawn(world: &mut World, parent: Entity, paint: Paint<'_>) -> Enti
     let block = paint.block;
     let grid = block.grid.as_ref();
     let pad = outer_pad(block);
-    let style = TextStyle {
-        size: 16.0,
-        ..TextStyle::default()
-    };
+    let style = world
+        .resource::<UiTheme>()
+        .cloned()
+        .unwrap_or_default()
+        .typography(rndr_ui::Typography::Reading);
     let metrics = grid.map(|grid| {
         layout_of(
             text_engine(world).as_ref(),
@@ -871,7 +863,7 @@ fn spawn_column_handles(world: &mut World, parent: Entity, frame: &Frame<'_>, gr
                 height: Size::Px(chrome.handle),
                 ..Layout::column()
             },
-            Color::rgba(0.0, 0.0, 0.0, 0.0),
+            Color::TRANSPARENT,
             ContextTarget,
             Handle {
                 row: None,
@@ -901,7 +893,7 @@ fn spawn_row(world: &mut World, parent: Entity, frame: &Frame<'_>, row: &GridRow
             height: Size::Px(height),
             ..Layout::column()
         },
-        Color::rgba(0.0, 0.0, 0.0, 0.0),
+        Color::TRANSPARENT,
         ContextTarget,
         Handle {
             row: Some(index),
@@ -1578,7 +1570,7 @@ pub(crate) fn sync_handles(world: &mut World, root: Entity, caret: usize) {
         let color = if in_caret || hovered || focused {
             chrome.grip
         } else {
-            Color::rgba(0.0, 0.0, 0.0, 0.0)
+            Color::TRANSPARENT
         };
         world.insert(entity, color);
     }

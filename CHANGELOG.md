@@ -2,11 +2,19 @@
 
 ## Unreleased
 
+### Application palettes
+
+- `UiTheme::palette` holds a `ColorPalette` with a standard-contrast color for every token in light and dark. The default is RNDR's existing palette, so nothing changes unless an application sets it. `ColorPalette::default().with(appearance, token, color)` replaces one token. Built-in controls, `core_theme`, and `markdown_theme` read it. High contrast ignores it.
+- `Token::Tertiary`, `Token::Quiet`, and `Token::Faint` are text tiers below `Secondary`, and `Token::Link` is hyperlink text. In RNDR's palette, `Tertiary` is at least 4.5:1 and `Faint` at least 3:1 on the canvas, navigation, content, and raised surfaces. `Link` defaults to the `Accent` color, and the markdown theme's link color now comes from `Link`. In high contrast, the tiers use the text color and `Link` uses the accent color.
+
 ### Markdown visual fixes
 
+- List bullets and task checkboxes start on the paragraph text edge instead of hanging 12 points into the margin, however wide numbered items make the shared marker column. Numbers still align on their period, and item text keeps its column.
 - Bold, inline code, math, and `{{font}}` / `{{size}}` spans take their ink from the theme text token. The previous palette was a light-on-dark default, so those runs were faint on a light surface. Named color spans still use the color written in the note.
 - Inline `$...$` math is italic serif in the markdown editor and in the core markdown view. There is no math layout engine, so the expression is not typeset. The editor hides the dollars until the caret is inside the span. The core view now turns math parsing on; it previously left the dollars in the text.
-- Task checkboxes are a 14-point box with a 1.5-point strong stroke in both themes. A checked item keeps a filled mark inside that box. Unchecked and checked boxes share an 8-point gap before the label, and the label's first glyph starts after that gap. The font ballot glyph is not the checkbox.
+- Task checkboxes are a 14-point box with 4-point corners. An open box is a quiet well (`code_bg`) with a 1.5-point `muted` stroke; a checked box fills with the new `MarkdownTheme::accent` and draws a check glyph in `on_accent`, and the checked item's text takes the `muted` ink. List rows have no gap of their own: the item label's 12-point text inset is the only space after a marker, so a checkbox or bullet sits 12 points from its text instead of 20. Numbers drop their trailing inset for the same reason. Nested levels step by one marker column, so a nested marker starts on its parent's text edge. The font ballot glyph is not the checkbox.
+- Tables draw a collapsed one-point grid in `MarkdownTheme::grid` (the strong stroke from `markdown_theme`). Header cells fill with `MarkdownTheme::header` (the raised surface). Cell text has the label inset above and below. Each row draws its own side, column, and bottom rules, and the header also draws the top one, so virtual rows never double a line, and cells stay clean on a host with a transparent page surface.
+- A quote bar ends with its text instead of running through the gap below it, so it no longer butts into a following code block. It still runs through the gap into a block that continues the quote.
 - The markdown scrollport keeps a lead above the first block and below the last. Heading line boxes and block slots include the text origin, and a table's outer height includes its padding and the caret text origin, so the title and the last table row are not clipped.
 - GitHub and Obsidian callouts (`note`, `tip`, `important`, `warning`, `caution`, and the aliases already recognized) paint a tinted fill, a left accent bar, and a bold kind label from the theme tone tokens.
 - Tabs size to their label between 72 and 240 points. A label that still does not fit ends in an ellipsis and reuses the truncation tooltip.
@@ -14,8 +22,19 @@
 - A Liquid fence with the caret in its body paints every field (tone, title, body, and the rest) as a labeled row inside the measured form height. A caret reproject keeps that height, so the kind line is not the only thing inside the clip. The host widget uses the fence tone: `tip` reads as Tip on the success tokens, not Info.
 - The scrollport's content height is the measured block stack, so a block below the fold is not clamped back to the lead. Moving the caret into that block reveals it in the same frame that paints.
 
+### Canvas
+
+- `CanvasEditor::remote(mutation)` edits a document without a store. Saves show at once, as the confirmed document with unconfirmed edits applied on top, and wait in `take_outgoing()` for the host to send with any client or runtime. The host reports back with `confirm`, `fail`, `replace`, or `fail_get`. One request is in flight at a time, and each edit takes its expected revision from the last confirmed document as it leaves the queue. A storage failure keeps the request and its id until `retry`; a stale revision drops unconfirmed edits and asks for the document; undo and redo go through the store once nothing else is unconfirmed. `CanvasEditor::open` keeps saving through a `CanvasStore` in the same call.
+
+- The canvas view leaves presses, hover and the wheel to anything a host paints above its slot, such as floating toolbars, unless a drag that began on the canvas is still held.
+- `CanvasEditor::distribute(axis)` spaces three or more selected objects evenly, and `zoom_to_selection` fits the selection (or the scene with nothing selected). `OverlayTheme::from_theme` colors selection, guides and the eraser trail from an application palette.
+- The icon set adds Lucide's `mouse-pointer-2`, `hand`, `pen-tool`, `eraser`, `shapes`, `frame`, `image-plus`, `group`, `ungroup`, `copy-plus`, `scan` and `move-up-right`. Icons stay sorted by id, so existing scalars move; use `Icon` rather than stored code points.
+
+- `CanvasEditor::set_preview(Some(operations))` shows proposed edits over the document without saving them, for a proposal awaiting a decision; `None` clears it and `previewing()` reports it. Editing and hit testing keep using the saved document.
+
 ### Interaction polish
 
+- Command palette rows rest on the popup's overlay instead of content-colored slabs: virtual list rows at rest, disabled, or not yet bound show the plane they sit on, and the palette's list is clear. Palette icons fill their 16-point slot, and a row's per-frame label pass no longer cuts an icon-only label to `…` or uses it as the truncation tip.
 - Single-line labels on buttons, navigation rows, tab titles, virtual-list and tree rows, command palette items, and tooltips end in an ellipsis when they do not fit. A truncated label grows a tooltip with the full text unless the control already has one. The tooltip itself stays on one line; the truncation tooltip wraps so the full string can be read.
 - Hover and press fills ease over 120 ms. `UiPlugin` installs `InteractionMotion`; `InteractionMotion::snap` or a zero duration settles on the same frame. A press is a different token from hover. `SystemAppearance::reduced_motion`, `MotionSettings::reduced_motion`, and a clock that has not moved also snap.
 - `SplitSash` keeps its hit target and draws a centered line. Hover, drag, and keyboard focus each use their own token, and the pointer is the resize cursor.

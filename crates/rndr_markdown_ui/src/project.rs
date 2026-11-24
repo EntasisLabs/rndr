@@ -22,16 +22,39 @@ pub struct Palette {
     pub link: Color,
     /// Inline code and fence fill.
     pub code: Color,
+    /// Quiet marker background.
+    pub highlight: Color,
+    /// Writer-selected red, orange, yellow, green, blue, purple and pink ink.
+    pub hues: [Color; 7],
+}
+
+impl Palette {
+    /// Resolve document ink from the same theme as its surrounding controls.
+    pub fn from_theme(theme: &rndr_ui::UiTheme) -> Self {
+        use rndr_ui::Token;
+        Self {
+            text: theme.color(Token::Text),
+            muted: theme.color(Token::Secondary),
+            link: theme.color(Token::Accent),
+            code: theme.color(Token::CodeFill),
+            highlight: theme.color(Token::Highlight),
+            hues: [
+                Token::HueRed,
+                Token::HueOrange,
+                Token::HueYellow,
+                Token::HueGreen,
+                Token::HueBlue,
+                Token::HuePurple,
+                Token::HuePink,
+            ]
+            .map(|role| theme.color(role)),
+        }
+    }
 }
 
 impl Default for Palette {
     fn default() -> Self {
-        Self {
-            text: Color::rgb(0.93, 0.94, 0.95),
-            muted: Color::rgb(0.62, 0.64, 0.68),
-            link: Color::rgb(0.45, 0.68, 0.95),
-            code: Color::rgba(0.55, 0.58, 0.62, 0.22),
-        }
+        Self::from_theme(&rndr_ui::UiTheme::default())
     }
 }
 
@@ -83,7 +106,7 @@ pub enum DisplayKind {
     Rule,
     /// A blank line owned by the parent. Not a caret target.
     Gap,
-    /// A GFM table drawn as a grid. [`DisplayBlock::grid`] holds the cells.
+    /// A GFM table drawn as a grid. The block's grid field holds the cells.
     Table,
     /// An image whose alt is the text. The picture itself is not loaded.
     Image {
@@ -1457,8 +1480,7 @@ fn canonical_kind(info: &str) -> String {
 fn marker_chrome(text: &str) -> (DisplayKind, String) {
     let trimmed = text.trim();
     if let Some(checked) = task_checked(trimmed) {
-        let chrome = if checked { "☑ " } else { "☐ " };
-        return (DisplayKind::Task(checked), chrome.into());
+        return (DisplayKind::Task(checked), String::new());
     }
     let digits: String = trimmed.chars().take_while(|c| c.is_ascii_digit()).collect();
     if let Ok(number) = digits.parse::<u64>() {
@@ -1728,7 +1750,7 @@ fn walk_inline(_bytes: &str, node: &Green, acc: &mut Acc, ink: &Ink, reveal: boo
         | SyntaxKind::FootnoteRef
         | SyntaxKind::FootnoteInline => next.link = true,
         SyntaxKind::Highlight => {
-            next.highlight = Some(Color::rgba(0.93, 0.78, 0.18, 0.45));
+            next.highlight = Some(acc.palette.highlight);
             next.custom = true;
         }
         SyntaxKind::Math => {
@@ -1739,7 +1761,7 @@ fn walk_inline(_bytes: &str, node: &Green, acc: &mut Acc, ink: &Ink, reveal: boo
             next.italic = true;
             next.custom = true;
         }
-        SyntaxKind::StyleSpan => apply_style(&mut next, style_token(node)),
+        SyntaxKind::StyleSpan => apply_style(&mut next, style_token(node), &acc.palette),
         _ => {}
     }
     let skip_dest = matches!(node.kind(), SyntaxKind::Link | SyntaxKind::Image) && !active;
@@ -2021,14 +2043,9 @@ fn style_token(node: &Green) -> &str {
         .unwrap_or("")
 }
 
-fn apply_style(ink: &mut Ink, token: &str) {
+fn apply_style(ink: &mut Ink, token: &str, palette: &Palette) {
     let lower = token.to_ascii_lowercase();
-    if let Some(color) = named_color(&lower) {
-        ink.color = color;
-        ink.custom = true;
-        return;
-    }
-    if let Some(color) = hex_color(&lower) {
+    if let Some(color) = named_color(&lower, palette) {
         ink.color = color;
         ink.custom = true;
         return;
@@ -2051,41 +2068,11 @@ fn apply_style(ink: &mut Ink, token: &str) {
     }
 }
 
-fn named_color(name: &str) -> Option<Color> {
-    Some(match name {
-        "red" => Color::rgb(0.97, 0.44, 0.44),
-        "orange" => Color::rgb(0.98, 0.57, 0.24),
-        "yellow" => Color::rgb(0.98, 0.80, 0.08),
-        "green" => Color::rgb(0.29, 0.87, 0.50),
-        "blue" => Color::rgb(0.38, 0.65, 0.98),
-        "purple" => Color::rgb(0.75, 0.52, 0.99),
-        "pink" => Color::rgb(0.96, 0.45, 0.71),
-        _ => return None,
-    })
-}
-
-fn hex_color(token: &str) -> Option<Color> {
-    let hex = token.strip_prefix('#')?;
-    let expanded = match hex.len() {
-        3 | 4 => hex
-            .chars()
-            .take(3)
-            .flat_map(|ch| [ch, ch])
-            .collect::<String>(),
-        6 | 8 => hex.chars().take(6).collect(),
-        _ => return None,
-    };
-    if expanded.len() != 6 || !expanded.bytes().all(|b| b.is_ascii_hexdigit()) {
-        return None;
-    }
-    let r = u8::from_str_radix(&expanded[0..2], 16).ok()?;
-    let g = u8::from_str_radix(&expanded[2..4], 16).ok()?;
-    let b = u8::from_str_radix(&expanded[4..6], 16).ok()?;
-    Some(Color::rgb(
-        f32::from(r) / 255.0,
-        f32::from(g) / 255.0,
-        f32::from(b) / 255.0,
-    ))
+fn named_color(name: &str, palette: &Palette) -> Option<Color> {
+    let index = ["red", "orange", "yellow", "green", "blue", "purple", "pink"]
+        .iter()
+        .position(|candidate| *candidate == name)?;
+    Some(palette.hues[index])
 }
 
 fn size_weight(token: &str) -> u16 {
@@ -2184,7 +2171,14 @@ fn project_callout(bytes: &str, node: &Green, at: usize, focus: Option<usize>) -
     }
     let mut block = empty_paragraph(span);
     block.kind = DisplayKind::Callout { tone: tone.clone() };
-    block.chrome = format!("{}  ", callout_label(&tone));
+    let icon = match tone.as_str() {
+        "warning" | "caution" | "attention" => rndr_core::Icon::AlertTriangle,
+        "danger" | "error" | "failure" | "bug" => rndr_core::Icon::CircleX,
+        "success" | "tip" | "hint" | "done" => rndr_core::Icon::CircleCheck,
+        "note" | "quote" => rndr_core::Icon::Book,
+        _ => rndr_core::Icon::Info,
+    };
+    block.chrome = format!("{}  {}  ", icon.scalar(), callout_label(&tone));
     block.text = if text.is_empty() { title } else { text };
     block.segments = segments;
     block.caret_end = raw.trim_end_matches(['\n', '\r']).len();

@@ -15,7 +15,7 @@
 use rndr_core::Color;
 
 /// Pass clear, authored in sRGB like every other [`Color`](rndr_core::Color).
-pub(crate) const CLEAR: Color = Color::rgb(0.06, 0.07, 0.09);
+pub(crate) const CLEAR: Color = rndr_core::tokens::CLEAR;
 
 /// Decode one IEC 61966-2-1 sRGB channel to linear light.
 pub(crate) fn srgb_channel_to_linear(encoded: f32) -> f32 {

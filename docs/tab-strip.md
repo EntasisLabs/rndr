@@ -6,7 +6,7 @@ These checks are headless. They do not certify a platform screen reader, a physi
 
 ## Mount
 
-`TabStrip::mount` places a bar and a body under a fill root. The bar is a leading chevron, a horizontal scrollport, a trailing chevron, and an overflow button. The scrollport's child is the tablist. Each tab is 120 points wide and carries an optional icon, the label, a dirty mark, and a close button. The body holds one panel per tab. Put document content in `TabStripHandle::panel`. A later mount with the same id reuses the root, the surviving tabs, and their panels. A tab left out of the next list is despawned with its panel.
+`TabStrip::mount` places a bar and a body under a fill root. The bar is a leading chevron, a horizontal scrollport, a trailing chevron, and an overflow button. The scrollport's child is the tablist. Each tab fits its measured label and controls, between 96 and 200 points wide (36 for icon-only pinned tabs) and carries an optional icon, the label, a dirty mark, and a close button. The body holds one panel per tab. Put document content in `TabStripHandle::panel`. A later mount with the same id reuses the root, the surviving tabs, and their panels. A tab left out of the next list is despawned with its panel.
 
 `TabStripProps` needs a nonblank label. That label is the tablist's accessible name. It is not drawn on the bar. `active` chooses the selected tab's fill: the selected token when the strip is the active group, and a quieter raised token when it is not. Focus inside the strip also uses the selected fill. `enabled` set to false removes focus, activation, drag, and close.
 
@@ -30,7 +30,7 @@ Close is `CloseRequested`. The tab stays until the host omits it from the next m
 
 ## Overflow
 
-The chevrons scroll the tab row by one tab width. The one that cannot scroll is disabled. The overflow button opens a menu of the tabs that are not fully inside the port. Picking one selects it. The selected tab is scrolled into view when it becomes selected, when its index changes, when the port width changes, and on the first frame the port has a size. A chevron can still scroll it aside after that. Choosing it again brings it back.
+The chevrons scroll the tab row by 120 points. The one that cannot scroll is disabled. The overflow button opens a menu of the tabs that are not fully inside the port. Picking one selects it. The selected tab is scrolled into view when it becomes selected, when its index changes, when the port width changes, and on the first frame the port has a size. A chevron can still scroll it aside after that. Choosing it again brings it back.
 
 ## Drag, move, and split
 

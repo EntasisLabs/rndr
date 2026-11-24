@@ -830,10 +830,16 @@ fn text_value(world: &World, entity: Entity) -> String {
     if let Some(buffer) = world.get::<Buffer>(entity) {
         return buffer.text();
     }
-    world
+    let text = world
         .get::<Label>(entity)
         .map(|label| label.text.clone())
-        .unwrap_or_default()
+        .unwrap_or_default();
+    // Assistive tech hears how long a secure value is, not what it says.
+    if world.has::<crate::Secure>(entity) {
+        crate::secure::mask(&text)
+    } else {
+        text
+    }
 }
 
 /// An icon-only label is decoration. Its scalar is not an accessible name.

@@ -37,7 +37,7 @@
 //! assert!((ratio - 0.5).abs() < 0.02);
 //! ```
 use crate::lifecycle::{find_keyed_child, require_layout_parent};
-use crate::{Surface, Token, UiColor, UiError, UiId, UiRecipe, UiStyle, UiTheme};
+use crate::{Surface, Token, UiError, UiId, UiRecipe, UiStyle, UiTheme};
 use rndr_core::*;
 use std::time::Duration;
 
@@ -180,7 +180,11 @@ impl SplitSash {
                 return Err(UiError::InvalidProps);
             }
             state.props = props.clone();
-            state.force = Some(ratio);
+            state.pending = None;
+            state.ratio = ratio;
+            if let Some(split) = world.get_mut::<SplitLayout>(root) {
+                split.ratio = ratio;
+            }
             let sash = key.sash;
             world.insert(sash, state);
             write_chrome(world, sash, &props);
@@ -224,6 +228,15 @@ impl SplitSash {
                     trailing,
                 },
             );
+            world.insert(
+                root,
+                SplitLayout {
+                    leading,
+                    sash,
+                    trailing,
+                    ratio,
+                },
+            );
             world.insert(sash, KeyNavigation(sash_key));
             world.insert(sash, AccessMark(AccessRole::Slider));
             world.insert(
@@ -231,7 +244,6 @@ impl SplitSash {
                 SashState {
                     props: props.clone(),
                     ratio,
-                    force: Some(ratio),
                     pending: None,
                     reset: false,
                     published: None,
@@ -290,8 +302,6 @@ impl Component for SplitKey {}
 struct SashState {
     props: SplitSashProps,
     ratio: f64,
-    /// Host ratio waiting for a measured parent. Cleared once it is written.
-    force: Option<f64>,
     /// Assistive or double-click target for this frame.
     pending: Option<f64>,
     /// Drop the pointer drag after rewriting the default ratio.
@@ -315,13 +325,10 @@ pub(crate) fn key_at(world: &World, entity: Entity) -> Option<UiId> {
 pub(crate) fn drive(world: &mut World) {
     note_pointer(world);
     note_access(world);
-    let mut sashes = world.entities_with::<SashState>();
+    let sashes = world.entities_with::<SashState>();
     if sashes.is_empty() {
         return;
     }
-    // Outer splits first, so a nested sash estimates the space the outer
-    // leading pane has already claimed instead of the whole window.
-    sashes.sort_by_key(|sash| depth(world, *sash));
     for sash in &sashes {
         absorb(world, *sash);
     }
@@ -333,7 +340,9 @@ pub(crate) fn drive(world: &mut World) {
     restore_frozen(world, &frozen);
     for sash in &sashes {
         finish_reset(world, *sash);
-        readback(world, *sash);
+        if world.resource::<Drag>().and_then(|drag| drag.entity) == Some(*sash) {
+            readback(world, *sash);
+        }
         publish(world, *sash);
     }
 }
@@ -363,7 +372,7 @@ pub(crate) fn styles(world: &mut World) {
             Token::StrongStroke
         };
         // The handle stays the full hit target. Only the centered line is ink.
-        world.insert(sash, Color::rgba(0.0, 0.0, 0.0, 0.0));
+        world.insert(sash, Color::TRANSPARENT);
         let line = ensure_line(world, sash);
         world.insert(
             line,
@@ -511,7 +520,7 @@ fn paint(world: &mut World, entity: Entity, token: Token) {
 
 fn paint_fill(world: &mut World, entity: Entity, fill: PaneFill) {
     let background = match fill {
-        PaneFill::Transparent => UiColor::Explicit(Color::rgba(0.0, 0.0, 0.0, 0.0)),
+        PaneFill::Transparent => crate::Surface::Transparent.fill(),
         PaneFill::Theme(surface) => surface.fill(),
     };
     world.insert(
@@ -562,7 +571,6 @@ fn note_pointer(world: &mut World) {
     state.press_ms = ms;
     if double {
         state.pending = Some(state.props.default_ratio);
-        state.force = None;
         state.reset = true;
     }
     world.insert(sash, state);
@@ -585,7 +593,6 @@ fn note_access(world: &mut World) {
         }
         if let Some(state) = world.get_mut::<SashState>(set.entity) {
             state.pending = Some(set.value.clamp(0.0, 1.0));
-            state.force = None;
         }
     }
 }
@@ -594,18 +601,20 @@ fn absorb(world: &mut World, sash: Entity) {
     let Some(mut state) = world.get::<SashState>(sash).cloned() else {
         return;
     };
-    if let Some(pending) = state.pending.take() {
-        state.ratio = pending;
-        state.force = None;
-    } else if let Some(force) = state.force {
-        state.ratio = force;
+    let Some(root) = world.get::<Parent>(sash).map(|p| p.entity) else {
+        return;
+    };
+    let Some(split) = world.get_mut::<SplitLayout>(root) else {
+        return;
+    };
+    if let Some(target) = state.pending.take() {
+        split.ratio = target;
     }
+    // The input pass can only see the previous layout. Clamp the reported
+    // value, not the request that layout will resolve against the new bounds.
+    state.ratio = split.ratio;
     world.insert(sash, state);
-    if write_ratio(world, sash) {
-        if let Some(state) = world.get_mut::<SashState>(sash) {
-            state.force = None;
-        }
-    }
+    write_ratio(world, sash);
 }
 
 fn frozen_sizes(world: &World, sashes: &[Entity]) -> Vec<(Entity, f32)> {
@@ -670,6 +679,11 @@ fn readback(world: &mut World, sash: Entity) {
         return;
     };
     let ratio = ratio_of(px, pair);
+    if let Some(root) = world.get::<Parent>(sash).map(|p| p.entity) {
+        if let Some(split) = world.get_mut::<SplitLayout>(root) {
+            split.ratio = ratio;
+        }
+    }
     if let Some(state) = world.get_mut::<SashState>(sash) {
         state.ratio = ratio;
     }
@@ -756,7 +770,7 @@ fn sash_key(world: &mut World, entity: Entity, event: &KeyEvent) -> bool {
     // ratio that remains after every key in this frame.
     if let Some(stored) = world.get_mut::<SashState>(entity) {
         stored.ratio = next;
-        stored.force = None;
+        stored.pending = Some(next);
     }
     true
 }
@@ -814,115 +828,7 @@ fn ratio_of(px: f32, pair: f32) -> f64 {
 }
 
 fn pair_of(world: &World, sash: Entity) -> Option<f32> {
-    if let Some(budget) = split_budget(world, sash) {
-        if budget.is_finite() && budget > 1.0 {
-            return Some(budget);
-        }
-    }
-    let estimate = estimated_pair(world, sash)?;
-    (estimate.is_finite() && estimate > 1.0).then_some(estimate)
-}
-
-fn estimated_pair(world: &World, sash: Entity) -> Option<f32> {
-    let state = world.get::<SashState>(sash)?;
-    let parent = world.get::<Parent>(sash)?.entity;
-    let axis = axis_of(world, sash);
-    let span = estimated_span(world, parent, axis, 0)?;
-    let layout = world.get::<Layout>(parent).copied()?;
-    let inner = (span - layout.padding * 2.0).max(0.0);
-    let kids = children_of(world, parent);
-    let gaps = if kids.len() > 1 {
-        layout.gap * (kids.len() as f32 - 1.0)
-    } else {
-        0.0
-    };
-    let mut extras = 0.0;
-    for child in kids {
-        if child == state.leading || child == state.trailing {
-            continue;
-        }
-        extras += bar_px(world, child, axis);
-    }
-    Some((inner - extras - gaps).max(0.0))
-}
-
-fn depth(world: &World, mut entity: Entity) -> u32 {
-    let mut n = 0;
-    while let Some(parent) = world.get::<Parent>(entity).map(|parent| parent.entity) {
-        n += 1;
-        entity = parent;
-        if n > 64 {
-            break;
-        }
-    }
-    n
-}
-
-fn estimated_span(world: &World, entity: Entity, axis: Axis, depth: u8) -> Option<f32> {
-    if depth > 32 {
-        return None;
-    }
-    if let Some(rect) = world.get::<Rect>(entity).copied() {
-        let measured = match axis {
-            Axis::Row => rect.w,
-            Axis::Column => rect.h,
-        };
-        if measured.is_finite() && measured > 1.0 {
-            return Some(measured);
-        }
-    }
-    let layout = world.get::<Layout>(entity).copied()?;
-    match main_size(layout, axis) {
-        Size::Px(px) if px.is_finite() && px > 0.0 => Some(px),
-        Size::Fill => {
-            if let Some(parent) = world.get::<Parent>(entity).map(|parent| parent.entity) {
-                let span = estimated_span(world, parent, axis, depth + 1)?;
-                let parent_layout = world.get::<Layout>(parent).copied()?;
-                let inner = (span - parent_layout.padding * 2.0).max(0.0);
-                let kids = children_of(world, parent);
-                let gaps = if kids.len() > 1 {
-                    parent_layout.gap * (kids.len() as f32 - 1.0)
-                } else {
-                    0.0
-                };
-                let mut used = gaps;
-                for child in kids {
-                    if child == entity {
-                        continue;
-                    }
-                    used += bar_px(world, child, axis);
-                }
-                Some((inner - used).max(0.0))
-            } else {
-                let viewport = world.resource::<Viewport>().copied().unwrap_or_default();
-                Some(match axis {
-                    Axis::Row => viewport.content_width(),
-                    Axis::Column => viewport.content_height(),
-                })
-            }
-        }
-        _ => None,
-    }
-}
-
-fn bar_px(world: &World, entity: Entity, axis: Axis) -> f32 {
-    if let Some(layout) = world.get::<Layout>(entity).copied() {
-        if let Size::Px(px) = main_size(layout, axis) {
-            if px.is_finite() && px > 0.0 {
-                return px;
-            }
-        }
-    }
-    if let Some(rect) = world.get::<Rect>(entity).copied() {
-        let measured = match axis {
-            Axis::Row => rect.w,
-            Axis::Column => rect.h,
-        };
-        if measured.is_finite() && measured > 0.0 {
-            return measured;
-        }
-    }
-    8.0
+    split_budget(world, sash).filter(|budget| budget.is_finite() && *budget > 1.0)
 }
 
 fn axis_of(world: &World, sash: Entity) -> Axis {

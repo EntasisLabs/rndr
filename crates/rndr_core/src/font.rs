@@ -1034,7 +1034,10 @@ pub(crate) fn shape_labels(world: &mut World, labels: Vec<crate::Entity>) {
         let mut source = label.text.clone();
         let mut preview = preview;
         let mut at = at;
+        // A placeholder is shown as written; a secure value as bullets.
+        let mut secret = world.has::<crate::Secure>(entity);
         if let Some(hint) = crate::prompt::placeholder_text(world, entity) {
+            secret = false;
             source = hint;
             preview.clear();
             at = 0;
@@ -1050,6 +1053,9 @@ pub(crate) fn shape_labels(world: &mut World, labels: Vec<crate::Entity>) {
         let mut key = layout_cache_key(font.as_ref(), &source, max_width, &spans, &preview, at);
         key ^= crate::text::style_key(&style);
         key ^= overflow_bits(overflow);
+        if secret {
+            key ^= 0x5EC0_5EC0_5EC0_5EC0;
+        }
         key ^= crate::structured_chrome::layout_key(world, entity);
         key ^= crate::structured_chrome::paint_offset_key(world, entity);
         if !preview.is_empty() {
@@ -1096,7 +1102,15 @@ pub(crate) fn shape_labels(world: &mut World, labels: Vec<crate::Entity>) {
         if !preview.is_empty() {
             text.insert_str(insert_at, &preview);
         }
-        let shape_width = if overflow == TextOverflow::Ellipsis {
+        // Bullets are shaped in place of the value, then mapped back.
+        let real = secret.then(|| {
+            let bullets = crate::secure::mask(&text);
+            std::mem::replace(&mut text, bullets)
+        });
+        if secret {
+            spans.clear();
+        }
+        let shape_width = if overflow == TextOverflow::Ellipsis && !secret {
             if max_width.is_finite() {
                 text = ellipsis_line(engine.as_ref(), &style, &spans, &text, max_width);
             } else if text.contains('\n') {
@@ -1130,6 +1144,10 @@ pub(crate) fn shape_labels(world: &mut World, labels: Vec<crate::Entity>) {
             for highlight in &mut layout.highlights {
                 highlight.y -= offset;
             }
+        }
+        if let Some(real) = real {
+            crate::secure::unmask(&real, &mut layout);
+            text = real;
         }
         if !preview.is_empty() && insert_at <= text.len() {
             let end = cursor

@@ -95,9 +95,9 @@ Pinned references (all at `e03e0c09bfcf5ad3b271b8185280284a22823e05`):
 - [Routing](https://github.com/1bye/rake/blob/e03e0c09bfcf5ad3b271b8185280284a22823e05/docs/routing.md): `Router`, `Navigator`, `TabHandle`, retained entries, exact targets resolved at submission, guard revisions, loaders and histories.
 - [Guarded quit](https://github.com/1bye/rake/blob/e03e0c09bfcf5ad3b271b8185280284a22823e05/docs/guarded-quit.md): save/discard/cancel, revision revalidation, explicit wait/cancel work policies and irreversible stopping boundary.
 - [Runtime control](https://github.com/1bye/rake/blob/e03e0c09bfcf5ad3b271b8185280284a22823e05/docs/runtime-control.md): shared typed operations for UI/CLI, operation/decision identities, bounded diagnostics and retention, stale-choice rejection. Control disabled by default. Transport does not become authority.
-- [Support](https://github.com/1bye/rake/blob/e03e0c09bfcf5ad3b271b8185280284a22823e05/docs/support.md): alpha APIs; headless caller-supplied executor; macOS source apps versus unqualified Windows/Linux; browser GPUI canvas is not HTML layout. Keyboard/IME/AT/scale qualification remains broader work.
+- [Support](https://github.com/1bye/rake/blob/e03e0c09bfcf5ad3b271b8185280284a22823e05/docs/support.md): alpha APIs; headless caller-supplied executor; macOS source apps versus unqualified Windows/Linux; browser canvas is not HTML layout. Keyboard/IME/AT/scale qualification remains broader work.
 
-These are architectural references, not a dependency mandate or proof Rake would solve Medousa. Adopt the principles of exact ownership, retained-versus-disposed distinction, revision-checked decisions and shared typed operations. Do **not** import its GPUI tree, service bundle, router implementation, native close behavior, packaging/update tooling, control server or authentication assumptions. Rake's last-window/runtime behavior must not silently replace rndr's documented primary-window close contract. A guessed `docs/tasks.md` URL returned 404; no task semantics are attributed to that nonexistent document.
+These are architectural references, not a dependency mandate or proof Rake would solve Medousa. Adopt the principles of exact ownership, retained-versus-disposed distinction, revision-checked decisions and shared typed operations. Do **not** import its UI tree, service bundle, router implementation, native close behavior, packaging/update tooling, control server or authentication assumptions. Rake's last-window/runtime behavior must not silently replace rndr's documented primary-window close contract. A guessed `docs/tasks.md` URL returned 404; no task semantics are attributed to that nonexistent document.
 
 ## 5. Recommended responsibility and dependency boundaries
 
@@ -134,7 +134,7 @@ This table explains the original tradeoff, not another open menu. [F0 §1](rndr-
 | Extend `rndr_app` | Already a starter layer; no new package | Worth reviewing at API gate. It currently mixes form/preferences helpers and is not the minimal ownership core. Select it instead if independent reuse is not demonstrated. |
 | Put flow in `rndr_core` | Easy access to internals | Avoid: couples opt-in routing/policy to every core consumer and risks bypassing existing owners. Only narrow correctness seams belong in core. |
 | Optional companion | Isolates adoption and testing; reuses headless foundation | Preferred if the four proofs establish a reusable contract. Cost is a new public compatibility surface; keep API narrow and name provisional. |
-| Replace with Rake / wrap its full runtime | Existing broader framework | Wrong scope and dependency direction; GPUI/service/policy coupling, second runtime/tree and a migration instead of strengthening rndr. No such evaluation was executed. |
+| Replace with Rake / wrap its full runtime | Existing broader framework | Wrong scope and dependency direction; UI/service/policy coupling, second runtime/tree and a migration instead of strengthening rndr. No such evaluation was executed. |
 
 ## 6. Required semantics (settled in F0, not implemented)
 

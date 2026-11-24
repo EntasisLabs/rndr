@@ -1,10 +1,14 @@
 //! The editing state machine. It reads plain per-frame input in view
 //! coordinates, previews gestures on a draft copy of the nodes, and saves
-//! each finished gesture as one transaction through a [`CanvasStore`].
+//! each finished gesture as one transaction, either through a
+//! [`CanvasStore`] in the same call or, for an editor opened with
+//! [`CanvasEditor::remote`], through the host's outbox in [`crate::session`].
 //!
 //! Nothing here needs a window, so behavior can be driven and checked
 //! headlessly; [`crate::view`] adapts `rndr_core` input to [`EditorInput`].
 
+pub use crate::session::Outgoing;
+use crate::session::Remote;
 use rndr_canvas::geometry::set_line_endpoints;
 use rndr_canvas::layout::SnappedMove;
 use rndr_canvas::selection::{Endpoint, Handle, SelectionFrame};
@@ -295,11 +299,22 @@ pub const HANDLE_SIZE: f32 = 8.0;
 /// Distance of the rotation handle above the frame, in view points.
 pub const ROTATE_OFFSET: f32 = 24.0;
 
-/// Edits one document in a [`CanvasStore`].
+/// Where saves go.
+enum Backend {
+    /// Each save is answered in the same call.
+    Store(Arc<dyn CanvasStore + Send + Sync>),
+    /// Saves queue for the host; see [`crate::session`].
+    Remote(Box<Remote>),
+}
+
+/// Edits one document, saving through a [`CanvasStore`] or a remote host.
 pub struct CanvasEditor {
-    store: Arc<dyn CanvasStore + Send + Sync>,
+    backend: Backend,
     current: Mutation,
     draft: Option<Vec<Node>>,
+    /// Operations shown over the document but not saved, such as a proposal
+    /// awaiting a decision.
+    preview: Option<Vec<Operation>>,
     pub camera: Camera,
     tool: Tool,
     selection: Vec<String>,
@@ -328,13 +343,27 @@ fn v(p: [f32; 2]) -> Vec2 {
 }
 
 impl CanvasEditor {
-    /// Opens document `id` in `store`.
+    /// Opens document `id` in `store`. Every save waits for the store.
     pub fn open(store: Arc<dyn CanvasStore + Send + Sync>, id: &str) -> Result<Self, CanvasError> {
         let current = store.get(id)?;
-        Ok(Self {
-            store,
+        Ok(Self::with(Backend::Store(store), current))
+    }
+
+    /// Edits `document`, read by the host, without a store: saves show at
+    /// once and wait in [`CanvasEditor::take_outgoing`] for the host to send.
+    pub fn remote(document: Mutation) -> Self {
+        Self::with(
+            Backend::Remote(Box::new(Remote::new(document.clone()))),
+            document,
+        )
+    }
+
+    fn with(backend: Backend, current: Mutation) -> Self {
+        Self {
+            backend,
             current,
             draft: None,
+            preview: None,
             camera: Camera::default(),
             tool: Tool::Select,
             selection: Vec::new(),
@@ -349,7 +378,7 @@ impl CanvasEditor {
             counter: 0,
             last_click: None,
             erase_path: Vec::new(),
-        })
+        }
     }
 
     /// The saved document and what history allows.
@@ -360,10 +389,15 @@ impl CanvasEditor {
     /// Nodes to paint: the gesture preview while one is in progress, with
     /// the text being edited.
     pub fn nodes(&self) -> Vec<Node> {
-        let mut nodes = self
-            .draft
-            .clone()
-            .unwrap_or_else(|| self.current.document.scene.nodes.clone());
+        let mut nodes = self.draft.clone().unwrap_or_else(|| {
+            self.preview
+                .as_ref()
+                .and_then(|ops| apply_operations(&self.current.document, ops).ok())
+                .map_or_else(
+                    || self.current.document.scene.nodes.clone(),
+                    |doc| doc.scene.nodes,
+                )
+        });
         if let Some(edit) = &self.text {
             match nodes.iter_mut().find(|n| n.id == edit.id) {
                 Some(slot) => *slot = edit.node.clone(),
@@ -378,6 +412,18 @@ impl CanvasEditor {
         let mut scene = self.current.document.scene.clone();
         scene.nodes = self.nodes();
         scene
+    }
+
+    /// Shows `operations` over the document without saving them, or clears
+    /// the preview with `None`. Operations that no longer apply show the
+    /// document as it is. Editing and hit testing use the saved document.
+    pub fn set_preview(&mut self, operations: Option<Vec<Operation>>) {
+        self.preview = operations.filter(|ops| !ops.is_empty());
+    }
+
+    /// Whether a preview is showing.
+    pub fn previewing(&self) -> bool {
+        self.preview.is_some()
     }
 
     pub fn tool(&self) -> Tool {
@@ -429,12 +475,113 @@ impl CanvasEditor {
             .collect();
     }
 
-    /// Re-reads the document from the store, dropping any preview.
+    /// Re-reads the document from the store, dropping any preview. A remote
+    /// editor asks the host for it through [`CanvasEditor::take_outgoing`].
     pub fn reload(&mut self) -> Result<(), CanvasError> {
-        self.current = self.store.get(&self.current.document.id)?;
-        self.draft = None;
-        self.prune_selection();
+        match &mut self.backend {
+            Backend::Store(store) => {
+                self.current = store.get(&self.current.document.id)?;
+                self.draft = None;
+                self.prune_selection();
+            }
+            Backend::Remote(remote) => remote.request_get(),
+        }
         Ok(())
+    }
+
+    /// Id of the document being edited.
+    pub fn document_id(&self) -> &str {
+        &self.current.document.id
+    }
+
+    /// Requests a remote editor wants sent now, at most one save at a time.
+    /// Always empty for an editor opened on a store.
+    pub fn take_outgoing(&mut self) -> Vec<Outgoing> {
+        match &mut self.backend {
+            Backend::Remote(remote) => remote.take(),
+            Backend::Store(_) => Vec::new(),
+        }
+    }
+
+    /// Edits not yet confirmed, or a read in progress.
+    pub fn is_saving(&self) -> bool {
+        matches!(&self.backend, Backend::Remote(remote) if remote.busy())
+    }
+
+    /// The last send failed without an answer; [`CanvasEditor::retry`]
+    /// sends it again with the same id.
+    pub fn is_stalled(&self) -> bool {
+        matches!(&self.backend, Backend::Remote(remote) if remote.stalled())
+    }
+
+    /// The store accepted request `id`. Returns `false` for an answer to a
+    /// request no longer in flight.
+    pub fn confirm(&mut self, id: &str, mutation: Mutation) -> bool {
+        let Backend::Remote(remote) = &mut self.backend else {
+            return false;
+        };
+        if !remote.confirm(id, mutation) {
+            return false;
+        }
+        self.last_error = None;
+        self.show();
+        true
+    }
+
+    /// Request `id` failed with `error`. See [`crate::session`] for what
+    /// each error does to unconfirmed edits.
+    pub fn fail(&mut self, id: &str, error: CanvasError) -> bool {
+        let Backend::Remote(remote) = &mut self.backend else {
+            return false;
+        };
+        if !remote.fail(id, &error) {
+            return false;
+        }
+        self.last_error = Some(error);
+        self.show();
+        true
+    }
+
+    /// The host could not read the document for an [`Outgoing::Get`].
+    pub fn fail_get(&mut self, error: CanvasError) {
+        if let Backend::Remote(remote) = &mut self.backend {
+            remote.fail_get();
+            self.last_error = Some(error);
+        }
+    }
+
+    /// Sends a stalled request again.
+    pub fn retry(&mut self) {
+        if let Backend::Remote(remote) = &mut self.backend {
+            remote.retry();
+        }
+    }
+
+    /// Adopts `mutation` read from the store, for an [`Outgoing::Get`] or
+    /// because the document changed elsewhere. Unconfirmed edits stay on
+    /// top. Returns `false` for another document or an older revision.
+    pub fn replace(&mut self, mutation: Mutation) -> bool {
+        let Backend::Remote(remote) = &mut self.backend else {
+            return false;
+        };
+        let wanted = remote.busy();
+        if !wanted && mutation.document.revision < remote.confirmed.document.revision {
+            return false;
+        }
+        if !remote.replace(mutation) {
+            return false;
+        }
+        self.show();
+        true
+    }
+
+    /// Shows the remote session's document, keeping any gesture preview,
+    /// which is rebuilt from it each frame.
+    fn show(&mut self) {
+        if let Backend::Remote(remote) = &self.backend {
+            self.current = remote.shown();
+            self.prune_selection();
+        }
     }
 
     fn prune_selection(&mut self) {
@@ -460,13 +607,22 @@ impl CanvasEditor {
         if operations.is_empty() {
             return false;
         }
+        let id = self.new_id("tx");
+        let store = match &mut self.backend {
+            Backend::Remote(remote) => {
+                remote.push(id, label, operations);
+                self.show();
+                return true;
+            }
+            Backend::Store(store) => store.clone(),
+        };
         let transaction = Transaction {
-            id: self.new_id("tx"),
+            id,
             expected_revision: self.current.document.revision,
             label: label.into(),
             operations,
         };
-        let result = self.store.transact(&self.current.document.id, transaction);
+        let result = store.transact(&self.current.document.id, transaction);
         self.settle(result)
     }
 
@@ -494,12 +650,21 @@ impl CanvasEditor {
         if (redo && !self.current.can_redo) || (!redo && !self.current.can_undo) {
             return false;
         }
+        let id = self.new_id("h");
+        let store = match &mut self.backend {
+            Backend::Remote(remote) => {
+                let queued = remote.history(id, redo);
+                self.show();
+                return queued;
+            }
+            Backend::Store(store) => store.clone(),
+        };
         let request = HistoryRequest {
-            id: self.new_id("h"),
+            id,
             expected_revision: self.current.document.revision,
             redo,
         };
-        let result = self.store.history(&self.current.document.id, request);
+        let result = store.history(&self.current.document.id, request);
         self.settle(result)
     }
 
@@ -918,6 +1083,28 @@ impl CanvasEditor {
     pub fn zoom_by(&mut self, factor: f64, viewport: [f32; 2]) {
         let center = Vec2::new(f64::from(viewport[0]) / 2.0, f64::from(viewport[1]) / 2.0);
         self.camera = self.camera.zoom_at(center, self.camera.zoom * factor);
+    }
+
+    /// Spreads three or more selected objects evenly along `axis`.
+    pub fn distribute(&mut self, axis: rndr_canvas::Axis) -> bool {
+        if self.selection.len() < 3 {
+            return false;
+        }
+        let nodes = self.nodes();
+        let ops = SceneIndex::new(&nodes).distribute(&self.selection, axis);
+        self.commit("Distribute", ops)
+    }
+
+    /// Fits the selection in the view, or the whole scene with nothing
+    /// selected.
+    pub fn zoom_to_selection(&mut self, viewport: [f32; 2], measure: &dyn TextMeasure) {
+        let nodes = self.nodes();
+        let index = SceneIndex::with_measure(&nodes, measure);
+        let Some(bounds) = index.selection_bounds(&self.selection) else {
+            return self.zoom_to_fit(viewport, measure);
+        };
+        let (w, h) = (f64::from(viewport[0]), f64::from(viewport[1]));
+        self.camera = Camera::fit(Some(bounds), w, h, (w * 0.1).min(56.0));
     }
 
     /// Fits the visible scene in the view.

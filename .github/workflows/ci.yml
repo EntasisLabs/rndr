@@ -75,6 +75,17 @@ jobs:
           # The tray feature uses tray-icon's ksni backend (pure Rust D-Bus).
           # It does not link GTK or libappindicator, so no extra -dev packages.
 
+      - name: Design token lint
+        run: python3 scripts/design-lint.py
+        if: runner.os == 'Linux'
+
+      # The committed editor references use bundled fonts and the Metal backend.
+      - name: Editor matrix pixel diffs, rendered contrast, and clipping
+        if: runner.os == 'macOS'
+        run: |
+          cargo build --locked -p rndr_markdown_ui --example design_language
+          python3 scripts/design-gallery.py
+
       - name: Format
         run: cargo fmt --check
 

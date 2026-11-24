@@ -171,8 +171,8 @@ impl MonoGrid {
     pub fn blank(cols: u16, rows: u16, cell_w: f32, cell_h: f32) -> Self {
         let cell_w = positive(cell_w);
         let cell_h = positive(cell_h);
-        let fg = Color::rgb(0.83, 0.83, 0.84);
-        let bg = Color::rgb(0.05, 0.05, 0.06);
+        let fg = crate::tokens::MONO_TEXT;
+        let bg = crate::tokens::MONO_SURFACE;
         let len = cols as usize * rows as usize;
         Self {
             cols,
@@ -205,7 +205,7 @@ impl MonoGrid {
             .cells
             .first()
             .map(|cell| cell.fg)
-            .unwrap_or_else(|| Color::rgb(0.83, 0.83, 0.84));
+            .unwrap_or(crate::tokens::MONO_TEXT);
         let bg = self.default_bg;
         self.cols = cols;
         self.rows = rows;

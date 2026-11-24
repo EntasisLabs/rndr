@@ -298,8 +298,8 @@ fn mount(
             Layout {
                 width: Size::Fill,
                 height: Size::Px(280.0),
-                padding: 4.0,
-                gap: 2.0,
+                padding: crate::Space::X4.points(),
+                gap: crate::Space::X2.points(),
                 ..Layout::column()
             },
             Scroll::default(),
@@ -379,7 +379,7 @@ fn mount(
             let row = world.spawn((
                 Layout {
                     width: Size::Fill,
-                    padding: 3.0,
+                    padding: crate::Space::X4.points(),
                     ..Layout::column()
                 },
                 Button::new("rndr-ui:select"),
@@ -399,7 +399,7 @@ fn mount(
             world.insert(row, KeyNavigation(navigate));
             let inner = world.spawn((Layout {
                 width: Size::Fill,
-                gap: 6.0,
+                gap: crate::Space::X8.points(),
                 ..Layout::row()
             },));
             set_parent(world, inner, row);
@@ -1599,7 +1599,7 @@ pub(crate) fn styles(world: &mut World) {
             world.insert(
                 row.inner,
                 UiRecipe(UiStyle {
-                    background: Some(crate::UiColor::Explicit(Color::rgba(0., 0., 0., 0.))),
+                    background: Some(crate::Surface::Transparent.fill()),
                     corner: Some(Corner::Compact),
                     ..UiStyle::default()
                 }),
@@ -1622,14 +1622,17 @@ pub(crate) fn styles(world: &mut World) {
             world.insert(
                 row.slot.content,
                 UiRecipe(UiStyle {
-                    background: Some(crate::UiColor::Explicit(Color::rgba(0., 0., 0., 0.))),
+                    background: Some(crate::Surface::Transparent.fill()),
                     corner: Some(Corner::Compact),
                     ..UiStyle::default()
                 }),
             );
+            let row_padding = world
+                .get::<Layout>(row.slot.root)
+                .map_or(0.0, |l| l.padding);
             world.get_mut::<Layout>(row.slot.content).unwrap().padding =
                 if world.has::<crate::data::TableRow>(row.slot.root) {
-                    crate::data::TABLE_INSET - 3.0
+                    crate::data::TABLE_INSET - row_padding
                 } else if theme.density == crate::Density::Compact {
                     4.0
                 } else {

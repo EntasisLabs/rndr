@@ -57,7 +57,7 @@ impl TextMeasure for EngineMeasure {
         let spans: Vec<TextSpan> = runs
             .iter()
             .map(|run| {
-                let mut span = TextSpan::new(run.start, run.end, Color::rgba(0.0, 0.0, 0.0, 1.0));
+                let mut span = TextSpan::new(run.start, run.end, Color::BLACK);
                 span.weight = Some(run.weight);
                 span.italic = matches!(run.style, CanvasFontStyle::Italic);
                 span
@@ -72,13 +72,13 @@ impl TextMeasure for EngineMeasure {
 pub fn parse_color(text: &str) -> Color {
     let text = text.trim();
     if text.is_empty() || text.eq_ignore_ascii_case("transparent") {
-        return Color::rgba(0.0, 0.0, 0.0, 0.0);
+        return Color::TRANSPARENT;
     }
     let hex = text.strip_prefix('#').unwrap_or(text);
     let digits: String = match hex.len() {
         3 | 4 => hex.chars().flat_map(|c| [c, c]).collect(),
         6 | 8 => hex.to_string(),
-        _ => return Color::rgba(0.0, 0.0, 0.0, 1.0),
+        _ => return Color::BLACK,
     };
     let channel = |i: usize| {
         digits
@@ -87,7 +87,7 @@ pub fn parse_color(text: &str) -> Color {
             .map_or(0.0, |b| f32::from(b) / 255.0)
     };
     let a = if digits.len() == 8 { channel(6) } else { 1.0 };
-    Color::rgba(channel(0), channel(2), channel(4), a)
+    Color::rgba(channel(0), channel(2), channel(4), a) // design-lint: Decode authored canvas color channels, not UI chrome.
 }
 
 /// Converts a canvas matrix for `rndr_paint`.
@@ -299,7 +299,9 @@ impl Painter<'_> {
                 }
                 None => canvas.fill(
                     Path::round_rect(rect(w, h), radius),
-                    Color::rgba(0.53, 0.53, 0.53, 0.1),
+                    rndr_ui::UiTheme::default()
+                        .color(rndr_ui::Token::Secondary)
+                        .with_alpha(0.1),
                     FillRule::NonZero,
                 ),
             },

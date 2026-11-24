@@ -67,8 +67,15 @@ fn actual_resolved_control_states_contrast_focus_geometry_and_glyph_scale() {
                     let gap = a.world().get::<Parent>(border).unwrap().entity;
                     let fill = *a.world().get::<Color>(face).unwrap();
                     let ink = a.world().get::<Label>(h.label).unwrap().color.unwrap();
+                    // Standard-contrast disabled ink recedes on purpose (WCAG 1.4.3
+                    // exempts inactive controls) but must stay legible.
+                    let floor = if state == 4 && contrast == Contrast::Standard {
+                        2.0
+                    } else {
+                        4.5
+                    };
                     assert!(
-                        ratio(fill, ink) >= 4.5,
+                        ratio(fill, ink) >= floor,
                         "actual resolved {appearance:?} {contrast:?} {variant:?} state{state}: {}",
                         ratio(fill, ink)
                     );

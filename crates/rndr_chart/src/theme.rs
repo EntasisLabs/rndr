@@ -77,7 +77,7 @@ pub fn parse_hex(raw: &str) -> Option<Color> {
         u8::from_str_radix(s, 16).ok().map(|v| v as f32 / 255.0)
     };
     let a = if digits.len() == 8 { byte(3)? } else { 1.0 };
-    Some(Color::rgba(byte(0)?, byte(1)?, byte(2)?, a))
+    Some(Color::rgba(byte(0)?, byte(1)?, byte(2)?, a)) // design-lint: Decode chart palette channels into sRGB.
 }
 
 /// Plot wash behind radar plates, polar tracks and heatmaps.
@@ -179,11 +179,11 @@ pub struct ChartTheme {
 }
 
 const fn rgb8(r: u8, g: u8, b: u8) -> Color {
-    Color::rgba(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0)
+    Color::rgba(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0) // design-lint: Decode chart palette channels into sRGB.
 }
 
 const fn rgba8(r: u8, g: u8, b: u8, a: f32) -> Color {
-    Color::rgba(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, a)
+    Color::rgba(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, a) // design-lint: Decode chart palette channels into sRGB.
 }
 
 impl Default for ChartTheme {
@@ -298,5 +298,5 @@ const DEFAULT_PALETTE: [Swatch; 5] = [
 
 /// `color` with alpha replaced.
 pub fn alpha(color: Color, a: f32) -> Color {
-    Color::rgba(color.r, color.g, color.b, a)
+    color.with_alpha(a)
 }

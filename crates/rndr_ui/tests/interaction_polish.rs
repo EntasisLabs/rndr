@@ -218,7 +218,7 @@ fn focus_ring_and_radii_follow_the_theme_and_clip_children() {
     let (mut app, root) = host(320.0, 200.0);
     let theme = app.world().resource::<UiTheme>().cloned().unwrap();
     assert_eq!(theme.radius(RadiusRole::Overlay), Corner::Overlay.points());
-    assert_eq!(theme.radius(RadiusRole::Overlay), 12.0);
+    assert_eq!(theme.radius(RadiusRole::Overlay), 10.0);
     assert_eq!(theme.radius(RadiusRole::Control), Corner::Control.points());
     assert_eq!(theme.radius(RadiusRole::Card), Corner::Group.points());
     assert_eq!(theme.radius(RadiusRole::Chip), Corner::Compact.points());

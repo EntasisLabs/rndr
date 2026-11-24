@@ -71,7 +71,7 @@ fn accent() -> Option<Color> {
         let r: f64 = msg_send![srgb, redComponent];
         let g: f64 = msg_send![srgb, greenComponent];
         let b: f64 = msg_send![srgb, blueComponent];
-        Some(Color::rgb(r as f32, g as f32, b as f32))
+        Some(Color::rgb(r as f32, g as f32, b as f32)) // design-lint: Convert system-provided accent channels without substituting a UI theme.
     }
 }
 
@@ -100,7 +100,7 @@ fn accent() -> Option<Color> {
     // The DWORD is 0xAABBGGRR.
     (status == 0).then(|| {
         let channel = |shift: u32| ((data >> shift) & 0xff) as f32 / 255.0;
-        Color::rgb(channel(0), channel(8), channel(16))
+        Color::rgb(channel(0), channel(8), channel(16)) // design-lint: Convert system-provided accent channels without substituting a UI theme.
     })
 }
 
@@ -378,7 +378,7 @@ mod portal {
             .collect();
         match channels[..] {
             [r, g, b] if [r, g, b].iter().all(|c| (0.0..=1.0).contains(c)) => {
-                Some(Color::rgb(r as f32, g as f32, b as f32))
+                Some(Color::rgb(r as f32, g as f32, b as f32)) // design-lint: Convert system-provided accent channels without substituting a UI theme.
             }
             _ => None,
         }

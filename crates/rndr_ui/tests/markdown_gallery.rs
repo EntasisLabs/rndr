@@ -189,8 +189,8 @@ fn theme_bridge_reaches_core_editor_default_labels_and_explicit_overrides() {
             app.world().get::<Label>(editor).unwrap().text,
             "Editor text"
         );
-        assert_eq!(style_for(app.world(), editor).size, 20.);
-        assert_eq!(style_for(app.world(), plain).size, 20.);
+        assert_eq!(style_for(app.world(), editor).size, 14. * 1.25);
+        assert_eq!(style_for(app.world(), plain).size, 14. * 1.25);
         assert_eq!(style_for(app.world(), override_label).size, 12.);
         assert_eq!(
             app.world().get::<Label>(override_label).unwrap().color,

@@ -426,6 +426,10 @@ pub fn project(world: &mut World, entity: Entity) {
         .get::<Label>(entity)
         .and_then(|label| label.color)
         .unwrap_or_else(|| theme_of(world).text);
+    let palette = world
+        .resource::<crate::MarkdownTheme>()
+        .copied()
+        .unwrap_or_else(|| crate::MarkdownTheme::from_theme(&theme_of(world)));
     let mut spans = Vec::new();
     let mut offset = 0;
     for block in doc.blocks() {
@@ -440,9 +444,10 @@ pub fn project(world: &mut World, entity: Entity) {
                 offset,
                 offset + run.text.len(),
                 if let Some([r, g, b]) = run.marks.text_style.color {
-                    Color::rgb(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0)
+                    let ink = Color::rgb(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0); // design-lint: Preserve explicitly authored document RGB.
+                    ink
                 } else if run.marks.link.is_some() || run.marks.pill.is_some() {
-                    Color::rgb(0.35, 0.65, 1.0)
+                    palette.link
                 } else {
                     color
                 },
@@ -464,9 +469,9 @@ pub fn project(world: &mut World, entity: Entity) {
             span.underline = run.marks.link.is_some() || run.marks.underline;
             span.strike = run.marks.strike;
             span.highlight = if run.marks.pill.is_some() {
-                Some(Color::rgba(0.35, 0.65, 1.0, 0.18))
+                Some(palette.link.with_alpha(0.18))
             } else if run.marks.code {
-                Some(Color::rgba(0.5, 0.5, 0.5, 0.18))
+                Some(palette.inline_bg)
             } else {
                 None
             };

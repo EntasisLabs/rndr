@@ -111,3 +111,72 @@ fn claimed_wheel_survives_the_layout_scroll_pass() {
     view::take_wheel(&mut world);
     assert_eq!(world.resource::<Input>().unwrap().scroll, [0.0, 40.0]);
 }
+
+#[test]
+fn controls_laid_over_the_canvas_keep_their_presses() {
+    let mut world = world();
+    // A floating toolbar the host paints above the slot: a later sibling
+    // under the same parent.
+    let host = world.spawn((Layout::column(),));
+    world.insert(
+        host,
+        Rect {
+            x: 0.0,
+            y: 0.0,
+            w: 800.0,
+            h: 600.0,
+        },
+    );
+    let slot = world.entities_with::<rndr_core::SurfaceSlot>()[0];
+    rndr_core::set_parent(&mut world, slot, host);
+    let bar = world.spawn((Layout::column(),));
+    rndr_core::set_parent(&mut world, bar, host);
+    world.insert(
+        bar,
+        Rect {
+            x: 300.0,
+            y: 380.0,
+            w: 200.0,
+            h: 50.0,
+        },
+    );
+    // Pressing on the bar draws nothing.
+    step(&mut world, [320.0, 400.0], true, true, false);
+    step(&mut world, [420.0, 300.0], false, true, false);
+    step(&mut world, [420.0, 300.0], false, false, true);
+    let nodes = |w: &World| {
+        w.resource::<CanvasView>()
+            .unwrap()
+            .editor
+            .mutation()
+            .document
+            .scene
+            .nodes
+            .len()
+    };
+    assert_eq!(nodes(&world), 0);
+    // A drag that starts on the canvas keeps going under the bar.
+    step(&mut world, [150.0, 100.0], true, true, false);
+    step(&mut world, [350.0, 410.0], false, true, false);
+    step(&mut world, [350.0, 410.0], false, false, true);
+    assert_eq!(nodes(&world), 1);
+}
+
+#[test]
+fn a_fast_click_selects_in_one_frame() {
+    let mut world = world();
+    // Draw a rectangle, then switch to Select.
+    step(&mut world, [120.0, 70.0], true, true, false);
+    step(&mut world, [220.0, 120.0], false, true, false);
+    step(&mut world, [220.0, 120.0], false, false, true);
+    {
+        let view = world.resource_mut::<CanvasView>().unwrap();
+        view.editor.set_tool(Tool::Select);
+        view.editor.select(&[]);
+    }
+    // Press and release delivered together, as a trackpad tap often is, on
+    // the outline: an unfilled shape is picked by its stroke.
+    step(&mut world, [120.0, 95.0], true, false, true);
+    let view = world.resource::<CanvasView>().unwrap();
+    assert_eq!(view.editor.selection().len(), 1);
+}

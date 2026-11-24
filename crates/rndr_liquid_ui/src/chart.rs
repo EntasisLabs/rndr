@@ -138,7 +138,7 @@ pub(crate) fn mount(world: &mut World, root: Entity, parent: Entity, props: &Cha
     set_parent(world, plot, parent);
     if !legend.is_empty() {
         let row = world.spawn((Layout {
-            gap: 12.0,
+            gap: rndr_ui::Space::X12.points(),
             width: Size::Fill,
             ..Layout::row()
         },));

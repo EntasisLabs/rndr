@@ -689,8 +689,8 @@ fn sync_pool(world: &mut World, list: Entity, len: u32, row_height: f32) -> Vec<
         let row = world.spawn((
             Layout {
                 axis: Axis::Row,
-                gap: 0.0,
-                padding: 0.0,
+                gap: crate::tokens::space::ZERO,
+                padding: crate::tokens::space::ZERO,
                 width: Size::Fill,
                 height: Size::Px(row_height),
                 min_width: 0.0,

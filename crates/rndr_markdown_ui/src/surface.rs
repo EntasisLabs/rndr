@@ -22,8 +22,15 @@ const GAP: f32 = 8.0;
 /// Air above the first block and below the last, so a heading or a table row
 /// is not flush with the scroll clip.
 const LEAD: f32 = 10.0;
-const TASK_BOX: f32 = 14.0;
-const TASK_GAP: f32 = 8.0;
+fn task_metrics(theme: &UiTheme) -> (f32, f32, f32) {
+    let scale = theme.typography(rndr_ui::Typography::Reading).size / 14.;
+    let face = if theme.density == rndr_ui::Density::Compact {
+        14.
+    } else {
+        16.
+    };
+    (face * scale, 24. * scale, theme.space(rndr_ui::Space::X8))
+}
 
 struct Node {
     id: UiId,
@@ -36,6 +43,7 @@ struct Node {
     /// Revision the slots were built for. A matching revision reuses a widget
     /// so a nested markdown body can sync on the following frame.
     painted: u64,
+    measured_width: Option<f32>,
     slots: Vec<Entity>,
     top: Entity,
     bottom: Entity,
@@ -258,6 +266,7 @@ impl MarkdownSurface {
                 blocks: Vec::new(),
                 seen: u64::MAX,
                 painted: u64::MAX,
+                measured_width: None,
                 slots: Vec::new(),
                 top,
                 bottom,
@@ -559,6 +568,7 @@ fn place_hit(world: &mut World, root: Entity, hit: Entity, at: [f32; 2], extend:
             return;
         }
     }
+    let original_hit = hit;
     let Some(hit) = slot_of(world, hit) else {
         return;
     };
@@ -585,7 +595,7 @@ fn place_hit(world: &mut World, root: Entity, hit: Entity, at: [f32; 2], extend:
     }
     let readonly = world.get::<Node>(root).is_some_and(|node| node.readonly);
     let block = presented(world, document, stored);
-    if !extend && !readonly && task_box_hit(world, hit) {
+    if !extend && !readonly && task_box_hit(world, original_hit) {
         if let Some(command) = intent::toggle_task(document_bytes(world, document).as_str(), &block)
         {
             let now = now_ms(world);
@@ -595,7 +605,7 @@ fn place_hit(world: &mut World, root: Entity, hit: Entity, at: [f32; 2], extend:
             return;
         }
     }
-    if let Some(source) = task_text_source(world, hit, &block, at) {
+    if let Some(source) = task_text_source(world, original_hit, &block, at) {
         if let Some(session) = world
             .resource_mut::<crate::MarkdownDocuments>()
             .and_then(|docs| docs.get_mut(document))
@@ -609,7 +619,7 @@ fn place_hit(world: &mut World, root: Entity, hit: Entity, at: [f32; 2], extend:
         }
         return;
     }
-    if let Some(source) = field_source(world, hit, &block, at) {
+    if let Some(source) = field_source(world, original_hit, &block, at) {
         if let Some(session) = world
             .resource_mut::<crate::MarkdownDocuments>()
             .and_then(|docs| docs.get_mut(document))
@@ -624,26 +634,12 @@ fn place_hit(world: &mut World, root: Entity, hit: Entity, at: [f32; 2], extend:
         return;
     }
     let width = rect.w.max(1.0);
-    let style = style_for_kind(&block.kind);
+    let style = style_for_kind(&block.kind, world);
     let engine = text_engine(world);
     let label = block.label_text();
     let spans = label_spans(&block);
     let layout = engine.layout(&label, &style, &spans, (width - 8.0).max(1.0));
     let index = layout.index_at(at[0] - rect.x, at[1] - rect.y);
-    if !extend
-        && !readonly
-        && matches!(block.kind, DisplayKind::Task(_))
-        && index < block.chrome.len()
-    {
-        if let Some(command) = intent::toggle_task(document_bytes(world, document).as_str(), &block)
-        {
-            let now = now_ms(world);
-            if let Some(session) = session_mut(world, document) {
-                let _ = session.edit(command, now);
-            }
-            return;
-        }
-    }
     let source = block.display_to_source(index);
     if let Some(session) = world
         .resource_mut::<crate::MarkdownDocuments>()
@@ -701,19 +697,22 @@ fn presented(world: &World, document: MarkdownId, block: &DisplayBlock) -> Displ
 
 fn theme_palette(world: &World) -> Palette {
     let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
-    crate::grid::palette_of(&crate::grid::Chrome::from_theme(&theme))
+    Palette::from_theme(&theme)
 }
 
 fn theme_stamp(world: &World) -> u64 {
     let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
     let text = theme.color(Token::Text);
     let muted = theme.color(Token::Secondary);
-    let link = theme.color(Token::InfoText);
+    let link = theme.color(Token::Accent);
     let pack = |color: Color, shift: u32| -> u64 {
         let channel = |value: f32| (value.clamp(0.0, 1.0) * 255.0) as u64;
         (channel(color.r) | (channel(color.g) << 8) | (channel(color.b) << 16)) << shift
     };
     pack(text, 0)
+        ^ (theme.reading_scale.to_bits() as u64).rotate_left(11)
+        ^ (theme.text_scale.to_bits() as u64).rotate_left(31)
+        ^ (u64::from(theme.density == rndr_ui::Density::Compact) << 61)
         ^ pack(muted, 24)
         ^ pack(link, 40)
         ^ match theme.appearance {
@@ -1546,6 +1545,11 @@ fn rebuild_slots(world: &mut World, entity: Entity) -> bool {
         .map(|scroll| scroll.offset[1])
         .unwrap_or(0.0);
     let width = if rect.w > 1.0 { rect.w } else { 640.0 };
+    // A first pass may measure against a provisional viewport. Reflow on
+    // resize even if the document revision and visible block IDs are unchanged.
+    let width_changed = world
+        .get::<Node>(entity)
+        .is_some_and(|n| n.measured_width != Some(width));
     let view = if rect.h > 1.0 { rect.h } else { 480.0 };
     let document = root_document(world, entity);
     let (caret, anchor, preedit) = document
@@ -1576,12 +1580,12 @@ fn rebuild_slots(world: &mut World, entity: Entity) -> bool {
             .get::<Node>(entity)
             .and_then(|node| node.blocks.get(index).map(|block| block.height))
             .unwrap_or(0.0);
-        if height <= 0.0 || matches!(kind, DisplayKind::Table) {
+        if width_changed || height <= 0.0 || matches!(kind, DisplayKind::Table) {
             if let Some(block) = world
                 .get::<Node>(entity)
                 .and_then(|node| node.blocks.get(index).cloned())
             {
-                let style = style_for_kind(&kind);
+                let style = style_for_kind(&kind, world);
                 let document = root_document(world, entity);
                 let block = document
                     .map(|document| presented(world, document, &block))
@@ -1597,6 +1601,18 @@ fn rebuild_slots(world: &mut World, entity: Entity) -> bool {
                         &chrome,
                         crate::grid::outer_pad(&block),
                     )
+                } else if matches!(kind, DisplayKind::Task(_)) {
+                    let (_, target, gap) =
+                        task_metrics(&world.resource::<UiTheme>().cloned().unwrap_or_default());
+                    engine
+                        .measure(
+                            &block.text,
+                            &style,
+                            &block.spans,
+                            (width - 2. * crate::grid::outer_pad(&block) - target - gap).max(1.),
+                        )
+                        .height
+                        .max(target)
                 } else {
                     let measured = project::measure_block(
                         engine.as_ref(),
@@ -1701,7 +1717,7 @@ fn rebuild_slots(world: &mut World, entity: Entity) -> bool {
         .unwrap_or(0);
     let reuse_ok = world
         .get::<Node>(entity)
-        .is_some_and(|node| node.painted == revision);
+        .is_some_and(|node| node.painted == revision && !width_changed);
     let old = world
         .get::<Node>(entity)
         .map(|node| node.slots.clone())
@@ -1768,6 +1784,7 @@ fn rebuild_slots(world: &mut World, entity: Entity) -> bool {
     if let Some(node) = world.get_mut::<Node>(entity) {
         node.slots = slots;
         node.painted = revision;
+        node.measured_width = Some(width);
     }
     // Handles are spawned in this pass. Color them before paint; an earlier
     // update would be wiped by the rebuild.
@@ -1834,6 +1851,9 @@ fn advance(kind: &DisplayKind, height: f32) -> f32 {
     } else {
         20.0
     };
+    if matches!(kind, DisplayKind::Bullet | DisplayKind::Ordered(_)) {
+        return body + TEXT_ORIGIN_Y;
+    }
     let slack = match kind {
         DisplayKind::Gap | DisplayKind::Table => 0.0,
         // The stored height already includes the form padding.
@@ -1952,7 +1972,7 @@ fn spawn_block(
                     width: Size::Fill,
                     height: Size::Hug,
                     padding: pad,
-                    gap: 8.0,
+                    gap: rndr_ui::Space::X8.points(),
                     ..Layout::column()
                 },
                 Slot {
@@ -1976,10 +1996,18 @@ fn spawn_block(
         block.label_text()
     };
     let mut label = Label::new(&text);
-    label.color = Some(theme_palette(world).text);
+    label.color = Some(if matches!(block.kind, DisplayKind::Task(true)) {
+        theme_palette(world).muted
+    } else {
+        theme_palette(world).text
+    });
     label.overflow = TextOverflow::Wrap;
     let height = block.height.max(20.0);
-    let runs = if task { Vec::new() } else { label_spans(block) };
+    let runs = if task {
+        block.spans.clone()
+    } else {
+        label_spans(block)
+    };
     let mut layout = Layout {
         width: Size::Fill,
         height: Size::Px(advance(&block.kind, height)),
@@ -1988,11 +2016,11 @@ fn spawn_block(
     };
     if task {
         layout.axis = Axis::Row;
-        layout.gap = TASK_GAP;
+        layout.gap = task_metrics(&world.resource::<UiTheme>().cloned().unwrap_or_default()).2;
     }
     let entity = world.spawn((
         layout,
-        style_for_kind(&block.kind),
+        style_for_kind(&block.kind, world),
         Slot {
             start: block.span.start,
             end: block.span.end,
@@ -2002,7 +2030,7 @@ fn spawn_block(
         world.insert(
             entity,
             Align {
-                items: Items::Center,
+                items: Items::Start,
                 ..Align::default()
             },
         );
@@ -2015,7 +2043,7 @@ fn spawn_block(
             },
             label,
             Spans { runs },
-            style_for_kind(&block.kind),
+            style_for_kind(&block.kind, world),
             LabelBox::CONTENT,
             TaskText,
         ));
@@ -2072,8 +2100,12 @@ fn task_text_source(
             let style = world
                 .get::<TextStyle>(hit)
                 .cloned()
-                .unwrap_or_else(|| style_for_kind(&block.kind));
-            let layout = text_engine(world).layout(&text, &style, &[], rect.w.max(1.0));
+                .unwrap_or_else(|| style_for_kind(&block.kind, world));
+            let runs = world
+                .get::<Spans>(hit)
+                .map(|spans| spans.runs.as_slice())
+                .unwrap_or_default();
+            let layout = text_engine(world).layout(&text, &style, runs, rect.w.max(1.0));
             let index = layout.index_at(at[0] - rect.x, at[1] - rect.y);
             return Some(block.display_to_source(block.chrome.len() + index));
         }
@@ -2175,38 +2207,51 @@ fn paint_task_box(world: &mut World, parent: Entity, block: &DisplayBlock) {
         return;
     };
     let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
-    let mut fill = theme.color(Token::Content);
-    if checked {
-        fill = theme.color(Token::Accent);
-    }
-    let checkbox = world.spawn((
+    let (face, target, _) = task_metrics(&theme);
+    let hit = world.spawn((
         Layout {
-            width: Size::Px(TASK_BOX),
-            height: Size::Px(TASK_BOX),
+            width: Size::Px(target),
+            height: Size::Px(target),
             ..Layout::column()
         },
-        fill,
-        Border {
-            color: theme.color(Token::StrongStroke),
-            width: 1.5,
-        },
-        Radius(3.0),
         TaskBox,
     ));
-    set_parent(world, checkbox, parent);
+    set_parent(world, hit, parent);
+    let checked_fill = if checked {
+        Token::Accent
+    } else {
+        Token::Content
+    };
+    let box_node = world.spawn((
+        Layout {
+            width: Size::Px(face),
+            height: Size::Px(face),
+            ..Layout::column()
+        },
+        Absolute {
+            left: Some((target - face) * 0.5),
+            top: Some((target * 22. / 24. - face) * 0.5),
+            ..Default::default()
+        },
+        theme.color(checked_fill),
+        Border {
+            color: theme.color(if checked {
+                Token::Accent
+            } else {
+                Token::StrongStroke
+            }),
+            width: 1.5,
+        },
+        Radius(theme.radius(rndr_ui::RadiusRole::Chip)),
+    ));
+    set_parent(world, box_node, hit);
     if checked {
-        let mark = world.spawn((
-            Layout {
-                width: Size::Fill,
-                height: Size::Fill,
-                ..Layout::column()
+        world.insert(
+            box_node,
+            CheckMark {
+                color: theme.color(Token::OnAccent),
             },
-            theme.color(Token::OnAccent),
-        ));
-        set_parent(world, mark, checkbox);
-        if let Some(layout) = world.get_mut::<Layout>(checkbox) {
-            layout.padding = 4.0;
-        }
+        );
     }
 }
 
@@ -2214,15 +2259,21 @@ fn paint_callout(world: &mut World, entity: Entity, block: &DisplayBlock) {
     let DisplayKind::Callout { tone } = &block.kind else {
         return;
     };
-    if block.text.contains("[!") {
-        return;
-    }
+
     let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
     let (fill, accent, ink) = callout_tone(&theme, tone);
     world.insert(entity, fill);
+    world.insert(entity, Radius(theme.radius(rndr_ui::RadiusRole::Card)));
+    world.insert(
+        entity,
+        Border {
+            color: accent,
+            width: 1.,
+        },
+    );
     let bar = world.spawn((
         Layout {
-            width: Size::Px(4.0),
+            width: Size::Px(2.0),
             height: Size::Fill,
             ..Layout::column()
         },
@@ -2246,26 +2297,7 @@ fn paint_callout(world: &mut World, entity: Entity, block: &DisplayBlock) {
 }
 
 fn callout_tone(theme: &UiTheme, tone: &str) -> (Color, Color, Color) {
-    let paint = |fill: Token, accent: Token, ink: Token| {
-        (theme.color(fill), theme.color(accent), theme.color(ink))
-    };
-    match tone {
-        "warning" | "caution" | "attention" => {
-            paint(Token::WarningFill, Token::WarningStroke, Token::WarningText)
-        }
-        "danger" | "error" | "failure" | "fail" | "missing" | "bug" => {
-            paint(Token::DangerFill, Token::DangerStroke, Token::DangerText)
-        }
-        "tip" | "hint" | "success" | "check" | "done" => {
-            paint(Token::SuccessFill, Token::SuccessStroke, Token::SuccessText)
-        }
-        "important" => {
-            let mut fill = theme.color(Token::Accent);
-            fill.a = 0.18;
-            (fill, theme.color(Token::Accent), theme.color(Token::Text))
-        }
-        _ => paint(Token::InfoFill, Token::InfoStroke, Token::InfoText),
-    }
+    theme.markdown_theme().callouts[rndr_core::CalloutTone::from_marker(tone) as usize]
 }
 
 struct FieldLine {
@@ -2336,7 +2368,7 @@ fn spawn_liquid_fields(
     let content = if block.height > pad * 2.0 + 24.0 {
         block.height
     } else {
-        let style = style_for_kind(&block.kind);
+        let style = style_for_kind(&block.kind, world);
         project::measure_block(
             text_engine(world).as_ref(),
             block,
@@ -2355,11 +2387,11 @@ fn spawn_liquid_fields(
             width: Size::Fill,
             height: Size::Px(height),
             padding: pad,
-            gap: 4.0,
+            gap: rndr_ui::Space::X4.points(),
             ..Layout::column()
         },
         theme.color(Token::Raised),
-        Radius(6.0),
+        Radius(rndr_ui::Corner::Control.points()),
         Slot {
             start: block.span.start,
             end: block.span.end,
@@ -2385,12 +2417,12 @@ fn spawn_liquid_fields(
         ));
         set_parent(world, header, entity);
     }
-    let style = style_for_kind(&block.kind);
+    let style = style_for_kind(&block.kind, world);
     for line in field_lines(block) {
         let row = world.spawn((Layout {
             width: Size::Fill,
             height: Size::Hug,
-            gap: 8.0,
+            gap: rndr_ui::Space::X8.points(),
             ..Layout::row()
         },));
         set_parent(world, row, entity);
@@ -2578,29 +2610,20 @@ fn label_spans(block: &DisplayBlock) -> Vec<TextSpan> {
         .collect()
 }
 
-fn style_for_kind(kind: &DisplayKind) -> TextStyle {
-    let mut style = TextStyle::default();
+fn style_for_kind(kind: &DisplayKind, world: &World) -> TextStyle {
+    let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
+    let mut style = theme.typography(rndr_ui::Typography::Reading);
     match kind {
         DisplayKind::Heading(level) => {
-            style.size = match level {
-                1 => 28.0,
-                2 => 24.0,
-                3 => 20.0,
-                _ => 18.0,
-            };
-            style.weight = FONT_WEIGHT_BOLD;
-            // Extra line box so a large heading's bearings stay inside the slot.
-            style.line_height = Some(1.7);
+            style = rndr_core::markdown_heading_style(&style, *level);
         }
         DisplayKind::Code { .. }
         | DisplayKind::Opaque
         | DisplayKind::Liquid { valid: false, .. } => {
-            style.family = "monospace".into();
-            style.size = 14.0;
+            style = theme.typography(rndr_ui::Typography::Code);
         }
         _ => {
-            style.size = 16.0;
-            style.line_height = Some(1.45);
+            // Preserve the token's 14/22 reading metrics.
         }
     }
     style
@@ -2639,4 +2662,66 @@ fn publish_access(world: &mut World, entity: Entity) {
 /// Document id of a mounted surface.
 pub fn document_of(world: &World, root: Entity) -> Option<MarkdownId> {
     root_document(world, root)
+}
+
+#[cfg(test)]
+mod task_hit_tests {
+    use super::*;
+    use std::sync::Arc;
+
+    #[test]
+    fn styled_task_hit_testing_matches_painted_runs_including_wrapping() {
+        let source = "- [ ] **WWWWWW** `iiiiii` trailing words across multiple lines\n";
+        let tree = rndr_markdown::parse(source);
+        let blocks = project::project(source, &tree, &Palette::default());
+        let block = blocks
+            .iter()
+            .find(|b| matches!(b.kind, DisplayKind::Task(_)))
+            .unwrap();
+        assert!(!block.spans.is_empty());
+        let mut world = World::new();
+        world.insert_resource(Arc::new(rndr_render::ParleyText::bundled()) as Arc<dyn TextEngine>);
+        let style = style_for_kind(&block.kind, &world);
+        let mut detected_old_mismatch = false;
+        for width in [90.0, 600.0] {
+            let rect = Rect {
+                x: 31.0,
+                y: 19.0,
+                w: width,
+                h: 300.0,
+            };
+            let hit = world.spawn((
+                TaskText,
+                Label::new(&block.text),
+                style.clone(),
+                Spans {
+                    runs: block.spans.clone(),
+                },
+                rect,
+            ));
+            let engine = text_engine(&world);
+            let painted = engine.layout(&block.text, &style, &block.spans, width);
+            let unstyled = engine.layout(&block.text, &style, &[], width);
+            if width == 90.0 {
+                assert!(painted.lines.len() > 1);
+            }
+            // Sample all painted lines, including positions after styled runs.
+            for y in 0..painted.height.ceil() as usize {
+                for x in 0..width as usize {
+                    let (x, y) = (x as f32 + 0.25, y as f32 + 0.25);
+                    let index = painted.index_at(x, y);
+                    detected_old_mismatch |= index != unstyled.index_at(x, y);
+                    let expected = block.display_to_source(block.chrome.len() + index);
+                    assert_eq!(
+                        task_text_source(&world, hit, block, [rect.x + x, rect.y + y]),
+                        Some(expected)
+                    );
+                }
+            }
+        }
+        assert!(
+            detected_old_mismatch,
+            "fixture must distinguish styled from unstyled hit testing"
+        );
+    }
 }

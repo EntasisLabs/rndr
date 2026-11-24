@@ -13,6 +13,14 @@ pub struct CrossMark {
 }
 impl Component for CrossMark {}
 
+/// Font-independent tick centered in a checkbox face; stroke scales with the box.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CheckMark {
+    /// Straight-alpha sRGB ink color.
+    pub color: Color,
+}
+impl Component for CheckMark {}
+
 /// Uniform inset outline, independent of descendant layout and scroll content.
 /// Uses the entity's [`crate::Radius`] and effective clip; never fills its interior.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -59,6 +67,17 @@ pub struct Color {
 }
 
 impl Color {
+    /// No visible fill, preserving the geometry of a surface.
+    pub const TRANSPARENT: Self = Self::rgba(0., 0., 0., 0.);
+    /// Opaque black (also the fallback for malformed authored colors).
+    pub const BLACK: Self = Self::rgb(0., 0., 0.);
+    /// Opaque white.
+    pub const WHITE: Self = Self::rgb(1., 1., 1.);
+    /// Keep the color channels, replacing straight alpha.
+    pub const fn with_alpha(self, a: f32) -> Self {
+        Self { a, ..self }
+    }
+
     /// Channel values stored as given.
     pub const fn rgba(r: f32, g: f32, b: f32, a: f32) -> Self {
         Self { r, g, b, a }

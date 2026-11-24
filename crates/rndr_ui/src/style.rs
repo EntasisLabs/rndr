@@ -39,9 +39,11 @@ pub enum Corner {
     ControlFace,
     /// Focus gap 8: two-point inset from a ten-point focus ring.
     FocusGap,
-    /// Content group 10.
+    /// Focus ring 10: one focus width outside the focus gap.
+    FocusRing,
+    /// Content group 8.
     Group,
-    /// Overlay 12.
+    /// Overlay 10.
     Overlay,
 }
 impl Corner {
@@ -53,18 +55,83 @@ impl Corner {
             Self::Control => 6.0,
             Self::ControlFace => 5.0,
             Self::FocusGap => 8.0,
-            Self::Group => 10.0,
-            Self::Overlay => 12.0,
+            Self::FocusRing => 10.0,
+            Self::Group => 8.0,
+            Self::Overlay => 10.0,
         }
+    }
+}
+
+/// Surface hierarchy. A dialog's scrim belongs behind the dialog, not on its face.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Elevation {
+    /// Window or navigation base, without an edge.
+    Canvas,
+    /// Content group with a hairline, no shadow.
+    Content,
+    /// Floating menu, tooltip, or palette.
+    Overlay,
+    /// Modal face with a separate backdrop scrim.
+    Dialog,
+}
+impl Elevation {
+    /// The opaque face; frost is a separate, explicit choice.
+    pub fn fill(self) -> Token {
+        match self {
+            Self::Canvas => Token::Canvas,
+            Self::Content => Token::Content,
+            Self::Overlay | Self::Dialog => Token::Overlay,
+        }
+    }
+    /// Decorative edge. Interactive boundaries use StrongStroke instead.
+    pub fn border(self, theme: &UiTheme) -> Option<Border> {
+        (self != Self::Canvas).then(|| Border {
+            color: theme.color(Token::SubtleStroke),
+            width: 1.0,
+        })
+    }
+    /// Protection against busy content behind floating surfaces only.
+    pub fn shadow(self, theme: &UiTheme) -> Option<Shadow> {
+        matches!(self, Self::Overlay | Self::Dialog).then(|| {
+            Shadow::drop(
+                4.0,
+                12.0,
+                Color::rgba(
+                    0.0,
+                    0.0,
+                    0.0,
+                    if theme.appearance == Appearance::Dark {
+                        0.28
+                    } else {
+                        0.08
+                    },
+                ),
+            )
+        })
+    }
+    /// Paint on the modal backdrop, beneath the face.
+    pub fn scrim(self, theme: &UiTheme) -> Option<Color> {
+        (self == Self::Dialog).then(|| {
+            Color::rgba(
+                0.0,
+                0.0,
+                0.0,
+                if theme.appearance == Appearance::Dark {
+                    0.40
+                } else {
+                    0.16
+                },
+            )
+        })
     }
 }
 
 /// Optional frost for a menu, palette, tooltip, toast, or other popover.
 ///
-/// The default draws neither a backdrop blur nor a shadow. [`Self::frost`]
+/// The default is opaque with a small overlay shadow. [`Self::frost`]
 /// blurs pixels the app has already drawn behind the popup and adds a drop
 /// shadow. It does not blur the desktop. That remains [`rndr_core::Backdrop`].
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct OverlayChrome {
     /// Backdrop-blur sigma in logical points. `None`, zero, and non-finite
     /// values draw no blur.
@@ -73,6 +140,14 @@ pub struct OverlayChrome {
     pub shadow: bool,
 }
 
+impl Default for OverlayChrome {
+    fn default() -> Self {
+        Self {
+            blur: None,
+            shadow: true,
+        }
+    }
+}
 impl OverlayChrome {
     /// Twenty-point backdrop blur and a drop shadow.
     pub fn frost() -> Self {
@@ -93,7 +168,7 @@ pub enum RadiusRole {
     Control,
     /// Text fields and steppers. [`Corner::Control`] unless a scale says otherwise.
     Input,
-    /// Menus, palettes, tooltips, toasts, and other popovers. 12 points.
+    /// Menus, palettes, tooltips, toasts, and other popovers. 10 points.
     Overlay,
     /// Cards and grouped surfaces. [`Corner::Group`].
     Card,
@@ -156,7 +231,8 @@ impl RadiusScale {
             Corner::Compact => self.of(RadiusRole::Chip),
             Corner::Control => control,
             Corner::ControlFace => (control - 1.0).max(0.0),
-            Corner::FocusGap => (self.of(RadiusRole::Card) - focus_width).max(0.0),
+            Corner::FocusGap => control + focus_width,
+            Corner::FocusRing => control + focus_width * 2.0,
             Corner::Group => self.of(RadiusRole::Card),
             Corner::Overlay => self.of(RadiusRole::Overlay),
         }
@@ -233,19 +309,12 @@ pub(crate) fn paint_overlay(world: &mut World, entity: Entity, chrome: OverlayCh
             world.remove::<BackdropBlur>(entity);
         }
     }
-    if chrome.shadow {
-        let dark = world
-            .resource::<UiTheme>()
-            .is_some_and(|theme| theme.appearance == Appearance::Dark);
-        let alpha = if dark { 0.46 } else { 0.18 };
-        world.insert(
-            entity,
-            Shadows(vec![Shadow::drop(
-                12.0,
-                28.0,
-                Color::rgba(0.0, 0.0, 0.0, alpha),
-            )]),
-        );
+    let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
+    if let Some(edge) = Elevation::Overlay.border(&theme) {
+        world.insert(entity, edge);
+    }
+    if let Some(shadow) = Elevation::Overlay.shadow(&theme).filter(|_| chrome.shadow) {
+        world.insert(entity, Shadows(vec![shadow]));
     } else {
         world.remove::<Shadows>(entity);
     }

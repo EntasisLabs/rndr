@@ -434,3 +434,44 @@ fn node_missing(world: &World, entity: Entity) -> bool {
     let id = access_id(entity);
     !access_tree(world).nodes.iter().any(|node| node.id == id)
 }
+
+#[test]
+fn nested_panes_follow_each_viewport_and_drag_frame() {
+    let (mut sim, root) = sim();
+    sim.world().get_mut::<Layout>(root).unwrap().width = Size::Fill;
+    let outer = SplitSash::mount(sim.world(), root, UiId(1), props("Sidebar"), 0.5).unwrap();
+    let inner =
+        SplitSash::mount(sim.world(), outer.trailing, UiId(2), props("Details"), 0.5).unwrap();
+    for width in [800., 1000., 960., 1040., 800.] {
+        sim.world().insert_resource(Viewport::new(width, 600.));
+        sim.update();
+        let leading = (width - 8.) * 0.5;
+        assert_eq!(main_size(sim.world(), outer.leading, Axis::Row), leading);
+        assert_eq!(
+            main_size(sim.world(), inner.leading, Axis::Row),
+            (leading - 8.) * 0.5
+        );
+    }
+    let at = center(sim.world(), outer.sash);
+    press(&mut sim, at);
+    for dx in [40., 64., -24.] {
+        drag(&mut sim, [at[0] + dx, at[1]]);
+        assert_eq!(main_size(sim.world(), outer.leading, Axis::Row), 396. + dx);
+        assert_eq!(
+            main_size(sim.world(), inner.leading, Axis::Row),
+            (388. - dx) * 0.5
+        );
+    }
+}
+
+#[test]
+fn temporary_minimum_does_not_replace_the_requested_share() {
+    let (mut sim, root) = sim();
+    sim.world().get_mut::<Layout>(root).unwrap().width = Size::Fill;
+    let split = SplitSash::mount(sim.world(), root, UiId(1), props("Sidebar"), 0.25).unwrap();
+    for (width, expected) in [(800., 198.), (136., 48.), (136., 48.), (800., 198.)] {
+        sim.world().insert_resource(Viewport::new(width, 600.));
+        sim.update();
+        assert_eq!(main_size(sim.world(), split.leading, Axis::Row), expected);
+    }
+}

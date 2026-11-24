@@ -52,6 +52,7 @@ pub struct StructuredChromePalette {
 }
 fn mix(a: Color, b: Color, t: f32) -> Color {
     Color::rgb(
+        // design-lint: Interpolate the actual surface and ink supplied by the host.
         a.r + (b.r - a.r) * t,
         a.g + (b.g - a.g) * t,
         a.b + (b.b - a.b) * t,

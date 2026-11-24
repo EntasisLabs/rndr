@@ -43,12 +43,17 @@ use crate::drag::{
     self, committed, DragKeyboard, DragPayload, DragSource, DropGeometry, DropPlace, DropTarget,
 };
 use crate::lifecycle::{find_keyed_child, require_layout_parent};
-use crate::{Token, Typography, UiColor, UiError, UiId, UiRecipe, UiStyle, UiTheme};
+use crate::{Token, Typography, UiError, UiId, UiRecipe, UiStyle, UiTheme};
 use rndr_core::*;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 use std::time::Duration;
 
+// Center the text with room for rasterized ink outside its nominal line box.
+const ROW_TEXT_BOX: LabelBox = LabelBox {
+    inset_y: 2.0,
+    ..LabelBox::CONTENT
+};
 const ROW_HEIGHT: f32 = 32.0;
 const INDENT: f32 = 16.0;
 const TYPEAHEAD: Duration = Duration::from_millis(500);
@@ -685,7 +690,7 @@ pub(crate) fn styles(world: &mut World) {
             continue;
         };
         let background = if state.props.row_fill == TreeRowFill::Translucent {
-            UiColor::Explicit(Color::rgba(0.0, 0.0, 0.0, 0.0))
+            crate::Surface::Transparent.fill()
         } else {
             Token::Content.into()
         };
@@ -1754,7 +1759,7 @@ fn create_slot(world: &mut World, parent: Entity) -> Slot {
         Layout {
             width: Size::Fill,
             height: Size::Px(ROW_HEIGHT),
-            gap: 4.0,
+            gap: crate::Space::X4.points(),
             ..Layout::row()
         },
         Align {
@@ -1775,7 +1780,7 @@ fn create_slot(world: &mut World, parent: Entity) -> Slot {
     set_parent(world, root, parent);
     let guides = world.spawn((Layout {
         height: Size::Fill,
-        gap: 0.0,
+        gap: crate::Space::Zero.points(),
         ..Layout::row()
     },));
     set_parent(world, guides, root);
@@ -1811,7 +1816,7 @@ fn create_slot(world: &mut World, parent: Entity) -> Slot {
             ..Layout::column()
         },
         Label::new("").overflow(TextOverflow::Ellipsis),
-        LabelBox::CONTENT,
+        ROW_TEXT_BOX,
         row_type(13.0, 500),
     ));
     set_parent(world, label, root);
@@ -1822,7 +1827,7 @@ fn create_slot(world: &mut World, parent: Entity) -> Slot {
         },
         MaxSize::width(180.0),
         Label::new("").overflow(TextOverflow::Ellipsis),
-        LabelBox::CONTENT,
+        ROW_TEXT_BOX,
         row_type(12.0, 400),
     ));
     set_parent(world, secondary, root);
@@ -1833,7 +1838,7 @@ fn create_slot(world: &mut World, parent: Entity) -> Slot {
         },
         MaxSize::width(72.0),
         Label::new("").overflow(TextOverflow::Ellipsis),
-        LabelBox::CONTENT,
+        ROW_TEXT_BOX,
         row_type(12.0, 500),
     ));
     set_parent(world, badge, root);
@@ -2030,18 +2035,14 @@ fn row_color(
     } else if hot {
         wash(theme, 0.06)
     } else {
-        Color::rgba(0.0, 0.0, 0.0, 0.0)
+        Color::TRANSPARENT
     };
-    (color, crate::UiColor::Explicit(color))
+    (color, crate::UiColor::Explicit(color)) // design-lint: Use the selected theme wash with computed coverage.
 }
 
 /// White over a dark theme, ink over a light theme.
 fn wash(theme: &crate::UiTheme, alpha: f32) -> Color {
-    if theme.appearance == crate::Appearance::Dark {
-        Color::rgba(1.0, 1.0, 1.0, alpha)
-    } else {
-        Color::rgba(0.10, 0.12, 0.16, alpha)
-    }
+    theme.color(Token::Text).with_alpha(alpha)
 }
 
 fn paint_row(
@@ -2104,7 +2105,7 @@ fn set_label(world: &mut World, entity: Entity, text: &str, secondary: bool) {
     } else {
         Token::Text
     };
-    world.insert(entity, LabelBox::CONTENT);
+    world.insert(entity, ROW_TEXT_BOX);
     world.insert(entity, row_type(if secondary { 12.0 } else { 13.0 }, 500));
     if let Some(label) = world.get_mut::<Label>(entity) {
         label.text = text.to_string();
@@ -2142,7 +2143,46 @@ fn theme_ink(world: &World) -> Color {
     world
         .resource::<UiTheme>()
         .map(|theme| theme.color(Token::Secondary))
-        .unwrap_or(Color::rgba(0.7, 0.72, 0.76, 1.0))
+        .unwrap_or_else(|| UiTheme::default().color(Token::Secondary))
+}
+
+/// The node and disclosure state a recycled chevron last showed.
+struct Turned(NodeId, bool);
+impl Component for Turned {}
+
+/// One right-pointing glyph, turned a quarter clockwise when open. A node
+/// toggled under a running clock eases the turn; a rebound slot, the first
+/// bind, and clockless frames show the state at once.
+fn turn_chevron(world: &mut World, chevron: Entity, id: NodeId, open: bool) {
+    let angle = if open {
+        std::f32::consts::FRAC_PI_2
+    } else {
+        0.0
+    };
+    let previous = world.get::<Turned>(chevron).map(|t| (t.0, t.1));
+    if previous == Some((id, open)) {
+        return;
+    }
+    world.insert(chevron, Turned(id, open));
+    let clock = world
+        .resource::<rndr_core::Time>()
+        .is_some_and(|time| !time.delta.is_zero());
+    if clock && previous.is_some_and(|(was, _)| was == id) {
+        motion::animate(
+            world,
+            chevron,
+            motion::Prop::Rotate,
+            angle,
+            motion::Curve::tween(0.15, motion::Easing::EaseOut),
+        );
+        return;
+    }
+    if motion::target(world, chevron, motion::Prop::Rotate).is_some() {
+        motion::set(world, chevron, motion::Prop::Rotate, angle);
+    }
+    let mut transform = world.get::<Transform>(chevron).copied().unwrap_or_default();
+    transform.rotate = angle;
+    world.insert(chevron, transform);
 }
 
 struct Chevron<'a> {
@@ -2165,18 +2205,14 @@ fn bind_chevron(world: &mut World, tree: Entity, slot: &Slot, chevron: Chevron<'
     } = chevron;
     if branch && !loading {
         world.remove::<Hidden>(slot.chevron);
-        let icon = if open {
-            Icon::ChevronDown
-        } else {
-            Icon::ChevronRight
-        };
         world.insert(slot.chevron, LabelBox::CONTENT);
         world.insert(slot.chevron, row_type(12.0, 500));
         let ink = theme_ink(world);
         if let Some(text) = world.get_mut::<Label>(slot.chevron) {
-            text.text = icon.scalar().to_string();
+            text.text = Icon::ChevronRight.scalar().to_string();
             text.color = Some(ink);
         }
+        turn_chevron(world, slot.chevron, id, open);
         world.insert(
             slot.chevron,
             Button {

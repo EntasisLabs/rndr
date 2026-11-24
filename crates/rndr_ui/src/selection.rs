@@ -43,7 +43,7 @@ pub struct SelectionProps {
     pub readonly: bool,
     /// Empty/no-results content, must not be blank.
     pub empty: String,
-    /// Backdrop blur and shadow on the options popup. The default is flat.
+    /// Backdrop blur and shadow on the options popup. The default is opaque with a small shadow.
     /// Checkboxes ignore this.
     pub chrome: OverlayChrome,
 }
@@ -319,8 +319,8 @@ fn resolve_selection(
                 Some(parent),
                 Layout {
                     width: Size::Fill,
-                    padding: 8.0,
-                    gap: 8.0,
+                    padding: crate::Space::X8.points(),
+                    gap: crate::Space::X8.points(),
                     ..Layout::row()
                 },
             );
@@ -333,7 +333,7 @@ fn resolve_selection(
                 Layout {
                     width: Size::Px(22.0),
                     height: Size::Px(22.0),
-                    padding: 2.0,
+                    padding: crate::Space::X2.points(),
                     ..Layout::column()
                 },
             );
@@ -366,7 +366,11 @@ fn resolve_selection(
             w.insert(
                 mark,
                 CrossMark {
-                    color: Color::rgb(1., 1., 1.),
+                    color: w
+                        .resource::<crate::UiTheme>()
+                        .cloned()
+                        .unwrap_or_default()
+                        .color(crate::Token::OnAccent),
                 },
             );
             let label = text(w, e, &props.label, Typography::Label)?;
@@ -388,8 +392,8 @@ fn resolve_selection(
                 Layout {
                     width: Size::Fill,
                     height: Size::Hug,
-                    padding: 4.0,
-                    gap: 2.0,
+                    padding: crate::Space::X4.points(),
+                    gap: crate::Space::X2.points(),
                     ..Layout::column()
                 },
             );
@@ -618,7 +622,7 @@ fn refresh(w: &mut World, root: Entity) {
             let layout = w.get_mut::<Layout>(border).unwrap();
             layout.width = Size::Px(22.0 * scale);
             layout.height = Size::Px(22.0 * scale);
-            layout.padding = 2.0 * scale;
+            layout.padding = crate::Space::X2.points() * scale;
             // Indicator geometry is relative to the face, not a font baseline.
             w.insert(
                 border,

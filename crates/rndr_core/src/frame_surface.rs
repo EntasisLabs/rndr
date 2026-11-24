@@ -332,7 +332,7 @@ impl SurfaceView {
             surface: surface.clone(),
             fit: SurfaceFit::Contain,
             mirrored: false,
-            radius: 0.0,
+            radius: crate::tokens::SQUARE,
         }
     }
 

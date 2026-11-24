@@ -518,6 +518,10 @@ pub(crate) fn publish_keyboard_primary(
 }
 
 pub(crate) fn label_selection(world: &World, entity: Entity) -> String {
+    // A secure value never leaves the field as a selection.
+    if world.has::<crate::Secure>(entity) {
+        return String::new();
+    }
     let text = world
         .get::<Label>(entity)
         .map(|label| label.text.clone())
@@ -780,7 +784,8 @@ fn edit_label_queue(
     }
     publish_keyboard_primary(world, entity, before_index, before_anchor);
     world.insert(entity, history);
-    if clipboard_action {
+    // Copy and cut of a secure value leave the clipboard alone.
+    if clipboard_action && !world.has::<crate::Secure>(entity) {
         note_clipboard(world, copied.as_deref());
     }
     if let Some(input) = world.resource_mut::<Input>().filter(|_| consume_input) {

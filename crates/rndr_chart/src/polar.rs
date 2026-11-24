@@ -162,7 +162,7 @@ pub(crate) fn radar(b: &mut Builder<'_>, width: f32, height: f32) -> Affine {
     const VIEW: f32 = 300.0;
     let chart = b.chart;
     let c = [VIEW / 2.0, VIEW / 2.0];
-    let radius = 92.0;
+    let radius = 92.0; // design-lint: Plot geometry in the fixed radar coordinate system, not a UI corner.
     let n = chart.categories.len();
     let angle = |i: usize| TAU * i as f32 / n as f32;
     let ring =

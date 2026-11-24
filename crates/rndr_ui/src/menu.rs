@@ -203,7 +203,7 @@ pub fn open_menu(
 /// [`open_menu`] with backdrop blur and a shadow when `chrome` asks for them.
 ///
 /// The menu still uses [`Corner::Overlay`]. [`OverlayChrome::default`] draws
-/// a flat menu. [`OverlayChrome::frost`] blurs what this app has already
+/// an opaque menu with a small shadow. [`OverlayChrome::frost`] blurs what this app has already
 /// drawn behind the menu; it does not blur the desktop.
 pub fn open_menu_with(
     world: &mut World,
@@ -260,7 +260,7 @@ fn popup(
     let p = world.spawn((Layout {
         width: Size::Hug,
         height: Size::Hug,
-        padding: 4.0,
+        padding: crate::Space::X4.points(),
         min_width: 180.0,
         ..Layout::column()
     },));
@@ -339,7 +339,7 @@ fn build(
             MenuEntry::Separator => {
                 let gap = world.spawn((Layout {
                     width: Size::Fill,
-                    padding: 4.0,
+                    padding: crate::Space::X4.points(),
                     ..Layout::column()
                 },));
                 set_parent(world, gap, menu);
@@ -390,8 +390,8 @@ fn build(
 fn row(world: &mut World, menu: Entity, label: &str, enabled: bool) -> Result<Entity, UiError> {
     let r = world.spawn((Layout {
         width: Size::Fill,
-        padding: 6.0,
-        gap: 8.0,
+        padding: crate::Space::X8.points(),
+        gap: crate::Space::X8.points(),
         ..Layout::row()
     },));
     set_parent(world, r, menu);

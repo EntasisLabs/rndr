@@ -403,8 +403,8 @@ fn decode_percent_bytes(input: &str) -> Option<Vec<u8>> {
             if index + 2 >= bytes.len() {
                 return None;
             }
-            let high = hex(bytes[index + 1])?;
-            let low = hex(bytes[index + 2])?;
+            let high = hex_digit(bytes[index + 1])?;
+            let low = hex_digit(bytes[index + 2])?;
             out.push((high << 4) | low);
             index += 3;
             continue;
@@ -415,7 +415,7 @@ fn decode_percent_bytes(input: &str) -> Option<Vec<u8>> {
     Some(out)
 }
 
-fn hex(byte: u8) -> Option<u8> {
+fn hex_digit(byte: u8) -> Option<u8> {
     match byte {
         b'0'..=b'9' => Some(byte - b'0'),
         b'a'..=b'f' => Some(byte - b'a' + 10),

@@ -38,7 +38,7 @@ impl ImageView {
         Self {
             image,
             uv: [0.0, 0.0, 1.0, 1.0],
-            radius: 0.0,
+            radius: crate::tokens::SQUARE,
         }
     }
 

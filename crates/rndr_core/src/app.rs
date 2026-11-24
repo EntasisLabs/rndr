@@ -298,6 +298,7 @@ impl App {
         timing::finish(&self.world, FrameStage::Text, text_timing);
         crate::prompt::reveal_prompts(&mut self.world);
         crate::editor::apply_decorations(&mut self.world);
+        crate::popup::reveal(&mut self.world);
         crate::motion::step(&mut self.world);
         crate::live::apply(&mut self.world);
         window::drive(&mut self.world);

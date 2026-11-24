@@ -186,7 +186,7 @@ pub struct PaletteProps {
     pub list_height: f32,
     /// Uniform row height in points, including section headers.
     pub row_height: f32,
-    /// Backdrop blur and shadow. The default is flat.
+    /// Backdrop blur and shadow. The default is opaque with a small shadow.
     pub chrome: OverlayChrome,
 }
 
@@ -298,8 +298,8 @@ impl CommandPalette {
         let root = world.spawn((
             Layout {
                 width: Size::Px(props.width),
-                padding: 8.0,
-                gap: 6.0,
+                padding: crate::Space::X8.points(),
+                gap: crate::Space::X8.points(),
                 ..Layout::column()
             },
             Hidden,
@@ -321,7 +321,7 @@ impl CommandPalette {
             Layout {
                 width: Size::Fill,
                 min_height: 36.0,
-                padding: 8.0,
+                padding: crate::Space::X8.points(),
                 ..Layout::column()
             },
             Label::new(""),
@@ -356,6 +356,15 @@ impl CommandPalette {
             layout.height = Size::Px(props.list_height);
         }
         world.insert(list, PaletteLink(root));
+        // The list sits on the popup's plane; resting rows follow it rather
+        // than painting content-colored slabs inside the overlay.
+        world.insert(
+            list,
+            UiStyle {
+                background: Some(crate::Surface::Transparent.fill()),
+                ..UiStyle::default()
+            },
+        );
         world.insert(
             list,
             VirtualListPolicy {
@@ -1167,8 +1176,8 @@ fn compose_row(world: &mut World, slot: crate::collections::RowSlot, item: &Item
     let theme = world.resource::<UiTheme>().cloned().unwrap_or_default();
     if let Some(layout) = world.get_mut::<Layout>(slot.content) {
         layout.axis = rndr_core::Axis::Row;
-        layout.gap = 8.0;
-        layout.padding = 0.0;
+        layout.gap = crate::Space::X8.points();
+        layout.padding = crate::Space::Zero.points();
         layout.width = Size::Fill;
         layout.height = Size::Fill;
     }
@@ -1301,13 +1310,16 @@ fn ensure_parts(world: &mut World, content: Entity) -> Parts {
         height: Size::Px(1.0),
         ..Layout::row()
     },));
+    // The glyph fills its own box: the default label inset would push it
+    // past the 16-point slot, where it is clipped away.
     let icon = world.spawn((
         Layout {
             width: Size::Px(ICON_PX),
             height: Size::Px(ICON_PX),
             ..Layout::row()
         },
-        Label::new(""),
+        Label::new("").overflow(TextOverflow::Visible),
+        rndr_core::LabelBox::CONTENT,
     ));
     rndr_core::set_parent(world, spacer, lead);
     rndr_core::set_parent(world, icon, lead);

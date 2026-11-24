@@ -1178,6 +1178,7 @@ fn append_outline(
 fn palette_color(palette: &swash::ColorPalette<'_>, index: u16) -> Color {
     let [r, g, b, a] = palette.get(index);
     Color::rgba(
+        // design-lint: Interpolate supplied text paint channels.
         f32::from(r) / 255.0,
         f32::from(g) / 255.0,
         f32::from(b) / 255.0,

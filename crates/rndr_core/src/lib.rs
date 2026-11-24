@@ -137,6 +137,7 @@ mod prompt;
 mod runtime;
 mod scrollbar;
 mod secondary;
+mod secure;
 mod selectable;
 /// Owned revision-fenced asynchronous source extension protocols.
 pub mod source_extensions;
@@ -170,6 +171,7 @@ mod style;
 mod tabs;
 mod text;
 mod theme;
+pub mod tokens;
 pub mod tray;
 mod typing;
 pub mod window;
@@ -276,10 +278,11 @@ pub use list::{
     LIST_END, LIST_HOME, LIST_PAGE_DOWN, LIST_PAGE_UP, LIST_UP,
 };
 pub use markdown::{
-    clear_markdown_slots, code_token_spans, markdown_realized_blocks, markdown_view,
-    mount_markdown_slot, parse_markdown, set_markdown_slot_host, LinkActivated, MarkdownBlock,
-    MarkdownKind, MarkdownLink, MarkdownPlugin, MarkdownSlot, MarkdownSlotError, MarkdownSlotHost,
-    MarkdownSlotHosts, MarkdownSlotId, MarkdownTheme, MarkdownView,
+    clear_markdown_slots, code_token_spans, markdown_heading_style, markdown_realized_blocks,
+    markdown_view, mount_markdown_slot, parse_markdown, set_markdown_slot_host, CalloutTone,
+    LinkActivated, MarkdownBlock, MarkdownKind, MarkdownLink, MarkdownPlugin, MarkdownSlot,
+    MarkdownSlotError, MarkdownSlotHost, MarkdownSlotHosts, MarkdownSlotId, MarkdownTheme,
+    MarkdownView,
 };
 pub use memory_fs::{MemoryFs, MemoryFsPlugin};
 pub use mono::{
@@ -293,6 +296,7 @@ pub use panel_place::{
     WIN32_SWP_NOACTIVATE, WIN32_SWP_NOMOVE, WIN32_SWP_NOSIZE, WIN32_SWP_SHOWWINDOW,
     WIN32_SW_SHOWNOACTIVATE,
 };
+pub use secure::{mask as secure_mask, Secure};
 pub use selectable::{
     selectable_input, Selectable, SelectablePlugin, MULTI_PRESS_INTERVAL, MULTI_PRESS_SLOP,
 };
@@ -332,10 +336,10 @@ pub use secondary::{ContextTarget, SecondaryPress};
 pub use shell::Shell;
 pub use sim::Sim;
 pub use slot::{effects_animating, EffectSlot, SurfaceSlot};
-pub use split::{apply_split, split_budget, Drag, Splitter};
+pub use split::{apply_split, split_budget, Drag, SplitLayout, Splitter};
 pub use style::{
-    label_box, Body, Border, Color, CrossMark, Label, LabelBox, RetainLabelBox, ScrollIndicator,
-    TextOverflow, CELL_H, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
+    label_box, Body, Border, CheckMark, Color, CrossMark, Label, LabelBox, RetainLabelBox,
+    ScrollIndicator, TextOverflow, CELL_H, CELL_W, TEXT_ORIGIN_X, TEXT_ORIGIN_Y,
 };
 pub use tabs::{Hidden, Tab, TabPanel, Tabs};
 pub use text::{

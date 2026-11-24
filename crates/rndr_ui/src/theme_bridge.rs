@@ -1,6 +1,6 @@
 //! Opt-in theme conversion at the UI -> core dependency boundary.
 use crate::{Contrast, Token, Typography, UiTheme};
-use rndr_core::{Color, MarkdownTheme, Theme, World};
+use rndr_core::{MarkdownTheme, Theme, World};
 
 impl UiTheme {
     /// Map semantic tokens to every legacy core chrome color. Pure conversion:
@@ -25,12 +25,12 @@ impl UiTheme {
             caret: c(Token::Focus),
             selection: if self.contrast == Contrast::High {
                 let focus = c(Token::Focus);
-                Color::rgba(focus.r, focus.g, focus.b, 0.35)
+                focus.with_alpha(0.35)
             } else {
                 c(Token::Selected)
             },
             dirty: c(Token::WarningText),
-            radius: 8.0,
+            radius: crate::Corner::FocusGap.points(),
         }
     }
     /// Default document chrome tokens. High-contrast themes keep structural
@@ -47,7 +47,7 @@ impl UiTheme {
             header: Some(self.color(Token::ControlHover)),
             muted: Some(self.color(Token::Secondary)),
             accent: Some(self.color(Token::Focus)),
-            radius: Some(6.0),
+            radius: Some(self.radius(crate::RadiusRole::Control)),
         }
     }
     /// Map markdown accents as well as surfaces. Unlike the legacy default,
@@ -57,12 +57,27 @@ impl UiTheme {
             surface: self.color(Token::Content),
             text: self.color(Token::Text),
             muted: self.color(Token::Secondary),
-            link: self.color(Token::Accent),
+            link: self.color(Token::Link),
             code: self.color(Token::Text),
             code_bg: self.color(Token::Raised),
             inline_bg: self.color(Token::Raised),
+            card_radius: self.radius(crate::RadiusRole::Card),
+            callouts: [
+                (Token::Raised, Token::StrongStroke, Token::Text),
+                (Token::InfoFill, Token::InfoStroke, Token::InfoText),
+                (Token::SuccessFill, Token::SuccessStroke, Token::SuccessText),
+                (Token::WarningFill, Token::WarningStroke, Token::WarningText),
+                (Token::DangerFill, Token::DangerStroke, Token::DangerText),
+            ]
+            .map(|(f, s, i)| (self.color(f), self.color(s), self.color(i))),
             quote: self.color(Token::StrongStroke),
             rule: self.color(Token::SubtleStroke),
+            // Rules carry structure here, unlike the decorative thematic
+            // break, so they take the stroke that holds up on light pages.
+            grid: self.color(Token::StrongStroke),
+            header: self.color(Token::Raised),
+            accent: self.color(Token::Accent),
+            on_accent: self.color(Token::OnAccent),
             keyword: self.color(Token::InfoText),
             string: self.color(Token::SuccessText),
             number: self.color(Token::WarningText),

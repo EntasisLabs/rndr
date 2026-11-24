@@ -98,7 +98,7 @@ impl AtomicPanelHandle {
             Layout {
                 width: Size::Fill,
                 height: Size::Px(150.0),
-                padding: 12.0,
+                padding: crate::Space::X12.points(),
                 ..Layout::column()
             },
         );

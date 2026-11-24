@@ -391,7 +391,7 @@ fn bridge_is_explicit_complete_and_updates_retained_markdown_and_control() {
                 app.world().get::<Label>(plain).unwrap().color,
                 Some(theme.color(Token::Text))
             );
-            assert_eq!(app.world().get::<TextStyle>(plain).unwrap().size, 24.);
+            assert_eq!(app.world().get::<TextStyle>(plain).unwrap().size, 14. * 1.5);
             assert_eq!(
                 *app.world().resource::<MarkdownTheme>().unwrap(),
                 theme.markdown_theme()

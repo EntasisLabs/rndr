@@ -60,8 +60,8 @@ impl Layout {
     pub fn column() -> Self {
         Self {
             axis: Axis::Column,
-            gap: 0.0,
-            padding: 0.0,
+            gap: crate::tokens::space::ZERO,
+            padding: crate::tokens::space::ZERO,
             width: Size::Hug,
             height: Size::Hug,
             min_width: 0.0,
@@ -73,8 +73,8 @@ impl Layout {
     pub fn row() -> Self {
         Self {
             axis: Axis::Row,
-            gap: 0.0,
-            padding: 0.0,
+            gap: crate::tokens::space::ZERO,
+            padding: crate::tokens::space::ZERO,
             width: Size::Hug,
             height: Size::Hug,
             min_width: 0.0,
@@ -677,6 +677,9 @@ fn refine_wrapped_heights(world: &mut World, entity: Entity, available_w: f32, x
         kids.into_iter().partition(|c| flex::in_flow(world, *c));
     let wrap = flex::wraps(world, entity, &layout);
     let gaps = layout.gap * flow.len().saturating_sub(1) as f32;
+    if layout.axis == Axis::Row && wrap.is_none() {
+        crate::split::size_split(world, entity, &layout, &flow, inner_w);
+    }
     let mut fixed_w = gaps;
     let mut fills = 0;
     if layout.axis == Axis::Row && wrap.is_none() {
@@ -1053,6 +1056,11 @@ fn place_stack(
     rect: Rect,
     clip: Clip,
 ) {
+    let span = match layout.axis {
+        Axis::Row => inner_w,
+        Axis::Column => inner_h,
+    };
+    crate::split::size_split(world, entity, layout, kids, span);
     let mut fixed = 0.0f32;
     let mut fill_count = 0usize;
     for child in kids {
@@ -1480,7 +1488,18 @@ fn label_hug_width(
     }
     let line_h = engine.line_height(&style);
     let h = (2.0 * metrics.inset_y + lines as f32 * line_h).max(metrics.min_height);
-    let w = width + 2.0 * metrics.inset_x;
+    // Shaped advances are fractional. Round up to a whole device pixel so
+    // placement snapping cannot make the box narrower than its own text,
+    // which would ellipsize a label that fits.
+    let scale = world
+        .resource::<Viewport>()
+        .map(|viewport| viewport.scale)
+        .filter(|scale| scale.is_finite() && *scale > 0.0)
+        .unwrap_or(1.0);
+    let w = ((width + 2.0 * metrics.inset_x) * scale - 0.001)
+        .ceil()
+        .max(0.0)
+        / scale;
     Some((w, h))
 }
 
