@@ -539,18 +539,10 @@ fn note_pointer(world: &mut World) {
     let Some(pointer) = world.resource::<Input>().map(|input| input.pointer) else {
         return;
     };
-    if let Some(sash) = sash_at(world, pointer.position) {
-        if access_details(world, sash).set_value {
-            let axis = world
-                .get::<SashState>(sash)
-                .map(|state| state.props.axis)
-                .unwrap_or(Axis::Row);
-            world.insert_resource(match axis {
-                Axis::Row => CursorStyle::ResizeColumn,
-                Axis::Column => CursorStyle::ResizeRow,
-            });
-            world.insert_resource(MotionWatch { active: true });
-        }
+    // The resize cursor, and restoring the arrow on leave, is core
+    // `apply_split`'s for every splitter, this sash included.
+    if sash_at(world, pointer.position).is_some_and(|sash| access_details(world, sash).set_value) {
+        world.insert_resource(MotionWatch { active: true });
     }
     if !pointer.pressed || pointer.button != PointerButton::Left {
         return;
