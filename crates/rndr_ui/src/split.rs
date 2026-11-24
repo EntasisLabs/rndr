@@ -349,7 +349,10 @@ pub(crate) fn drive(world: &mut World) {
 
 /// Focus, drag, and hover on a line thinner than the handle's hit area.
 pub(crate) fn styles(world: &mut World) {
-    let focus = world.resource::<Focus>().and_then(|focus| focus.entity);
+    let focus = world
+        .resource::<Focus>()
+        .and_then(|focus| focus.entity)
+        .filter(|_| crate::style::focus_visible(world));
     let drag = world.resource::<Drag>().and_then(|drag| drag.entity);
     let hovered = world
         .resource::<Input>()

@@ -584,7 +584,8 @@ fn refresh(w: &mut World, root: Entity) {
         let mut a = projection(AccessRole::CheckBox);
         a.checked = Some(checked);
         w.insert(root, a);
-        let focused = w.resource::<Focus>().and_then(|f| f.entity) == Some(root);
+        let focused = w.resource::<Focus>().and_then(|f| f.entity) == Some(root)
+            && crate::style::focus_visible(w);
         let available = access_details(w, root).focus;
         let scale = w
             .resource::<crate::UiTheme>()

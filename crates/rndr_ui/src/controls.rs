@@ -1007,10 +1007,11 @@ pub(crate) fn resolve_controls(world: &mut World) {
         // Reserve the two-color outer ring for focus. Transparent inactive
         // rings let controls sit on any host surface without canvas seams.
         let transparent = crate::Surface::Transparent.fill();
+        let ring = focused == Some(root) && crate::style::focus_visible(world);
         background(
             world,
             root,
-            if focused == Some(root) {
+            if ring {
                 Token::Focus.into()
             } else {
                 transparent
@@ -1020,7 +1021,7 @@ pub(crate) fn resolve_controls(world: &mut World) {
         background(
             world,
             c.gap,
-            if focused == Some(root) {
+            if ring {
                 host_plane(world, root, &theme)
             } else {
                 transparent

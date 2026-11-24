@@ -291,6 +291,14 @@ impl Component for FillFade {}
 struct ManagedRound;
 impl Component for ManagedRound {}
 
+/// Whether keyboard focus rings should draw now. Pointer focus hides them
+/// until the next key; text entry keeps its ring and does not ask.
+pub(crate) fn focus_visible(world: &rndr_core::World) -> bool {
+    world
+        .resource::<rndr_core::FocusVisible>()
+        .is_none_or(|v| v.0)
+}
+
 /// Keyboard focus ring. Width is [`UiTheme::focus_width`]; ink is [`Token::Focus`].
 pub(crate) fn keyboard_focus_ring(theme: &UiTheme) -> Border {
     Border {

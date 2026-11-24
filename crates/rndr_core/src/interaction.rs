@@ -639,6 +639,8 @@ pub(crate) fn apply_generic_input(world: &mut World) {
         world.resource_mut::<InteractionState>().unwrap().space = None;
     }
     if !escape && input.pointer.pressed && input.pointer.button == PointerButton::Left {
+        // Pointer focus is not keyboard focus: hide the ring until a key.
+        crate::input::set_focus_visible(world, false);
         let p = input.pointer.press_at.unwrap_or(input.pointer.position);
         if let Some(hit) = crate::layout::hit_test(world, p[0], p[1])
             .filter(|hit| !crate::selectable::owns_press(world, input.pointer.button, *hit))
@@ -725,6 +727,9 @@ pub(crate) fn apply_generic_input(world: &mut World) {
     let mut retained = Vec::new();
     for event in keys {
         let plain = !event.modifiers.command() && !event.modifiers.alt;
+        if plain && !event.released && !event.synthetic {
+            crate::input::set_focus_visible(world, true);
+        }
         // Resolve every Space up, even if modifiers/ownership changed. Never
         // leave an unmatched arm for a later unrelated release to commit.
         let space_up = event.logical == LogicalKey::Named(NamedKey::Space) && event.released;

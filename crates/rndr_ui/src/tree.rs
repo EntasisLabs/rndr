@@ -702,7 +702,7 @@ pub(crate) fn styles(world: &mut World) {
                 ..UiStyle::default()
             }),
         );
-        if focus == Some(root) && state.props.enabled {
+        if focus == Some(root) && state.props.enabled && crate::style::focus_visible(world) {
             world.insert(root, crate::style::keyboard_focus_ring(&theme));
         } else {
             world.remove::<Border>(root);
@@ -2086,7 +2086,7 @@ fn paint_row(
             ..UiStyle::default()
         }),
     );
-    if focused && live && !loading && state.props.enabled {
+    if focused && live && !loading && state.props.enabled && crate::style::focus_visible(world) {
         world.insert(slot.root, crate::style::keyboard_focus_ring(&theme));
     } else {
         world.remove::<Border>(slot.root);

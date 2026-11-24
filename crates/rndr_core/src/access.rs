@@ -464,6 +464,7 @@ pub fn try_apply_access(world: &mut World, command: AccessCommand) -> AccessComm
     match command {
         AccessCommand::Focus(entity) => {
             if crate::request_focus(world, entity) {
+                crate::input::set_focus_visible(world, true);
                 AccessCommandResult::Applied
             } else {
                 AccessCommandResult::Rejected

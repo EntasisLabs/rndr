@@ -1277,7 +1277,7 @@ pub(super) fn chrome(world: &mut World) {
                     ..crate::UiStyle::default()
                 }),
             );
-            if row_focus && enabled {
+            if row_focus && enabled && crate::style::focus_visible(world) {
                 world.insert(slot.root, crate::style::keyboard_focus_ring(&theme));
             } else {
                 world.remove::<Border>(slot.root);
