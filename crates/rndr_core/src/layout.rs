@@ -274,8 +274,14 @@ fn layout_once(world: &mut World) {
                 .copied()
                 .unwrap_or_default();
             let hug = world.get::<Rect>(root).map_or(0.0, |r| r.w);
+            // A dropdown is at least as wide as its anchor and 240pt; a popup
+            // that asks for a wider fixed width gets it.
+            let authored = match world.get::<Layout>(root).map(|l| l.width) {
+                Some(Size::Px(w)) => w.max(240.0),
+                _ => 240.0,
+            };
             let width = match placement {
-                crate::PopupPlacement::Below => anchor.w.max(240.0),
+                crate::PopupPlacement::Below => anchor.w.max(authored),
                 _ if hug > 0.0 => hug,
                 _ => 240.0,
             }
