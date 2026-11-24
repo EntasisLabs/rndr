@@ -22,7 +22,7 @@ fn tree_labels_contain_descenders() {
             height: Size::Fill,
             ..Layout::column()
         };
-        let root = world.spawn((layout.clone(),));
+        let root = world.spawn((layout,));
         let tree = VirtualTree::mount(
             world,
             root,

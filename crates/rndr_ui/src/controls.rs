@@ -1015,7 +1015,7 @@ pub(crate) fn resolve_controls(world: &mut World) {
             } else {
                 transparent
             },
-            Corner::Group,
+            Corner::FocusRing,
         );
         background(
             world,

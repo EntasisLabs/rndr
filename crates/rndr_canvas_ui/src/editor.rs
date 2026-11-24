@@ -299,7 +299,6 @@ pub const HANDLE_SIZE: f32 = 8.0;
 /// Distance of the rotation handle above the frame, in view points.
 pub const ROTATE_OFFSET: f32 = 24.0;
 
-/// Edits one document in a [`CanvasStore`].
 /// Where saves go.
 enum Backend {
     /// Each save is answered in the same call.
@@ -308,6 +307,7 @@ enum Backend {
     Remote(Box<Remote>),
 }
 
+/// Edits one document, saving through a [`CanvasStore`] or a remote host.
 pub struct CanvasEditor {
     backend: Backend,
     current: Mutation,

@@ -39,6 +39,8 @@ pub enum Corner {
     ControlFace,
     /// Focus gap 8: two-point inset from a ten-point focus ring.
     FocusGap,
+    /// Focus ring 10: one focus width outside the focus gap.
+    FocusRing,
     /// Content group 8.
     Group,
     /// Overlay 10.
@@ -53,6 +55,7 @@ impl Corner {
             Self::Control => 6.0,
             Self::ControlFace => 5.0,
             Self::FocusGap => 8.0,
+            Self::FocusRing => 10.0,
             Self::Group => 8.0,
             Self::Overlay => 10.0,
         }
@@ -229,6 +232,7 @@ impl RadiusScale {
             Corner::Control => control,
             Corner::ControlFace => (control - 1.0).max(0.0),
             Corner::FocusGap => control + focus_width,
+            Corner::FocusRing => control + focus_width * 2.0,
             Corner::Group => self.of(RadiusRole::Card),
             Corner::Overlay => self.of(RadiusRole::Overlay),
         }

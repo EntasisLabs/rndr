@@ -1627,9 +1627,12 @@ pub(crate) fn styles(world: &mut World) {
                     ..UiStyle::default()
                 }),
             );
+            let row_padding = world
+                .get::<Layout>(row.slot.root)
+                .map_or(0.0, |l| l.padding);
             world.get_mut::<Layout>(row.slot.content).unwrap().padding =
                 if world.has::<crate::data::TableRow>(row.slot.root) {
-                    crate::data::TABLE_INSET - 3.0
+                    crate::data::TABLE_INSET - row_padding
                 } else if theme.density == crate::Density::Compact {
                     4.0
                 } else {

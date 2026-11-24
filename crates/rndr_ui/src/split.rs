@@ -182,7 +182,9 @@ impl SplitSash {
             state.props = props.clone();
             state.pending = None;
             state.ratio = ratio;
-            world.get_mut::<SplitLayout>(root).unwrap().ratio = ratio;
+            if let Some(split) = world.get_mut::<SplitLayout>(root) {
+                split.ratio = ratio;
+            }
             let sash = key.sash;
             world.insert(sash, state);
             write_chrome(world, sash, &props);
