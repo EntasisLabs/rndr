@@ -49,6 +49,7 @@
 mod affine;
 mod display;
 mod font;
+mod icon_svgs;
 mod icons;
 mod latin;
 mod path;
@@ -66,7 +67,8 @@ pub use display::{
 };
 pub use font::{atlas_r8, glyph_uv, solid_uv, ATLAS_H, ATLAS_W};
 pub use icons::{
-    icon_atlas_size, icon_coverage, install_icons, IconFace, ICON_CELL, ICON_COLS, ICON_PITCH,
+    icon_atlas_size, icon_coverage, icon_svg, install_icons, IconFace, ICON_CELL, ICON_COLS,
+    ICON_PITCH,
 };
 pub use latin::LatinFace;
 pub use path::{Cap, FillRule, Join, Marker, Path, PathBuilder, Stroke};

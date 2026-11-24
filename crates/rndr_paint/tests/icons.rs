@@ -118,3 +118,18 @@ fn an_icon_sits_inline_with_text() {
     };
     insta::assert_snapshot!(quads_snapshot(&painted));
 }
+
+#[test]
+fn scaled_atlas_cells_are_smooth_not_blocky() {
+    let ch = Icon::Search.scalar();
+    let scaled = icon_coverage(ch, ICON_CELL * 2).unwrap();
+    let n = (ICON_CELL * 2) as usize;
+    // A nearest-neighbour upscale repeats every value in 2x2 blocks.
+    let blocky = (0..n / 2).all(|y| {
+        (0..n / 2).all(|x| {
+            let v = scaled[2 * y * n + 2 * x];
+            v == scaled[2 * y * n + 2 * x + 1] && v == scaled[(2 * y + 1) * n + 2 * x + 1]
+        })
+    });
+    assert!(!blocky);
+}
