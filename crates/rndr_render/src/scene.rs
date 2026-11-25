@@ -249,10 +249,19 @@ struct TargetUse {
     bind: wgpu::BindGroup,
 }
 
+/// Bytes of offscreen targets kept for reuse beyond those the current frame
+/// draws into.
+pub(crate) const POOL_SPARE_BYTES: u64 = 256 << 20;
+/// Count of offscreen targets kept for reuse beyond those the current frame
+/// draws into.
+const POOL_SPARE_SLOTS: usize = 24;
+
 struct PoolSlot {
     width: u32,
     height: u32,
     samples: u32,
+    /// Estimated GPU bytes of every texture the slot holds.
+    bytes: u64,
     color_texture: wgpu::Texture,
     color_view: wgpu::TextureView,
     msaa_view: Option<wgpu::TextureView>,
@@ -2289,11 +2298,6 @@ impl SceneGpu {
     fn alloc(&mut self, width: u32, height: u32, samples: u32) -> TargetUse {
         let width = width.max(1);
         let height = height.max(1);
-        if self.pool.len() > 24 {
-            if let Some(index) = self.pool.iter().position(|slot| slot.stamp != self.frame) {
-                self.pool.remove(index);
-            }
-        }
         if let Some(index) = self.pool.iter().position(|slot| {
             slot.width == width
                 && slot.height == height
@@ -2303,9 +2307,47 @@ impl SceneGpu {
             self.pool[index].stamp = self.frame;
             return self.pool[index].to_use();
         }
+        self.trim_pool();
         let slot = self.create_slot(width, height, samples);
         self.pool.push(slot);
         self.pool.last().unwrap().to_use()
+    }
+
+    /// Drop the least recently used targets this frame is not drawing into
+    /// until the rest fit [`POOL_SPARE_BYTES`] and [`POOL_SPARE_SLOTS`].
+    ///
+    /// Targets match by exact size, so a window or pane resize leaves one
+    /// behind on every frame. Each holds a colour, a multisampled colour and a
+    /// stencil buffer, so keeping them grows by hundreds of megabytes a frame.
+    fn trim_pool(&mut self) {
+        let frame = self.frame;
+        let spare = |pool: &[PoolSlot]| {
+            pool.iter()
+                .filter(|slot| slot.stamp != frame)
+                .fold((0u64, 0usize), |(bytes, count), slot| {
+                    (bytes + slot.bytes, count + 1)
+                })
+        };
+        loop {
+            let (bytes, count) = spare(&self.pool);
+            if bytes <= POOL_SPARE_BYTES && count <= POOL_SPARE_SLOTS {
+                break;
+            }
+            let oldest = self
+                .pool
+                .iter()
+                .enumerate()
+                .filter(|(_, slot)| slot.stamp != frame)
+                .min_by_key(|(_, slot)| slot.stamp)
+                .map(|(index, _)| index);
+            let Some(index) = oldest else { break };
+            self.pool.remove(index);
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn pool_bytes(&self) -> u64 {
+        self.pool.iter().map(|slot| slot.bytes).sum()
     }
 
     fn create_slot(&self, width: u32, height: u32, samples: u32) -> PoolSlot {
@@ -2362,10 +2404,20 @@ impl SceneGpu {
         if let Some(msaa) = msaa {
             keep.push(msaa);
         }
+        // Colour, the multisampled colour when there is one, and a
+        // four-byte depth-stencil per sample.
+        let texel = self.format.block_copy_size(None).unwrap_or(4) as u64;
+        let multisampled = if samples > 1 {
+            texel * samples as u64
+        } else {
+            0
+        };
+        let bytes = width as u64 * height as u64 * (texel + multisampled + 4 * samples as u64);
         PoolSlot {
             width,
             height,
             samples,
+            bytes,
             color_texture,
             color_view,
             msaa_view,

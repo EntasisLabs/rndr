@@ -575,6 +575,53 @@ fn row_stride(width: u32) -> u32 {
 mod tests {
     use super::*;
 
+    /// A window resize asks for a new layer size every frame. The pool keeps
+    /// only a bounded spare set, not one target per size it has seen.
+    #[test]
+    fn resizing_does_not_keep_a_layer_target_per_size() {
+        use rndr_core::{set_parent, App, Color, Layout, Opacity, Size, Viewport};
+        let mut exporter = match Exporter::new() {
+            Ok(exporter) => exporter,
+            Err(ExportError::NoAdapter) => panic!("no graphics adapter"),
+            Err(err) => panic!("{err}"),
+        };
+        let mut most = 0;
+        for step in 0..30u32 {
+            let (w, h) = (600.0 + step as f32 * 7.0, 400.0 + step as f32 * 5.0);
+            let mut app = App::new();
+            app.world_mut().insert_resource(Viewport::new(w, h));
+            let root = app.world_mut().spawn((
+                Layout {
+                    width: Size::Px(w),
+                    height: Size::Px(h),
+                    ..Layout::row()
+                },
+                Color::rgb(1.0, 1.0, 1.0),
+            ));
+            let faded = app.world_mut().spawn((
+                Layout {
+                    width: Size::Px(120.0),
+                    height: Size::Px(120.0),
+                    ..Layout::row()
+                },
+                Color::rgb(1.0, 0.0, 0.0),
+            ));
+            set_parent(app.world_mut(), faded, root);
+            app.world_mut().insert(faded, Opacity(0.5));
+            let frame = rndr_paint::frame(&mut app);
+            exporter
+                .render_frame(Some(app.world()), &frame, w as u32 * 2, h as u32 * 2, 2.0)
+                .expect("render");
+            most = most.max(exporter.gpu().scene.pool_bytes());
+        }
+        // The largest frame's layer: colour, 4x colour and 4x stencil.
+        let layer = 803 * 2 * 545 * 2 * (4 + 16 + 16) as u64;
+        assert!(
+            most <= crate::scene::POOL_SPARE_BYTES + layer,
+            "pool held {most} bytes"
+        );
+    }
+
     #[test]
     fn rejects_an_oversized_export() {
         let err = pixel_size(
