@@ -66,6 +66,7 @@ pub struct AtlasUpload {
     /// sample it.
     pub coverage: AtlasLayer,
     /// Color shelf. Straight RGBA, four bytes per pixel. Emoji samples it.
+    /// Before the first color glyph, this is an unchanged 1×1 placeholder.
     pub color: AtlasLayer,
 }
 
@@ -129,7 +130,9 @@ pub(super) struct State {
     layout_cx: LayoutContext<()>,
     scale_cx: ScaleContext,
     coverage: Atlas,
-    color: Atlas,
+    color: Option<Atlas>,
+    atlas_size: u32,
+    max_atlas: u32,
     cache: FrameCache,
     fallbacks: HashMap<String, Vec<String>>,
     scale: f32,
@@ -225,7 +228,9 @@ impl ParleyText {
                 layout_cx: LayoutContext::new(),
                 scale_cx: ScaleContext::new(),
                 coverage: Atlas::new(false, size, max),
-                color: Atlas::new(true, size, max),
+                color: None,
+                atlas_size: size,
+                max_atlas: max,
                 cache: FrameCache {
                     frames: [HashMap::new(), HashMap::new()],
                     by_key: HashMap::new(),
@@ -265,7 +270,7 @@ impl ParleyText {
     /// atlases are both included. Panics if the engine lock is poisoned.
     pub fn eviction_count(&self) -> u64 {
         let state = self.lock();
-        state.coverage.evictions + state.color.evictions
+        state.coverage.evictions + state.color.as_ref().map_or(0, |atlas| atlas.evictions)
     }
 
     /// Filled outlines for `source`, in the text's local space.
@@ -291,7 +296,17 @@ impl ParleyText {
         state.uploads_epoch = state.uploads_epoch.wrapping_add(1);
         AtlasUpload {
             coverage: layer_from(state.coverage.take_dirty()),
-            color: layer_from(state.color.take_dirty()),
+            color: state.color.as_mut().map_or_else(
+                || AtlasLayer {
+                    width: 1,
+                    height: 1,
+                    bpp: 4,
+                    full: false,
+                    pixels: Vec::new(),
+                    rects: Vec::new(),
+                },
+                |atlas| layer_from(atlas.take_dirty()),
+            ),
         }
     }
 
@@ -319,8 +334,10 @@ fn register_bundled(collection: &mut fontique::Collection) {
     let mut emoji = None;
     let mut sans = None;
     let mut mono = None;
-    for bytes in fonts::BUNDLED {
-        let blob = fontique::Blob::new(Arc::new(bytes.to_vec()));
+    for &bytes in fonts::BUNDLED {
+        // Share the executable's read-only font data instead of retaining a
+        // private copy of every face in every text engine.
+        let blob = fontique::Blob::new(Arc::new(bytes));
         for (id, _) in collection.register_fonts(blob, None) {
             let Some(family) = collection.family(id) else {
                 continue;
@@ -369,6 +386,16 @@ fn layer_from(delta: atlas::AtlasDelta) -> AtlasLayer {
 }
 
 impl State {
+    fn color_for_glyph(&mut self) -> &mut Atlas {
+        self.color
+            .get_or_insert_with(|| Atlas::new(true, self.atlas_size, self.max_atlas))
+    }
+
+    fn color_generation(&self) -> u64 {
+        // First allocation doesn't move any glyphs; only growth does.
+        self.color.as_ref().map_or(0, Atlas::generation)
+    }
+
     fn invalidate_lines(&mut self) {
         let mut dropped = Vec::new();
         for frame in &mut self.cache.frames {
@@ -384,17 +411,23 @@ impl State {
 
     fn release(&mut self, keys: &[GlyphKey]) {
         self.coverage.release(keys);
-        self.color.release(keys);
+        if let Some(color) = &mut self.color {
+            color.release(keys);
+        }
     }
 
     fn remember(&mut self, keys: &[GlyphKey]) {
         self.coverage.add_refs(keys);
-        self.color.add_refs(keys);
+        if let Some(color) = &mut self.color {
+            color.add_refs(keys);
+        }
     }
 
     fn touch(&mut self, keys: &[GlyphKey]) {
         self.coverage.touch(keys);
-        self.color.touch(keys);
+        if let Some(color) = &mut self.color {
+            color.touch(keys);
+        }
     }
 }
 
@@ -486,7 +519,7 @@ impl TextEngine for ParleyText {
     }
 
     fn color_atlas(&self) -> Option<Arc<ColorAtlas>> {
-        let (width, height, pixels) = self.lock().color.snapshot();
+        let (width, height, pixels) = self.lock().color.as_ref()?.snapshot();
         Some(Arc::new(ColorAtlas {
             width,
             height,

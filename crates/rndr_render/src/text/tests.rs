@@ -71,6 +71,29 @@ fn cjk_breaks_inside_a_narrow_measure() {
 }
 
 #[test]
+fn color_shelf_is_allocated_and_uploaded_only_when_needed() {
+    let engine = bundled();
+    let style = inter(16.0);
+    assert!(engine.color_atlas().is_none());
+    engine.layout("Plain text", &style, &[], f32::INFINITY);
+    let unused = engine.take_uploads().color;
+    assert_eq!((unused.width, unused.height, unused.bpp), (1, 1, 4));
+    assert!(!unused.full && unused.pixels.is_empty() && unused.rects.is_empty());
+    assert!(engine.color_atlas().is_none());
+
+    engine.layout("🇺🇸", &style, &[], f32::INFINITY);
+    let first = engine.take_uploads().color;
+    assert!(first.full && first.rects.is_empty());
+    assert_eq!((first.width, first.height), (512, 512));
+    assert_eq!(first.pixels.len(), 512 * 512 * 4);
+    assert!(first.pixels.chunks_exact(4).any(|pixel| pixel[3] != 0));
+    let snapshot = engine.color_atlas().expect("color glyph shelf");
+    assert_eq!(&*snapshot.rgba, &first.pixels);
+    let unchanged = engine.take_uploads().color;
+    assert!(!unchanged.full && unchanged.pixels.is_empty() && unchanged.rects.is_empty());
+}
+
+#[test]
 fn emoji_flag_is_one_color_cluster() {
     let engine = bundled();
     let flag = "🇺🇸";

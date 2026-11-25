@@ -50,7 +50,7 @@ struct VsOut {
 
 struct ViewportUniform {
     size: vec2<f32>,
-    _pad: vec2<f32>,
+    origin: vec2<f32>,
 }
 
 @group(0) @binding(0) var<uniform> viewport: ViewportUniform;
@@ -61,7 +61,7 @@ struct ViewportUniform {
 
 @vertex
 fn vs(in: VsIn) -> VsOut {
-    let px = in.rect.xy + in.quad * in.rect.zw;
+    let px = in.rect.xy + in.quad * in.rect.zw - viewport.origin;
     let ndc = vec2<f32>(
         px.x / viewport.size.x * 2.0 - 1.0,
         1.0 - px.y / viewport.size.y * 2.0,
@@ -169,7 +169,7 @@ fn fs(in: VsOut) -> @location(0) vec4<f32> {
     // Rounded mask from a `ClipRounded` ancestor; `soft.x` is the feather.
     var mask = 0.0;
     if in.round_rect.z > 0.0 && in.round_rect.w > 0.0 {
-        let d = box_distance(in.pos.xy, in.round_rect, in.round_corners);
+        let d = box_distance(in.pos.xy + viewport.origin, in.round_rect, in.round_corners);
         if in.soft.x > 0.5 {
             mask = clamp(-d / in.soft.x, 0.0, 1.0);
         } else {
@@ -180,7 +180,7 @@ fn fs(in: VsOut) -> @location(0) vec4<f32> {
 }
 
 fn paint(in: VsOut) -> vec4<f32> {
-    let px = in.pos.xy;
+    let px = in.pos.xy + viewport.origin;
     let clip = in.clip;
     if px.x < clip.x || px.y < clip.y || px.x >= clip.x + clip.z || px.y >= clip.y + clip.w {
         discard;
@@ -309,7 +309,8 @@ pub struct Gpu {
     instances: wgpu::Buffer,
     instance_capacity: u64,
     staging: Vec<u8>,
-    scene: crate::scene::SceneGpu,
+    scene: Option<crate::scene::SceneGpu>,
+    scene_samples: u32,
 }
 
 /// Bytes of one atlas image handed to [`Gpu::new`].
@@ -354,7 +355,7 @@ pub(crate) struct GpuParts {
     instances: wgpu::Buffer,
     instance_capacity: u64,
     staging: Vec<u8>,
-    scene: crate::scene::SceneGpu,
+    scene_samples: u32,
 }
 
 impl Gpu {
@@ -499,7 +500,7 @@ impl Gpu {
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
+                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -636,8 +637,6 @@ impl Gpu {
         #[cfg(not(feature = "parley"))]
         let _keep_alive = (bind_layout, sampler, coverage, color_tex, color_format);
         let samples = crate::scene::choose_samples(&adapter, config.format);
-        let scene =
-            crate::scene::SceneGpu::new(device.clone(), queue.clone(), config.format, samples);
         GpuParts {
             device,
             queue,
@@ -677,7 +676,7 @@ impl Gpu {
                 samples,
             ),
             clear_transparent,
-            scene,
+            scene_samples: samples,
         }
     }
 
@@ -724,7 +723,8 @@ impl Gpu {
             #[cfg(feature = "observe")]
             observation_adapter: parts.observation_adapter,
             clear_transparent: parts.clear_transparent,
-            scene: parts.scene,
+            scene: None,
+            scene_samples: parts.scene_samples,
         }
     }
 
@@ -1130,7 +1130,16 @@ impl Gpu {
         } else {
             clear_color(self.config.format)
         };
-        let uploaded = self.scene.render(
+        // Quad-only windows use `present` and never need the offscreen renderer.
+        let scene = self.scene.get_or_insert_with(|| {
+            crate::scene::SceneGpu::new(
+                self.device.clone(),
+                self.queue.clone(),
+                self.config.format,
+                self.scene_samples,
+            )
+        });
+        let uploaded = scene.render(
             &mut encoder,
             &view,
             Some(&texture.texture),

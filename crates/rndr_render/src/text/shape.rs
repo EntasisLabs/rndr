@@ -30,11 +30,13 @@ pub(super) fn shape_text(
 ) -> Shaped {
     for _ in 0..4 {
         let coverage_gen = state.coverage.generation();
-        let color_gen = state.color.generation();
+        let color_gen = state.color_generation();
         state.coverage.begin_build();
-        state.color.begin_build();
+        if let Some(color) = &mut state.color {
+            color.begin_build();
+        }
         let shaped = shape_once(state, text, style, runs, max_width);
-        if state.coverage.generation() == coverage_gen && state.color.generation() == color_gen {
+        if state.coverage.generation() == coverage_gen && state.color_generation() == color_gen {
             return shaped;
         }
         // A grow dropped the shelf. The line cache's UVs are stale.
@@ -401,7 +403,8 @@ fn raster_glyph(
     }
     if let Some(hit) = state
         .color
-        .resident(glyph_key(font_key, glyph_id, size_bits, 0, true, synth))
+        .as_mut()
+        .and_then(|atlas| atlas.resident(glyph_key(font_key, glyph_id, size_bits, 0, true, synth)))
     {
         keys.push(hit.key);
         return Some(place_glyph(hit, &paint_at, true));
@@ -440,7 +443,7 @@ fn raster_glyph(
     }
     let key = glyph_key(font_key, glyph_id, size_bits, bin, color_glyph, synth);
     let atlas = if color_glyph {
-        &mut state.color
+        state.color_for_glyph()
     } else {
         &mut state.coverage
     };
