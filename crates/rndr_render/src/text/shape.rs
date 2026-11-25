@@ -516,6 +516,28 @@ fn icon_cap_drop(font: &parley::FontData, coords: &[i16], px_size: f32) -> f32 {
     (px_size * (0.5 - cap / 2.0)).round()
 }
 
+/// Icon coverage at exactly `px` square: rasterized from the Lucide source
+/// when SVG support is built in, so icons stay crisp at any size and scale.
+pub(super) fn icon_pixels(ch: char, px: u32) -> Option<Vec<u8>> {
+    #[cfg(feature = "svg")]
+    if let Some(source) = rndr_paint::icon_svg(ch) {
+        if let Ok(raster) = crate::decode_svg(source.as_bytes(), px, px) {
+            if raster.width == px && raster.height == px {
+                return Some(
+                    raster
+                        .rgba
+                        .as_chunks::<4>()
+                        .0
+                        .iter()
+                        .map(|p| p[3])
+                        .collect(),
+                );
+            }
+        }
+    }
+    rndr_paint::icon_coverage(ch, px)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn raster_icon(
     state: &mut State,
@@ -533,7 +555,7 @@ fn raster_icon(
     keys: &mut Vec<GlyphKey>,
 ) -> Option<PlacedGlyph> {
     let px = px_size.round().max(1.0) as u32;
-    let pixels = rndr_paint::icon_coverage(ch, px)?;
+    let pixels = icon_pixels(ch, px)?;
     let key = glyph_key(ICON_FONT_KEY, ch as u32, px_size.to_bits(), 0, false, synth);
     if let Some(hit) = state.coverage.resident(key) {
         keys.push(hit.key);

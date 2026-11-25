@@ -1,6 +1,6 @@
 use crate::entity::Entity;
 use crate::hierarchy::{children_of, Parent};
-use crate::input::Input;
+use crate::input::{CursorStyle, Input, MotionWatch};
 use crate::layout::{ancestor_with, hit_test, Axis, Layout, Rect, Size};
 use crate::world::{Component, World};
 
@@ -123,7 +123,54 @@ pub struct Drag {
 ///
 /// A second call in the same frame applies no further pointer delta.
 /// [`Drag::last`] is already the position just applied. Reclamp still runs.
+///
+/// Over a handle, or while dragging one, the pointer is the resize cursor
+/// for the parent axis. Leaving restores the arrow, but only when this set
+/// the cursor, so other hover owners keep theirs.
 pub fn apply_split(world: &mut World) {
+    drag_and_clamp(world);
+    split_cursor(world);
+}
+
+/// Whether [`split_cursor`] last set the window's cursor.
+#[derive(Clone, Copy, Debug, Default)]
+struct SplitCursor(bool);
+impl Component for SplitCursor {}
+
+fn split_cursor(world: &mut World) {
+    let Some(pointer) = world.resource::<Input>().map(|input| input.pointer) else {
+        return;
+    };
+    let dragging = world
+        .resource::<Drag>()
+        .and_then(|drag| drag.entity)
+        .filter(|entity| world.is_alive(*entity));
+    let handle = dragging.or_else(|| {
+        hit_test(world, pointer.position[0], pointer.position[1])
+            .and_then(|hit| ancestor_with::<Splitter>(world, hit))
+    });
+    let shape = handle
+        .and_then(|handle| parent_axis(world, handle))
+        .map(|axis| match axis {
+            Axis::Row => CursorStyle::ResizeColumn,
+            Axis::Column => CursorStyle::ResizeRow,
+        });
+    let owned = world.resource::<SplitCursor>().is_some_and(|c| c.0);
+    match shape {
+        Some(shape) => {
+            world.insert_resource(shape);
+            world.insert_resource(SplitCursor(true));
+            world.insert_resource(MotionWatch { active: true });
+        }
+        None if owned => {
+            world.insert_resource(CursorStyle::Arrow);
+            world.insert_resource(SplitCursor(false));
+        }
+        None => {}
+    }
+}
+
+fn drag_and_clamp(world: &mut World) {
     let Some(input) = world.resource::<Input>().cloned() else {
         reclamp_all(world);
         return;

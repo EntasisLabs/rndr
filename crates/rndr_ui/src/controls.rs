@@ -75,6 +75,12 @@ pub struct NavigationMeta {
     /// Explicit textual unsaved marker; no claim about a real save journal.
     pub dirty: bool,
 }
+/// On a [`NavigationRow`] root: mark selection with the row's fill alone,
+/// without the edge bar. High contrast keeps the bar, so selection never
+/// rests on fill alone there.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct QuietSelection;
+impl Component for QuietSelection {}
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Kind {
     Button,
@@ -1007,10 +1013,11 @@ pub(crate) fn resolve_controls(world: &mut World) {
         // Reserve the two-color outer ring for focus. Transparent inactive
         // rings let controls sit on any host surface without canvas seams.
         let transparent = crate::Surface::Transparent.fill();
+        let ring = focused == Some(root) && crate::style::focus_visible(world);
         background(
             world,
             root,
-            if focused == Some(root) {
+            if ring {
                 Token::Focus.into()
             } else {
                 transparent
@@ -1020,7 +1027,7 @@ pub(crate) fn resolve_controls(world: &mut World) {
         background(
             world,
             c.gap,
-            if focused == Some(root) {
+            if ring {
                 host_plane(world, root, &theme)
             } else {
                 transparent
@@ -1102,7 +1109,9 @@ pub(crate) fn resolve_controls(world: &mut World) {
             );
         }
         if let Some(bar) = c.indicator {
-            if selected {
+            let quiet =
+                world.has::<QuietSelection>(root) && theme.contrast != crate::Contrast::High;
+            if selected && !quiet {
                 world.remove::<Hidden>(bar);
                 background(world, bar, Token::Accent, Corner::Compact);
             } else {

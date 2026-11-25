@@ -19,6 +19,13 @@ const ICON_EM: f32 = 16.0;
 
 const ICON_ATLAS: &[u8] = include_bytes!("icon_atlas.bin");
 
+/// Lucide SVG source for an icon scalar. Renderers with a vector rasterizer
+/// draw from this at the exact pixel size instead of scaling the 16px atlas.
+pub fn icon_svg(ch: char) -> Option<&'static str> {
+    let icon = Icon::from_scalar(ch)?;
+    crate::icon_svgs::ICON_SVGS.get(icon.index()).copied()
+}
+
 /// Width and height of the baked coverage atlas, in pixels.
 pub fn icon_atlas_size() -> (u32, u32) {
     let rows = (Icon::COUNT as u32).div_ceil(ICON_COLS);
@@ -171,12 +178,24 @@ pub fn icon_coverage(ch: char, px: u32) -> Option<Vec<u8>> {
     if dst_n == ICON_CELL {
         return Some(src);
     }
+    // Bilinear, sampling cell centres: a scaled atlas cell stays smooth rather
+    // than stepping into blocks. Renderers that can should use `icon_svg`.
+    let sample = |x: i64, y: i64| -> f32 {
+        let x = x.clamp(0, ICON_CELL as i64 - 1) as u32;
+        let y = y.clamp(0, ICON_CELL as i64 - 1) as u32;
+        f32::from(src[(y * ICON_CELL + x) as usize])
+    };
+    let ratio = ICON_CELL as f32 / dst_n as f32;
     let mut dst = vec![0u8; (dst_n * dst_n) as usize];
     for y in 0..dst_n {
+        let fy = (y as f32 + 0.5) * ratio - 0.5;
+        let (y0, ty) = (fy.floor() as i64, fy - fy.floor());
         for x in 0..dst_n {
-            let sx = x * ICON_CELL / dst_n;
-            let sy = y * ICON_CELL / dst_n;
-            dst[(y * dst_n + x) as usize] = src[(sy * ICON_CELL + sx) as usize];
+            let fx = (x as f32 + 0.5) * ratio - 0.5;
+            let (x0, tx) = (fx.floor() as i64, fx - fx.floor());
+            let top = sample(x0, y0) * (1.0 - tx) + sample(x0 + 1, y0) * tx;
+            let bottom = sample(x0, y0 + 1) * (1.0 - tx) + sample(x0 + 1, y0 + 1) * tx;
+            dst[(y * dst_n + x) as usize] = (top * (1.0 - ty) + bottom * ty).round() as u8;
         }
     }
     Some(dst)

@@ -242,6 +242,33 @@ pub struct Focus {
     pub entity: Option<Entity>,
 }
 
+/// Whether focus shows its keyboard indicator, like CSS `:focus-visible`.
+///
+/// A pointer press hides it; keyboard input and assistive-technology focus
+/// show it again. Text entry keeps its ring regardless. A missing resource
+/// reads as visible, so hosts that never press the pointer are unchanged.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FocusVisible(pub bool);
+
+impl Default for FocusVisible {
+    fn default() -> Self {
+        Self(true)
+    }
+}
+
+/// True when `entity` has focus and the keyboard indicator should be drawn.
+pub fn focus_ring_visible(world: &crate::World, entity: crate::Entity) -> bool {
+    world.resource::<Focus>().and_then(|f| f.entity) == Some(entity)
+        && world.resource::<FocusVisible>().is_none_or(|v| v.0)
+}
+
+pub(crate) fn set_focus_visible(world: &mut crate::World, visible: bool) {
+    match world.resource_mut::<FocusVisible>() {
+        Some(v) => v.0 = visible,
+        None => world.insert_resource(FocusVisible(visible)),
+    }
+}
+
 /// Safe-area insets in logical points. Root layout places inside the remainder.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Insets {

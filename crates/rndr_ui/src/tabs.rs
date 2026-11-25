@@ -1374,7 +1374,7 @@ pub(crate) fn styles(world: &mut World) {
                 Token::Secondary
             });
             tint_labels(world, tab, ink);
-            if state.props.enabled && focus == Some(tab) {
+            if state.props.enabled && focus == Some(tab) && crate::style::focus_visible(world) {
                 world.insert(tab, crate::style::keyboard_focus_ring(&theme));
             } else {
                 world.remove::<Border>(tab);

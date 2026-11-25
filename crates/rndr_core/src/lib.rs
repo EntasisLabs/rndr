@@ -258,7 +258,8 @@ pub use icon::{
 pub use image_view::ImageView;
 pub use ime::{resolve_ime, text_frame, ImeEvent, ResolvedIme, TextFrame};
 pub use input::{
-    CursorStyle, Focus, Input, Insets, Key, MotionWatch, Pointer, PointerButton, Viewport, MOUSE_ID,
+    focus_ring_visible, CursorStyle, Focus, FocusVisible, Input, Insets, Key, MotionWatch, Pointer,
+    PointerButton, Viewport, MOUSE_ID,
 };
 pub use keymap::{
     apply_keymap, context_path, context_stack, Clock, Context, Dispatch, KeyBinding, Keymap,

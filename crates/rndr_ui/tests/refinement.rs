@@ -313,3 +313,41 @@ fn navigation_metadata_is_secondary_visible_named_and_owned() {
     row.destroy(a.world_mut()).unwrap();
     assert!(!a.world().is_alive(secondary));
 }
+
+#[test]
+fn quiet_selection_drops_the_bar_except_in_high_contrast() {
+    for contrast in [Contrast::Standard, Contrast::High] {
+        let mut a = App::new();
+        a.add_plugin(UiPlugin);
+        a.world_mut().insert_resource(UiTheme {
+            contrast,
+            ..UiTheme::default()
+        });
+        let root = a.world_mut().spawn((Layout {
+            width: Size::Px(240.),
+            ..Layout::column()
+        },));
+        let row = NavigationRow::mount(
+            a.world_mut(),
+            root,
+            UiId(1),
+            ButtonProps::new("Project notes", HostIntent::Command(1)),
+            NavigationMeta {
+                selected: true,
+                ..NavigationMeta::default()
+            },
+        )
+        .unwrap();
+        a.world_mut().insert(row.root, QuietSelection);
+        a.update();
+        let bar = children_of(a.world(), row.root)
+            .into_iter()
+            .find(|e| a.world().has::<Absolute>(*e))
+            .unwrap();
+        assert_eq!(
+            a.world().has::<Hidden>(bar),
+            contrast == Contrast::Standard,
+            "{contrast:?}"
+        );
+    }
+}

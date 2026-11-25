@@ -358,3 +358,26 @@ fn node_named(world: &World, name: &str) -> rndr_core::Entity {
     }
     panic!("no tree node labeled {name}");
 }
+
+#[test]
+fn hovering_a_splitter_shows_resize_and_leaving_restores_the_arrow() {
+    use rndr_core::CursorStyle;
+    let (mut app, leading, seam, trailing) = boot_row();
+    app.update();
+    let over = |app: &mut App, entity: rndr_core::Entity| {
+        let r = *app.world().get::<Rect>(entity).unwrap();
+        app.world_mut()
+            .resource_mut::<Input>()
+            .unwrap()
+            .pointer
+            .position = [r.x + r.w / 2.0, r.y + r.h / 2.0];
+        app.update();
+        app.world().resource::<CursorStyle>().copied()
+    };
+    assert_eq!(over(&mut app, seam), Some(CursorStyle::ResizeColumn));
+    // Leaving the handle, after hovering or a drag, returns to the arrow.
+    assert_eq!(over(&mut app, trailing), Some(CursorStyle::Arrow));
+    // A cursor another hover owner set is not the splitter's to reset.
+    app.world_mut().insert_resource(CursorStyle::Hand);
+    assert_eq!(over(&mut app, leading), Some(CursorStyle::Hand));
+}

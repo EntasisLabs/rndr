@@ -1841,7 +1841,12 @@ fn drive_tooltips(world: &mut World) {
         .resource::<Input>()
         .map(|input| input.pointer.position)
         .unwrap_or([0.0, 0.0]);
-    let focus = world.resource::<Focus>().and_then(|focus| focus.entity);
+    // Like the focus ring, a tooltip follows keyboard focus only: focus moved
+    // by a click (or by code after one) leaves tooltips to the pointer.
+    let focus = world
+        .resource::<Focus>()
+        .and_then(|focus| focus.entity)
+        .filter(|_| crate::style::focus_visible(world));
     let targets: Vec<Entity> = world.entities_with::<Tip>();
     for target in targets {
         let Some(mut tip) = world.get::<Tip>(target).cloned() else {
@@ -2416,7 +2421,7 @@ fn paint_thumb(
         },
         Corner::Compact,
     );
-    if focused && enabled {
+    if focused && enabled && crate::style::focus_visible(world) {
         world.insert(thumb, crate::style::keyboard_focus_ring(theme));
     } else {
         world.remove::<Border>(thumb);

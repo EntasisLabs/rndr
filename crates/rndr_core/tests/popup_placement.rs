@@ -307,3 +307,15 @@ mod reveal {
         assert!(opacity(&mut sim, root) < 1.0);
     }
 }
+
+#[test]
+fn a_dropdown_takes_a_wider_authored_width_within_the_window() {
+    let (mut app, anchor) = boot();
+    let (root, row) = popup(&mut app, anchor, PopupPlacement::Below);
+    app.world_mut().get_mut::<Layout>(root).unwrap().width = Size::Px(320.0);
+    show(&mut app, root, row);
+    assert_eq!(rect(&app, root).w, 320.0);
+    app.world_mut().get_mut::<Layout>(root).unwrap().width = Size::Px(900.0);
+    app.update();
+    assert!(rect(&app, root).w <= 400.0, "clamped to the viewport");
+}

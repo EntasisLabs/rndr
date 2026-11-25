@@ -573,3 +573,25 @@ fn bundled_generic_monospace_has_equal_advances_without_system_fonts() {
         );
     }
 }
+
+#[cfg(feature = "svg")]
+#[test]
+fn icons_rasterize_from_their_source_at_the_drawn_size() {
+    let ch = Icon::Search.scalar();
+    let px = 40;
+    let vector = super::shape::icon_pixels(ch, px).unwrap();
+    assert_eq!(vector.len(), (px * px) as usize);
+    let edges = vector.iter().filter(|a| **a > 0 && **a < 255).count();
+    assert!(
+        edges > 40,
+        "anti-aliased edges, not a blocky upscale: {edges}"
+    );
+    // Drawn from the vector, not the 16px atlas scaled up.
+    assert_ne!(Some(vector), rndr_paint::icon_coverage(ch, px));
+    for icon in [Icon::Plus, Icon::Ellipsis, Icon::PanelLeft, Icon::Search] {
+        assert!(super::shape::icon_pixels(icon.scalar(), 32)
+            .unwrap()
+            .iter()
+            .any(|a| *a > 200));
+    }
+}

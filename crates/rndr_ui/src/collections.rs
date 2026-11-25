@@ -1558,7 +1558,7 @@ pub(crate) fn styles(world: &mut World) {
                 ..UiStyle::default()
             }),
         );
-        if focus == Some(root) && v.props.enabled {
+        if focus == Some(root) && v.props.enabled && crate::style::focus_visible(world) {
             world.insert(root, crate::style::keyboard_focus_ring(&theme));
         } else {
             world.remove::<Border>(root);
@@ -1606,7 +1606,7 @@ pub(crate) fn styles(world: &mut World) {
             );
             // One row surface owns fill, including its disclosure/indent. Focus
             // is a bounded outline, never a filled ancestor viewport or gutter.
-            if focused && enabled {
+            if focused && enabled && crate::style::focus_visible(world) {
                 world.insert(row.slot.root, crate::style::keyboard_focus_ring(&theme));
             } else {
                 world.remove::<Border>(row.slot.root);
