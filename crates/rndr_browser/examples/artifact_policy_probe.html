@@ -1,0 +1,85 @@
+<!doctype html><html><head>
+<!-- A guest cannot loosen the inherited host CSP, change the sandbox, or base. -->
+<meta http-equiv="Content-Security-Policy" content="default-src * data: blob: 'unsafe-inline' 'unsafe-eval'">
+<base href="{{HTTP}}/">
+<link rel="stylesheet" href="{{HTTP}}/stylesheet">
+<link rel="preload" as="script" href="{{HTTP}}/preload">
+<link rel="prefetch" href="{{HTTP}}/prefetch">
+<link rel="preconnect" href="{{HTTP}}">
+<link rel="dns-prefetch" href="//localhost">
+<style>@import url('{{HTTP}}/import'); @font-face{font-family:blocked;src:url('{{HTTP}}/font')}body{font:18px blocked,system-ui;padding:24px;background-image:url('{{HTTP}}/css-image')}</style>
+<script src="{{HTTP}}/external-script"></script>
+</head><body>
+<img src="{{HTTP}}/image"><iframe src="{{HTTP}}/frame"></iframe>
+<object data="{{HTTP}}/object"></object><video src="{{HTTP}}/video"></video>
+<button id="counter" onclick="this.textContent=++window.count">0</button>
+<input id="files" type="file"><form action="{{HTTP}}/submit"><input name="secret" value="no"><button>submit</button></form>
+<script>
+(async () => {
+  const report = s => window.webkit.messageHandlers.probe.postMessage(s);
+  const check = (ok, name) => report((ok ? 'OK ' : 'FAIL ') + name);
+  const denied = f => { try { f(); return false; } catch { return true; } };
+  const bounded = p => Promise.race([p, new Promise(resolve => setTimeout(() => resolve(false), 1800))]);
+  window.count = 0; window.name = 'old artifact secret';
+  counter.click(); counter.click();
+  check(counter.textContent === '2', 'local inline interaction');
+  check(denied(() => parent.document.body), 'opaque origin parent DOM');
+  check(denied(() => localStorage.setItem('artifact', 'secret')), 'localStorage');
+  check(denied(() => sessionStorage.setItem('artifact', 'secret')), 'sessionStorage');
+  let cookiesBlocked = denied(() => document.cookie='artifact=secret');
+  if (!cookiesBlocked) cookiesBlocked = document.cookie === '';
+  check(cookiesBlocked, 'cookies inaccessible or ignored');
+  check(denied(() => indexedDB.open('artifact')), 'IndexedDB opaque origin');
+  check(!window.caches || await bounded(caches.open('artifact').then(()=>false,()=>true)), 'cache storage');
+  check(window.open('{{HTTP}}/popup') === null, 'popup');
+  check(denied(() => top.location='{{HTTP}}/top-navigation'), 'top navigation');
+  check(!navigator.serviceWorker || await bounded(navigator.serviceWorker.register('{{HTTP}}/sw.js').then(()=>false,()=>true)), 'service worker');
+  check(await bounded(fetch('{{HTTP}}/fetch').then(()=>false,()=>true)), 'fetch');
+  check(await bounded(fetch('file:///etc/passwd').then(()=>false,()=>true)), 'file fetch');
+  check(await bounded(fetch('medousa://invoke/native-command').then(()=>false,()=>true)), 'custom scheme fetch');
+  const workerBlocked = await bounded(new Promise(resolve => {
+    try {
+      const w = new Worker('data:text/javascript,postMessage(1)');
+      w.onmessage = () => { w.terminate(); resolve(false); };
+      w.onerror = () => { w.terminate(); resolve(true); };
+      setTimeout(() => w.terminate(), 1800);
+    } catch { resolve(true); }
+  }));
+  check(workerBlocked, 'worker execution blocked');
+  check(denied(() => new WebSocket('{{WS}}/socket')), 'websocket');
+  check(!navigator.clipboard, 'clipboard permission API absent in opaque context');
+  check(!document.execCommand('paste'), 'DOM paste denied');
+  check(!navigator.mediaDevices || await bounded(navigator.mediaDevices.getUserMedia({audio:true,video:true}).then(()=>false,()=>true)), 'camera and microphone denied');
+  check(!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia || await bounded(navigator.mediaDevices.getDisplayMedia({video:true}).then(()=>false,()=>true)), 'display capture denied');
+  check(await bounded(new Promise(resolve => navigator.geolocation.getCurrentPosition(()=>resolve(false), e=>resolve(e.code === 1)))), 'geolocation denied');
+  check(!window.webkit.messageHandlers.nativeCommand, 'no native command handler');
+  let rtc = null;
+  try { rtc = new RTCPeerConnection({iceServers:[{urls:'{{STUN}}'}]}); } catch { }
+  check(rtc === null, 'WebRTC constructor blocked');
+  if (rtc) rtc.close();
+  const dataImage = await bounded(new Promise(resolve => {
+    const img = new Image(); img.onload = () => resolve(true); img.onerror = () => resolve(false);
+    img.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+    document.body.append(img);
+  }));
+  check(dataImage, 'self-contained data image');
+  // Native file panels must never open, nor may page downloads become intents.
+  files.click(); check(files.files.length === 0, 'file input stays empty');
+  try { document.forms[0].requestSubmit(); } catch { }
+  const link = document.createElement('a'); link.href='{{HTTP}}/download'; link.download='stolen.html'; link.click();
+  const blob = URL.createObjectURL(new Blob(['secret'],{type:'text/html'})); link.href=blob; link.click(); URL.revokeObjectURL(blob);
+  link.removeAttribute('download'); link.href='{{HTTP}}/navigate'; link.click();
+  link.href='medousa://invoke/native-command'; link.click();
+  const beacon = document.createElement('a'); beacon.href='#local'; beacon.ping='{{HTTP}}/ping'; beacon.click();
+  try { navigator.sendBeacon('{{HTTP}}/beacon', 'no'); } catch { }
+  const xhrBlocked = await bounded(new Promise(resolve => {
+    try { const x = new XMLHttpRequest(); x.open('GET','{{HTTP}}/xhr'); x.onload=()=>resolve(false); x.onerror=()=>resolve(true); x.send(); }
+    catch { resolve(true); }
+  }));
+  check(xhrBlocked, 'XHR');
+  await new Promise(resolve=>setTimeout(resolve, 300));
+  check(counter.textContent === '2', 'navigation attempts did not replace local document');
+  setTimeout(()=>report('OLD-TIMER'), 1000);
+  report('DONE');
+})().catch(e => { window.webkit.messageHandlers.probe.postMessage('FAIL uncaught ' + e); });
+</script></body></html>

@@ -45,11 +45,11 @@ use crate::{
 const CANCELLED: isize = -999;
 
 pub(crate) struct WebKit {
-    web: Retained<WKWebView>,
+    pub(crate) web: Retained<WKWebView>,
     /// Kept alive because WebKit's delegate pointers are weak.
     delegate: Retained<WebKitHost>,
     /// Content view the host passed in. Its height converts top-left rects.
-    parent: Retained<NSView>,
+    pub(crate) parent: Retained<NSView>,
     host: Rc<HostInner>,
     torn_down: bool,
 }
@@ -59,6 +59,9 @@ struct HostIvars {
 }
 
 struct HostInner {
+    artifact: bool,
+    artifact_navigation: RefCell<crate::artifact::ArtifactNavigation>,
+    artifact_load: Cell<LoadOutcome>,
     alive: Cell<bool>,
     stop_requested: Cell<bool>,
     next: Cell<u64>,
@@ -88,6 +91,9 @@ struct FileSlot {
 impl HostInner {
     fn new() -> Self {
         Self {
+            artifact: false,
+            artifact_navigation: RefCell::new(crate::artifact::ArtifactNavigation::default()),
+            artifact_load: Cell::new(LoadOutcome::Idle),
             alive: Cell::new(true),
             stop_requested: Cell::new(false),
             next: Cell::new(0),
@@ -180,26 +186,46 @@ impl Drop for FileSlot {
 
 impl WebKit {
     pub(crate) fn attach(parent: &impl HasWindowHandle) -> Result<Self, BrowserError> {
+        let parent = Self::retain_parent(parent)?;
+        let configuration = unsafe { WKWebViewConfiguration::new() };
+        Self::with_configuration(parent, &configuration, false)
+    }
+
+    pub(crate) fn retain_parent(
+        parent: &impl HasWindowHandle,
+    ) -> Result<Retained<NSView>, BrowserError> {
         let handle = parent.window_handle().map_err(|_| BrowserError::Parent)?;
         let RawWindowHandle::AppKit(appkit) = handle.as_raw() else {
             return Err(BrowserError::Parent);
         };
         let ns_view = appkit.ns_view;
-        let mtm = MainThreadMarker::new().ok_or(BrowserError::Thread)?;
+        MainThreadMarker::new().ok_or(BrowserError::Thread)?;
         // Safety: winit's AppKit handle is the content view. `retain` only
         // runs on the main thread, after the handle check above. The extra
         // retain is balanced when this session drops the parent view.
-        let parent_view = unsafe { Retained::<NSView>::retain(ns_view.as_ptr().cast()) }
-            .ok_or(BrowserError::Parent)?;
-        let host = Rc::new(HostInner::new());
+        unsafe { Retained::<NSView>::retain(ns_view.as_ptr().cast()) }.ok_or(BrowserError::Parent)
+    }
+
+    pub(crate) fn with_configuration(
+        parent_view: Retained<NSView>,
+        configuration: &WKWebViewConfiguration,
+        artifact: bool,
+    ) -> Result<Self, BrowserError> {
+        let mtm = MainThreadMarker::new().ok_or(BrowserError::Thread)?;
+        let host = Rc::new(HostInner {
+            artifact,
+            ..HostInner::new()
+        });
         let delegate = WebKitHost::new(mtm, Rc::clone(&host));
-        // Safety: `new` and `init` are the designated constructors. The view
-        // is hidden and has no navigation until the host asks.
-        let configuration = unsafe { WKWebViewConfiguration::new() };
         let web = unsafe {
-            WKWebView::initWithFrame_configuration(mtm.alloc(), NSRect::ZERO, &configuration)
+            WKWebView::initWithFrame_configuration(mtm.alloc(), NSRect::ZERO, configuration)
         };
         web.setHidden(true);
+        if artifact && !web.respondsToSelector(sel!(_close)) {
+            return Err(BrowserError::Unsupported {
+                backend: "WKWebView artifact lifecycle gate",
+            });
+        }
         unsafe {
             parent_view.addSubview(&web);
             let navigation = ProtocolObject::from_ref(&*delegate);
@@ -214,6 +240,20 @@ impl WebKit {
             host,
             torn_down: false,
         })
+    }
+
+    pub(crate) fn load_artifact_envelope(&self, html: &str) {
+        debug_assert!(self.host.artifact);
+        self.host.artifact_navigation.borrow_mut().arm();
+        self.host.artifact_load.set(LoadOutcome::Loading);
+        unsafe {
+            self.web
+                .loadHTMLString_baseURL(&NSString::from_str(html), None)
+        };
+    }
+
+    pub(crate) fn artifact_load(&self) -> LoadOutcome {
+        self.host.artifact_load.get()
     }
 
     pub(crate) fn navigate(&self, url: &str) -> Result<(), BrowserError> {
@@ -378,11 +418,22 @@ impl WebKit {
         }
         self.torn_down = true;
         self.host.alive.set(false);
+        if self.host.artifact {
+            unsafe { self.web.stopLoading() };
+        }
         self.host.cancel_outstanding();
         let _delegate = &self.delegate;
         unsafe {
             self.web.setNavigationDelegate(None);
             self.web.setUIDelegate(None);
+            // Releasing a view is not a lifecycle barrier: WebKit can retain
+            // it internally and continue timers after removal. Explicitly close
+            // the isolated page, even if native references remain. Availability
+            // was required before loading any artifact. Ordinary views retain
+            // their existing shutdown behavior.
+            if self.host.artifact {
+                let _: () = msg_send![&self.web, _close];
+            }
             let view: &NSView = &self.web;
             view.removeFromSuperview();
         }
@@ -421,6 +472,22 @@ declare_class!(
             navigation_action: &WKNavigationAction,
             decision_handler: &block2::Block<dyn Fn(WKNavigationActionPolicy)>,
         ) {
+            let host = &self.ivars().host;
+            if host.artifact {
+                let request = unsafe { navigation_action.request() };
+                let url = unsafe { request.URL() }
+                    .and_then(|url| unsafe { url.absoluteString() })
+                    .map(|url| url.to_string()).unwrap_or_default();
+                let main_frame = unsafe { navigation_action.targetFrame() }
+                    .map(|frame| unsafe { frame.isMainFrame() });
+                let source_main = unsafe { navigation_action.sourceFrame() }
+                    .map(|frame| unsafe { frame.isMainFrame() }).unwrap_or(false);
+                let allowed = host.artifact_navigation.borrow_mut().admit(
+                    &url, main_frame, source_main, unsafe { navigation_action.shouldPerformDownload() },
+                );
+                decision_handler.call((if allowed { WKNavigationActionPolicy::Allow } else { WKNavigationActionPolicy::Cancel },));
+                return;
+            }
             // A download attribute becomes a download. Every other URL,
             // including a custom scheme, is allowed through as a navigation.
             // Nothing here reads a command name.
@@ -439,6 +506,14 @@ declare_class!(
             navigation_response: &WKNavigationResponse,
             decision_handler: &block2::Block<dyn Fn(WKNavigationResponsePolicy)>,
         ) {
+            if self.ivars().host.artifact {
+                let response = unsafe { navigation_response.response() };
+                let url = response_url(&response);
+                let allowed = matches!(url.as_str(), "about:blank" | "about:srcdoc")
+                    && unsafe { navigation_response.canShowMIMEType() };
+                decision_handler.call((if allowed { WKNavigationResponsePolicy::Allow } else { WKNavigationResponsePolicy::Cancel },));
+                return;
+            }
             // 401 and 407 are credential failures. Cancelling the challenge does
             // not stop WebKit from committing that response as a finished
             // document, so the response itself is refused. No credential is sent.
@@ -546,7 +621,38 @@ declare_class!(
         }
     }
 
+    // WebKit SPI for native file ingress/context actions. These are native
+    // vetoes, not guest scripts. Ordinary Browser keeps WebKit's default mask
+    // and proposed menu; artifact previews expose neither files nor Save As.
+    unsafe impl WebKitHost {
+        #[method(_webView:dragDestinationActionMaskForDraggingInfo:)]
+        unsafe fn artifact_drag_mask(&self, _web: &WKWebView, _info: &objc2::runtime::AnyObject) -> usize {
+            if self.ivars().host.artifact { 0 } else { usize::MAX }
+        }
+
+        #[method(_webView:getContextMenuFromProposedMenu:forElement:userInfo:completionHandler:)]
+        unsafe fn artifact_context_menu(
+            &self, _web: &WKWebView, menu: &objc2::runtime::AnyObject,
+            _element: &objc2::runtime::AnyObject, _info: Option<&objc2::runtime::AnyObject>,
+            completion: &block2::Block<dyn Fn(*mut objc2::runtime::AnyObject)>,
+        ) {
+            completion.call((if self.ivars().host.artifact { std::ptr::null_mut() } else { std::ptr::from_ref(menu).cast_mut() },));
+        }
+    }
+
     unsafe impl WKUIDelegate for WebKitHost {
+        #[method_id(webView:createWebViewWithConfiguration:forNavigationAction:windowFeatures:)]
+        unsafe fn webView_createWebViewWithConfiguration_forNavigationAction_windowFeatures(
+            &self,
+            _web_view: &WKWebView,
+            _configuration: &WKWebViewConfiguration,
+            _action: &WKNavigationAction,
+            _features: &objc2_web_kit::WKWindowFeatures,
+        ) -> Option<Retained<WKWebView>> {
+            // No new native surface (ordinary browsing already had no popup host).
+            None
+        }
+
         #[method(webView:runJavaScriptAlertPanelWithMessage:initiatedByFrame:completionHandler:)]
         unsafe fn webView_runJavaScriptAlertPanelWithMessage_initiatedByFrame_completionHandler(
             &self,
@@ -614,7 +720,7 @@ declare_class!(
             completion_handler: &block2::Block<dyn Fn(*mut NSArray<NSURL>)>,
         ) {
             let host = &self.ivars().host;
-            if !host.alive.get() {
+            if !host.alive.get() || host.artifact {
                 completion_handler.call((std::ptr::null_mut(),));
                 return;
             }
@@ -641,7 +747,7 @@ declare_class!(
             completion_handler: &block2::Block<dyn Fn(*mut NSURL)>,
         ) {
             let host = &self.ivars().host;
-            if !host.alive.get() {
+            if !host.alive.get() || host.artifact {
                 completion_handler.call((std::ptr::null_mut(),));
                 return;
             }
@@ -716,6 +822,10 @@ impl WebKitHost {
     }
 
     fn note_navigation(&self, web_view: &WKWebView, load: LoadOutcome) {
+        if self.ivars().host.artifact {
+            self.ivars().host.artifact_load.set(load);
+            return;
+        }
         self.ivars()
             .host
             .push(Note::Navigation(snapshot(web_view, load)));
@@ -723,6 +833,10 @@ impl WebKitHost {
 
     fn note_failure(&self, web_view: &WKWebView, error: &NSError) {
         let host = &self.ivars().host;
+        if host.artifact {
+            host.artifact_load.set(LoadOutcome::Failed);
+            return;
+        }
         let stopped = host.stop_requested.replace(false) || error.code() == CANCELLED;
         let load = if stopped {
             LoadOutcome::Stopped
@@ -739,6 +853,10 @@ impl WebKitHost {
     }
 
     fn adopt_download(&self, download: &WKDownload) {
+        if self.ivars().host.artifact {
+            unsafe { download.cancel(None) };
+            return;
+        }
         let delegate = ProtocolObject::from_ref(self);
         unsafe { download.setDelegate(Some(delegate)) };
     }

@@ -13,6 +13,32 @@ page. A custom scheme is a navigation report. Downloads and file inputs are
 host intents. Nothing is written, and no file panel is opened, until the host
 answers. Destroying the session cancels intents that are still open.
 
+## Isolated in-memory HTML artifacts
+
+Use the separate `ArtifactPreview` API, **not** `Browser::navigate`, for
+self-contained untrusted interactive HTML. It has no URL navigation, native
+command/guest-message bridge, host script evaluation, file or download intents.
+The macOS backend uses fresh ephemeral state, a sandboxed opaque-origin srcdoc,
+inherited CSP, native resource/network/capability gates and explicit page close
+on replacement/drop. Other backends return explicit unsupported errors without
+falling back to ordinary browsing.
+
+**Deployment caveat:** the complete macOS contract currently requires guarded
+private WebKit SPI (notably disabling WebRTC and closing retired pages). It is
+not an App Store-ready/public-API-only solution. Missing native gates refuse the
+preview before HTML loading. This limitation needs a release decision and
+revalidation on target OS versions.
+
+See [usage, enforced policy, support limits, live vs headless evidence and the
+read-only Medousa glue mapping](docs/isolated-artifacts.md). Run
+`cargo run -p rndr_browser --example artifact_preview` for the benign local
+interaction/replacement example. The opt-in `artifact_policy_harness` executable
+runs the real main-thread WKWebView integration probe; its observation channel
+exists only in that executable, never in the library.
+
+The matrix and older smoke ledger below describe ordinary `Browser`, including
+its unsupported **host script-evaluation** API, not the separate artifact API.
+
 ## Matrix
 
 `Implemented` means the code is in this crate. It is not a native certification.

@@ -1,5 +1,14 @@
 //! Optional embedded browser.
 //!
+//! For self-contained untrusted in-memory HTML, use the separate
+//! [`ArtifactPreview`] API, never URL navigation as a fallback. It exposes no
+//! native/guest-message bridge and recreates isolated state on replacement.
+//! Its macOS backend currently **requires guarded private WebKit SPI** for the
+//! complete network/lifecycle contract; this is not an App Store-ready or
+//! public-API-only implementation. Missing gates are errors. Other backends
+//! explicitly refuse artifacts. See the crate's `docs/isolated-artifacts.md`.
+//! The browser contracts and support matrix below describe ordinary browsing.
+//!
 //! [`Browser`] is a host-owned native view. The `rndr` facade links it only
 //! when the `browser` feature is on, and that feature is off by default.
 //! `rndr_core`, `rndr_ui`, and `rndr_paint` do not depend on this crate.
@@ -41,6 +50,7 @@
 
 #![deny(missing_docs)]
 
+mod artifact;
 mod auth;
 mod contract;
 mod geometry;
@@ -51,9 +61,14 @@ mod session;
 mod linux;
 #[cfg(target_os = "macos")]
 mod macos;
+#[cfg(target_os = "macos")]
+mod macos_artifact;
+#[cfg(target_os = "macos")]
+mod macos_artifact_input;
 #[cfg(target_os = "windows")]
 mod windows;
 
+pub use artifact::{ArtifactError, ArtifactPreview, ArtifactState, MAX_ARTIFACT_HTML_BYTES};
 pub use contract::{admit_client_rect, ClientRect, RectError};
 pub use session::{Browser, BrowserError, BrowserEvent, IntentToken};
 

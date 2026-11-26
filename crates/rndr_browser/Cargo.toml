@@ -15,6 +15,8 @@ categories = ["gui", "os::macos-apis"]
 [features]
 # Main-thread WebKit load used by the macOS authentication harness. Off by default.
 native-auth-harness = []
+# Opt-in executable with a test-only script observation channel.
+native-artifact-harness = ["objc2-web-kit/WKScriptMessage", "objc2-web-kit/WKScriptMessageHandler", "objc2-web-kit/WKUserScript"]
 
 [dependencies]
 raw-window-handle = "0.6"
@@ -44,7 +46,7 @@ windows = { version = "=0.62.2", features = [
 # Same objc2 generation as rndr_render. A newer objc2 would load a second runtime.
 block2 = "=0.5.1"
 objc2 = "=0.5.2"
-objc2-app-kit = { version = "=0.2.2", features = ["NSResponder", "NSView", "NSWindow"] }
+objc2-app-kit = { version = "=0.2.2", features = ["block2", "NSEvent", "NSResponder", "NSView", "NSWindow"] }
 objc2-foundation = { version = "=0.2.2", features = [
     "NSArray",
     "NSError",
@@ -67,6 +69,13 @@ objc2-web-kit = { version = "=0.2.2", default-features = false, features = [
     "std",
     "block2",
     "objc2-app-kit",
+    "WKContentRuleList",
+    "WKContentRuleListStore",
+    "WKUserContentController",
+    "WKWebsiteDataStore",
+    "WKProcessPool",
+    "WKPreferences",
+    "WKWindowFeatures",
     "WKDownload",
     "WKDownloadDelegate",
     "WKFrameInfo",
@@ -99,6 +108,11 @@ objc2-foundation = { version = "=0.2.2", features = [
 ] }
 raw-window-handle = "0.6"
 winit = { workspace = true }
+
+[[example]]
+name = "artifact_policy_harness"
+path = "examples/artifact_policy_harness.rs"
+required-features = ["native-artifact-harness"]
 
 [[example]]
 name = "auth_harness"
