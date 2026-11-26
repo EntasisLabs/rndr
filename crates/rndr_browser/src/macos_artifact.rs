@@ -54,17 +54,14 @@ impl ArtifactWebKit {
         let preferences = unsafe { configuration.preferences() };
         macro_rules! disable {
             ($setter:ident, $getter:ident, $name:literal) => {{
-                if !preferences.respondsToSelector(sel!($setter:))
-                    || !preferences.respondsToSelector(sel!($getter)) {
-                    return Err(ArtifactError::Policy(concat!("WebKit lacks required native gate: ", $name).into()));
-                }
-                let enabled: bool = unsafe {
-                    let _: () = msg_send![&preferences, $setter: false];
-                    msg_send![&preferences, $getter]
-                };
-                if enabled {
-                    return Err(ArtifactError::Policy(concat!("WebKit refused to disable ", $name).into()));
-                }
+                require_disabled(
+                    preferences.respondsToSelector(sel!($setter:))
+                        && preferences.respondsToSelector(sel!($getter)),
+                    || unsafe {
+                        let _: () = msg_send![&preferences, $setter: false];
+                        msg_send![&preferences, $getter]
+                    },
+                )?;
             }};
         }
         disable!(_setPeerConnectionEnabled, _peerConnectionEnabled, "WebRTC");
@@ -93,8 +90,13 @@ impl ArtifactWebKit {
                 .setJavaScriptCanOpenWindowsAutomatically(false);
             configuration.setAllowsAirPlayForMediaPlayback(false);
         }
-        let view = WebKit::with_configuration(parent, &configuration, true)
-            .map_err(ArtifactError::Browser)?;
+        let view =
+            WebKit::with_configuration(parent, &configuration, true).map_err(
+                |error| match error {
+                    crate::BrowserError::Unsupported { .. } => ArtifactError::Unsupported,
+                    other => ArtifactError::Browser(other),
+                },
+            )?;
         let paste_guard = crate::macos_artifact_input::PasteGuard::new(view.web.clone())?;
         let compiled: Compiled = Rc::new(RefCell::new(None));
         // The async callback owns neither view nor HTML. Dropped/replaced
@@ -115,8 +117,8 @@ impl ArtifactWebKit {
         });
         // The shared compiler cache contains only this constant rule, never HTML
         // or website data. Each view/controller/data store remains independent.
-        let store = unsafe { WKContentRuleListStore::defaultStore() }
-            .ok_or_else(|| ArtifactError::Policy("content rule compiler unavailable".into()))?;
+        let store =
+            unsafe { WKContentRuleListStore::defaultStore() }.ok_or(ArtifactError::Unsupported)?;
         unsafe {
             store.compileContentRuleListForIdentifier_encodedContentRuleList_completionHandler(
                 Some(&NSString::from_str("rndr-artifact-deny-all-v1")),
@@ -190,5 +192,35 @@ impl ArtifactWebKit {
         self.view.shutdown();
         self.failed = Some(error.clone());
         Err(error)
+    }
+}
+
+// No test/runtime override: production always queries the real controls and
+// reads back their state. Missing or ineffective gates never arm an HTML load.
+fn require_disabled(
+    available: bool,
+    disable_and_read: impl FnOnce() -> bool,
+) -> Result<(), ArtifactError> {
+    if !available || disable_and_read() {
+        Err(ArtifactError::Unsupported)
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn unavailable_control_refuses_before_invoking_native_or_loading_html() {
+        assert_eq!(
+            require_disabled(false, || panic!("must not invoke unavailable control")),
+            Err(ArtifactError::Unsupported)
+        );
+        assert_eq!(
+            require_disabled(true, || true),
+            Err(ArtifactError::Unsupported)
+        );
+        assert_eq!(require_disabled(true, || false), Ok(()));
     }
 }

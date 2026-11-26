@@ -18,7 +18,10 @@ answers. Destroying the session cancels intents that are still open.
 Use the separate `ArtifactPreview` API, **not** `Browser::navigate`, for
 self-contained untrusted interactive HTML. It has no URL navigation, native
 command/guest-message bridge, host script evaluation, file or download intents.
-The macOS backend uses fresh ephemeral state, a sandboxed opaque-origin srcdoc,
+The macOS backend is off by default; explicitly enable the Cargo feature
+`macos-private-webkit-artifacts`. Feature-off and non-macOS builds keep the public
+API but return `ArtifactError::Unsupported` before native creation. The opted-in
+backend uses fresh ephemeral state, a sandboxed opaque-origin srcdoc,
 inherited CSP, native resource/network/capability gates and explicit page close
 on replacement/drop. Other backends return explicit unsupported errors without
 falling back to ordinary browsing.
@@ -31,10 +34,14 @@ revalidation on target OS versions.
 
 See [usage, enforced policy, support limits, live vs headless evidence and the
 read-only Medousa glue mapping](docs/isolated-artifacts.md). Run
-`cargo run -p rndr_browser --example artifact_preview` for the benign local
+`cargo run -p rndr_browser --features macos-private-webkit-artifacts --example artifact_preview` for the benign local
 interaction/replacement example. The opt-in `artifact_policy_harness` executable
 runs the real main-thread WKWebView integration probe; its observation channel
-exists only in that executable, never in the library.
+exists only in that executable, never in the library. Run it with
+`--features macos-private-webkit-artifacts,native-artifact-harness`. The harness
+feature alone does not enable private artifacts. See the contract document for
+the repeatable default/opt-in release Mach-O selector regression; feature-off
+is not a blanket App Store certification for an embedding application.
 
 The matrix and older smoke ledger below describe ordinary `Browser`, including
 its unsupported **host script-evaluation** API, not the separate artifact API.

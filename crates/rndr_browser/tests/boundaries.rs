@@ -125,3 +125,31 @@ fn collect_rust(dir: &std::path::Path, out: &mut Vec<PathBuf>) {
         }
     }
 }
+
+#[test]
+fn private_artifact_backend_requires_explicit_opt_in() {
+    let manifest = read("crates/rndr_browser/Cargo.toml");
+    let features = manifest
+        .split("[features]")
+        .nth(1)
+        .unwrap()
+        .split("[dependencies]")
+        .next()
+        .unwrap();
+    assert!(features
+        .lines()
+        .any(|line| line == "macos-private-webkit-artifacts = []"));
+    for line in features
+        .lines()
+        .filter(|line| !line.trim_start().starts_with('#'))
+    {
+        if !line.starts_with("macos-private-webkit-artifacts = ") {
+            assert!(
+                !line.contains("macos-private-webkit-artifacts"),
+                "implicit opt-in: {line}"
+            );
+        }
+    }
+    assert!(!read("crates/rndr/Cargo.toml").contains("macos-private-webkit-artifacts"));
+    assert!(!read("Cargo.toml").contains("macos-private-webkit-artifacts"));
+}

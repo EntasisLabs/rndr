@@ -1,5 +1,5 @@
 //! Benign local interaction/lifecycle example. No server, files or guest bridge.
-//! `cargo run -p rndr_browser --example artifact_preview`
+//! `cargo run -p rndr_browser --features macos-private-webkit-artifacts --example artifact_preview`
 //! Click the counter, type a name and move the slider. Every 15 seconds the host
 //! replaces the document with a fresh session. Close the window to drop it.
 use rndr_browser::{ArtifactPreview, ClientRect};

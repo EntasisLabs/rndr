@@ -46,7 +46,7 @@ impl PasteGuard {
         let monitor = unsafe {
             NSEvent::addLocalMonitorForEventsMatchingMask_handler(NSEventMask::KeyDown, &handler)
         }
-        .ok_or_else(|| ArtifactError::Policy("native paste ingress guard unavailable".into()))?;
+        .ok_or(ArtifactError::Unsupported)?;
         Ok(Self(monitor))
     }
 }

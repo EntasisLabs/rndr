@@ -66,18 +66,19 @@ pub enum ArtifactState {
 /// the guest an opaque origin, without storage, forms, popups, downloads, native
 /// commands or permissions. External navigation and network are denied.
 ///
-/// The strict macOS implementation requires guarded **private WebKit SPI** for
+/// The strict macOS implementation is off by default. Explicitly enable Cargo
+/// feature `macos-private-webkit-artifacts`; it requires **private WebKit SPI** for
 /// network and lifecycle enforcement. Missing gates are errors before loading
 /// HTML; this is not an App Store-ready/public-API-only backend. See the crate's
 /// `docs/isolated-artifacts.md` for the policy and deployment limitations.
 ///
-/// macOS uses a new ephemeral WKWebView for every replacement. Other backends
-/// return [`ArtifactError::Unsupported`], never an ordinary browser. Use on the
+/// Opted-in macOS uses a new ephemeral WKWebView for every replacement. Feature-off
+/// builds and other backends return [`ArtifactError::Unsupported`], never an ordinary browser. Use on the
 /// platform UI thread and drive [`Self::frame`] alongside the native event loop.
 /// Drop retires the surface; replacement discards the previous JS/DOM/state.
 /// This is not a CPU/memory quota or a defense against web-engine vulnerabilities.
 pub struct ArtifactPreview {
-    #[cfg(target_os = "macos")]
+    #[cfg(all(target_os = "macos", feature = "macos-private-webkit-artifacts"))]
     engine: crate::macos_artifact::ArtifactWebKit,
     bounds: ClientRect,
     visible: bool,
@@ -88,7 +89,7 @@ impl ArtifactPreview {
     /// before native side effects; async policy failures surface in `frame`.
     pub fn attach(parent: &impl HasWindowHandle, html: &str) -> Result<Self, ArtifactError> {
         validate(html)?;
-        #[cfg(target_os = "macos")]
+        #[cfg(all(target_os = "macos", feature = "macos-private-webkit-artifacts"))]
         {
             Ok(Self {
                 engine: crate::macos_artifact::ArtifactWebKit::attach(parent, html)?,
@@ -96,7 +97,7 @@ impl ArtifactPreview {
                 visible: false,
             })
         }
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(not(all(target_os = "macos", feature = "macos-private-webkit-artifacts")))]
         {
             let _ = parent;
             Err(ArtifactError::Unsupported)
@@ -108,12 +109,12 @@ impl ArtifactPreview {
     /// policy/load error leaves the new preview failed, never restores old state.
     pub fn replace(&mut self, html: &str) -> Result<(), ArtifactError> {
         validate(html)?;
-        #[cfg(target_os = "macos")]
+        #[cfg(all(target_os = "macos", feature = "macos-private-webkit-artifacts"))]
         {
             self.engine = self.engine.replacement(html)?;
             Ok(())
         }
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(not(all(target_os = "macos", feature = "macos-private-webkit-artifacts")))]
         {
             Err(ArtifactError::Unsupported)
         }
@@ -139,14 +140,14 @@ impl ArtifactPreview {
     /// Advance policy setup, apply bounds/visibility and report load state.
     /// A policy error is sticky until replacement; the failed surface is hidden.
     pub fn frame(&mut self) -> Result<ArtifactState, ArtifactError> {
-        #[cfg(target_os = "macos")]
+        #[cfg(all(target_os = "macos", feature = "macos-private-webkit-artifacts"))]
         {
             self.engine.frame(
                 self.bounds,
                 self.visible && self.bounds.width > 0.0 && self.bounds.height > 0.0,
             )
         }
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(not(all(target_os = "macos", feature = "macos-private-webkit-artifacts")))]
         {
             Err(ArtifactError::Unsupported)
         }
@@ -164,7 +165,10 @@ fn validate(html: &str) -> Result<(), ArtifactError> {
 // Trusted policy, outside guest control. A srcdoc inherits the containing CSP;
 // a guest meta policy can only tighten it. The sandbox attribute is not in the
 // guest document, so document.write, markup repair and JS cannot remove it.
-#[cfg(any(test, target_os = "macos"))]
+#[cfg(any(
+    test,
+    all(target_os = "macos", feature = "macos-private-webkit-artifacts")
+))]
 pub(crate) fn envelope(html: &str) -> String {
     let mut escaped = String::with_capacity(html.len());
     for c in html.chars() {
@@ -192,6 +196,7 @@ pub(crate) struct ArtifactNavigation {
 
 #[cfg(any(test, target_os = "macos"))]
 impl ArtifactNavigation {
+    #[cfg(any(test, feature = "macos-private-webkit-artifacts"))]
     pub(crate) fn arm(&mut self) {
         self.envelope = true;
         self.srcdoc = true;

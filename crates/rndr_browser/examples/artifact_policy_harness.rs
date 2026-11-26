@@ -3,16 +3,16 @@
 //! Run in an Aqua main-thread process; it uses real WebKit, not a detached mock.
 
 fn main() {
-    #[cfg(target_os = "macos")]
+    #[cfg(all(target_os = "macos", feature = "macos-private-webkit-artifacts"))]
     macos::run();
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(all(target_os = "macos", feature = "macos-private-webkit-artifacts")))]
     {
         eprintln!("artifact policy probe requires macOS");
         std::process::exit(2);
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(all(target_os = "macos", feature = "macos-private-webkit-artifacts"))]
 mod macos {
     use objc2::mutability::MainThreadOnly;
     use objc2::rc::Retained;
@@ -189,6 +189,111 @@ mod macos {
         );
     }
 
+    // Native fault injection lives ONLY in this executable. It hides one real
+    // control from respondsToSelector; the unmodified production constructor
+    // must refuse. No library feature/env switch can bypass a required gate.
+    fn unavailable_controls(parent: &Parent, view: &NSView) {
+        use objc2::runtime::{AnyClass, AnyObject, Bool, Sel};
+        use objc2::sel;
+        use objc2_web_kit::WKPreferences;
+        use std::cell::Cell;
+        use std::ffi::{c_char, c_void};
+        extern "C" {
+            fn class_getInstanceMethod(class: *const AnyClass, selector: Sel) -> *mut c_void;
+            fn method_getImplementation(method: *mut c_void) -> *const c_void;
+            fn method_getTypeEncoding(method: *mut c_void) -> *const c_char;
+            fn class_replaceMethod(
+                class: *const AnyClass,
+                selector: Sel,
+                implementation: *const c_void,
+                types: *const c_char,
+            ) -> *const c_void;
+        }
+        thread_local! {
+            static ORIGINAL: Cell<*const c_void> = const { Cell::new(std::ptr::null()) };
+            static DENIED: Cell<Option<Sel>> = const { Cell::new(None) };
+        }
+        unsafe extern "C" fn responds(object: *mut AnyObject, command: Sel, query: Sel) -> Bool {
+            if DENIED.with(|d| d.get() == Some(query)) {
+                return Bool::NO;
+            }
+            let original: unsafe extern "C" fn(*mut AnyObject, Sel, Sel) -> Bool =
+                std::mem::transmute(ORIGINAL.with(Cell::get));
+            original(object, command, query)
+        }
+        struct Restore {
+            class: &'static AnyClass,
+            original: *const c_void,
+            types: *const c_char,
+        }
+        impl Drop for Restore {
+            fn drop(&mut self) {
+                unsafe {
+                    class_replaceMethod(
+                        self.class,
+                        sel!(respondsToSelector:),
+                        self.original,
+                        self.types,
+                    );
+                }
+                DENIED.with(|d| d.set(None));
+                ORIGINAL.with(|o| o.set(std::ptr::null()));
+            }
+        }
+        for (class, selector) in [
+            (WKPreferences::class(), sel!(_setPeerConnectionEnabled:)),
+            (WKPreferences::class(), sel!(_peerConnectionEnabled)),
+            (WKPreferences::class(), sel!(_setDNSPrefetchingEnabled:)),
+            (WKPreferences::class(), sel!(_dnsPrefetchingEnabled)),
+            (WKPreferences::class(), sel!(_setFileSystemAccessEnabled:)),
+            (WKPreferences::class(), sel!(_fileSystemAccessEnabled)),
+            (
+                WKPreferences::class(),
+                sel!(_setJavaScriptCanAccessClipboard:),
+            ),
+            (WKPreferences::class(), sel!(_javaScriptCanAccessClipboard)),
+            (WKPreferences::class(), sel!(_setDOMPasteAllowed:)),
+            (WKPreferences::class(), sel!(_domPasteAllowed)),
+            (WKWebView::class(), sel!(_close)),
+        ] {
+            assert!(unsafe { view.subviews() }.is_empty());
+            let method = unsafe { class_getInstanceMethod(class, sel!(respondsToSelector:)) };
+            assert!(!method.is_null());
+            let original = unsafe { method_getImplementation(method) };
+            let types = unsafe { method_getTypeEncoding(method) };
+            ORIGINAL.with(|o| o.set(original));
+            DENIED.with(|d| d.set(Some(selector)));
+            let restore = Restore {
+                class,
+                original,
+                types,
+            };
+            unsafe {
+                class_replaceMethod(
+                    class,
+                    sel!(respondsToSelector:),
+                    responds as *const c_void,
+                    types,
+                );
+            }
+            assert!(
+                matches!(
+                    ArtifactPreview::attach(parent, "<script>throw 'must never load'</script>"),
+                    Err(ArtifactError::Unsupported)
+                ),
+                "missing {selector:?} must return typed Unsupported"
+            );
+            assert!(
+                unsafe { view.subviews() }.is_empty(),
+                "refusal must not attach a child"
+            );
+            drop(restore);
+            pump(); // There must be no pending async HTML load after refusal.
+            assert!(unsafe { view.subviews() }.is_empty());
+            println!("PASS missing runtime control {selector:?}: typed Unsupported before HTML/view attachment");
+        }
+    }
+
     pub(super) fn run() {
         let marker = MainThreadMarker::new().expect("main thread");
         let parent = unsafe {
@@ -198,6 +303,7 @@ mod macos {
             )
         };
         let handle = Parent(Retained::as_ptr(&parent).cast_mut().cast());
+        unavailable_controls(&handle, &parent);
         let http = HttpProbe::new();
         let udp = UdpSocket::bind("127.0.0.1:0").unwrap();
         udp.set_nonblocking(true).unwrap();

@@ -6,6 +6,39 @@ Ordinary `Browser` continues to own URL navigation, file/download intents and it
 usual platform configuration. Do not use it as a fallback if artifact admission
 or policy setup fails.
 
+## Explicit build/distribution opt-in
+
+The public `ArtifactPreview` / `ArtifactError` / `ArtifactState` API remains
+available in every configuration. The implementation that references private
+WebKit selectors is compiled **only** under both `target_os = "macos"` and the
+non-default Cargo feature **`macos-private-webkit-artifacts`**. Ordinary `Browser`
+does not require this feature and keeps its existing configuration and behavior.
+Default RNDR/browser dependencies do not enable it. `native-artifact-harness`
+does not imply it either; the native harness executable requires both features.
+
+For an application that deliberately accepts the SPI distribution tradeoff:
+
+```toml
+[dependencies]
+rndr_browser = { version = "0.6.0", features = ["macos-private-webkit-artifacts"] }
+```
+
+Without that explicit opt-in, or on a non-macOS target even with it enabled,
+admitted artifact input returns **`ArtifactError::Unsupported`** before parent
+access, native creation or HTML loading. The existing 2 MiB input admission
+precedence is preserved (`TooLarge` for oversized source). There is never an
+ordinary-browser fallback. Missing or ineffective required runtime controls also
+return `ArtifactError::Unsupported` before HTML loading; actual policy compilation
+failures/timeouts remain `Policy`.
+
+Cargo features are additive and unified: another dependency can opt the package
+in. Audit the **actual product's** resolved graph (`cargo tree -e features`) and
+final release binary. `--all-features` deliberately opts in and is not a
+private-API-free distribution build. Feature-off removes this backend's private
+selectors, not a certification that the entire embedding app/dependency graph
+meets App Store rules. Feature-on builds are **not App Store-ready/public-API-only**;
+SPI presence does not establish continued isolation semantics after an OS update.
+
 ## Usage and ownership
 
 ```rust,no_run
@@ -56,7 +89,7 @@ WKWebView proved insufficient to stop its timers in the live probe.
 
 ## Enforced contract and limits
 
-On the macOS path:
+On the explicitly opted-in macOS path:
 
 * `loadHTMLString(..., baseURL: nil)` loads only a trusted envelope. No file,
   daemon endpoint, HTTP origin, asset protocol or ordinary browser profile is
@@ -97,7 +130,7 @@ content rule list. The strict backend therefore requires WebKit **private SPI**:
 verified preference setters/getters disable peer connections (ICE/STUN), DNS
 prefetch, filesystem access and JS/DOM clipboard access; delegate SPI vetoes drag
 and context menus; `_close` is required to retire the page. Missing/refused
-preference or close gates return explicit errors **before guest loading**. There
+preference or close gates return `ArtifactError::Unsupported` **before guest loading**. There
 is no fallback to JS API shadowing or less isolated browsing.
 
 This is **not an App Store-ready/public-API-only implementation**. SPI can change
@@ -126,24 +159,97 @@ them. No permission prompt or native bridge should be added to make one work.
 
 | Backend | Result |
 | --- | --- |
-| macOS WKWebView with all required native gates | Implemented; native probe passed on macOS 27.0.1 (26A434), arm64 |
-| macOS without a required gate | Explicit `Policy` / unsupported lifecycle error; no guest loaded |
+| macOS, feature enabled, with all required native gates | Implemented; native probe passed on macOS 27.0.1 (26A434), arm64 |
+| macOS, feature disabled | `ArtifactError::Unsupported` before parent access; no private artifact backend compiled |
+| macOS, feature enabled, missing/refused required control | `ArtifactError::Unsupported`; no guest loaded |
 | Windows WebView2, Linux WebKitGTK/X11/Wayland, all other targets | `ArtifactError::Unsupported`; no browser or view is opened |
 
 No unsupported backend silently uses its ordinary-browser implementation.
 
 ```sh
 # Headless admission/escaping/navigation policy and existing browser regressions:
+cargo test -p rndr_browser
 cargo test -p rndr_browser --all-features
 cargo check -p rndr_browser --all-targets --all-features
 cargo clippy -p rndr_browser --all-targets --all-features -- -D warnings
 
 # Real main-thread WKWebView, not cargo's worker-thread test runner:
-cargo run -p rndr_browser --features native-artifact-harness --example artifact_policy_harness
+cargo run -p rndr_browser --features macos-private-webkit-artifacts,native-artifact-harness --example artifact_policy_harness
+cargo run -p rndr_browser --release --features macos-private-webkit-artifacts,native-artifact-harness --example artifact_policy_harness
 
 # Benign visible example: click, type, move slider; fresh session every 15 sec:
-cargo run -p rndr_browser --example artifact_preview
+cargo run -p rndr_browser --features macos-private-webkit-artifacts --example artifact_preview
 ```
+
+### Verification record for this feature-gate revision
+
+Test host: **macOS 27.0.1 (26A434), arm64**; `rustc 1.100.0
+(0ef1bc386 2026-11-09)`, Cargo `1.100.0 (3acc79c0c 2026-11-05)`.
+Only this OS/architecture was exercised live. Actual commands/results:
+
+| Command | Result |
+| --- | --- |
+| `python3 crates/rndr_browser/scripts/check-artifact-feature-gate.py` | Default 0/13, harness-only 0/13, opted-in 13/13 private selectors; live artifact refusal/load and ordinary HTTP + JS pass |
+| `cargo test -p rndr_browser` | 35 tests + 1 doctest passed; 1 existing native smoke ignored |
+| `cargo test -p rndr_browser --all-features` | 35 tests + 1 doctest passed; same native smoke ignored |
+| `cargo check -p rndr_browser --all-targets` (also with `--all-features`) | Both pass |
+| `cargo clippy -p rndr_browser --all-targets -- -D warnings` (also with `--all-features` before `--`) | Both pass |
+| `RUSTDOCFLAGS='-D warnings' cargo doc -p rndr_browser --no-deps` (also with `--all-features`) | Both pass |
+| `cargo check -p rndr_browser --lib --target x86_64-pc-windows-msvc` (also with `--features macos-private-webkit-artifacts`) | Both compile; no Windows live run |
+| `cargo check -p rndr_browser --lib --target wasm32-unknown-unknown` (also with `--features macos-private-webkit-artifacts`) | Both compile unsupported branch; no wasm live run |
+| `cargo check -p rndr --no-default-features --features browser` and `cargo check -p rndr --no-default-features` | Both pass |
+| `cargo fmt --all --check` and `git diff --check` | Pass |
+
+Both live harness commands shown above passed, in debug and release, including
+all eleven missing-control injections followed by the complete isolation,
+zero-loopback-traffic, replacement/drop timer-retirement and ordinary-browsing
+checks. Logs are `target/artifact-evidence/revision-*.log`; the binary regression
+also retains the inspected executables and hashes as described below.
+Existing workspace manifest warnings (redundant homepage/unused workspace
+dependency) remain; scoped strict Rust/Clippy/Rustdoc checks passed. This is not
+Linux/Windows native validation, universal-binary validation, or release/UI
+certification. No additional macOS version is claimed supported by this evidence.
+
+### Repeatable release binary gate regression
+
+```sh
+python3 crates/rndr_browser/scripts/check-artifact-feature-gate.py
+```
+
+This macOS-only regression fails rather than claiming success on another host.
+It builds the representative `artifact_build_probe` release executable in three
+configurations: default, only `native-artifact-harness`, and explicitly opted-in.
+All executables **actually call** both `ArtifactPreview::attach` and `Browser`;
+the default cases assert typed refusal and no child view, while the opted-in case
+attaches/replaces/loads/retires a real preview. Every configuration also loads a
+loopback HTTP fixture through ordinary `Browser` and verifies its JavaScript title.
+The fixture handles WebKit speculative connections as well as the document load.
+
+The check inventories **all 13 current backend private selectors** from the
+macOS backend sources, including preference macro arguments, `_close`, drag and
+context-menu delegate methods. It scans all file-backed Mach-O sections for exact
+NUL-delimited selector strings: **0/13** in both feature-off executables and
+**13/13** in the feature-on positive control. It also records `otool`'s
+`__objc_methname` section dump. Do not confuse libc's imported `_close` *linker
+symbol* with a WebKit `_close` selector; the linker symbol table is not an ObjC
+selector section. The parser currently requires a thin 64-bit Mach-O (tested
+arm64); universal product binaries need each architecture inspected separately.
+
+Evidence goes to `target/artifact-evidence/feature-gate/`: selector inventory,
+three copied binaries and SHA-256 digests, section dumps and native run logs.
+Update the inventory extractor if adding a different selector declaration form;
+this is a regression for this backend, not a general private-API certification.
+
+### Missing-control fault injection
+
+The native harness temporarily overrides `respondsToSelector:` **only in the
+harness process**, denying one required control at a time (all ten preference
+setters/getters and page close). It calls the unmodified public constructor and
+asserts typed `Unsupported`, no attached child, and no pending child after pumping
+the loop. The override is restored before the normal live suite. No library test
+switch, environment variable, or weakened production policy is provided.
+A unit test separately covers an available-but-ineffective preference readback.
+The full isolation/cleanup suite is rerun in the same executable after restoration.
 
 The native harness deliberately instruments the actual public preview and asserts
 local interaction, inherited policy despite hostile meta/base/resource markup,

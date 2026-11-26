@@ -221,6 +221,7 @@ impl WebKit {
             WKWebView::initWithFrame_configuration(mtm.alloc(), NSRect::ZERO, configuration)
         };
         web.setHidden(true);
+        #[cfg(feature = "macos-private-webkit-artifacts")]
         if artifact && !web.respondsToSelector(sel!(_close)) {
             return Err(BrowserError::Unsupported {
                 backend: "WKWebView artifact lifecycle gate",
@@ -242,6 +243,7 @@ impl WebKit {
         })
     }
 
+    #[cfg(feature = "macos-private-webkit-artifacts")]
     pub(crate) fn load_artifact_envelope(&self, html: &str) {
         debug_assert!(self.host.artifact);
         self.host.artifact_navigation.borrow_mut().arm();
@@ -252,6 +254,7 @@ impl WebKit {
         };
     }
 
+    #[cfg(feature = "macos-private-webkit-artifacts")]
     pub(crate) fn artifact_load(&self) -> LoadOutcome {
         self.host.artifact_load.get()
     }
@@ -431,6 +434,7 @@ impl WebKit {
             // the isolated page, even if native references remain. Availability
             // was required before loading any artifact. Ordinary views retain
             // their existing shutdown behavior.
+            #[cfg(feature = "macos-private-webkit-artifacts")]
             if self.host.artifact {
                 let _: () = msg_send![&self.web, _close];
             }
@@ -624,6 +628,7 @@ declare_class!(
     // WebKit SPI for native file ingress/context actions. These are native
     // vetoes, not guest scripts. Ordinary Browser keeps WebKit's default mask
     // and proposed menu; artifact previews expose neither files nor Save As.
+    #[cfg(feature = "macos-private-webkit-artifacts")]
     unsafe impl WebKitHost {
         #[method(_webView:dragDestinationActionMaskForDraggingInfo:)]
         unsafe fn artifact_drag_mask(&self, _web: &WKWebView, _info: &objc2::runtime::AnyObject) -> usize {

@@ -20,7 +20,7 @@ fn oversized_input_is_refused_before_touching_the_platform() {
     assert_eq!(parent.0.load(Ordering::SeqCst), 0);
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(all(target_os = "macos", feature = "macos-private-webkit-artifacts")))]
 #[test]
 fn other_backends_explicitly_refuse_without_opening_an_ordinary_browser() {
     let parent = NoParent(AtomicUsize::new(0));

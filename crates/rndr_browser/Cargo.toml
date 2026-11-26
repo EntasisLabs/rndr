@@ -13,6 +13,9 @@ keywords = ["browser", "webkit", "webview", "desktop"]
 categories = ["gui", "os::macos-apis"]
 
 [features]
+default = []
+# Explicit distribution opt-in; never enabled by default or by harness features.
+macos-private-webkit-artifacts = []
 # Main-thread WebKit load used by the macOS authentication harness. Off by default.
 native-auth-harness = []
 # Opt-in executable with a test-only script observation channel.
@@ -112,7 +115,7 @@ winit = { workspace = true }
 [[example]]
 name = "artifact_policy_harness"
 path = "examples/artifact_policy_harness.rs"
-required-features = ["native-artifact-harness"]
+required-features = ["native-artifact-harness", "macos-private-webkit-artifacts"]
 
 [[example]]
 name = "auth_harness"
