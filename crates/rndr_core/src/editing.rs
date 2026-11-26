@@ -945,6 +945,22 @@ impl SourceSession {
 #[cfg(test)]
 mod multi_selection_tests {
     use super::*;
+    #[test]
+    fn close_releases_a_document_and_never_reuses_its_id() {
+        let mut docs = SourceDocuments::default();
+        let a = docs.open("alpha");
+        let b = docs.open("beta");
+        assert_eq!(
+            docs.close(a).map(|s| s.text().to_string()),
+            Some("alpha".into())
+        );
+        assert!(docs.get(a).is_none());
+        assert!(docs.close(a).is_none());
+        assert_eq!(docs.get(b).map(|s| s.text()), Some("beta"));
+        let c = docs.open("gamma");
+        assert!(c != a && c != b);
+        assert_eq!(docs.ids().count(), 2);
+    }
     fn setup(text: &str) -> (SourceDocuments, DocumentId) {
         let mut docs = SourceDocuments::default();
         let id = docs.open(text);
@@ -1280,6 +1296,18 @@ impl SourceDocuments {
     /// Mutate through session admission, never through the projected Buffer.
     pub fn get_mut(&mut self, id: DocumentId) -> Option<&mut SourceSession> {
         self.documents.get_mut(&id)
+    }
+    /// Release a document: its text, undo history and per-view state.
+    ///
+    /// Despawn every view bound to it first. A view still bound reads the
+    /// document as missing and stops projecting; it does not panic. The id
+    /// is never reused. Returns the session, `None` when it was not open.
+    pub fn close(&mut self, id: DocumentId) -> Option<SourceSession> {
+        let session = self.documents.remove(&id);
+        if self.documents.is_empty() {
+            self.documents.shrink_to_fit();
+        }
+        session
     }
 }
 
