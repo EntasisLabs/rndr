@@ -359,6 +359,7 @@ pub struct MarkdownView {
     /// Outer height of every block, including the gap after it. Unmeasured
     /// entries are estimates. The scrollbar reads their sum.
     heights: Vec<f32>,
+    scroll_request: Option<usize>,
     measured: Vec<bool>,
     lead: Option<Entity>,
     trail_spacer: Option<Entity>,
@@ -393,6 +394,7 @@ impl MarkdownView {
             parsed_from: 0,
             slots: Vec::new(),
             heights: Vec::new(),
+            scroll_request: None,
             measured: Vec::new(),
             lead: None,
             trail_spacer: None,
@@ -432,6 +434,25 @@ impl MarkdownView {
         self.starts.get(index).copied()
     }
 
+    /// Request that a block from the last sync be brought to the viewport top.
+    ///
+    /// Works for offscreen/unrealized blocks, using retained measured/estimated
+    /// heights. Sync applies the request and refines it after measuring the target
+    /// window. Near the end, normal scroll clamping keeps the viewport filled.
+    /// Returns false for an invalid index or an unsynced source edit. The latest
+    /// request wins. Selection is preserved; bottom-follow is disabled until the
+    /// host explicitly enables it again. No child entity is required.
+    pub fn scroll_to_block(&mut self, index: usize) -> bool {
+        if self.dirty || index >= self.blocks.len() {
+            return false;
+        }
+        self.scroll_request = Some(index);
+        self.follow = false;
+        self.pinned = false;
+        self.gesture = None;
+        true
+    }
+
     /// Append `chunk` and mark the view dirty.
     ///
     /// An empty chunk does nothing. The parse runs on the next sync.
@@ -447,6 +468,7 @@ impl MarkdownView {
     /// Replace the source, clear the selection, and parse from the start.
     pub fn set_markdown(&mut self, source: impl Into<String>) {
         self.source = source.into();
+        self.scroll_request = None;
         self.commit = 0;
         self.parsed_from = 0;
         self.starts.clear();
@@ -748,7 +770,24 @@ fn sync_one(world: &mut World, entity: Entity) {
         view.measured.fill(false);
     }
     fill_heights(world, &mut view, width, &base, &columns);
+    let request = view
+        .scroll_request
+        .take()
+        .filter(|index| *index < view.blocks.len());
+    if let Some(index) = request {
+        if let Some(scroll) = world.get_mut::<Scroll>(entity) {
+            scroll.offset[1] = -prefix_sums(&view)[index];
+        }
+    }
     reconcile(world, entity, &mut view, width, &base, &columns);
+    if let Some(index) = request {
+        // Target-window measurement may have changed the prefix. Reconcile at
+        // its refined position as well, before layout clamps the final offset.
+        if let Some(scroll) = world.get_mut::<Scroll>(entity) {
+            scroll.offset[1] = -prefix_sums(&view)[index];
+        }
+        reconcile(world, entity, &mut view, width, &base, &columns);
+    }
     view.width = width;
     apply_selection(world, &view);
     restore_selection_scroll(world, entity, &view);

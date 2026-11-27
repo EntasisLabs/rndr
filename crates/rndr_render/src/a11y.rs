@@ -13,6 +13,7 @@ pub(crate) struct Bridge {
     used: std::collections::HashSet<NodeId>,
     next: u64,
     active: std::collections::HashMap<NodeId, rndr_core::Entity>,
+    overlays: std::collections::HashMap<NodeId, (rndr_core::Entity, u64)>,
     text: super::a11y_text::PublishedText,
     scrollbars: std::collections::HashMap<NodeId, (rndr_core::Entity, rndr_core::Axis)>,
 }
@@ -51,9 +52,23 @@ impl Bridge {
     pub(crate) fn update(&mut self, world: &World) -> TreeUpdate {
         let tree = access_tree(world);
         self.active.clear();
+        self.overlays.clear();
         self.scrollbars.clear();
+        let mut overlay_owners = std::collections::HashMap::new();
+        for owner in world.entities_with::<rndr_core::AccessOverlayActivate>() {
+            if let Some(overlay) = world.get::<rndr_core::AccessOverlay>(owner) {
+                for node in &overlay.nodes {
+                    if node.enabled && node.role == AccessRole::Link && !node.value.is_empty() {
+                        overlay_owners.insert(node.id, owner);
+                    }
+                }
+            }
+        }
         for node in &tree.nodes {
             let id = self.id(node.id);
+            if let Some(owner) = overlay_owners.get(&node.id) {
+                self.overlays.insert(id, (*owner, node.id));
+            }
             if let Some(entity) = entity_from_access_id(node.id) {
                 self.active.insert(id, entity);
                 if let Some(bar) = world.get::<rndr_core::Scrollbar>(entity) {
@@ -73,6 +88,10 @@ impl Bridge {
                 }
                 let id = self.id(node.id);
                 let mut out = platform_node(world, &node);
+                if self.overlays.contains_key(&id) {
+                    out.add_action(Action::Click);
+                    out.set_url(node.value.clone());
+                }
                 // Remap every relationship, not just tree children.
                 out.set_children(
                     node.children
@@ -143,6 +162,11 @@ impl Bridge {
     ) -> Option<AccessCommand> {
         if request.target_tree != TreeId::ROOT {
             return None;
+        }
+        if let Some(&(entity, node)) = self.overlays.get(&request.target_node) {
+            return (request.action == Action::Click
+                && rndr_core::access_overlay_can_activate(world, entity, node))
+            .then_some(AccessCommand::ActivateOverlay { entity, node });
         }
         let entity = *self.active.get(&request.target_node)?;
         if request.action == Action::SetTextSelection {
@@ -544,6 +568,144 @@ mod scrollbar_tests {
         let node = &tree.nodes.iter().find(|(n, _)| *n == id).unwrap().1;
         assert!(node.is_disabled());
         assert!(!node.supports_action(Action::SetValue));
+    }
+}
+
+#[cfg(test)]
+mod overlay_tests {
+    use super::*;
+    use rndr_core::*;
+
+    fn activate(world: &mut World, root: Entity, id: u64) -> AccessCommandResult {
+        let href = world
+            .get::<AccessOverlay>(root)
+            .unwrap()
+            .nodes
+            .iter()
+            .find(|node| node.id == id)
+            .unwrap()
+            .value
+            .clone();
+        send(world, LinkActivated { view: root, href });
+        AccessCommandResult::Applied
+    }
+    fn mount(world: &mut World, href: &str) -> (Entity, u64) {
+        let id = allocate_access_overlay_id(world);
+        let root = world.spawn((
+            Layout::column(),
+            AccessMark(AccessRole::Group),
+            AccessOverlayActivate(activate),
+        ));
+        world.insert(
+            root,
+            AccessOverlay {
+                nodes: vec![AccessNode {
+                    id,
+                    role: AccessRole::Link,
+                    name: "note link".into(),
+                    value: href.into(),
+                    bounds: rndr_core::Rect {
+                        x: 0.,
+                        y: 0.,
+                        w: 100.,
+                        h: 20.,
+                    },
+                    children: vec![],
+                    focusable: false,
+                    focused: false,
+                    selected: false,
+                    enabled: true,
+                    expanded: None,
+                    level: None,
+                }],
+            },
+        );
+        (root, id)
+    }
+
+    #[test]
+    fn native_overlay_links_advertise_click_route_to_owner_and_reject_retired_ids() {
+        let mut app = App::new();
+        let (a, aid) = mount(app.world_mut(), "note.md");
+        let (b, bid) = mount(app.world_mut(), "javascript:alert(1)");
+        assert_ne!(aid, bid);
+        let mut bridge = Bridge::default();
+        let tree = bridge.update(app.world());
+        for (root, raw) in [(a, aid), (b, bid)] {
+            let native_id = bridge.id(raw);
+            let node = &tree
+                .nodes
+                .iter()
+                .find(|(id, _)| *id == native_id)
+                .unwrap()
+                .1;
+            assert!(node.supports_action(Action::Click));
+            assert!(!node.supports_action(Action::Focus));
+            let request = accesskit::ActionRequest {
+                action: Action::Click,
+                target_tree: TreeId::ROOT,
+                target_node: native_id,
+                data: None,
+            };
+            let command = bridge.command(app.world(), &request).unwrap();
+            assert_eq!(
+                command,
+                AccessCommand::ActivateOverlay {
+                    entity: root,
+                    node: raw
+                }
+            );
+            assert_eq!(
+                try_apply_access(app.world_mut(), command.clone()),
+                AccessCommandResult::Applied
+            );
+            app.world_mut().insert(root, Hidden);
+            assert!(bridge.command(app.world(), &request).is_none());
+            assert_eq!(
+                try_apply_access(app.world_mut(), command.clone()),
+                AccessCommandResult::Rejected
+            );
+            app.world_mut().remove::<Hidden>(root);
+            app.world_mut()
+                .get_mut::<AccessOverlay>(root)
+                .unwrap()
+                .nodes[0]
+                .enabled = false;
+            assert!(bridge.command(app.world(), &request).is_none());
+            app.world_mut()
+                .get_mut::<AccessOverlay>(root)
+                .unwrap()
+                .nodes[0]
+                .enabled = true;
+            let replacement_id = allocate_access_overlay_id(app.world_mut());
+            app.world_mut()
+                .get_mut::<AccessOverlay>(root)
+                .unwrap()
+                .nodes[0]
+                .id = replacement_id;
+            assert!(
+                bridge.command(app.world(), &request).is_none(),
+                "queued old node must not acquire replacement link"
+            );
+            assert_eq!(
+                try_apply_access(app.world_mut(), command),
+                AccessCommandResult::Rejected
+            );
+        }
+        app.update();
+        assert_eq!(
+            events::<LinkActivated>(app.world()),
+            &[
+                LinkActivated {
+                    view: a,
+                    href: "note.md".into()
+                },
+                LinkActivated {
+                    view: b,
+                    href: "javascript:alert(1)".into()
+                }
+            ]
+        );
     }
 }
 

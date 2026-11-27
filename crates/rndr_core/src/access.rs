@@ -316,6 +316,49 @@ pub struct AccessOverlay {
 }
 impl crate::Component for AccessOverlay {}
 
+/// Host/widget callback for a synthetic overlay link activation.
+/// The dispatcher checks live, visible ownership and enabled Link role first;
+/// the callback must additionally reject stale document state. It must not
+/// interpret IDs as entities or launch external resources implicitly.
+#[derive(Clone, Copy)]
+pub struct AccessOverlayActivate(pub fn(&mut World, Entity, u64) -> AccessCommandResult);
+impl crate::Component for AccessOverlayActivate {}
+
+#[derive(Default)]
+struct OverlayIds(u64);
+
+/// Allocate a world-unique synthetic accessibility ID (bit 63 set).
+/// Never reuse these IDs for a replacement document or a new source revision:
+/// queued native actions must not acquire a different target.
+pub fn allocate_access_overlay_id(world: &mut World) -> u64 {
+    if !world.has_resource::<OverlayIds>() {
+        world.insert_resource(OverlayIds::default());
+    }
+    let ids = world.resource_mut::<OverlayIds>().unwrap();
+    ids.0 = ids
+        .0
+        .checked_add(1)
+        .filter(|id| *id < (1_u64 << 63) - 1)
+        .expect("overlay accessibility ID space exhausted");
+    (1_u64 << 63) | ids.0
+}
+
+/// Whether an overlay link is currently enabled and exposed under its owner.
+/// A hidden/dead owner or a retired synthetic ID refuses.
+pub fn access_overlay_can_activate(world: &World, entity: Entity, node: u64) -> bool {
+    world.has::<AccessOverlayActivate>(entity)
+        && world.get::<AccessOverlay>(entity).is_some_and(|overlay| {
+            overlay.nodes.iter().any(|n| {
+                n.id == node && n.enabled && n.role == AccessRole::Link && !n.value.is_empty()
+            })
+        })
+        && {
+            let tree = access_tree(world);
+            tree.nodes.iter().any(|n| n.id == access_id(entity))
+                && tree.nodes.iter().any(|n| n.id == node)
+        }
+}
+
 /// The window node plus every node [`access_tree`] emitted.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AccessTree {
@@ -416,6 +459,13 @@ pub enum AccessCommand {
     Focus(Entity),
     /// Press a button, activate a list row, or toggle a disclosure.
     Activate(Entity),
+    /// Activate a synthetic link under its generation-qualified overlay owner.
+    ActivateOverlay {
+        /// Entity publishing the overlay and its activation callback.
+        entity: Entity,
+        /// Exact published synthetic ID, not an entity ID.
+        node: u64,
+    },
     /// Set a focused editor's directed selection against a published text state.
     /// Readonly selection is allowed; this does not replace text or steal focus.
     SetTextSelection {
@@ -469,6 +519,13 @@ pub fn try_apply_access(world: &mut World, command: AccessCommand) -> AccessComm
             } else {
                 AccessCommandResult::Rejected
             }
+        }
+        AccessCommand::ActivateOverlay { entity, node } => {
+            if !access_overlay_can_activate(world, entity, node) {
+                return AccessCommandResult::Rejected;
+            }
+            let handler = world.get::<AccessOverlayActivate>(entity).unwrap().0;
+            handler(world, entity, node)
         }
         AccessCommand::Activate(entity) => {
             if !crate::access_details(world, entity).activate {
@@ -897,6 +954,7 @@ fn widget_roots(world: &World) -> Vec<Entity> {
     consider.extend(world.entities_with::<Prompt>());
     consider.extend(world.entities_with::<crate::Editor>());
     consider.extend(world.entities_with::<Focusable>());
+    consider.extend(world.entities_with::<AccessOverlay>());
     consider.extend(world.entities_with::<Disclosure>());
     consider.extend(world.entities_with::<Tabs>());
     consider.extend(world.entities_with::<crate::TabPanel>());
