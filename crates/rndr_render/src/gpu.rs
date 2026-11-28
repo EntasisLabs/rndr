@@ -1095,6 +1095,9 @@ impl Gpu {
         #[cfg(target_os = "macos")]
         self.sync_transaction_present();
         if frame.draws.is_empty() {
+            if let Some(scene) = self.scene.as_mut() {
+                scene.trim_idle_pool();
+            }
             return (
                 self.present(&frame.quads, width, height, scale, world),
                 Vec::new(),

@@ -673,6 +673,7 @@ impl SceneGpu {
             &color_linear,
             world,
         );
+        self.trim_pool();
         self.path_buffer = grow(
             &self.device,
             &self.queue,
@@ -2420,6 +2421,12 @@ impl SceneGpu {
             let Some(index) = oldest else { break };
             self.pool.remove(index);
         }
+    }
+
+    /// Trim reuse targets when a frame did not need offscreen rendering at all.
+    pub(crate) fn trim_idle_pool(&mut self) {
+        self.frame = self.frame.wrapping_add(1);
+        self.trim_pool();
     }
 
     #[cfg(test)]
