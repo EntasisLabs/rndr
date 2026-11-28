@@ -51,6 +51,8 @@ impl Bridge {
     }
     pub(crate) fn update(&mut self, world: &World) -> TreeUpdate {
         let tree = access_tree(world);
+        let live_raw: std::collections::HashSet<u64> =
+            tree.nodes.iter().map(|node| node.id).collect();
         self.active.clear();
         self.overlays.clear();
         self.scrollbars.clear();
@@ -146,6 +148,15 @@ impl Bridge {
             })
             .collect();
         nodes.extend(extra);
+        // Source IDs are already non-recycled: entity IDs carry generations and
+        // overlay IDs come from the monotonic core allocator. Keep collision
+        // mappings only while their source is published; otherwise repeated
+        // document edits would retain one tombstone per removed overlay node.
+        let live_native: std::collections::HashSet<NodeId> =
+            nodes.iter().map(|(id, _)| *id).collect();
+        self.ids
+            .retain(|raw, id| live_raw.contains(raw) && live_native.contains(id));
+        self.used.retain(|id| live_native.contains(id));
         self.text = published;
         TreeUpdate {
             nodes,
@@ -706,6 +717,27 @@ mod overlay_tests {
                 }
             ]
         );
+    }
+
+    #[test]
+    fn retired_overlay_ids_do_not_accumulate_bridge_mappings() {
+        let mut app = App::new();
+        let (root, _) = mount(app.world_mut(), "note.md");
+        let mut bridge = Bridge::default();
+        bridge.update(app.world());
+        let initial_ids = bridge.ids.len();
+        let initial_used = bridge.used.len();
+        for _ in 0..32 {
+            let replacement = allocate_access_overlay_id(app.world_mut());
+            app.world_mut()
+                .get_mut::<AccessOverlay>(root)
+                .unwrap()
+                .nodes[0]
+                .id = replacement;
+            bridge.update(app.world());
+        }
+        assert_eq!(bridge.ids.len(), initial_ids);
+        assert_eq!(bridge.used.len(), initial_used);
     }
 }
 
