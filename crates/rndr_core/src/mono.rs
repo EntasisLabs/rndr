@@ -325,18 +325,21 @@ pub fn apply_mono_grid(world: &mut World) {
             cache.shaped = cache.shaped.saturating_add(shapes);
         }
         world.insert(entity, cache);
-        world.insert(entity, MonoContext {
-            engine: std::sync::Arc::downgrade(&engine),
-            // Record the start, not the end: a later run may have invalidated
-            // quads already built earlier in this very grid.
-            epoch,
-            cols: plan.cols,
-            cell_w: plan.cell_w,
-            cell_h: plan.cell_h,
-            default_bg: plan.default_bg,
-            font: plan.font,
-            line_ids: ids,
-        });
+        world.insert(
+            entity,
+            MonoContext {
+                engine: std::sync::Arc::downgrade(&engine),
+                // Record the start, not the end: a later run may have invalidated
+                // quads already built earlier in this very grid.
+                epoch,
+                cols: plan.cols,
+                cell_w: plan.cell_w,
+                cell_h: plan.cell_h,
+                default_bg: plan.default_bg,
+                font: plan.font,
+                line_ids: ids,
+            },
+        );
     }
 }
 
@@ -377,7 +380,10 @@ fn plan_rows(
     };
     let same_context = world.get::<MonoContext>(entity).is_some_and(|context| {
         context.epoch == epoch
-            && context.engine.upgrade().is_some_and(|stored| std::sync::Arc::ptr_eq(&stored, engine))
+            && context
+                .engine
+                .upgrade()
+                .is_some_and(|stored| std::sync::Arc::ptr_eq(&stored, engine))
             && context.cols == cols
             && context.cell_w == cell_w
             && context.cell_h == cell_h

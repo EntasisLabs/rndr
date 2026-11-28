@@ -11,9 +11,9 @@ mod fonts;
 mod shape;
 
 #[cfg(test)]
-mod tests;
-#[cfg(test)]
 mod mono_tests;
+#[cfg(test)]
+mod tests;
 
 use std::any::Any;
 use std::collections::HashMap;
