@@ -86,7 +86,12 @@ fn color_shelf_is_allocated_and_uploaded_only_when_needed() {
     assert!(first.full && first.rects.is_empty());
     assert_eq!((first.width, first.height), (512, 512));
     assert_eq!(first.pixels.len(), 512 * 512 * 4);
-    assert!(first.pixels.chunks_exact(4).any(|pixel| pixel[3] != 0));
+    assert!(first
+        .pixels
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .any(|pixel| pixel[3] != 0));
     let snapshot = engine.color_atlas().expect("color glyph shelf");
     assert_eq!(&*snapshot.rgba, &first.pixels);
     let unchanged = engine.take_uploads().color;

@@ -69,7 +69,7 @@ fn ink(engine: &ParleyText, glyph: &PlacedGlyph) -> Vec<u8> {
 }
 
 fn glyph(app: &App, entity: Entity) -> PlacedGlyph {
-    app.world().get::<MonoCache>(entity).unwrap().rows[0].glyphs[0].clone()
+    app.world().get::<MonoCache>(entity).unwrap().rows[0].glyphs[0]
 }
 
 #[test]
