@@ -59,16 +59,11 @@ fn point(app: &App, needle: &str) -> [f32; 2] {
         .get::<Spans>(entity)
         .map(|spans| spans.runs.as_slice())
         .unwrap_or_default();
-    let label_box = world.get::<LabelBox>(entity);
-    let inset = label_box
-        .map(|b| [b.inset_x, b.inset_y])
-        .unwrap_or([0., 0.]);
-    let width = if label_box.is_some() {
-        rect.w - 2. * inset[0]
-    } else {
-        rect.w - 8.
-    };
-    let layout = text_engine(world).layout(label, &style, spans, width.max(1.));
+    let metrics = label_box(world, entity);
+    let inset = [metrics.inset_x, metrics.inset_y];
+    let engine = text_engine(world);
+    let width = metrics.text_width(rect.w, engine.unit_advance(&style));
+    let layout = engine.layout(label, &style, spans, width);
     let glyph = layout
         .glyphs
         .iter()
@@ -176,6 +171,35 @@ fn modified_clicks_emit_root_and_written_target_without_editing() {
             );
         }
     }
+}
+
+#[test]
+fn batched_modified_press_and_release_activates_once() {
+    let (mut app, handle, id) = boot("prefix [label](note.md) tail\n");
+    let before = selection(&app, id);
+    let at = point(&app, "label");
+    pointer(&mut app, at, true, false, true, true, false);
+    let activated = events::<LinkActivated>(app.world());
+    assert_eq!(activated.len(), 1);
+    assert_eq!(activated[0].view, handle.root);
+    assert_eq!(activated[0].href, "note.md");
+    assert_eq!(selection(&app, id), before);
+}
+
+#[test]
+fn wrapped_link_hits_use_the_painted_text_origin_and_width() {
+    let source =
+        "leading words words words words words words words words [wrappedlabel](note.md) tail\n";
+    let (mut app, handle, id) = boot(source);
+    let before = selection(&app, id);
+    let at = point(&app, "wrappedlabel");
+    pointer(&mut app, at, true, true, false, true, false);
+    pointer(&mut app, at, false, false, true, true, false);
+    let activated = events::<LinkActivated>(app.world());
+    assert_eq!(activated.len(), 1);
+    assert_eq!(activated[0].view, handle.root);
+    assert_eq!(activated[0].href, "note.md");
+    assert_eq!(selection(&app, id), before);
 }
 
 #[test]

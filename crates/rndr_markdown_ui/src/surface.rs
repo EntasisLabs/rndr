@@ -566,12 +566,13 @@ fn place_pointer(world: &mut World) {
             continue;
         }
         if pointer.pressed && pointer.button == PointerButton::Left {
-            if let Some(hit) = hit_test(world, pointer.position[0], pointer.position[1]) {
+            let press_at = pointer.press_at.unwrap_or(pointer.position);
+            if let Some(hit) = hit_test(world, press_at[0], press_at[1]) {
                 if !belongs_to(world, root, hit) {
                     continue;
                 }
                 if link_modifier {
-                    if let Some(href) = link_at_pointer(world, root, pointer.position) {
+                    if let Some(href) = link_at_pointer(world, root, press_at) {
                         let revision = root_document(world, root)
                             .and_then(|document| {
                                 world.resource::<crate::MarkdownDocuments>()?.get(document)
@@ -579,8 +580,19 @@ fn place_pointer(world: &mut World) {
                             .map(Session::revision)
                             .unwrap_or(0);
                         let node = world.get_mut::<Node>(root).unwrap();
-                        node.link_press = Some((href, pointer.position, revision));
                         node.dragging = false;
+                        if pointer.released {
+                            let near = (pointer.position[0] - press_at[0]).abs() <= 4.0
+                                && (pointer.position[1] - press_at[1]).abs() <= 4.0;
+                            if near
+                                && link_at_pointer(world, root, pointer.position).as_deref()
+                                    == Some(&href)
+                            {
+                                send(world, LinkActivated { view: root, href });
+                            }
+                        } else {
+                            node.link_press = Some((href, press_at, revision));
+                        }
                         continue;
                     }
                 }
@@ -647,17 +659,23 @@ fn link_at_pointer(world: &World, root: Entity, at: [f32; 2]) -> Option<String> 
         if let Some(source) = task_text_source(world, hit, &block, at, true) {
             source
         } else {
-            // Use the same projected label, style, width and source map as caret placement.
+            // Use the same projected label, style, width, origin and source map as painting.
             let rect = world.get::<Rect>(slot_entity)?;
             let label = block.label_text();
             let style = style_for_kind(&block.kind, world);
-            let layout = text_engine(world).layout(
+            let engine = text_engine(world);
+            let metrics = label_box(world, slot_entity);
+            let layout = engine.layout(
                 &label,
                 &style,
                 &label_spans(&block),
-                (rect.w - 8.0).max(1.0),
+                metrics.text_width(rect.w, engine.unit_advance(&style)),
             );
-            let index = crate::links::hit_index(&layout, at[0] - rect.x, at[1] - rect.y)?;
+            let index = crate::links::hit_index(
+                &layout,
+                at[0] - rect.x - metrics.inset_x,
+                at[1] - rect.y - metrics.inset_y,
+            )?;
             if index >= label.len() || index < block.chrome.len() {
                 return None;
             }
@@ -755,13 +773,21 @@ fn place_hit(world: &mut World, root: Entity, hit: Entity, at: [f32; 2], extend:
         }
         return;
     }
-    let width = rect.w.max(1.0);
     let style = style_for_kind(&block.kind, world);
     let engine = text_engine(world);
+    let metrics = label_box(world, hit);
     let label = block.label_text();
     let spans = label_spans(&block);
-    let layout = engine.layout(&label, &style, &spans, (width - 8.0).max(1.0));
-    let index = layout.index_at(at[0] - rect.x, at[1] - rect.y);
+    let layout = engine.layout(
+        &label,
+        &style,
+        &spans,
+        metrics.text_width(rect.w, engine.unit_advance(&style)),
+    );
+    let index = layout.index_at(
+        at[0] - rect.x - metrics.inset_x,
+        at[1] - rect.y - metrics.inset_y,
+    );
     let source = block.display_to_source(index);
     if let Some(session) = world
         .resource_mut::<crate::MarkdownDocuments>()
