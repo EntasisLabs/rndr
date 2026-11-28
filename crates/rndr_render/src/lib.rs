@@ -73,6 +73,8 @@ mod gpu;
 mod hotkey;
 mod images;
 mod lifecycle;
+mod native_host;
+pub use native_host::{NativeHost, NativeHostContext};
 #[cfg(target_os = "macos")]
 mod native_quit;
 mod notify;
@@ -346,6 +348,8 @@ pub use close::{CloseValidator, CloseWorld};
 /// surface was not created.
 pub struct Session {
     apps: Vec<App>,
+    native_host: Option<Box<native_host::Factory>>,
+    app_id: Option<Arc<str>>,
     close_validator: Option<Box<CloseValidator>>,
 }
 
@@ -354,8 +358,37 @@ impl Session {
     pub fn new(app: App) -> Self {
         Self {
             apps: vec![app],
+            native_host: None,
+            app_id: None,
             close_validator: None,
         }
+    }
+
+    /// Set a stable shell identity for ordinary windows in this session.
+    ///
+    /// On Wayland this is the app ID (match the `.desktop` file stem); on X11
+    /// it is both parts of `WM_CLASS` (match `StartupWMClass`). On Windows it
+    /// is the process AppUserModelID (match an installer's shortcut, if set).
+    /// macOS takes its identity from the app bundle's `CFBundleIdentifier`.
+    ///
+    /// Use a reverse-DNS ID without spaces, e.g. `org.example.MyApp`. This
+    /// does not install a launcher, set the icon image or enable single-instance
+    /// behavior. When unset, native defaults are unchanged. On Windows,
+    /// [`Session::run`] panics if the ID is invalid or the shell rejects it.
+    pub fn app_id(mut self, id: impl Into<Arc<str>>) -> Self {
+        self.app_id = Some(id.into());
+        self
+    }
+
+    /// Create a UI-thread native child-surface owner for each window, including
+    /// windows opened later. The factory runs after app construction and before
+    /// the native parent exists. See [`NativeHost`] for polling and cleanup.
+    pub fn native_host(
+        mut self,
+        factory: impl FnMut(&mut rndr_core::World) -> Box<dyn NativeHost> + 'static,
+    ) -> Self {
+        self.native_host = Some(Box::new(factory));
+        self
     }
 
     /// Queue `app` as another window, created when [`Session::run`] starts.
@@ -381,7 +414,12 @@ impl Session {
 
     /// Block on the desktop event loop until the session exits.
     pub fn run(self) {
-        run_apps(self.apps, self.close_validator);
+        run_apps(
+            self.apps,
+            self.close_validator,
+            self.app_id,
+            self.native_host,
+        );
     }
 }
 
@@ -400,7 +438,12 @@ pub fn run(app: App) {
     Session::new(app).run();
 }
 
-fn run_apps(apps: Vec<App>, close_validator: Option<Box<CloseValidator>>) {
+fn run_apps(
+    apps: Vec<App>,
+    close_validator: Option<Box<CloseValidator>>,
+    app_id: Option<Arc<str>>,
+    mut native_host: Option<Box<native_host::Factory>>,
+) {
     let mut apps = apps;
     if apps.is_empty() {
         return;
@@ -414,6 +457,7 @@ fn run_apps(apps: Vec<App>, close_validator: Option<Box<CloseValidator>>) {
     if rndr_core::tray::starts_hidden(apps[0].world()) {
         rndr_core::tray::mark_hidden(apps[0].world_mut());
     }
+    platform::register_app_id(app_id.as_deref());
     let mut builder = EventLoop::builder();
     platform::configure_event_loop(&mut builder, &config);
     let event_loop = builder.build().expect("event loop");
@@ -448,18 +492,24 @@ fn run_apps(apps: Vec<App>, close_validator: Option<Box<CloseValidator>>) {
         app.set_live_wake(Arc::new(LiveProxyWake { bus: bus.clone() }));
         app.set_executor(Arc::clone(&pool));
         let config = WindowConfig::get(app.world());
-        slots.push(Handler::new(
+        let mut slot = Handler::new(
             app,
             config,
             index == 0,
+            app_id.clone(),
             desktop_id,
             pen.clone(),
             bus.clone(),
-        ));
+        );
+        slot.native_host
+            .install(native_host.as_mut(), slot.app.world_mut());
+        slots.push(slot);
     }
     event_loop.set_control_flow(ControlFlow::Wait);
     let session = Running {
         slots,
+        native_host,
+        app_id,
         hub,
         wake,
         events: rx,
@@ -536,6 +586,8 @@ fn install_tray_handlers(bus: &RunnerBus) {
 
 struct Handler {
     app: App,
+    native_host: native_host::HostSlot,
+    app_id: Option<Arc<str>>,
     config: WindowConfig,
     gpu: Option<Gpu>,
     /// Device creation started off the UI thread. The shell stays here until
@@ -614,6 +666,7 @@ impl Handler {
         mut app: App,
         config: WindowConfig,
         primary: bool,
+        app_id: Option<Arc<str>>,
         desktop_id: rndr_core::WindowId,
         pen: pen::PenFeed,
         bus: RunnerBus,
@@ -622,7 +675,9 @@ impl Handler {
             .insert_resource(rndr_core::FileHoverSet::default());
         Self {
             app,
+            native_host: native_host::HostSlot::default(),
             config,
+            app_id,
             gpu: None,
             pending_rx: None,
             pending_shell: None,
@@ -1083,7 +1138,13 @@ impl Handler {
             return;
         };
         self.icon_generation = generation;
-        window.set_window_icon(lifecycle::window_icon());
+        let icon = lifecycle::window_icon();
+        #[cfg(target_os = "windows")]
+        {
+            use winit::platform::windows::WindowExtWindows;
+            window.set_taskbar_icon(icon.clone());
+        }
+        window.set_window_icon(icon);
         #[cfg(target_os = "macos")]
         if self.primary {
             lifecycle::apply_dock_icon();
@@ -1732,7 +1793,55 @@ fn map_physical(key: &PhysicalKey) -> Option<Physical> {
     })
 }
 
+impl Drop for Handler {
+    fn drop(&mut self) {
+        // Explicitly retire child views before Rust drops GPU/pending shell fields.
+        self.native_host.detach(self.app.world_mut());
+    }
+}
+
 impl Handler {
+    fn poll_native_host(&mut self, event_loop: &dyn ActiveEventLoop) -> bool {
+        let shell = self
+            .gpu
+            .as_ref()
+            .map(|gpu| gpu.shell())
+            .or(self.pending_shell.as_ref());
+        let Some(shell) = shell else {
+            return false;
+        };
+        let Some(window) = shell.winit_window() else {
+            return false;
+        };
+        let size = window.surface_size();
+        let visible = rndr_core::window::is_visible(self.app.world())
+            && !self.os_occluded
+            && size.width > 0
+            && size.height > 0;
+        let redraw = std::cell::Cell::new(false);
+        self.native_host.frame(
+            self.app.world_mut(),
+            NativeHostContext {
+                window,
+                physical_size: [size.width, size.height],
+                scale_factor: f64::from(positive_scale(window.scale_factor())),
+                visible,
+                redraw: &redraw,
+            },
+        );
+        if redraw.get() {
+            self.full_pending = true;
+            if rndr_core::window::is_visible(self.app.world()) {
+                self.request_redraw();
+            } else {
+                // Hidden windows do not receive native redraw events.
+                self.run_hidden_frame(event_loop);
+                return true;
+            }
+        }
+        false
+    }
+
     fn request_redraw(&self) {
         if let Some(gpu) = &self.gpu {
             gpu.shell().request_redraw();
@@ -1974,7 +2083,7 @@ impl Handler {
                 return shell::Shell::layer(layer, wake);
             }
         }
-        let mut attrs = platform::attributes(&self.config);
+        let mut attrs = platform::attributes(&self.config, event_loop, self.app_id.as_deref());
         attrs = attrs.with_visible(false);
         if show {
             // Keep the window unmapped until the first present so the first
@@ -2748,6 +2857,8 @@ impl close::CloseParticipant for Handler {
 
 struct Running {
     slots: Vec<Handler>,
+    native_host: Option<Box<native_host::Factory>>,
+    app_id: Option<Arc<str>>,
     hub: WindowHub,
     wake: Arc<dyn Wake>,
     events: std::sync::mpsc::Receiver<RunnerEvent>,
@@ -2833,14 +2944,18 @@ impl Running {
             install_text_engine(&mut app);
             (open.build)(&mut app);
             let config = WindowConfig::get(app.world());
-            self.slots.push(Handler::new(
+            let mut slot = Handler::new(
                 app,
                 config,
                 false,
+                self.app_id.clone(),
                 desktop_id,
                 self.pen.clone(),
                 self.bus.clone(),
-            ));
+            );
+            slot.native_host
+                .install(self.native_host.as_mut(), slot.app.world_mut());
+            self.slots.push(slot);
         }
         for incoming in std::mem::take(&mut self.lifecycle) {
             self.deliver(incoming);
@@ -2874,6 +2989,13 @@ impl Running {
             } else if slot.app.wants_frame() {
                 slot.request_redraw();
             }
+            if let Some(next) = slot.native_host.deadline {
+                poll |= next <= Instant::now();
+                deadline = Some(match deadline {
+                    Some(current) if current < next => current,
+                    _ => next,
+                });
+            }
             if let Some(next) = slot.app.next_deadline() {
                 deadline = Some(match deadline {
                     Some(current) if current < next => current,
@@ -2900,7 +3022,17 @@ impl ApplicationHandler for Running {
     fn new_events(&mut self, _event_loop: &dyn ActiveEventLoop, cause: StartCause) {
         if matches!(cause, StartCause::ResumeTimeReached { .. }) {
             for slot in &self.slots {
-                slot.request_redraw();
+                // Native child-state polling must not continuously redraw an
+                // otherwise idle application. App timers retain their wake.
+                if slot.native_host.deadline.is_none()
+                    || slot.app.wants_frame()
+                    || slot
+                        .app
+                        .next_deadline()
+                        .is_some_and(|next| next <= Instant::now())
+                {
+                    slot.request_redraw();
+                }
             }
         }
     }
@@ -3009,7 +3141,21 @@ impl ApplicationHandler for Running {
             }
         }
         self.reconcile_close(event_loop);
-        self.sync_flow(event_loop);
+        if event_loop.exiting() {
+            return;
+        }
+        let mut hidden_update = false;
+        for slot in &mut self.slots {
+            hidden_update |= slot.poll_native_host(event_loop);
+        }
+        // Only a host-requested hidden update can add close/open work here.
+        // Do not repeat close callbacks for ordinary batches or non-host apps.
+        if hidden_update {
+            self.reconcile_close(event_loop);
+        }
+        if !event_loop.exiting() {
+            self.sync_flow(event_loop);
+        }
     }
 
     fn window_event(

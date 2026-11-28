@@ -2,6 +2,19 @@
 use rndr_core::{App, LogicalSize, TextEngine, Viewport, WindowConfig};
 use std::{path::PathBuf, sync::Arc};
 
+const APP_ID: &str = "org.rndr.desktop-workshop";
+
+/// A packaged Mac app should keep its native, multi-resolution bundle icon.
+fn has_macos_bundle() -> bool {
+    cfg!(target_os = "macos")
+        && std::env::current_exe().is_ok_and(|exe| {
+            exe.parent()
+                .filter(|dir| dir.ends_with("MacOS"))
+                .and_then(std::path::Path::parent)
+                .is_some_and(|dir| dir.ends_with("Contents") && dir.join("Info.plist").is_file())
+        })
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut export: Option<PathBuf> = None;
     let mut preferences = None;
@@ -30,7 +43,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     if !isolated && export.is_none() {
-        preferences = Some(rndr_app::Preferences::for_app("org.rndr.desktop-workshop")?);
+        preferences = Some(rndr_app::Preferences::for_app(APP_ID)?);
     }
     let mut app = App::new();
     desktop::install(&mut app, preferences);
@@ -99,6 +112,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         return Ok(());
     }
-    rndr_render::run(app);
+    if !has_macos_bundle() {
+        rndr_render::set_app_icon(include_bytes!("../icons/window.png").as_slice())
+            .map_err(|error| format!("invalid bundled window icon: {error:?}"))?;
+    }
+    rndr_render::Session::new(app).app_id(APP_ID).run();
     Ok(())
 }

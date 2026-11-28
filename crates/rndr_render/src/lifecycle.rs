@@ -487,8 +487,9 @@ static ICON_GENERATION: AtomicU64 = AtomicU64::new(0);
 /// - **macOS:** the Dock and app-switcher icon.
 /// - **Windows:** each window's title bar, taskbar and Alt+Tab icon.
 /// - **Linux X11:** each window's `_NET_WM_ICON`, which docks and window
-///   switchers show. Wayland compositors take the icon from the app's
-///   `.desktop` file instead.
+///   switchers show.
+/// - **Wayland:** a window icon where `xdg_toplevel_icon_v1` is supported.
+///   Install a matching `.desktop` entry and icon for reliable launcher integration.
 ///
 /// Windows that are already open switch to it on their next frame. A
 /// headless or browser run keeps it without showing it.

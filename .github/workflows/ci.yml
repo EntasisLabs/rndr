@@ -163,6 +163,24 @@ jobs:
       - name: Build examples and rndr_render
         run: cargo build -p desktop -p expand -p idle -p overlay -p palette -p terminal -p stream -p two-windows -p titlebar -p lifecycle -p pen-probe -p canvas-scene -p create-view -p chart-gallery -p liquid-view -p canvas-editor -p investigation -p rndr_render
 
+      - name: Desktop executable contains its Windows icon group
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Add-Type -TypeDefinition @'
+          using System;
+          using System.Runtime.InteropServices;
+          public static class ShellIcon {
+            [DllImport("shell32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+            public static extern uint ExtractIconExW(string file, int index, IntPtr large, IntPtr small, uint count);
+          }
+          '@
+          $metadata = cargo metadata --locked --no-deps --format-version 1 | ConvertFrom-Json
+          $exe = Join-Path $metadata.target_directory 'debug/desktop.exe'
+          if (!(Test-Path $exe) -or [ShellIcon]::ExtractIconExW($exe, -1, [IntPtr]::Zero, [IntPtr]::Zero, 0) -ne 1) {
+            throw "Missing Desktop Workshop executable icon group: $exe"
+          }
+
       - name: Build native semantic galleries with observation
         run: cargo build -p rndr --features observe,ui --example ui_gallery --example data_gallery --example data_editors_gallery --example selection_gallery --example virtual_list_gallery --example markdown_gallery --example item_drag
 

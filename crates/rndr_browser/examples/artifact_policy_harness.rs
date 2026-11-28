@@ -32,7 +32,7 @@ mod macos {
     };
     use rndr_browser::{
         ArtifactError, ArtifactPreview, ArtifactState, Browser, BrowserEvent, ClientRect,
-        LoadOutcome, MAX_ARTIFACT_HTML_BYTES,
+        LoadOutcome, OverlayBitmap, MAX_ARTIFACT_HTML_BYTES,
     };
     use std::cell::RefCell;
     use std::ffi::c_void;
@@ -252,6 +252,12 @@ mod macos {
                 sel!(_setJavaScriptCanAccessClipboard:),
             ),
             (WKPreferences::class(), sel!(_javaScriptCanAccessClipboard)),
+            (WKPreferences::class(), sel!(_setEnabled:forFeature:)),
+            (WKPreferences::class(), sel!(_isEnabledForFeature:)),
+            (WKPreferences::class(), sel!(_setApplePayEnabled:)),
+            (WKPreferences::class(), sel!(_applePayEnabled)),
+            (WKPreferences::class(), sel!(setElementFullscreenEnabled:)),
+            (WKPreferences::class(), sel!(isElementFullscreenEnabled)),
             (WKPreferences::class(), sel!(_setDOMPasteAllowed:)),
             (WKPreferences::class(), sel!(_domPasteAllowed)),
             (WKWebView::class(), sel!(_close)),
@@ -294,6 +300,144 @@ mod macos {
         }
     }
 
+    // Test-only Objective-C fault injection: remove ONLY the sandbox directive
+    // from the real production transport's preflight response. No library hook.
+    fn missing_response_sandbox(handle: &Parent, parent: &NSView, marker: MainThreadMarker) {
+        use objc2::runtime::{AnyClass, AnyObject, Sel};
+        use objc2::sel;
+        use objc2_foundation::{NSDictionary, NSHTTPURLResponse, NSURL};
+        use std::{
+            cell::Cell,
+            ffi::{c_char, c_void},
+        };
+        extern "C" {
+            fn class_getInstanceMethod(class: *const AnyClass, selector: Sel) -> *mut c_void;
+            fn method_getImplementation(method: *mut c_void) -> *const c_void;
+            fn method_getTypeEncoding(method: *mut c_void) -> *const c_char;
+            fn class_replaceMethod(
+                class: *const AnyClass,
+                selector: Sel,
+                implementation: *const c_void,
+                types: *const c_char,
+            ) -> *const c_void;
+        }
+        type Headers = NSDictionary<NSString, NSString>;
+        type Initialize = unsafe extern "C" fn(
+            *mut AnyObject,
+            Sel,
+            &NSURL,
+            isize,
+            Option<&NSString>,
+            Option<&Headers>,
+        ) -> *mut AnyObject;
+        thread_local! { static INITIALIZE: Cell<*const c_void> = const { Cell::new(std::ptr::null()) }; static STRIPPED: Cell<bool> = const { Cell::new(false) }; }
+        unsafe extern "C" fn initialize(
+            object: *mut AnyObject,
+            command: Sel,
+            url: &NSURL,
+            status: isize,
+            version: Option<&NSString>,
+            headers: Option<&Headers>,
+        ) -> *mut AnyObject {
+            let original: Initialize = std::mem::transmute(INITIALIZE.with(Cell::get));
+            if url.absoluteString().map(|u| u.to_string()).as_deref()
+                != Some("rndr-artifact://preview/preflight")
+            {
+                return original(object, command, url, status, version, headers);
+            }
+            let headers = headers.unwrap();
+            let keys = headers.allKeys();
+            let keys = (0..keys.len())
+                .map(|i| keys.objectAtIndex(i))
+                .collect::<Vec<_>>();
+            let values = keys
+                .iter()
+                .map(|key| {
+                    let value = headers.objectForKey(key).unwrap();
+                    if key.to_string() == "Content-Security-Policy" {
+                        let policy = value.to_string();
+                        assert!(policy.starts_with("sandbox allow-scripts; "));
+                        STRIPPED.with(|s| s.set(true));
+                        NSString::from_str(policy.strip_prefix("sandbox allow-scripts; ").unwrap())
+                    } else {
+                        value
+                    }
+                })
+                .collect::<Vec<_>>();
+            let replacement =
+                Headers::from_id_slice(&keys.iter().map(|v| &**v).collect::<Vec<_>>(), &values);
+            original(object, command, url, status, version, Some(&replacement))
+        }
+        struct Restore {
+            original: *const c_void,
+            types: *const c_char,
+        }
+        impl Drop for Restore {
+            fn drop(&mut self) {
+                unsafe {
+                    class_replaceMethod(
+                        NSHTTPURLResponse::class(),
+                        sel!(initWithURL:statusCode:HTTPVersion:headerFields:),
+                        self.original,
+                        self.types,
+                    );
+                }
+            }
+        }
+        let method = unsafe {
+            class_getInstanceMethod(
+                NSHTTPURLResponse::class(),
+                sel!(initWithURL:statusCode:HTTPVersion:headerFields:),
+            )
+        };
+        assert!(!method.is_null());
+        let restore = Restore {
+            original: unsafe { method_getImplementation(method) },
+            types: unsafe { method_getTypeEncoding(method) },
+        };
+        INITIALIZE.with(|o| o.set(restore.original));
+        unsafe {
+            class_replaceMethod(
+                NSHTTPURLResponse::class(),
+                sel!(initWithURL:statusCode:HTTPVersion:headerFields:),
+                initialize as *const c_void,
+                restore.types,
+            );
+        }
+        let mut preview = ArtifactPreview::attach(
+            handle,
+            "<script>webkit.messageHandlers.probe.postMessage('FAIL authored source ran')</script>",
+        )
+        .unwrap();
+        let (_observer, reports) = observe(parent, marker);
+        let deadline = Instant::now() + Duration::from_secs(20);
+        loop {
+            pump();
+            match preview.frame() {
+                Err(ArtifactError::Unsupported) => break,
+                other => {
+                    assert!(other.is_ok(), "unexpected preflight result: {other:?}");
+                    assert!(
+                        Instant::now() < deadline,
+                        "missing sandbox preflight did not refuse"
+                    );
+                }
+            }
+        }
+        assert!(STRIPPED.with(Cell::get));
+        assert!(
+            reports.borrow().is_empty(),
+            "authored source must never execute on missing sandbox"
+        );
+        assert!(
+            unsafe { parent.subviews() }.is_empty(),
+            "sandbox refusal must detach source-free native view"
+        );
+        drop(preview);
+        drop(restore);
+        println!("PASS missing response sandbox: actual production preflight Unsupported, authored source never loaded/executed");
+    }
+
     pub(super) fn run() {
         let marker = MainThreadMarker::new().expect("main thread");
         let parent = unsafe {
@@ -304,6 +448,7 @@ mod macos {
         };
         let handle = Parent(Retained::as_ptr(&parent).cast_mut().cast());
         unavailable_controls(&handle, &parent);
+        missing_response_sandbox(&handle, &parent, marker);
         let http = HttpProbe::new();
         let udp = UdpSocket::bind("127.0.0.1:0").unwrap();
         udp.set_nonblocking(true).unwrap();
@@ -350,9 +495,13 @@ mod macos {
             "no STUN datagram"
         );
         assert_eq!(
-            unsafe { old_web.URL().unwrap().absoluteString().unwrap() }.to_string(),
-            "about:blank",
-            "no URL/file/daemon origin"
+            unsafe { old_web.URL().unwrap().absoluteString().unwrap() }
+                .to_string()
+                .split('#')
+                .next()
+                .unwrap(),
+            "rndr-artifact://preview/document",
+            "only an inert spent in-memory URL, never file/daemon origin"
         );
         assert!(matches!(
             preview.replace(&"x".repeat(MAX_ARTIFACT_HTML_BYTES + 1)),
@@ -384,6 +533,16 @@ mod macos {
           const p = s => webkit.messageHandlers.probe.postMessage(s);
           p(typeof window.count === 'undefined' && window.name === '' ? 'OK fresh JS and window state' : 'FAIL old state');
           fresh.click(); p(fresh.textContent === 'new local state' ? 'OK replacement local interaction' : 'FAIL interaction');
+          document.open(); document.write('<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src * data: blob: \'unsafe-inline\'\"><p>rewritten</p>'); document.close();
+          const blocked=f=>{try{f();return false}catch{return true}};
+          p(self.origin==='null' && blocked(()=>localStorage.setItem('x','1')) && blocked(()=>indexedDB.open('x')) ? 'OK sandbox persists after document.open/write' : 'FAIL sandbox lost after rewrite');
+          p(!navigator.clipboard && !document.fullscreenEnabled && !window.ApplePaySession ? 'OK capability denial persists after rewrite' : 'FAIL rewrite capabilities');
+          const form=document.createElement('form');form.action='http://127.0.0.1:1/rewrite-form';document.body.append(form);form.submit();
+          p(window.open('http://127.0.0.1:1/rewrite-popup')===null ? 'OK popup denied after rewrite' : 'FAIL rewrite popup');
+          try{location.href='http://127.0.0.1:1/rewrite-navigation'}catch{}
+          fetch('http://127.0.0.1:1/rewrite').then(()=>p('FAIL rewrite fetch'),()=>p('OK CSP persists after document.write'));
+          const replacementButton = document.createElement('button'); replacementButton.textContent='rewritten'; document.body.append(replacementButton);
+
           setInterval(() => p('HEARTBEAT'), 50);
           p('DONE');
         </script>"#).unwrap();
@@ -418,6 +577,58 @@ mod macos {
             old_frame(bounds, &parent),
             "replacement preserves logical bounds"
         );
+        let overlay = OverlayBitmap {
+            bounds: ClientRect::try_new(130., 90., 60., 30.).unwrap(),
+            width: 2,
+            height: 2,
+            rgba: [220, 50, 100, 128].repeat(4),
+            pointer_bounds: None,
+        };
+        preview
+            .set_overlays(std::slice::from_ref(&overlay))
+            .unwrap();
+        preview.frame().unwrap();
+        assert_eq!(
+            unsafe { parent.subviews() }.len(),
+            2,
+            "native alpha sibling above guest"
+        );
+        let image_identity = unsafe { Retained::as_ptr(&parent.subviews().objectAtIndex(1)) };
+        preview
+            .set_overlays(std::slice::from_ref(&overlay))
+            .unwrap();
+        preview.frame().unwrap();
+        assert_eq!(
+            unsafe { Retained::as_ptr(&parent.subviews().objectAtIndex(1)) },
+            image_identity,
+            "unchanged overlays do not rebuild native images"
+        );
+        let mut invalid = overlay.clone();
+        invalid.rgba.pop();
+        assert!(preview.set_overlays(&[invalid]).is_err());
+        preview.frame().unwrap();
+        assert_eq!(
+            unsafe { Retained::as_ptr(&parent.subviews().objectAtIndex(1)) },
+            image_identity,
+            "invalid submission preserves previous plane"
+        );
+        preview.hide();
+        preview.frame().unwrap();
+        let children = unsafe { parent.subviews() };
+        assert!((0..children.len()).all(|i| unsafe { children.objectAtIndex(i).isHidden() }));
+        preview.show();
+        preview.frame().unwrap();
+        let children = unsafe { parent.subviews() };
+        assert!((0..children.len()).all(|i| !unsafe { children.objectAtIndex(i).isHidden() }));
+        preview.set_overlays(&[]).unwrap();
+        preview.frame().unwrap();
+        assert_eq!(
+            unsafe { parent.subviews() }.len(),
+            1,
+            "empty submission removes sibling"
+        );
+        preview.set_overlays(&[overlay]).unwrap();
+        preview.frame().unwrap();
         drop(new_web);
         let reports_at_drop = new_reports.borrow().len();
         drop(preview);

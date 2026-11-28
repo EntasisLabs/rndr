@@ -21,6 +21,7 @@ members = [
     "crates/rndr_media",
     "examples/expand",
     "examples/idle",
+    "examples/native-artifact-host",
     "examples/desktop",
     "examples/overlay",
     "examples/palette",

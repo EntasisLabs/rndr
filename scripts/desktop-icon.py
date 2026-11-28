@@ -27,10 +27,22 @@ def png(size):
     return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 6, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(bytes(rows))) + chunk(b"IEND", b"")
 
 
+def ico(sizes):
+    # PNG-compressed entries (supported by current Windows versions).
+    header = struct.pack("<HHH", 0, 1, len(sizes))
+    entries, images = bytearray(), bytearray()
+    offset = len(header) + 16 * len(sizes)
+    for size in sizes:
+        image = png(size)
+        entries.extend(struct.pack("<BBBBHHII", size % 256, size % 256, 0, 0,
+                                   1, 32, len(image), offset + len(images)))
+        images.extend(image)
+    return header + entries + images
+
+
 if __name__ == "__main__":
     directory = pathlib.Path(sys.argv[1])
-    directory.mkdir(parents=True, exist_ok=False)
-    for logical in [16, 32, 128, 256, 512]:
-        for scale in [1, 2]:
-            suffix = "@2x" if scale == 2 else ""
-            (directory / f"icon_{logical}x{logical}{suffix}.png").write_bytes(png(logical * scale))
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "app.png").write_bytes(png(1024))
+    (directory / "window.png").write_bytes(png(256))
+    (directory / "app.ico").write_bytes(ico([16, 24, 32, 48, 64, 128, 256]))

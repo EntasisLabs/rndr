@@ -65,11 +65,19 @@ mod macos;
 #[cfg(all(target_os = "macos", feature = "macos-private-webkit-artifacts"))]
 mod macos_artifact;
 #[cfg(all(target_os = "macos", feature = "macos-private-webkit-artifacts"))]
+mod macos_artifact_diagnostics;
+#[cfg(all(target_os = "macos", feature = "macos-private-webkit-artifacts"))]
+mod macos_artifact_document;
+#[cfg(all(target_os = "macos", feature = "macos-private-webkit-artifacts"))]
 mod macos_artifact_input;
 #[cfg(target_os = "windows")]
 mod windows;
 
 pub use artifact::{ArtifactError, ArtifactPreview, ArtifactState, MAX_ARTIFACT_HTML_BYTES};
+mod overlay;
+pub use overlay::{OverlayBitmap, MAX_OVERLAYS, MAX_OVERLAY_BYTES, MAX_OVERLAY_SIDE};
+#[cfg(all(target_os = "macos", feature = "macos-private-webkit-artifacts"))]
+mod macos_artifact_overlay;
 pub use contract::{admit_client_rect, ClientRect, RectError};
 pub use session::{Browser, BrowserError, BrowserEvent, IntentToken};
 

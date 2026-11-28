@@ -1,5 +1,5 @@
 <!doctype html><html><head>
-<!-- A guest cannot loosen the inherited host CSP, change the sandbox, or base. -->
+<!-- A guest cannot loosen the response-header CSP/sandbox or change base. -->
 <meta http-equiv="Content-Security-Policy" content="default-src * data: blob: 'unsafe-inline' 'unsafe-eval'">
 <base href="{{HTTP}}/">
 <link rel="stylesheet" href="{{HTTP}}/stylesheet">
@@ -23,18 +23,22 @@
   window.count = 0; window.name = 'old artifact secret';
   counter.click(); counter.click();
   check(counter.textContent === '2', 'local inline interaction');
-  check(denied(() => parent.document.body), 'opaque origin parent DOM');
+  check(self.origin === 'null' && parent === self && top === self, 'opaque standalone document without host DOM');
   check(denied(() => localStorage.setItem('artifact', 'secret')), 'localStorage');
   check(denied(() => sessionStorage.setItem('artifact', 'secret')), 'sessionStorage');
   let cookiesBlocked = denied(() => document.cookie='artifact=secret');
   if (!cookiesBlocked) cookiesBlocked = document.cookie === '';
   check(cookiesBlocked, 'cookies inaccessible or ignored');
   check(denied(() => indexedDB.open('artifact')), 'IndexedDB opaque origin');
-  check(!window.caches || await bounded(caches.open('artifact').then(()=>false,()=>true)), 'cache storage');
+  check(denied(() => window.caches) || !window.caches || await bounded(caches.open('artifact').then(()=>false,()=>true)), 'cache storage');
   check(window.open('{{HTTP}}/popup') === null, 'popup');
-  check(denied(() => top.location='{{HTTP}}/top-navigation'), 'top navigation');
-  check(!navigator.serviceWorker || await bounded(navigator.serviceWorker.register('{{HTTP}}/sw.js').then(()=>false,()=>true)), 'service worker');
+  try { top.location='{{HTTP}}/top-navigation'; } catch { } // native action gate must veto
+  check(self.origin === 'null', 'opaque origin after navigation attempt');
+  check(denied(() => navigator.serviceWorker) || !navigator.serviceWorker || await bounded(navigator.serviceWorker.register('{{HTTP}}/sw.js').then(()=>false,()=>true)), 'service worker');
   check(await bounded(fetch('{{HTTP}}/fetch').then(()=>false,()=>true)), 'fetch');
+  check(await bounded(fetch('rndr-artifact://preview/document').then(()=>false,()=>true)), 'spent document transport');
+  check(await bounded(fetch('rndr-artifact://preview/preflight').then(()=>false,()=>true)), 'spent preflight transport');
+  check(await bounded(fetch('/relative-network').then(()=>false,()=>true)), 'relative fetch');
   check(await bounded(fetch('file:///etc/passwd').then(()=>false,()=>true)), 'file fetch');
   check(await bounded(fetch('medousa://invoke/native-command').then(()=>false,()=>true)), 'custom scheme fetch');
   const workerBlocked = await bounded(new Promise(resolve => {
@@ -47,7 +51,10 @@
   }));
   check(workerBlocked, 'worker execution blocked');
   check(denied(() => new WebSocket('{{WS}}/socket')), 'websocket');
-  check(!navigator.clipboard, 'clipboard permission API absent in opaque context');
+  check(!navigator.clipboard, 'async clipboard API disabled');
+  check(!document.fullscreenEnabled, 'fullscreen disabled');
+  check(!window.ApplePaySession && !window.PaymentRequest, 'payment APIs disabled');
+  check(!navigator.usb, 'USB API unavailable');
   check(!document.execCommand('paste'), 'DOM paste denied');
   check(!navigator.mediaDevices || await bounded(navigator.mediaDevices.getUserMedia({audio:true,video:true}).then(()=>false,()=>true)), 'camera and microphone denied');
   check(!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia || await bounded(navigator.mediaDevices.getDisplayMedia({video:true}).then(()=>false,()=>true)), 'display capture denied');

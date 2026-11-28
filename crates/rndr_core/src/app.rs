@@ -293,8 +293,19 @@ impl App {
         }
         timing::finish(&self.world, FrameStage::Layout, layout_timing);
         let text_timing = timing::start(&self.world);
-        apply_text_layout(&mut self.world);
-        apply_mono_grid(&mut self.world);
+        // A later label, style run, or grid can grow a shared atlas and
+        // invalidate quads built earlier in this pass. Retry presentation only:
+        // never repeat application systems, input, or begin_frame. Retained
+        // layouts/mono rows then all refer to the same stable engine epoch.
+        let engine = crate::text::text_engine(&self.world);
+        loop {
+            let epoch = engine.cache_epoch();
+            apply_text_layout(&mut self.world);
+            apply_mono_grid(&mut self.world);
+            if engine.cache_epoch() == epoch {
+                break;
+            }
+        }
         timing::finish(&self.world, FrameStage::Text, text_timing);
         crate::prompt::reveal_prompts(&mut self.world);
         crate::editor::apply_decorations(&mut self.world);

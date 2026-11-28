@@ -35,7 +35,35 @@ pub(crate) fn configure_event_loop(builder: &mut EventLoopBuilder, config: &Wind
     }
 }
 
-pub(crate) fn attributes(config: &WindowConfig) -> WindowAttributes {
+pub(crate) fn register_app_id(app_id: Option<&str>) {
+    #[cfg(target_os = "windows")]
+    if let Some(id) = app_id {
+        use windows_sys::Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID;
+        let mut wide: Vec<_> = id.encode_utf16().collect();
+        assert!(
+            !wide.is_empty()
+                && wide.len() <= 128
+                && !wide.contains(&0)
+                && !id.contains(char::is_whitespace),
+            "invalid AppUserModelID"
+        );
+        wide.push(0);
+        // SAFETY: NUL-terminated UTF-16 valid for the duration of the call.
+        let result = unsafe { SetCurrentProcessExplicitAppUserModelID(wide.as_ptr()) };
+        assert!(
+            result >= 0,
+            "SetCurrentProcessExplicitAppUserModelID failed: {result:#x}"
+        );
+    }
+    #[cfg(not(target_os = "windows"))]
+    let _ = app_id;
+}
+
+pub(crate) fn attributes(
+    config: &WindowConfig,
+    event_loop: &dyn ActiveEventLoop,
+    app_id: Option<&str>,
+) -> WindowAttributes {
     let mut attrs = WindowAttributes::default()
         .with_title(config.title.clone())
         .with_surface_size(LogicalSize::new(
@@ -53,8 +81,10 @@ pub(crate) fn attributes(config: &WindowConfig) -> WindowAttributes {
             },
         );
     #[cfg(not(target_arch = "wasm32"))]
+    let icon = crate::lifecycle::window_icon();
+    #[cfg(not(any(target_arch = "wasm32", target_os = "windows")))]
     {
-        attrs = attrs.with_window_icon(crate::lifecycle::window_icon());
+        attrs = attrs.with_window_icon(icon);
     }
     if let Some(min) = config.min_size {
         attrs = attrs.with_min_surface_size(LogicalSize::new(
@@ -69,6 +99,7 @@ pub(crate) fn attributes(config: &WindowConfig) -> WindowAttributes {
     #[cfg(target_os = "windows")]
     {
         use winit::platform::windows::{BackdropType, WindowAttributesWindows};
+        attrs = attrs.with_window_icon(icon.clone());
         let backdrop = match config.backdrop {
             Backdrop::None => None,
             Backdrop::Window => Some(BackdropType::MainWindow),
@@ -76,7 +107,6 @@ pub(crate) fn attributes(config: &WindowConfig) -> WindowAttributes {
             Backdrop::Sidebar => Some(BackdropType::TabbedWindow),
         }
         .filter(|_| config.transparent);
-        let icon = crate::lifecycle::window_icon();
         if config.skip_taskbar || backdrop.is_some() || icon.is_some() {
             let mut windows = WindowAttributesWindows::default()
                 .with_skip_taskbar(config.skip_taskbar)
@@ -104,13 +134,32 @@ pub(crate) fn attributes(config: &WindowConfig) -> WindowAttributes {
         target_os = "netbsd",
         target_os = "openbsd"
     ))]
-    if config.skip_taskbar {
+    if session_is_wayland(event_loop) {
+        if let Some(id) = app_id {
+            use winit::platform::wayland::WindowAttributesWayland;
+            attrs = attrs.with_platform_attributes(Box::new(
+                WindowAttributesWayland::default().with_name(id, ""),
+            ));
+        }
+    } else if config.skip_taskbar || app_id.is_some() {
         use winit::platform::x11::{WindowAttributesX11, WindowType};
-        // Wayland ignores X11 window types. On X11, utility windows stay off the taskbar.
-        attrs = attrs.with_platform_attributes(Box::new(
-            WindowAttributesX11::default().with_x11_window_type(vec![WindowType::Utility]),
-        ));
+        let mut x11 = WindowAttributesX11::default();
+        if let Some(id) = app_id {
+            x11 = x11.with_name(id, id);
+        }
+        if config.skip_taskbar {
+            x11 = x11.with_x11_window_type(vec![WindowType::Utility]);
+        }
+        attrs = attrs.with_platform_attributes(Box::new(x11));
     }
+    #[cfg(not(any(
+        target_os = "linux",
+        target_os = "dragonfly",
+        target_os = "freebsd",
+        target_os = "netbsd",
+        target_os = "openbsd"
+    )))]
+    let _ = (event_loop, app_id);
     #[cfg(target_arch = "wasm32")]
     {
         attrs = attrs.with_platform_attributes(Box::new(web_canvas()));

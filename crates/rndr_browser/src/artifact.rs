@@ -5,7 +5,7 @@ use raw_window_handle::HasWindowHandle;
 use std::fmt;
 
 /// Maximum UTF-8 source bytes accepted by an artifact preview (2 MiB).
-/// The envelope may use up to six times this space while escaping attributes.
+/// The preview copy adds only a small root-viewport style.
 pub const MAX_ARTIFACT_HTML_BYTES: usize = 2 * 1024 * 1024;
 
 /// Failure to admit, isolate, or load an artifact. There is no browser fallback.
@@ -24,6 +24,8 @@ pub enum ArtifactError {
     Policy(String),
     /// The native load failed or the web content process terminated.
     LoadFailed,
+    /// Host overlay admission or native image allocation failed.
+    Overlay(&'static str),
 }
 
 impl fmt::Display for ArtifactError {
@@ -38,6 +40,7 @@ impl fmt::Display for ArtifactError {
             }
             Self::Browser(error) => write!(f, "artifact view: {error}"),
             Self::Rect(error) => write!(f, "{error}"),
+            Self::Overlay(error) => write!(f, "artifact host overlay: {error}"),
             Self::Policy(error) => write!(f, "artifact policy was not installed: {error}"),
             Self::LoadFailed => {
                 f.write_str("artifact load failed or its content process terminated")
@@ -47,14 +50,14 @@ impl fmt::Display for ArtifactError {
 }
 impl std::error::Error for ArtifactError {}
 
-/// State of the trusted envelope's load, not a claim that guest scripts finished.
+/// State of the isolated document load; neither script completion nor a paint acknowledgment.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ArtifactState {
-    /// Native deny-all resource policy is compiling. No artifact is loaded yet.
+    /// Resource policy and source-free sandbox preflight are preparing. No artifact is loaded yet.
     Preparing,
-    /// Policy is installed and the envelope is loading.
+    /// Policy and sandbox are verified and the artifact document is loading.
     Loading,
-    /// The envelope finished loading. Local scripts may continue running.
+    /// The document finished navigation. Local scripts may continue running.
     Ready,
 }
 
@@ -82,6 +85,8 @@ pub struct ArtifactPreview {
     engine: crate::macos_artifact::ArtifactWebKit,
     bounds: ClientRect,
     visible: bool,
+    overlays: Vec<crate::OverlayBitmap>,
+    overlays_revision: u64,
 }
 
 impl ArtifactPreview {
@@ -95,6 +100,8 @@ impl ArtifactPreview {
                 engine: crate::macos_artifact::ArtifactWebKit::attach(parent, html)?,
                 bounds: ClientRect::try_new(0.0, 0.0, 0.0, 0.0).expect("zero rect"),
                 visible: false,
+                overlays: Vec::new(),
+                overlays_revision: 0,
             })
         }
         #[cfg(not(all(target_os = "macos", feature = "macos-private-webkit-artifacts")))]
@@ -127,6 +134,25 @@ impl ArtifactPreview {
         Ok(())
     }
 
+    /// Submit trusted host popup images, ordered back-to-front, above WebKit.
+    ///
+    /// Images have true alpha: guest content remains visible under rounded
+    /// corners and shadows. This is host-only input, never guest readback.
+    /// Changes apply on [`Self::frame`]; an empty slice clears all images.
+    /// Admission is atomic and bounded by [`crate::MAX_OVERLAY_BYTES`],
+    /// [`crate::MAX_OVERLAYS`] and [`crate::MAX_OVERLAY_SIDE`]. Identical
+    /// submissions are no-ops. Cache raster work on the host; this method does
+    /// not capture or evaluate HTML. Hidden/failed/dropped previews hide or
+    /// retire their overlays, and replacement retains the submitted images.
+    pub fn set_overlays(&mut self, overlays: &[crate::OverlayBitmap]) -> Result<(), ArtifactError> {
+        crate::overlay::validate(overlays)?;
+        if self.overlays != overlays {
+            self.overlays = overlays.to_vec();
+            self.overlays_revision = self.overlays_revision.wrapping_add(1);
+        }
+        Ok(())
+    }
+
     /// Show on the next frame, provided the submitted bounds have area.
     pub fn show(&mut self) {
         self.visible = true;
@@ -145,6 +171,8 @@ impl ArtifactPreview {
             self.engine.frame(
                 self.bounds,
                 self.visible && self.bounds.width > 0.0 && self.bounds.height > 0.0,
+                self.overlays_revision,
+                &self.overlays,
             )
         }
         #[cfg(not(all(target_os = "macos", feature = "macos-private-webkit-artifacts")))]
@@ -162,44 +190,32 @@ fn validate(html: &str) -> Result<(), ArtifactError> {
     }
 }
 
-// Trusted policy, outside guest control. A srcdoc inherits the containing CSP;
-// a guest meta policy can only tighten it. The sandbox attribute is not in the
-// guest document, so document.write, markup repair and JS cannot remove it.
+// Source preparation is layout-only. Immutable response CSP and the native
+// transport enforce isolation; no security boundary depends on authored markup.
 #[cfg(any(
     test,
     all(target_os = "macos", feature = "macos-private-webkit-artifacts")
 ))]
-pub(crate) fn envelope(html: &str) -> String {
-    let mut escaped = String::with_capacity(html.len());
-    for c in html.chars() {
-        match c {
-            '&' => escaped.push_str("&amp;"),
-            '"' => escaped.push_str("&quot;"),
-            '<' => escaped.push_str("&lt;"),
-            '>' => escaped.push_str("&gt;"),
-            _ => escaped.push(c),
-        }
-    }
-    format!(
-        r#"<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; frame-src 'self'; connect-src 'none'; font-src 'none'; media-src 'none'; object-src 'none'; worker-src 'none'; base-uri 'none'; form-action 'none'"><meta name="referrer" content="no-referrer"><style>html,body{{margin:0;width:100%;height:100%;overflow:hidden}}iframe{{border:0;width:100%;height:100%}}</style></head><body><iframe sandbox="allow-scripts" allow="camera 'none'; microphone 'none'; geolocation 'none'; display-capture 'none'; clipboard-read 'none'; clipboard-write 'none'; fullscreen 'none'; payment 'none'; usb 'none'" referrerpolicy="no-referrer" srcdoc="{escaped}"></iframe></body></html>"#
-    )
+pub(crate) fn document_html(html: &str) -> String {
+    // Preserve doctype/quirks, authored layout and nested scroll semantics.
+    format!("{html}\n<style data-rndr-artifact-viewport>html:root{{overscroll-behavior:none!important}}</style>")
 }
 
-// Only the trusted host may arm a load. Each view accepts one envelope and
-// its one initial direct srcdoc child; there are no subsequent navigations.
+// One exact native-armed MAIN document, then one response. No guest-created
+// subframes, new windows, reloads, redirects, or downloads are armed.
+// Engine-handled same-document anchors cannot deliver new bytes.
 #[cfg(any(test, target_os = "macos"))]
 #[derive(Default)]
 pub(crate) struct ArtifactNavigation {
-    envelope: bool,
-    srcdoc: bool,
+    action: Option<&'static str>,
+    response: Option<&'static str>,
 }
-
 #[cfg(any(test, target_os = "macos"))]
 impl ArtifactNavigation {
     #[cfg(any(test, feature = "macos-private-webkit-artifacts"))]
-    pub(crate) fn arm(&mut self) {
-        self.envelope = true;
-        self.srcdoc = true;
+    pub(crate) fn arm(&mut self, url: &'static str) {
+        self.action = Some(url);
+        self.response = None;
     }
     pub(crate) fn admit(
         &mut self,
@@ -208,23 +224,20 @@ impl ArtifactNavigation {
         source_main: bool,
         download: bool,
     ) -> bool {
-        if download {
-            return false;
+        if !download && source_main && target_main == Some(true) && self.action == Some(url) {
+            self.response = self.action.take();
+            true
+        } else {
+            false
         }
-        if url == "about:blank" && target_main == Some(true) && self.envelope {
-            self.envelope = false;
-            return true;
+    }
+    pub(crate) fn admit_response(&mut self, url: &str, main: bool) -> bool {
+        if main && self.response == Some(url) {
+            self.response = None;
+            true
+        } else {
+            false
         }
-        if url == "about:srcdoc"
-            && target_main == Some(false)
-            && source_main
-            && !self.envelope
-            && self.srcdoc
-        {
-            self.srcdoc = false;
-            return true;
-        }
-        false
     }
 }
 
@@ -232,32 +245,46 @@ impl ArtifactNavigation {
 mod tests {
     use super::*;
     #[test]
-    fn native_navigation_gate_accepts_only_host_envelope_and_initial_child() {
+    fn viewport_presentation_contains_only_root_edges_without_rewriting_source() {
+        let original = "<!doctype html><style>.nested{overflow:auto;overscroll-behavior:contain}</style><body>ok</body>";
+        let wrapper = document_html(original);
+        assert!(wrapper.starts_with(original));
+        assert!(wrapper.contains(".nested{overflow:auto;overscroll-behavior:contain}"));
+        assert!(wrapper.contains("html:root{overscroll-behavior:none!important}"));
+        assert!(!wrapper.contains("*{overscroll"));
+        assert!(original.ends_with("<body>ok</body>"));
+    }
+
+    #[test]
+    fn native_navigation_gate_accepts_only_armed_main_action_and_response() {
+        const URL: &str = "rndr-artifact://preview/document";
         let mut gate = ArtifactNavigation::default();
-        assert!(!gate.admit("about:blank", Some(true), true, false));
-        gate.arm();
+        assert!(!gate.admit(URL, Some(true), true, false));
+        gate.arm(URL);
         for url in [
-            "https://example.com",
-            "http://localhost:9999",
+            "about:blank",
+            "about:srcdoc",
+            "http://localhost",
             "file:///etc/passwd",
             "data:text/html,hello",
             "blob:opaque",
             "medousa:invoke",
-            "javascript:alert(1)",
-            "about:blank#hash",
+            "rndr-artifact://preview/document#hash",
+            "rndr-artifact://preview/document?x",
         ] {
-            for target in [None, Some(true), Some(false)] {
-                assert!(!gate.admit(url, target, true, false), "{url} {target:?}");
-            }
+            assert!(!gate.admit(url, Some(true), true, false));
+            assert!(!gate.admit_response(url, true));
         }
-        assert!(!gate.admit("about:blank", Some(true), true, true));
-        assert!(!gate.admit("about:blank", None, true, false));
-        assert!(!gate.admit("about:srcdoc", Some(false), true, false));
-        assert!(gate.admit("about:blank", Some(true), true, false));
-        assert!(!gate.admit("about:blank", Some(true), true, false));
-        assert!(!gate.admit("about:srcdoc", Some(false), false, false));
-        assert!(gate.admit("about:srcdoc", Some(false), true, false));
-        assert!(!gate.admit("about:srcdoc", Some(false), true, false));
+        assert!(!gate.admit(URL, None, true, false));
+        assert!(!gate.admit(URL, Some(false), true, false));
+        assert!(!gate.admit(URL, Some(true), false, false));
+        assert!(!gate.admit(URL, Some(true), true, true));
+        assert!(!gate.admit_response(URL, true));
+        assert!(gate.admit(URL, Some(true), true, false));
+        assert!(!gate.admit(URL, Some(true), true, false));
+        assert!(!gate.admit_response(URL, false));
+        assert!(gate.admit_response(URL, true));
+        assert!(!gate.admit_response(URL, true));
     }
     #[test]
     fn bounds_are_utf8_bytes_and_empty_is_valid() {
@@ -269,17 +296,9 @@ mod tests {
         );
     }
     #[test]
-    fn hostile_markup_cannot_close_or_modify_the_sandbox() {
-        let wrapper = envelope("\">< /iframe></iframe><script>parent.hacked=1</script>&quot;");
-        assert_eq!(wrapper.matches("<iframe ").count(), 1);
-        assert_eq!(wrapper.matches("</iframe>").count(), 1);
-        assert_eq!(wrapper.matches("<script>").count(), 0);
-        assert!(wrapper.contains("sandbox=\"allow-scripts\""));
-        assert!(!wrapper.contains("allow-same-origin"));
-        assert!(wrapper.contains("&amp;quot;"));
-        assert!(wrapper.contains("connect-src 'none'"));
-        assert!(
-            wrapper.find("Content-Security-Policy").unwrap() < wrapper.find("srcdoc=").unwrap()
-        );
+    fn document_source_is_not_rewritten_or_wrapped_in_a_scrolling_subframe() {
+        let html = "<!doctype html><script>document.write('authored')</script></iframe>&quot;";
+        assert!(document_html(html).starts_with(html));
+        assert!(!document_html("hello").contains("iframe"));
     }
 }

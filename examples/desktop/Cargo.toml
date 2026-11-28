@@ -12,3 +12,6 @@ rndr_core.workspace = true
 rndr_paint.workspace = true
 rndr_render = { path = "../../crates/rndr_render", default-features = false, features = ["parley", "accesskit"] }
 serde = { version = "1", features = ["derive"] }
+
+[build-dependencies]
+embed-resource = "3.0"

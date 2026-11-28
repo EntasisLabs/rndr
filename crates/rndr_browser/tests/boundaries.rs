@@ -91,7 +91,6 @@ fn sources_do_not_grow_a_guest_command_bridge() {
         "evaluateJavaScript",
         "evaluate_script",
         "WKScriptMessageHandler",
-        "WKURLSchemeHandler",
         "findString",
         "READ_GUEST",
         "post_message",
@@ -104,6 +103,12 @@ fn sources_do_not_grow_a_guest_command_bridge() {
     ];
     for path in files {
         let text = std::fs::read_to_string(&path).unwrap();
+        if path.file_name().unwrap() != "macos_artifact_document.rs" {
+            assert!(
+                !text.contains("WKURLSchemeHandler"),
+                "scheme transport escaped its artifact-only module"
+            );
+        }
         for needle in forbidden {
             assert!(
                 !text.contains(needle),
@@ -138,7 +143,8 @@ fn private_artifact_backend_requires_explicit_opt_in() {
         .unwrap();
     assert!(features
         .lines()
-        .any(|line| line == "macos-private-webkit-artifacts = []"));
+        .any(|line| line.starts_with("macos-private-webkit-artifacts = [")));
+    assert!(features.contains("\"objc2-app-kit/NSImageView\""));
     for line in features
         .lines()
         .filter(|line| !line.trim_start().starts_with('#'))

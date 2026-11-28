@@ -54,7 +54,7 @@ preview.show();
 // In the application's frame/event-loop integration, repeatedly:
 match preview.frame()? {
     ArtifactState::Preparing => { /* native resource rules not installed yet */ }
-    ArtifactState::Loading => { /* trusted envelope loading */ }
+    ArtifactState::Loading => { /* isolated document navigation loading */ }
     ArtifactState::Ready => { /* local guest interaction can continue */ }
 }
 // Replacement creates another isolated session, not a navigation in the old one.
@@ -66,16 +66,16 @@ drop(preview);
 
 The input is UTF-8 `&str`, capped at **2 MiB of source bytes**, including on
 unsupported platforms. Empty input is valid. Admission happens before parent
-access or native view creation. Escaping can expand the admitted source by up to
-six times plus the fixed trusted envelope. The caller must separately bound its
+access or native view creation. The preview copy adds a small root-viewport style; it is not attribute escaped. The caller must separately bound its
 fetch/decompression/UTF-8 decoding before constructing the string.
 
 `attach` returns a hidden preview; drive `frame()` and the native event loop even
-while preparing. No guest source is loaded until the native deny-all resource
-rule list successfully compiles and is installed. Compiler errors and a
+while preparing. No guest source is loaded until the native resource
+rule list compiles, is installed, and a trusted source-free response-sandbox
+preflight passes. Compiler errors and a
 15-second compilation timeout produce sticky `ArtifactError::Policy` errors and
 retire the failed view. A failed main-document load or content-process exit
-produces `LoadFailed`. `Ready` describes the envelope load, **not** script
+produces `LoadFailed`. `Ready` describes document navigation completion, **not** paint or script
 completion or an attestation of every possible guest behavior.
 
 `show`/`hide` and bounds apply on the next frame. Zero-area bounds hide the view;
@@ -91,26 +91,33 @@ WKWebView proved insufficient to stop its timers in the live probe.
 
 On the explicitly opted-in macOS path:
 
-* `loadHTMLString(..., baseURL: nil)` loads only a trusted envelope. No file,
-  daemon endpoint, HTTP origin, asset protocol or ordinary browser profile is
-  assigned to the artifact.
-* The escaped source is one `srcdoc` child with **only** `sandbox="allow-scripts"`.
-  There is no `allow-same-origin`, popups, forms, downloads, modals or top-level
-  navigation capability. The guest cannot edit its parent's sandbox attribute.
-* A restrictive CSP is in the trusted envelope **before** the child. Srcdoc
-  inherits that CSP; guest markup can tighten, not loosen it. Inline script and
-  style plus data images are allowed. Connect, external scripts/styles/images,
-  fonts, media, objects, workers, base changes and forms are blocked. `eval`,
-  dynamic function compilation and WebAssembly compilation are not enabled.
-* A compiled WebKit deny-all content rule list independently blocks resource
-  requests, rather than relying on guest CSP declarations or text filtering.
-* The navigation delegate admits exactly one host envelope and its one initial
-  direct srcdoc child. All later navigation, custom/file/data/blob destinations,
-  child browsing contexts, new-window targets and downloads are refused. Local
-  DOM updates remain available. Artifacts needing nested iframes are unsupported.
+* A per-view in-memory `WKURLSchemeHandler` serves exactly two GET responses,
+  each once: `rndr-artifact://preview/preflight` and `.../document`. It has no
+  file/network resolver, daemon origin, global registry or reusable asset API.
+  Wrong methods/URLs and repeated requests fail; retirement clears pending bytes.
+* The actual guest is a **main document**, avoiding WebKit's asynchronous
+  scrolling-subframe presentation path. An immutable **response-header** CSP
+  supplies `sandbox allow-scripts`, without same-origin, forms, popups, downloads,
+  modals or top-navigation capabilities. Meta CSP cannot supply a sandbox and is
+  not used for this security boundary. A source-free trusted preflight verifies
+  `self.origin === 'null'` plus `localStorage` SecurityError before the transport
+  is armed with any authored source. Missing enforcement returns `Unsupported`.
+* That same response CSP allows inline script/style and data images only.
+  Connect, external scripts/styles/images, fonts, media, objects, workers, base
+  changes and forms are blocked. `eval`, dynamic function and WebAssembly
+  compilation are not enabled. Authored meta policy cannot loosen response CSP;
+  `document.open/write/close` cannot remove the response sandbox.
+* A compiled deny-all resource rule list independently blocks requests. Its two
+  exact in-memory URL exceptions are not resource grants: a synchronous one-shot
+  transport and native navigation gates reject any reuse/subframe/resource load.
+* Native action AND response policies admit only the exact currently native-armed
+  main-document URL, once. Guest navigation, child contexts, reloads, redirects,
+  new-window targets and downloads are refused. Engine-handled same-document
+  anchors and local DOM updates remain available, without delivering new bytes.
+  Artifacts needing nested iframes remain unsupported.
 * Every view uses a new nonpersistent website data store, process pool and empty
   user-content controller. Opaque-origin access prevents cookies/storage,
-  parent DOM and service workers. No script handler, native command bridge,
+  service workers and any separate host DOM (there is no privileged containing page). No script handler, native command bridge,
   guest message API, navigation intent, download intent or file-selection intent
   is exposed by `ArtifactPreview`. It has no host script-evaluation API either.
 * The native UI delegate denies file selection, drag-in and native context menus
@@ -119,16 +126,21 @@ On the explicitly opted-in macOS path:
   entering through native paste. Ordinary browsing and host controls are not
   covered by that monitor. Programmatic clipboard access and permissions are
   disabled independently; normal typed local inputs still work.
-* The sandbox/iframe permissions policy and existing deny decisions prevent
-  camera, microphone, geolocation, display capture and other permission grants.
-  This does not ask the host to decide whether to grant a guest's request.
+* A response Permissions-Policy denies camera/mic/geo/display capture,
+  clipboard, fullscreen, payments and USB as defense in depth. WebKit does NOT
+  enforce every such directive; it is never the sole gate. Native delegates deny
+  capture/file/dialog requests; opaque origin denies geolocation/storage; guarded
+  preferences disable async clipboard and payments; public preferences disable
+  fullscreen. These APIs are exercised in the native policy probe, without prompts.
+  This does not ask the host to grant a guest request.
 
 **Important macOS deployment limitation:** public WebKit resource policy APIs do
 not close the complete no-network contract. The live probe demonstrated that
 `RTCPeerConnection` remained constructible with CSP `connect-src 'none'` and a
 content rule list. The strict backend therefore requires WebKit **private SPI**:
 verified preference setters/getters disable peer connections (ICE/STUN), DNS
-prefetch, filesystem access and JS/DOM clipboard access; delegate SPI vetoes drag
+prefetch, speculative link preconnect, filesystem access, async and JS/DOM
+clipboard access and payments; delegate SPI vetoes drag
 and context menus; `_close` is required to retire the page. Missing/refused
 preference or close gates return `ArtifactError::Unsupported` **before guest loading**. There
 is no fallback to JS API shadowing or less isolated browsing.
@@ -144,7 +156,7 @@ native child and add script handlers, bypass delegates/preferences, retain and
 manipulate closed pages, route app-provided file/paste actions into it, or feed
 native clipboard/drop data to guest scripts. The example harness adds an
 **observation-only test handler**; the library does not do this, even with the
-harness feature enabled. The rule compiler may cache the constant deny-all rule
+harness feature enabled. The rule compiler may cache the constant rule list
 on disk; it is never given artifact HTML. Ephemeral website data is not a promise
 against OS swap, engine crash logs or a compromised host.
 

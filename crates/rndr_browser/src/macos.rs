@@ -62,6 +62,8 @@ struct HostInner {
     artifact: bool,
     artifact_navigation: RefCell<crate::artifact::ArtifactNavigation>,
     artifact_load: Cell<LoadOutcome>,
+    #[cfg(feature = "macos-private-webkit-artifacts")]
+    artifact_trace: RefCell<Option<crate::macos_artifact_diagnostics::Trace>>,
     alive: Cell<bool>,
     stop_requested: Cell<bool>,
     next: Cell<u64>,
@@ -89,11 +91,22 @@ struct FileSlot {
 }
 
 impl HostInner {
+    fn trace_artifact(&self, name: &'static str) {
+        #[cfg(feature = "macos-private-webkit-artifacts")]
+        if let Some(trace) = self.artifact_trace.borrow().as_ref() {
+            trace.lifecycle(name);
+        }
+        #[cfg(not(feature = "macos-private-webkit-artifacts"))]
+        let _ = name;
+    }
+
     fn new() -> Self {
         Self {
             artifact: false,
             artifact_navigation: RefCell::new(crate::artifact::ArtifactNavigation::default()),
             artifact_load: Cell::new(LoadOutcome::Idle),
+            #[cfg(feature = "macos-private-webkit-artifacts")]
+            artifact_trace: RefCell::new(None),
             alive: Cell::new(true),
             stop_requested: Cell::new(false),
             next: Cell::new(0),
@@ -244,14 +257,19 @@ impl WebKit {
     }
 
     #[cfg(feature = "macos-private-webkit-artifacts")]
-    pub(crate) fn load_artifact_envelope(&self, html: &str) {
+    pub(crate) fn load_artifact_document(&self, url: &'static str) {
         debug_assert!(self.host.artifact);
-        self.host.artifact_navigation.borrow_mut().arm();
+        self.host.artifact_navigation.borrow_mut().arm(url);
         self.host.artifact_load.set(LoadOutcome::Loading);
-        unsafe {
-            self.web
-                .loadHTMLString_baseURL(&NSString::from_str(html), None)
-        };
+        self.navigate(url).expect("static internal document URL");
+    }
+
+    #[cfg(feature = "macos-private-webkit-artifacts")]
+    pub(crate) fn set_artifact_trace(
+        &self,
+        trace: Option<crate::macos_artifact_diagnostics::Trace>,
+    ) {
+        *self.host.artifact_trace.borrow_mut() = trace;
     }
 
     #[cfg(feature = "macos-private-webkit-artifacts")]
@@ -310,18 +328,30 @@ impl WebKit {
         let view: &NSView = &self.web;
         // Safety: `frame` is a finite rect the contract already admitted.
         // The view stays in the hierarchy even when hidden.
-        unsafe { view.setFrame(frame) };
-        view.setHidden(!visible);
+        unsafe {
+            // Steady host polls and unrelated hover repaints must not enter
+            // WebKit geometry/visibility setters for an unchanged viewport.
+            if view.frame() != frame {
+                view.setFrame(frame);
+            }
+            if view.isHidden() == visible {
+                view.setHidden(!visible);
+            }
+        }
     }
 
     pub(crate) fn show(&self) {
         let view: &NSView = &self.web;
-        view.setHidden(false);
+        if unsafe { view.isHidden() } {
+            view.setHidden(false);
+        }
     }
 
     pub(crate) fn hide(&self) {
         let view: &NSView = &self.web;
-        view.setHidden(true);
+        if !unsafe { view.isHidden() } {
+            view.setHidden(true);
+        }
     }
 
     pub(crate) fn document(&self) -> crate::contract::LiveDocument {
@@ -513,8 +543,9 @@ declare_class!(
             if self.ivars().host.artifact {
                 let response = unsafe { navigation_response.response() };
                 let url = response_url(&response);
-                let allowed = matches!(url.as_str(), "about:blank" | "about:srcdoc")
-                    && unsafe { navigation_response.canShowMIMEType() };
+                let allowed = self.ivars().host.artifact_navigation.borrow_mut().admit_response(
+                    &url, unsafe { navigation_response.isForMainFrame() },
+                ) && unsafe { navigation_response.canShowMIMEType() };
                 decision_handler.call((if allowed { WKNavigationResponsePolicy::Allow } else { WKNavigationResponsePolicy::Cancel },));
                 return;
             }
@@ -621,6 +652,7 @@ declare_class!(
 
         #[method(webViewWebContentProcessDidTerminate:)]
         unsafe fn webViewWebContentProcessDidTerminate(&self, web_view: &WKWebView) {
+            self.ivars().host.trace_artifact("content_process_terminated");
             self.note_navigation(web_view, LoadOutcome::Failed);
         }
     }
@@ -828,6 +860,11 @@ impl WebKitHost {
 
     fn note_navigation(&self, web_view: &WKWebView, load: LoadOutcome) {
         if self.ivars().host.artifact {
+            self.ivars().host.trace_artifact(match load {
+                LoadOutcome::Finished => "navigation_finished_not_paint",
+                LoadOutcome::Failed => "navigation_failed",
+                _ => "navigation_progress",
+            });
             self.ivars().host.artifact_load.set(load);
             return;
         }
@@ -839,6 +876,7 @@ impl WebKitHost {
     fn note_failure(&self, web_view: &WKWebView, error: &NSError) {
         let host = &self.ivars().host;
         if host.artifact {
+            host.trace_artifact("navigation_error");
             host.artifact_load.set(LoadOutcome::Failed);
             return;
         }
