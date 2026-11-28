@@ -7,7 +7,7 @@ publish = false
 description = "Read-only viewer for a saved Create scene"
 
 [dependencies]
-base64 = "0.22"
+base64 = "0.23"
 rndr_canvas = { workspace = true }
 rndr_canvas_ui = { workspace = true }
 rndr_core = { workspace = true }
