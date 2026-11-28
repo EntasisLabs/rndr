@@ -180,8 +180,9 @@ mod world;
 mod wrap;
 
 pub use access::{
-    access_id, access_tree, apply_access, entity_from_access_id, AccessCommand, AccessMark,
-    AccessNode, AccessOverlay, AccessRole, AccessTree, CollectionAccess, DataAccess, DescribedBy,
+    access_id, access_overlay_can_activate, access_tree, allocate_access_overlay_id, apply_access,
+    entity_from_access_id, AccessCommand, AccessMark, AccessNode, AccessOverlay,
+    AccessOverlayActivate, AccessRole, AccessTree, CollectionAccess, DataAccess, DescribedBy,
     LivePoliteness, LiveRegion, NumericAccess, NumericAccessSet, ACCESS_ROOT,
 };
 pub use access_text::{access_text, AccessTextSnapshot, AccessTextState};

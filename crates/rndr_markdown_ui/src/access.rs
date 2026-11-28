@@ -18,6 +18,9 @@ use rndr_markdown::{Green, SyntaxKind};
 use crate::document::MarkdownId;
 use crate::surface::root_document;
 
+pub(crate) struct PublishedRevision(pub u64);
+impl rndr_core::Component for PublishedRevision {}
+
 /// Published tree plus the revision a later selection action must echo.
 #[derive(Clone, Debug)]
 pub struct MarkdownAccessSnapshot {
@@ -45,6 +48,68 @@ pub fn access_snapshot(world: &World, entity: rndr_core::Entity) -> Option<Markd
         selection: (session.anchor(), session.caret()),
         nodes,
     })
+}
+
+pub(crate) fn activate_published_link(
+    world: &mut World,
+    entity: rndr_core::Entity,
+    node: u64,
+) -> AccessCommandResult {
+    let Some(snapshot) = access_snapshot(world, entity) else {
+        return AccessCommandResult::Rejected;
+    };
+    activate_access_link(world, entity, &snapshot, node)
+}
+
+/// Activate a link from a still-current accessibility snapshot.
+///
+/// Overlay node IDs are not ECS entities, so native/host accessibility adapters
+/// route their link action here rather than through `AccessCommand::Activate`.
+/// Emits [`rndr_core::LinkActivated`] with the surface root and written target;
+/// never opens a URL. The host must validate schemes and resolve note paths.
+/// Stale documents/revisions, composition, and non-link IDs are rejected.
+/// Selection and source bytes are unchanged.
+pub fn activate_access_link(
+    world: &mut World,
+    entity: rndr_core::Entity,
+    snapshot: &MarkdownAccessSnapshot,
+    node_id: u64,
+) -> AccessCommandResult {
+    let Some(document) = root_document(world, entity) else {
+        return AccessCommandResult::Rejected;
+    };
+    if document != snapshot.document {
+        return AccessCommandResult::Rejected;
+    }
+    let Some(session) = world
+        .resource::<crate::MarkdownDocuments>()
+        .and_then(|docs| docs.get(document))
+    else {
+        return AccessCommandResult::Rejected;
+    };
+    if session.revision() != snapshot.revision
+        || session.is_composing()
+        || world.get::<PublishedRevision>(entity).map(|value| value.0) != Some(snapshot.revision)
+    {
+        return AccessCommandResult::Rejected;
+    }
+    if !rndr_core::access_overlay_can_activate(world, entity, node_id) {
+        return AccessCommandResult::Rejected;
+    }
+    // Resolve only against the currently published overlay, never caller-provided hrefs.
+    let Some(link) = world.get::<AccessOverlay>(entity).and_then(|overlay| {
+        overlay.nodes.iter().find(|node| {
+            node.id == node_id
+                && node.role == AccessRole::Link
+                && node.enabled
+                && !node.value.is_empty()
+        })
+    }) else {
+        return AccessCommandResult::Rejected;
+    };
+    let href = link.value.clone();
+    rndr_core::send(world, rndr_core::LinkActivated { view: entity, href });
+    AccessCommandResult::Applied
 }
 
 /// Move the caret when `snapshot` is still the published revision.
@@ -331,11 +396,8 @@ impl Builder<'_> {
                     | SyntaxKind::FootnoteRef
             ) {
                 let label = plain(self.bytes, child, child_at);
-                let dest = if child.kind() == SyntaxKind::Link {
-                    link_dest(child)
-                } else {
-                    String::new()
-                };
+                let bytes = &self.bytes[child_at..child_at + child.width()];
+                let dest = crate::links::at(bytes, child, 0).unwrap_or_default();
                 ids.push(self.push(
                     AccessRole::Link,
                     label,
@@ -370,13 +432,14 @@ impl Builder<'_> {
                 let mut cells = Vec::new();
                 for cell in child.children() {
                     if cell.kind() == SyntaxKind::TableCell {
+                        let links = self.inlines(cell, cell_at);
                         cells.push(self.push(
                             AccessRole::Cell,
                             String::new(),
                             plain(self.bytes, cell, cell_at),
                             None,
                             cell_at..cell_at + cell.width(),
-                            Vec::new(),
+                            links,
                         ));
                     }
                     cell_at += cell.width();
@@ -614,20 +677,4 @@ fn field_text(bytes: &str, node: &Green, at: usize) -> (String, String) {
         plain_value
     };
     (key, value)
-}
-
-fn link_dest(node: &Green) -> String {
-    let mut after = false;
-    let mut dest = String::new();
-    for child in node.children() {
-        if child.kind() == SyntaxKind::Delimiter && child.text() == "]" {
-            after = true;
-            continue;
-        }
-        if after {
-            dest.push_str(child.text());
-        }
-    }
-    dest.trim_matches(|c| c == '(' || c == ')' || c == '[' || c == ']')
-        .to_string()
 }

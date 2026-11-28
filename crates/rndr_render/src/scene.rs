@@ -14,7 +14,7 @@
 //! the shape, so a pan does not rebuild the blur, and the viewport clips the
 //! shadow only when the quad is composited.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::OnceLock};
 
 use rndr_core::World;
 use rndr_paint::{
@@ -228,15 +228,11 @@ pub(crate) fn choose_samples(adapter: &wgpu::Adapter, format: wgpu::TextureForma
     }
 }
 
-struct PipeSet {
-    samples: u32,
+struct GeomPipes {
     path: wgpu::RenderPipeline,
-    path_clip: wgpu::RenderPipeline,
-    path_in: wgpu::RenderPipeline,
+    clip: Option<wgpu::RenderPipeline>,
     sprite: wgpu::RenderPipeline,
-    sprite_in: wgpu::RenderPipeline,
     quad: wgpu::RenderPipeline,
-    quad_in: wgpu::RenderPipeline,
 }
 
 #[derive(Clone)]
@@ -245,18 +241,27 @@ struct TargetUse {
     texture: wgpu::Texture,
     color: wgpu::TextureView,
     msaa: Option<wgpu::TextureView>,
-    stencil: wgpu::TextureView,
+    stencil: Option<wgpu::TextureView>,
     bind: wgpu::BindGroup,
 }
+
+/// Bytes of offscreen targets kept for reuse beyond those the current frame
+/// draws into.
+pub(crate) const POOL_SPARE_BYTES: u64 = 256 << 20;
+/// Count of offscreen targets kept for reuse beyond those the current frame
+/// draws into.
+const POOL_SPARE_SLOTS: usize = 24;
 
 struct PoolSlot {
     width: u32,
     height: u32,
     samples: u32,
+    /// Estimated GPU bytes of every texture the slot holds.
+    bytes: u64,
     color_texture: wgpu::Texture,
     color_view: wgpu::TextureView,
     msaa_view: Option<wgpu::TextureView>,
-    stencil_view: wgpu::TextureView,
+    stencil_view: Option<wgpu::TextureView>,
     bind: wgpu::BindGroup,
     stamp: u64,
     _keep: Vec<wgpu::Texture>,
@@ -302,9 +307,11 @@ struct BlitDraw {
     transform: Affine,
     /// Device-pixel scissor on the composited quads. See [`NO_SCISSOR`].
     scissor: [f32; 4],
-    /// Device-pixel rect `bind` covers, for a blurred layer: x, y, width,
-    /// height. `None` covers the viewport.
+    /// Device-pixel rect `bind` covers: x, y, width, height.
+    /// `None` covers the viewport.
     place: Option<[f32; 4]>,
+    /// The content extent is conservative enough to crop a parent layer.
+    bounds_local: bool,
 }
 
 enum Drawn {
@@ -430,13 +437,17 @@ pub(crate) struct SceneGpu {
     sprite_layout: wgpu::BindGroupLayout,
     blur_layout: wgpu::BindGroupLayout,
     quad_layout: wgpu::BindGroupLayout,
-    blur_pipeline: wgpu::RenderPipeline,
+    blur_pipeline: OnceLock<wgpu::RenderPipeline>,
     blur_quad: wgpu::Buffer,
     image_sampler: wgpu::Sampler,
     glyph_sampler: wgpu::Sampler,
     glyph_sampler_linear: wgpu::Sampler,
-    plain: PipeSet,
-    msaa: Option<PipeSet>,
+    samples: u32,
+    geom: OnceLock<GeomPipes>,
+    geom_clipped: OnceLock<GeomPipes>,
+    path_shader: OnceLock<wgpu::ShaderModule>,
+    sprite_shader: wgpu::ShaderModule,
+    quad_shader: wgpu::ShaderModule,
     sprite_swap: wgpu::RenderPipeline,
     quad_pipeline: wgpu::RenderPipeline,
     quad_geo: wgpu::Buffer,
@@ -510,17 +521,9 @@ impl SceneGpu {
                 sampler_entry(2, wgpu::ShaderStages::FRAGMENT),
             ],
         });
-        let path_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("path"),
-            source: wgpu::ShaderSource::Wgsl(PATH_SHADER.into()),
-        });
         let sprite_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("sprite"),
             source: wgpu::ShaderSource::Wgsl(SPRITE_SHADER.into()),
-        });
-        let blur_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("blur"),
-            source: wgpu::ShaderSource::Wgsl(BLUR_SHADER.into()),
         });
         let image_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("image"),
@@ -547,69 +550,7 @@ impl SceneGpu {
         });
         let (quad_layout, quad_shader) = quad_resources(&device);
         let quad_pipeline = quad_pipe(&device, &quad_shader, &quad_layout, format, 1, None);
-        let plain = pipe_set(
-            &device,
-            &path_shader,
-            &sprite_shader,
-            &quad_shader,
-            &path_layout,
-            &sprite_layout,
-            &quad_layout,
-            format,
-            1,
-        );
-        let msaa = if samples > 1 {
-            Some(pipe_set(
-                &device,
-                &path_shader,
-                &sprite_shader,
-                &quad_shader,
-                &path_layout,
-                &sprite_layout,
-                &quad_layout,
-                format,
-                samples,
-            ))
-        } else {
-            None
-        };
         let sprite_swap = sprite_pipeline(&device, &sprite_shader, &sprite_layout, format, 1, None);
-        const BLUR_ATTRS: [wgpu::VertexAttribute; 2] =
-            wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2];
-        let blur_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("blur"),
-            layout: Some(
-                &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: Some("blur-pl"),
-                    bind_group_layouts: &[Some(&blur_layout)],
-                    immediate_size: 0,
-                }),
-            ),
-            vertex: wgpu::VertexState {
-                module: &blur_shader,
-                entry_point: Some("vs"),
-                compilation_options: Default::default(),
-                buffers: &[Some(wgpu::VertexBufferLayout {
-                    array_stride: 16,
-                    step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &BLUR_ATTRS,
-                })],
-            },
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                ..Default::default()
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            fragment: Some(wgpu::FragmentState {
-                module: &blur_shader,
-                entry_point: Some("fs"),
-                compilation_options: Default::default(),
-                targets: &[Some(color_target(format, wgpu::ColorWrites::ALL))],
-            }),
-            multiview_mask: None,
-            cache: None,
-        });
         let blur_quad = init_buffer(
             &device,
             &queue,
@@ -637,13 +578,17 @@ impl SceneGpu {
             sprite_layout,
             blur_layout,
             quad_layout,
-            blur_pipeline,
+            blur_pipeline: OnceLock::new(),
             blur_quad,
             image_sampler,
             glyph_sampler,
             glyph_sampler_linear,
-            plain,
-            msaa,
+            samples,
+            geom: OnceLock::new(),
+            geom_clipped: OnceLock::new(),
+            path_shader: OnceLock::new(),
+            sprite_shader,
+            quad_shader,
             sprite_swap,
             quad_pipeline,
             quad_geo,
@@ -728,6 +673,7 @@ impl SceneGpu {
             &color_linear,
             world,
         );
+        self.trim_pool();
         self.path_buffer = grow(
             &self.device,
             &self.queue,
@@ -879,7 +825,7 @@ impl SceneGpu {
             return;
         }
         let verts = std::mem::take(batch);
-        let baked = self.bake(
+        if let Some(baked) = self.bake(
             plan,
             vec![Drawn::Paths(verts)],
             &SceneLayer::default(),
@@ -887,9 +833,10 @@ impl SceneGpu {
             scale,
             width,
             height,
-        );
-        for sprite in blit_sprites(baked, width, height) {
-            push_root_sprite(plan, sprite);
+        ) {
+            for sprite in blit_sprites(baked, width, height) {
+                push_root_sprite(plan, sprite);
+            }
         }
     }
 
@@ -944,8 +891,11 @@ impl SceneGpu {
                             color_linear,
                             world,
                         );
-                        let baked = self.bake(plan, inner, layer, current, scale, width, height);
-                        out.push(Drawn::Blit(baked));
+                        if let Some(baked) =
+                            self.bake(plan, inner, layer, current, scale, width, height)
+                        {
+                            out.push(Drawn::Blit(baked));
+                        }
                     }
                     index = if end < ops.len() { end + 1 } else { end };
                 }
@@ -1276,16 +1226,15 @@ impl SceneGpu {
         scale: f32,
         width: u32,
         height: u32,
-    ) -> BlitDraw {
-        let samples = self.msaa.as_ref().map(|set| set.samples).unwrap_or(1);
-        let target = self.alloc(width, height, samples);
+    ) -> Option<BlitDraw> {
+        let samples = self.samples;
         let transformed = layer.transform != Affine::IDENTITY;
         let sigma = layer.blur * base.uniform_scale() * scale;
         let blurred = sigma.is_finite() && sigma > 0.0;
         // A moved or blurred group spreads past its content, so its scissor
         // cuts the composited result instead.
         let after = transformed || blurred;
-        let scissor = match &layer.clip {
+        let mut scissor = match &layer.clip {
             Some(ClipShape::Scissor(rect)) if !after => scissor_px(*rect, scale, width, height),
             _ => None,
         };
@@ -1299,6 +1248,47 @@ impl SceneGpu {
             _ => NO_SCISSOR,
         };
         let transform = device_affine(layer.transform, scale);
+        let extent = content_extent(&drawn);
+        // These operations need screen-sized sampling or do not give us a
+        // conservative footprint (e.g. a child with a custom effect).
+        let can_crop = !after
+            && layer.effect.is_none()
+            && !drawn.iter().any(|item| match item {
+                Drawn::Blit(blit) => !blit.bounds_local,
+                Drawn::Effect(_) | Drawn::Backdrop(_) => true,
+                _ => false,
+            });
+        let mut place = None;
+        let mut viewport = None;
+        let (tw, th) = if can_crop {
+            if drawn.is_empty() {
+                return None;
+            }
+            if let Some(extent) = extent {
+                let [x, y, w, h] = layer_rect(extent, width, height)?;
+                if let Some((sx, sy, sw, sh)) = scissor {
+                    let x0 = x.max(sx);
+                    let y0 = y.max(sy);
+                    let x1 = (x + w).min(sx + sw);
+                    let y1 = (y + h).min(sy + sh);
+                    if x1 <= x0 || y1 <= y0 {
+                        return None;
+                    }
+                    scissor = Some((x0 - x, y0 - y, x1 - x0, y1 - y0));
+                }
+                if [x, y, w, h] != [0, 0, width, height] {
+                    let origin = [x as f32, y as f32];
+                    viewport = Some(self.viewport_buffer([w as f32, h as f32], origin));
+                    place = Some([origin[0], origin[1], w as f32, h as f32]);
+                }
+                (w, h)
+            } else {
+                (width, height)
+            }
+        } else {
+            (width, height)
+        };
+        let bounds_local = can_crop && extent.is_some();
         let (clip_offset, clip_verts) = match &layer.clip {
             Some(ClipShape::RoundRect { rect, radius }) => {
                 self.clip_bytes(plan, &Path::round_rect(*rect, *radius), base, scale)
@@ -1306,7 +1296,7 @@ impl SceneGpu {
             Some(ClipShape::Path(path)) => self.clip_bytes(plan, path, base, scale),
             _ => (None, 0),
         };
-        let extent = content_extent(&drawn);
+        let target = self.alloc(tw, th, samples, clip_offset.is_some());
         let cmds = pack_cmds(plan, drawn, width, height);
         let replay = layer.effect.is_some().then(|| cmds.clone());
         let mut bind = target.bind.clone();
@@ -1317,7 +1307,7 @@ impl SceneGpu {
             clip_offset,
             clip_verts,
             cmds,
-            viewport: None,
+            viewport,
         }));
         let shadow = self.shadow(
             plan,
@@ -1333,7 +1323,6 @@ impl SceneGpu {
             extent,
         );
         let mut published = extent;
-        let mut place = None;
         if blurred {
             if let Some((result, region)) =
                 self.layer_blur(plan, &source, sigma, extent, width, height)
@@ -1369,7 +1358,7 @@ impl SceneGpu {
         if transformed {
             published = published.map(|extent| map_extent(extent, transform));
         }
-        BlitDraw {
+        Some(BlitDraw {
             bind,
             shadow: shadow.bind,
             opacity: layer.opacity.clamp(0.0, 1.0),
@@ -1381,7 +1370,8 @@ impl SceneGpu {
             transform,
             scissor: composite_scissor,
             place,
-        }
+            bounds_local,
+        })
     }
 
     /// Blur the content of a layer texture inside `extent` plus the kernel.
@@ -1414,7 +1404,7 @@ impl SceneGpu {
             rw as f32 / width as f32,
             rh as f32 / height as f32,
         ];
-        let first = self.alloc(bw, bh, 1);
+        let first = self.alloc(bw, bh, 1, false);
         let bind = self.blur_bind(source, false, 0.0, bw, bh, 1.0, map);
         plan.passes.push(Pass::Blur(BlurJob {
             view: first.color.clone(),
@@ -1423,7 +1413,7 @@ impl SceneGpu {
         let mut view = first.color;
         let mut result = first.bind;
         for horizontal in [true, false] {
-            let target = self.alloc(bw, bh, 1);
+            let target = self.alloc(bw, bh, 1, false);
             let bind = self.blur_bind(&view, horizontal, sigma_texel, bw, bh, 0.0, [0.0; 4]);
             plan.passes.push(Pass::Blur(BlurJob {
                 view: target.color.clone(),
@@ -1499,7 +1489,7 @@ impl SceneGpu {
         let mut jobs = Vec::new();
         let mut view = copy_view.clone();
         if bw != rw || bh != rh {
-            let target = self.alloc(bw, bh, 1);
+            let target = self.alloc(bw, bh, 1, false);
             let bind = self.blur_bind(&view, false, 0.0, bw, bh, 1.0, [0.0, 0.0, 1.0, 1.0]);
             jobs.push(BlurJob {
                 view: target.color.clone(),
@@ -1509,7 +1499,7 @@ impl SceneGpu {
         }
         let mut result = None;
         for horizontal in [true, false] {
-            let target = self.alloc(bw, bh, 1);
+            let target = self.alloc(bw, bh, 1, false);
             let bind = self.blur_bind(&view, horizontal, sigma_texel, bw, bh, 0.0, [0.0; 4]);
             jobs.push(BlurJob {
                 view: target.color.clone(),
@@ -1686,8 +1676,8 @@ impl SceneGpu {
         tw: u32,
         th: u32,
     ) -> ShadowBlit {
-        let samples = self.msaa.as_ref().map(|set| set.samples).unwrap_or(1);
-        let target = self.alloc(tw, th, samples);
+        let samples = self.samples;
+        let target = self.alloc(tw, th, samples, clip_offset.is_some());
         let source = target.color.clone();
         let colored = target.bind.clone();
         // Device positions are `mesh + translation`. Adding a large translation
@@ -1723,7 +1713,7 @@ impl SceneGpu {
         let mut result = colored;
         // A 1:1 copy would quantize sRGB again. The texture is already padded.
         if bw != tw || bh != th {
-            let resampled = self.alloc(bw, bh, 1);
+            let resampled = self.alloc(bw, bh, 1, false);
             let resample = self.blur_bind(&source, false, 0.0, bw, bh, 1.0, [0.0, 0.0, 1.0, 1.0]);
             source = resampled.color.clone();
             plan.passes.push(Pass::Blur(BlurJob {
@@ -1733,7 +1723,7 @@ impl SceneGpu {
             result = resampled.bind.clone();
         }
         for horizontal in [true, false] {
-            let blur_target = self.alloc(bw, bh, 1);
+            let blur_target = self.alloc(bw, bh, 1, false);
             let bind = self.blur_bind(&source, horizontal, sigma_texel, bw, bh, 0.0, [0.0; 4]);
             let view = blur_target.color.clone();
             plan.passes.push(Pass::Blur(BlurJob {
@@ -1782,7 +1772,7 @@ impl SceneGpu {
             expanded_w / width as f32,
             expanded_h / height as f32,
         ];
-        let resampled = self.alloc(bw, bh, 1);
+        let resampled = self.alloc(bw, bh, 1, false);
         let resample = self.blur_bind(&source, false, 0.0, bw, bh, 1.0, map);
         let mut source = resampled.color.clone();
         plan.passes.push(Pass::Blur(BlurJob {
@@ -1791,7 +1781,7 @@ impl SceneGpu {
         }));
         let mut result = resampled.bind.clone();
         for horizontal in [true, false] {
-            let target = self.alloc(bw, bh, 1);
+            let target = self.alloc(bw, bh, 1, false);
             let bind = self.blur_bind(&source, horizontal, sigma_texel, bw, bh, 0.0, [0.0; 4]);
             let view = target.color.clone();
             plan.passes.push(Pass::Blur(BlurJob {
@@ -1917,6 +1907,66 @@ impl SceneGpu {
         effects.run(effect.id, &mut cx);
     }
 
+    fn geom_pipes(&self, clipped: bool) -> &GeomPipes {
+        let cache = if clipped {
+            &self.geom_clipped
+        } else {
+            &self.geom
+        };
+        cache.get_or_init(|| {
+            let path_shader = self.path_shader.get_or_init(|| {
+                self.device
+                    .create_shader_module(wgpu::ShaderModuleDescriptor {
+                        label: Some("path"),
+                        source: wgpu::ShaderSource::Wgsl(PATH_SHADER.into()),
+                    })
+            });
+            let path = |mode| {
+                path_pipeline(
+                    &self.device,
+                    path_shader,
+                    &self.path_layout,
+                    self.format,
+                    self.samples,
+                    mode,
+                )
+            };
+            let compare = clipped.then_some(wgpu::CompareFunction::Equal);
+            GeomPipes {
+                path: path(if clipped {
+                    ClipMode::Inside
+                } else {
+                    ClipMode::Draw
+                }),
+                clip: clipped.then(|| path(ClipMode::Write)),
+                sprite: if !clipped && self.samples == 1 {
+                    self.sprite_swap.clone()
+                } else {
+                    sprite_pipeline(
+                        &self.device,
+                        &self.sprite_shader,
+                        &self.sprite_layout,
+                        self.format,
+                        self.samples,
+                        compare,
+                    )
+                },
+                quad: if !clipped && self.samples == 1 {
+                    self.quad_pipeline.clone()
+                } else {
+                    quad_pipe(
+                        &self.device,
+                        &self.quad_shader,
+                        &self.quad_layout,
+                        self.format,
+                        self.samples,
+                        compare,
+                    )
+                },
+            }
+        })
+    }
+
     fn run_geom(
         &self,
         encoder: &mut wgpu::CommandEncoder,
@@ -1927,11 +1977,7 @@ impl SceneGpu {
         if let Some(viewport) = &pass.viewport {
             encoder.copy_buffer_to_buffer(viewport, 0, &self.uniform, 0, 16);
         }
-        let pipes = if pass.target.samples > 1 {
-            self.msaa.as_ref().unwrap_or(&self.plain)
-        } else {
-            &self.plain
-        };
+        let pipes = self.geom_pipes(pass.clip_offset.is_some());
         let color_view = pass.target.msaa.as_ref().unwrap_or(&pass.target.color);
         let resolve = pass.target.msaa.as_ref().map(|_| &pass.target.color);
         let path_bind = self.path_bind();
@@ -1955,13 +2001,15 @@ impl SceneGpu {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &pass.target.stencil,
-                    depth_ops: None,
-                    stencil_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(0),
-                        store: wgpu::StoreOp::Discard,
-                    }),
+                depth_stencil_attachment: pass.target.stencil.as_ref().map(|view| {
+                    wgpu::RenderPassDepthStencilAttachment {
+                        view,
+                        depth_ops: None,
+                        stencil_ops: Some(wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(0),
+                            store: wgpu::StoreOp::Discard,
+                        }),
+                    }
                 }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
@@ -1972,20 +2020,18 @@ impl SceneGpu {
                 render.set_scissor_rect(x, y, w, h);
             }
             if let Some(offset) = pass.clip_offset {
-                render.set_pipeline(&pipes.path_clip);
+                render.set_pipeline(pipes.clip.as_ref().expect("stencil clip pipeline"));
                 render.set_stencil_reference(1);
                 render.set_bind_group(0, &path_bind, &[]);
                 let end = offset + pass.clip_verts as u64 * PATH_STRIDE as u64;
                 render.set_vertex_buffer(0, self.path_buffer.slice(offset..end));
                 render.draw(0..pass.clip_verts, 0..1);
             }
-            let inside = pass.clip_offset.is_some();
             while let Some(cmd) = pass.cmds.get(at) {
                 match cmd {
                     Cmd::Effect(_) | Cmd::Backdrop(_) => break,
                     Cmd::Paths { offset, verts } if *verts > 0 => {
-                        render.set_pipeline(if inside { &pipes.path_in } else { &pipes.path });
-                        render.set_stencil_reference(1);
+                        render.set_pipeline(&pipes.path);
                         render.set_bind_group(0, &path_bind, &[]);
                         let end = *offset + *verts as u64 * PATH_STRIDE as u64;
                         render.set_vertex_buffer(0, self.path_buffer.slice(*offset..end));
@@ -1996,20 +2042,14 @@ impl SceneGpu {
                         verts,
                         bind,
                     } if *verts > 0 => {
-                        render.set_pipeline(if inside {
-                            &pipes.sprite_in
-                        } else {
-                            &pipes.sprite
-                        });
-                        render.set_stencil_reference(1);
+                        render.set_pipeline(&pipes.sprite);
                         render.set_bind_group(0, bind, &[]);
                         let end = *offset + *verts as u64 * SPRITE_STRIDE as u64;
                         render.set_vertex_buffer(0, self.sprite_buffer.slice(*offset..end));
                         render.draw(0..*verts, 0..1);
                     }
                     Cmd::Quads(start, end) if end > start => {
-                        render.set_pipeline(if inside { &pipes.quad_in } else { &pipes.quad });
-                        render.set_stencil_reference(1);
+                        render.set_pipeline(&pipes.quad);
                         render.set_bind_group(0, quad_bind, &[]);
                         render.set_vertex_buffer(0, self.quad_geo.slice(..));
                         render.set_vertex_buffer(1, self.quad_buffer.slice(..));
@@ -2053,6 +2093,52 @@ impl SceneGpu {
         }
     }
 
+    fn blur_pipeline(&self) -> &wgpu::RenderPipeline {
+        self.blur_pipeline.get_or_init(|| {
+            let device = &self.device;
+            let blur_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("blur"),
+                source: wgpu::ShaderSource::Wgsl(BLUR_SHADER.into()),
+            });
+            const BLUR_ATTRS: [wgpu::VertexAttribute; 2] =
+                wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2];
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("blur"),
+                layout: Some(
+                    &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                        label: Some("blur-pl"),
+                        bind_group_layouts: &[Some(&self.blur_layout)],
+                        immediate_size: 0,
+                    }),
+                ),
+                vertex: wgpu::VertexState {
+                    module: &blur_shader,
+                    entry_point: Some("vs"),
+                    compilation_options: Default::default(),
+                    buffers: &[Some(wgpu::VertexBufferLayout {
+                        array_stride: 16,
+                        step_mode: wgpu::VertexStepMode::Vertex,
+                        attributes: &BLUR_ATTRS,
+                    })],
+                },
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
+                    ..Default::default()
+                },
+                depth_stencil: None,
+                multisample: wgpu::MultisampleState::default(),
+                fragment: Some(wgpu::FragmentState {
+                    module: &blur_shader,
+                    entry_point: Some("fs"),
+                    compilation_options: Default::default(),
+                    targets: &[Some(color_target(self.format, wgpu::ColorWrites::ALL))],
+                }),
+                multiview_mask: None,
+                cache: None,
+            })
+        })
+    }
+
     fn run_blur(&self, encoder: &mut wgpu::CommandEncoder, job: &BlurJob) {
         let mut render = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("blur"),
@@ -2070,7 +2156,7 @@ impl SceneGpu {
             occlusion_query_set: None,
             multiview_mask: None,
         });
-        render.set_pipeline(&self.blur_pipeline);
+        render.set_pipeline(self.blur_pipeline());
         render.set_bind_group(0, &job.bind, &[]);
         render.set_vertex_buffer(0, self.blur_quad.slice(..));
         render.draw(0..6, 0..1);
@@ -2286,29 +2372,69 @@ impl SceneGpu {
         }
     }
 
-    fn alloc(&mut self, width: u32, height: u32, samples: u32) -> TargetUse {
+    fn alloc(&mut self, width: u32, height: u32, samples: u32, stencil: bool) -> TargetUse {
         let width = width.max(1);
         let height = height.max(1);
-        if self.pool.len() > 24 {
-            if let Some(index) = self.pool.iter().position(|slot| slot.stamp != self.frame) {
-                self.pool.remove(index);
-            }
-        }
         if let Some(index) = self.pool.iter().position(|slot| {
             slot.width == width
                 && slot.height == height
                 && slot.samples == samples
+                && slot.stencil_view.is_some() == stencil
                 && slot.stamp != self.frame
         }) {
             self.pool[index].stamp = self.frame;
             return self.pool[index].to_use();
         }
-        let slot = self.create_slot(width, height, samples);
+        self.trim_pool();
+        let slot = self.create_slot(width, height, samples, stencil);
         self.pool.push(slot);
         self.pool.last().unwrap().to_use()
     }
 
-    fn create_slot(&self, width: u32, height: u32, samples: u32) -> PoolSlot {
+    /// Drop the least recently used targets this frame is not drawing into
+    /// until the rest fit [`POOL_SPARE_BYTES`] and [`POOL_SPARE_SLOTS`].
+    ///
+    /// Targets match by exact size, so a window or pane resize leaves one
+    /// behind on every frame. Each holds a colour, a multisampled colour and a
+    /// stencil buffer, so keeping them grows by hundreds of megabytes a frame.
+    fn trim_pool(&mut self) {
+        let frame = self.frame;
+        let spare = |pool: &[PoolSlot]| {
+            pool.iter()
+                .filter(|slot| slot.stamp != frame)
+                .fold((0u64, 0usize), |(bytes, count), slot| {
+                    (bytes + slot.bytes, count + 1)
+                })
+        };
+        loop {
+            let (bytes, count) = spare(&self.pool);
+            if bytes <= POOL_SPARE_BYTES && count <= POOL_SPARE_SLOTS {
+                break;
+            }
+            let oldest = self
+                .pool
+                .iter()
+                .enumerate()
+                .filter(|(_, slot)| slot.stamp != frame)
+                .min_by_key(|(_, slot)| slot.stamp)
+                .map(|(index, _)| index);
+            let Some(index) = oldest else { break };
+            self.pool.remove(index);
+        }
+    }
+
+    /// Trim reuse targets when a frame did not need offscreen rendering at all.
+    pub(crate) fn trim_idle_pool(&mut self) {
+        self.frame = self.frame.wrapping_add(1);
+        self.trim_pool();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn pool_bytes(&self) -> u64 {
+        self.pool.iter().map(|slot| slot.bytes).sum()
+    }
+
+    fn create_slot(&self, width: u32, height: u32, samples: u32, stencil: bool) -> PoolSlot {
         let extent = wgpu::Extent3d {
             width,
             height,
@@ -2340,32 +2466,52 @@ impl SceneGpu {
         } else {
             None
         };
-        let stencil = self.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("layer-stencil"),
-            size: extent,
-            mip_level_count: 1,
-            sample_count: samples,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Depth24PlusStencil8,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            view_formats: &[],
+        let stencil = stencil.then(|| {
+            self.device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("layer-stencil"),
+                size: extent,
+                mip_level_count: 1,
+                sample_count: samples,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Depth24PlusStencil8,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                view_formats: &[],
+            })
         });
         let color_view = color.create_view(&wgpu::TextureViewDescriptor::default());
         let msaa_view = msaa
             .as_ref()
             .map(|texture| texture.create_view(&wgpu::TextureViewDescriptor::default()));
-        let stencil_view = stencil.create_view(&wgpu::TextureViewDescriptor::default());
+        let stencil_view = stencil
+            .as_ref()
+            .map(|texture| texture.create_view(&wgpu::TextureViewDescriptor::default()));
         let sampler = self.image_sampler.clone();
         let bind = self.sprite_bind(&color_view, &sampler);
         let color_texture = color.clone();
-        let mut keep = vec![color, stencil];
+        let mut keep = vec![color];
+        keep.extend(stencil);
         if let Some(msaa) = msaa {
             keep.push(msaa);
         }
+        // Resolved color, optional multisample color, and optional
+        // depth/stencil (estimated at four bytes per sample).
+        let texel = self.format.block_copy_size(None).unwrap_or(4) as u64;
+        let multisampled = if samples > 1 {
+            texel * samples as u64
+        } else {
+            0
+        };
+        let stencil_bytes = if stencil_view.is_some() {
+            4 * u64::from(samples)
+        } else {
+            0
+        };
+        let bytes = u64::from(width) * u64::from(height) * (texel + multisampled + stencil_bytes);
         PoolSlot {
             width,
             height,
             samples,
+            bytes,
             color_texture,
             color_view,
             msaa_view,
@@ -3042,6 +3188,18 @@ fn content_extent(drawn: &[Drawn]) -> Option<[f32; 4]> {
     acc
 }
 
+/// Snap outward to the device-pixel grid and keep one guard pixel for
+/// fractional edges and multisample coverage. The original viewport still
+/// clips content before the layer is composited.
+fn layer_rect(extent: [f32; 4], width: u32, height: u32) -> Option<[u32; 4]> {
+    let [x0, y0, x1, y1] = extent;
+    let x0 = (x0.floor() - 1.0).clamp(0.0, width as f32) as u32;
+    let y0 = (y0.floor() - 1.0).clamp(0.0, height as f32) as u32;
+    let x1 = (x1.ceil() + 1.0).clamp(0.0, width as f32) as u32;
+    let y1 = (y1.ceil() + 1.0).clamp(0.0, height as f32) as u32;
+    (x1 > x0 && y1 > y0).then(|| [x0, y0, x1 - x0, y1 - y0])
+}
+
 /// Device-pixel bounds of `quads`, each cut to its own clip.
 fn quads_extent(quads: &[Quad], scale: f32) -> Option<[f32; 4]> {
     let mut acc = None;
@@ -3507,7 +3665,7 @@ fn quad_resources(device: &wgpu::Device) -> (wgpu::BindGroupLayout, wgpu::Shader
     let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: Some("quad-bg"),
         entries: &[
-            buffer_entry(0, wgpu::ShaderStages::VERTEX),
+            buffer_entry(0, wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT),
             texture_entry(1, wgpu::ShaderStages::FRAGMENT),
             sampler_entry(2, wgpu::ShaderStages::FRAGMENT),
             texture_entry(3, wgpu::ShaderStages::FRAGMENT),
@@ -3583,79 +3741,6 @@ fn quad_pipe(
     })
 }
 
-#[allow(clippy::too_many_arguments)]
-fn pipe_set(
-    device: &wgpu::Device,
-    path_shader: &wgpu::ShaderModule,
-    sprite_shader: &wgpu::ShaderModule,
-    quad_shader: &wgpu::ShaderModule,
-    path_layout: &wgpu::BindGroupLayout,
-    sprite_layout: &wgpu::BindGroupLayout,
-    quad_layout: &wgpu::BindGroupLayout,
-    format: wgpu::TextureFormat,
-    samples: u32,
-) -> PipeSet {
-    PipeSet {
-        samples,
-        path: path_pipeline(
-            device,
-            path_shader,
-            path_layout,
-            format,
-            samples,
-            ClipMode::Draw,
-        ),
-        path_clip: path_pipeline(
-            device,
-            path_shader,
-            path_layout,
-            format,
-            samples,
-            ClipMode::Write,
-        ),
-        path_in: path_pipeline(
-            device,
-            path_shader,
-            path_layout,
-            format,
-            samples,
-            ClipMode::Inside,
-        ),
-        sprite: sprite_pipeline(
-            device,
-            sprite_shader,
-            sprite_layout,
-            format,
-            samples,
-            Some(wgpu::CompareFunction::Always),
-        ),
-        sprite_in: sprite_pipeline(
-            device,
-            sprite_shader,
-            sprite_layout,
-            format,
-            samples,
-            Some(wgpu::CompareFunction::Equal),
-        ),
-        quad: quad_pipe(
-            device,
-            quad_shader,
-            quad_layout,
-            format,
-            samples,
-            Some(wgpu::CompareFunction::Always),
-        ),
-        quad_in: quad_pipe(
-            device,
-            quad_shader,
-            quad_layout,
-            format,
-            samples,
-            Some(wgpu::CompareFunction::Equal),
-        ),
-    }
-}
-
 #[derive(Clone, Copy)]
 enum ClipMode {
     Draw,
@@ -3712,7 +3797,7 @@ fn path_pipeline(
             topology: wgpu::PrimitiveTopology::TriangleList,
             ..Default::default()
         },
-        depth_stencil: Some(stencil_state(compare, pass_op)),
+        depth_stencil: (!matches!(clip, ClipMode::Draw)).then(|| stencil_state(compare, pass_op)),
         multisample: wgpu::MultisampleState {
             count: samples,
             mask: !0,

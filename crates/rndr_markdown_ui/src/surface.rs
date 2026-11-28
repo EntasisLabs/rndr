@@ -48,6 +48,7 @@ struct Node {
     top: Entity,
     bottom: Entity,
     dragging: bool,
+    link_press: Option<(String, [f32; 2], u64)>,
     /// Theme colors baked into the projected spans.
     theme: u64,
     /// Caret the scrollport last brought into view. A later caret move reveals
@@ -253,6 +254,10 @@ impl MarkdownSurface {
             AccessMark(AccessRole::Group),
             ViewportRows(realize),
         ));
+        world.insert(
+            root,
+            AccessOverlayActivate(crate::access::activate_published_link),
+        );
         let top = spacer(world, root);
         let bottom = spacer(world, root);
         world.insert(
@@ -271,6 +276,7 @@ impl MarkdownSurface {
                 top,
                 bottom,
                 dragging: false,
+                link_press: None,
                 theme: 0,
                 revealed: None,
             },
@@ -511,17 +517,84 @@ fn cancel_if_composing(world: &mut World, root: Entity) {
 }
 
 fn place_pointer(world: &mut World) {
+    if events::<WindowFocus>(world).contains(&WindowFocus::Blurred) {
+        for root in world.entities_with::<Node>() {
+            if let Some(node) = world.get_mut::<Node>(root) {
+                node.link_press = None;
+                node.dragging = false;
+            }
+        }
+        return;
+    }
     let Some(input) = world.resource::<Input>() else {
         return;
     };
     let pointer = input.pointer;
+    let mac = world
+        .resource::<Platform>()
+        .copied()
+        .unwrap_or_else(Platform::host)
+        == Platform::Mac;
+    let primary = if mac {
+        input.super_key && !input.ctrl
+    } else {
+        input.ctrl && !input.super_key
+    };
+    let link_modifier = primary && !input.alt && !input.shift;
     let roots: Vec<Entity> = world.entities_with::<Node>();
     for root in roots {
         let dragging = world.get::<Node>(root).is_some_and(|node| node.dragging);
+        let pending = world
+            .get_mut::<Node>(root)
+            .and_then(|node| node.link_press.take());
+        if let Some((href, origin, revision)) = pending {
+            let near = (pointer.position[0] - origin[0]).abs() <= 4.0
+                && (pointer.position[1] - origin[1]).abs() <= 4.0;
+            let current = root_document(world, root)
+                .and_then(|document| world.resource::<crate::MarkdownDocuments>()?.get(document))
+                .map(Session::revision);
+            if near && current == Some(revision) && link_modifier {
+                if pointer.released && pointer.button == PointerButton::Left {
+                    if link_at_pointer(world, root, pointer.position).as_deref() == Some(&href) {
+                        send(world, LinkActivated { view: root, href });
+                    }
+                } else if pointer.down {
+                    world.get_mut::<Node>(root).unwrap().link_press =
+                        Some((href, origin, revision));
+                }
+            }
+            continue;
+        }
         if pointer.pressed && pointer.button == PointerButton::Left {
-            if let Some(hit) = hit_test(world, pointer.position[0], pointer.position[1]) {
-                if !owns_press(world, hit) {
+            let press_at = pointer.press_at.unwrap_or(pointer.position);
+            if let Some(hit) = hit_test(world, press_at[0], press_at[1]) {
+                if !belongs_to(world, root, hit) {
                     continue;
+                }
+                if link_modifier {
+                    if let Some(href) = link_at_pointer(world, root, press_at) {
+                        let revision = root_document(world, root)
+                            .and_then(|document| {
+                                world.resource::<crate::MarkdownDocuments>()?.get(document)
+                            })
+                            .map(Session::revision)
+                            .unwrap_or(0);
+                        let node = world.get_mut::<Node>(root).unwrap();
+                        node.dragging = false;
+                        if pointer.released {
+                            let near = (pointer.position[0] - press_at[0]).abs() <= 4.0
+                                && (pointer.position[1] - press_at[1]).abs() <= 4.0;
+                            if near
+                                && link_at_pointer(world, root, pointer.position).as_deref()
+                                    == Some(&href)
+                            {
+                                send(world, LinkActivated { view: root, href });
+                            }
+                        } else {
+                            node.link_press = Some((href, press_at, revision));
+                        }
+                        continue;
+                    }
                 }
                 if let Some(focus) = world.resource_mut::<Focus>() {
                     focus.entity = Some(root);
@@ -533,7 +606,7 @@ fn place_pointer(world: &mut World) {
             }
         } else if pointer.down && dragging {
             if let Some(hit) = hit_test(world, pointer.position[0], pointer.position[1]) {
-                if owns_press(world, hit) {
+                if belongs_to(world, root, hit) {
                     place_hit(world, root, hit, pointer.position, true);
                 }
             }
@@ -543,6 +616,73 @@ fn place_pointer(world: &mut World) {
             }
         }
     }
+}
+
+fn belongs_to(world: &World, root: Entity, mut hit: Entity) -> bool {
+    for _ in 0..48 {
+        if hit == root {
+            return true;
+        }
+        let Some(parent) = world.get::<Parent>(hit) else {
+            return false;
+        };
+        hit = parent.entity;
+    }
+    false
+}
+
+fn link_at_pointer(world: &World, root: Entity, at: [f32; 2]) -> Option<String> {
+    let hit = hit_test(world, at[0], at[1])?;
+    if !belongs_to(world, root, hit)
+        || task_box_hit(world, hit)
+        || crate::grid::is_handle(world, hit)
+    {
+        return None;
+    }
+    let node = world.get::<Node>(root)?;
+    let session = world
+        .resource::<crate::MarkdownDocuments>()?
+        .get(node.document)?;
+    if session.is_composing() {
+        return None;
+    }
+    let source = if let Some(source) = crate::grid::link_source_at(world, hit, at) {
+        source
+    } else {
+        let slot_entity = slot_of(world, hit)?;
+        let slot = world.get::<Slot>(slot_entity)?;
+        let stored = node
+            .blocks
+            .iter()
+            .find(|block| block.span.start == slot.start && block.span.end == slot.end)?;
+        let block = presented(world, node.document, stored);
+        if let Some(source) = task_text_source(world, hit, &block, at, true) {
+            source
+        } else {
+            // Use the same projected label, style, width, origin and source map as painting.
+            let rect = world.get::<Rect>(slot_entity)?;
+            let label = block.label_text();
+            let style = style_for_kind(&block.kind, world);
+            let engine = text_engine(world);
+            let metrics = label_box(world, slot_entity);
+            let layout = engine.layout(
+                &label,
+                &style,
+                &label_spans(&block),
+                metrics.text_width(rect.w, engine.unit_advance(&style)),
+            );
+            let index = crate::links::hit_index(
+                &layout,
+                at[0] - rect.x - metrics.inset_x,
+                at[1] - rect.y - metrics.inset_y,
+            )?;
+            if index >= label.len() || index < block.chrome.len() {
+                return None;
+            }
+            crate::links::source(&block, index)?
+        }
+    };
+    crate::links::at(session.bytes(), session.tree(), source)
 }
 
 fn place_hit(world: &mut World, root: Entity, hit: Entity, at: [f32; 2], extend: bool) {
@@ -605,7 +745,7 @@ fn place_hit(world: &mut World, root: Entity, hit: Entity, at: [f32; 2], extend:
             return;
         }
     }
-    if let Some(source) = task_text_source(world, original_hit, &block, at) {
+    if let Some(source) = task_text_source(world, original_hit, &block, at, false) {
         if let Some(session) = world
             .resource_mut::<crate::MarkdownDocuments>()
             .and_then(|docs| docs.get_mut(document))
@@ -633,13 +773,21 @@ fn place_hit(world: &mut World, root: Entity, hit: Entity, at: [f32; 2], extend:
         }
         return;
     }
-    let width = rect.w.max(1.0);
     let style = style_for_kind(&block.kind, world);
     let engine = text_engine(world);
+    let metrics = label_box(world, hit);
     let label = block.label_text();
     let spans = label_spans(&block);
-    let layout = engine.layout(&label, &style, &spans, (width - 8.0).max(1.0));
-    let index = layout.index_at(at[0] - rect.x, at[1] - rect.y);
+    let layout = engine.layout(
+        &label,
+        &style,
+        &spans,
+        metrics.text_width(rect.w, engine.unit_advance(&style)),
+    );
+    let index = layout.index_at(
+        at[0] - rect.x - metrics.inset_x,
+        at[1] - rect.y - metrics.inset_y,
+    );
     let source = block.display_to_source(index);
     if let Some(session) = world
         .resource_mut::<crate::MarkdownDocuments>()
@@ -2089,6 +2237,7 @@ fn task_text_source(
     mut hit: Entity,
     block: &DisplayBlock,
     at: [f32; 2],
+    strict: bool,
 ) -> Option<usize> {
     if !matches!(block.kind, DisplayKind::Task(_)) {
         return None;
@@ -2106,8 +2255,16 @@ fn task_text_source(
                 .map(|spans| spans.runs.as_slice())
                 .unwrap_or_default();
             let layout = text_engine(world).layout(&text, &style, runs, rect.w.max(1.0));
-            let index = layout.index_at(at[0] - rect.x, at[1] - rect.y);
-            return Some(block.display_to_source(block.chrome.len() + index));
+            let index = if strict {
+                crate::links::hit_index(&layout, at[0] - rect.x, at[1] - rect.y)?
+            } else {
+                layout.index_at(at[0] - rect.x, at[1] - rect.y)
+            };
+            return if strict {
+                crate::links::source(block, block.chrome.len() + index)
+            } else {
+                Some(block.display_to_source(block.chrome.len() + index))
+            };
         }
         if world.has::<Slot>(hit) {
             return None;
@@ -2651,12 +2808,47 @@ fn publish_access(world: &mut World, entity: Entity) {
     let Some(document) = document else {
         return;
     };
-    let nodes = world
+    let (mut nodes, revision) = world
         .resource::<crate::MarkdownDocuments>()
         .and_then(|docs| docs.get(document))
-        .map(|session| build_overlay(session.bytes(), session.tree(), &bounds, clip))
+        .map(|session| {
+            (
+                build_overlay(session.bytes(), session.tree(), &bounds, clip),
+                session.revision(),
+            )
+        })
         .unwrap_or_default();
+    // IDs remain stable for bounds/selection updates, but never migrate to a
+    // different source revision or another surface. Queued native actions can
+    // therefore be checked by exact membership even after a tree republish.
+    let previous = if world
+        .get::<crate::access::PublishedRevision>(entity)
+        .map(|value| value.0)
+        == Some(revision)
+    {
+        world
+            .get::<AccessOverlay>(entity)
+            .map(|overlay| overlay.nodes.iter().map(|node| node.id).collect::<Vec<_>>())
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+    let mut ids = std::collections::HashMap::new();
+    for (index, node) in nodes.iter().enumerate() {
+        let id = previous
+            .get(index)
+            .copied()
+            .unwrap_or_else(|| allocate_access_overlay_id(world));
+        ids.insert(node.id, id);
+    }
+    for node in &mut nodes {
+        node.id = ids[&node.id];
+        for child in &mut node.children {
+            *child = ids[child];
+        }
+    }
     world.insert(entity, AccessOverlay { nodes });
+    world.insert(entity, crate::access::PublishedRevision(revision));
 }
 
 /// Document id of a mounted surface.
@@ -2713,7 +2905,7 @@ mod task_hit_tests {
                     detected_old_mismatch |= index != unstyled.index_at(x, y);
                     let expected = block.display_to_source(block.chrome.len() + index);
                     assert_eq!(
-                        task_text_source(&world, hit, block, [rect.x + x, rect.y + y]),
+                        task_text_source(&world, hit, block, [rect.x + x, rect.y + y], false),
                         Some(expected)
                     );
                 }

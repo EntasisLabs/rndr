@@ -149,6 +149,9 @@ fn hover_press_focus_and_truncation_pixels_in_light_and_dark() {
             input.pointer.position = [-10.0, -10.0];
         }
         assert!(request_focus(app.world_mut(), scene.hover));
+        // Pointer focus hides the ring; keyboard input makes it visible again.
+        app.world_mut().resource_mut::<Input>().unwrap().keys =
+            vec![KeyEvent::character('x', Modifiers::default())];
         let frame = rndr_paint::frame(&mut app);
         let image = gpu
             .render_frame(Some(app.world()), &frame, 720, 320, 2.0)

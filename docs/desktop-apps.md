@@ -125,12 +125,88 @@ A subsequent explicit Save replaces that file, as the warning explains.
 Ordinary text events and clipboard contain plaintext; do not use these
 helpers for a credential field. OS secure-store work is separate.
 
+## Desktop app icons: development and release
+
+Choose a stable reverse-DNS ID and use it in the app and its shell metadata.
+An icon set at runtime cannot create a Finder, Start menu, or Linux launcher
+entry. Package the icon as well if it should appear before launch.
+
+```rust,ignore
+const APP_ID: &str = "org.example.MyApp";
+// Use this for a bare `cargo run` or an intentional runtime override.
+rndr::set_app_icon(include_bytes!("../icons/window.png").as_slice())
+    .expect("valid application icon");
+rndr::Session::new(app).app_id(APP_ID).run();
+```
+
+The session ID applies to initial and dynamically opened ordinary windows. It
+sets the Wayland app ID, the X11 window class and the Windows AppUserModelID;
+macOS uses the `.app` bundle identifier. For separate dev and release launchers,
+give the dev app a different ID in **both** code and packaging.
+
+### macOS: Dock in dev, Finder and Dock from a bundle
+
+`cargo run -p desktop -- --memory` uses the example's embedded PNG for its
+Dock icon. A packaged Desktop Workshop uses the system bundle icon instead.
+To package another app, build it first, then on macOS run:
+
+```sh
+python3 scripts/package-app-icon.py macos \
+  --id org.example.MyApp --name 'My App' --binary target/release/my-app \
+  --icon icons/app-1024.png --version 1.0 --build-number 1 \
+  --output 'target/bundle/My App.app'
+```
+
+The command converts a 1024×1024 PNG into a multi-resolution `.icns`, writes a
+matching `Info.plist`, and stages a new bundle. Run it before signing. If your
+app already has a bundler or a custom plist, have that bundler install the icon
+and set `CFBundleIconFile` and `CFBundleIdentifier` instead.
+
+### Windows: taskbar and the executable icon
+
+`set_app_icon` supplies the running window and taskbar icons. Embed a
+multi-resolution `.ico` so Explorer and shortcuts can also show it while the
+app is closed. The example's [build.rs](../examples/desktop/build.rs) and
+[resource file](../examples/desktop/icons/app.rc) show how to link the icon in
+both Cargo profiles using `embed-resource` and the Windows SDK resource
+compiler. Build the app normally (`cargo build -p desktop --release` for the
+example). If your installer creates a Start menu shortcut, point its icon at
+the installed `.exe` and set the shortcut's AppUserModelID to the same ID as
+`Session::app_id`, so it groups with the running app. The example does not
+create or pin shortcuts.
+
+### Linux: X11 and Wayland launchers
+
+The runtime PNG works on X11 and on Wayland compositors that support
+`xdg_toplevel_icon_v1`. For reliable Wayland launcher/dock integration, install
+an XDG desktop entry and themed icon. For Desktop Workshop on Linux:
+
+```sh
+cargo build -p desktop --release
+python3 scripts/package-app-icon.py linux \
+  --id org.rndr.desktop-workshop --name 'Desktop Workshop' \
+  --binary target/release/desktop --icon examples/desktop/icons/window.png \
+  --prefix /usr --output target/linux-stage
+```
+
+Give the staged `bin/` and `share/` to your package builder for installation
+under `/usr`. The `.desktop` filename stem, `StartupWMClass`, and icon name
+match the running app ID. For a local dev launcher, use the `target/debug`
+binary and `--prefix "$HOME/.local"`; copy `bin/` to `~/.local/bin` and `share/`
+to your XDG data home (normally `~/.local/share`), preserving the directory
+layout. The tool stages files only; it never installs a launcher or changes a
+system icon cache.
+
+After packaging, check the icon **before launch** and launch from that same
+entry to check window/dock grouping. Check again after quit and relaunch.
+Signing, notarization and installer distribution remain app-owned.
+
 ## Local macOS .app distribution
 
 Developer prerequisites: macOS, the Rust toolchain, Xcode Command Line Tools,
-`python3`, `iconutil` and `plutil`. No paid services, credentials or signing
-identities are needed for this local build. The icon generator is stdlib-only
-and draws original geometric artwork; no download or external asset is used.
+`python3`, `sips`, `iconutil` and `plutil`. No paid services, credentials or
+signing identities are needed for this local build. The original example icons
+are checked in; regenerate them with `python3 scripts/desktop-icon.py examples/desktop/icons`.
 
 ```sh
 # Default is an optimized release build; check disk first.

@@ -1223,6 +1223,14 @@ fn source_index(hit: &Hit, display: usize) -> usize {
 }
 
 pub(crate) fn source_at(world: &World, hit: Entity, at: [f32; 2]) -> Option<usize> {
+    pointer_source(world, hit, at, false)
+}
+
+pub(crate) fn link_source_at(world: &World, hit: Entity, at: [f32; 2]) -> Option<usize> {
+    pointer_source(world, hit, at, true)
+}
+
+fn pointer_source(world: &World, hit: Entity, at: [f32; 2], strict: bool) -> Option<usize> {
     let entity = find_hit(world, hit)?;
     let cell = world.get::<Hit>(entity)?;
     let rect = world.get::<Rect>(entity).copied()?;
@@ -1237,8 +1245,27 @@ pub(crate) fn source_at(world: &World, hit: Entity, at: [f32; 2]) -> Option<usiz
         .unwrap_or_default();
     let inner = (rect.w - cell.inset_x * 2.0).max(1.0);
     let layout = text_engine(world).layout(&label.text, &style, &spans, inner);
-    let index = layout.index_at(at[0] - rect.x - cell.inset_x, at[1] - rect.y - cell.inset_y);
-    Some(source_index(cell, index))
+    let x = at[0] - rect.x - cell.inset_x;
+    let y = at[1] - rect.y - cell.inset_y;
+    let index = if strict {
+        crate::links::hit_index(&layout, x, y)?
+    } else {
+        layout.index_at(x, y)
+    };
+    if strict {
+        let seg = cell
+            .segments
+            .iter()
+            .find(|seg| seg.display_start <= index && index < seg.display_end)?;
+        let offset = if seg.display_end - seg.display_start == seg.source_end - seg.source_start {
+            index - seg.display_start
+        } else {
+            0
+        };
+        Some(cell.block_start + seg.source_start + offset)
+    } else {
+        Some(source_index(cell, index))
+    }
 }
 
 fn find_hit(world: &World, mut entity: Entity) -> Option<Entity> {

@@ -390,9 +390,10 @@ native-platform acceptance are different things:
   each `myapp://…` link the OS opens with the app (launch arguments on Linux and
   Windows, the get-URL Apple event on macOS), and `Reopened` for a launch without a
   link or a macOS Dock click, after the runner shows and focuses that window. Links
-  pass through unchecked. `set_app_icon(png_or_jpeg)` sets the Dock icon on macOS and
-  each window's icon on Windows and X11. Linux X11 is tested natively; macOS and
-  Windows are compile-checked only. `cargo run -p lifecycle` shows them.
+  pass through unchecked. `set_app_icon(png_or_jpeg)` sets the runtime icon;
+  `Session::app_id` matches windows to the shell's app identity. See
+  [desktop app icons](docs/desktop-apps.md#desktop-app-icons-development-and-release)
+  for development runs and macOS, Windows and Linux release packaging.
 - **Text features and selectable labels:** `TextStyle` and `TextSpan` take OpenType
   `FontFeature`s (`FontFeature::on(b"tnum")`) and variable-font `FontAxis` values
   (`FontAxis::new(b"wght", 550.0)`), applied by the Parley shaper; a span's settings

@@ -2,7 +2,7 @@
 //!
 //! A grid is a viewport of cells, not a document. Each cell has a character,
 //! a foreground, a background, and a small style. Layout builds glyph runs
-//! only for rows whose generation changed, and blank rows do not call the
+//! only for rows whose generation or shaping context changed; blank rows do not call the
 //! text engine. Paint reads that cache.
 
 use crate::font::{PlacedGlyph, TextSpan};
@@ -14,6 +14,21 @@ use crate::world::{Component, World};
 
 impl Component for MonoGrid {}
 impl Component for MonoCache {}
+impl Component for MonoContext {}
+
+// Engine-owned line ids must never be promoted in another engine, even when
+// its epoch happens to match. Keep this bookkeeping private, and the public
+// MonoCache/MonoRow construction contract unchanged.
+struct MonoContext {
+    engine: std::sync::Weak<dyn TextEngine>,
+    epoch: u64,
+    cols: usize,
+    cell_w: f32,
+    cell_h: f32,
+    default_bg: Color,
+    font: TextStyle,
+    line_ids: Vec<Vec<u64>>,
+}
 
 /// How the bottom of a cell is stroked.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -263,21 +278,41 @@ fn positive(value: f32) -> f32 {
     }
 }
 
-/// Rebuild shaped rows whose generation changed.
+/// Rebuild rows whose generation or engine/shaping context changed.
 ///
 /// Called at the end of [`crate::App::update`], after rects are final. A row
-/// that still has the recorded generation is left as it was. A row of ordinary
-/// spaces does not ask the text engine for glyphs.
+/// with an unchanged context and generation keeps its quads and promotes its
+/// engine line ids, retaining the glyph atlas slots. A row of ordinary spaces
+/// does not ask the text engine for glyphs. Atlas growth during this pass is
+/// detected by the shared text stabilization pass in [`crate::App::update`].
 pub fn apply_mono_grid(world: &mut World) {
     let engine = text_engine(world);
     let entities = world.entities_with::<MonoGrid>();
     for entity in entities {
-        let Some(plan) = plan_rows(world, entity) else {
+        let epoch = engine.cache_epoch();
+        let Some(plan) = plan_rows(world, entity, &engine, epoch) else {
             continue;
         };
+        // Retain unchanged rows before shaping any changed rows can recycle slots.
+        if let Some(context) = world.get::<MonoContext>(entity) {
+            for (row, ids) in context.line_ids.iter().enumerate() {
+                if !plan.stale.contains(&row) {
+                    engine.touch_lines(ids);
+                }
+            }
+        }
+        if plan.stale.is_empty() {
+            continue;
+        }
+        let mut ids = world
+            .get::<MonoContext>(entity)
+            .map(|context| context.line_ids.clone())
+            .unwrap_or_default();
+        ids.resize(plan.rows, Vec::new());
         let mut updates = Vec::with_capacity(plan.stale.len());
         for row in &plan.stale {
-            let (built, shapes) = shape_row(&*engine, &plan, *row);
+            let (built, shapes, line_ids) = shape_row(&*engine, &plan, *row);
+            ids[*row] = line_ids;
             updates.push((*row, built, shapes));
         }
         let mut cache = world.remove::<MonoCache>(entity).unwrap_or_default();
@@ -290,6 +325,21 @@ pub fn apply_mono_grid(world: &mut World) {
             cache.shaped = cache.shaped.saturating_add(shapes);
         }
         world.insert(entity, cache);
+        world.insert(
+            entity,
+            MonoContext {
+                engine: std::sync::Arc::downgrade(&engine),
+                // Record the start, not the end: a later run may have invalidated
+                // quads already built earlier in this very grid.
+                epoch,
+                cols: plan.cols,
+                cell_w: plan.cell_w,
+                cell_h: plan.cell_h,
+                default_bg: plan.default_bg,
+                font: plan.font,
+                line_ids: ids,
+            },
+        );
     }
 }
 
@@ -305,7 +355,12 @@ struct RowPlan {
     stale: Vec<usize>,
 }
 
-fn plan_rows(world: &World, entity: crate::entity::Entity) -> Option<RowPlan> {
+fn plan_rows(
+    world: &World,
+    entity: crate::entity::Entity,
+    engine: &std::sync::Arc<dyn TextEngine>,
+    epoch: u64,
+) -> Option<RowPlan> {
     let (cols, rows, cell_w, cell_h, default_bg, font, gens) = {
         let grid = world.get::<MonoGrid>(entity)?;
         let cols = grid.cols as usize;
@@ -323,16 +378,29 @@ fn plan_rows(world: &World, entity: crate::entity::Entity) -> Option<RowPlan> {
             grid.row_gen.clone(),
         )
     };
+    let same_context = world.get::<MonoContext>(entity).is_some_and(|context| {
+        context.epoch == epoch
+            && context
+                .engine
+                .upgrade()
+                .is_some_and(|stored| std::sync::Arc::ptr_eq(&stored, engine))
+            && context.cols == cols
+            && context.cell_w == cell_w
+            && context.cell_h == cell_h
+            && context.default_bg == default_bg
+            && context.font == font
+    });
     let stale: Vec<usize> = match world.get::<MonoCache>(entity) {
-        Some(cache) if cache.rows.len() == rows => (0..rows)
+        Some(cache) if same_context && cache.rows.len() == rows => (0..rows)
             .filter(|row| cache.rows[*row].gen != gens[*row])
             .collect(),
         _ => (0..rows).collect(),
     };
-    if stale.is_empty() {
-        return None;
-    }
-    let cells = world.get::<MonoGrid>(entity)?.cells.clone();
+    let cells = if stale.is_empty() {
+        Vec::new()
+    } else {
+        world.get::<MonoGrid>(entity)?.cells.clone()
+    };
     Some(RowPlan {
         rows,
         cols,
@@ -346,13 +414,14 @@ fn plan_rows(world: &World, entity: crate::entity::Entity) -> Option<RowPlan> {
     })
 }
 
-fn shape_row(engine: &dyn TextEngine, plan: &RowPlan, row: usize) -> (MonoRow, u64) {
+fn shape_row(engine: &dyn TextEngine, plan: &RowPlan, row: usize) -> (MonoRow, u64, Vec<u64>) {
     let start = row * plan.cols;
     let cells = &plan.cells[start..start + plan.cols];
     let mut backgrounds = Vec::new();
     let mut strokes = Vec::new();
     let mut glyphs = Vec::new();
     let mut shaped = 0u64;
+    let mut line_ids = Vec::new();
 
     coalesce(cells, plan, row, &mut backgrounds, &mut strokes);
 
@@ -415,6 +484,7 @@ fn shape_row(engine: &dyn TextEngine, plan: &RowPlan, row: usize) -> (MonoRow, u
         };
         let mut layout = engine.layout(&text, &font, &spans, f32::INFINITY);
         shaped += 1;
+        line_ids.extend_from_slice(layout.line_cache_ids());
         let y_shift = row as f32 * plan.cell_h;
         let placed = std::mem::take(&mut layout.glyphs);
         for mut glyph in placed {
@@ -435,6 +505,7 @@ fn shape_row(engine: &dyn TextEngine, plan: &RowPlan, row: usize) -> (MonoRow, u
             strokes,
         },
         shaped,
+        line_ids,
     )
 }
 

@@ -576,6 +576,106 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_small_opacity_group_stays_small_as_the_viewport_grows() {
+        use rndr_core::{set_parent, App, Color, Layout, Opacity, Size, Viewport};
+        let mut exporter = Exporter::new().expect("graphics adapter");
+        for (w, h) in [(600, 400), (1000, 700)] {
+            let mut app = App::new();
+            app.world_mut()
+                .insert_resource(Viewport::new(w as f32, h as f32));
+            let root = app.world_mut().spawn((
+                Layout {
+                    width: Size::Px(w as f32),
+                    height: Size::Px(h as f32),
+                    padding: 32.5,
+                    ..Layout::row()
+                },
+                Color::rgb(1.0, 1.0, 1.0),
+            ));
+            let faded = app.world_mut().spawn((
+                Layout {
+                    width: Size::Px(120.0),
+                    height: Size::Px(120.0),
+                    ..Layout::row()
+                },
+                Color::rgb(1.0, 0.0, 0.0),
+                Opacity(0.5),
+            ));
+            set_parent(app.world_mut(), faded, root);
+            let frame = rndr_paint::frame(&mut app);
+            let image = exporter
+                .render_frame(Some(app.world()), &frame, w * 2, h * 2, 2.0)
+                .expect("render");
+            let pixel = |x: u32, y: u32| {
+                let offset = ((y * image.width + x) * 4) as usize;
+                <[u8; 4]>::try_from(&image.rgba[offset..offset + 4]).unwrap()
+            };
+            let [r, g, b, a] = pixel(100, 100);
+            assert!(r > 245 && (120..205).contains(&g) && g == b && a == 255);
+            for (x, y) in [(10, 10), (60, 100), (100, 60), (310, 100), (100, 310)] {
+                assert_eq!(pixel(x, y), [255; 4], "outside the layer at {x}, {y}");
+            }
+            // One 240×240 texture with a one-pixel guard on every side,
+            // resolved color plus up to 4× MSAA color. No stencil or spares.
+            let bytes = exporter.gpu().scene.pool_bytes();
+            assert!(
+                bytes > 0 && bytes <= 242 * 242 * (4 + 16),
+                "pool held {bytes} bytes"
+            );
+        }
+    }
+
+    /// A window resize asks for a new layer size every frame. The pool keeps
+    /// only a bounded spare set, not one target per size it has seen.
+    #[test]
+    fn resizing_does_not_keep_a_layer_target_per_size() {
+        use rndr_core::{set_parent, App, Color, Layout, Opacity, Size, Transform, Viewport};
+        let mut exporter = match Exporter::new() {
+            Ok(exporter) => exporter,
+            Err(ExportError::NoAdapter) => panic!("no graphics adapter"),
+            Err(err) => panic!("{err}"),
+        };
+        let mut most = 0;
+        for step in 0..30u32 {
+            let (w, h) = (600.0 + step as f32 * 7.0, 400.0 + step as f32 * 5.0);
+            let mut app = App::new();
+            app.world_mut().insert_resource(Viewport::new(w, h));
+            let root = app.world_mut().spawn((
+                Layout {
+                    width: Size::Px(w),
+                    height: Size::Px(h),
+                    ..Layout::row()
+                },
+                Color::rgb(1.0, 1.0, 1.0),
+            ));
+            let faded = app.world_mut().spawn((
+                Layout {
+                    width: Size::Px(120.0),
+                    height: Size::Px(120.0),
+                    ..Layout::row()
+                },
+                Color::rgb(1.0, 0.0, 0.0),
+            ));
+            set_parent(app.world_mut(), faded, root);
+            app.world_mut().insert(faded, Opacity(0.5));
+            // A post-raster transform still takes the viewport-sized path.
+            app.world_mut()
+                .insert(faded, Transform::translate(1.0, 0.0));
+            let frame = rndr_paint::frame(&mut app);
+            exporter
+                .render_frame(Some(app.world()), &frame, w as u32 * 2, h as u32 * 2, 2.0)
+                .expect("render");
+            most = most.max(exporter.gpu().scene.pool_bytes());
+        }
+        // The largest frame's layer: resolved color and up to 4× MSAA color.
+        let layer = 803 * 2 * 545 * 2 * (4 + 16) as u64;
+        assert!(
+            most <= crate::scene::POOL_SPARE_BYTES + layer,
+            "pool held {most} bytes"
+        );
+    }
+
+    #[test]
     fn rejects_an_oversized_export() {
         let err = pixel_size(
             Rect {

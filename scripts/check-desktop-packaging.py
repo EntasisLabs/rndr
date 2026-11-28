@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Packaging control-flow regressions with fake platform/build tools, not native signoff."""
 import os
+import plistlib
 from pathlib import Path
 import subprocess
 import sys
@@ -9,6 +10,8 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/package-desktop-macos.sh"
+ICON_PACKAGER = ROOT / "scripts/package-app-icon.py"
+ICONS = ROOT / "examples/desktop/icons"
 
 
 class Packaging(unittest.TestCase):
@@ -27,7 +30,12 @@ class Packaging(unittest.TestCase):
         self.tool("uname", "print('Darwin')")
         self.tool("df", "print('Filesystem blocks used available'); print('test 9999999 0 9999999')")
         self.tool("rustc", "print('host: aarch64-apple-darwin')")
-        self.tool("iconutil", "Path(sys.argv[sys.argv.index('-o') + 1]).write_bytes(b'icon')")
+        # Enter the actual packager with a simulated Mac platform.
+        self.tool("python3", "import runpy; sys.platform = 'darwin'; "
+                  "script = sys.argv.pop(1); runpy.run_path(script, run_name='__main__')")
+        self.tool("sips", "Path(sys.argv[-1]).write_bytes(b'scaled PNG')")
+        self.tool("iconutil", "assert len(list(Path(sys.argv[3]).glob('*.png'))) == 10; "
+                  "Path(sys.argv[-1]).write_bytes(b'icon')")
         self.tool("plutil", "assert Path(sys.argv[-1]).is_file()")
         self.tool("cargo", r"""
 args = sys.argv[1:]
@@ -64,7 +72,13 @@ binary.write_text('fresh native artifact')
         args = (self.base / "build-args").read_text().splitlines()
         self.assertEqual(args[args.index("--target") + 1], "aarch64-apple-darwin")
         self.assertEqual(args[args.index("--target-dir") + 1], str(self.target))
-        self.assertFalse(list((self.target / "bundle").glob(".desktop-workshop.*")))
+        contents = binary.parents[1]
+        with (contents / "Info.plist").open("rb") as f:
+            plist = plistlib.load(f)
+        self.assertEqual(plist["CFBundleIdentifier"], "org.rndr.desktop-workshop")
+        self.assertEqual(plist["CFBundleExecutable"], binary.name)
+        self.assertEqual((contents / "Resources" / plist["CFBundleIconFile"]).read_bytes(), b"icon")
+        self.assertFalse(list((self.target / "bundle").glob(".rndr-icon-*")))
         # Existing bundles are preserved and refused before another build.
         (self.base / "build-args").unlink()
         result = self.run_package()
@@ -82,6 +96,42 @@ binary.write_text('fresh native artifact')
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse((self.target / "bundle/Desktop Workshop.app").exists())
         self.assertEqual(stale.read_text(), "stale")
+
+
+    def linux_package(self, *extra):
+        binary = self.base / "example-binary"
+        binary.write_bytes(b"executable")
+        return subprocess.run([sys.executable, str(ICON_PACKAGER), "linux",
+                               "--binary", str(binary), "--icon", str(ICONS / "window.png"),
+                               "--id", "org.example.Workshop", "--name", "Workshop Café",
+                               "--output", str(self.base / "stage"), *extra],
+                              text=True, capture_output=True, check=False)
+
+    def test_linux_stage_joins_identity_launcher_and_artwork(self):
+        result = self.linux_package("--prefix", "/home/example/My Apps")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        root = self.base / "stage"
+        app_id = "org.example.Workshop"
+        executable = root / "bin" / app_id
+        self.assertEqual(executable.read_bytes(), b"executable")
+        self.assertTrue(os.access(executable, os.X_OK))
+        icon = root / "share/icons/hicolor/256x256/apps" / f"{app_id}.png"
+        self.assertEqual(icon.read_bytes(), (ICONS / "window.png").read_bytes())
+        launcher = root / "share/applications" / f"{app_id}.desktop"
+        self.assertIn(f'Exec="/home/example/My Apps/bin/{app_id}"\n', launcher.read_text())
+        self.assertIn(f"Icon={app_id}\nStartupWMClass={app_id}\n", launcher.read_text())
+        result = self.linux_package()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("refusing to replace existing output", result.stderr)
+
+    def test_invalid_linux_input_leaves_no_stage(self):
+        for extra in [("--id", "../../evil"), ("--prefix", "/usr/%k"),
+                      ("--name", "App\nExec=unexpected"), ("--icon", str(ICONS / "app.ico"))]:
+            with self.subTest(extra=extra):
+                result = self.linux_package(*extra)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse((self.base / "stage").exists())
+                self.assertFalse(list(self.base.glob(".rndr-icon-*")))
 
 
 if __name__ == "__main__":

@@ -17,10 +17,13 @@ mod access;
 mod document;
 mod grid;
 mod intent;
+mod links;
 mod project;
 mod surface;
 
-pub use access::{access_snapshot, set_access_selection, MarkdownAccessSnapshot};
+pub use access::{
+    access_snapshot, activate_access_link, set_access_selection, MarkdownAccessSnapshot,
+};
 pub use document::{MarkdownDocuments, MarkdownId};
 pub use project::{
     measure_block, present, project, update_projection, DisplayBlock, DisplayKind, Palette,
